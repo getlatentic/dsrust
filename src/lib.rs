@@ -1,5 +1,5 @@
-//! A DSPy-style layer in Rust: declare a task as a [`signature::Signature`], drive it
-//! through a module in [`predict`], and let the [`adapter`]s carry it over the wire to the
+//! A DSPy-style layer in Rust: declare a task as a [`struct@signature::Signature`], drive it
+//! through a module in [`mod@predict`], and let the [`adapter`]s carry it over the wire to the
 //! provider behind [`lm::LM`].
 
 // `#[derive(Signature)]` expands to `::dsrs::...` paths; the alias keeps those

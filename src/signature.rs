@@ -227,7 +227,7 @@ pub fn json_field_schema<T: schemars::JsonSchema>() -> Value {
 }
 
 /// A DSPy-style signature: the task instructions plus the typed input and output fields.
-/// The signature owns WHAT the task is; the modules in [`crate::predict`] own HOW the model
+/// The signature owns WHAT the task is; the modules in [`mod@crate::predict`] own HOW the model
 /// is asked.
 pub struct Signature {
     pub instructions: String,

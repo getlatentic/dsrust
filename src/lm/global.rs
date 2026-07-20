@@ -1,5 +1,5 @@
 //! The process-wide default LM, DSPy-style: the server configures once at startup and the
-//! modules in [`crate::predict`] resolve it at call time, so call sites stop threading an
+//! modules in [`mod@crate::predict`] resolve it at call time, so call sites stop threading an
 //! HTTP client and model through every layer. Reconfigurable, so a later configure wins.
 
 use std::sync::{Arc, RwLock};
