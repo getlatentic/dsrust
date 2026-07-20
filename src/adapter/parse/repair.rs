@@ -20,23 +20,66 @@ pub(crate) fn python_literal(text: &str) -> Option<Value> {
     serde_json::from_str(&to_json(text)?).ok()
 }
 
-/// Rewrite the parts of Python's literal syntax that JSON spells differently, and leave the
-/// rest — structure, whitespace, punctuation — to serde_json, which then judges the result.
+/// Rewrite the parts of Python's literal syntax that JSON spells differently, and close any
+/// container the writer left open, leaving the rest for serde_json to judge.
 fn to_json(text: &str) -> Option<String> {
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
+    let mut open: Vec<char> = Vec::new();
     while let Some(&next) = chars.peek() {
         match next {
             '\'' | '"' => copy_string(&mut chars, &mut out)?,
             '0'..='9' | '-' | '+' | '.' => copy_number(&mut chars, &mut out),
             next if next.is_alphabetic() => copy_word(&mut chars, &mut out)?,
+            '[' | '{' => {
+                open.push(next);
+                out.push(next);
+                chars.next();
+            }
+            ']' | '}' => {
+                close_through(&mut open, next, &mut out)?;
+                chars.next();
+            }
             _ => {
                 out.push(next);
                 chars.next();
             }
         }
     }
+    // A reply cut short leaves its containers open; closing them reads the value the writer
+    // was part-way through rather than discarding everything it did say.
+    while let Some(opener) = open.pop() {
+        out.push(closer(opener));
+    }
     Some(out)
+}
+
+/// Emit `found`, closing any container opened inside the one it belongs to.
+///
+/// A model that writes `[{"a": 1]` closed the list while its object was still open. Upstream's
+/// repairer reads that as the object ending too, which is the only reading that keeps the value
+/// — so a closer that does not match the innermost container closes the inner ones first.
+fn close_through(open: &mut Vec<char>, found: char, out: &mut String) -> Option<()> {
+    let wanted = match found {
+        ']' => '[',
+        _ => '{',
+    };
+    // A closer with nothing open is damage this cannot read; serde_json will reject it.
+    let depth = open.iter().rposition(|opener| *opener == wanted)?;
+    while open.len() > depth + 1 {
+        let inner = open.pop()?;
+        out.push(closer(inner));
+    }
+    open.pop();
+    out.push(found);
+    Some(())
+}
+
+fn closer(opener: char) -> char {
+    match opener {
+        '[' => ']',
+        _ => '}',
+    }
 }
 
 /// A quoted run in either of Python's two quote styles, re-emitted in JSON's one. Only the
@@ -141,7 +184,33 @@ mod tests {
     #[test]
     fn prose_and_other_dialects_are_not_guessed_at() {
         assert_eq!(python_literal("no json here"), None);
+        // json-repair reads this as `{"unquoted": 1}`; inferring quotes around a bare word is
+        // a further reading this does not attempt, so the value stays unrepaired.
         assert_eq!(python_literal("{unquoted: 1}"), None);
-        assert_eq!(python_literal("{'a': 1"), None);
+    }
+
+    #[test]
+    fn a_container_left_open_is_closed_rather_than_discarded() {
+        // A model that stops mid-structure has still said most of what it meant, and upstream's
+        // repairer reads it that way.
+        assert_eq!(python_literal("{'a': 1"), Some(json!({ "a": 1 })));
+        assert_eq!(python_literal("[1, 2"), Some(json!([1, 2])));
+    }
+
+    #[test]
+    fn a_closer_that_skips_a_level_closes_what_it_skipped() {
+        // `[{'name': 'x', 'args': {'city': 'Paris'}]` is upstream's own tool-call case: the
+        // list closes while the object is still open, and the only reading that keeps the
+        // value ends the object there too.
+        assert_eq!(
+            python_literal("[{'name': 'get_weather', 'args': {'city': 'Paris'}]"),
+            Some(json!([{ "name": "get_weather", "args": { "city": "Paris" } }]))
+        );
+    }
+
+    #[test]
+    fn a_stray_closer_is_still_refused() {
+        // Nothing was open, so this is damage with no reading rather than a truncation.
+        assert_eq!(python_literal("}'a': 1}"), None);
     }
 }

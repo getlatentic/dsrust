@@ -66,9 +66,34 @@ def kind_of(annotation: typing.Any) -> str:
         return KINDS[annotation]
     except (KeyError, TypeError):
         pass
-    if isinstance(annotation, type) and issubclass(annotation, pydantic.BaseModel):
+    if _carries_as_json(annotation):
         return f"json:{get_annotation_name(annotation)}"
     raise Unsupported(f"no Rust FieldKind for annotation {annotation!r}")
+
+
+def _carries_as_json(annotation: typing.Any) -> bool:
+    """Whether the crate's `Json` kind can carry values of this annotation.
+
+    A model does, since its values are objects. A container does exactly when everything it
+    holds does — `list[Tool]` rides on `Tool` — because the container is JSON either way and
+    what is inside it is what has to survive the crossing. Anything else says so rather than
+    crossing as an annotation whose values were never checked: a kind that renders a value
+    wrongly is worse than one that refuses it, because the prompt still looks plausible.
+    """
+    if isinstance(annotation, type) and issubclass(annotation, pydantic.BaseModel):
+        return True
+    args = typing.get_args(annotation)
+    return bool(args) and all(
+        arg is Ellipsis or arg is type(None) or _scalar_or_json(arg) for arg in args
+    )
+
+
+def _scalar_or_json(annotation: typing.Any) -> bool:
+    """Whether one member of a container is itself carryable."""
+    try:
+        return annotation in KINDS or _carries_as_json(annotation)
+    except TypeError:
+        return _carries_as_json(annotation)
 
 
 def closed_set_of(annotation: typing.Any) -> str | None:
