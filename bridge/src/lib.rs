@@ -42,11 +42,13 @@ impl DynChatModel for NotOnThisSide {
 }
 
 /// One input field as Python describes it: name, kind, description, any closed set, the prose
-/// any custom type in its annotation contributes, and the annotation's reflected structure.
+/// any custom type in its annotation contributes, the annotation's reflected structure, and
+/// what its pydantic constraints read as.
 type PyInField = (
     String,
     String,
     String,
+    Option<String>,
     Option<String>,
     Option<String>,
     Option<String>,
@@ -56,6 +58,7 @@ type PyOutField = (
     String,
     String,
     String,
+    Option<String>,
     Option<String>,
     Option<String>,
     Option<String>,
@@ -169,25 +172,29 @@ fn build_signature(
 ) -> PyResult<Signature> {
     let inputs = inputs
         .into_iter()
-        .map(|(name, kind, desc, values, descriptions, reflection)| {
-            Ok(InField {
-                name,
-                desc,
-                kind: kind_from(&kind, descriptions, reflection)?,
-                values: closed_set_from(values)?,
-            })
-        })
+        .map(
+            |(name, kind, desc, values, descriptions, reflection, constraints)| {
+                Ok(InField {
+                    name,
+                    desc,
+                    kind: kind_from(&kind, descriptions, reflection)?,
+                    values: closed_set_from(values)?,
+                    constraints,
+                })
+            },
+        )
         .collect::<PyResult<Vec<_>>>()?;
     let outputs = outputs
         .into_iter()
         .map(
-            |(name, kind, desc, schema, values, descriptions, reflection)| {
+            |(name, kind, desc, schema, values, descriptions, reflection, constraints)| {
                 Ok(OutField {
                     name,
                     desc,
                     kind: kind_from(&kind, descriptions, reflection)?,
                     values: closed_set_from(values)?,
                     schema: json_text(schema, "field schema")?,
+                    constraints,
                 })
             },
         )

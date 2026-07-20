@@ -287,14 +287,12 @@ mod tests {
     fn reflected_output(reflection: Value) -> OutField {
         OutField {
             name: "output".into(),
-            desc: String::new(),
             kind: FieldKind::Json(JsonType {
                 annotation: "Reflected".into(),
                 descriptions: Vec::new(),
                 reflection: Some(reflection),
             }),
-            values: None,
-            schema: None,
+            ..Default::default()
         }
     }
 
@@ -579,10 +577,8 @@ mod tests {
     fn a_scalar_field_names_itself_and_a_closed_set_replaces_the_kind() {
         let scalar = |kind: FieldKind| OutField {
             name: "output".into(),
-            desc: String::new(),
             kind,
-            values: None,
-            schema: None,
+            ..Default::default()
         };
         for (kind, expected) in [
             (FieldKind::Str, "string"),
@@ -606,10 +602,8 @@ mod tests {
     fn a_type_nothing_reflected_is_stated_by_its_annotation() {
         let opaque = OutField {
             name: "output".into(),
-            desc: String::new(),
             kind: FieldKind::Json(JsonType::plain("list[Idea]")),
-            values: None,
-            schema: None,
+            ..Default::default()
         };
         assert_eq!(output_type(&opaque).expect("renders"), "list[Idea]");
         assert!(!is_record(&opaque.kind));

@@ -11,14 +11,25 @@ use field_type::{annotation_of, coerce_value};
 /// `chain_of_thought!` twin evaluate to one typed module call awaiting the caller's `?`.
 pub use dsrs_derive::{Signature, chain_of_thought, predict};
 
-/// One input field of a signature: a name, a one-line description, a wire type, and an
-/// optional closed set the prompt spells as the field's type in place of that wire type.
-#[derive(Clone)]
+/// One input field of a signature: a name, a one-line description, a wire type, an optional
+/// closed set the prompt spells as the field's type in place of that wire type, and the prose
+/// its declared constraints read as.
+///
+/// [`Default`] is what keeps a field cheap to extend: every construction site names only the
+/// members it means and takes the rest from here, so a member added later costs no edits.
+#[derive(Clone, Default)]
 pub struct InField {
     pub name: String,
     pub desc: String,
     pub kind: FieldKind,
     pub values: Option<Vec<LiteralValue>>,
+    /// What pydantic's constraints on this field say, already in prose — `minimum length: 5`,
+    /// `greater than or equal to: 0, less than or equal to: 10`.
+    ///
+    /// dspy computes this string when the signature is declared, so it crosses the bridge as
+    /// data and this crate only decides where in the prompt it reads. A signature declared in
+    /// Rust has no constraints to state and leaves it empty.
+    pub constraints: Option<String>,
 }
 
 impl InField {
@@ -30,15 +41,22 @@ impl InField {
 }
 
 /// One output field of a signature: a name, a one-line description, a wire type, an
-/// optional closed set of allowed values (legal on `Str` fields only), and — for `Json`
-/// fields — the nested JSON schema of the declared type.
-#[derive(Clone)]
+/// optional closed set of allowed values (legal on `Str` fields only), — for `Json`
+/// fields — the nested JSON schema of the declared type, and the prose its declared
+/// constraints read as.
+///
+/// [`Default`] carries the same weight it does on [`InField`]: name the members that differ,
+/// take the rest from here.
+#[derive(Clone, Default)]
 pub struct OutField {
     pub name: String,
     pub desc: String,
     pub kind: FieldKind,
     pub values: Option<Vec<LiteralValue>>,
     pub schema: Option<Value>,
+    /// What pydantic's constraints on this field say, already in prose. See
+    /// [`InField::constraints`].
+    pub constraints: Option<String>,
 }
 
 impl OutField {
@@ -122,8 +140,7 @@ impl Signature {
             inputs: vec![InField {
                 name: "request".into(),
                 desc: "the request".into(),
-                kind: FieldKind::Str,
-                values: None,
+                ..Default::default()
             }],
             outputs,
         }
@@ -243,16 +260,13 @@ mod tests {
                 OutField {
                     name: "color".into(),
                     desc: "the chosen color".into(),
-                    kind: FieldKind::Str,
                     values: Some(vec!["red".into(), "blue".into()]),
-                    schema: None,
+                    ..Default::default()
                 },
                 OutField {
                     name: "why".into(),
                     desc: "one short sentence".into(),
-                    kind: FieldKind::Str,
-                    values: None,
-                    schema: None,
+                    ..Default::default()
                 },
             ],
         )
@@ -263,8 +277,7 @@ mod tests {
             name: name.into(),
             desc: name.into(),
             kind,
-            values: None,
-            schema: None,
+            ..Default::default()
         }
     }
 
@@ -454,8 +467,8 @@ mod tests {
                 name: "ideas".into(),
                 desc: "three concrete ideas".into(),
                 kind: FieldKind::opaque_json(),
-                values: None,
                 schema: Some(ideas_schema()),
+                ..Default::default()
             }],
         )
     }

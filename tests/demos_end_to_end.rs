@@ -15,9 +15,7 @@ fn signature() -> Signature {
         vec![OutField {
             name: "colour".into(),
             desc: "the chosen colour".into(),
-            kind: FieldKind::Str,
-            values: None,
-            schema: None,
+            ..Default::default()
         }],
     )
 }
@@ -94,18 +92,15 @@ fn a_demo_renders_every_value_shape_the_way_python_prints_it() {
         vec![OutField {
             name: "out".into(),
             desc: "the answer".into(),
-            kind: FieldKind::Str,
-            values: None,
-            schema: None,
+            ..Default::default()
         }],
     );
     signature.inputs = inputs
         .iter()
         .map(|name| InField {
             name: (*name).to_owned(),
-            desc: String::new(),
             kind: FieldKind::opaque_json(),
-            values: None,
+            ..Default::default()
         })
         .collect();
 

@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use dsrs::signature::{FieldKind, InField, OutField, Signature};
+use dsrs::signature::{InField, OutField, Signature};
 use dsrs::{DummyLM, Predict, TwoStepAdapter, example};
 
 fn signature() -> Signature {
@@ -12,16 +12,13 @@ fn signature() -> Signature {
         vec![OutField {
             name: "answer".into(),
             desc: "the reply".into(),
-            kind: FieldKind::Str,
-            values: None,
-            schema: None,
+            ..Default::default()
         }],
     );
     signature.inputs = vec![InField {
         name: "question".into(),
         desc: "the ask".into(),
-        kind: FieldKind::Str,
-        values: None,
+        ..Default::default()
     }];
     signature
 }

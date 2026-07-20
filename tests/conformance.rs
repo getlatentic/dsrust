@@ -47,7 +47,7 @@ fn load(path: &std::path::Path) -> Fixture {
             name: field["name"].as_str().expect("input name").to_owned(),
             desc: field["desc"].as_str().unwrap_or_default().to_owned(),
             kind: kind_from(field["kind"].as_str().expect("input kind")),
-            values: None,
+            ..Default::default()
         })
         .collect();
 
@@ -59,8 +59,7 @@ fn load(path: &std::path::Path) -> Fixture {
             name: field["name"].as_str().expect("output name").to_owned(),
             desc: field["desc"].as_str().unwrap_or_default().to_owned(),
             kind: kind_from(field["kind"].as_str().expect("output kind")),
-            values: None,
-            schema: None,
+            ..Default::default()
         })
         .collect();
 

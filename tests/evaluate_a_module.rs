@@ -10,7 +10,7 @@ use std::sync::Mutex;
 
 use anyhow::Result;
 use dsrs::lm::{ChatModel, ChatTurn, OutputMode};
-use dsrs::signature::{FieldKind, OutField, Signature};
+use dsrs::signature::{OutField, Signature};
 use dsrs::{Evaluate, Example, Prediction, exact_match, example};
 use serde_json::json;
 
@@ -49,9 +49,7 @@ fn signature() -> Signature {
         vec![OutField {
             name: "answer".into(),
             desc: "the answer".into(),
-            kind: FieldKind::Str,
-            values: None,
-            schema: None,
+            ..Default::default()
         }],
     )
 }

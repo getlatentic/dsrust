@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use anyhow::{Result, anyhow};
 
 use crate::lm::{ChatModel, ChatTurn, OutputMode};
-use crate::signature::{FieldKind, OutField, Signature};
+use crate::signature::{OutField, Signature};
 
 pub(super) fn signature() -> Signature {
     Signature::single_input(
@@ -16,16 +16,13 @@ pub(super) fn signature() -> Signature {
             OutField {
                 name: "color".into(),
                 desc: "the chosen color".into(),
-                kind: FieldKind::Str,
                 values: Some(vec!["red".into(), "blue".into()]),
-                schema: None,
+                ..Default::default()
             },
             OutField {
                 name: "why".into(),
                 desc: "one short sentence".into(),
-                kind: FieldKind::Str,
-                values: None,
-                schema: None,
+                ..Default::default()
             },
         ],
     )

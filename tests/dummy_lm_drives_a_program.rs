@@ -28,9 +28,7 @@ fn signature() -> Signature {
         vec![OutField {
             name: "answer".into(),
             desc: "the answer".into(),
-            kind: FieldKind::Str,
-            values: None,
-            schema: None,
+            ..Default::default()
         }],
     )
 }
@@ -64,8 +62,7 @@ async fn a_scripted_bool_survives_the_render_and_parse_round_trip() {
             name: "sure".into(),
             desc: "sure about it".into(),
             kind: FieldKind::Bool,
-            values: None,
-            schema: None,
+            ..Default::default()
         }],
     );
     let lm = Arc::new(DummyLM::new([example! { sure: true }]));

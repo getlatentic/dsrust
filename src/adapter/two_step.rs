@@ -19,7 +19,7 @@ use crate::adapter::python_json::format_value;
 use crate::adapter::{Adapter, ChatAdapter, Extraction};
 use crate::example::Example;
 use crate::lm::{ChatTurn, DynChatModel};
-use crate::signature::{FieldKind, InField, Signature};
+use crate::signature::{InField, Signature};
 
 use super::prompt::{numbered_input_lines, numbered_output_lines};
 
@@ -146,9 +146,7 @@ pub fn extractor_signature(signature: &Signature) -> Signature {
         instructions,
         inputs: vec![InField {
             name: TEXT.to_owned(),
-            desc: String::new(),
-            kind: FieldKind::Str,
-            values: None,
+            ..Default::default()
         }],
         outputs: signature.outputs.clone(),
     }
@@ -209,16 +207,13 @@ mod tests {
             vec![OutField {
                 name: "answer".into(),
                 desc: "the reply".into(),
-                kind: FieldKind::Str,
-                values: None,
-                schema: None,
+                ..Default::default()
             }],
         );
         signature.inputs = vec![InField {
             name: "question".into(),
             desc: "the ask".into(),
-            kind: FieldKind::Str,
-            values: None,
+            ..Default::default()
         }];
         signature
     }

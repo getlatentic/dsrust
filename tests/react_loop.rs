@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use dsrs::lm::{ChatModel, ChatTurn, OutputMode, global};
-use dsrs::signature::{FieldKind, OutField, Signature};
+use dsrs::signature::{OutField, Signature};
 use dsrs::{FnTool, Module, ReAct, Tool, example, react::arg_str};
 use serde_json::Value;
 
@@ -75,9 +75,7 @@ fn task() -> Signature {
         vec![OutField {
             name: "answer".into(),
             desc: "the answer".into(),
-            kind: FieldKind::Str,
-            values: None,
-            schema: None,
+            ..Default::default()
         }],
     )
 }

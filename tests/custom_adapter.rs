@@ -8,7 +8,7 @@ use anyhow::{Result, anyhow};
 use dsrs::Example;
 use dsrs::adapter::python_json::format_value;
 use dsrs::lm::ChatTurn;
-use dsrs::signature::{FieldKind, OutField, Signature};
+use dsrs::signature::{OutField, Signature};
 use dsrs::{Adapter, ChatAdapter};
 use serde_json::{Map, Value, json};
 
@@ -66,9 +66,7 @@ fn signature() -> Signature {
         vec![OutField {
             name: "colour".into(),
             desc: "the chosen colour".into(),
-            kind: FieldKind::Str,
-            values: None,
-            schema: None,
+            ..Default::default()
         }],
     )
 }

@@ -76,7 +76,7 @@ fn classify(signature: &Signature, demo: &Example) -> Kind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::signature::{FieldKind, InField, OutField};
+    use crate::signature::{InField, OutField};
     use serde_json::json;
 
     /// Two fields on each side, so a demo can miss one and still have something to show, and so
@@ -85,15 +85,12 @@ mod tests {
         let input = |name: &str, desc: &str| InField {
             name: name.into(),
             desc: desc.into(),
-            kind: FieldKind::Str,
-            values: None,
+            ..Default::default()
         };
         let output = |name: &str, desc: &str| OutField {
             name: name.into(),
             desc: desc.into(),
-            kind: FieldKind::Str,
-            values: None,
-            schema: None,
+            ..Default::default()
         };
         Signature {
             instructions: "Pick a colour.".into(),

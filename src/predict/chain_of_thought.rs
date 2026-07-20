@@ -8,7 +8,7 @@ use super::{Predict, typed, typed_task};
 use crate::example::{Example, Prediction};
 use crate::lm::{DynChatModel, global};
 use crate::module::{Module, NamedPredictor};
-use crate::signature::{FieldKind, OutField, Signature, SignatureSpec};
+use crate::signature::{OutField, Signature, SignatureSpec};
 
 /// dspy.ChainOfThought: the same signature with a leading `reasoning` field. The model puts
 /// its thinking there; the caller receives only the signature's own fields.
@@ -23,9 +23,7 @@ impl ChainOfThought {
             OutField {
                 name: "reasoning".into(),
                 desc: "think step by step about the request before the other fields".into(),
-                kind: FieldKind::Str,
-                values: None,
-                schema: None,
+                ..Default::default()
             },
         );
         Self {

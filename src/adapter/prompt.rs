@@ -9,7 +9,7 @@
 //! template, in a request, and in an already-answered exchange.
 
 use super::python_json::json_dumps;
-use crate::signature::{FieldKind, JsonType, OutField, Signature, wire_forms};
+use crate::signature::{FieldKind, InField, JsonType, OutField, Signature, wire_forms};
 
 pub(super) fn marker(name: &str) -> String {
     format!("[[ ## {name} ## ]]")
@@ -20,21 +20,64 @@ pub(super) fn section(name: &str, value: &str) -> String {
     format!("{}\n{value}", marker(name))
 }
 
-/// dspy `get_field_description_string`, one line: the number, the field name, its Python
-/// annotation, and the description. A closed set says itself through the annotation
-/// (`Literal['a', 'b']`), so nothing is appended after the description.
-fn numbered_line(
-    index: usize,
-    name: &str,
-    kind: &FieldKind,
-    annotation: &str,
-    desc: &str,
-) -> String {
+/// The parts of a field a numbered line reads. dspy describes an input and an output the same
+/// way, so both arrive here rather than each growing its own copy of the format.
+struct Described<'a> {
+    name: &'a str,
+    annotation: String,
+    kind: &'a FieldKind,
+    desc: &'a str,
+    constraints: Option<&'a str>,
+}
+
+impl<'a> From<&'a InField> for Described<'a> {
+    fn from(field: &'a InField) -> Self {
+        Self {
+            name: &field.name,
+            annotation: field.annotation(),
+            kind: &field.kind,
+            desc: &field.desc,
+            constraints: field.constraints.as_deref(),
+        }
+    }
+}
+
+impl<'a> From<&'a OutField> for Described<'a> {
+    fn from(field: &'a OutField) -> Self {
+        Self {
+            name: &field.name,
+            annotation: field.annotation(),
+            kind: &field.kind,
+            desc: &field.desc,
+            constraints: field.constraints.as_deref(),
+        }
+    }
+}
+
+/// dspy `get_field_description_string`, one field: the number, the field name, its Python
+/// annotation and the description on the numbered line, then a line apiece for what the
+/// annotation's custom types and the field's own constraints say. A closed set states itself
+/// through the annotation (`Literal['a', 'b']`) and adds no line of its own.
+fn numbered_line(index: usize, field: &Described<'_>) -> String {
     format!(
-        "{}. `{name}` ({annotation}): {desc}{}",
+        "{}. `{}` ({}): {}{}{}",
         index + 1,
-        type_descriptions(kind)
+        field.name,
+        field.annotation,
+        field.desc,
+        type_descriptions(field.kind),
+        constraint_line(field.constraints),
     )
+}
+
+/// dspy states a field's constraints on a line of their own, unindented, after the description
+/// and any type descriptions. The prose is pydantic's, already rendered where the signature was
+/// declared; an empty string is no constraints, the way Python's own truth test reads it.
+fn constraint_line(constraints: Option<&str>) -> String {
+    match constraints.unwrap_or_default() {
+        "" => String::new(),
+        text => format!("\nConstraints: {text}"),
+    }
 }
 
 /// dspy appends one indented line per custom type the annotation names, before the field's own
@@ -58,46 +101,24 @@ fn type_descriptions(kind: &FieldKind) -> String {
 /// dspy `get_field_description_string`: join the numbered lines with a newline, then strip the
 /// block. The strip matters — an empty description leaves `": "` with a trailing space, and
 /// upstream drops it from the last line only, which its exact-message tests pin.
-fn numbered_block(lines: Vec<String>) -> String {
-    lines.join("\n").trim().to_owned()
+fn numbered_block<'a>(fields: impl Iterator<Item = Described<'a>>) -> String {
+    fields
+        .enumerate()
+        .map(|(index, field)| numbered_line(index, &field))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_owned()
 }
 
 pub(super) fn numbered_input_lines(signature: &Signature) -> String {
-    let lines: Vec<String> = signature
-        .inputs
-        .iter()
-        .enumerate()
-        .map(|(index, field)| {
-            numbered_line(
-                index,
-                &field.name,
-                &field.kind,
-                &field.annotation(),
-                &field.desc,
-            )
-        })
-        .collect();
-    numbered_block(lines)
+    numbered_block(signature.inputs.iter().map(Described::from))
 }
 
 /// A `Json` field's schema does not appear here: upstream states it once, in the field's own
 /// slot in the interaction template, which [`output_slot`] renders.
 pub(super) fn numbered_output_lines(signature: &Signature) -> String {
-    let lines: Vec<String> = signature
-        .outputs
-        .iter()
-        .enumerate()
-        .map(|(index, field)| {
-            numbered_line(
-                index,
-                &field.name,
-                &field.kind,
-                &field.annotation(),
-                &field.desc,
-            )
-        })
-        .collect();
-    numbered_block(lines)
+    numbered_block(signature.outputs.iter().map(Described::from))
 }
 
 /// Whether any custom type in this annotation has already said what its schema would say.
@@ -181,4 +202,110 @@ pub(super) fn system_message(signature: &Signature, structure: &str) -> String {
         structure.trim(),
         task_description(signature),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::signature::TypeDescription;
+
+    fn constrained(name: &str, desc: &str, kind: FieldKind, constraints: &str) -> InField {
+        InField {
+            name: name.into(),
+            desc: desc.into(),
+            kind,
+            constraints: Some(constraints.into()),
+            ..Default::default()
+        }
+    }
+
+    /// The signature of upstream's `test_field_constraints`, in the crate's own spelling.
+    fn constrained_signature() -> Signature {
+        Signature {
+            instructions: "Test signature with constrained fields.".into(),
+            inputs: vec![
+                constrained("text", "Input text", FieldKind::Str, "minimum length: 5"),
+                constrained(
+                    "number",
+                    "A number",
+                    FieldKind::Int,
+                    "greater than or equal to: 0, less than or equal to: 10",
+                ),
+            ],
+            outputs: vec![OutField {
+                name: "out".into(),
+                desc: "Out".into(),
+                constraints: Some("maximum length: 10".into()),
+                ..Default::default()
+            }],
+        }
+    }
+
+    #[test]
+    fn constraints_read_on_their_own_unindented_line_under_the_field() {
+        assert_eq!(
+            field_description(&constrained_signature()),
+            "Your input fields are:\n\
+             1. `text` (str): Input text\n\
+             Constraints: minimum length: 5\n\
+             2. `number` (int): A number\n\
+             Constraints: greater than or equal to: 0, less than or equal to: 10\n\
+             Your output fields are:\n\
+             1. `out` (str): Out\n\
+             Constraints: maximum length: 10"
+        );
+    }
+
+    #[test]
+    fn a_field_without_constraints_gains_no_line() {
+        let mut signature = constrained_signature();
+        signature.inputs[0].constraints = None;
+        // An empty string is what dspy would leave behind for a field it found nothing to say
+        // about, and its own truth test drops that too.
+        signature.inputs[1].constraints = Some(String::new());
+        signature.outputs[0].constraints = None;
+        assert_eq!(
+            field_description(&signature),
+            "Your input fields are:\n\
+             1. `text` (str): Input text\n\
+             2. `number` (int): A number\n\
+             Your output fields are:\n\
+             1. `out` (str): Out"
+        );
+    }
+
+    #[test]
+    fn constraints_follow_the_type_descriptions_of_the_annotation() {
+        let signature = Signature {
+            instructions: String::new(),
+            inputs: vec![constrained(
+                "code",
+                "the code",
+                FieldKind::Json(JsonType {
+                    annotation: "Code".into(),
+                    descriptions: vec![TypeDescription {
+                        name: "Code".into(),
+                        text: "a code block".into(),
+                        replaces_schema: true,
+                    }],
+                    reflection: None,
+                }),
+                "minimum length: 1",
+            )],
+            outputs: vec![OutField {
+                name: "out".into(),
+                ..Default::default()
+            }],
+        };
+        assert!(
+            field_description(&signature).starts_with(
+                "Your input fields are:\n\
+                 1. `code` (Code): the code\n    \
+                 Type description of Code: a code block\n\
+                 Constraints: minimum length: 1\n"
+            ),
+            "got: {}",
+            field_description(&signature)
+        );
+    }
 }

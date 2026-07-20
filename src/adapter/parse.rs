@@ -197,16 +197,13 @@ mod tests {
                 OutField {
                     name: "color".into(),
                     desc: "the chosen color".into(),
-                    kind: FieldKind::Str,
                     values: Some(vec!["red".into(), "blue".into()]),
-                    schema: None,
+                    ..Default::default()
                 },
                 OutField {
                     name: "why".into(),
                     desc: "one short sentence".into(),
-                    kind: FieldKind::Str,
-                    values: None,
-                    schema: None,
+                    ..Default::default()
                 },
             ],
         )
@@ -219,15 +216,15 @@ mod tests {
                 name: "ideas".into(),
                 desc: "three concrete ideas".into(),
                 kind: FieldKind::opaque_json(),
-                values: None,
                 schema: Some(json!({ "type": "array", "items": { "type": "string" } })),
+                ..Default::default()
             }],
         );
         signature.inputs = vec![InField {
             name: "recipient".into(),
             desc: "who the gift is for".into(),
             kind: FieldKind::opaque_json(),
-            values: None,
+            ..Default::default()
         }];
         signature
     }

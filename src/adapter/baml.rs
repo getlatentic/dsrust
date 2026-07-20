@@ -181,23 +181,17 @@ mod tests {
             inputs: vec![
                 InField {
                     name: "patient".into(),
-                    desc: String::new(),
                     kind: patient_kind(),
-                    values: None,
+                    ..Default::default()
                 },
                 InField {
                     name: "question".into(),
-                    desc: String::new(),
-                    kind: FieldKind::Str,
-                    values: None,
+                    ..Default::default()
                 },
             ],
             outputs: vec![OutField {
                 name: "answer".into(),
-                desc: String::new(),
-                kind: FieldKind::Str,
-                values: None,
-                schema: None,
+                ..Default::default()
             }],
         }
     }

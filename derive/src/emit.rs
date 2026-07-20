@@ -129,6 +129,7 @@ fn in_field(field: &Field) -> TokenStream {
             desc: #desc.to_owned(),
             kind: #kind,
             values: #values,
+            ..::std::default::Default::default()
         }
     }
 }
@@ -172,6 +173,7 @@ fn out_field(field: &Field) -> TokenStream {
             kind: #kind,
             values: #values,
             schema: #schema,
+            ..::std::default::Default::default()
         }
     }
 }

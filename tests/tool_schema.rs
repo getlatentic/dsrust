@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use dsrs::lm::global;
 use dsrs::react::tool_args;
-use dsrs::signature::{FieldKind, OutField, Signature};
+use dsrs::signature::{OutField, Signature};
 use dsrs::{DummyLM, FnTool, Module, ReAct, Tool, example, react::arg_str};
 use schemars::JsonSchema;
 use serde_json::{Value, json};
@@ -53,9 +53,7 @@ fn task() -> Signature {
         vec![OutField {
             name: "answer".into(),
             desc: "the answer".into(),
-            kind: FieldKind::Str,
-            values: None,
-            schema: None,
+            ..Default::default()
         }],
     )
 }

@@ -204,28 +204,12 @@ fn react_instructions(signature: &Signature, tools: &[Box<dyn Tool>]) -> String 
         .join("\n")
 }
 
-/// The task's own input fields, copied so both inner signatures can carry them.
-fn task_inputs(signature: &Signature) -> Vec<InField> {
-    signature
-        .inputs
-        .iter()
-        .map(|field| InField {
-            name: field.name.clone(),
-            desc: field.desc.clone(),
-            kind: field.kind.clone(),
-            values: field.values.clone(),
-        })
-        .collect()
-}
-
 /// dspy appends `trajectory` with a bare `dspy.InputField()`, which carries no description of
 /// its own: the instructions already say what the trajectory is.
 fn trajectory_field() -> InField {
     InField {
         name: "trajectory".to_owned(),
-        desc: String::new(),
-        kind: FieldKind::Str,
-        values: None,
+        ..Default::default()
     }
 }
 
@@ -238,17 +222,16 @@ fn tool_name_set(tools: &[Box<dyn Tool>]) -> Vec<LiteralValue> {
 fn out_field(name: &str, values: Option<Vec<LiteralValue>>, kind: FieldKind) -> OutField {
     OutField {
         name: name.to_owned(),
-        desc: String::new(),
         kind,
         values,
-        schema: None,
+        ..Default::default()
     }
 }
 
 /// The per-turn signature: the task's inputs, the trajectory so far, and the three fields the
 /// model fills to take its next action.
 fn react_signature(signature: &Signature, tools: &[Box<dyn Tool>]) -> Signature {
-    let mut inputs = task_inputs(signature);
+    let mut inputs = signature.inputs.clone();
     inputs.push(trajectory_field());
 
     Signature {
@@ -275,17 +258,11 @@ fn react_signature(signature: &Signature, tools: &[Box<dyn Tool>]) -> Signature 
 /// trajectory, so the instructions carry through untouched and the model reasons in a leading
 /// `reasoning` field before it fills in the outputs the caller asked for.
 fn extract_signature(signature: &Signature) -> Signature {
-    let mut inputs = task_inputs(signature);
+    let mut inputs = signature.inputs.clone();
     inputs.push(trajectory_field());
 
     let mut outputs = vec![out_field("reasoning", None, FieldKind::Str)];
-    outputs.extend(signature.outputs.iter().map(|field| OutField {
-        name: field.name.clone(),
-        desc: field.desc.clone(),
-        kind: field.kind.clone(),
-        values: field.values.clone(),
-        schema: field.schema.clone(),
-    }));
+    outputs.extend(signature.outputs.iter().cloned());
 
     Signature {
         instructions: signature.instructions.clone(),
@@ -387,9 +364,7 @@ mod tests {
             vec![OutField {
                 name: "answer".into(),
                 desc: "the answer".into(),
-                kind: FieldKind::Str,
-                values: None,
-                schema: None,
+                ..Default::default()
             }],
         )
     }

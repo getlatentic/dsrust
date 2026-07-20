@@ -334,8 +334,7 @@ mod tests {
             name: name.into(),
             desc: name.into(),
             kind,
-            values: None,
-            schema: None,
+            ..Default::default()
         };
         Signature::single_input(
             "Size the gift.",

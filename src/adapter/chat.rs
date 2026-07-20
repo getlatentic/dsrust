@@ -178,7 +178,6 @@ mod tests {
             "Answer.",
             vec![OutField {
                 name: "answer".into(),
-                desc: String::new(),
                 kind: FieldKind::Json(JsonType {
                     annotation: annotation.to_owned(),
                     descriptions: vec![TypeDescription {
@@ -188,8 +187,8 @@ mod tests {
                     }],
                     reflection: None,
                 }),
-                values: None,
                 schema: Some(json!({ "type": "object" })),
+                ..Default::default()
             }],
         )
     }
@@ -279,16 +278,13 @@ mod tests {
                 OutField {
                     name: "color".into(),
                     desc: "the chosen color".into(),
-                    kind: FieldKind::Str,
                     values: Some(vec!["red".into(), "blue".into()]),
-                    schema: None,
+                    ..Default::default()
                 },
                 OutField {
                     name: "why".into(),
                     desc: "one short sentence".into(),
-                    kind: FieldKind::Str,
-                    values: None,
-                    schema: None,
+                    ..Default::default()
                 },
             ],
         )
@@ -300,14 +296,12 @@ mod tests {
             InField {
                 name: "room".into(),
                 desc: "the room being painted".into(),
-                kind: FieldKind::Str,
-                values: None,
+                ..Default::default()
             },
             InField {
                 name: "mood".into(),
                 desc: "the mood to set".into(),
-                kind: FieldKind::Str,
-                values: None,
+                ..Default::default()
             },
         ];
         signature
@@ -321,15 +315,13 @@ mod tests {
                     name: "amount".into(),
                     desc: "amount in MON".into(),
                     kind: FieldKind::Float,
-                    values: None,
-                    schema: None,
+                    ..Default::default()
                 },
                 OutField {
                     name: "double".into(),
                     desc: "double it".into(),
                     kind: FieldKind::Bool,
-                    values: None,
-                    schema: None,
+                    ..Default::default()
                 },
             ],
         );
@@ -337,7 +329,7 @@ mod tests {
             name: "age".into(),
             desc: "the age turned".into(),
             kind: FieldKind::Int,
-            values: None,
+            ..Default::default()
         }];
         signature
     }
@@ -349,15 +341,15 @@ mod tests {
                 name: "ideas".into(),
                 desc: "three concrete ideas".into(),
                 kind: FieldKind::opaque_json(),
-                values: None,
                 schema: Some(json!({ "type": "array", "items": { "type": "string" } })),
+                ..Default::default()
             }],
         );
         signature.inputs = vec![InField {
             name: "recipient".into(),
             desc: "who the gift is for".into(),
             kind: FieldKind::opaque_json(),
-            values: None,
+            ..Default::default()
         }];
         signature
     }

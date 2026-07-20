@@ -25,10 +25,8 @@ fn weather() -> Box<dyn Tool> {
 fn out(name: &str, kind: FieldKind) -> OutField {
     OutField {
         name: name.into(),
-        desc: String::new(),
         kind,
-        values: None,
-        schema: None,
+        ..Default::default()
     }
 }
 
@@ -40,9 +38,7 @@ fn task() -> Signature {
         instructions: "Answer the question.".to_owned(),
         inputs: vec![InField {
             name: "request".into(),
-            desc: String::new(),
-            kind: FieldKind::Str,
-            values: None,
+            ..Default::default()
         }],
         outputs: vec![out("answer", FieldKind::Str)],
     }
@@ -55,15 +51,11 @@ fn wide_task() -> Signature {
         inputs: vec![
             InField {
                 name: "question".into(),
-                desc: String::new(),
-                kind: FieldKind::Str,
-                values: None,
+                ..Default::default()
             },
             InField {
                 name: "context".into(),
-                desc: String::new(),
-                kind: FieldKind::Str,
-                values: None,
+                ..Default::default()
             },
         ],
         outputs: vec![

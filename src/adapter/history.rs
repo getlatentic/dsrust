@@ -92,24 +92,18 @@ mod tests {
             "Answer the question.",
             vec![OutField {
                 name: "answer".into(),
-                desc: String::new(),
-                kind: FieldKind::Str,
-                values: None,
-                schema: None,
+                ..Default::default()
             }],
         );
         signature.inputs = vec![
             InField {
                 name: "question".into(),
-                desc: String::new(),
-                kind: FieldKind::Str,
-                values: None,
+                ..Default::default()
             },
             InField {
                 name: "history".into(),
-                desc: String::new(),
                 kind: FieldKind::Json(JsonType::plain(ANNOTATION)),
-                values: None,
+                ..Default::default()
             },
         ];
         signature

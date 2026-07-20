@@ -133,16 +133,13 @@ mod tests {
                 OutField {
                     name: "color".into(),
                     desc: "the chosen color".into(),
-                    kind: FieldKind::Str,
                     values: Some(vec!["red".into(), "blue".into()]),
-                    schema: None,
+                    ..Default::default()
                 },
                 OutField {
                     name: "why".into(),
                     desc: "one short sentence".into(),
-                    kind: FieldKind::Str,
-                    values: None,
-                    schema: None,
+                    ..Default::default()
                 },
             ],
         )
@@ -154,14 +151,12 @@ mod tests {
             InField {
                 name: "room".into(),
                 desc: "the room being painted".into(),
-                kind: FieldKind::Str,
-                values: None,
+                ..Default::default()
             },
             InField {
                 name: "mood".into(),
                 desc: "the mood to set".into(),
-                kind: FieldKind::Str,
-                values: None,
+                ..Default::default()
             },
         ];
         signature

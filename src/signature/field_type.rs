@@ -7,8 +7,11 @@ use serde_json::{Value, json};
 /// The wire type of a field. It decides the schema type, the annotation prompts carry next
 /// to the field name, and how a reply value coerces before validation. `Json` covers every
 /// non-scalar Rust type — `Vec<String>`, user structs, `Vec<Struct>` — carried as JSON.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// `Str` is the default because an undeclared dspy field is a `str`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum FieldKind {
+    #[default]
     Str,
     Bool,
     Int,

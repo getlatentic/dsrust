@@ -128,24 +128,18 @@ mod tests {
                 OutField {
                     name: "color".into(),
                     desc: "the color".into(),
-                    kind: FieldKind::Str,
-                    values: None,
-                    schema: None,
+                    ..Default::default()
                 },
                 OutField {
                     name: "why".into(),
-                    desc: String::new(),
-                    kind: FieldKind::Str,
-                    values: None,
-                    schema: None,
+                    ..Default::default()
                 },
             ],
         );
         signature.inputs = vec![InField {
             name: "room".into(),
             desc: "the room".into(),
-            kind: FieldKind::Str,
-            values: None,
+            ..Default::default()
         }];
         signature
     }

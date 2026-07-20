@@ -271,6 +271,9 @@ def describe(fields: dict) -> list[tuple]:
                 closed_set_of(annotation),
                 type_descriptions_of(annotation),
                 reflection_of(kind, annotation),
+                # Already prose, and dspy wrote it: pydantic's constraints are translated where
+                # the field is declared, so this side carries the string rather than making one.
+                info.json_schema_extra.get("constraints"),
             )
         )
     return described
@@ -287,6 +290,9 @@ def described_outputs(signature) -> list[tuple]:
             values,
             types_named,
             reflection,
+            constraints,
         )
-        for name, kind, desc, values, types_named, reflection in describe(signature.output_fields)
+        for name, kind, desc, values, types_named, reflection, constraints in describe(
+            signature.output_fields
+        )
     ]
