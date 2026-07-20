@@ -16,7 +16,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-20"
 
 [status]
-rust_tests = 335
+rust_tests = 338
 upstream_tests_passing = 256
 upstream_tests_crossing = 156
 xfail_backlog = 0
@@ -66,8 +66,24 @@ This is the sprint that closes the project's one known blind spot.
 id = "s3-1"
 sprint = "s3"
 title = "Prove the crate's BootstrapFewShot makes upstream's decisions"
-state = "todo"
+state = "in-progress"
 size = "L"
+done = """
+Trace replay, chosen over routing compile into Rust and recorded in src/optimize/conformance.rs.
+scripts/generate_bootstrap_fixture.py runs upstream's optimizer against a DummyLM answering from
+a fixed table, so a compile is a pure function of trainset, metric and configuration; 19 cases
+compare demo for demo, and a second check compares what every attempt was *shown*, which is
+where withholding and teacher priming live. Both survive mutation testing: of eleven deliberate
+wrong decisions, ten are caught by a named check and the eleventh is equivalent under
+program-level attribution and documented as such at src/optimize/bootstrap.rs::train.
+"""
+remaining = """
+The raw_demos rebinding is implemented but not asserted against upstream: it only shows with two
+predictors, and a faithful two-predictor comparison needs the per-predictor trace attribution
+that s3-2 exists to add. Also unasserted: max_rounds forcing a *different* answer (b2) — a
+deterministic model cannot distinguish a re-ask that was forced from one that was not, so the
+attempt count matches upstream while the forcing does not exist here.
+"""
 narrative = """
 As someone trusting dsrs to compile a program, I want the crate's optimizer held to dspy's
 own behaviour, so that a compiled program is the one dspy would have produced.

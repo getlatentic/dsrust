@@ -226,6 +226,11 @@ where
     /// dspy `_train`: bootstrapped demos first, then labelled ones to fill the budget out.
     fn train<S: Module + ?Sized>(&self, student: &mut S, bootstrapped: Bootstrapped) -> usize {
         let Bootstrapped { demos, validation } = bootstrapped;
+        // Upstream caps here as well as breaking the walk, and needs to: it collects a trace per
+        // predictor per example, so one example can push `name2traces` past the budget. A demo
+        // here is program-level and the walk stops at the budget, so nothing ever arrives over
+        // it and this cap cannot be observed — it is kept because the budget is upstream's to
+        // enforce twice, not because a test reaches it.
         let augmented = &demos[..self.max_bootstrapped_demos.min(demos.len())];
         let mut rng = Rng::seeded(0);
         let mut raw = validation;

@@ -1,0 +1,182 @@
+//! The crate's optimizer held to dspy's own decisions.
+//!
+//! `teleprompt/test_bootstrap.py` is green and every one of its tests crosses into Rust — through
+//! the *adapter*, while running dspy's Python optimizer. Nothing there reaches [`super::bootstrap`]
+//! at all, and the crossing counter cannot say so: a crossing proves some Rust ran, not that the
+//! Rust under test ran.
+//!
+//! This closes that. `scripts/generate_bootstrap_fixture.py` removes the model from upstream's
+//! loop with a `DummyLM` answering from a fixed table, so a compile becomes a pure function of the
+//! trainset, the metric and the configuration. Given the same three, the demos that survive here
+//! must be the demos that survived there — same examples, same order, same count.
+
+use serde_json::Value;
+
+use super::BootstrapFewShot;
+use super::scripted::{Answers, Solver, trainset};
+use crate::evaluate::exact_match;
+use crate::example::{Example, Prediction};
+
+/// What dspy decided, recorded by running it. Regenerate with
+/// `scripts/generate_bootstrap_fixture.py`.
+fn golden() -> Value {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/conformance/optimize/bootstrap_few_shot.json");
+    let text = std::fs::read_to_string(&path).expect("the bootstrap golden is committed");
+    serde_json::from_str(&text).expect("the golden parses")
+}
+
+fn cases() -> Vec<Value> {
+    golden()["cases"].as_array().expect("cases").clone()
+}
+
+fn field(value: &Value, name: &str) -> String {
+    value[name].as_str().expect("a string field").to_owned()
+}
+
+/// A demo's question and answer, which together identify it among the trainset.
+fn turn(demo: &Example) -> (String, String) {
+    let read = |name: &str| {
+        demo.get(name)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    (read("question"), read("answer"))
+}
+
+fn expected_turns(case: &Value) -> Vec<(String, String)> {
+    case["predictors"][0]["demos"]
+        .as_array()
+        .expect("demos")
+        .iter()
+        .map(|demo| (field(demo, "question"), field(demo, "answer")))
+        .collect()
+}
+
+fn label(case: &Value) -> String {
+    let read = |name: &str| case[name].as_u64().expect("a budget");
+    format!(
+        "max_bootstrapped_demos={}, max_labeled_demos={}, max_rounds={}, metric={}, threshold={}",
+        read("max_bootstrapped_demos"),
+        read("max_labeled_demos"),
+        read("max_rounds"),
+        field(case, "metric"),
+        case["metric_threshold"]
+    )
+}
+
+/// The fixture's `graded` metric: half credit for an answer that is wrong but present.
+///
+/// A score no threshold rejects and every threshold above it does. Without one it is read for
+/// Python truth and succeeds; against a bar of 1.0 the same score fails. An exact-match metric
+/// returns only 0.0 or 1.0, under which those two readings agree — so this is the metric that
+/// tells them apart.
+fn graded(example: &Example, prediction: &Prediction) -> f64 {
+    if exact_match(example, prediction) == 1.0 {
+        return 1.0;
+    }
+    match prediction.get("answer").and_then(Value::as_str) {
+        Some(answer) if !answer.is_empty() => 0.5,
+        _ => 0.0,
+    }
+}
+
+/// Build the optimizer one case describes.
+fn optimizer(case: &Value) -> BootstrapFewShot<fn(&Example, &Prediction) -> f64> {
+    let budget = |name: &str| case[name].as_u64().expect("a budget") as usize;
+    let metric: fn(&Example, &Prediction) -> f64 = match field(case, "metric").as_str() {
+        "exact" => exact_match,
+        "graded" => graded,
+        other => panic!("the fixture names an unknown metric {other:?}"),
+    };
+    BootstrapFewShot {
+        metric_threshold: case["metric_threshold"].as_f64(),
+        max_bootstrapped_demos: budget("max_bootstrapped_demos"),
+        max_labeled_demos: budget("max_labeled_demos"),
+        max_rounds: budget("max_rounds"),
+        ..BootstrapFewShot::new(metric)
+    }
+}
+
+/// The comparison only means anything if both sides are given the same program to compile, and
+/// the two descriptions live in different languages. Guard the pair rather than trusting them to
+/// be edited together.
+#[test]
+fn the_fixture_describes_the_program_the_rust_side_runs() {
+    let recorded: Vec<(String, String)> = golden()["trainset"]
+        .as_array()
+        .expect("a trainset")
+        .iter()
+        .map(|example| (field(example, "question"), field(example, "answer")))
+        .collect();
+    let ours: Vec<(String, String)> = trainset().iter().map(turn).collect();
+    assert_eq!(
+        ours, recorded,
+        "the fixture's trainset has drifted from scripted.rs"
+    );
+}
+
+/// Every budget upstream branches on, compared demo for demo.
+///
+/// The bootstrapped prefix is deterministic — the trainset walked in order, filtered by the
+/// metric. The tail is drawn by `random.sample` over a shuffled validation set, so matching it at
+/// all depends on [`super::rng`] reproducing CPython's generator: an approximation gives the right
+/// count in the wrong order, which is the failure this whole comparison exists to detect.
+#[tokio::test]
+async fn keeps_the_demos_dspy_keeps() {
+    for case in cases() {
+        let mut student = Solver::new(Answers::Correctly);
+        optimizer(&case)
+            .compile(&mut student, &trainset())
+            .await
+            .expect("compile succeeds");
+
+        let ours: Vec<(String, String)> = student.demos.iter().map(turn).collect();
+        assert_eq!(ours, expected_turns(&case), "at {}", label(&case));
+    }
+}
+
+/// What each attempt was shown, which is where two decisions live that the compiled program
+/// cannot report.
+///
+/// The teacher is primed with labelled demos before the walk, and the example being solved is
+/// struck from that set for the length of its own call and put back afterwards. Both are undone
+/// by the time a compile returns, so comparing only the result would pass with either one
+/// missing — and did, until this landed.
+#[tokio::test]
+async fn shows_each_attempt_what_dspy_showed_it() {
+    for case in cases() {
+        let mut student = Solver::new(Answers::Correctly);
+        optimizer(&case)
+            .compile(&mut student, &trainset())
+            .await
+            .expect("compile succeeds");
+
+        let ours: Vec<(String, Vec<String>)> = student
+            .calls()
+            .iter()
+            .map(|call| {
+                let demos = call.demos.iter().map(|demo| turn(demo).0).collect();
+                (call.question.clone(), demos)
+            })
+            .collect();
+
+        let expected: Vec<(String, Vec<String>)> = case["calls"]
+            .as_array()
+            .expect("calls")
+            .iter()
+            .map(|call| {
+                let demos = call["demos"]
+                    .as_array()
+                    .expect("demos")
+                    .iter()
+                    .map(|question| question.as_str().expect("a question").to_owned())
+                    .collect();
+                (field(call, "question"), demos)
+            })
+            .collect();
+
+        assert_eq!(ours, expected, "at {}", label(&case));
+    }
+}
