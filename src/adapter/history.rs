@@ -146,7 +146,7 @@ mod tests {
     #[test]
     fn each_exchange_becomes_a_user_and_an_assistant_turn() {
         let stripped = without_field(&signature(), "history");
-        let turns = turns(&stripped, &history(), crate::adapter::MARKER_STYLE);
+        let turns = turns(&stripped, &history(), crate::adapter::chat::MARKER_STYLE);
 
         assert_eq!(turns.len(), 4);
         assert_eq!(
@@ -172,7 +172,7 @@ mod tests {
         // Rendering it would show the model a transcript inside one request, which is the thing
         // replaying the exchanges exists to avoid.
         let stripped = without_field(&signature(), "history");
-        let turns = turns(&stripped, &history(), crate::adapter::MARKER_STYLE);
+        let turns = turns(&stripped, &history(), crate::adapter::chat::MARKER_STYLE);
         assert!(
             !turns
                 .iter()
@@ -186,7 +186,7 @@ mod tests {
         let turns = turns(
             &stripped,
             &json!({ "messages": [{ "question": "Where?" }] }),
-            crate::adapter::MARKER_STYLE,
+            crate::adapter::chat::MARKER_STYLE,
         );
         assert_eq!(
             turns[1].content.text().unwrap(),
@@ -201,10 +201,10 @@ mod tests {
             turns(
                 &stripped,
                 &json!({ "messages": [] }),
-                crate::adapter::MARKER_STYLE
+                crate::adapter::chat::MARKER_STYLE
             )
             .is_empty()
         );
-        assert!(turns(&stripped, &json!({}), crate::adapter::MARKER_STYLE).is_empty());
+        assert!(turns(&stripped, &json!({}), crate::adapter::chat::MARKER_STYLE).is_empty());
     }
 }
