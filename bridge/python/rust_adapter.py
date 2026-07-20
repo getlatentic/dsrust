@@ -35,7 +35,7 @@ from dspy.utils.exceptions import AdapterParseError
 from litellm import ContextWindowExceededError
 
 import dsrs_bridge
-from reflect import describe, described_outputs
+from reflect import Unsupported, describe, described_outputs
 
 #: How many times the crate rendered or parsed. A test that passes without moving this never
 #: exercised Rust, whatever its name says, so `conftest.py` refuses to count it as conformance.
