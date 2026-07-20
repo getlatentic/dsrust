@@ -5,7 +5,10 @@ use crate::example::Example;
 use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::{FieldKind, Signature};
 
+pub(crate) mod python_json;
 mod repair;
+
+use python_json::json_dumps;
 
 /// How a signature travels over the wire.
 ///
@@ -151,18 +154,8 @@ fn marker(name: &str) -> String {
 /// dspy `get_field_description_string`, one line: the number, the field name, its Python
 /// annotation, and the description. A closed set says itself through the annotation
 /// (`Literal['a', 'b']`), so nothing is appended after the description.
-fn numbered_line(
-    index: usize,
-    name: &str,
-    annotation: &str,
-    desc: &str,
-    shape: Option<String>,
-) -> String {
-    let mut line = format!("{}. `{name}` ({annotation}): {desc}", index + 1);
-    if let Some(shape) = shape {
-        line.push_str(&format!(" ({shape})"));
-    }
-    line
+fn numbered_line(index: usize, name: &str, annotation: &str, desc: &str) -> String {
+    format!("{}. `{name}` ({annotation}): {desc}", index + 1)
 }
 
 /// dspy `get_field_description_string`: join the numbered lines with a newline, then strip the
@@ -172,39 +165,26 @@ fn numbered_block(lines: Vec<String>) -> String {
     lines.join("\n").trim().to_owned()
 }
 
-/// Inputs never carry a shape note: the model reads their values, it does not produce them.
 fn numbered_input_lines(signature: &Signature) -> String {
     let lines: Vec<String> = signature
         .inputs
         .iter()
         .enumerate()
         .map(|(index, field)| {
-            numbered_line(
-                index,
-                &field.name,
-                field.kind.annotation(),
-                &field.desc,
-                None,
-            )
+            numbered_line(index, &field.name, field.kind.annotation(), &field.desc)
         })
         .collect();
     numbered_block(lines)
 }
 
+/// A `Json` field's schema does not appear here: upstream states it once, in the field's own
+/// slot in the template below, which [`output_slot`] renders.
 fn numbered_output_lines(signature: &Signature) -> String {
     let lines: Vec<String> = signature
         .outputs
         .iter()
         .enumerate()
-        .map(|(index, field)| {
-            numbered_line(
-                index,
-                &field.name,
-                &field.annotation(),
-                &field.desc,
-                field.schema_suffix(),
-            )
-        })
+        .map(|(index, field)| numbered_line(index, &field.name, &field.annotation(), &field.desc))
         .collect();
     numbered_block(lines)
 }
@@ -270,7 +250,7 @@ fn output_slot(field: &crate::signature::OutField) -> String {
         FieldKind::Int => "must be a single int value".to_owned(),
         FieldKind::Float => "must be a single float value".to_owned(),
         FieldKind::Json(_) => match &field.schema {
-            Some(schema) => format!("must adhere to the JSON schema: {schema}"),
+            Some(schema) => format!("must adhere to the JSON schema: {}", json_dumps(schema)),
             None => String::new(),
         },
     };
@@ -595,15 +575,23 @@ mod tests {
     }
 
     #[test]
-    fn numbered_lines_append_the_schema_to_json_outputs_only() {
-        let signature = json_signature();
-        let system = chat_system(&signature);
+    fn a_json_fields_schema_reaches_the_prompt_through_its_slot_alone() {
+        // Upstream states the schema once. `get_field_description_string` stops at the
+        // description, and the slot carries the note — spaced the way `json.dumps` writes it.
+        let system = chat_system(&json_signature());
         assert!(system.contains("1. `recipient` (json): who the gift is for\n"));
-        let expected = format!(
-            "1. `ideas` (json): three concrete ideas (json matching schema: {})\n",
-            signature.outputs[0].schema.as_ref().expect("json schema")
+        assert!(
+            system.contains("1. `ideas` (json): three concrete ideas\n"),
+            "got: {system}"
         );
-        assert!(system.contains(&expected), "got: {system}");
+        assert!(!system.contains("json matching schema"), "got: {system}");
+        assert!(
+            system.contains(
+                "{ideas}        # note: the value you produce must adhere to the JSON schema: \
+                 {\"type\": \"array\", \"items\": {\"type\": \"string\"}}"
+            ),
+            "got: {system}"
+        );
     }
 
     #[test]

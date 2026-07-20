@@ -10,6 +10,7 @@ mod tool;
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
+use crate::adapter::python_json::json_dumps;
 use crate::example::{Example, Prediction};
 use crate::module::{Module, NamedPredictor};
 use crate::predict::Predict;
@@ -84,27 +85,6 @@ fn field_value(value: &Value) -> String {
         Value::Bool(true) => "True".to_owned(),
         Value::Bool(false) => "False".to_owned(),
         number => number.to_string(),
-    }
-}
-
-/// Python's `json.dumps` spacing — `", "` between items, `": "` after a key. dspy renders a
-/// tool call's arguments into the trajectory through it, and serde_json's own `Display` emits
-/// neither space, so the two differ on every argument object the model ever sees.
-fn json_dumps(value: &Value) -> String {
-    match value {
-        Value::Array(items) => format!(
-            "[{}]",
-            items.iter().map(json_dumps).collect::<Vec<_>>().join(", ")
-        ),
-        Value::Object(fields) => format!(
-            "{{{}}}",
-            fields
-                .iter()
-                .map(|(key, value)| format!("{}: {}", json!(key), json_dumps(value)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        scalar => scalar.to_string(),
     }
 }
 
@@ -344,12 +324,15 @@ fn react_signature(signature: &Signature, tools: &[Box<dyn Tool>]) -> Signature 
             out_field("next_thought", None, FieldKind::Str),
             out_field("next_tool_name", Some(tool_name_set(tools)), FieldKind::Str),
             // dspy types the argument object `dict[str, Any]`, and prints that Python type
-            // beside the field name.
-            out_field(
-                "next_tool_args",
-                None,
-                FieldKind::Json("dict[str, Any]".to_owned()),
-            ),
+            // beside the field name; pydantic turns the same type into the slot's schema note.
+            OutField {
+                schema: Some(json!({ "type": "object", "additionalProperties": true })),
+                ..out_field(
+                    "next_tool_args",
+                    None,
+                    FieldKind::Json("dict[str, Any]".to_owned()),
+                )
+            },
         ],
     }
 }

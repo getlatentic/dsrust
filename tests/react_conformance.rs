@@ -366,6 +366,31 @@ fn the_turn_prompt_numbers_the_fields_with_dspys_python_annotations() {
     );
 }
 
+/// Copied from the same `dspy.ChatAdapter().format` call. pydantic turns `dict[str, Any]` into
+/// an open object schema, and the slot states it — the only note among the three fields, since
+/// `next_tool_name`'s closed set already speaks through its `Literal[...]` annotation.
+#[test]
+fn the_turn_prompts_argument_slot_carries_dspys_open_object_schema() {
+    let lm = Arc::new(DummyLM::new([
+        example! { next_thought: "done", next_tool_name: "finish", next_tool_args: json!({}) },
+        example! { reasoning: "nothing to do", answer: "ok" },
+    ]));
+    let _guard = install(lm.clone());
+
+    let react = ReAct::new(task(), vec![weather()]);
+    block_on(react.forward(example! { request: "x" }.with_inputs(["request"])));
+
+    assert!(
+        lm.asked()[0].system.contains(
+            "[[ ## next_tool_args ## ]]\n\
+             {next_tool_args}        # note: the value you produce must adhere to the JSON \
+             schema: {\"type\": \"object\", \"additionalProperties\": true}"
+        ),
+        "got: {}",
+        lm.asked()[0].system
+    );
+}
+
 /// dspy's closing reminder repeats the Python type of every output that is not plain `str`,
 /// which both fields ReAct adds are.
 #[test]

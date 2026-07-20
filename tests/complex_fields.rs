@@ -173,11 +173,21 @@ async fn prompts_annotate_json_fields_and_a_marker_reply_deserializes() {
     let system = &calls[0].system;
     assert!(system.contains("1. `recipient` (json): who the gift is for\n"));
     assert!(system.contains("2. `themes` (json): keywords to build on\n"));
-    let ideas_line = format!(
-        "1. `ideas` (json): three concrete ideas (json matching schema: {})\n",
-        json_field_schema::<Vec<GiftIdea>>()
+    assert!(
+        system.contains("1. `ideas` (json): three concrete ideas\n"),
+        "got: {system}"
     );
-    assert!(system.contains(&ideas_line), "got: {system}");
+    // The schema reaches the model through the slot note alone, spaced as `json.dumps` writes
+    // it. Its shape is this crate's own — inlined where upstream would emit `$defs`/`$ref`.
+    assert!(
+        system.contains(
+            "{ideas}        # note: the value you produce must adhere to the JSON schema: \
+             {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": \
+             {\"title\": {\"type\": \"string\"}, \"why\": {\"type\": \"string\"}}, \
+             \"required\": [\"title\", \"why\"]}}"
+        ),
+        "got: {system}"
+    );
 
     let opening = &calls[0].turns[0].content;
     assert!(opening.contains("[[ ## recipient ## ]]\n{\"name\":\"Dad\",\"age\":61"));
