@@ -26,7 +26,12 @@ fn kind_from(name: &str) -> FieldKind {
         "int" => FieldKind::Int,
         "float" => FieldKind::Float,
         "bool" => FieldKind::Bool,
-        other => panic!("fixture uses an unmapped field kind: {other}"),
+        // A non-scalar arrives as `json:<annotation>`, carrying the Python type dspy prints on
+        // the numbered line instead of collapsing every non-scalar to one word.
+        other => match other.strip_prefix("json:") {
+            Some(annotation) => FieldKind::Json(annotation.to_owned()),
+            None => panic!("fixture uses an unmapped field kind: {other}"),
+        },
     }
 }
 
@@ -34,7 +39,7 @@ fn load(path: &std::path::Path) -> Fixture {
     let raw = std::fs::read_to_string(path).expect("fixture is readable");
     let json: Value = serde_json::from_str(&raw).expect("fixture is valid json");
 
-    let inputs = json["inputs"]
+    let inputs: Vec<InField> = json["inputs"]
         .as_array()
         .expect("inputs array")
         .iter()
@@ -58,16 +63,13 @@ fn load(path: &std::path::Path) -> Fixture {
         })
         .collect();
 
-    let values = json["values"]
-        .as_object()
-        .expect("values object")
+    // Signature order, not the fixture map's: dspy renders the input turn field by field as the
+    // signature declares them, and a JSON object hands them back sorted.
+    let values = inputs
         .iter()
-        .map(|(name, value)| {
-            let rendered = match value {
-                Value::String(text) => text.clone(),
-                other => other.to_string(),
-            };
-            (name.clone(), rendered)
+        .filter_map(|field| {
+            let value = json["values"].get(&field.name)?;
+            Some((field.name.clone(), dsrs::example::render(value)))
         })
         .collect();
 

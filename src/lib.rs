@@ -13,6 +13,7 @@ pub mod lm;
 pub mod module;
 pub mod optimize;
 pub mod predict;
+mod python_json;
 pub mod react;
 pub mod signature;
 

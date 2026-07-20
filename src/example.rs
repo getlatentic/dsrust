@@ -139,12 +139,17 @@ macro_rules! example {
     };
 }
 
-/// dspy `format_field_value`: a string is itself, anything else is its JSON form. Quoting a
-/// string would change what the model reads, and upstream is careful to avoid that.
+/// dspy `format_field_value`: a structured value is JSON text, and a scalar is what Python's
+/// `str` would print. Quoting a string would change what the model reads, and upstream is
+/// careful to avoid that.
 pub fn render(value: &Value) -> String {
     match value {
         Value::String(text) => text.clone(),
-        other => other.to_string(),
+        Value::Array(_) | Value::Object(_) => crate::python_json::dumps(value),
+        Value::Null => "None".to_owned(),
+        Value::Bool(true) => "True".to_owned(),
+        Value::Bool(false) => "False".to_owned(),
+        number => number.to_string(),
     }
 }
 
@@ -256,9 +261,20 @@ mod tests {
             vec![
                 ("note".to_owned(), "hello".to_owned()),
                 ("count".to_owned(), "3".to_owned()),
-                ("tags".to_owned(), r#"["a","b"]"#.to_owned()),
+                ("tags".to_owned(), r#"["a", "b"]"#.to_owned()),
             ]
         );
+    }
+
+    #[test]
+    fn a_scalar_renders_the_way_python_prints_it() {
+        // dspy 3.2.1 hands a bare scalar to `str`, so a Rust bool or unit reaches the model as
+        // `True`/`None` rather than JSON's `true`/`null`. Nested inside a container it stays
+        // JSON, because `json.dumps` takes over there.
+        assert_eq!(render(&json!(true)), "True");
+        assert_eq!(render(&json!(false)), "False");
+        assert_eq!(render(&json!(null)), "None");
+        assert_eq!(render(&json!([null, true, false])), "[null, true, false]");
     }
 
     #[test]

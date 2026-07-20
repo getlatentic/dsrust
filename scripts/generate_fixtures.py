@@ -10,7 +10,8 @@ never needs Python — only regeneration does.
     .dspy-venv/bin/python scripts/generate_fixtures.py
 
 Adding a case: append to CASES. Keep each one inside the subset the Rust harness models
-(scalar fields and demos today) until the matching Rust support lands, and widen together.
+(scalar and JSON-valued fields, and demos, today) until the matching Rust support lands, and
+widen together.
 """
 
 from __future__ import annotations
@@ -77,6 +78,36 @@ CASES = [
             {"request": "something warm", "colour": "amber", "why": "It holds light."},
         ],
         "values": {"request": "something bold"},
+    },
+    {
+        # A list- or dict-valued field goes through `json.dumps`, whose separators carry a space
+        # that a compact JSON writer omits. Both a demo and the live turn render one.
+        "name": "structured_field_values",
+        "instructions": "Answer the question from the context.",
+        "inputs": [
+            {"name": "question", "type": str, "kind": "str", "desc": None},
+            {"name": "context", "type": list[str], "kind": "json:list[str]", "desc": None},
+            {
+                "name": "weights",
+                "type": dict[str, int],
+                "kind": "json:dict[str, int]",
+                "desc": None,
+            },
+        ],
+        "outputs": [{"name": "answer", "type": str, "kind": "str", "desc": None}],
+        "demos": [
+            {
+                "question": "Which capital?",
+                "context": ["Berlin is in Germany.", "Paris is in France."],
+                "weights": {"alpha": 1, "beta": 2},
+                "answer": "Berlin",
+            }
+        ],
+        "values": {
+            "question": "Which river?",
+            "context": ["The Seine runs through Paris.", "Voici de l'eau — 日本語."],
+            "weights": {"alpha": 3, "beta": 4},
+        },
     },
     {
         "name": "multiline_instructions",
