@@ -18,7 +18,9 @@ dsrs-derive = { version = "0.1.0", path = "derive" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 schemars = "1"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# `preserve_order`: Python dicts keep insertion order, so `json.dumps` writes a schema in the
+# order pydantic built it. Sorted keys would reorder every schema note dspy renders.
+serde_json = { version = "1", features = ["preserve_order"] }
 tracing = "0.1"
 
 [dev-dependencies]

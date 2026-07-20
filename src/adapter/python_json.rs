@@ -28,7 +28,7 @@ pub(crate) fn format_field_value(value: &Value) -> String {
 /// Python's `json.dumps` spacing — `", "` between items, `": "` after a key. Escaping is left
 /// to serde_json, which already agrees with the `ensure_ascii=False` upstream passes: both
 /// emit a non-ASCII character as itself.
-fn json_dumps(value: &Value) -> String {
+pub(crate) fn json_dumps(value: &Value) -> String {
     match value {
         Value::Array(items) => format!(
             "[{}]",

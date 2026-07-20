@@ -42,6 +42,7 @@ fn task() -> Signature {
             name: "request".into(),
             desc: String::new(),
             kind: FieldKind::Str,
+            values: None,
         }],
         outputs: vec![out("answer", FieldKind::Str)],
     }
@@ -56,11 +57,13 @@ fn wide_task() -> Signature {
                 name: "question".into(),
                 desc: String::new(),
                 kind: FieldKind::Str,
+                values: None,
             },
             InField {
                 name: "context".into(),
                 desc: String::new(),
                 kind: FieldKind::Str,
+                values: None,
             },
         ],
         outputs: vec![
@@ -201,7 +204,7 @@ fn the_tool_name_field_is_closed_over_the_tools_that_exist() {
         .expect("next_tool_name is an output");
     assert_eq!(
         tool_name.values,
-        Some(vec!["get_weather".to_owned(), "finish".to_owned()])
+        Some(vec!["get_weather".into(), "finish".into()])
     );
 }
 
@@ -360,6 +363,31 @@ fn the_turn_prompt_numbers_the_fields_with_dspys_python_annotations() {
              1. `next_thought` (str): \n\
              2. `next_tool_name` (Literal['get_weather', 'finish']): \n\
              3. `next_tool_args` (dict[str, Any]):\n"
+        ),
+        "got: {}",
+        lm.asked()[0].system
+    );
+}
+
+/// Copied from the same `dspy.ChatAdapter().format` call. pydantic turns `dict[str, Any]` into
+/// an open object schema, and the slot states it — the only note among the three fields, since
+/// `next_tool_name`'s closed set already speaks through its `Literal[...]` annotation.
+#[test]
+fn the_turn_prompts_argument_slot_carries_dspys_open_object_schema() {
+    let lm = Arc::new(DummyLM::new([
+        example! { next_thought: "done", next_tool_name: "finish", next_tool_args: json!({}) },
+        example! { reasoning: "nothing to do", answer: "ok" },
+    ]));
+    let _guard = install(lm.clone());
+
+    let react = ReAct::new(task(), vec![weather()]);
+    block_on(react.forward(example! { request: "x" }.with_inputs(["request"])));
+
+    assert!(
+        lm.asked()[0].system.contains(
+            "[[ ## next_tool_args ## ]]\n\
+             {next_tool_args}        # note: the value you produce must adhere to the JSON \
+             schema: {\"type\": \"object\", \"additionalProperties\": true}"
         ),
         "got: {}",
         lm.asked()[0].system

@@ -95,6 +95,7 @@ fn a_demo_renders_every_value_shape_the_way_python_prints_it() {
             name: (*name).to_owned(),
             desc: String::new(),
             kind: FieldKind::opaque_json(),
+            values: None,
         })
         .collect();
 
