@@ -9,6 +9,7 @@
 //! the only things the renderer needs.
 
 use dsrs::adapter::parse::FieldMismatch;
+use dsrs::adapter::xml::XmlAdapter;
 use dsrs::signature::{
     FieldKind, InField, JsonType, LiteralValue, OutField, Signature, TypeDescription,
 };
@@ -173,6 +174,7 @@ fn format_messages(
     let adapter: Box<dyn Adapter> = match adapter {
         "chat" => Box::new(ChatAdapter::default()),
         "json" => Box::new(JsonAdapter),
+        "xml" => Box::new(XmlAdapter),
         other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
     };
     let demos: Vec<Example> = demos
@@ -214,6 +216,7 @@ fn format_system_message(
     let adapter: Box<dyn Adapter> = match adapter {
         "chat" => Box::new(ChatAdapter::default()),
         "json" => Box::new(JsonAdapter),
+        "xml" => Box::new(XmlAdapter),
         other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
     };
     Ok(adapter.system_message(&signature))
@@ -233,6 +236,7 @@ fn parse_reply(
     let adapter: Box<dyn Adapter> = match adapter {
         "chat" => Box::new(ChatAdapter::default()),
         "json" => Box::new(JsonAdapter),
+        "xml" => Box::new(XmlAdapter),
         other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
     };
     adapter
@@ -259,6 +263,7 @@ fn has_json_fallback(adapter: &str, use_json_adapter_fallback: bool) -> PyResult
             use_json_adapter_fallback,
         }),
         "json" => Box::new(JsonAdapter),
+        "xml" => Box::new(XmlAdapter),
         other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
     };
     Ok(adapter.json_fallback().is_some())

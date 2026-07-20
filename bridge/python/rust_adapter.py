@@ -24,6 +24,7 @@ from dspy.adapters.base import Adapter
 from dspy.adapters.json_adapter import JSONAdapter
 from dspy.adapters.types.base_type import Type
 from dspy.adapters.types.code import Code
+from dspy.adapters.xml_adapter import XMLAdapter
 from dspy.adapters.utils import (
     _annotation_is_subclass,
     _get_json_schema,
@@ -316,3 +317,10 @@ class RustJSONAdapter(_RustBacked, dspy.JSONAdapter):
 
     WIRE = "json"
     ADAPTER_NAME = "JSONAdapter"
+
+
+class RustXMLAdapter(_RustBacked, XMLAdapter):
+    """Tag-wrapped fields, rendered and parsed by the crate."""
+
+    WIRE = "xml"
+    ADAPTER_NAME = "XMLAdapter"

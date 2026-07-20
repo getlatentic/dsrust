@@ -9,7 +9,7 @@ use crate::example::Example;
 use crate::lm::ChatTurn;
 use crate::signature::Signature;
 
-use super::exchange::{Answer, ask};
+use super::exchange::{Style, ask};
 
 /// dspy `incomplete_demo_prefix`, opening the user turn of a demo that is missing something.
 const PARTIAL_PREFIX: &str =
@@ -33,11 +33,7 @@ enum Kind {
 
 /// The demo turns preceding the real request, partial demos first — dspy renders the two groups
 /// in that order regardless of the order they were handed in.
-pub(super) fn demo_turns(
-    signature: &Signature,
-    demos: &[Example],
-    answer: Answer,
-) -> Vec<ChatTurn> {
+pub(super) fn demo_turns(signature: &Signature, demos: &[Example], style: Style) -> Vec<ChatTurn> {
     let matching = |kind: Kind| {
         demos
             .iter()
@@ -45,12 +41,16 @@ pub(super) fn demo_turns(
     };
     let partial = matching(Kind::Partial).flat_map(|demo| {
         [
-            ask(signature, demo, Some(PARTIAL_PREFIX)),
-            answer(signature, demo, Some(NOT_SUPPLIED)),
+            ask(signature, demo, Some(PARTIAL_PREFIX), style.wrap),
+            (style.answer)(signature, demo, Some(NOT_SUPPLIED)),
         ]
     });
-    let complete = matching(Kind::Complete)
-        .flat_map(|demo| [ask(signature, demo, None), answer(signature, demo, None)]);
+    let complete = matching(Kind::Complete).flat_map(|demo| {
+        [
+            ask(signature, demo, None, style.wrap),
+            (style.answer)(signature, demo, None),
+        ]
+    });
     partial.chain(complete).collect()
 }
 
@@ -109,7 +109,7 @@ mod tests {
     }
 
     fn rendered(demos: &[Example]) -> Vec<String> {
-        demo_turns(&paint(), demos, crate::adapter::exchange::answer)
+        demo_turns(&paint(), demos, crate::adapter::MARKER_STYLE)
             .into_iter()
             .map(|turn| turn.content.text().unwrap().to_owned())
             .collect()

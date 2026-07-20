@@ -11,6 +11,7 @@ mod exchange;
 mod history;
 pub mod parse;
 pub mod python_json;
+pub mod xml;
 
 use python_json::{format_field_value, json_dumps};
 
@@ -111,7 +112,7 @@ impl Adapter for ChatAdapter {
         demos: &[Example],
         inputs: &[(&str, Value)],
     ) -> (String, Vec<ChatTurn>) {
-        let (asked, mut turns) = conversation(signature, demos, inputs, exchange::answer);
+        let (asked, mut turns) = conversation(signature, demos, inputs, MARKER_STYLE);
         turns.push(ChatTurn::user(chat_user(
             &asked,
             &live_inputs(&asked, inputs),
@@ -143,7 +144,7 @@ impl Adapter for JsonAdapter {
         demos: &[Example],
         inputs: &[(&str, Value)],
     ) -> (String, Vec<ChatTurn>) {
-        let (asked, mut turns) = conversation(signature, demos, inputs, exchange::json_answer);
+        let (asked, mut turns) = conversation(signature, demos, inputs, JSON_STYLE);
         turns.push(ChatTurn::user(json_user(
             &asked,
             &live_inputs(&asked, inputs),
@@ -298,6 +299,18 @@ fn chat_system(signature: &Signature) -> String {
     system_message(signature, &structure)
 }
 
+/// The chat adapter's exchange: marker sections both ways.
+const MARKER_STYLE: exchange::Style = exchange::Style {
+    wrap: section,
+    answer: exchange::answer,
+};
+
+/// The JSON adapter's: marker sections for the request, one object for the reply.
+const JSON_STYLE: exchange::Style = exchange::Style {
+    wrap: section,
+    answer: exchange::json_answer,
+};
+
 /// Everything before the live request: the demos, then any conversation history, and the
 /// signature the request itself is rendered against.
 ///
@@ -308,15 +321,15 @@ fn conversation(
     signature: &Signature,
     demos: &[Example],
     inputs: &[(&str, Value)],
-    answer: exchange::Answer,
+    style: exchange::Style,
 ) -> (Signature, Vec<ChatTurn>) {
-    let mut turns = demo_turns(signature, demos, answer);
+    let mut turns = demo_turns(signature, demos, style);
     let asked = match history::field_name(signature) {
         None => signature.clone(),
         Some(name) => {
             let stripped = history::without_field(signature, name);
             if let Some((_, value)) = inputs.iter().find(|(field, _)| *field == name) {
-                turns.extend(history::turns(&stripped, value, answer));
+                turns.extend(history::turns(&stripped, value, style));
             }
             stripped
         }

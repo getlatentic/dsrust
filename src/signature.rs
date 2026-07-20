@@ -175,6 +175,25 @@ impl Signature {
     /// strings depending on the provider, so both spellings parse the same way. A failure
     /// reads as retry feedback the model can act on, like ensure's own errors. Missing
     /// fields are skipped so ensure reports them as missing.
+    /// Coerce only the fields whose wire form this crate can read on its own.
+    ///
+    /// A scalar's is unambiguous: `int` means the text is a number or the reply is wrong, and an
+    /// adapter that casts while parsing can say so there. A structured field's is not — the text
+    /// may be JSON, or it may be the form its own type accepts, and dspy tells them apart by
+    /// handing the value to that Python type. This crate has no such type at parse time, so a
+    /// structured field is left for the caller's own typing to judge rather than guessed at.
+    pub(crate) fn coerce_scalars(&self, value: &mut Value) -> Result<()> {
+        for field in &self.outputs {
+            if matches!(field.kind, FieldKind::Json(_)) {
+                continue;
+            }
+            if let Some(entry) = value.get_mut(&field.name) {
+                coerce_value(&field.kind, &field.name, entry)?;
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn coerce(&self, value: &mut Value) -> Result<()> {
         for field in &self.outputs {
             if let Some(entry) = value.get_mut(&field.name) {

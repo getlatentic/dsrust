@@ -14,11 +14,20 @@ use crate::signature::Signature;
 
 use super::{marker, section};
 
+/// How an adapter writes one field and its value. dspy calls this `format_field_with_value`
+/// and each adapter overrides it: marker sections, XML tags, a JSON member.
+pub(super) type Wrap = fn(&str, &str) -> String;
+
 /// The user turn an example would have sent. Only the inputs it carries appear: dspy leaves a
 /// missing input out entirely rather than marking it, since the prefix already says so.
-pub(super) fn ask(signature: &Signature, example: &Example, prefix: Option<&str>) -> ChatTurn {
+pub(super) fn ask(
+    signature: &Signature,
+    example: &Example,
+    prefix: Option<&str>,
+    wrap: Wrap,
+) -> ChatTurn {
     let sections = signature.inputs.iter().filter_map(|field| {
-        Some(section(
+        Some(wrap(
             &field.name,
             &format_field_value(example.get(&field.name)?),
         ))
@@ -53,9 +62,17 @@ pub(super) fn answer(signature: &Signature, example: &Example, missing: Option<&
     ))
 }
 
-/// How an adapter writes the assistant half of an exchange. The request half is the same
-/// marker sections for both, so only this varies.
+/// How an adapter writes the assistant half of an exchange.
 pub(super) type Answer = fn(&Signature, &Example, Option<&str>) -> ChatTurn;
+
+/// How one adapter writes an already-answered exchange: the field form its requests use, and
+/// the shape its replies take. dspy spreads these across `format_field_with_value` and
+/// `format_assistant_message_content`; a demo and a history entry both need the pair.
+#[derive(Clone, Copy)]
+pub(super) struct Style {
+    pub wrap: Wrap,
+    pub answer: Answer,
+}
 
 /// The assistant turn as the JSON adapter writes it: the object the model would have returned,
 /// rather than the marker sections the chat adapter reads back.

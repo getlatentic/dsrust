@@ -12,7 +12,7 @@ use crate::example::Example;
 use crate::lm::ChatTurn;
 use crate::signature::Signature;
 
-use super::exchange::{Answer, ask};
+use super::exchange::{Style, ask};
 
 /// The annotation dspy prints for a history field, and so the name this crate recognises it by.
 const ANNOTATION: &str = "History";
@@ -69,13 +69,13 @@ fn exchanges(value: &Value) -> Vec<Example> {
 /// The replayed turns, a user and an assistant turn per exchange.
 ///
 /// `stripped` is the signature without the history field, as [`without_field`] returns it.
-pub(super) fn turns(stripped: &Signature, value: &Value, answer: Answer) -> Vec<ChatTurn> {
+pub(super) fn turns(stripped: &Signature, value: &Value, style: Style) -> Vec<ChatTurn> {
     exchanges(value)
         .iter()
         .flat_map(|exchange| {
             [
-                ask(stripped, exchange, None),
-                answer(stripped, exchange, Some(NOT_SUPPLIED)),
+                ask(stripped, exchange, None, style.wrap),
+                (style.answer)(stripped, exchange, Some(NOT_SUPPLIED)),
             ]
         })
         .collect()
@@ -146,7 +146,7 @@ mod tests {
     #[test]
     fn each_exchange_becomes_a_user_and_an_assistant_turn() {
         let stripped = without_field(&signature(), "history");
-        let turns = turns(&stripped, &history(), crate::adapter::exchange::answer);
+        let turns = turns(&stripped, &history(), crate::adapter::MARKER_STYLE);
 
         assert_eq!(turns.len(), 4);
         assert_eq!(
@@ -172,7 +172,7 @@ mod tests {
         // Rendering it would show the model a transcript inside one request, which is the thing
         // replaying the exchanges exists to avoid.
         let stripped = without_field(&signature(), "history");
-        let turns = turns(&stripped, &history(), crate::adapter::exchange::answer);
+        let turns = turns(&stripped, &history(), crate::adapter::MARKER_STYLE);
         assert!(
             !turns
                 .iter()
@@ -186,7 +186,7 @@ mod tests {
         let turns = turns(
             &stripped,
             &json!({ "messages": [{ "question": "Where?" }] }),
-            crate::adapter::exchange::answer,
+            crate::adapter::MARKER_STYLE,
         );
         assert_eq!(
             turns[1].content.text().unwrap(),
@@ -201,10 +201,10 @@ mod tests {
             turns(
                 &stripped,
                 &json!({ "messages": [] }),
-                crate::adapter::exchange::answer
+                crate::adapter::MARKER_STYLE
             )
             .is_empty()
         );
-        assert!(turns(&stripped, &json!({}), crate::adapter::exchange::answer).is_empty());
+        assert!(turns(&stripped, &json!({}), crate::adapter::MARKER_STYLE).is_empty());
     }
 }

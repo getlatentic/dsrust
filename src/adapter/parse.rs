@@ -66,6 +66,56 @@ fn split_header(line: &str) -> Option<(&str, &str)> {
 /// A JSON object anywhere in the reply. Providers in JSON mode return the bare object;
 /// models that ignore the mode wrap it in prose or code fences, so the outermost braces
 /// are the recovery path (DSPy's JSONAdapter recovers with a regex the same way).
+/// Read a reply written as tag pairs.
+///
+/// dspy scans for `<name>…</name>` over the whole reply and keeps the first occurrence of each
+/// declared field, ignoring any tag the signature never asked for. The same mismatch rule as
+/// the JSON adapter then applies: a reply missing a declared field is a failure carrying
+/// whatever it did say.
+pub(super) fn parse_tags(signature: &Signature, raw: &str) -> Result<Value> {
+    let mut found = serde_json::Map::new();
+    let mut rest = raw;
+    while let Some((name, content, after)) = next_tag(rest) {
+        if signature.outputs.iter().any(|field| field.name == name) && !found.contains_key(name) {
+            found.insert(name.to_owned(), Value::String(content.trim().to_owned()));
+        }
+        rest = after;
+    }
+    let mut value = declared_fields(signature, Value::Object(found))?;
+    // dspy casts each field inside `XMLAdapter.parse` and reports a value that will not fit as
+    // a parse failure, rather than handing a caller a string where a number was declared.
+    signature
+        .coerce_scalars(&mut value)
+        .map_err(|error| anyhow!("Failed to parse field in {raw}: {error}"))?;
+    Ok(value)
+}
+
+/// The next `<name>…</name>` pair: its name, what it wraps, and what follows it.
+///
+/// A tag name is a word, matching upstream's `\w+`, so punctuation or a space rules a `<`
+/// out as an opening tag and the scan moves past it.
+fn next_tag(text: &str) -> Option<(&str, &str, &str)> {
+    let mut cursor = 0;
+    loop {
+        let open = text[cursor..].find('<')? + cursor;
+        let Some(shut) = text[open..].find('>').map(|at| at + open) else {
+            return None;
+        };
+        let name = &text[open + 1..shut];
+        let is_word = !name.is_empty()
+            && name
+                .chars()
+                .all(|letter| letter.is_alphanumeric() || letter == '_');
+        if is_word {
+            let closing = format!("</{name}>");
+            if let Some(end) = text[shut + 1..].find(&closing).map(|at| at + shut + 1) {
+                return Some((name, &text[shut + 1..end], &text[end + closing.len()..]));
+            }
+        }
+        cursor = open + 1;
+    }
+}
+
 /// A reply that read as JSON but did not carry the fields the signature declared.
 ///
 /// dspy reports this separately from a reply it could not read at all, and hands the caller

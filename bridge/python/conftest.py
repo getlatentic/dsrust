@@ -24,7 +24,20 @@ except ImportError as error:  # pragma: no cover - environment dependent
     )
 
 import rust_adapter  # noqa: E402
-from rust_adapter import RustChatAdapter, RustJSONAdapter  # noqa: E402
+from rust_adapter import (  # noqa: E402
+    RustChatAdapter,
+    RustJSONAdapter,
+    RustXMLAdapter,
+)
+
+#: The adapter names upstream reaches for, and the Rust-backed class for each. A test file that
+#: did `from … import XMLAdapter` holds its own reference, bound when pytest imported it, so the
+#: fixture below rebinds the name in the running test's module as well as on dspy.
+RUST_BACKED = {
+    "ChatAdapter": RustChatAdapter,
+    "JSONAdapter": RustJSONAdapter,
+    "XMLAdapter": RustXMLAdapter,
+}
 
 # Upstream tests whose features this crate has not written yet, with the reason. Delete a line
 # once Rust renders that case; the strict xfail will fail the run if you forget.
@@ -134,6 +147,24 @@ def _use_rust_adapter(monkeypatch):
     # mock it there — patching it would test the mock against a class nothing returns.
     monkeypatch.setattr(dspy, "JSONAdapter", RustJSONAdapter)
     monkeypatch.setattr("dspy.adapters.JSONAdapter", RustJSONAdapter, raising=False)
+    monkeypatch.setattr(dspy, "XMLAdapter", RustXMLAdapter, raising=False)
+    monkeypatch.setattr("dspy.adapters.XMLAdapter", RustXMLAdapter, raising=False)
+    monkeypatch.setattr("dspy.adapters.xml_adapter.XMLAdapter", RustXMLAdapter, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _rebind_in_the_test_module(monkeypatch, request):
+    """Point a test file's own imported adapter name at the Rust-backed class.
+
+    `from dspy.adapters.xml_adapter import XMLAdapter` binds the class into the test module when
+    pytest imports it, before any fixture runs. Patching dspy's module afterwards leaves that
+    reference untouched, so the test would construct dspy's own adapter and pass without this
+    crate doing anything.
+    """
+    module = request.node.module
+    for name, backed in RUST_BACKED.items():
+        if hasattr(module, name):
+            monkeypatch.setattr(module, name, backed)
 
 
 def pytest_configure(config):
