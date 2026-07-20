@@ -104,6 +104,24 @@ impl Example {
     }
 }
 
+/// Build an [`Example`] from named fields, the way `dspy.Example(question=..., answer=...)`
+/// reads in Python. Values go through `serde_json::json!`, so a literal, a variable, or a
+/// nested structure all work.
+///
+/// ```
+/// let example = dsrs::example! { question: "Why is the sky blue?", answer: "Scattering." }
+///     .with_inputs(["question"]);
+/// assert_eq!(example.labels().len(), 1);
+/// ```
+#[macro_export]
+macro_rules! example {
+    ($($name:ident : $value:expr),* $(,)?) => {
+        $crate::Example::new([
+            $((stringify!($name), $crate::__macro_support::json!($value))),*
+        ])
+    };
+}
+
 /// dspy `format_field_value`: a string is itself, anything else is its JSON form. Quoting a
 /// string would change what the model reads, and upstream is careful to avoid that.
 pub fn render(value: &Value) -> String {

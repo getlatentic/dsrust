@@ -7,13 +7,21 @@
 extern crate self as dsrs;
 
 pub mod adapter;
+pub mod evaluate;
 pub mod example;
 pub mod lm;
 pub mod predict;
 pub mod signature;
 
 pub use adapter::{Adapter, ChatAdapter, JsonAdapter};
+pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
 pub use example::{Example, Prediction};
+
+/// Re-exports the macros need so a caller does not have to depend on them directly.
+#[doc(hidden)]
+pub mod __macro_support {
+    pub use serde_json::json;
+}
 pub use lm::{
     ChatModel, ChatTurn, LM, ModelRef, OutputMode, Provider, Role, configure, configure_with_client,
 };
