@@ -53,6 +53,51 @@ NOT_YET_IMPLEMENTED = {
 # would read as green whatever this crate did. Naming them keeps the passing count honest, and
 # anything not named here must cross into Rust or the run fails.
 DOES_NOT_EXERCISE_RUST = {
+    # `Predict`'s own state: what `dump_state`/`load_state` round-trip, and the checks that stop
+    # a serialized file from redirecting a later run at another endpoint. dspy's module
+    # bookkeeping and its security posture around it, both above the wire this crate speaks.
+    "test_lm_after_dump_and_load_state": "dspy's own state round-trip",
+    "test_instructions_after_dump_and_load_state": "dspy's own state round-trip",
+    "test_demos_after_dump_and_load_state": "dspy's own state round-trip",
+    "test_typed_demos_after_dump_and_load_state": "dspy's own state round-trip",
+    "test_signature_fields_after_dump_and_load_state": "dspy's own state round-trip",
+    "test_lm_field_after_dump_and_load_state": "dspy's own state round-trip",
+    "test_dump_state_pydantic_non_primitive_types": "dspy's own state round-trip",
+    "test_load_state_chaining": "dspy's own state round-trip",
+    "test_load_ignores_serialized_endpoint_override_by_default": "dspy's endpoint-override guard",
+    "test_load_allows_serialized_endpoint_override_with_opt_in": "dspy's endpoint-override guard",
+    "test_load_state_ignores_serialized_endpoint_override_by_default": (
+        "dspy's endpoint-override guard"
+    ),
+    "test_load_state_allows_serialized_endpoint_override_with_opt_in": (
+        "dspy's endpoint-override guard"
+    ),
+    "test_load_state_ignores_serialized_model_list_endpoint_override_by_default": (
+        "dspy's endpoint-override guard"
+    ),
+    "test_load_prevents_serialized_endpoint_override_reaching_litellm": (
+        "dspy's endpoint-override guard"
+    ),
+    "test_load_blocks_serialized_model_list_unless_opted_in": "dspy's endpoint-override guard",
+    "test_load_uses_env_api_key_without_honoring_serialized_endpoint_override": (
+        "dspy's endpoint-override guard"
+    ),
+    # `Predict` as a module: how it is built, reset, configured and walked. None of it renders.
+    "upstream_test_predict.py::test_initialization_with_string_signature": (
+        "dspy's module construction"
+    ),
+    "test_reset_method": "dspy's module construction",
+    "test_config_management": "dspy's module construction",
+    "test_named_predictors": "dspy's module construction",
+    "test_positional_arguments": "dspy's module construction",
+    # Raises on the LM before any adapter is reached, which is the thing being tested.
+    "test_error_message_on_invalid_lm_setup": "dspy's LM validation, ahead of rendering",
+    # Each replaces the module or the adapter that would call this crate — two mock `react` and
+    # `extract` outright, one substitutes its own adapter to watch what ReAct hands it. Nothing
+    # can cross by the tests' own design.
+    "test_trajectory_truncation": "ReAct's loop with its predictors mocked out",
+    "test_context_window_exceeded_after_retries": "ReAct's loop with its predictors mocked out",
+    "test_tool_observation_preserves_custom_type": "a test-local adapter, watching ReAct's input",
     # Calls dspy's private `_call_postprocess` with outputs already parsed, so it exercises
     # dspy's own plumbing around an adapter rather than anything the adapter renders.
     "test_tool_call_with_null_content_does_not_raise": "dspy-internal postprocessing",
@@ -113,10 +158,25 @@ def _require_a_crossing(request):
                 "crate; drop the file's line and triage its tests individually"
             )
         return
-    if crossed:
-        return
     name = request.node.name.split("[")[0]
-    if name in DOES_NOT_EXERCISE_RUST or name.removesuffix("_async") in DOES_NOT_EXERCISE_RUST:
+    # A name can repeat across files — `test_initialization_with_string_signature` is in both
+    # the predict and chain-of-thought suites, and only one of them stays in Python — so a
+    # declaration may name its file to say which it means.
+    declared = any(
+        key in DOES_NOT_EXERCISE_RUST
+        for key in (f"{module}::{name}", f"{module}::{name.removesuffix('_async')}",
+                    name, name.removesuffix("_async"))
+    )
+    # Both ways, as for the whole-file list above: a declared test that starts crossing means
+    # the port grew to cover it, and its line is now a claim that is no longer true.
+    if crossed:
+        if declared:
+            pytest.fail(
+                "this test is declared as not exercising the crate, but it reached it; "
+                "drop its line from DOES_NOT_EXERCISE_RUST"
+            )
+        return
+    if declared:
         return
     pytest.fail(
         "this test passed without the crate rendering or parsing anything, so it says nothing "
