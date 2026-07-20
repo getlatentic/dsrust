@@ -1,0 +1,196 @@
+# Source of truth for what dsrs is building and in what order.
+#
+# A sprint ships a usable increment, not a layer. A story is done when its acceptance
+# criteria hold under the five gates in HANDOFF.md — including the upstream suite, which
+# only runs in the main checkout.
+#
+# Stories carry the upstream test files that prove them. "Add a suite" means adding the
+# file to SUITES in scripts/run_upstream_tests.sh and triaging the failures it arrives
+# with. A story is not done because its suite is green; it is done when the suite is green
+# AND its tests cross into Rust — the runner prints that count.
+
+[project]
+name = "dsrs"
+upstream = "dspy"
+upstream_version = "3.2.1"
+updated = "2026-07-20"
+
+[status]
+rust_tests = 331
+upstream_tests_passing = 256
+upstream_tests_crossing = 156
+xfail_backlog = 0
+suites_run = 17
+
+# ---------------------------------------------------------------------------
+# Shipped
+# ---------------------------------------------------------------------------
+
+[[sprint]]
+id = "s1"
+name = "Adapters"
+state = "done"
+shipped = "2026-07-20"
+outcome = "Every wire format dspy ships renders and parses byte-identically."
+suites = [
+  "adapters/test_chat_adapter.py", "adapters/test_json_adapter.py",
+  "adapters/test_xml_adapter.py", "adapters/test_baml_adapter.py",
+  "adapters/test_two_step_adapter.py", "adapters/test_adapter_utils.py",
+  "adapters/test_base_type.py", "adapters/test_code.py", "adapters/test_citation.py",
+  "adapters/test_document.py", "adapters/test_audio.py", "adapters/test_reasoning.py",
+  "adapters/test_tool.py",
+]
+
+[[sprint]]
+id = "s2"
+name = "Predict and ReAct"
+state = "done"
+shipped = "2026-07-20"
+outcome = "A program can be asked, retried, and recovered the way dspy does it."
+suites = ["predict/test_predict.py", "predict/test_chain_of_thought.py", "predict/test_react.py"]
+
+# ---------------------------------------------------------------------------
+# Next
+# ---------------------------------------------------------------------------
+
+[[sprint]]
+id = "s3"
+name = "Optimizer conformance"
+state = "next"
+outcome = """
+The crate's own optimizer is held to upstream's behaviour, not just to its own tests.
+This is the sprint that closes the project's one known blind spot.
+"""
+
+[[story]]
+id = "s3-1"
+sprint = "s3"
+title = "Prove the crate's BootstrapFewShot makes upstream's decisions"
+state = "todo"
+size = "L"
+narrative = """
+As someone trusting dsrs to compile a program, I want the crate's optimizer held to dspy's
+own behaviour, so that a compiled program is the one dspy would have produced.
+"""
+problem = """
+teleprompt/test_bootstrap.py is green and every test crosses into Rust — through the ADAPTER,
+while running dspy's Python optimizer. src/optimize/ is not reachable from the bridge at all.
+The crossing counter cannot catch this: a crossing proves some Rust ran, not the right Rust.
+"""
+acceptance = [
+  "A failing check exists BEFORE the fix: a deliberate wrong decision in src/optimize/bootstrap.rs is caught",
+  "Identical traces drive both implementations and the demos kept match — same examples, same order, same count",
+  "Divergences upstream owns are asserted, not smoothed: raw_demos rebinding, and any-non-zero-metric-succeeds",
+  "Documented limits stay documented and are asserted as limits, not quietly passed",
+]
+subtasks = [
+  "Choose between trace-replay and routing compile into Rust; record the reasoning where the choice lives",
+  "Capture upstream traces for a fixed trainset and metric via generate_fixtures.py",
+  "Compare kept demos across both, including max_labeled_demos and max_rounds boundaries",
+  "Mutation-test: break each ported decision, confirm a named check fails",
+]
+notes = """
+Routing compile into Rust is hard — upstream drives model calls from Python, so Rust would
+call back mid-loop. Trace replay is tractable because the optimizer's decisions are pure
+logic given traces even though the driving is I/O.
+"""
+
+[[story]]
+id = "s3-2"
+sprint = "s3"
+title = "Per-predictor demos for a multi-predictor program"
+state = "blocked"
+size = "M"
+blocked_by = "s3-1"
+narrative = """
+As someone compiling a program with several predictors, I want each predictor to receive the
+demos its own calls earned, so that compiling a pipeline is worth more than compiling one step.
+"""
+problem = """
+dspy keys name2traces by id(predictor) off a thread-local settings.trace. Module::forward
+returns only the finished Prediction, so every predictor currently receives the program-level
+demo. For a single-predictor program the two coincide exactly; beyond that they do not.
+"""
+acceptance = [
+  "A two-predictor program gives each predictor demos from its own calls",
+  "A single-predictor program's output is unchanged — pinned by a test that fails if it moves",
+  "No ambient thread-local state: the seam is explicit in the Module signature",
+]
+
+# ---------------------------------------------------------------------------
+# After
+# ---------------------------------------------------------------------------
+
+[[sprint]]
+id = "s4"
+name = "Signatures and primitives"
+state = "planned"
+outcome = "The declaration layer is held to upstream directly, not only through adapters."
+suites = ["signatures/* (4 files)", "primitives/* (4 files)"]
+rationale = """
+Signature behaviour is currently proven only where an adapter happens to render it. These
+suites test it head-on, and they are small — the cheapest real coverage left.
+"""
+
+[[sprint]]
+id = "s5"
+name = "Evaluate"
+state = "planned"
+outcome = "Scoring a program over a devset matches upstream, including how failures are counted."
+suites = ["evaluate/* (3 files)"]
+
+[[sprint]]
+id = "s6"
+name = "Remaining optimizers"
+state = "planned"
+outcome = "The optimizers a real dspy user reaches for, ported on the seam s3 establishes."
+rationale = """
+Deliberately after s3. Porting more optimizers before their conformance story exists would
+repeat the blind spot five more times.
+"""
+candidates = ["COPRO", "MIPROv2", "GEPA", "BetterTogether", "KNNFewShot"]
+
+# ---------------------------------------------------------------------------
+# Backlog — triaged at sprint planning, not scheduled
+# ---------------------------------------------------------------------------
+
+[[backlog]]
+id = "b1"
+title = "BAML record inputs branch on the declaration, not the value"
+kind = "known-divergence"
+decision = "accepted"
+detail = """
+dspy branches on isinstance(value, BaseModel); we branch on the field's declared type. The two
+agree whenever a value matches its declaration, and disagree only when a caller passes a loose
+mapping to a field declared as a record. Closing it means putting per-call value provenance into
+the public Adapter::format — a worse trade than the divergence. Reasoning lives at
+src/adapter/baml.rs::input_value. Reopen only if a real caller hits it.
+"""
+
+[[backlog]]
+id = "b2"
+title = "max_rounds re-asks but nothing forces a different answer"
+kind = "known-limit"
+detail = """
+Upstream forces divergence with lm.copy(rollout_id=round_idx, temperature=1.0). No per-call LM
+override is reachable through Module::forward, so a second round re-asks identically. The loop
+and its break-on-success are ported; the forcing is not. Needs a per-call LM override seam.
+"""
+
+[[backlog]]
+id = "b3"
+title = "Streaming, callbacks, clients"
+kind = "unscoped"
+detail = """
+tests/streaming, tests/callback, tests/clients are untouched and unsized. Streaming in
+particular may not fit the current ChatModel trait. Size before scheduling.
+"""
+
+[[backlog]]
+id = "b4"
+title = "Publish to crates.io"
+kind = "release"
+detail = """
+Not blocked by scope — blocked by deciding what the 0.1 API surface promises. Adapter::format
+became fallible once already; another such change after publishing is a breaking release.
+"""
