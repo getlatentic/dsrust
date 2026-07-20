@@ -41,7 +41,8 @@ that error rather than letting a broken build read as a pass.
 | `Adapter` trait: `ChatAdapter`, `JsonAdapter`, or your own | built, conformance-checked |
 | `Predict`, `ChainOfThought` (+ typed forms) | built |
 | `ReAct` with tools, trajectory, and an iteration budget | built |
-| LM layer, global config with per-call override | built |
+| LM layer (Anthropic, OpenRouter, ollama), global config | built |
+| `DummyLM` for testing a program with no provider | built |
 | Two-tier feedback retry | built |
 | Demos (few-shot examples) rendered as turns | built, conformance-checked |
 | `Example` with the input/label split, `Prediction` | built, semantics checked against dspy |

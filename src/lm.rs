@@ -1,3 +1,4 @@
+pub mod dummy;
 pub mod global;
 
 use std::time::Duration;

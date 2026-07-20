@@ -28,6 +28,7 @@ pub use react::{FnTool, ReAct, Tool, Trajectory};
 pub mod __macro_support {
     pub use serde_json::json;
 }
+pub use lm::dummy::DummyLM;
 pub use lm::{
     ChatModel, ChatTurn, LM, ModelRef, OutputMode, Provider, Role, configure, configure_with_client,
 };
