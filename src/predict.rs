@@ -5,7 +5,8 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::adapter::{Adapter, ChatAdapter, Feedback, JsonAdapter, turns_for};
-use crate::example::Example;
+use crate::example::{Example, Prediction};
+use crate::module::{Module, NamedPredictor};
 use crate::lm::{ChatModel, global};
 use crate::signature::{FieldKind, OutField, Signature, SignatureSpec};
 
@@ -850,5 +851,61 @@ mod tests {
             budget: budget,
             years: 30i64,
         }));
+    }
+}
+
+/// dspy's `Predict` is a `Module`, and so is this one. Without this an optimizer could not
+/// walk a program to reach the demos it exists to rewrite, and an evaluator could not take a
+/// built-in module and a caller's own module through the same door.
+impl Module for Predict {
+    fn forward<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        Box::pin(async move {
+            let (http, lm) = global::current()?;
+            let rendered = inputs.rendered();
+            let pairs: Vec<(&str, String)> = rendered
+                .iter()
+                .map(|(name, value)| (name.as_str(), value.clone()))
+                .collect();
+            let validated = self.call_with_inputs(&http, lm.as_ref(), &pairs).await?;
+            Ok(Prediction::new(prediction_example(&validated.value), validated.raw))
+        })
+    }
+
+    fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
+        vec![NamedPredictor {
+            name: "self".to_owned(),
+            signature: &mut self.signature,
+            demos: &mut self.demos,
+        }]
+    }
+}
+
+/// A [`ChainOfThought`] is one predictor too: its reasoning field is part of the signature it
+/// asks with, so an optimizer rewriting demos reaches the same place.
+impl Module for ChainOfThought {
+    fn forward<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        self.predict.forward(inputs)
+    }
+
+    fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
+        self.predict.named_predictors()
+    }
+}
+
+/// The parsed reply as an [`Example`], so a metric can read its fields by name.
+fn prediction_example(value: &Value) -> Example {
+    match value.as_object() {
+        Some(fields) => Example::new(
+            fields
+                .iter()
+                .map(|(name, value)| (name.clone(), value.clone())),
+        ),
+        None => Example::default(),
     }
 }

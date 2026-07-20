@@ -9,6 +9,7 @@ extern crate self as dsrs;
 pub mod adapter;
 pub mod evaluate;
 pub mod module;
+pub mod optimize;
 pub mod example;
 pub mod lm;
 pub mod predict;
@@ -18,6 +19,7 @@ pub use adapter::{Adapter, ChatAdapter, JsonAdapter};
 pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
 pub use example::{Example, Prediction};
 pub use module::{Module, NamedPredictor};
+pub use optimize::{BootstrapFewShot, LabeledFewShot};
 
 /// Re-exports the macros need so a caller does not have to depend on them directly.
 #[doc(hidden)]

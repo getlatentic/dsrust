@@ -44,9 +44,10 @@ that error rather than letting a broken build read as a pass.
 | Two-tier feedback retry | built |
 | Demos (few-shot examples) rendered as turns | built, conformance-checked |
 | `Example` with the input/label split, `Prediction` | built, semantics checked against dspy |
-| `Module` trait: write your own, walk its predictors | built |
+| `Module` trait, implemented by `Predict` and `ChainOfThought` | built |
 | `Evaluate` over a devset, with a metric | built (sequential) |
-| Optimizers: labelled few-shot, then bootstrap | next |
+| `LabeledFewShot` and `BootstrapFewShot` | built |
+| Instruction-search optimizers (COPRO/MIPRO-style) | next |
 | Optimizers (labeled few-shot → bootstrap → search) | planned |
 | ReAct | planned |
 
