@@ -4,7 +4,8 @@ use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::adapter::{Adapter, ChatAdapter, Demo, Feedback, JsonAdapter, turns_for};
+use crate::adapter::{Adapter, ChatAdapter, Feedback, JsonAdapter, turns_for};
+use crate::example::Example;
 use crate::lm::{ChatModel, global};
 use crate::signature::{FieldKind, OutField, Signature, SignatureSpec};
 
@@ -19,7 +20,7 @@ pub struct Predict {
     pub adapter: Box<dyn Adapter>,
     /// Solved examples shown before the request. An optimizer's output is a chosen set of
     /// these, so a compiled program is this field plus the signature's instructions.
-    pub demos: Vec<Demo>,
+    pub demos: Vec<Example>,
 }
 
 /// One accepted reply: the value that passed coercion and validation, the raw text it was
@@ -40,7 +41,7 @@ impl Predict {
     }
 
     /// Show the model these solved examples before the request.
-    pub fn with_demos(mut self, demos: impl IntoIterator<Item = Demo>) -> Self {
+    pub fn with_demos(mut self, demos: impl IntoIterator<Item = Example>) -> Self {
         self.demos = demos.into_iter().collect();
         self
     }

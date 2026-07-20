@@ -6,16 +6,15 @@
 //! question "are we faithful?" is answered by the test run instead of by reading both
 //! codebases. A divergence here is a bug in this crate until upstream is shown to be wrong.
 
-use dsrs::adapter::Demo;
 use dsrs::signature::{FieldKind, InField, OutField, Signature};
-use dsrs::{Adapter, ChatAdapter};
+use dsrs::{Adapter, ChatAdapter, Example};
 use serde_json::Value;
 
 struct Fixture {
     name: String,
     source: String,
     signature: Signature,
-    demos: Vec<Demo>,
+    demos: Vec<Example>,
     values: Vec<(&'static str, String)>,
     expected_system: String,
     expected_turns: Vec<(String, String)>,
@@ -84,15 +83,13 @@ fn load(path: &std::path::Path) -> Fixture {
             entries
                 .iter()
                 .map(|entry| {
-                    Demo::new(entry.as_object().expect("demo object").iter().map(
-                        |(name, value)| {
-                            let rendered = match value {
-                                Value::String(text) => text.clone(),
-                                other => other.to_string(),
-                            };
-                            (name.clone(), rendered)
-                        },
-                    ))
+                    Example::new(
+                        entry
+                            .as_object()
+                            .expect("demo object")
+                            .iter()
+                            .map(|(name, value)| (name.clone(), value.clone())),
+                    )
                 })
                 .collect()
         })

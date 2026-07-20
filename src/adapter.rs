@@ -2,6 +2,7 @@ use anyhow::{Result, anyhow};
 use serde_json::{Map, Value};
 
 use crate::lm::{ChatTurn, OutputMode};
+use crate::example::Example;
 use crate::signature::{FieldKind, Signature};
 
 /// How a signature travels over the wire.
@@ -28,7 +29,7 @@ pub trait Adapter: Send + Sync {
     fn format(
         &self,
         signature: &Signature,
-        demos: &[Demo],
+        demos: &[Example],
         inputs: &[(&str, String)],
     ) -> (String, Vec<ChatTurn>);
 
@@ -88,7 +89,7 @@ impl Adapter for ChatAdapter {
     fn format(
         &self,
         signature: &Signature,
-        demos: &[Demo],
+        demos: &[Example],
         inputs: &[(&str, String)],
     ) -> (String, Vec<ChatTurn>) {
         let mut turns: Vec<ChatTurn> = demos
@@ -113,7 +114,7 @@ impl Adapter for JsonAdapter {
     fn format(
         &self,
         signature: &Signature,
-        _demos: &[Demo],
+        _demos: &[Example],
         inputs: &[(&str, String)],
     ) -> (String, Vec<ChatTurn>) {
         (
@@ -128,29 +129,6 @@ impl Adapter for JsonAdapter {
 
     fn output_mode<'a>(&self, schema: &'a Value) -> OutputMode<'a> {
         OutputMode::Json { schema }
-    }
-}
-
-/// One solved example shown to the model before the real request: the field values of a call
-/// that went well. dspy calls these demos, and an optimizer's product is a chosen set of them.
-#[derive(Debug, Clone, Default)]
-pub struct Demo {
-    /// Field name to rendered value, covering inputs and outputs alike.
-    pub fields: Vec<(String, String)>,
-}
-
-impl Demo {
-    pub fn new(fields: impl IntoIterator<Item = (String, String)>) -> Self {
-        Self {
-            fields: fields.into_iter().collect(),
-        }
-    }
-
-    fn value(&self, name: &str) -> Option<&str> {
-        self.fields
-            .iter()
-            .find(|(field, _)| field == name)
-            .map(|(_, value)| value.as_str())
     }
 }
 
@@ -349,18 +327,18 @@ fn output_requirements(signature: &Signature) -> String {
 /// dspy `format_demos`: a demo becomes the user turn it would have been, then the assistant
 /// turn it produced. The user turn carries no output-requirements reminder — the answer is
 /// already there — and the assistant turn closes with the completed marker.
-fn chat_demo_turns(signature: &Signature, demo: &Demo) -> Vec<ChatTurn> {
-    let section = |name: &str, value: &str| format!("{}\n{value}", marker(name));
+fn chat_demo_turns(signature: &Signature, demo: &Example) -> Vec<ChatTurn> {
+    let section = |name: &str, value: String| format!("{}\n{value}", marker(name));
     let ask = signature
         .inputs
         .iter()
-        .filter_map(|field| Some(section(field.name, demo.value(field.name)?)))
+        .filter_map(|field| Some(section(field.name, demo.get(field.name).map(crate::example::render)?)))
         .collect::<Vec<_>>()
         .join("\n\n");
     let mut answer = signature
         .outputs
         .iter()
-        .filter_map(|field| Some(section(field.name, demo.value(field.name)?)))
+        .filter_map(|field| Some(section(field.name, demo.get(field.name).map(crate::example::render)?)))
         .collect::<Vec<_>>();
     answer.push(format!("{}\n", marker("completed")));
     vec![

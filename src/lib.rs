@@ -7,11 +7,13 @@
 extern crate self as dsrs;
 
 pub mod adapter;
+pub mod example;
 pub mod lm;
 pub mod predict;
 pub mod signature;
 
 pub use adapter::{Adapter, ChatAdapter, JsonAdapter};
+pub use example::{Example, Prediction};
 pub use lm::{
     ChatModel, ChatTurn, LM, ModelRef, OutputMode, Provider, Role, configure, configure_with_client,
 };

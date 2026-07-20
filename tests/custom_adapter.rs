@@ -7,7 +7,7 @@
 use anyhow::{Result, anyhow};
 use dsrs::signature::{FieldKind, OutField, Signature};
 use dsrs::lm::ChatTurn;
-use dsrs::adapter::Demo;
+use dsrs::Example;
 use dsrs::{Adapter, ChatAdapter};
 use serde_json::{Map, Value};
 
@@ -18,7 +18,7 @@ impl Adapter for XmlAdapter {
     fn format(
         &self,
         signature: &Signature,
-        _demos: &[Demo],
+        _demos: &[Example],
         inputs: &[(&str, String)],
     ) -> (String, Vec<ChatTurn>) {
         let tags: Vec<String> = signature
