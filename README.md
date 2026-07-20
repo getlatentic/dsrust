@@ -19,7 +19,7 @@ cargo test                      # everything
 | Layer | State |
 |---|---|
 | Signatures (`#[derive(Signature)]`, typed + complex fields) | built |
-| ChatAdapter / JSONAdapter with fallback | built, conformance-checked |
+| `Adapter` trait: `ChatAdapter`, `JsonAdapter`, or your own | built, conformance-checked |
 | `Predict`, `ChainOfThought` (+ typed forms) | built |
 | LM layer, global config with per-call override | built |
 | Two-tier feedback retry | built |

@@ -8,6 +8,7 @@ use std::sync::Mutex;
 use anyhow::{Result, anyhow};
 use dsrs::lm::{self, ChatModel, ChatTurn, LM, OutputMode, Role};
 use dsrs::signature::{Signature, SignatureSpec, chain_of_thought, json_field_schema, predict};
+use dsrs::JsonAdapter;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -218,18 +219,20 @@ async fn invalid_json_rides_the_feedback_retry() {
 
 #[tokio::test]
 async fn the_json_adapter_passes_native_arrays_through() {
+    // The adapter is the caller's choice, so ask for JSON explicitly rather than arriving
+    // there by accident after a failed parse.
     let native = format!(r#"{{ "ideas": {GOOD_IDEAS}, "tip": "Wrap it well." }}"#);
-    let lm = Scripted::new(&["no markers here at all", &native]);
+    let lm = Scripted::new(&[&native]);
     let outputs = IdeasTask::predict()
+        .with_adapter(JsonAdapter)
         .call_with(&reqwest::Client::new(), &lm, &inputs())
         .await
-        .expect("fallback succeeds");
+        .expect("native json reply");
     assert_eq!(outputs.ideas.len(), 3);
 
     let calls = lm.calls();
-    assert_eq!(calls.len(), 2);
-    assert!(!calls[0].json_mode);
-    assert!(calls[1].json_mode);
+    assert_eq!(calls.len(), 1);
+    assert!(calls[0].json_mode, "the json adapter engages native structured output");
 }
 
 #[tokio::test]
@@ -272,9 +275,10 @@ async fn a_second_shape_failure_is_final_with_no_third_ask() {
 }
 
 #[tokio::test]
-async fn typed_calls_stay_bounded_at_four_provider_calls() {
+async fn typed_calls_stay_bounded_at_three_provider_calls() {
+    // Without an adapter fallback the ceiling is the ask plus one feedback retry per stage:
+    // a validation failure, then a shape failure, and no more.
     let script = [
-        "these are three nice ideas".to_owned(),
         format!(r#"{{ "ideas": {GOOD_IDEAS} }}"#),
         r#"{ "ideas": [{"title":"Fly rod"}], "tip": "Wrap it well." }"#.to_owned(),
         format!(r#"{{ "ideas": {GOOD_IDEAS}, "tip": "Wrap it well." }}"#),
@@ -282,17 +286,18 @@ async fn typed_calls_stay_bounded_at_four_provider_calls() {
     let script: Vec<&str> = script.iter().map(String::as_str).collect();
     let lm = Scripted::new(&script);
     let outputs = IdeasTask::predict()
+        .with_adapter(JsonAdapter)
         .call_with(&reqwest::Client::new(), &lm, &inputs())
         .await
-        .expect("fourth reply lands");
+        .expect("third reply lands");
     assert_eq!(outputs.ideas.len(), 3);
 
     let calls = lm.calls();
-    assert_eq!(calls.len(), 4);
+    assert_eq!(calls.len(), 3);
     let modes: Vec<bool> = calls.iter().map(|call| call.json_mode).collect();
-    assert_eq!(modes, [false, true, true, true]);
+    assert_eq!(modes, [true, true, true], "the chosen adapter is used throughout");
     assert!(
-        calls[2]
+        calls[1]
             .turns
             .last()
             .expect("turns")
@@ -300,7 +305,7 @@ async fn typed_calls_stay_bounded_at_four_provider_calls() {
             .contains("the tip field is missing")
     );
     assert!(
-        calls[3]
+        calls[2]
             .turns
             .last()
             .expect("turns")

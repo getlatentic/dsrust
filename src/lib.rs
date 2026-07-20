@@ -11,7 +11,7 @@ pub mod lm;
 pub mod predict;
 pub mod signature;
 
-pub use adapter::Adapter;
+pub use adapter::{Adapter, ChatAdapter, JsonAdapter};
 pub use lm::{
     ChatModel, ChatTurn, LM, ModelRef, OutputMode, Provider, Role, configure, configure_with_client,
 };

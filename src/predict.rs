@@ -4,27 +4,25 @@ use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::adapter::{Adapter, Feedback};
+use crate::adapter::{Adapter, ChatAdapter, Feedback, JsonAdapter, turns_for};
 use crate::lm::{ChatModel, global};
 use crate::signature::{FieldKind, OutField, Signature, SignatureSpec};
 
 /// dspy.Predict: ask through the configured adapter, demand the signature's fields back,
-/// and recover the way DSPy does — a reply that does not speak the adapter's format at all
-/// gets one ask through the other adapter; a reply that parses but fails the signature gets
+/// and recover the way DSPy does — a reply that parses but fails the signature gets
 /// one ask carrying the previous output and the precise error. Three provider calls at most
 /// on the value-level paths; the typed task paths add one more possible ask when the
 /// validated reply does not deserialize into the task's outputs, so four at most there.
 /// Every call is already bounded by the provider timeout.
 pub struct Predict {
     pub signature: Signature,
-    pub adapter: Adapter,
+    pub adapter: Box<dyn Adapter>,
 }
 
 /// One accepted reply: the value that passed coercion and validation, the raw text it was
 /// parsed from, and the adapter that produced it — enough for a typed caller to push a
 /// deeper failure back through the same feedback path.
 struct Validated {
-    adapter: Adapter,
     raw: String,
     value: Value,
 }
@@ -33,8 +31,15 @@ impl Predict {
     pub fn new(signature: Signature) -> Self {
         Self {
             signature,
-            adapter: Adapter::default(),
+            adapter: Box::new(ChatAdapter),
         }
+    }
+
+    /// Send this module's prompts through a different wire format. Any [`Adapter`] works,
+    /// including one a caller writes: dspy chooses its adapter the same way.
+    pub fn with_adapter(mut self, adapter: impl Adapter + 'static) -> Self {
+        self.adapter = Box::new(adapter);
+        self
     }
 
     /// The module for a derived signature; its caller speaks the signature's own types.
@@ -66,24 +71,34 @@ impl Predict {
             .value)
     }
 
+    /// One attempt: render through the adapter, ask the model, hand back the raw reply.
+    /// dspy's `Adapter.__call__` in the module rather than the adapter, because a Rust trait
+    /// carrying an async model call could not also be object-safe.
+    async fn ask(
+        &self,
+        http: &reqwest::Client,
+        lm: &impl ChatModel,
+        inputs: &[(&str, String)],
+        feedback: Option<&Feedback>,
+    ) -> Result<String> {
+        let schema = self.signature.schema();
+        let (system, opening) = self.adapter.format(&self.signature, inputs);
+        let mode = self.adapter.output_mode(&schema);
+        lm.chat(http, &system, &turns_for(opening, feedback), &mode)
+            .await
+    }
+
     async fn call_with_inputs(
         &self,
         http: &reqwest::Client,
         lm: &impl ChatModel,
         inputs: &[(&str, String)],
     ) -> Result<Validated> {
-        let mut adapter = self.adapter;
-        let raw = adapter.ask(http, lm, &self.signature, inputs, None).await?;
-        let (raw, mut value) = match adapter.parse(&self.signature, &raw) {
-            Ok(value) => (raw, value),
-            Err(error) => {
-                tracing::warn!(%error, from = ?adapter, "adapter fallback");
-                adapter = adapter.fallback();
-                let raw = adapter.ask(http, lm, &self.signature, inputs, None).await?;
-                let value = adapter.parse(&self.signature, &raw)?;
-                (raw, value)
-            }
-        };
+        // A reply that does not speak the adapter's format is a failure, not a cue to try
+        // another format: dspy raises here, and a caller who chose an adapter chose its wire
+        // contract. Value-level problems still earn the feedback retry below.
+        let raw = self.ask(http, lm, inputs, None).await?;
+        let mut value = self.adapter.parse(&self.signature, &raw)?;
         // Coercion failures ride the same feedback retry as validation failures: the reply
         // spoke the adapter's format, only a value was off, so the model gets the precise
         // error rather than a different wire format.
@@ -92,25 +107,15 @@ impl Predict {
             .coerce(&mut value)
             .and_then(|()| self.signature.ensure(&value))
         {
-            Ok(()) => Ok(Validated {
-                adapter,
-                raw,
-                value,
-            }),
+            Ok(()) => Ok(Validated { raw, value }),
             Err(error) => {
                 tracing::warn!(%error, "retrying with feedback");
                 let feedback = Feedback {
                     previous: raw,
                     error: error.to_string(),
                 };
-                let (raw, value) = self
-                    .feedback_ask(http, lm, inputs, adapter, &feedback)
-                    .await?;
-                Ok(Validated {
-                    adapter,
-                    raw,
-                    value,
-                })
+                let (raw, value) = self.feedback_ask(http, lm, inputs, &feedback).await?;
+                Ok(Validated { raw, value })
             }
         }
     }
@@ -122,13 +127,10 @@ impl Predict {
         http: &reqwest::Client,
         lm: &impl ChatModel,
         inputs: &[(&str, String)],
-        adapter: Adapter,
         feedback: &Feedback,
     ) -> Result<(String, Value)> {
-        let raw = adapter
-            .ask(http, lm, &self.signature, inputs, Some(feedback))
-            .await?;
-        let mut value = adapter.parse(&self.signature, &raw)?;
+        let raw = self.ask(http, lm, inputs, Some(feedback)).await?;
+        let mut value = self.adapter.parse(&self.signature, &raw)?;
         self.signature.coerce(&mut value)?;
         self.signature.ensure(&value)?;
         Ok((raw, value))
@@ -158,6 +160,13 @@ pub struct TypedPredict<S: SignatureSpec> {
 }
 
 impl<S: SignatureSpec> TypedPredict<S> {
+    /// Send this module's prompts through a different wire format; see
+    /// [`Predict::with_adapter`].
+    pub fn with_adapter(mut self, adapter: impl Adapter + 'static) -> Self {
+        self.predict = self.predict.with_adapter(adapter);
+        self
+    }
+
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
     pub async fn call(&self, inputs: &S::Inputs) -> Result<S::Outputs> {
         let (http, lm) = global::current()?;
@@ -189,11 +198,7 @@ async fn typed_task<S: SignatureSpec>(
     shape: fn(Value) -> Value,
 ) -> Result<S::Outputs> {
     let pairs = S::input_pairs(inputs);
-    let Validated {
-        adapter,
-        raw,
-        value,
-    } = predict.call_with_inputs(http, lm, &pairs).await?;
+    let Validated { raw, value } = predict.call_with_inputs(http, lm, &pairs).await?;
     let error = match typed::<S::Outputs>(shape(value)) {
         Ok(outputs) => return Ok(outputs),
         Err(error) => error,
@@ -203,9 +208,7 @@ async fn typed_task<S: SignatureSpec>(
         previous: raw,
         error: format!("{error:#}"),
     };
-    let (_, value) = predict
-        .feedback_ask(http, lm, &pairs, adapter, &feedback)
-        .await?;
+    let (_, value) = predict.feedback_ask(http, lm, &pairs, &feedback).await?;
     typed(shape(value))
 }
 
@@ -460,46 +463,46 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_unparseable_reply_falls_back_to_the_json_adapter() {
-        let lm = Scripted::new(&[
-            "red because it is calm",
-            r#"{ "color": "red", "why": "calm" }"#,
-        ]);
-        let value = Predict::new(signature())
-            .call_with(&reqwest::Client::new(), &lm, "draft it")
-            .await
-            .expect("fallback succeeds");
-        assert_eq!(value["color"], "red");
-
-        let calls = lm.calls();
-        assert_eq!(calls.len(), 2);
-        assert!(!calls[0].json_mode);
-        assert!(calls[1].json_mode);
-    }
-
-    #[tokio::test]
-    async fn attempts_stay_bounded_at_fallback_plus_one_feedback_retry() {
-        let script = &[
-            "no markers here",
-            r#"{ "color": "green", "why": "calm" }"#,
-            r#"{ "color": "blue", "why": "calm" }"#,
-        ];
-        let lm = Scripted::new(script);
-        let value = Predict::new(signature())
-            .call_with(&reqwest::Client::new(), &lm, "draft it")
-            .await
-            .expect("third reply is valid");
-        assert_eq!(value["color"], "blue");
-        assert_eq!(lm.calls().len(), 3);
-
-        let lm = Scripted::new(&["no markers", "still not json"]);
+    async fn an_unparseable_reply_is_final_like_dspy() {
+        // dspy's `Adapter.__call__` raises when a reply does not speak the adapter's format;
+        // it never re-asks in a different one. A caller who picked an adapter picked its
+        // contract, so silently switching would hand back a reply they did not ask for.
+        let lm = Scripted::new(&["red because it is calm", r#"{ "color": "red" }"#]);
         assert!(
             Predict::new(signature())
                 .call_with(&reqwest::Client::new(), &lm, "draft it")
                 .await
                 .is_err()
         );
+        assert_eq!(lm.calls().len(), 1, "no second ask in another format");
+    }
+
+    #[tokio::test]
+    async fn attempts_stay_bounded_at_one_feedback_retry() {
+        // A reply that parses but fails validation earns exactly one more ask, carrying the
+        // rejected text and its error.
+        let lm = Scripted::new(&[
+            "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\ncalm",
+            "[[ ## color ## ]]\nblue\n\n[[ ## why ## ]]\ncalm",
+        ]);
+        let value = Predict::new(signature())
+            .call_with(&reqwest::Client::new(), &lm, "draft it")
+            .await
+            .expect("second reply is valid");
+        assert_eq!(value["color"], "blue");
         assert_eq!(lm.calls().len(), 2);
+
+        let lm = Scripted::new(&[
+            "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\ncalm",
+            "[[ ## color ## ]]\nmauve\n\n[[ ## why ## ]]\ncalm",
+        ]);
+        assert!(
+            Predict::new(signature())
+                .call_with(&reqwest::Client::new(), &lm, "draft it")
+                .await
+                .is_err()
+        );
+        assert_eq!(lm.calls().len(), 2, "one ask plus one feedback retry, then stop");
     }
 
     #[derive(Debug, serde::Deserialize)]
@@ -752,7 +755,7 @@ mod tests {
             let lm = Scripted::new(&[reply]);
             let predict = Predict {
                 signature: typed_signature(),
-                adapter: Adapter::Json,
+                adapter: Box::new(JsonAdapter),
             };
             let value = predict
                 .call_with(&reqwest::Client::new(), &lm, "size it")

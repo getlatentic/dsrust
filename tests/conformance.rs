@@ -7,7 +7,7 @@
 //! codebases. A divergence here is a bug in this crate until upstream is shown to be wrong.
 
 use dsrs::signature::{FieldKind, InField, OutField, Signature};
-use dsrs::Adapter;
+use dsrs::{Adapter, ChatAdapter};
 use serde_json::Value;
 
 struct Fixture {
@@ -129,7 +129,7 @@ fn assert_same(label: &str, fixture: &Fixture, expected: &str, actual: &str) {
 #[test]
 fn chat_adapter_renders_what_python_dspy_renders() {
     for fixture in fixtures() {
-        let (system, user) = Adapter::Chat.format(&fixture.signature, &fixture.values);
+        let (system, user) = ChatAdapter.format(&fixture.signature, &fixture.values);
         assert_same("system message", &fixture, &fixture.expected_system, &system);
         assert_same("user message", &fixture, &fixture.expected_user, &user);
     }

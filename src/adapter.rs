@@ -1,18 +1,70 @@
 use anyhow::{Result, anyhow};
 use serde_json::{Map, Value};
 
-use crate::lm::{ChatModel, ChatTurn, OutputMode};
+use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::{FieldKind, Signature};
 
-/// How a signature travels over the wire, mirroring DSPy's adapter pair: `Chat` speaks
-/// `[[ ## field ## ]]` marker sections any model can produce with no provider support,
-/// `Json` engages the provider's native structured output. Each is the other's fallback
-/// when a reply fails to parse. Chat is DSPy's default and ours.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Adapter {
-    #[default]
-    Chat,
-    Json,
+/// How a signature travels over the wire.
+///
+/// Mirrors DSPy's `Adapter` base class: implement it to teach the crate a new wire format.
+/// The two shipped implementations are [`ChatAdapter`], which speaks `[[ ## field ## ]]`
+/// marker sections any model can produce with no provider support, and [`JsonAdapter`],
+/// which engages the provider's native structured output. Chat is DSPy's default and ours.
+///
+/// Like DSPy, a parse failure is final: there is no silent retry in another format, because a
+/// caller who chose an adapter chose the wire contract it implies.
+///
+/// Formatting and parsing live here; the model call lives in the module that owns the
+/// conversation. That split keeps this trait object-safe, so a caller can hold
+/// `Box<dyn Adapter>` and swap wire formats at run time.
+pub trait Adapter: Send + Sync {
+    /// The system and opening user message, with no model call. Mirrors `Adapter.format`.
+    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, String);
+
+    /// Extract the signature's fields from a raw reply. A reply that does not speak this
+    /// adapter's format at all fails here; a reply missing individual fields parses and
+    /// leaves those gaps for the signature's own validation, whose failure carries feedback
+    /// into a retry.
+    fn parse(&self, signature: &Signature, raw: &str) -> Result<Value>;
+
+    /// How the provider should be asked to shape its reply. Text by default, since a format
+    /// carried entirely in the prompt needs nothing from the provider.
+    fn output_mode<'a>(&self, _schema: &'a Value) -> OutputMode<'a> {
+        OutputMode::Text
+    }
+
+}
+
+/// DSPy's default: every field in its own `[[ ## name ## ]]` section, readable by any model.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ChatAdapter;
+
+/// The provider's native structured output, carrying the signature's JSON schema.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct JsonAdapter;
+
+impl Adapter for ChatAdapter {
+    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, String) {
+        (chat_system(signature), chat_user(signature, inputs))
+    }
+
+    fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
+        parse_markers(signature, raw)
+    }
+}
+
+impl Adapter for JsonAdapter {
+    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, String) {
+        (json_system(signature), json_user(inputs))
+    }
+
+    fn parse(&self, _signature: &Signature, raw: &str) -> Result<Value> {
+        parse_json(raw)
+    }
+
+    fn output_mode<'a>(&self, schema: &'a Value) -> OutputMode<'a> {
+        OutputMode::Json { schema }
+    }
 }
 
 /// A rejected reply carried into the retry turn: the model sees its own previous output
@@ -20,58 +72,6 @@ pub enum Adapter {
 pub struct Feedback {
     pub previous: String,
     pub error: String,
-}
-
-impl Adapter {
-    pub fn fallback(self) -> Self {
-        match self {
-            Adapter::Chat => Adapter::Json,
-            Adapter::Json => Adapter::Chat,
-        }
-    }
-
-    /// The system and opening user message this adapter renders, with no model call.
-    ///
-    /// Mirrors `Adapter.format` in Python DSPy, which exists for the same reason: the prompt
-    /// is the thing worth asserting on. The upstream conformance fixtures compare this output
-    /// byte for byte against DSPy's own `format_exact_messages_*` expectations.
-    pub fn format(self, signature: &Signature, inputs: &[(&str, String)]) -> (String, String) {
-        match self {
-            Adapter::Chat => (chat_system(signature), chat_user(signature, inputs)),
-            Adapter::Json => (json_system(signature), json_user(inputs)),
-        }
-    }
-
-    /// Format the conversation for this adapter, ask the model, hand back the raw reply.
-    /// `inputs` carries the signature's input values as name/value pairs in signature order.
-    pub async fn ask(
-        self,
-        http: &reqwest::Client,
-        lm: &impl ChatModel,
-        signature: &Signature,
-        inputs: &[(&str, String)],
-        feedback: Option<&Feedback>,
-    ) -> Result<String> {
-        let schema = signature.schema();
-        let (system, opening) = self.format(signature, inputs);
-        let mode = match self {
-            Adapter::Chat => OutputMode::Text,
-            Adapter::Json => OutputMode::Json { schema: &schema },
-        };
-        lm.chat(http, &system, &conversation(opening, feedback), &mode)
-            .await
-    }
-
-    /// Extract the signature's fields from a raw reply. An error here means the reply does
-    /// not speak this adapter's format at all and triggers the adapter fallback; a reply
-    /// missing individual fields parses and leaves those gaps for the signature's own
-    /// validation, whose failure carries feedback into a retry.
-    pub fn parse(self, signature: &Signature, raw: &str) -> Result<Value> {
-        match self {
-            Adapter::Chat => parse_markers(signature, raw),
-            Adapter::Json => parse_json(raw),
-        }
-    }
 }
 
 fn conversation(opening: String, feedback: Option<&Feedback>) -> Vec<ChatTurn> {
@@ -551,13 +551,6 @@ mod tests {
     }
 
     #[test]
-    fn fallback_swaps_the_pair() {
-        assert_eq!(Adapter::Chat.fallback(), Adapter::Json);
-        assert_eq!(Adapter::Json.fallback(), Adapter::Chat);
-        assert_eq!(Adapter::default(), Adapter::Chat);
-    }
-
-    #[test]
     fn conversation_appends_previous_output_and_error_on_retry() {
         let feedback = Feedback {
             previous: "[[ ## color ## ]]\ngreen".into(),
@@ -569,4 +562,10 @@ mod tests {
         assert!(turns[2].content.contains("color must be one of red, blue"));
         assert!(conversation("draft it".into(), None).len() == 1);
     }
+}
+
+/// The conversation a module sends for one attempt: the rendered opening, plus the rejected
+/// reply and its error when this is a feedback retry.
+pub fn turns_for(opening: String, feedback: Option<&Feedback>) -> Vec<ChatTurn> {
+    conversation(opening, feedback)
 }
