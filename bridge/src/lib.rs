@@ -206,6 +206,17 @@ fn adapter_named(adapter: &str) -> PyResult<Box<dyn Adapter>> {
     }
 }
 
+/// dspy `format_field_description`: the fields named, ahead of the structure section.
+#[pyfunction]
+fn field_description(
+    instructions: &str,
+    inputs: Vec<PyInField>,
+    outputs: Vec<PyOutField>,
+) -> PyResult<String> {
+    let signature = build_signature(instructions, inputs, outputs)?;
+    Ok(dsrs::adapter::field_description(&signature))
+}
+
 /// The instruction dspy's `_create_extractor_signature` writes for the second ask.
 ///
 /// The extractor's *fields* stay Python's: their annotations are Python types this side cannot
@@ -349,5 +360,6 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;
     module.add_function(wrap_pyfunction!(has_json_fallback, module)?)?;
     module.add_function(wrap_pyfunction!(extractor_instructions, module)?)?;
+    module.add_function(wrap_pyfunction!(field_description, module)?)?;
     Ok(())
 }

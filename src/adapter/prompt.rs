@@ -152,17 +152,27 @@ fn task_description(signature: &Signature) -> String {
     format!("In adhering to this structure, your objective is: {objective}")
 }
 
+/// dspy `format_field_description`: what the fields are, ahead of how they are laid out.
+///
+/// Upstream states this section on its own, and its tests read it on its own, so it is a
+/// function here rather than two lines inside the frame.
+pub fn field_description(signature: &Signature) -> String {
+    format!(
+        "Your input fields are:\n{}\nYour output fields are:\n{}",
+        numbered_input_lines(signature),
+        numbered_output_lines(signature)
+    )
+}
+
 /// The frame every adapter shares: what the fields are, how an interaction is laid out, and what
 /// the task is. dspy builds all three in its base `format_system_message`, and only the middle
 /// section — `structure` — tells the model which wire format it is answering in.
 pub(super) fn system_message(signature: &Signature, structure: &str) -> String {
     format!(
-        "Your input fields are:\n{}\n\
-         Your output fields are:\n{}\n\
+        "{}\n\
          {}\n\
          {}",
-        numbered_input_lines(signature),
-        numbered_output_lines(signature),
+        field_description(signature),
         structure.trim(),
         task_description(signature),
     )

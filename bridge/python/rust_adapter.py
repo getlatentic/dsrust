@@ -72,6 +72,16 @@ class _RustBacked:
             described_outputs(signature),
         )
 
+    def format_field_description(self, signature) -> str:
+        """Upstream's tests read this section on its own, so it has to be the crate's."""
+        global CROSSINGS
+        CROSSINGS += 1
+        return dsrs_bridge.field_description(
+            signature.instructions,
+            describe(signature.input_fields),
+            described_outputs(signature),
+        )
+
     def format(self, signature, demos, inputs) -> list[dict[str, typing.Any]]:
         global CROSSINGS
         CROSSINGS += 1

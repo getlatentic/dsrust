@@ -129,6 +129,13 @@ fn user_message(signature: &Signature, inputs: &[(&str, Value)]) -> String {
 /// ask about, so it asks the declaration instead — a field whose type is a model, carrying an
 /// object — which picks out the same values except where an input does not match what it was
 /// declared as.
+///
+/// Carrying the distinction would mean putting the provenance of each value into
+/// [`Adapter::format`], since it varies per call rather than per signature. That is a worse
+/// trade than the divergence it would close: through the derive every record-typed field holds
+/// a value serialized from that very type, so the two rules cannot disagree, and the case they
+/// disagree on — a loose mapping handed to a field declared as a record — is a caller passing
+/// something other than what it promised.
 fn input_value(signature: &Signature, name: &str, value: &Value) -> String {
     let declared_record = signature
         .inputs
