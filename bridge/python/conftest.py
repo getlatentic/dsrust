@@ -81,8 +81,8 @@ NOT_ADAPTER_CONFORMANCE = {
     "upstream_test_adapter_utils.py": "dspy's own field-formatting helpers, called directly",
     "upstream_test_base_type.py": "dspy.Type's annotation walking, in Python",
     "upstream_test_code.py": "dspy.Code's own parsing and string form",
-    "upstream_test_document.py": "dspy.Document, a type this crate does not carry",
-    "upstream_test_audio.py": "dspy.Audio, a type this crate does not carry",
+    "upstream_test_document.py": "dspy.Document's own validation and string form",
+    "upstream_test_audio.py": "dspy.Audio's own decoding and format detection",
     "upstream_test_tool.py": "dspy.Tool invoking Python functions, sync and async",
 }
 
