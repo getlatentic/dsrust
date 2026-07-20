@@ -22,6 +22,7 @@ import dspy
 import pydantic
 from dspy.adapters.base import Adapter
 from dspy.adapters.json_adapter import JSONAdapter
+from dspy.adapters.two_step_adapter import TwoStepAdapter
 from dspy.adapters.types.base_type import Type
 from dspy.adapters.types.code import Code
 from dspy.adapters.xml_adapter import XMLAdapter
@@ -324,3 +325,46 @@ class RustXMLAdapter(_RustBacked, XMLAdapter):
 
     WIRE = "xml"
     ADAPTER_NAME = "XMLAdapter"
+
+
+class RustTwoStepAdapter(_RustBacked, TwoStepAdapter):
+    """Prose first, then a second model naming the fields — both rendered by the crate.
+
+    The crate says what the first ask reads like and what the second one asks for; the second
+    model call stays here, because Python holds the models on this side of the bridge. That is
+    the same split the crate makes internally, where its `Predict` runs the extraction and the
+    adapter only describes it.
+    """
+
+    WIRE = "two_step"
+    ADAPTER_NAME = "TwoStepAdapter"
+
+    def _extractor_signature(self, signature):
+        """`text` in, the original outputs out, asked for in the crate's words.
+
+        The fields keep their Python annotations, which only this side can build; the
+        instruction is the crate's, so it comes across rather than being written twice.
+        """
+        fields = {
+            "text": (str, dspy.InputField()),
+            **{name: (field.annotation, field) for name, field in signature.output_fields.items()},
+        }
+        instructions = dsrs_bridge.extractor_instructions(described_outputs(signature))
+        return dspy.signatures.signature.make_signature(fields, instructions)
+
+    def parse(self, signature, completion):
+        try:
+            extracted = RustChatAdapter()(
+                lm=self.extraction_model,
+                lm_kwargs={},
+                signature=self._extractor_signature(signature),
+                demos=[],
+                inputs={"text": completion},
+            )
+            return extracted[0]
+        except Unsupported:
+            raise
+        except Exception as error:
+            raise ValueError(
+                f"Failed to parse response from the original completion: {completion}"
+            ) from error

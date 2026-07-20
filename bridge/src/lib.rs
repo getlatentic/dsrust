@@ -10,13 +10,50 @@
 
 use dsrs::adapter::parse::FieldMismatch;
 use dsrs::adapter::xml::XmlAdapter;
+use dsrs::lm::{ChatTurn, DynChatModel, OutputMode};
 use dsrs::signature::{
     FieldKind, InField, JsonType, LiteralValue, OutField, Signature, TypeDescription,
 };
-use dsrs::{Adapter, ChatAdapter, Example, JsonAdapter};
+use dsrs::{Adapter, ChatAdapter, Example, JsonAdapter, TwoStepAdapter};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde_json::Value;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+
+/// The crate's adapter for a wire name.
+fn adapter_named(wire: &str) -> PyResult<Box<dyn Adapter>> {
+    match wire {
+        "chat" => Ok(Box::new(ChatAdapter::default())),
+        "json" => Ok(Box::new(JsonAdapter)),
+        "xml" => Ok(Box::new(XmlAdapter)),
+        // Rendering a two-step exchange never reaches the extraction model — Python holds the
+        // models on this side of the bridge and runs that second ask itself. This stands in for
+        // one, and says so loudly rather than quietly answering if that ever stops being true.
+        "two_step" => Ok(Box::new(TwoStepAdapter::new(Arc::new(NotOnThisSide)))),
+        other => Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
+    }
+}
+
+/// A model that exists only to be unused. See [`adapter_named`].
+struct NotOnThisSide;
+
+impl DynChatModel for NotOnThisSide {
+    fn chat_dyn<'a>(
+        &'a self,
+        _http: &'a reqwest::Client,
+        _system: &'a str,
+        _turns: &'a [ChatTurn],
+        _mode: &'a OutputMode<'a>,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<String>> + Send + 'a>> {
+        Box::pin(async {
+            Err(anyhow::anyhow!(
+                "the bridge does not call models; Python runs the extraction"
+            ))
+        })
+    }
+}
 
 /// One input field as Python describes it: name, kind, description, any closed set, and the
 /// prose any custom type in its annotation contributes.
@@ -146,6 +183,16 @@ fn build_signature(
     })
 }
 
+/// The instruction dspy's `_create_extractor_signature` writes for the second ask.
+///
+/// The extractor's *fields* stay Python's: their annotations are Python types this side cannot
+/// build. What it asks for is the crate's, so it is written here and crosses as text.
+#[pyfunction]
+fn extractor_instructions(outputs: Vec<PyOutField>) -> PyResult<String> {
+    let signature = build_signature("", Vec::new(), outputs)?;
+    Ok(dsrs::adapter::extractor_signature(&signature).instructions)
+}
+
 /// Render one exchange for the named adapter, as `(system, [(role, content), ...])`.
 ///
 /// Each content crosses as JSON, because a message carrying a custom type is a list of blocks
@@ -171,12 +218,7 @@ fn format_messages(
                 .map_err(|error| PyValueError::new_err(format!("input `{name}`: {error}")))
         })
         .collect::<PyResult<_>>()?;
-    let adapter: Box<dyn Adapter> = match adapter {
-        "chat" => Box::new(ChatAdapter::default()),
-        "json" => Box::new(JsonAdapter),
-        "xml" => Box::new(XmlAdapter),
-        other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
-    };
+    let adapter = adapter_named(adapter)?;
     let demos: Vec<Example> = demos
         .unwrap_or_default()
         .into_iter()
@@ -213,12 +255,7 @@ fn format_system_message(
     outputs: Vec<PyOutField>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let adapter: Box<dyn Adapter> = match adapter {
-        "chat" => Box::new(ChatAdapter::default()),
-        "json" => Box::new(JsonAdapter),
-        "xml" => Box::new(XmlAdapter),
-        other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
-    };
+    let adapter = adapter_named(adapter)?;
     Ok(adapter.system_message(&signature))
 }
 
@@ -233,12 +270,7 @@ fn parse_reply(
     raw: &str,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let adapter: Box<dyn Adapter> = match adapter {
-        "chat" => Box::new(ChatAdapter::default()),
-        "json" => Box::new(JsonAdapter),
-        "xml" => Box::new(XmlAdapter),
-        other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
-    };
+    let adapter = adapter_named(adapter)?;
     adapter
         .parse(&signature, raw)
         .map(|value| value.to_string())
@@ -275,5 +307,6 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(format_system_message, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;
     module.add_function(wrap_pyfunction!(has_json_fallback, module)?)?;
+    module.add_function(wrap_pyfunction!(extractor_instructions, module)?)?;
     Ok(())
 }

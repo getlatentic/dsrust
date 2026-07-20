@@ -29,7 +29,7 @@ SUITES=(
   test_chat_adapter.py test_json_adapter.py
   test_adapter_utils.py test_base_type.py test_code.py test_citation.py
   test_document.py test_audio.py test_reasoning.py test_tool.py
-  test_xml_adapter.py
+  test_xml_adapter.py test_baml_adapter.py test_two_step_adapter.py
 )
 
 echo "==> Fetching upstream tests at dspy $VERSION (unmodified)"

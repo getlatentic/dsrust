@@ -119,9 +119,11 @@ dependencies = [
 name = "dsrs-bridge"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "dsrs",
  "pyo3",
  "pyo3-build-config",
+ "reqwest",
  "serde_json",
 ]
 
