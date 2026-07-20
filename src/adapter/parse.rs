@@ -66,14 +66,69 @@ fn split_header(line: &str) -> Option<(&str, &str)> {
 /// A JSON object anywhere in the reply. Providers in JSON mode return the bare object;
 /// models that ignore the mode wrap it in prose or code fences, so the outermost braces
 /// are the recovery path (DSPy's JSONAdapter recovers with a regex the same way).
+/// A reply that read as JSON but did not carry the fields the signature declared.
+///
+/// dspy reports this separately from a reply it could not read at all, and hands the caller
+/// whichever declared fields it did find — a partial answer says more about what went wrong
+/// than a bare failure does.
+#[derive(Debug)]
+pub struct FieldMismatch {
+    /// The declared fields the reply did carry, in signature order.
+    pub parsed: Value,
+}
+
+impl std::fmt::Display for FieldMismatch {
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(out, "reply is missing the signature's output fields")
+    }
+}
+
+impl std::error::Error for FieldMismatch {}
+
+/// Keep the declared output fields and fail when the reply did not carry all of them.
+///
+/// dspy drops anything the signature never asked for, then compares what is left against the
+/// declared set — a reply naming only fields the signature does not have is a failure, not an
+/// empty success.
+pub(super) fn declared_fields(signature: &Signature, parsed: Value) -> Result<Value> {
+    let Some(object) = parsed.as_object() else {
+        return Err(anyhow!("model returned invalid JSON"));
+    };
+    let kept: serde_json::Map<String, Value> = signature
+        .outputs
+        .iter()
+        .filter_map(|field| {
+            let value = object.get(&field.name)?;
+            Some((field.name.clone(), value.clone()))
+        })
+        .collect();
+    match kept.len() == signature.outputs.len() {
+        true => Ok(Value::Object(kept)),
+        false => Err(anyhow::Error::new(FieldMismatch {
+            parsed: Value::Object(kept),
+        })),
+    }
+}
+
 pub(super) fn parse_json(raw: &str) -> Result<Value> {
     if let Ok(value) = serde_json::from_str(raw) {
         return Ok(value);
     }
     if let (Some(start), Some(end)) = (raw.find('{'), raw.rfind('}'))
         && start < end
-        && let Ok(value) = serde_json::from_str(&raw[start..=end])
     {
+        let embedded = &raw[start..=end];
+        if let Ok(value) = serde_json::from_str(embedded) {
+            return Ok(value);
+        }
+        // A model asked for JSON often answers in Python's spelling instead, which upstream
+        // reads through json-repair before deciding the reply failed. The same reading already
+        // serves the marker adapter's structured fields.
+        if let Some(value) = repair::python_literal(embedded) {
+            return Ok(value);
+        }
+    }
+    if let Some(value) = repair::python_literal(raw) {
         return Ok(value);
     }
     Err(anyhow!("model returned invalid JSON"))

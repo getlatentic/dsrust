@@ -9,7 +9,7 @@ use crate::example::Example;
 use crate::lm::ChatTurn;
 use crate::signature::Signature;
 
-use super::exchange::{answer, ask};
+use super::exchange::{Answer, ask};
 
 /// dspy `incomplete_demo_prefix`, opening the user turn of a demo that is missing something.
 const PARTIAL_PREFIX: &str =
@@ -33,7 +33,11 @@ enum Kind {
 
 /// The demo turns preceding the real request, partial demos first — dspy renders the two groups
 /// in that order regardless of the order they were handed in.
-pub(super) fn demo_turns(signature: &Signature, demos: &[Example]) -> Vec<ChatTurn> {
+pub(super) fn demo_turns(
+    signature: &Signature,
+    demos: &[Example],
+    answer: Answer,
+) -> Vec<ChatTurn> {
     let matching = |kind: Kind| {
         demos
             .iter()
@@ -105,7 +109,7 @@ mod tests {
     }
 
     fn rendered(demos: &[Example]) -> Vec<String> {
-        demo_turns(&paint(), demos)
+        demo_turns(&paint(), demos, crate::adapter::exchange::answer)
             .into_iter()
             .map(|turn| turn.content.text().unwrap().to_owned())
             .collect()

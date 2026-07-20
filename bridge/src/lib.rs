@@ -8,6 +8,7 @@
 //! instructions, ordered fields, and the already-formatted input values — because those are
 //! the only things the renderer needs.
 
+use dsrs::adapter::parse::FieldMismatch;
 use dsrs::signature::{
     FieldKind, InField, JsonType, LiteralValue, OutField, Signature, TypeDescription,
 };
@@ -216,7 +217,15 @@ fn parse_reply(
     adapter
         .parse(&signature, raw)
         .map(|value| value.to_string())
-        .map_err(|error| PyValueError::new_err(format!("{error:#}")))
+        // A reply that read as JSON but named the wrong fields carries whichever declared ones
+        // it did have. dspy reports those on the error, so they cross as a second argument
+        // rather than being flattened into the message.
+        .map_err(|error| match error.downcast_ref::<FieldMismatch>() {
+            Some(mismatch) => {
+                PyValueError::new_err((format!("{error:#}"), mismatch.parsed.to_string()))
+            }
+            None => PyValueError::new_err(format!("{error:#}")),
+        })
 }
 
 /// Whether the named adapter, configured this way, offers a fallback when a reply fails to

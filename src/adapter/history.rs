@@ -12,7 +12,7 @@ use crate::example::Example;
 use crate::lm::ChatTurn;
 use crate::signature::Signature;
 
-use super::exchange::{answer, ask};
+use super::exchange::{Answer, ask};
 
 /// The annotation dspy prints for a history field, and so the name this crate recognises it by.
 const ANNOTATION: &str = "History";
@@ -69,7 +69,7 @@ fn exchanges(value: &Value) -> Vec<Example> {
 /// The replayed turns, a user and an assistant turn per exchange.
 ///
 /// `stripped` is the signature without the history field, as [`without_field`] returns it.
-pub(super) fn turns(stripped: &Signature, value: &Value) -> Vec<ChatTurn> {
+pub(super) fn turns(stripped: &Signature, value: &Value, answer: Answer) -> Vec<ChatTurn> {
     exchanges(value)
         .iter()
         .flat_map(|exchange| {
@@ -146,7 +146,7 @@ mod tests {
     #[test]
     fn each_exchange_becomes_a_user_and_an_assistant_turn() {
         let stripped = without_field(&signature(), "history");
-        let turns = turns(&stripped, &history());
+        let turns = turns(&stripped, &history(), crate::adapter::exchange::answer);
 
         assert_eq!(turns.len(), 4);
         assert_eq!(
@@ -172,7 +172,7 @@ mod tests {
         // Rendering it would show the model a transcript inside one request, which is the thing
         // replaying the exchanges exists to avoid.
         let stripped = without_field(&signature(), "history");
-        let turns = turns(&stripped, &history());
+        let turns = turns(&stripped, &history(), crate::adapter::exchange::answer);
         assert!(
             !turns
                 .iter()
@@ -186,6 +186,7 @@ mod tests {
         let turns = turns(
             &stripped,
             &json!({ "messages": [{ "question": "Where?" }] }),
+            crate::adapter::exchange::answer,
         );
         assert_eq!(
             turns[1].content.text().unwrap(),
@@ -196,7 +197,14 @@ mod tests {
     #[test]
     fn a_history_with_no_messages_contributes_no_turns() {
         let stripped = without_field(&signature(), "history");
-        assert!(turns(&stripped, &json!({ "messages": [] })).is_empty());
-        assert!(turns(&stripped, &json!({})).is_empty());
+        assert!(
+            turns(
+                &stripped,
+                &json!({ "messages": [] }),
+                crate::adapter::exchange::answer
+            )
+            .is_empty()
+        );
+        assert!(turns(&stripped, &json!({}), crate::adapter::exchange::answer).is_empty());
     }
 }

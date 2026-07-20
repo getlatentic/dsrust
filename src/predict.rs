@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
+use crate::adapter::parse::FieldMismatch;
 use crate::adapter::{Adapter, ChatAdapter, Feedback, turns_for};
 use crate::example::{Example, Prediction};
 use crate::lm::{DynChatModel, global};
@@ -128,6 +129,16 @@ impl Predict {
         let raw = self.ask(http, lm, inputs, None).await?;
         let (raw, mut value) = match self.adapter.parse(&self.signature, &raw) {
             Ok(value) => (raw, value),
+            // A reply that spoke the format but left a field out is the case the feedback ask
+            // exists for, so it carries on with whatever the reply did say and lets `ensure`
+            // name the gap. Upstream rejects it at parse because it has no such second ask.
+            Err(error) if error.is::<FieldMismatch>() => {
+                let partial = error
+                    .downcast::<FieldMismatch>()
+                    .map(|mismatch| mismatch.parsed)
+                    .unwrap_or(Value::Null);
+                (raw, partial)
+            }
             Err(error) => match self.adapter.json_fallback() {
                 None => return Err(error),
                 Some(fallback) => {

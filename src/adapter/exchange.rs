@@ -5,6 +5,8 @@
 //! answered — and dspy renders both through one pair of functions, varying only the prefix and
 //! the stand-in for a field the example never carried.
 
+use serde_json::Value;
+
 use crate::adapter::python_json::format_field_value;
 use crate::example::Example;
 use crate::lm::ChatTurn;
@@ -49,4 +51,29 @@ pub(super) fn answer(signature: &Signature, example: &Example, missing: Option<&
         sections.join("\n\n").trim(),
         marker("completed")
     ))
+}
+
+/// How an adapter writes the assistant half of an exchange. The request half is the same
+/// marker sections for both, so only this varies.
+pub(super) type Answer = fn(&Signature, &Example, Option<&str>) -> ChatTurn;
+
+/// The assistant turn as the JSON adapter writes it: the object the model would have returned,
+/// rather than the marker sections the chat adapter reads back.
+pub(super) fn json_answer(
+    signature: &Signature,
+    example: &Example,
+    missing: Option<&str>,
+) -> ChatTurn {
+    let fields: serde_json::Map<String, Value> = signature
+        .outputs
+        .iter()
+        .filter_map(|field| {
+            let value = match example.get(&field.name) {
+                Some(value) => value.clone(),
+                None => Value::String(missing?.to_owned()),
+            };
+            Some((field.name.clone(), value))
+        })
+        .collect();
+    ChatTurn::assistant(serde_json::to_string_pretty(&Value::Object(fields)).unwrap_or_default())
 }

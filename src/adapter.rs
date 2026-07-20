@@ -9,7 +9,7 @@ mod blocks;
 mod demos;
 mod exchange;
 mod history;
-mod parse;
+pub mod parse;
 pub mod python_json;
 
 use python_json::{format_field_value, json_dumps};
@@ -106,26 +106,11 @@ impl Adapter for ChatAdapter {
         demos: &[Example],
         inputs: &[(&str, Value)],
     ) -> (String, Vec<ChatTurn>) {
-        // dspy renders the demos against the caller's signature but the conversation and the
-        // live request against one without the history field, and builds the system message
-        // from the original — so the field is announced up top and rendered in no turn.
-        let mut turns = demo_turns(signature, demos);
-        let asked = match history::field_name(signature) {
-            None => signature.clone(),
-            Some(name) => {
-                let stripped = history::without_field(signature, name);
-                if let Some((_, value)) = inputs.iter().find(|(field, _)| *field == name) {
-                    turns.extend(history::turns(&stripped, value));
-                }
-                stripped
-            }
-        };
-        let live: Vec<(&str, Value)> = inputs
-            .iter()
-            .filter(|(field, _)| asked.inputs.iter().any(|input| input.name == *field))
-            .cloned()
-            .collect();
-        turns.push(ChatTurn::user(chat_user(&asked, &live)));
+        let (asked, mut turns) = conversation(signature, demos, inputs, exchange::answer);
+        turns.push(ChatTurn::user(chat_user(
+            &asked,
+            &live_inputs(&asked, inputs),
+        )));
         (chat_system(signature), blocks::split_custom_types(turns))
     }
 
@@ -143,19 +128,21 @@ impl Adapter for JsonAdapter {
     fn format(
         &self,
         signature: &Signature,
-        _demos: &[Example],
+        demos: &[Example],
         inputs: &[(&str, Value)],
     ) -> (String, Vec<ChatTurn>) {
+        let (asked, mut turns) = conversation(signature, demos, inputs, exchange::json_answer);
+        turns.push(ChatTurn::user(json_user(
+            &asked,
+            &live_inputs(&asked, inputs),
+        )));
         // dspy splits in the base `format`, which both adapters inherit, so a custom type
         // reaches a provider as blocks whichever wire format carries the rest of the request.
-        (
-            json_system(signature),
-            blocks::split_custom_types(vec![ChatTurn::user(json_user(inputs))]),
-        )
+        (json_system(signature), blocks::split_custom_types(turns))
     }
 
-    fn parse(&self, _signature: &Signature, raw: &str) -> Result<Value> {
-        parse::parse_json(raw)
+    fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
+        parse::declared_fields(signature, parse::parse_json(raw)?)
     }
 
     fn output_mode<'a>(&self, schema: &'a Value) -> OutputMode<'a> {
@@ -292,6 +279,49 @@ fn chat_system(signature: &Signature) -> String {
     ]
     .join("\n\n");
 
+    system_message(signature, &structure)
+}
+
+/// Everything before the live request: the demos, then any conversation history, and the
+/// signature the request itself is rendered against.
+///
+/// dspy assembles this in its base `format` for both adapters, which is why a history field is
+/// replayed and hidden the same way whichever wire format carries the request. Only the
+/// assistant half of each exchange differs, so that renderer is the parameter.
+fn conversation(
+    signature: &Signature,
+    demos: &[Example],
+    inputs: &[(&str, Value)],
+    answer: exchange::Answer,
+) -> (Signature, Vec<ChatTurn>) {
+    let mut turns = demo_turns(signature, demos, answer);
+    let asked = match history::field_name(signature) {
+        None => signature.clone(),
+        Some(name) => {
+            let stripped = history::without_field(signature, name);
+            if let Some((_, value)) = inputs.iter().find(|(field, _)| *field == name) {
+                turns.extend(history::turns(&stripped, value, answer));
+            }
+            stripped
+        }
+    };
+    (asked, turns)
+}
+
+/// The inputs the request renders: everything the asked-for signature still declares, which
+/// drops the history field once its exchanges have been replayed.
+fn live_inputs<'a>(asked: &Signature, inputs: &[(&'a str, Value)]) -> Vec<(&'a str, Value)> {
+    inputs
+        .iter()
+        .filter(|(field, _)| asked.inputs.iter().any(|input| input.name == *field))
+        .cloned()
+        .collect()
+}
+
+/// The frame both adapters share: what the fields are, how an interaction is laid out, and what
+/// the task is. dspy builds all three in its base `format_system_message`, and only the middle
+/// section — `structure` — tells the model which wire format it is answering in.
+fn system_message(signature: &Signature, structure: &str) -> String {
     format!(
         "Your input fields are:\n{}\n\
          Your output fields are:\n{}\n\
@@ -396,16 +426,62 @@ fn output_requirements(signature: &Signature) -> String {
 
 /// The JSON contract in prose, for the provider-native structured-output path.
 fn json_system(signature: &Signature) -> String {
-    format!("{} {}", signature.instructions, signature.output_clause())
+    // dspy names the two halves separately here, where the chat adapter runs them together:
+    // inputs still arrive as marker sections, but the reply is one JSON object.
+    let inputs = signature
+        .inputs
+        .iter()
+        .map(|field| section(&field.name, &format!("{{{}}}", field.name)))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    // Each slot is the same string the chat adapter puts after the marker, note and all,
+    // carried as the field's value so the model reads the constraint where the value goes.
+    let outputs: serde_json::Map<String, Value> = signature
+        .outputs
+        .iter()
+        .map(|field| (field.name.clone(), Value::String(output_slot(field))))
+        .collect();
+    let structure = [
+        "All interactions will be structured in the following way, with the appropriate values filled in.",
+        "Inputs will have the following structure:",
+        &inputs,
+        "Outputs will be a JSON object with the following fields.",
+        &serde_json::to_string_pretty(&Value::Object(outputs)).unwrap_or_default(),
+    ]
+    .join("\n\n");
+    system_message(signature, &structure)
 }
 
-/// The JSON adapter's user message: each input as a labeled line.
-fn json_user(inputs: &[(&str, Value)]) -> String {
-    inputs
+/// dspy `user_message_output_requirements` for JSON: the field order, each non-string naming
+/// the Python type it must be formatted as.
+fn json_output_requirements(signature: &Signature) -> String {
+    let fields: Vec<String> = signature
+        .outputs
         .iter()
-        .map(|(name, value)| format!("{name}: {}", format_field_value(value)))
-        .collect::<Vec<_>>()
-        .join("\n")
+        .map(|field| {
+            let annotation = field.annotation();
+            let hint = match annotation == FieldKind::Str.annotation() {
+                true => String::new(),
+                false => format!(" (must be formatted as a valid Python {annotation})"),
+            };
+            format!("`{}`{hint}", field.name)
+        })
+        .collect();
+    format!(
+        "Respond with a JSON object in the following order of fields: {}.",
+        fields.join(", then ")
+    )
+}
+
+/// The JSON adapter's user message: the same input sections the chat adapter renders, closed
+/// by the reminder that the reply is one JSON object rather than marker blocks.
+fn json_user(signature: &Signature, inputs: &[(&str, Value)]) -> String {
+    let mut parts: Vec<String> = inputs
+        .iter()
+        .map(|(name, value)| section(name, &format_field_value(value)))
+        .collect();
+    parts.push(json_output_requirements(signature));
+    parts.join("\n\n").trim().to_owned()
 }
 
 #[cfg(test)]
@@ -715,10 +791,48 @@ mod tests {
     }
 
     #[test]
-    fn json_user_labels_every_input_line() {
+    fn json_user_renders_input_sections_then_the_json_reminder() {
+        // dspy sends inputs as the same marker sections the chat adapter uses; only the
+        // closing reminder differs, because only the reply's shape differs.
         let inputs = vec![("room", json!("the study")), ("mood", json!("calm focus"))];
-        assert_eq!(json_user(&inputs), "room: the study\nmood: calm focus");
-        assert_eq!(json_user(&single_request("hi")), "request: hi");
+        assert_eq!(
+            json_user(&multi_signature(), &inputs),
+            "[[ ## room ## ]]\nthe study\n\n[[ ## mood ## ]]\ncalm focus\n\n\
+             Respond with a JSON object in the following order of fields: \
+             `color` (must be formatted as a valid Python Literal['red', 'blue']), then `why`."
+        );
+    }
+
+    #[test]
+    fn a_non_string_output_names_the_python_type_it_must_be() {
+        let mut signature = signature();
+        signature.outputs[1].kind = FieldKind::Int;
+        // A closed set is a `Literal`, which is not `str`, so it earns the hint too.
+        assert!(
+            json_output_requirements(&signature).ends_with(
+                "`color` (must be formatted as a valid Python Literal['red', 'blue']), \
+                 then `why` (must be formatted as a valid Python int)."
+            ),
+            "got: {}",
+            json_output_requirements(&signature)
+        );
+    }
+
+    #[test]
+    fn json_system_states_the_input_sections_and_the_output_object() {
+        let system = json_system(&multi_signature());
+        assert!(system.contains("Inputs will have the following structure:"));
+        assert!(system.contains("[[ ## room ## ]]\n{room}"));
+        assert!(system.contains("Outputs will be a JSON object with the following fields."));
+        // The slot carries the same note the chat template puts after the marker, so the
+        // value runs on past the placeholder rather than closing at it.
+        assert!(
+            system.contains(
+                "{\n  \"color\": \"{color}        # note: the value you produce must exactly \
+                 match (no extra characters) one of: red; blue\",\n  \"why\": \"{why}\"\n}"
+            ),
+            "got: {system}"
+        );
     }
 
     #[test]

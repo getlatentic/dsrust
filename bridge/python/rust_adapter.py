@@ -228,11 +228,21 @@ class _RustBacked:
                 completion,
             )
         except ValueError as error:
+            # Rust sends the declared fields it did find as a second argument when the reply
+            # named the wrong ones; dspy reports those on the error rather than only the text.
+            message, *partial = error.args
+            # dspy states no message of its own for a field mismatch — the fields it recovered
+            # are the report — so passing one would prepend text upstream never writes.
+            detail = (
+                {"parsed_result": json.loads(partial[0])}
+                if partial
+                else {"message": message}
+            )
             raise AdapterParseError(
                 adapter_name=self.ADAPTER_NAME,
                 signature=signature,
                 lm_response=completion,
-                message=str(error),
+                **detail,
             ) from error
         parsed = json.loads(rendered)
         # Rust hands back strings; dspy's callers expect the signature's declared types.
