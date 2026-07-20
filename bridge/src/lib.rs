@@ -8,7 +8,9 @@
 //! instructions, ordered fields, and the already-formatted input values — because those are
 //! the only things the renderer needs.
 
-use dsrs::signature::{FieldKind, InField, JsonType, LiteralValue, OutField, Signature};
+use dsrs::signature::{
+    FieldKind, InField, JsonType, LiteralValue, OutField, Signature, TypeDescription,
+};
 use dsrs::{Adapter, ChatAdapter, Example, JsonAdapter};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -49,12 +51,30 @@ fn kind_from(name: &str, descriptions: Option<String>) -> PyResult<FieldKind> {
 
 /// Which custom types an annotation names is Python reflection, so Python extracts the pairs
 /// and this side renders them: the crossing carries `[[name, prose], ...]` as JSON text.
-fn type_descriptions_from(descriptions: Option<String>) -> PyResult<Vec<(String, String)>> {
+fn type_descriptions_from(descriptions: Option<String>) -> PyResult<Vec<TypeDescription>> {
     let Some(text) = descriptions else {
         return Ok(Vec::new());
     };
-    serde_json::from_str(&text)
-        .map_err(|error| PyValueError::new_err(format!("bad type descriptions: {error}")))
+    let entries: Vec<Value> = serde_json::from_str(&text)
+        .map_err(|error| PyValueError::new_err(format!("bad type descriptions: {error}")))?;
+    entries
+        .iter()
+        .map(|entry| {
+            let field = |name: &str| {
+                entry.get(name).and_then(Value::as_str).ok_or_else(|| {
+                    PyValueError::new_err(format!("type description is missing `{name}`"))
+                })
+            };
+            Ok(TypeDescription {
+                name: field("name")?.to_owned(),
+                text: field("text")?.to_owned(),
+                replaces_schema: entry
+                    .get("replaces_schema")
+                    .and_then(Value::as_bool)
+                    .unwrap_or_default(),
+            })
+        })
+        .collect()
 }
 
 /// A closed set crosses as JSON text, the way a field schema does: Python's `Literal` mixes

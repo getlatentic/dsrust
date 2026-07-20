@@ -4,7 +4,7 @@ use serde_json::{Map, Value, json};
 mod field_type;
 
 pub(crate) use field_type::wire_forms;
-pub use field_type::{FieldKind, JsonType, LiteralValue};
+pub use field_type::{FieldKind, JsonType, LiteralValue, TypeDescription};
 use field_type::{annotation_of, coerce_value};
 
 /// The derive plus its call-site macros: `predict!(Task { field: value, ... })` and the

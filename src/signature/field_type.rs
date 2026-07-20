@@ -28,9 +28,26 @@ pub enum FieldKind {
 pub struct JsonType {
     /// The annotation prompts carry — `dict[str, Any]`, `Citations`, `list[str]`.
     pub annotation: String,
-    /// Each custom type the annotation names, as its printed name and its description. Empty
-    /// for a plain structure, which contributes no prose.
-    pub descriptions: Vec<(String, String)>,
+    /// Each custom type the annotation names. Empty for a plain structure, which says nothing
+    /// about itself.
+    pub descriptions: Vec<TypeDescription>,
+}
+
+/// What one custom type says about itself on its field's prompt line.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TypeDescription {
+    /// The name dspy prints for the type — `Code`, `Citations`.
+    pub name: String,
+    /// The prose the type states about itself.
+    pub text: String,
+    /// Whether this prose already says what a JSON schema would, so the field states its
+    /// contract once instead of twice.
+    ///
+    /// dspy sets this for `dspy.Code` alone, whose description spells out the markdown block it
+    /// expects while its schema block runs to hundreds of characters saying the same thing. The
+    /// property is the type's, not the field's: every field annotated with such a type drops the
+    /// schema note, and none annotated with any other type does.
+    pub replaces_schema: bool,
 }
 
 impl JsonType {

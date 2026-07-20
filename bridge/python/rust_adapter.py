@@ -23,7 +23,9 @@ import pydantic
 from dspy.adapters.base import Adapter
 from dspy.adapters.json_adapter import JSONAdapter
 from dspy.adapters.types.base_type import Type
+from dspy.adapters.types.code import Code
 from dspy.adapters.utils import (
+    _annotation_is_subclass,
     _get_json_schema,
     format_field_value,
     get_annotation_name,
@@ -84,18 +86,25 @@ def closed_set_of(annotation: typing.Any) -> str | None:
     return json.dumps(members)
 
 
-def schema_of(annotation: typing.Any) -> str | None:
-    """A structured field's JSON schema, as dspy builds it, or None where it has none.
+def schema_of(kind: str, annotation: typing.Any) -> str | None:
+    """A structured field's JSON schema, as dspy builds it, or None for a scalar.
 
-    Reading a schema off a Python annotation is pydantic's job, so upstream's own extractor
-    runs here — key order included, since it is part of the bytes. Whether the schema reaches
-    the prompt is the crate's decision, not this shim's: `dspy.Code` states its contract in its
-    type description instead, and the crate is what knows that.
+    Reading a schema off a Python annotation is pydantic's job, so upstream's own extractor runs
+    here — key order included, since it is part of the bytes. Whether the schema reaches the
+    prompt stays the crate's decision: a type whose description already states its contract
+    drops the note, and the crate is what knows that.
+
+    Only a structured field is asked for one, which is where the crate consults it and where
+    dspy computes it. An annotation that cannot produce one is a gap in this bridge rather than
+    a field to render blank, so it says so instead of quietly dropping the schema — a missing
+    note renders a prompt that looks right and is not.
     """
+    if not kind.startswith("json:"):
+        return None
     try:
         return json.dumps(_get_json_schema(annotation), ensure_ascii=False)
-    except Exception:
-        return None
+    except Exception as error:
+        raise Unsupported(f"no JSON schema for annotation {annotation!r}: {error}") from error
 
 
 def type_descriptions_of(annotation: typing.Any) -> str | None:
@@ -104,12 +113,18 @@ def type_descriptions_of(annotation: typing.Any) -> str | None:
     Which types an annotation mentions is Python reflection, so it happens here; how the pairs
     read in a prompt is the crate's business, so only the pairs cross.
     """
-    pairs = [
-        (get_annotation_name(custom), custom.description())
+    described = [
+        {
+            "name": get_annotation_name(custom),
+            "text": custom.description(),
+            # dspy asks whether the annotation *is* a `dspy.Code`, not what it is called, so
+            # this asks the same way: a subclass counts and a look-alike does not.
+            "replaces_schema": _annotation_is_subclass(custom, Code),
+        }
         for custom in Type.extract_custom_type_from_annotation(annotation)
         if custom.description()
     ]
-    return json.dumps(pairs) if pairs else None
+    return json.dumps(described) if described else None
 
 
 def describe(fields: dict) -> list[tuple]:
@@ -134,7 +149,7 @@ def describe(fields: dict) -> list[tuple]:
 def described_outputs(signature) -> list[tuple]:
     """Outputs carry the nested schema of a structured field ahead of the closed set."""
     return [
-        (name, kind, desc, schema_of(signature.output_fields[name].annotation), values, types)
+        (name, kind, desc, schema_of(kind, signature.output_fields[name].annotation), values, types)
         for name, kind, desc, values, types in describe(signature.output_fields)
     ]
 

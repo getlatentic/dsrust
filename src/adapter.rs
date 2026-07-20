@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::example::Example;
 use crate::lm::{ChatTurn, OutputMode};
-use crate::signature::{FieldKind, Signature, wire_forms};
+use crate::signature::{FieldKind, JsonType, Signature, wire_forms};
 
 mod demos;
 mod exchange;
@@ -201,8 +201,13 @@ fn type_descriptions(kind: &FieldKind) -> String {
     };
     json.descriptions
         .iter()
-        .filter(|(_, text)| !text.is_empty())
-        .map(|(name, text)| format!("\n    Type description of {name}: {text}"))
+        .filter(|described| !described.text.is_empty())
+        .map(|described| {
+            format!(
+                "\n    Type description of {}: {}",
+                described.name, described.text
+            )
+        })
         .collect()
 }
 
@@ -299,8 +304,12 @@ fn chat_system(signature: &Signature) -> String {
 /// dspy `translate_field_type`: an output slot carries a note telling the model what shape the
 /// value must take. `str` says nothing, since a string needs no constraint; everything else
 /// earns a note on the same line, indented eight spaces as a comment.
-/// The one custom type whose description stands in for its schema.
-const CODE: &str = "Code";
+/// Whether any custom type in this annotation has already said what its schema would say.
+fn states_its_own_contract(json: &JsonType) -> bool {
+    json.descriptions
+        .iter()
+        .any(|described| described.replaces_schema && !described.text.is_empty())
+}
 
 fn output_slot(field: &crate::signature::OutField) -> String {
     let note = match &field.kind {
@@ -314,12 +323,10 @@ fn output_slot(field: &crate::signature::OutField) -> String {
         FieldKind::Bool => "must be True or False".to_owned(),
         FieldKind::Int => "must be a single int value".to_owned(),
         FieldKind::Float => "must be a single float value".to_owned(),
-        // dspy states `Code`'s contract in its type description instead, so repeating the
-        // schema here would spend a large block of the prompt saying it twice. Every other
-        // custom type keeps the schema, which is what steers a structured reply.
-        FieldKind::Json(json) if json.annotation == CODE && !json.descriptions.is_empty() => {
-            String::new()
-        }
+        // A type whose description already states its contract does not repeat it as a schema,
+        // which would spend a large block of the prompt saying the same thing twice. Every
+        // other custom type keeps the schema, which is what steers a structured reply.
+        FieldKind::Json(json) if states_its_own_contract(json) => String::new(),
         FieldKind::Json(_) => match &field.schema {
             Some(schema) => format!("must adhere to the JSON schema: {}", json_dumps(schema)),
             None => String::new(),
@@ -401,12 +408,17 @@ fn json_user(inputs: &[(&str, Value)]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::signature::{InField, JsonType, OutField};
+    use crate::signature::{InField, JsonType, OutField, TypeDescription};
     use serde_json::json;
 
     /// A structured output whose annotation names a custom type, the way `Citations` or `Code`
     /// reach the crate across the bridge.
     fn custom_output(annotation: &str, description: &str) -> Signature {
+        custom_output_with(annotation, description, false)
+    }
+
+    /// `replaces_schema` is the property dspy reads off `dspy.Code` and no other type.
+    fn custom_output_with(annotation: &str, description: &str, replaces_schema: bool) -> Signature {
         Signature::single_input(
             "Answer.",
             vec![OutField {
@@ -414,7 +426,11 @@ mod tests {
                 desc: String::new(),
                 kind: FieldKind::Json(JsonType {
                     annotation: annotation.to_owned(),
-                    descriptions: vec![(annotation.to_owned(), description.to_owned())],
+                    descriptions: vec![TypeDescription {
+                        name: annotation.to_owned(),
+                        text: description.to_owned(),
+                        replaces_schema,
+                    }],
                 }),
                 values: None,
                 schema: Some(json!({ "type": "object" })),
@@ -441,8 +457,11 @@ mod tests {
         let FieldKind::Json(json) = &mut signature.outputs[0].kind else {
             unreachable!("built as a structured field")
         };
-        json.descriptions
-            .push(("Document".to_owned(), "A source.".to_owned()));
+        json.descriptions.push(TypeDescription {
+            name: "Document".to_owned(),
+            text: "A source.".to_owned(),
+            replaces_schema: false,
+        });
         let system = chat_system(&signature);
         assert!(system.contains("\n    Type description of Citations: Quoted text."));
         assert!(system.contains("\n    Type description of Document: A source."));
@@ -462,13 +481,28 @@ mod tests {
     fn code_states_its_contract_once_rather_than_repeating_its_schema() {
         // dspy drops the schema note for `Code` alone: its type description already says what
         // the field must contain, and the schema block is large.
-        let system = chat_system(&custom_output("Code", "Code represented in a string."));
+        let system = chat_system(&custom_output_with(
+            "Code",
+            "Code represented in a string.",
+            true,
+        ));
         assert!(
             system.contains("Type description of Code:"),
             "got: {system}"
         );
         assert!(
             !system.contains("must adhere to the JSON schema"),
+            "got: {system}"
+        );
+    }
+
+    #[test]
+    fn a_type_merely_named_code_keeps_its_schema() {
+        // dspy asks whether the annotation *is* a `dspy.Code`, so a look-alike is an ordinary
+        // custom type. Deciding on the printed name would drop this field's schema.
+        let system = chat_system(&custom_output("Code", "Some unrelated type."));
+        assert!(
+            system.contains("must adhere to the JSON schema"),
             "got: {system}"
         );
     }
