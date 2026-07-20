@@ -78,6 +78,7 @@ fn weather() -> Box<dyn Tool> {
     Box::new(FnTool::new(
         "get_weather",
         "look up the weather for a city",
+        serde_json::json!({ "city": { "type": "string" } }),
         |args: &Value| Ok(format!("The weather in {} is sunny.", arg_str(args, "city")?)),
     ))
 }

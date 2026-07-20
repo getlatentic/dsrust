@@ -6,18 +6,19 @@
 //! reads the trajectory and produces the signature's real outputs.
 //!
 //! The Rust shape differs in one place worth naming: dspy takes any Python callable and
-//! inspects it for a name and an argument schema. Here a tool is a trait, so its name and
-//! description are declared rather than derived, and the compiler checks the implementation.
+//! inspects it for a name and an argument schema. Here a tool is a trait, so its name,
+//! description and argument schema are declared rather than derived, and the compiler checks
+//! the implementation.
 
 use std::collections::BTreeMap;
 
 use anyhow::{Result, anyhow};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::example::{Example, Prediction};
 use crate::module::{Module, NamedPredictor};
 use crate::predict::Predict;
-use crate::signature::{FieldKind, InField, OutField, Signature};
+use crate::signature::{FieldKind, InField, OutField, Signature, json_field_schema};
 
 /// Something the agent can call. dspy derives these from a callable's signature; declaring
 /// them keeps the argument contract visible to both the model and the compiler.
@@ -28,8 +29,29 @@ pub trait Tool: Send + Sync {
     /// be chosen correctly, so this earns its place in the prompt.
     fn description(&self) -> &str;
 
+    /// dspy's `Tool.args`: a JSON object mapping each argument name to that argument's JSON
+    /// Schema. It is rendered into the instructions, so a model that has never seen this tool
+    /// still knows what to send. A tool that takes nothing returns an empty object.
+    ///
+    /// Required rather than defaulted: a tool whose arguments go undeclared is one the model
+    /// can only guess at, which is the failure this trait exists to prevent.
+    fn args(&self) -> &Value;
+
     /// Run with the arguments the model supplied, returning the observation it will read.
     fn call(&self, args: &Value) -> Result<String>;
+}
+
+/// The `args` map for a tool whose arguments are the fields of `T`, so the schema comes from a
+/// Rust type instead of a hand-written literal that can drift from the code reading it. dspy
+/// reads the same map off a Python function's type hints.
+///
+/// Carries per-argument schemas only, matching dspy's `Tool.args`: which arguments are
+/// optional shows up as a `default` on the argument, never as a separate `required` list.
+pub fn tool_args<T: schemars::JsonSchema>() -> Value {
+    json_field_schema::<T>()
+        .get("properties")
+        .cloned()
+        .unwrap_or_else(|| json!({}))
 }
 
 /// The name the model uses to say it is done. dspy adds this tool itself, so the model always
@@ -134,6 +156,71 @@ impl ReAct {
     }
 }
 
+/// One line of the tool catalogue, matching dspy's `Tool.__str__`: the name, the description
+/// in `<desc>` tags, and the argument schema the model has to fill.
+fn describe(name: &str, description: &str, args: &Value) -> String {
+    let desc = match description.is_empty() {
+        true => ".".to_owned(),
+        // dspy flattens newlines so a multi-line description cannot break the numbered list.
+        false => format!(", whose description is <desc>{description}</desc>.").replace('\n', "  "),
+    };
+    format!("{name}{desc} It takes arguments {}.", python_repr(args))
+}
+
+/// Render a JSON value the way Python's `repr` prints a dict, because that is literally what
+/// dspy interpolates into the instructions — `str(tool)` formats `self.args`, a dict.
+///
+/// The difference is visible to the model: `{'city': {'type': 'string'}}` rather than
+/// `{"city":{"type":"string"}}`. Matching it keeps the prompt bytes identical, which is the
+/// standard the conformance fixtures hold everything else to.
+fn python_repr(value: &Value) -> String {
+    match value {
+        Value::Null => "None".to_owned(),
+        Value::Bool(true) => "True".to_owned(),
+        Value::Bool(false) => "False".to_owned(),
+        Value::String(text) => format!("'{}'", text.replace('\\', "\\\\").replace('\'', "\\'")),
+        Value::Array(items) => format!(
+            "[{}]",
+            items.iter().map(python_repr).collect::<Vec<_>>().join(", ")
+        ),
+        Value::Object(fields) => format!(
+            "{{{}}}",
+            fields
+                .iter()
+                .map(|(key, value)| format!("'{key}': {}", python_repr(value)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        number => number.to_string(),
+    }
+}
+
+/// dspy appends `finish` to the tool dict itself, so stopping has the same shape as any other
+/// choice the model makes: a name, a description, and an argument object that happens to be
+/// empty.
+fn finish_entry(outputs: &str) -> String {
+    describe(
+        FINISH,
+        &format!(
+            "Marks the task as complete. That is, signals that all information for producing \
+             the outputs, i.e. {outputs}, are now available to be extracted."
+        ),
+        &json!({}),
+    )
+}
+
+/// The numbered tool list dspy renders into the ReAct instructions, `finish` last.
+fn tool_catalogue(tools: &BTreeMap<String, Box<dyn Tool>>, outputs: &str) -> String {
+    tools
+        .values()
+        .map(|tool| describe(tool.name(), tool.description(), tool.args()))
+        .chain(std::iter::once(finish_entry(outputs)))
+        .enumerate()
+        .map(|(index, entry)| format!("({}) {entry}", index + 1))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// The per-turn signature: the task's inputs, the trajectory so far, and the three fields the
 /// model fills to take its next action.
 fn react_signature(signature: &Signature, tools: &BTreeMap<String, Box<dyn Tool>>) -> Signature {
@@ -149,22 +236,15 @@ fn react_signature(signature: &Signature, tools: &BTreeMap<String, Box<dyn Tool>
         .map(|field| field.name)
         .collect::<Vec<_>>()
         .join(", ");
-    let mut catalogue: Vec<String> = tools
-        .values()
-        .map(|tool| format!("- {}: {}", tool.name(), tool.description()))
-        .collect();
-    catalogue.push(format!(
-        "- {FINISH}: call this when the collected information is enough to produce {outputs}"
-    ));
-
     let instructions = format!(
         "{}\n\nYou are an Agent. Each turn you are given the fields {inputs} and the \
          trajectory so far. Use the tools to collect what you need to produce {outputs}.\n\n\
          Interleave next_thought, next_tool_name and next_tool_args each turn. After each \
          tool call you receive an observation, which joins the trajectory.\n\n\
-         The tool must be one of:\n{}",
+         The tool must be one of:\n\n{}\n\
+         When providing `next_tool_args`, the value inside the field must be in JSON format",
         signature.instructions,
-        catalogue.join("\n"),
+        tool_catalogue(tools, &outputs),
     );
 
     let mut fields: Vec<InField> = signature
@@ -311,6 +391,9 @@ fn string_field(prediction: &Prediction, name: &str) -> String {
 pub struct FnTool<F> {
     pub name: String,
     pub description: String,
+    /// dspy's `Tool.args`: argument name to that argument's JSON Schema. Build it from a type
+    /// with [`tool_args`], or write the object out for a one-argument tool.
+    pub args: Value,
     pub call: F,
 }
 
@@ -318,10 +401,16 @@ impl<F> FnTool<F>
 where
     F: Fn(&Value) -> Result<String> + Send + Sync,
 {
-    pub fn new(name: impl Into<String>, description: impl Into<String>, call: F) -> Self {
+    pub fn new(
+        name: impl Into<String>,
+        description: impl Into<String>,
+        args: Value,
+        call: F,
+    ) -> Self {
         Self {
             name: name.into(),
             description: description.into(),
+            args,
             call,
         }
     }
@@ -337,6 +426,10 @@ where
 
     fn description(&self) -> &str {
         &self.description
+    }
+
+    fn args(&self) -> &Value {
+        &self.args
     }
 
     fn call(&self, args: &Value) -> Result<String> {
@@ -360,7 +453,13 @@ mod tests {
         Box::new(FnTool::new(
             "get_weather",
             "look up the weather for a city",
-            |args: &Value| Ok(format!("The weather in {} is sunny.", arg_str(args, "city")?)),
+            json!({ "city": { "type": "string" } }),
+            |args: &Value| {
+                Ok(format!(
+                    "The weather in {} is sunny.",
+                    arg_str(args, "city")?
+                ))
+            },
         ))
     }
 
@@ -381,9 +480,72 @@ mod tests {
     fn the_turn_signature_lists_every_tool_and_finish() {
         let react = ReAct::new(task(), vec![weather()]);
         let instructions = &react.react.signature.instructions;
-        assert!(instructions.contains("- get_weather: look up the weather for a city"));
-        assert!(instructions.contains("- finish:"), "the model needs a way to stop");
-        assert!(instructions.contains("Answer the question."), "the task survives");
+        assert!(instructions.contains(
+            "(1) get_weather, whose description is <desc>look up the weather for a city</desc>. \
+             It takes arguments {'city': {'type': 'string'}}."
+        ));
+        assert!(
+            instructions.contains("(2) finish, whose description is <desc>Marks the task as"),
+            "the model needs a way to stop"
+        );
+        assert!(
+            instructions.contains("Answer the question."),
+            "the task survives"
+        );
+    }
+
+    #[test]
+    fn finish_is_described_as_a_tool_taking_no_arguments() {
+        // dspy builds `finish` with `args={}`, so the model is never invited to invent any.
+        let react = ReAct::new(task(), vec![weather()]);
+        assert!(react.react.signature.instructions.contains(
+            "i.e. answer, are now available to be extracted.</desc>. \
+                          It takes arguments {}."
+        ));
+    }
+
+    #[test]
+    fn the_catalogue_tells_the_model_the_argument_field_is_json() {
+        let react = ReAct::new(task(), vec![weather()]);
+        assert!(react.react.signature.instructions.ends_with(
+            "When providing `next_tool_args`, the value inside the field must be in JSON format"
+        ));
+    }
+
+    #[test]
+    fn a_description_spanning_lines_stays_on_one_catalogue_line() {
+        // dspy replaces newlines so a wrapped docstring cannot break the numbered list apart.
+        let entry = describe("noisy", "first\nsecond", &json!({}));
+        assert_eq!(
+            entry,
+            "noisy, whose description is <desc>first  second</desc>. It takes arguments {}."
+        );
+    }
+
+    #[test]
+    fn a_tool_with_no_description_is_rendered_without_the_desc_tags() {
+        assert_eq!(
+            describe("bare", "", &json!({})),
+            "bare. It takes arguments {}."
+        );
+    }
+
+    #[test]
+    fn tool_args_reads_the_argument_schema_off_a_rust_type() {
+        // The point of the helper: the schema cannot drift from the struct the tool parses.
+        #[derive(schemars::JsonSchema)]
+        #[allow(dead_code)]
+        struct WeatherArgs {
+            city: String,
+            days: u8,
+        }
+        assert_eq!(
+            tool_args::<WeatherArgs>(),
+            json!({
+                "city": { "type": "string" },
+                "days": { "type": "integer", "format": "uint8", "minimum": 0, "maximum": 255 },
+            })
+        );
     }
 
     #[test]
