@@ -4,10 +4,10 @@ use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::adapter::{Adapter, ChatAdapter, Feedback, JsonAdapter, turns_for};
+use crate::adapter::{Adapter, ChatAdapter, Feedback, turns_for};
 use crate::example::{Example, Prediction};
 use crate::module::{Module, NamedPredictor};
-use crate::lm::{ChatModel, DynChatModel, global};
+use crate::lm::{DynChatModel, global};
 use crate::signature::{FieldKind, OutField, Signature, SignatureSpec};
 
 /// dspy.Predict: ask through the configured adapter, demand the signature's fields back,
@@ -354,7 +354,8 @@ fn without_reasoning(mut value: Value) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lm::{ChatTurn, OutputMode, Role};
+    use crate::adapter::JsonAdapter;
+    use crate::lm::{ChatModel, ChatTurn, OutputMode, Role};
     use anyhow::anyhow;
     use serde_json::json;
     use std::collections::VecDeque;

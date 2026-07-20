@@ -40,8 +40,8 @@ that error rather than letting a broken build read as a pass.
 | Signatures (`#[derive(Signature)]`, typed + complex fields) | built |
 | `Adapter` trait: `ChatAdapter`, `JsonAdapter`, or your own | built, conformance-checked |
 | `Predict`, `ChainOfThought` (+ typed forms) | built |
-| `ReAct` with tools, trajectory, and an iteration budget | built |
-| LM layer (Anthropic, OpenRouter, ollama), global config | built |
+| `ReAct` with schema-carrying tools and an iteration budget | built |
+| LM layer (Anthropic, OpenRouter, ollama, OpenAI-compatible) | built |
 | `DummyLM` for testing a program with no provider | built |
 | Two-tier feedback retry | built |
 | Demos (few-shot examples) rendered as turns | built, conformance-checked |
