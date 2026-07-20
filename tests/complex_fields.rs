@@ -193,7 +193,7 @@ async fn prompts_annotate_json_fields_and_a_marker_reply_deserializes() {
 
     // `json.dumps` spacing, because the adapter renders the value rather than receiving text
     // some other serializer already wrote.
-    let opening = &calls[0].turns[0].content;
+    let opening = calls[0].turns[0].content.text().unwrap();
     assert!(
         opening.contains("[[ ## recipient ## ]]\n{\"name\": \"Dad\", \"age\": 61"),
         "got: {opening}"
@@ -227,8 +227,14 @@ async fn invalid_json_rides_the_feedback_retry() {
     assert_eq!(calls.len(), 2);
     let retry = &calls[1].turns;
     assert_eq!(retry[1].role, Role::Assistant);
-    assert_eq!(retry[1].content, bad);
-    assert!(retry[2].content.contains("ideas must be valid JSON"));
+    assert_eq!(retry[1].content.text().unwrap(), bad);
+    assert!(
+        retry[2]
+            .content
+            .text()
+            .unwrap()
+            .contains("ideas must be valid JSON")
+    );
 }
 
 #[tokio::test]
@@ -267,10 +273,14 @@ async fn a_shape_mismatch_gets_one_deep_retry_carrying_the_serde_error() {
     let retry = &calls[1].turns;
     assert_eq!(retry.len(), 3);
     assert_eq!(retry[1].role, Role::Assistant);
-    assert_eq!(retry[1].content, shallow);
+    assert_eq!(retry[1].content.text().unwrap(), shallow);
     assert!(
-        retry[2].content.contains("missing field `why`"),
-        "got: {}",
+        retry[2]
+            .content
+            .text()
+            .unwrap()
+            .contains("missing field `why`"),
+        "got: {:?}",
         retry[2].content
     );
 }
@@ -323,6 +333,8 @@ async fn typed_calls_stay_bounded_at_three_provider_calls() {
             .last()
             .expect("turns")
             .content
+            .text()
+            .unwrap()
             .contains("the tip field is missing")
     );
     assert!(
@@ -331,6 +343,8 @@ async fn typed_calls_stay_bounded_at_three_provider_calls() {
             .last()
             .expect("turns")
             .content
+            .text()
+            .unwrap()
             .contains("missing field `why`")
     );
 }
@@ -356,8 +370,14 @@ async fn chain_of_thought_deep_retry_keeps_the_full_previous_reply() {
     let calls = lm.calls();
     assert_eq!(calls.len(), 2);
     let retry = &calls[1].turns;
-    assert_eq!(retry[1].content, reasoned_bad);
-    assert!(retry[2].content.contains("missing field `why`"));
+    assert_eq!(retry[1].content.text().unwrap(), reasoned_bad);
+    assert!(
+        retry[2]
+            .content
+            .text()
+            .unwrap()
+            .contains("missing field `why`")
+    );
 }
 
 /// Pins down what a call macro evaluates to: the module call's future, yielding the task's

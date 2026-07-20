@@ -191,7 +191,7 @@ fn chat_adapter_renders_what_python_dspy_renders() {
                 &format!("turn {index}"),
                 &fixture,
                 &expected.1,
-                &actual.content,
+                actual.content.text().expect("a text-only fixture"),
             );
         }
     }

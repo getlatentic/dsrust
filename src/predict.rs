@@ -500,8 +500,14 @@ mod tests {
         let retry = &calls[1].turns;
         assert_eq!(retry.len(), 3);
         assert_eq!(retry[1].role, Role::Assistant);
-        assert_eq!(retry[1].content, bad);
-        assert!(retry[2].content.contains("color must be one of red, blue"));
+        assert_eq!(retry[1].content.text().unwrap(), bad);
+        assert!(
+            retry[2]
+                .content
+                .text()
+                .unwrap()
+                .contains("color must be one of red, blue")
+        );
     }
 
     #[tokio::test]
@@ -664,7 +670,7 @@ mod tests {
                 .contains("1. `room` (str): the room being painted")
         );
         assert!(calls[0].system.contains("2. `mood` (str): the mood to set"));
-        let opening = &calls[0].turns[0].content;
+        let opening = calls[0].turns[0].content.text().unwrap();
         assert!(opening.contains("[[ ## room ## ]]\nthe study"));
         assert!(opening.contains("[[ ## mood ## ]]\ncalm focus"));
     }
@@ -683,9 +689,21 @@ mod tests {
         assert_eq!(calls.len(), 2);
         let retry = &calls[1].turns;
         assert_eq!(retry.len(), 3);
-        assert!(retry[0].content.contains("[[ ## mood ## ]]\ncalm focus"));
-        assert_eq!(retry[1].content, bad);
-        assert!(retry[2].content.contains("color must be one of red, blue"));
+        assert!(
+            retry[0]
+                .content
+                .text()
+                .unwrap()
+                .contains("[[ ## mood ## ]]\ncalm focus")
+        );
+        assert_eq!(retry[1].content.text().unwrap(), bad);
+        assert!(
+            retry[2]
+                .content
+                .text()
+                .unwrap()
+                .contains("color must be one of red, blue")
+        );
     }
 
     /// Pins down what a call macro evaluates to: the module call's future, yielding the
@@ -777,7 +795,7 @@ mod tests {
                 .system
                 .contains("1. `amount` (float): amount in MON")
         );
-        let opening = &calls[0].turns[0].content;
+        let opening = calls[0].turns[0].content.text().unwrap();
         assert!(opening.contains("[[ ## age ## ]]\n61"));
         // Python's spelling: dspy 3.2.1 hands a bare bool to `str`, so the model reads `True`.
         assert!(opening.contains("[[ ## fan ## ]]\nTrue"));
@@ -804,10 +822,12 @@ mod tests {
         assert!(!calls[1].json_mode, "a type error must not switch adapters");
         let retry = &calls[1].turns;
         assert_eq!(retry.len(), 3);
-        assert_eq!(retry[1].content, bad);
+        assert_eq!(retry[1].content.text().unwrap(), bad);
         assert!(
             retry[2]
                 .content
+                .text()
+                .unwrap()
                 .contains("amount must be a number, got \"abc\"")
         );
     }

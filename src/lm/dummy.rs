@@ -27,7 +27,10 @@ pub struct Asked {
 impl Asked {
     /// The last thing the model was told, which is the request it is answering.
     pub fn last_message(&self) -> &str {
-        self.turns.last().map_or("", |turn| turn.content.as_str())
+        self.turns
+            .last()
+            .and_then(|turn| turn.content.text())
+            .unwrap_or_default()
     }
 }
 

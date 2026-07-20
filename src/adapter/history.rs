@@ -150,19 +150,19 @@ mod tests {
 
         assert_eq!(turns.len(), 4);
         assert_eq!(
-            turns[0].content,
+            turns[0].content.text().unwrap(),
             "[[ ## question ## ]]\nWhat is the capital of France?"
         );
         assert_eq!(
-            turns[1].content,
+            turns[1].content.text().unwrap(),
             "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]\n"
         );
         assert_eq!(
-            turns[2].content,
+            turns[2].content.text().unwrap(),
             "[[ ## question ## ]]\nWhat is the capital of Germany?"
         );
         assert_eq!(
-            turns[3].content,
+            turns[3].content.text().unwrap(),
             "[[ ## answer ## ]]\nBerlin\n\n[[ ## completed ## ]]\n"
         );
     }
@@ -173,7 +173,11 @@ mod tests {
         // replaying the exchanges exists to avoid.
         let stripped = without_field(&signature(), "history");
         let turns = turns(&stripped, &history());
-        assert!(!turns.iter().any(|turn| turn.content.contains("history")));
+        assert!(
+            !turns
+                .iter()
+                .any(|turn| turn.content.text().unwrap().contains("history"))
+        );
     }
 
     #[test]
@@ -184,7 +188,7 @@ mod tests {
             &json!({ "messages": [{ "question": "Where?" }] }),
         );
         assert_eq!(
-            turns[1].content,
+            turns[1].content.text().unwrap(),
             "[[ ## answer ## ]]\nNot supplied for this conversation history message.\n\n[[ ## completed ## ]]\n"
         );
     }

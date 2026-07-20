@@ -107,7 +107,7 @@ mod tests {
     fn rendered(demos: &[Example]) -> Vec<String> {
         demo_turns(&paint(), demos)
             .into_iter()
-            .map(|turn| turn.content)
+            .map(|turn| turn.content.text().unwrap().to_owned())
             .collect()
     }
 

@@ -95,8 +95,20 @@ async fn the_chosen_demos_reach_the_prompt() {
     assert_eq!(turns.len(), 5);
     assert_eq!(turns[0].role, Role::User);
     assert_eq!(turns[1].role, Role::Assistant);
-    assert!(turns[1].content.contains("[[ ## answer ## ]]"));
-    assert!(turns[4].content.contains("capital of Spain?"));
+    assert!(
+        turns[1]
+            .content
+            .text()
+            .unwrap()
+            .contains("[[ ## answer ## ]]")
+    );
+    assert!(
+        turns[4]
+            .content
+            .text()
+            .unwrap()
+            .contains("capital of Spain?")
+    );
 }
 
 #[test]

@@ -212,7 +212,7 @@ class RustChatAdapter(dspy.ChatAdapter):
             rendered_demos,
         )
         return [{"role": "system", "content": system}] + [
-            {"role": role, "content": content} for role, content in turns
+            {"role": role, "content": json.loads(content)} for role, content in turns
         ]
 
     def parse(self, signature, completion):

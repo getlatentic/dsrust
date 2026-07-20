@@ -48,14 +48,19 @@ fn demos_become_solved_turns_before_the_request() {
         ]
     );
 
-    assert_eq!(turns[0].content, "[[ ## request ## ]]\nsomething calm");
     assert_eq!(
-        turns[1].content,
+        turns[0].content.text().unwrap(),
+        "[[ ## request ## ]]\nsomething calm"
+    );
+    assert_eq!(
+        turns[1].content.text().unwrap(),
         "[[ ## colour ## ]]\nblue\n\n[[ ## completed ## ]]\n"
     );
     assert!(
         turns[4]
             .content
+            .text()
+            .unwrap()
             .starts_with("[[ ## request ## ]]\nsomething bold")
     );
 
@@ -63,11 +68,15 @@ fn demos_become_solved_turns_before_the_request() {
     assert!(
         !turns[0]
             .content
+            .text()
+            .unwrap()
             .contains("Respond with the corresponding output fields")
     );
     assert!(
         turns[4]
             .content
+            .text()
+            .unwrap()
             .contains("Respond with the corresponding output fields")
     );
 }
@@ -113,7 +122,7 @@ fn a_demo_renders_every_value_shape_the_way_python_prints_it() {
     // A nested `null` keeps JSON's spelling because `json.dumps` writes it; only the bool,
     // which is a field value in its own right, reaches Python's `str`.
     assert_eq!(
-        turns[0].content,
+        turns[0].content.text().unwrap(),
         concat!(
             "[[ ## obj ## ]]\n{\"a\": 1, \"b\": {\"c\": [1, 2]}}\n\n",
             "[[ ## arr ## ]]\n[1, \"two\", true, null]\n\n",
@@ -123,7 +132,7 @@ fn a_demo_renders_every_value_shape_the_way_python_prints_it() {
         )
     );
     assert_eq!(
-        turns[1].content,
+        turns[1].content.text().unwrap(),
         "[[ ## out ## ]]\ndone\n\n[[ ## completed ## ]]\n"
     );
 }
@@ -140,6 +149,8 @@ fn a_demo_with_no_answer_is_dropped_rather_than_half_shown() {
     assert!(
         turns[0]
             .content
+            .text()
+            .unwrap()
             .starts_with("[[ ## request ## ]]\nsomething bold")
     );
 }
@@ -157,15 +168,18 @@ fn a_partial_demo_is_flagged_and_leads_the_whole_ones() {
     let (_, turns) = ChatAdapter::default().format(&signature(), &demos, &inputs);
 
     assert_eq!(
-        turns[0].content,
+        turns[0].content.text().unwrap(),
         "This is an example of the task, though some input or output fields are not supplied.\
          \n\n[[ ## request ## ]]\nsomething calm"
     );
     assert_eq!(
-        turns[1].content,
+        turns[1].content.text().unwrap(),
         "[[ ## colour ## ]]\nNone\n\n[[ ## completed ## ]]\n"
     );
-    assert_eq!(turns[2].content, "[[ ## request ## ]]\nsomething warm");
+    assert_eq!(
+        turns[2].content.text().unwrap(),
+        "[[ ## request ## ]]\nsomething warm"
+    );
 }
 
 #[test]

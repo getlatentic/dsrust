@@ -38,10 +38,13 @@ impl ChatModel for Scripted {
         turns: &[ChatTurn],
         _mode: &OutputMode<'_>,
     ) -> Result<String> {
-        self.seen
-            .lock()
-            .expect("not poisoned")
-            .push(turns.last().map(|t| t.content.clone()).unwrap_or_default());
+        self.seen.lock().expect("not poisoned").push(
+            turns
+                .last()
+                .and_then(|t| t.content.text())
+                .unwrap_or_default()
+                .to_owned(),
+        );
         self.replies
             .lock()
             .expect("not poisoned")

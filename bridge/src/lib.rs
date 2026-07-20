@@ -145,6 +145,9 @@ fn build_signature(
 }
 
 /// Render one exchange for the named adapter, as `(system, [(role, content), ...])`.
+///
+/// Each content crosses as JSON, because a message carrying a custom type is a list of blocks
+/// rather than a string and both spellings have to survive intact.
 #[pyfunction]
 #[pyo3(signature = (adapter, instructions, inputs, outputs, values, demos = None))]
 fn format_messages(
@@ -185,8 +188,12 @@ fn format_messages(
     let (system, turns) = adapter.format(&signature, &demos, &pairs);
     let turns = turns
         .into_iter()
-        .map(|turn| (turn.role.as_str().to_owned(), turn.content))
-        .collect();
+        .map(|turn| {
+            let content = serde_json::to_string(&turn.content)
+                .map_err(|error| PyValueError::new_err(format!("bad content: {error}")))?;
+            Ok((turn.role.as_str().to_owned(), content))
+        })
+        .collect::<PyResult<_>>()?;
     Ok((system, turns))
 }
 

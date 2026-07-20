@@ -28,12 +28,6 @@ from rust_adapter import RustChatAdapter  # noqa: E402
 # Upstream tests whose features this crate has not written yet, with the reason. Delete a line
 # once Rust renders that case; the strict xfail will fail the run if you forget.
 NOT_YET_IMPLEMENTED = {
-    "test_chat_adapter_formats_image": "dspy.Image fields",
-    "test_chat_adapter_formats_image_with_few_shot_examples": "dspy.Image fields",
-    "test_chat_adapter_formats_image_with_nested_images": "dspy.Image fields",
-    "test_chat_adapter_formats_image_with_few_shot_examples_with_nested_images": (
-        "dspy.Image fields and demos"
-    ),
     "test_chat_adapter_with_tool": "dspy.Tool fields",
     "test_chat_adapter_toolcalls_vague_match": "dspy.ToolCalls parsing",
 }

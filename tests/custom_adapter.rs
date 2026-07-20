@@ -76,7 +76,10 @@ fn an_adapter_defined_outside_the_crate_formats_and_parses() {
     let (system, turns) = XmlAdapter.format(&signature(), &[], &inputs);
     assert!(system.contains("<colour>...</colour>"));
     assert_eq!(turns.len(), 1);
-    assert_eq!(turns[0].content, "<request>something calm</request>");
+    assert_eq!(
+        turns[0].content.text().unwrap(),
+        "<request>something calm</request>"
+    );
 
     let parsed = XmlAdapter
         .parse(&signature(), "<colour>blue</colour>")

@@ -5,6 +5,7 @@ use crate::example::Example;
 use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::{FieldKind, JsonType, Signature, wire_forms};
 
+mod blocks;
 mod demos;
 mod exchange;
 mod history;
@@ -125,7 +126,7 @@ impl Adapter for ChatAdapter {
             .cloned()
             .collect();
         turns.push(ChatTurn::user(chat_user(&asked, &live)));
-        (chat_system(signature), turns)
+        (chat_system(signature), blocks::split_custom_types(turns))
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
@@ -145,9 +146,11 @@ impl Adapter for JsonAdapter {
         _demos: &[Example],
         inputs: &[(&str, Value)],
     ) -> (String, Vec<ChatTurn>) {
+        // dspy splits in the base `format`, which both adapters inherit, so a custom type
+        // reaches a provider as blocks whichever wire format carries the rest of the request.
         (
             json_system(signature),
-            vec![ChatTurn::user(json_user(inputs))],
+            blocks::split_custom_types(vec![ChatTurn::user(json_user(inputs))]),
         )
     }
 
@@ -726,8 +729,14 @@ mod tests {
         };
         let turns = turns_for(vec![ChatTurn::user("draft it")], Some(&feedback));
         assert_eq!(turns.len(), 3);
-        assert_eq!(turns[1].content, "[[ ## color ## ]]\ngreen");
-        assert!(turns[2].content.contains("color must be one of red, blue"));
+        assert_eq!(turns[1].content.text().unwrap(), "[[ ## color ## ]]\ngreen");
+        assert!(
+            turns[2]
+                .content
+                .text()
+                .unwrap()
+                .contains("color must be one of red, blue")
+        );
         assert!(turns_for(vec![ChatTurn::user("draft it")], None).len() == 1);
     }
 }
