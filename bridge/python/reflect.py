@@ -92,6 +92,11 @@ def _carries_as_json(annotation: typing.Any) -> bool:
 
 def _scalar_or_json(annotation: typing.Any) -> bool:
     """Whether one member of a container is itself carryable."""
+    # A `Literal` inside a union — `Optional[Literal["auto", "manual"]]` — carries as JSON like
+    # any other member. Its own args are its *values* rather than types, so asking whether they
+    # are carryable types is the wrong question and answers no to a type that carries fine.
+    if typing.get_origin(annotation) is typing.Literal:
+        return all(isinstance(member, (str, int, bool)) for member in typing.get_args(annotation))
     try:
         return annotation in KINDS or _carries_as_json(annotation)
     except TypeError:
