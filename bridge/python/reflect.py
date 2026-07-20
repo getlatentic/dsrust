@@ -94,9 +94,14 @@ def closed_set_of(annotation: typing.Any) -> str | None:
     if typing.get_origin(annotation) is not typing.Literal:
         return None
     members = typing.get_args(annotation)
-    if not all(isinstance(member, (str, int, bool)) for member in members):
-        raise Unsupported(f"no Rust closed set for annotation {annotation!r}")
-    return json.dumps(members)
+    # A member Python prints as itself — an enum member — crosses as its `str`, tagged so the
+    # crate spells it bare rather than quoting it into something the model would answer wrong.
+    return json.dumps(
+        [
+            member if isinstance(member, (str, int, bool)) else {"bare": str(member)}
+            for member in members
+        ]
+    )
 
 
 def schema_of(kind: str, annotation: typing.Any) -> str | None:

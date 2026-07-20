@@ -111,6 +111,10 @@ pub enum LiteralValue {
     Str(String),
     Int(i64),
     Bool(bool),
+    /// A member Python prints as itself rather than as a literal — an enum member, whose `str`
+    /// is `Colour.RED`. It is not a string: quoting it would tell the model to answer
+    /// `'Colour.RED'` where dspy asks for `Colour.RED`.
+    Bare(String),
 }
 
 impl LiteralValue {
@@ -123,6 +127,7 @@ impl LiteralValue {
             LiteralValue::Int(number) => number.to_string(),
             LiteralValue::Bool(true) => "True".to_owned(),
             LiteralValue::Bool(false) => "False".to_owned(),
+            LiteralValue::Bare(text) => text.clone(),
         }
     }
 
@@ -140,6 +145,8 @@ impl LiteralValue {
             LiteralValue::Str(text) => json!(text),
             LiteralValue::Int(number) => json!(number),
             LiteralValue::Bool(flag) => json!(flag),
+            // A reply names the member, so that name is the value that crosses.
+            LiteralValue::Bare(text) => json!(text),
         }
     }
 
@@ -148,6 +155,7 @@ impl LiteralValue {
             LiteralValue::Str(_) => "string",
             LiteralValue::Int(_) => "integer",
             LiteralValue::Bool(_) => "boolean",
+            LiteralValue::Bare(_) => "string",
         }
     }
 }
@@ -339,5 +347,16 @@ mod tests {
     fn a_closed_set_checks_replies_against_the_spelling_they_arrive_in() {
         let values = vec![LiteralValue::Int(3), LiteralValue::Bool(true), "foo".into()];
         assert_eq!(wire_forms(&values, ", "), "3, True, foo");
+    }
+
+    #[test]
+    fn a_member_python_prints_as_itself_is_not_quoted() {
+        // `Literal[Colour.RED]` reaches the model as `Colour.RED`. Quoting it would ask for
+        // `'Colour.RED'`, which is a different answer.
+        let member = LiteralValue::Bare("Colour.RED".to_owned());
+        assert_eq!(member.annotation(), "Colour.RED");
+        assert_eq!(member.wire_form(), "Colour.RED");
+        // A plain string in the same position keeps its quotes, which is the distinction.
+        assert_eq!(LiteralValue::Str("red".to_owned()).annotation(), "'red'");
     }
 }

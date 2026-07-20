@@ -148,6 +148,11 @@ fn literal_from(member: Value) -> PyResult<LiteralValue> {
         Value::Number(number) => number.as_i64().map(LiteralValue::Int).ok_or_else(|| {
             PyValueError::new_err(format!("closed set member is not an integer: {number}"))
         }),
+        // `{"bare": "Colour.RED"}` — a member Python prints as itself rather than as a literal.
+        Value::Object(ref fields) if fields.contains_key("bare") => fields["bare"]
+            .as_str()
+            .map(|text| LiteralValue::Bare(text.to_owned()))
+            .ok_or_else(|| PyValueError::new_err("bare closed set member is not text")),
         other => Err(PyValueError::new_err(format!(
             "closed set member has no Literal spelling: {other}"
         ))),
