@@ -27,7 +27,7 @@ impl Adapter for JsonAdapter {
         signature: &Signature,
         demos: &[Example],
         inputs: &[(&str, Value)],
-    ) -> (String, Vec<ChatTurn>) {
+    ) -> Result<(String, Vec<ChatTurn>)> {
         let (asked, mut turns) = conversation(signature, demos, inputs, JSON_STYLE);
         turns.push(ChatTurn::user(json_user(
             &asked,
@@ -35,11 +35,11 @@ impl Adapter for JsonAdapter {
         )));
         // dspy splits in the base `format`, which both adapters inherit, so a custom type
         // reaches a provider as blocks whichever wire format carries the rest of the request.
-        (json_system(signature), blocks::split_custom_types(turns))
+        Ok((json_system(signature), blocks::split_custom_types(turns)))
     }
 
-    fn system_message(&self, signature: &Signature) -> String {
-        json_system(signature)
+    fn system_message(&self, signature: &Signature) -> Result<String> {
+        Ok(json_system(signature))
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {

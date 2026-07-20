@@ -53,20 +53,20 @@ impl Adapter for ChatAdapter {
         signature: &Signature,
         demos: &[Example],
         inputs: &[(&str, Value)],
-    ) -> (String, Vec<ChatTurn>) {
+    ) -> Result<(String, Vec<ChatTurn>)> {
         let (asked, mut turns) = conversation(signature, demos, inputs, MARKER_STYLE);
         turns.push(ChatTurn::user(chat_user(
             &asked,
             &live_inputs(&asked, inputs),
         )));
-        (
-            self.system_message(signature),
+        Ok((
+            self.system_message(signature)?,
             blocks::split_custom_types(turns),
-        )
+        ))
     }
 
-    fn system_message(&self, signature: &Signature) -> String {
-        chat_system(signature)
+    fn system_message(&self, signature: &Signature) -> Result<String> {
+        Ok(chat_system(signature))
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {

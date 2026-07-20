@@ -48,7 +48,7 @@ const STYLE: Style = Style {
 pub struct XmlAdapter;
 
 impl super::Adapter for XmlAdapter {
-    fn system_message(&self, signature: &Signature) -> String {
+    fn system_message(&self, signature: &Signature) -> Result<String> {
         let slots = signature
             .inputs
             .iter()
@@ -66,7 +66,7 @@ impl super::Adapter for XmlAdapter {
             "All interactions will be structured in the following way, with the appropriate \
              values filled in.\n\n{slots}"
         );
-        super::system_message(signature, &structure)
+        Ok(super::system_message(signature, &structure))
     }
 
     fn format(
@@ -74,16 +74,16 @@ impl super::Adapter for XmlAdapter {
         signature: &Signature,
         demos: &[Example],
         inputs: &[(&str, Value)],
-    ) -> (String, Vec<ChatTurn>) {
+    ) -> Result<(String, Vec<ChatTurn>)> {
         let (asked, mut turns) = conversation(signature, demos, inputs, STYLE);
         turns.push(ChatTurn::user(user_message(
             &asked,
             &live_inputs(&asked, inputs),
         )));
-        (
-            self.system_message(signature),
+        Ok((
+            self.system_message(signature)?,
             blocks::split_custom_types(turns),
-        )
+        ))
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
@@ -153,7 +153,7 @@ mod tests {
     /// The bytes `dspy.adapters.xml_adapter.XMLAdapter().format` writes for this signature.
     #[test]
     fn the_system_message_states_every_field_as_a_tag_pair() {
-        let system = XmlAdapter.system_message(&signature());
+        let system = XmlAdapter.system_message(&signature()).expect("renders");
         assert!(system.starts_with(
             "Your input fields are:\n1. `room` (str): the room\n\
              Your output fields are:\n1. `color` (str): the color\n2. `why` (str):\n"
@@ -166,7 +166,9 @@ mod tests {
 
     #[test]
     fn the_request_wraps_each_input_then_names_the_tags_to_answer_in() {
-        let (_, turns) = XmlAdapter.format(&signature(), &[], &[("room", json!("the study"))]);
+        let (_, turns) = XmlAdapter
+            .format(&signature(), &[], &[("room", json!("the study"))])
+            .expect("renders");
         assert_eq!(
             turns[0].content.text().unwrap(),
             "<room>\nthe study\n</room>\n\n\
@@ -179,7 +181,7 @@ mod tests {
     fn a_typed_output_keeps_its_note_inside_the_tags() {
         let mut signature = signature();
         signature.outputs[0].kind = FieldKind::Int;
-        let system = XmlAdapter.system_message(&signature);
+        let system = XmlAdapter.system_message(&signature).expect("renders");
         assert!(
             system.contains(
                 "<color>\n{color}        # note: the value you produce must be a single int \
@@ -193,7 +195,9 @@ mod tests {
     fn a_demo_reads_as_a_solved_exchange_in_tags() {
         // No closing marker: an XML reply ends where its last tag closes.
         let demo = crate::example! { room: "the den", color: "green", why: "It rests." };
-        let (_, turns) = XmlAdapter.format(&signature(), &[demo], &[("room", json!("study"))]);
+        let (_, turns) = XmlAdapter
+            .format(&signature(), &[demo], &[("room", json!("study"))])
+            .expect("renders");
         assert_eq!(turns[0].content.text().unwrap(), "<room>\nthe den\n</room>");
         assert_eq!(
             turns[1].content.text().unwrap(),

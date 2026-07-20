@@ -69,15 +69,11 @@ impl BamlAdapter {
 }
 
 impl Adapter for BamlAdapter {
-    /// A signature the notation refuses states why where its structure would go: this method
-    /// cannot report the failure, and a prompt that quietly described some other type would be
-    /// worse than one that says what went wrong. [`BamlAdapter::field_structure`] hands the same
-    /// message to a caller that can act on it.
-    fn system_message(&self, signature: &Signature) -> String {
-        let structure = self
-            .field_structure(signature)
-            .unwrap_or_else(|error| error.to_string());
-        super::system_message(signature, &structure)
+    fn system_message(&self, signature: &Signature) -> Result<String> {
+        Ok(super::system_message(
+            signature,
+            &self.field_structure(signature)?,
+        ))
     }
 
     fn format(
@@ -85,16 +81,16 @@ impl Adapter for BamlAdapter {
         signature: &Signature,
         demos: &[Example],
         inputs: &[(&str, Value)],
-    ) -> (String, Vec<ChatTurn>) {
+    ) -> Result<(String, Vec<ChatTurn>)> {
         let (asked, mut turns) = conversation(signature, demos, inputs, STYLE);
         turns.push(ChatTurn::user(user_message(
             &asked,
             &live_inputs(&asked, inputs),
         )));
-        (
-            self.system_message(signature),
+        Ok((
+            self.system_message(signature)?,
             blocks::split_custom_types(turns),
-        )
+        ))
     }
 
     /// A reply is one JSON object, read exactly as the adapter this one is built on reads it.
@@ -239,7 +235,7 @@ mod tests {
     /// which is where the numbered field lists and the objective come from.
     #[test]
     fn the_system_message_carries_the_structure_between_the_field_lists_and_the_objective() {
-        let system = BamlAdapter.system_message(&signature());
+        let system = BamlAdapter.system_message(&signature()).expect("renders");
         // The trailing space on every line but a block's last is upstream's: it strips the
         // block, not the lines.
         assert!(
@@ -275,11 +271,18 @@ mod tests {
                 ]}],
             })),
         });
+        // The refusal reaches every caller, not just the one that asks for the structure
+        // alone: a prompt built around a type the notation could not write would describe
+        // something the model is then asked to produce.
         assert!(BamlAdapter.field_structure(&signature).is_err());
+        assert!(BamlAdapter.system_message(&signature).is_err());
+        let asked = BamlAdapter.format(&signature, &[], &[("question", json!("x"))]);
         assert!(
-            BamlAdapter
-                .system_message(&signature)
-                .contains("BAMLAdapter cannot handle recursive pydantic models")
+            format!(
+                "{:#}",
+                asked.expect_err("a recursive model has no notation")
+            )
+            .contains("BAMLAdapter cannot handle recursive pydantic models")
         );
     }
 
@@ -289,7 +292,9 @@ mod tests {
             ("patient", patient()),
             ("question", json!("What is the diagnosis?")),
         ];
-        let (_, turns) = BamlAdapter.format(&signature(), &[], &inputs);
+        let (_, turns) = BamlAdapter
+            .format(&signature(), &[], &inputs)
+            .expect("renders");
         assert_eq!(
             turns[0].content.text().expect("one text turn"),
             "[[ ## patient ## ]]\n\
@@ -307,7 +312,9 @@ mod tests {
         let mut signature = signature();
         signature.inputs[0].kind = FieldKind::Json(JsonType::plain("dict[str, str]"));
         let inputs = vec![("patient", patient())];
-        let (_, turns) = BamlAdapter.format(&signature, &[], &inputs);
+        let (_, turns) = BamlAdapter
+            .format(&signature, &[], &inputs)
+            .expect("renders");
         assert!(
             turns[0]
                 .content
@@ -328,7 +335,9 @@ mod tests {
                        \"image_url\": {\"url\": \"https://example.com/a.jpg\"}}]\
                        <<CUSTOM-TYPE-END-IDENTIFIER>>"],
         });
-        let (_, turns) = BamlAdapter.format(&signature(), &[], &[("patient", embedded)]);
+        let (_, turns) = BamlAdapter
+            .format(&signature(), &[], &[("patient", embedded)])
+            .expect("renders");
         let crate::lm::Content::Blocks(blocks) = &turns[0].content else {
             panic!("got: {:?}", turns[0].content)
         };
@@ -348,7 +357,9 @@ mod tests {
             question: "Who?",
             answer: "Jane Doe",
         };
-        let (_, turns) = BamlAdapter.format(&signature(), &[demo], &[("patient", patient())]);
+        let (_, turns) = BamlAdapter
+            .format(&signature(), &[demo], &[("patient", patient())])
+            .expect("renders");
         assert_eq!(
             turns[0].content.text().expect("a rendered demo"),
             "[[ ## patient ## ]]\n\

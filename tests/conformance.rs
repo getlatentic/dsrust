@@ -169,8 +169,9 @@ fn chat_adapter_renders_what_python_dspy_renders() {
             .iter()
             .map(|(name, value)| (name.as_str(), value.clone()))
             .collect();
-        let (system, turns) =
-            ChatAdapter::default().format(&fixture.signature, &fixture.demos, &values);
+        let (system, turns) = ChatAdapter::default()
+            .format(&fixture.signature, &fixture.demos, &values)
+            .expect("the fixture renders");
         assert_same(
             "system message",
             &fixture,

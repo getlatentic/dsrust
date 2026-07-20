@@ -160,7 +160,7 @@ impl Adapter for TwoStepAdapter {
         signature: &Signature,
         demos: &[Example],
         inputs: &[(&str, Value)],
-    ) -> (String, Vec<ChatTurn>) {
+    ) -> Result<(String, Vec<ChatTurn>)> {
         let mut turns: Vec<ChatTurn> = demos
             .iter()
             .flat_map(|demo| {
@@ -171,11 +171,11 @@ impl Adapter for TwoStepAdapter {
             })
             .collect();
         turns.push(ChatTurn::user(user_message(signature, inputs)));
-        (task_description(signature), turns)
+        Ok((task_description(signature), turns))
     }
 
-    fn system_message(&self, signature: &Signature) -> String {
-        task_description(signature)
+    fn system_message(&self, signature: &Signature) -> Result<String> {
+        Ok(task_description(signature))
     }
 
     /// The first reply is prose, so there is nothing to read out of it here. dspy returns the
@@ -287,7 +287,9 @@ mod tests {
     #[test]
     fn a_demo_reads_in_the_same_prose_the_request_uses() {
         let demo = example! { question: "Where?", answer: "Paris" };
-        let (_, turns) = adapter().format(&signature(), &[demo], &[("question", json!("Why?"))]);
+        let (_, turns) = adapter()
+            .format(&signature(), &[demo], &[("question", json!("Why?"))])
+            .expect("renders");
         assert_eq!(turns[0].content.text(), Some("question: Where?"));
         assert_eq!(turns[1].content.text(), Some("answer: Paris"));
         assert_eq!(turns[2].content.text(), Some("question: Why?"));

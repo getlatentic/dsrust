@@ -264,7 +264,9 @@ fn format_messages(
             )
         })
         .collect();
-    let (system, turns) = adapter.format(&signature, &demos, &pairs);
+    let (system, turns) = adapter
+        .format(&signature, &demos, &pairs)
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
     let turns = turns
         .into_iter()
         .map(|turn| {
@@ -290,7 +292,9 @@ fn format_system_message(
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
     let adapter = adapter_named(adapter)?;
-    Ok(adapter.system_message(&signature))
+    adapter
+        .system_message(&signature)
+        .map_err(|error| PyValueError::new_err(error.to_string()))
 }
 
 /// The field-structure section of the BAML adapter's system message.

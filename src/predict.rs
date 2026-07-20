@@ -106,7 +106,7 @@ impl Predict {
         feedback: Option<&Feedback>,
     ) -> Result<String> {
         let schema = self.signature.schema();
-        let (system, opening) = adapter.format(&self.signature, &self.demos, inputs);
+        let (system, opening) = adapter.format(&self.signature, &self.demos, inputs)?;
         let mode = adapter.output_mode(&schema);
         lm.chat_dyn(http, &system, &turns_for(opening, feedback), &mode)
             .await
@@ -195,7 +195,9 @@ impl Predict {
         raw: String,
     ) -> Result<Validated> {
         let text = [("text", Value::String(raw.clone()))];
-        let (system, turns) = extraction.adapter.format(&extraction.signature, &[], &text);
+        let (system, turns) = extraction
+            .adapter
+            .format(&extraction.signature, &[], &text)?;
         let schema = extraction.signature.schema();
         let mode = extraction.adapter.output_mode(&schema);
         let extracted = extraction

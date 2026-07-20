@@ -21,26 +21,26 @@ impl Adapter for XmlAdapter {
         signature: &Signature,
         _demos: &[Example],
         inputs: &[(&str, Value)],
-    ) -> (String, Vec<ChatTurn>) {
+    ) -> anyhow::Result<(String, Vec<ChatTurn>)> {
         let user = inputs
             .iter()
             .map(|(name, value)| format!("<{name}>{}</{name}>", format_value(value)))
             .collect::<Vec<_>>()
             .join("\n");
-        (self.system_message(signature), vec![ChatTurn::user(user)])
+        Ok((self.system_message(signature)?, vec![ChatTurn::user(user)]))
     }
 
-    fn system_message(&self, signature: &Signature) -> String {
+    fn system_message(&self, signature: &Signature) -> anyhow::Result<String> {
         let tags: Vec<String> = signature
             .outputs
             .iter()
             .map(|field| format!("<{}>...</{}>", field.name, field.name))
             .collect();
-        format!(
+        Ok(format!(
             "{}\nReply with {}.",
             signature.instructions,
             tags.join(" then ")
-        )
+        ))
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
@@ -76,7 +76,9 @@ fn signature() -> Signature {
 #[test]
 fn an_adapter_defined_outside_the_crate_formats_and_parses() {
     let inputs = [("request", json!("something calm"))];
-    let (system, turns) = XmlAdapter.format(&signature(), &[], &inputs);
+    let (system, turns) = XmlAdapter
+        .format(&signature(), &[], &inputs)
+        .expect("renders");
     assert!(system.contains("<colour>...</colour>"));
     assert_eq!(turns.len(), 1);
     assert_eq!(
@@ -96,7 +98,7 @@ fn a_custom_adapter_is_interchangeable_with_the_shipped_ones() {
         vec![Box::new(ChatAdapter::default()), Box::new(XmlAdapter)];
     let inputs = [("request", json!("something calm"))];
     for adapter in &adapters {
-        let (system, _) = adapter.format(&signature(), &[], &inputs);
+        let (system, _) = adapter.format(&signature(), &[], &inputs).expect("renders");
         assert!(
             system.contains("Pick a colour."),
             "every adapter carries the instruction"

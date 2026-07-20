@@ -54,7 +54,7 @@ pub trait Adapter: Send + Sync {
         signature: &Signature,
         demos: &[Example],
         inputs: &[(&str, Value)],
-    ) -> (String, Vec<ChatTurn>);
+    ) -> Result<(String, Vec<ChatTurn>)>;
 
     /// Extract the signature's fields from a raw reply. A reply that does not speak this
     /// adapter's format at all fails here; a reply missing individual fields parses and
@@ -62,10 +62,14 @@ pub trait Adapter: Send + Sync {
     /// into a retry.
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value>;
 
+    /// A signature this adapter cannot render is an error rather than a prompt describing
+    /// something else — dspy's own `format` raises for the same reason, and the only adapter
+    /// with a type it can refuse is the one whose notation cannot express every type.
+    ///
     /// What this adapter tells the model before the conversation starts: the fields, the shape
     /// of an interaction, and the objective. dspy exposes the same method, and its `format`
     /// builds the exchange around it.
-    fn system_message(&self, signature: &Signature) -> String;
+    fn system_message(&self, signature: &Signature) -> Result<String>;
 
     /// How the provider should be asked to shape its reply. Text by default, since a format
     /// carried entirely in the prompt needs nothing from the provider.
