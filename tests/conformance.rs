@@ -6,6 +6,7 @@
 //! question "are we faithful?" is answered by the test run instead of by reading both
 //! codebases. A divergence here is a bug in this crate until upstream is shown to be wrong.
 
+use dsrs::adapter::python_json::format_field_value;
 use dsrs::signature::{FieldKind, InField, OutField, Signature};
 use dsrs::{Adapter, ChatAdapter, Example};
 use serde_json::Value;
@@ -47,6 +48,7 @@ fn load(path: &std::path::Path) -> Fixture {
             name: field["name"].as_str().expect("input name").to_owned(),
             desc: field["desc"].as_str().unwrap_or_default().to_owned(),
             kind: kind_from(field["kind"].as_str().expect("input kind")),
+            values: None,
         })
         .collect();
 
@@ -69,7 +71,7 @@ fn load(path: &std::path::Path) -> Fixture {
         .iter()
         .filter_map(|field| {
             let value = json["values"].get(&field.name)?;
-            Some((field.name.clone(), dsrs::example::render(value)))
+            Some((field.name.clone(), format_field_value(value)))
         })
         .collect();
 

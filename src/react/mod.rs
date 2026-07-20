@@ -10,10 +10,11 @@ mod tool;
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
-use crate::example::{Example, Prediction, render};
+use crate::adapter::python_json::format_field_value;
+use crate::example::{Example, Prediction};
 use crate::module::{Module, NamedPredictor};
 use crate::predict::Predict;
-use crate::signature::{FieldKind, InField, OutField, Signature};
+use crate::signature::{FieldKind, InField, LiteralValue, OutField, Signature};
 use tool::describe;
 
 pub use tool::{FINISH, FnTool, Tool, arg_str, tool_args};
@@ -46,7 +47,7 @@ impl Trajectory {
             blocks.push(format!("[[ ## tool_name_{index} ## ]]\n{}", step.tool));
             blocks.push(format!(
                 "[[ ## tool_args_{index} ## ]]\n{}",
-                render(&step.args)
+                format_field_value(&step.args)
             ));
             blocks.push(format!(
                 "[[ ## observation_{index} ## ]]\n{}",
@@ -267,6 +268,7 @@ fn task_inputs(signature: &Signature) -> Vec<InField> {
             name: field.name.clone(),
             desc: field.desc.clone(),
             kind: field.kind.clone(),
+            values: field.values.clone(),
         })
         .collect()
 }
@@ -278,16 +280,17 @@ fn trajectory_field() -> InField {
         name: "trajectory".to_owned(),
         desc: String::new(),
         kind: FieldKind::Str,
+        values: None,
     }
 }
 
 /// dspy types `next_tool_name` as `Literal[tuple(tools.keys())]`, which the chat adapter turns
 /// into the closed set the model must match exactly.
-fn tool_name_set(tools: &[Box<dyn Tool>]) -> Vec<String> {
-    tools.iter().map(|tool| tool.name().to_owned()).collect()
+fn tool_name_set(tools: &[Box<dyn Tool>]) -> Vec<LiteralValue> {
+    tools.iter().map(|tool| tool.name().into()).collect()
 }
 
-fn out_field(name: &str, values: Option<Vec<String>>, kind: FieldKind) -> OutField {
+fn out_field(name: &str, values: Option<Vec<LiteralValue>>, kind: FieldKind) -> OutField {
     OutField {
         name: name.to_owned(),
         desc: String::new(),
@@ -310,12 +313,15 @@ fn react_signature(signature: &Signature, tools: &[Box<dyn Tool>]) -> Signature 
             out_field("next_thought", None, FieldKind::Str),
             out_field("next_tool_name", Some(tool_name_set(tools)), FieldKind::Str),
             // dspy types the argument object `dict[str, Any]`, and prints that Python type
-            // beside the field name.
-            out_field(
-                "next_tool_args",
-                None,
-                FieldKind::Json("dict[str, Any]".to_owned()),
-            ),
+            // beside the field name; pydantic turns the same type into the slot's schema note.
+            OutField {
+                schema: Some(json!({ "type": "object", "additionalProperties": true })),
+                ..out_field(
+                    "next_tool_args",
+                    None,
+                    FieldKind::Json("dict[str, Any]".to_owned()),
+                )
+            },
         ],
     }
 }

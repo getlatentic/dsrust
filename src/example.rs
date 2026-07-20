@@ -11,6 +11,8 @@ use std::collections::BTreeSet;
 use anyhow::{Result, anyhow};
 use serde_json::Value;
 
+use crate::adapter::python_json::format_field_value;
+
 /// One labelled example: field values, plus which of those fields are inputs.
 ///
 /// Field order is preserved, because prompts render fields in signature order and a stable
@@ -116,7 +118,7 @@ impl Example {
     pub fn rendered(&self) -> Vec<(String, String)> {
         self.fields
             .iter()
-            .map(|(name, value)| (name.clone(), render(value)))
+            .map(|(name, value)| (name.clone(), format_field_value(value)))
             .collect()
     }
 }
@@ -137,20 +139,6 @@ macro_rules! example {
             $((stringify!($name), $crate::__macro_support::json!($value))),*
         ])
     };
-}
-
-/// dspy `format_field_value`: a structured value is JSON text, and a scalar is what Python's
-/// `str` would print. Quoting a string would change what the model reads, and upstream is
-/// careful to avoid that.
-pub fn render(value: &Value) -> String {
-    match value {
-        Value::String(text) => text.clone(),
-        Value::Array(_) | Value::Object(_) => crate::python_json::dumps(value),
-        Value::Null => "None".to_owned(),
-        Value::Bool(true) => "True".to_owned(),
-        Value::Bool(false) => "False".to_owned(),
-        number => number.to_string(),
-    }
 }
 
 /// What a module returns: the parsed output fields, plus what produced them.
@@ -264,17 +252,6 @@ mod tests {
                 ("tags".to_owned(), r#"["a", "b"]"#.to_owned()),
             ]
         );
-    }
-
-    #[test]
-    fn a_scalar_renders_the_way_python_prints_it() {
-        // dspy 3.2.1 hands a bare scalar to `str`, so a Rust bool or unit reaches the model as
-        // `True`/`None` rather than JSON's `true`/`null`. Nested inside a container it stays
-        // JSON, because `json.dumps` takes over there.
-        assert_eq!(render(&json!(true)), "True");
-        assert_eq!(render(&json!(false)), "False");
-        assert_eq!(render(&json!(null)), "None");
-        assert_eq!(render(&json!([null, true, false])), "[null, true, false]");
     }
 
     #[test]

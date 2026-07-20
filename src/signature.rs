@@ -52,11 +52,87 @@ impl FieldKind {
     }
 }
 
-/// dspy's `get_annotation_name` over a `Literal`: the members, quoted the way Python spells
+/// One member of a closed set. Python's `Literal` admits strings, integers and booleans and
+/// spells each differently, so a member keeps its type rather than flattening to text: that
+/// would print `Literal[True]` as `Literal['True']` and put quotes round every number.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LiteralValue {
+    Str(String),
+    Int(i64),
+    Bool(bool),
+}
+
+impl LiteralValue {
+    /// The member as it appears inside `Literal[...]`: dspy's
+    /// `_quoted_string_for_literal_type_annotation` for a string, Python's own spelling for
+    /// the rest — `True`, never `true`.
+    fn annotation(&self) -> String {
+        match self {
+            LiteralValue::Str(text) => quoted_member(text),
+            LiteralValue::Int(number) => number.to_string(),
+            LiteralValue::Bool(true) => "True".to_owned(),
+            LiteralValue::Bool(false) => "False".to_owned(),
+        }
+    }
+
+    /// The text a marker-path reply carries for this member. Every value crosses that path as
+    /// text, so this is what a closed set is checked against and what prompts list.
+    fn wire_form(&self) -> String {
+        match self {
+            LiteralValue::Str(text) => text.clone(),
+            typed => typed.annotation(),
+        }
+    }
+
+    fn to_json(&self) -> Value {
+        match self {
+            LiteralValue::Str(text) => json!(text),
+            LiteralValue::Int(number) => json!(number),
+            LiteralValue::Bool(flag) => json!(flag),
+        }
+    }
+
+    fn schema_type(&self) -> &'static str {
+        match self {
+            LiteralValue::Str(_) => "string",
+            LiteralValue::Int(_) => "integer",
+            LiteralValue::Bool(_) => "boolean",
+        }
+    }
+}
+
+impl From<&str> for LiteralValue {
+    fn from(text: &str) -> Self {
+        LiteralValue::Str(text.to_owned())
+    }
+}
+
+impl From<String> for LiteralValue {
+    fn from(text: String) -> Self {
+        LiteralValue::Str(text)
+    }
+}
+
+/// dspy's `get_annotation_name` over a `Literal`: the members, spelled the way Python spells
 /// them, inside `Literal[...]`.
-fn literal_annotation(values: &[String]) -> String {
-    let members: Vec<String> = values.iter().map(|value| quoted_member(value)).collect();
+fn literal_annotation(values: &[LiteralValue]) -> String {
+    let members: Vec<String> = values.iter().map(LiteralValue::annotation).collect();
     format!("Literal[{}]", members.join(", "))
+}
+
+/// The members as a reply would spell them, for prompts and for validation feedback.
+pub(crate) fn wire_forms(values: &[LiteralValue], separator: &str) -> String {
+    let forms: Vec<String> = values.iter().map(LiteralValue::wire_form).collect();
+    forms.join(separator)
+}
+
+/// A closed set is the field's type where there is one: dspy spells it `Literal['a', 'b']`
+/// and prints that as the annotation, rather than a note sitting beside the kind.
+fn annotation_of(values: Option<&Vec<LiteralValue>>, kind: &FieldKind) -> String {
+    match values {
+        Some(values) => literal_annotation(values),
+        None => kind.annotation().to_owned(),
+    }
 }
 
 /// dspy's `_quoted_string_for_literal_type_annotation`: single quotes, unless the value holds
@@ -70,11 +146,21 @@ fn quoted_member(value: &str) -> String {
     }
 }
 
-/// One input field of a signature: a name, a one-line description, and a wire type.
+/// One input field of a signature: a name, a one-line description, a wire type, and an
+/// optional closed set the prompt spells as the field's type in place of that wire type.
 pub struct InField {
     pub name: String,
     pub desc: String,
     pub kind: FieldKind,
+    pub values: Option<Vec<LiteralValue>>,
+}
+
+impl InField {
+    /// The Python type prompts print for this field. An input carries no schema and yields no
+    /// reply to check, so a closed set here is what the model is shown and nothing besides.
+    pub fn annotation(&self) -> String {
+        annotation_of(self.values.as_ref(), &self.kind)
+    }
 }
 
 /// One output field of a signature: a name, a one-line description, a wire type, an
@@ -84,19 +170,14 @@ pub struct OutField {
     pub name: String,
     pub desc: String,
     pub kind: FieldKind,
-    pub values: Option<Vec<String>>,
+    pub values: Option<Vec<LiteralValue>>,
     pub schema: Option<Value>,
 }
 
 impl OutField {
-    /// The Python type prompts print for this field. dspy spells a closed set as
-    /// `Literal['a', 'b']` and prints that as the annotation, so the set *is* the type here
-    /// rather than a note sitting beside it.
+    /// The Python type prompts print for this field, a closed set standing in for the kind.
     pub fn annotation(&self) -> String {
-        match &self.values {
-            Some(values) => literal_annotation(values),
-            None => self.kind.annotation().to_owned(),
-        }
+        annotation_of(self.values.as_ref(), &self.kind)
     }
 
     /// The property this field contributes to [`Signature::schema`]: scalar kinds map to
@@ -107,12 +188,17 @@ impl OutField {
             return self.schema.clone().unwrap_or_else(|| json!({}));
         };
         let mut spec = Map::new();
-        spec.insert("type".into(), json!(type_name));
-        if self.kind == FieldKind::Str
-            && let Some(values) = &self.values
-        {
-            spec.insert("enum".into(), json!(values));
+        let Some(values) = &self.values else {
+            spec.insert("type".into(), json!(type_name));
+            return Value::Object(spec);
+        };
+        // A mixed Python `Literal` has no one JSON type to name, so `type` is stated only
+        // where it holds of every member. The enum pins the value either way.
+        if values.iter().all(|value| value.schema_type() == type_name) {
+            spec.insert("type".into(), json!(type_name));
         }
+        let members: Vec<Value> = values.iter().map(LiteralValue::to_json).collect();
+        spec.insert("enum".into(), json!(members));
         Value::Object(spec)
     }
 
@@ -169,6 +255,7 @@ impl Signature {
                 name: "request".into(),
                 desc: "the request".into(),
                 kind: FieldKind::Str,
+                values: None,
             }],
             outputs,
         }
@@ -208,7 +295,7 @@ impl Signature {
                 clause.push_str(&format!(" ({suffix})"));
             }
             if let Some(values) = &field.values {
-                clause.push_str(&format!(" (one of: {})", values.join(", ")));
+                clause.push_str(&format!(" (one of: {})", wire_forms(values, ", ")));
             }
             clause.push('.');
         }
@@ -245,12 +332,12 @@ impl Signature {
                 .and_then(Value::as_str)
                 .ok_or_else(missing)?;
             if let Some(values) = &field.values
-                && !values.iter().any(|value| value == got)
+                && !values.iter().any(|value| value.wire_form() == got)
             {
                 return Err(anyhow!(
                     "{} must be one of {}; got {got:?}",
                     field.name,
-                    values.join(", ")
+                    wire_forms(values, ", ")
                 ));
             }
         }
@@ -268,19 +355,26 @@ fn coerce_value(kind: &FieldKind, name: &str, value: &mut Value) -> Result<()> {
     }
 }
 
-/// `bool::from_str` accepts exactly "true" and "false", so string forms stay as strict as
-/// the native ones.
+/// Either case of the two keywords, because the crate asks the model for a bool in Python's
+/// spelling and renders one the same way; a reply that echoes what it was shown has to parse.
 fn coerce_bool(name: &str, value: &mut Value) -> Result<()> {
     if value.is_boolean() {
         return Ok(());
     }
-    if let Some(text) = value.as_str()
-        && let Ok(parsed) = text.trim().parse::<bool>()
-    {
-        *value = Value::Bool(parsed);
-        return Ok(());
+    let parsed = value
+        .as_str()
+        .and_then(|text| match text.trim().to_ascii_lowercase().as_str() {
+            "true" => Some(true),
+            "false" => Some(false),
+            _ => None,
+        });
+    match parsed {
+        Some(parsed) => {
+            *value = Value::Bool(parsed);
+            Ok(())
+        }
+        None => Err(anyhow!("{name} must be true or false, got {value}")),
     }
-    Err(anyhow!("{name} must be true or false, got {value}"))
 }
 
 fn coerce_int(name: &str, value: &mut Value) -> Result<()> {
@@ -407,9 +501,36 @@ mod tests {
             ),
             (vec!["foo", "bar"], "Literal['foo', 'bar']"),
         ] {
-            let owned: Vec<String> = values.iter().map(|value| (*value).to_owned()).collect();
+            let owned: Vec<LiteralValue> = values.iter().map(|value| (*value).into()).collect();
             assert_eq!(literal_annotation(&owned), expected);
         }
+    }
+
+    /// Upstream's fifth case in the same test: a `Literal` may mix types, and Python spells a
+    /// bool `True`, not `true`, and a number without quotes.
+    #[test]
+    fn a_closed_set_spells_non_string_members_the_way_python_does() {
+        for (values, expected) in [
+            (
+                vec![LiteralValue::Int(1), "bar".into()],
+                "Literal[1, 'bar']",
+            ),
+            (
+                vec![LiteralValue::Bool(true), LiteralValue::Int(3), "foo".into()],
+                "Literal[True, 3, 'foo']",
+            ),
+            (vec![LiteralValue::Bool(false)], "Literal[False]"),
+        ] {
+            assert_eq!(literal_annotation(&values), expected);
+        }
+    }
+
+    /// A reply carries every member as text, so the closed set is checked against that
+    /// spelling rather than the annotation's — `3`, not `'3'`.
+    #[test]
+    fn a_closed_set_checks_replies_against_the_spelling_they_arrive_in() {
+        let values = vec![LiteralValue::Int(3), LiteralValue::Bool(true), "foo".into()];
+        assert_eq!(wire_forms(&values, ", "), "3, True, foo");
     }
 
     #[test]
@@ -496,6 +617,18 @@ mod tests {
     }
 
     #[test]
+    fn coerce_reads_a_bool_back_in_pythons_spelling() {
+        // The prompt asks for `True`/`False` and a demo renders one that way, so the parser
+        // has to accept the spelling the model was shown.
+        for (text, expected) in [("True", true), ("False", false), ("TRUE", true)] {
+            let sig = typed_signature();
+            let mut value = json!({ "note": "hi", "double": text, "count": 1, "amount": 0.5 });
+            sig.coerce(&mut value).expect("coerces");
+            assert_eq!(value["double"], json!(expected));
+        }
+    }
+
+    #[test]
     fn coerce_accepts_native_json_values_as_is() {
         let sig = typed_signature();
         let mut value = json!({ "note": "hi", "double": false, "count": 3, "amount": 2 });
@@ -512,8 +645,8 @@ mod tests {
         let sig = typed_signature();
         for (patch, message) in [
             (
-                json!({ "double": "True" }),
-                "double must be true or false, got \"True\"",
+                json!({ "double": "maybe" }),
+                "double must be true or false, got \"maybe\"",
             ),
             (
                 json!({ "double": 1 }),
@@ -749,7 +882,7 @@ mod tests {
         assert_eq!(sig.outputs[0].values, None);
         assert_eq!(
             sig.outputs[1].values,
-            Some(vec!["playful".to_owned(), "solemn".to_owned()])
+            Some(vec!["playful".into(), "solemn".into()])
         );
     }
 

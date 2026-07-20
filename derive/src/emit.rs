@@ -127,12 +127,27 @@ fn in_field(field: &Field) -> TokenStream {
     let name = field.ident.to_string();
     let desc = &field.desc;
     let kind = kind(field);
+    let values = closed_set(field);
     quote! {
         ::dsrs::signature::InField {
             name: #name.to_owned(),
             desc: #desc.to_owned(),
             kind: #kind,
+            values: #values,
         }
+    }
+}
+
+/// A declared `values(...)` set as the run-time `Vec<LiteralValue>` the field carries. The
+/// members are string literals, which is the only closed set a typed Rust field can hold.
+fn closed_set(field: &Field) -> TokenStream {
+    match &field.values {
+        Some(values) => quote! {
+            ::std::option::Option::Some(::std::vec![
+                #( ::dsrs::signature::LiteralValue::Str(#values.to_owned()) ),*
+            ])
+        },
+        None => quote! { ::std::option::Option::None },
     }
 }
 
@@ -143,12 +158,7 @@ fn out_field(field: &Field) -> TokenStream {
     let name = field.ident.to_string();
     let desc = &field.desc;
     let kind = kind(field);
-    let values = match &field.values {
-        Some(values) => {
-            quote! { ::std::option::Option::Some(::std::vec![ #( #values.to_owned() ),* ]) }
-        }
-        None => quote! { ::std::option::Option::None },
-    };
+    let values = closed_set(field);
     let schema = match field.kind {
         Kind::Json => {
             let ty = &field.ty;

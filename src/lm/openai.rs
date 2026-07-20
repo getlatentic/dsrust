@@ -368,7 +368,7 @@ mod tests {
             assert_eq!(
                 body.to_string(),
                 format!(
-                    r#"{{"max_tokens":1024,"messages":[{{"content":"be helpful","role":"system"}},{{"content":"hi","role":"user"}}],"model":"{model}"}}"#
+                    r#"{{"model":"{model}","messages":[{{"role":"system","content":"be helpful"}},{{"role":"user","content":"hi"}}],"max_tokens":1024}}"#
                 )
             );
         }

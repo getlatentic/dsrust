@@ -12,7 +12,8 @@ use std::sync::Mutex;
 use anyhow::{Result, anyhow};
 use serde_json::Value;
 
-use crate::example::{Example, render};
+use crate::adapter::python_json::format_field_value;
+use crate::example::Example;
 use crate::lm::{ChatModel, ChatTurn, OutputMode};
 
 /// What the model was asked, kept so a test can assert on the prompt it produced.
@@ -111,7 +112,7 @@ impl DummyLM {
 fn as_marker_reply(answer: &Example) -> String {
     let mut blocks: Vec<String> = answer
         .fields()
-        .map(|(name, value)| format!("[[ ## {name} ## ]]\n{}", render(value)))
+        .map(|(name, value)| format!("[[ ## {name} ## ]]\n{}", format_field_value(value)))
         .collect();
     blocks.push("[[ ## completed ## ]]".to_owned());
     blocks.join("\n\n")
