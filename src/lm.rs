@@ -1,5 +1,6 @@
 pub mod dummy;
 pub mod global;
+mod openai;
 
 use std::time::Duration;
 
@@ -7,6 +8,7 @@ use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
 pub use global::{configure, configure_with_client};
+pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig};
 
 /// Bound every provider call, so one slow upstream cannot hold a worker for the whole request
 /// timeout while the agent's in-flight slots stay occupied.
@@ -21,12 +23,16 @@ pub const DEFAULT_OLLAMA_HOST: &str = "http://localhost:11434";
 pub enum Provider {
     Anthropic,
     OpenRouter,
+    /// Any service exposing OpenAI's `/v1/chat/completions`: OpenAI itself, Groq, Together,
+    /// vLLM, LM Studio. Which one is a matter of [`OpenAiConfig`] rather than of the model
+    /// prefix, since they are one wire format on different hosts.
+    OpenAiCompatible,
     Ollama,
 }
 
 /// A LiteLLM-style model reference, `provider/model-id`: `anthropic/claude-opus-4-8`,
-/// `openrouter/openai/gpt-oss-120b`, `ollama/qwen2.5:7b-instruct`. The id may itself
-/// contain slashes (OpenRouter namespaces models by vendor).
+/// `openrouter/openai/gpt-oss-120b`, `openai/gpt-4o-mini`, `ollama/qwen2.5:7b-instruct`.
+/// The id may itself contain slashes (OpenRouter namespaces models by vendor).
 #[derive(Debug, Clone)]
 pub struct ModelRef {
     pub provider: Provider,
@@ -44,6 +50,7 @@ impl ModelRef {
         let provider = match prefix {
             "anthropic" => Provider::Anthropic,
             "openrouter" => Provider::OpenRouter,
+            "openai" => Provider::OpenAiCompatible,
             "ollama" => Provider::Ollama,
             other => return Err(anyhow!("unknown provider {other:?} in {raw:?}")),
         };
@@ -151,17 +158,20 @@ pub struct LM {
     pub anthropic_api_key: Option<String>,
     pub openrouter_api_key: Option<String>,
     pub ollama_host: String,
+    pub openai: OpenAiConfig,
 }
 
 impl LM {
     /// A model with credentials resolved from the process environment: ANTHROPIC_API_KEY,
-    /// OPENROUTER_API_KEY, and OLLAMA_HOST, with the same defaults the server config uses.
+    /// OPENROUTER_API_KEY, OPENAI_API_KEY, OPENAI_BASE_URL and OLLAMA_HOST, with the same
+    /// defaults the server config uses.
     pub fn new(model: &str) -> Result<Self> {
         Ok(Self {
             model: ModelRef::parse(model)?,
             anthropic_api_key: env_nonempty("ANTHROPIC_API_KEY"),
             openrouter_api_key: env_nonempty("OPENROUTER_API_KEY"),
             ollama_host: env_nonempty("OLLAMA_HOST").unwrap_or_else(|| DEFAULT_OLLAMA_HOST.into()),
+            openai: OpenAiConfig::from_env(),
         })
     }
 
@@ -177,6 +187,34 @@ impl LM {
 
     pub fn with_ollama_host(mut self, host: impl Into<String>) -> Self {
         self.ollama_host = host.into();
+        self
+    }
+
+    pub fn with_openai_key(mut self, key: impl Into<String>) -> Self {
+        self.openai.api_key = Some(key.into());
+        self
+    }
+
+    /// Read the key from another variable — GROQ_API_KEY, TOGETHER_API_KEY — and remember the
+    /// name, so a key that turns out to be missing names the variable the caller chose.
+    pub fn with_openai_key_env(mut self, var: impl Into<String>) -> Self {
+        let var = var.into();
+        self.openai.api_key = env_nonempty(&var);
+        self.openai.key_var = var;
+        self
+    }
+
+    /// Point at another OpenAI-shaped service: `https://api.groq.com/openai/v1`,
+    /// `http://localhost:8000/v1` for vLLM, `http://localhost:1234/v1` for LM Studio.
+    pub fn with_openai_base_url(mut self, base_url: impl Into<String>) -> Self {
+        self.openai.base_url = base_url.into();
+        self
+    }
+
+    /// Opt into schema-constrained decoding, which only some OpenAI-shaped services support.
+    /// See [`JsonFormat`].
+    pub fn with_openai_json_format(mut self, json_format: JsonFormat) -> Self {
+        self.openai.json_format = json_format;
         self
     }
 }
@@ -196,7 +234,16 @@ impl ChatModel for LM {
     ) -> Result<String> {
         match self.model.provider {
             Provider::Anthropic => self.anthropic(http, system, turns, mode).await,
-            Provider::OpenRouter => self.openrouter(http, system, turns, mode).await,
+            Provider::OpenRouter => {
+                openai::Endpoint::openrouter(self.openrouter_api_key.as_deref())
+                    .chat(http, &self.model.id, system, turns, mode)
+                    .await
+            }
+            Provider::OpenAiCompatible => {
+                openai::Endpoint::configured(&self.openai)
+                    .chat(http, &self.model.id, system, turns, mode)
+                    .await
+            }
             Provider::Ollama => self.ollama(http, system, turns, mode).await,
         }
     }
@@ -266,48 +313,6 @@ impl LM {
         Ok(text.to_owned())
     }
 
-    async fn openrouter(
-        &self,
-        http: &reqwest::Client,
-        system: &str,
-        turns: &[ChatTurn],
-        mode: &OutputMode<'_>,
-    ) -> Result<String> {
-        let key = self
-            .openrouter_api_key
-            .as_deref()
-            .ok_or_else(|| anyhow!("OPENROUTER_API_KEY is not set"))?;
-        let mut request = json!({
-            "model": self.model.id,
-            "max_tokens": 1024,
-            "messages": wire_messages(system, turns),
-        });
-        if matches!(mode, OutputMode::Json { .. }) {
-            request["response_format"] = json!({ "type": "json_object" });
-        }
-        let response = http
-            .post("https://openrouter.ai/api/v1/chat/completions")
-            .bearer_auth(key)
-            .timeout(PROVIDER_TIMEOUT)
-            .json(&request)
-            .send()
-            .await
-            .context("openrouter request failed")?;
-        let status = response.status();
-        let body: Value = response
-            .json()
-            .await
-            .context("openrouter response was not JSON")?;
-        if !status.is_success() {
-            let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
-            return Err(anyhow!("openrouter {status}: {detail}"));
-        }
-        body["choices"][0]["message"]["content"]
-            .as_str()
-            .map(str::to_owned)
-            .context("openrouter returned no content")
-    }
-
     async fn ollama(
         &self,
         http: &reqwest::Client,
@@ -368,8 +373,15 @@ mod tests {
     }
 
     #[test]
+    fn parses_the_openai_compatible_prefix() {
+        let openai = ModelRef::parse("openai/gpt-4o-mini").expect("openai");
+        assert_eq!(openai.provider, Provider::OpenAiCompatible);
+        assert_eq!(openai.id, "gpt-4o-mini");
+    }
+
+    #[test]
     fn rejects_unknown_providers_and_empty_ids() {
-        assert!(ModelRef::parse("openai/gpt-4o").is_err());
+        assert!(ModelRef::parse("cohere/command-r").is_err());
         assert!(ModelRef::parse("anthropic/").is_err());
         assert!(ModelRef::parse("no-slash").is_err());
     }
@@ -379,7 +391,7 @@ mod tests {
         let lm = LM::new("ollama/qwen2.5:7b-instruct").expect("valid ref");
         assert_eq!(lm.model.provider, Provider::Ollama);
         assert_eq!(lm.model.id, "qwen2.5:7b-instruct");
-        assert!(LM::new("openai/gpt-4o").is_err());
+        assert!(LM::new("cohere/command-r").is_err());
     }
 
     /// Only the overrides are asserted; the env-resolved values depend on the ambient process.
@@ -393,6 +405,36 @@ mod tests {
         assert_eq!(lm.anthropic_api_key.as_deref(), Some("ak"));
         assert_eq!(lm.openrouter_api_key.as_deref(), Some("ok"));
         assert_eq!(lm.ollama_host, "http://one:1");
+    }
+
+    #[test]
+    fn the_openai_builders_replace_the_env_resolved_endpoint() {
+        let lm = LM::new("openai/llama-3.3-70b")
+            .expect("valid ref")
+            .with_openai_base_url("http://localhost:8000/v1")
+            .with_openai_key("sk-local")
+            .with_openai_json_format(JsonFormat::Schema);
+        assert_eq!(lm.openai.base_url, "http://localhost:8000/v1");
+        assert_eq!(lm.openai.api_key.as_deref(), Some("sk-local"));
+        assert_eq!(lm.openai.json_format, JsonFormat::Schema);
+    }
+
+    /// PATH stands in for a provider variable: the assertion needs a name that is certainly
+    /// set, and setting one is unsafe in this edition and would be seen by every other test
+    /// running in parallel.
+    #[test]
+    fn a_named_key_variable_is_read_and_kept_for_the_error_message() {
+        let present = LM::new("openai/gpt-4o-mini")
+            .expect("valid ref")
+            .with_openai_key_env("PATH");
+        assert_eq!(present.openai.key_var, "PATH");
+        assert_eq!(present.openai.api_key, std::env::var("PATH").ok());
+
+        let missing = LM::new("openai/gpt-4o-mini")
+            .expect("valid ref")
+            .with_openai_key_env("DSRS_KEY_VAR_THAT_IS_NOT_SET");
+        assert_eq!(missing.openai.key_var, "DSRS_KEY_VAR_THAT_IS_NOT_SET");
+        assert_eq!(missing.openai.api_key, None);
     }
 
     #[test]
