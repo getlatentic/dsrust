@@ -23,7 +23,7 @@ and runs it **unmodified**, through a PyO3 bridge, with a `conftest.py` that swa
 Nothing in that path falls back to the Python implementation: a case Rust cannot render
 raises. The unbuilt ones are named in `conftest.py` and marked `xfail(strict=True)`, so they
 never count as passes, and the run fails if one starts passing while still listed. The last
-green run read **19 passed, 11 xfailed** — the 11 are the backlog, in code, unable to go stale.
+green run read **15 passed, 15 xfailed** — the 15 are the backlog, in code, unable to go stale.
 
 The bridge builds through maturin with `build.rs` calling
 `pyo3_build_config::add_extension_module_link_args()`, and deliberately does **not** use

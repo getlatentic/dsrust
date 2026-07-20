@@ -16,9 +16,10 @@ import json
 import typing
 
 import dspy
+import pydantic
 from dspy.adapters.base import Adapter
 from dspy.adapters.json_adapter import JSONAdapter
-from dspy.adapters.utils import format_field_value, parse_value
+from dspy.adapters.utils import format_field_value, get_annotation_name, parse_value
 from dspy.utils.exceptions import AdapterParseError
 from litellm import ContextWindowExceededError
 
@@ -33,10 +34,18 @@ class Unsupported(Exception):
 
 
 def kind_of(annotation: typing.Any) -> str:
+    """A scalar names itself; anything else carries the name dspy would print.
+
+    Sending `json:<annotation>` rather than a bare `json` is what lets the numbered line read
+    `(PetOwner)` the way dspy renders it, instead of collapsing every non-scalar to one word.
+    """
     try:
         return KINDS[annotation]
     except (KeyError, TypeError):
-        raise Unsupported(f"no Rust FieldKind for annotation {annotation!r}") from None
+        pass
+    if isinstance(annotation, type) and issubclass(annotation, pydantic.BaseModel):
+        return f"json:{get_annotation_name(annotation)}"
+    raise Unsupported(f"no Rust FieldKind for annotation {annotation!r}")
 
 
 def describe(fields: dict) -> list[tuple]:
@@ -66,6 +75,12 @@ class RustChatAdapter(dspy.ChatAdapter):
         """
         try:
             return Adapter.__call__(self, lm, lm_kwargs, signature, demos, inputs)
+        except Unsupported:
+            # dspy's fallback exists for a reply the marker parser cannot read, not for a
+            # case this crate has not written. Letting it swallow `Unsupported` would run the
+            # exchange on Python's JSONAdapter and report a pass for absent Rust — the one
+            # thing this harness must never do.
+            raise
         except Exception as error:
             fallback = dsrs_bridge.has_json_fallback("chat", self.use_json_adapter_fallback)
             if isinstance(error, ContextWindowExceededError) or not fallback:

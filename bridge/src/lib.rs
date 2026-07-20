@@ -19,17 +19,15 @@ fn kind_from(name: &str) -> PyResult<FieldKind> {
         "int" => Ok(FieldKind::Int),
         "float" => Ok(FieldKind::Float),
         "bool" => Ok(FieldKind::Bool),
-        "json" => Ok(FieldKind::Json),
-        other => Err(PyValueError::new_err(format!(
-            "unsupported field kind: {other}"
-        ))),
+        // Anything not a scalar arrives as `json:<annotation>`, so the Python type name
+        // dspy prints survives the crossing instead of being flattened to "json".
+        other => match other.strip_prefix("json:") {
+            Some(annotation) => Ok(FieldKind::Json(annotation.to_owned())),
+            None => Err(PyValueError::new_err(format!(
+                "unsupported field kind: {other}"
+            ))),
+        },
     }
-}
-
-/// Field names are `&'static str` in the signature types and these arrive from Python at run
-/// time. A conformance run builds a bounded set, so leaking them is the honest trade.
-fn static_str(value: &str) -> &'static str {
-    Box::leak(value.to_owned().into_boxed_str())
 }
 
 fn build_signature(
@@ -41,7 +39,7 @@ fn build_signature(
         .into_iter()
         .map(|(name, kind, desc)| {
             Ok(InField {
-                name: static_str(&name),
+                name,
                 desc,
                 kind: kind_from(&kind)?,
             })
@@ -55,7 +53,7 @@ fn build_signature(
                 .transpose()
                 .map_err(|error| PyValueError::new_err(format!("bad field schema: {error}")))?;
             Ok(OutField {
-                name: static_str(&name),
+                name,
                 desc,
                 kind: kind_from(&kind)?,
                 values: None,

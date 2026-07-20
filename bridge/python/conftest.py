@@ -26,6 +26,7 @@ from rust_adapter import RustChatAdapter  # noqa: E402
 # Upstream tests whose features this crate has not written yet, with the reason. Delete a line
 # once Rust renders that case; the strict xfail will fail the run if you forget.
 NOT_YET_IMPLEMENTED = {
+    "test_chat_adapter_quotes_literals_as_expected": "Literal[...] field annotations",
     "test_chat_adapter_formats_image": "dspy.Image fields",
     "test_chat_adapter_formats_image_with_few_shot_examples": "dspy.Image fields",
     "test_chat_adapter_formats_image_with_nested_images": "dspy.Image fields",
@@ -38,7 +39,6 @@ NOT_YET_IMPLEMENTED = {
     "test_code_output_field_omits_json_schema_in_prompt": "dspy.Code fields",
     "test_citations_output_field_keeps_json_schema_in_prompt": "dspy.Citations fields",
     "test_chat_adapter_formats_conversation_history": "dspy.History fields",
-    "test_chat_adapter_parses_float_with_underscores": "python numeric literal parsing",
 }
 
 
@@ -58,7 +58,8 @@ def pytest_configure(config):
 def pytest_collection_modifyitems(items):
     for item in items:
         # Async variants share the sync name plus a suffix, and share the same gap.
-        base = item.name.removesuffix("_async")
+        # A parametrized test's name carries its case in brackets; the gap is per function.
+        base = item.name.split("[")[0].removesuffix("_async")
         reason = NOT_YET_IMPLEMENTED.get(item.name) or NOT_YET_IMPLEMENTED.get(base)
         if reason:
             item.add_marker(pytest.mark.xfail(strict=True, reason=f"not in Rust yet: {reason}"))
