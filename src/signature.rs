@@ -17,7 +17,7 @@ pub use dsrs_derive::{Signature, chain_of_thought, predict};
 ///
 /// [`Default`] is what keeps a field cheap to extend: every construction site names only the
 /// members it means and takes the rest from here, so a member added later costs no edits.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq)]
 pub struct InField {
     pub name: String,
     pub desc: String,
@@ -47,7 +47,7 @@ impl InField {
 ///
 /// [`Default`] carries the same weight it does on [`InField`]: name the members that differ,
 /// take the rest from here.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq)]
 pub struct OutField {
     pub name: String,
     pub desc: String,
@@ -114,7 +114,10 @@ pub fn json_field_schema<T: schemars::JsonSchema>() -> Value {
 /// A DSPy-style signature: the task instructions plus the typed input and output fields.
 /// The signature owns WHAT the task is; the modules in [`mod@crate::predict`] own HOW the model
 /// is asked.
-#[derive(Clone)]
+/// `PartialEq` is dspy's `Signature.equals`, which an optimizer calls to refuse a teacher whose
+/// program is not the student's twin. dspy compares instructions and each field's schema notes;
+/// the same members are what these carry.
+#[derive(Clone, PartialEq)]
 pub struct Signature {
     pub instructions: String,
     pub inputs: Vec<InField>,
