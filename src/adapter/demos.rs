@@ -109,7 +109,7 @@ mod tests {
     }
 
     fn rendered(demos: &[Example]) -> Vec<String> {
-        demo_turns(&paint(), demos, crate::adapter::MARKER_STYLE)
+        demo_turns(&paint(), demos, crate::adapter::chat::MARKER_STYLE)
             .into_iter()
             .map(|turn| turn.content.text().unwrap().to_owned())
             .collect()
