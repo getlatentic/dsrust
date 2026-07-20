@@ -5,7 +5,7 @@
 //! signature. `{'score': 123_456.789}` is the case upstream pins: single-quoted keys and a
 //! digit-grouped float, neither of which serde_json accepts.
 
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::iter::Peekable;
 use std::str::Chars;
 
@@ -129,12 +129,15 @@ fn copy_word(chars: &mut Peekable<Chars>, out: &mut String) -> Option<()> {
         word.push(next);
         chars.next();
     }
-    out.push_str(match word.as_str() {
-        "True" | "true" => "true",
-        "False" | "false" => "false",
-        "None" | "null" => "null",
-        _ => return None,
-    });
+    match word.as_str() {
+        "True" | "true" => out.push_str("true"),
+        "False" | "false" => out.push_str("false"),
+        "None" | "null" => out.push_str("null"),
+        // A bare word is a model writing JSON from memory and forgetting the quotes, on a key
+        // or on a value. json-repair reads it as the string it plainly is, and a reply this
+        // close to right is worth more read than refused.
+        name => out.push_str(&format!("{}", json!(name))),
+    }
     Some(())
 }
 
@@ -182,11 +185,20 @@ mod tests {
     }
 
     #[test]
-    fn prose_and_other_dialects_are_not_guessed_at() {
+    fn prose_is_not_guessed_at() {
+        // Words with no structure around them are not a value that lost its punctuation.
         assert_eq!(python_literal("no json here"), None);
-        // json-repair reads this as `{"unquoted": 1}`; inferring quotes around a bare word is
-        // a further reading this does not attempt, so the value stays unrepaired.
-        assert_eq!(python_literal("{unquoted: 1}"), None);
+    }
+
+    #[test]
+    fn a_word_that_lost_its_quotes_is_read_as_the_string_it_is() {
+        // A model writing JSON from memory drops quotes on a key or a value; json-repair reads
+        // both, and a reply this close to right is worth more read than refused.
+        assert_eq!(
+            python_literal("{unquoted: 1}"),
+            Some(json!({ "unquoted": 1 }))
+        );
+        assert_eq!(python_literal("{a: b}"), Some(json!({ "a": "b" })));
     }
 
     #[test]
