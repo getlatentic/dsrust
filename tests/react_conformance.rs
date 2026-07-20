@@ -42,6 +42,7 @@ fn task() -> Signature {
             name: "request".into(),
             desc: String::new(),
             kind: FieldKind::Str,
+            values: None,
         }],
         outputs: vec![out("answer", FieldKind::Str)],
     }
@@ -56,11 +57,13 @@ fn wide_task() -> Signature {
                 name: "question".into(),
                 desc: String::new(),
                 kind: FieldKind::Str,
+                values: None,
             },
             InField {
                 name: "context".into(),
                 desc: String::new(),
                 kind: FieldKind::Str,
+                values: None,
             },
         ],
         outputs: vec![
@@ -201,7 +204,7 @@ fn the_tool_name_field_is_closed_over_the_tools_that_exist() {
         .expect("next_tool_name is an output");
     assert_eq!(
         tool_name.values,
-        Some(vec!["get_weather".to_owned(), "finish".to_owned()])
+        Some(vec!["get_weather".into(), "finish".into()])
     );
 }
 
