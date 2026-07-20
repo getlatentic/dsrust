@@ -26,22 +26,22 @@ cp "$ROOT"/bridge/python/{rust_adapter,reflect,conftest}.py "$WORK/"
 # The upstream files this crate is held to. Adding one here is how coverage grows: it will
 # arrive with failures, and each becomes a named entry in conftest.py's to-do list or a fix.
 SUITES=(
-  test_chat_adapter.py test_json_adapter.py
-  test_adapter_utils.py test_base_type.py test_code.py test_citation.py
-  test_document.py test_audio.py test_reasoning.py test_tool.py
-  test_xml_adapter.py test_baml_adapter.py test_two_step_adapter.py
+  adapters/test_chat_adapter.py adapters/test_json_adapter.py
+  adapters/test_adapter_utils.py adapters/test_base_type.py adapters/test_code.py adapters/test_citation.py
+  adapters/test_document.py adapters/test_audio.py adapters/test_reasoning.py adapters/test_tool.py
+  adapters/test_xml_adapter.py adapters/test_baml_adapter.py adapters/test_two_step_adapter.py
 )
 
 echo "==> Fetching upstream tests at dspy $VERSION (unmodified)"
 for file in "${SUITES[@]}" conftest.py; do
-  out="$WORK/upstream_$file"
+  out="$WORK/upstream_$(basename "$file")"
   curl -sSf --max-time 30 \
-    "https://raw.githubusercontent.com/stanfordnlp/dspy/$VERSION/tests/adapters/$file" -o "$out" || true
+    "https://raw.githubusercontent.com/stanfordnlp/dspy/$VERSION/tests/$file" -o "$out" || true
 done
 # Upstream's own conftest must not shadow ours; ours imports what it needs.
 rm -f "$WORK/upstream_conftest.py"
 
 echo "==> Running upstream's suite against Rust"
 cd "$WORK"
-PYTHONPATH="$WORK" "$VENV/bin/python" -m pytest "${SUITES[@]/#/upstream_}" \
+PYTHONPATH="$WORK" "$VENV/bin/python" -m pytest $(for f in "${SUITES[@]}"; do echo "upstream_$(basename "$f")"; done) \
   "$@"
