@@ -16,7 +16,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-20"
 
 [status]
-rust_tests = 331
+rust_tests = 335
 upstream_tests_passing = 256
 upstream_tests_crossing = 156
 xfail_backlog = 0
@@ -93,6 +93,12 @@ notes = """
 Routing compile into Rust is hard — upstream drives model calls from Python, so Rust would
 call back mid-loop. Trace replay is tractable because the optimizer's decisions are pure
 logic given traces even though the driving is I/O.
+
+Comparing demos by identity is only possible because src/optimize/rng.rs reproduces CPython's
+Mersenne Twister. A demo list is a deterministic bootstrapped prefix followed by a tail drawn
+by random.sample; under the xorshift generator that preceded it the tail could never match
+dspy's, and the acceptance criterion below would have had to be weakened to a structural
+comparison. Anything that changes the generator reopens that.
 """
 
 [[story]]
