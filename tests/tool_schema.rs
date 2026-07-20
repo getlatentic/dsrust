@@ -106,19 +106,34 @@ fn a_tool_with_no_arguments_still_declares_an_empty_object() {
 }
 
 #[test]
-fn every_tool_is_numbered_with_finish_last() {
+fn every_tool_is_numbered_in_the_order_supplied_with_finish_last() {
+    // dspy numbers a dict built from the caller's list, so the catalogue follows the order the
+    // tools were handed over. Sorting them would renumber the prompt the model reads.
     let mut react = ReAct::new(task(), vec![weather(), clock()]);
     let instructions = turn_instructions(&mut react);
-    let position = |needle: &str| instructions.find(needle).expect("every tool is listed");
-    assert!(position("(1) current_time") < position("(2) get_weather"));
-    assert!(position("(2) get_weather") < position("(3) finish"));
+    let catalogue: Vec<&str> = instructions
+        .lines()
+        .filter(|line| line.starts_with('('))
+        .collect();
+    assert_eq!(
+        catalogue,
+        [
+            "(1) get_weather, whose description is <desc>look up the weather for a city</desc>. \
+             It takes arguments {'city': {'type': 'string'}}.",
+            "(2) current_time, whose description is <desc>read the current time</desc>. \
+             It takes arguments {}.",
+            "(3) finish, whose description is <desc>Marks the task as complete. That is, \
+             signals that all information for producing the outputs, i.e. `answer`, are now \
+             available to be extracted.</desc>. It takes arguments {}.",
+        ]
+    );
 }
 
 #[tokio::test]
 async fn the_schema_reaches_the_prompt_the_model_is_actually_sent() {
     let lm = Arc::new(DummyLM::new([
         example! { next_thought: "no lookup needed", next_tool_name: "finish", next_tool_args: json!({}) },
-        example! { answer: "It is sunny." },
+        example! { reasoning: "no lookup was needed", answer: "It is sunny." },
     ]));
     let _guard = install(lm.clone());
 
@@ -144,7 +159,7 @@ async fn a_call_with_a_bad_argument_becomes_an_observation_rather_than_aborting(
         example! { next_thought: "guessing the argument", next_tool_name: "get_weather", next_tool_args: json!({ "town": "Tokyo" }) },
         example! { next_thought: "the error names the real argument", next_tool_name: "get_weather", next_tool_args: json!({ "city": "Tokyo" }) },
         example! { next_thought: "now I can answer", next_tool_name: "finish", next_tool_args: json!({}) },
-        example! { answer: "It is sunny in Tokyo." },
+        example! { reasoning: "the tool said sunny", answer: "It is sunny in Tokyo." },
     ]));
     let _guard = install(lm.clone());
 

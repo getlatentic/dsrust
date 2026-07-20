@@ -10,8 +10,6 @@
 //! description and argument schema are declared rather than derived, and the compiler checks
 //! the implementation.
 
-use std::collections::BTreeMap;
-
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
@@ -77,19 +75,36 @@ pub struct Trajectory {
 
 impl Trajectory {
     /// The trajectory as prompt text, one labelled block per field, matching how dspy renders
-    /// it through the adapter's own field formatting.
+    /// it: `format_user_message_content` over a signature built from the trajectory's own
+    /// keys, which joins the blocks with a blank line and strips the result.
     pub fn rendered(&self) -> String {
         let mut blocks = Vec::new();
         for (index, step) in self.steps.iter().enumerate() {
             blocks.push(format!("[[ ## thought_{index} ## ]]\n{}", step.thought));
             blocks.push(format!("[[ ## tool_name_{index} ## ]]\n{}", step.tool));
-            blocks.push(format!("[[ ## tool_args_{index} ## ]]\n{}", step.args));
+            blocks.push(format!(
+                "[[ ## tool_args_{index} ## ]]\n{}",
+                field_value(&step.args)
+            ));
             blocks.push(format!(
                 "[[ ## observation_{index} ## ]]\n{}",
                 step.observation
             ));
         }
-        blocks.join("\n\n")
+        blocks.join("\n\n").trim().to_owned()
+    }
+
+    /// The flat `thought_0`/`tool_name_0`/`tool_args_0`/`observation_0` map dspy accumulates
+    /// during the loop and hands back beside the task's outputs.
+    pub fn as_value(&self) -> Value {
+        let mut fields = serde_json::Map::new();
+        for (index, step) in self.steps.iter().enumerate() {
+            fields.insert(format!("thought_{index}"), json!(step.thought));
+            fields.insert(format!("tool_name_{index}"), json!(step.tool));
+            fields.insert(format!("tool_args_{index}"), step.args.clone());
+            fields.insert(format!("observation_{index}"), json!(step.observation));
+        }
+        Value::Object(fields)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -97,11 +112,46 @@ impl Trajectory {
     }
 }
 
+/// dspy's `format_field_value`: a structured value is rendered as JSON text, and anything
+/// scalar goes in the way Python's `str` would print it — a bare string, unquoted.
+fn field_value(value: &Value) -> String {
+    match value {
+        Value::Object(_) | Value::Array(_) => json_dumps(value),
+        Value::String(text) => text.clone(),
+        Value::Null => "None".to_owned(),
+        Value::Bool(true) => "True".to_owned(),
+        Value::Bool(false) => "False".to_owned(),
+        number => number.to_string(),
+    }
+}
+
+/// Python's `json.dumps` spacing — `", "` between items, `": "` after a key. dspy renders a
+/// tool call's arguments into the trajectory through it, and serde_json's own `Display` emits
+/// neither space, so the two differ on every argument object the model ever sees.
+fn json_dumps(value: &Value) -> String {
+    match value {
+        Value::Array(items) => format!(
+            "[{}]",
+            items.iter().map(json_dumps).collect::<Vec<_>>().join(", ")
+        ),
+        Value::Object(fields) => format!(
+            "{{{}}}",
+            fields
+                .iter()
+                .map(|(key, value)| format!("{}: {}", json!(key), json_dumps(value)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        scalar => scalar.to_string(),
+    }
+}
+
 /// An agent that interleaves reasoning with tool calls over any signature.
 pub struct ReAct {
     /// The task's real signature: what the caller asked for.
     pub signature: Signature,
-    tools: BTreeMap<String, Box<dyn Tool>>,
+    /// Every tool the model may pick, `finish` included, in the order it will be numbered.
+    tools: Vec<Box<dyn Tool>>,
     /// One turn of the loop: pick a thought, a tool, and its arguments.
     react: Predict,
     /// The final pass: read the trajectory and produce the signature's outputs.
@@ -113,15 +163,15 @@ pub struct ReAct {
 
 impl ReAct {
     pub fn new(signature: Signature, tools: Vec<Box<dyn Tool>>) -> Self {
-        let named: BTreeMap<String, Box<dyn Tool>> = tools
-            .into_iter()
-            .map(|tool| (tool.name().to_owned(), tool))
-            .collect();
-        let react = Predict::new(react_signature(&signature, &named));
+        let finish = Finish::new(&backticked(
+            signature.outputs.iter().map(|field| field.name),
+        ));
+        let tools = as_dict(tools.into_iter().chain([Box::new(finish) as Box<dyn Tool>]));
+        let react = Predict::new(react_signature(&signature, &tools));
         let extract = Predict::new(extract_signature(&signature));
         Self {
             signature,
-            tools: named,
+            tools,
             react,
             extract,
             max_iters: 20,
@@ -133,8 +183,16 @@ impl ReAct {
         self
     }
 
+    /// Every tool the model may pick, `finish` included, in the order they are numbered.
     pub fn tool_names(&self) -> Vec<&str> {
-        self.tools.keys().map(String::as_str).collect()
+        self.tools.iter().map(|tool| tool.name()).collect()
+    }
+
+    fn tool(&self, name: &str) -> Option<&dyn Tool> {
+        self.tools
+            .iter()
+            .find(|tool| tool.name() == name)
+            .map(Box::as_ref)
     }
 
     /// Run one tool, turning a failure into an observation rather than an error.
@@ -143,17 +201,36 @@ impl ReAct {
     /// model can try something else. Aborting the episode would throw away the reasoning that
     /// got this far.
     fn observe(&self, name: &str, args: &Value) -> String {
-        if name == FINISH {
-            return "Completed.".to_owned();
-        }
-        match self.tools.get(name) {
-            None => format!("Execution error: no tool named {name}"),
+        match self.tool(name) {
+            None => format!("Execution error in {name}: no such tool"),
             Some(tool) => match tool.call(args) {
                 Ok(observation) => observation,
                 Err(error) => format!("Execution error in {name}: {error:#}"),
             },
         }
     }
+}
+
+/// dspy keeps its tools in `{tool.name: tool for tool in tools}`, so the catalogue is numbered
+/// in the order the caller supplied and a repeated name replaces the earlier tool without
+/// moving it. Sorting instead would renumber the prompt the model reads.
+fn as_dict(tools: impl Iterator<Item = Box<dyn Tool>>) -> Vec<Box<dyn Tool>> {
+    let mut ordered: Vec<Box<dyn Tool>> = Vec::new();
+    for tool in tools {
+        match ordered.iter().position(|held| held.name() == tool.name()) {
+            Some(index) => ordered[index] = tool,
+            None => ordered.push(tool),
+        }
+    }
+    ordered
+}
+
+/// The field-name list dspy interpolates into the instructions, each name in backticks.
+fn backticked(names: impl Iterator<Item = &'static str>) -> String {
+    names
+        .map(|name| format!("`{name}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// One line of the tool catalogue, matching dspy's `Tool.__str__`: the name, the description
@@ -195,59 +272,106 @@ fn python_repr(value: &Value) -> String {
     }
 }
 
-/// dspy appends `finish` to the tool dict itself, so stopping has the same shape as any other
-/// choice the model makes: a name, a description, and an argument object that happens to be
-/// empty.
-fn finish_entry(outputs: &str) -> String {
-    describe(
-        FINISH,
-        &format!(
-            "Marks the task as complete. That is, signals that all information for producing \
-             the outputs, i.e. {outputs}, are now available to be extracted."
-        ),
-        &json!({}),
-    )
+/// dspy puts `finish` in the tool dict itself, so stopping has the same shape as any other
+/// choice the model makes: a name, a description naming the outputs it unblocks, and an
+/// argument object that happens to be empty.
+struct Finish {
+    description: String,
+    args: Value,
 }
 
-/// The numbered tool list dspy renders into the ReAct instructions, `finish` last.
-fn tool_catalogue(tools: &BTreeMap<String, Box<dyn Tool>>, outputs: &str) -> String {
-    tools
-        .values()
-        .map(|tool| describe(tool.name(), tool.description(), tool.args()))
-        .chain(std::iter::once(finish_entry(outputs)))
-        .enumerate()
-        .map(|(index, entry)| format!("({}) {entry}", index + 1))
+impl Finish {
+    fn new(outputs: &str) -> Self {
+        Self {
+            description: format!(
+                "Marks the task as complete. That is, signals that all information for \
+                 producing the outputs, i.e. {outputs}, are now available to be extracted."
+            ),
+            args: json!({}),
+        }
+    }
+}
+
+impl Tool for Finish {
+    fn name(&self) -> &str {
+        FINISH
+    }
+
+    fn description(&self) -> &str {
+        &self.description
+    }
+
+    fn args(&self) -> &Value {
+        &self.args
+    }
+
+    /// dspy's finish is `lambda: "Completed."`, so arguments it never declared are a call
+    /// error the model reads back in the trajectory rather than a silent success.
+    fn call(&self, args: &Value) -> Result<String> {
+        match args.as_object().is_none_or(|given| given.is_empty()) {
+            true => Ok("Completed.".to_owned()),
+            false => Err(anyhow!("{FINISH} takes no arguments")),
+        }
+    }
+}
+
+/// dspy's `instr` list, joined by newlines. The blocks that end in `\n` are the ones that
+/// become blank-line separated in the prompt; the rest run on consecutive lines.
+fn react_instructions(signature: &Signature, tools: &[Box<dyn Tool>]) -> String {
+    let inputs = backticked(signature.inputs.iter().map(|field| field.name));
+    let outputs = backticked(signature.outputs.iter().map(|field| field.name));
+
+    // dspy drops the task's own block entirely when the signature carries no instructions,
+    // rather than opening the prompt with a blank line.
+    let task = match signature.instructions.is_empty() {
+        true => Vec::new(),
+        false => vec![format!("{}\n", signature.instructions)],
+    };
+
+    let preamble = [
+        format!(
+            "You are an Agent. In each episode, you will be given the fields {inputs} as \
+             input. And you can see your past trajectory so far."
+        ),
+        format!(
+            "Your goal is to use one or more of the supplied tools to collect any necessary \
+             information for producing {outputs}.\n"
+        ),
+        "To do this, you will interleave next_thought, next_tool_name, and next_tool_args in \
+         each turn, and also when finishing the task."
+            .to_owned(),
+        "After each tool call, you receive a resulting observation, which gets appended to \
+         your trajectory.\n"
+            .to_owned(),
+        "When writing next_thought, you may reason about the current situation and plan for \
+         future steps."
+            .to_owned(),
+        "When selecting the next_tool_name and its next_tool_args, the tool must be one of:\n"
+            .to_owned(),
+    ];
+
+    let catalogue = tools.iter().enumerate().map(|(index, tool)| {
+        format!(
+            "({}) {}",
+            index + 1,
+            describe(tool.name(), tool.description(), tool.args())
+        )
+    });
+
+    task.into_iter()
+        .chain(preamble)
+        .chain(catalogue)
+        .chain([
+            "When providing `next_tool_args`, the value inside the field must be in JSON format"
+                .to_owned(),
+        ])
         .collect::<Vec<_>>()
         .join("\n")
 }
 
-/// The per-turn signature: the task's inputs, the trajectory so far, and the three fields the
-/// model fills to take its next action.
-fn react_signature(signature: &Signature, tools: &BTreeMap<String, Box<dyn Tool>>) -> Signature {
-    let inputs = signature
-        .inputs
-        .iter()
-        .map(|field| field.name)
-        .collect::<Vec<_>>()
-        .join(", ");
-    let outputs = signature
-        .outputs
-        .iter()
-        .map(|field| field.name)
-        .collect::<Vec<_>>()
-        .join(", ");
-    let instructions = format!(
-        "{}\n\nYou are an Agent. Each turn you are given the fields {inputs} and the \
-         trajectory so far. Use the tools to collect what you need to produce {outputs}.\n\n\
-         Interleave next_thought, next_tool_name and next_tool_args each turn. After each \
-         tool call you receive an observation, which joins the trajectory.\n\n\
-         The tool must be one of:\n\n{}\n\
-         When providing `next_tool_args`, the value inside the field must be in JSON format",
-        signature.instructions,
-        tool_catalogue(tools, &outputs),
-    );
-
-    let mut fields: Vec<InField> = signature
+/// The task's own input fields, copied so both inner signatures can carry them.
+fn task_inputs(signature: &Signature) -> Vec<InField> {
+    signature
         .inputs
         .iter()
         .map(|field| InField {
@@ -255,75 +379,79 @@ fn react_signature(signature: &Signature, tools: &BTreeMap<String, Box<dyn Tool>
             desc: field.desc.clone(),
             kind: field.kind,
         })
-        .collect();
-    fields.push(InField {
+        .collect()
+}
+
+/// dspy appends `trajectory` with a bare `dspy.InputField()`, which carries no description of
+/// its own: the instructions already say what the trajectory is.
+fn trajectory_field() -> InField {
+    InField {
         name: "trajectory",
-        desc: "what has happened so far".into(),
+        desc: String::new(),
         kind: FieldKind::Str,
-    });
+    }
+}
+
+/// dspy types `next_tool_name` as `Literal[tuple(tools.keys())]`, which the chat adapter turns
+/// into the closed set the model must match exactly.
+///
+/// A signature's closed set is `&'static str` while a tool owns its name, so the names are
+/// leaked once as the agent is built. That is bounded by how many agents a program
+/// constructs, not by how many requests it serves.
+fn tool_name_set(tools: &[Box<dyn Tool>]) -> Vec<&'static str> {
+    tools
+        .iter()
+        .map(|tool| &*Box::leak(tool.name().to_owned().into_boxed_str()))
+        .collect()
+}
+
+fn out_field(name: &'static str, values: Option<Vec<&'static str>>, kind: FieldKind) -> OutField {
+    OutField {
+        name,
+        desc: String::new(),
+        kind,
+        values,
+        schema: None,
+    }
+}
+
+/// The per-turn signature: the task's inputs, the trajectory so far, and the three fields the
+/// model fills to take its next action.
+fn react_signature(signature: &Signature, tools: &[Box<dyn Tool>]) -> Signature {
+    let mut inputs = task_inputs(signature);
+    inputs.push(trajectory_field());
 
     Signature {
-        instructions,
-        inputs: fields,
+        instructions: react_instructions(signature, tools),
+        inputs,
         outputs: vec![
-            OutField {
-                name: "next_thought",
-                desc: "reasoning about the current situation".into(),
-                kind: FieldKind::Str,
-                values: None,
-                schema: None,
-            },
-            OutField {
-                name: "next_tool_name",
-                desc: "the tool to call".into(),
-                kind: FieldKind::Str,
-                values: None,
-                schema: None,
-            },
-            OutField {
-                name: "next_tool_args",
-                desc: "arguments for that tool, as a JSON object".into(),
-                kind: FieldKind::Json,
-                values: None,
-                schema: None,
-            },
+            out_field("next_thought", None, FieldKind::Str),
+            out_field("next_tool_name", Some(tool_name_set(tools)), FieldKind::Str),
+            out_field("next_tool_args", None, FieldKind::Json),
         ],
     }
 }
 
-/// The final pass: the task's own outputs, read from the trajectory.
+/// The final pass. dspy runs a `ChainOfThought` over the task's own signature plus the
+/// trajectory, so the instructions carry through untouched and the model reasons in a leading
+/// `reasoning` field before it fills in the outputs the caller asked for.
 fn extract_signature(signature: &Signature) -> Signature {
-    let mut inputs: Vec<InField> = signature
-        .inputs
-        .iter()
-        .map(|field| InField {
-            name: field.name,
-            desc: field.desc.clone(),
-            kind: field.kind,
-        })
-        .collect();
-    inputs.push(InField {
-        name: "trajectory",
-        desc: "what has happened so far".into(),
-        kind: FieldKind::Str,
-    });
+    let mut inputs = task_inputs(signature);
+    inputs.push(trajectory_field());
+
+    let mut outputs = vec![out_field("reasoning", None, FieldKind::Str)];
+    outputs.extend(signature.outputs.iter().map(|field| OutField {
+        name: field.name,
+        desc: field.desc.clone(),
+        kind: field.kind,
+        values: field.values.clone(),
+        schema: field.schema.clone(),
+    }));
+
     Signature {
-        instructions: format!(
-            "{}\n\nRead the trajectory and produce the requested fields.",
-            signature.instructions
-        ),
+        instructions: signature.instructions.clone(),
         inputs,
-        outputs: signature
-            .outputs
-            .iter()
-            .map(|field| OutField {
-                name: field.name,
-                desc: field.desc.clone(),
-                kind: field.kind,
-                values: field.values.clone(),
-                schema: field.schema.clone(),
-            })
-            .collect(),
+        outputs,
     }
 }
 
@@ -361,7 +489,15 @@ impl Module for ReAct {
 
             let mut final_inputs = inputs;
             final_inputs.set("trajectory", Value::String(trajectory.rendered()));
-            self.extract.forward(final_inputs).await
+            let extracted = self.extract.forward(final_inputs).await?;
+
+            // dspy returns `Prediction(trajectory=trajectory, **extract)`: what the agent did
+            // travels back beside what it concluded, so a caller can inspect the episode.
+            let mut example = Example::new([("trajectory", trajectory.as_value())]);
+            for (name, value) in extracted.example.fields() {
+                example.set(name, value.clone());
+            }
+            Ok(Prediction::new(example, extracted.raw))
         })
     }
 
@@ -499,9 +635,19 @@ mod tests {
         // dspy builds `finish` with `args={}`, so the model is never invited to invent any.
         let react = ReAct::new(task(), vec![weather()]);
         assert!(react.react.signature.instructions.contains(
-            "i.e. answer, are now available to be extracted.</desc>. \
+            "i.e. `answer`, are now available to be extracted.</desc>. \
                           It takes arguments {}."
         ));
+    }
+
+    #[test]
+    fn finish_refuses_arguments_it_never_declared() {
+        let react = ReAct::new(task(), vec![weather()]);
+        assert_eq!(react.observe(FINISH, &json!({})), "Completed.");
+        assert_eq!(
+            react.observe(FINISH, &json!({ "answer": "sunny" })),
+            "Execution error in finish: finish takes no arguments"
+        );
     }
 
     #[test]
@@ -562,7 +708,8 @@ mod tests {
     }
 
     #[test]
-    fn the_extract_signature_produces_the_tasks_own_outputs() {
+    fn the_extract_signature_reasons_before_the_tasks_own_outputs() {
+        // dspy's extract pass is a ChainOfThought, so `reasoning` leads the output fields.
         let react = ReAct::new(task(), vec![weather()]);
         let names: Vec<&str> = react
             .extract
@@ -571,15 +718,21 @@ mod tests {
             .iter()
             .map(|field| field.name)
             .collect();
-        assert_eq!(names, ["answer"]);
-        assert!(
-            react
-                .extract
-                .signature
-                .inputs
-                .iter()
-                .any(|field| field.name == "trajectory")
-        );
+        assert_eq!(names, ["reasoning", "answer"]);
+        let inputs: Vec<&str> = react
+            .extract
+            .signature
+            .inputs
+            .iter()
+            .map(|field| field.name)
+            .collect();
+        assert_eq!(inputs, ["request", "trajectory"]);
+    }
+
+    #[test]
+    fn the_extract_signature_leaves_the_tasks_instructions_alone() {
+        let react = ReAct::new(task(), vec![weather()]);
+        assert_eq!(react.extract.signature.instructions, "Answer the question.");
     }
 
     #[test]
@@ -594,10 +747,12 @@ mod tests {
 
     #[test]
     fn an_unknown_tool_is_reported_the_same_way() {
+        // dspy indexes its tool dict and lets the KeyError land in the same `Execution error
+        // in {name}:` shape every other tool failure takes.
         let react = ReAct::new(task(), vec![weather()]);
         assert_eq!(
             react.observe("teleport", &json!({})),
-            "Execution error: no tool named teleport"
+            "Execution error in teleport: no such tool"
         );
     }
 
@@ -620,10 +775,44 @@ mod tests {
                 observation: "sunny".to_owned(),
             }],
         };
-        let rendered = trajectory.rendered();
-        assert!(rendered.contains("[[ ## thought_0 ## ]]\nI should look it up"));
-        assert!(rendered.contains("[[ ## tool_name_0 ## ]]\nget_weather"));
-        assert!(rendered.contains("[[ ## observation_0 ## ]]\nsunny"));
+        assert_eq!(
+            trajectory.rendered(),
+            "[[ ## thought_0 ## ]]\nI should look it up\n\n\
+             [[ ## tool_name_0 ## ]]\nget_weather\n\n\
+             [[ ## tool_args_0 ## ]]\n{\"city\": \"Tokyo\"}\n\n\
+             [[ ## observation_0 ## ]]\nsunny"
+        );
+    }
+
+    #[test]
+    fn an_empty_trajectory_renders_as_nothing_at_all() {
+        // dspy strips the joined blocks, so the first turn's trajectory field is empty rather
+        // than a run of blank lines.
+        assert_eq!(Trajectory::default().rendered(), "");
+    }
+
+    #[test]
+    fn tool_arguments_render_with_pythons_json_spacing() {
+        // dspy formats the argument object with `json.dumps`, which puts a space after every
+        // colon and comma; serde_json's own `Display` puts neither.
+        assert_eq!(
+            field_value(&json!({ "city": "Tokyo", "days": [1, 2] })),
+            "{\"city\": \"Tokyo\", \"days\": [1, 2]}"
+        );
+        assert_eq!(field_value(&json!({})), "{}");
+    }
+
+    #[test]
+    fn the_tool_catalogue_keeps_the_order_the_caller_supplied() {
+        // dspy numbers a dict built from the tool list, so the caller's order is the prompt's.
+        let zebra = Box::new(FnTool::new("zebra", "z", json!({}), |_: &Value| {
+            Ok(String::new())
+        })) as Box<dyn Tool>;
+        let alpha = Box::new(FnTool::new("alpha", "a", json!({}), |_: &Value| {
+            Ok(String::new())
+        })) as Box<dyn Tool>;
+        let react = ReAct::new(task(), vec![zebra, alpha]);
+        assert_eq!(react.tool_names(), ["zebra", "alpha", "finish"]);
     }
 
     #[test]

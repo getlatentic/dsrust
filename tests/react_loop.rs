@@ -57,8 +57,13 @@ fn turn(thought: &str, tool: &str, args: &str) -> String {
     )
 }
 
+/// dspy's extract pass is a `ChainOfThought`, so a reply that skips `reasoning` is missing a
+/// field the signature demands and never reaches the caller.
 fn answer(text: &str) -> String {
-    format!("[[ ## answer ## ]]\n{text}\n\n[[ ## completed ## ]]")
+    format!(
+        "[[ ## reasoning ## ]]\nthe trajectory says so\n\n\
+         [[ ## answer ## ]]\n{text}\n\n[[ ## completed ## ]]"
+    )
 }
 
 fn task() -> Signature {
