@@ -50,6 +50,11 @@ pub trait Adapter: Send + Sync {
     /// into a retry.
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value>;
 
+    /// What this adapter tells the model before the conversation starts: the fields, the shape
+    /// of an interaction, and the objective. dspy exposes the same method, and its `format`
+    /// builds the exchange around it.
+    fn system_message(&self, signature: &Signature) -> String;
+
     /// How the provider should be asked to shape its reply. Text by default, since a format
     /// carried entirely in the prompt needs nothing from the provider.
     fn output_mode<'a>(&self, _schema: &'a Value) -> OutputMode<'a> {
@@ -111,7 +116,14 @@ impl Adapter for ChatAdapter {
             &asked,
             &live_inputs(&asked, inputs),
         )));
-        (chat_system(signature), blocks::split_custom_types(turns))
+        (
+            self.system_message(signature),
+            blocks::split_custom_types(turns),
+        )
+    }
+
+    fn system_message(&self, signature: &Signature) -> String {
+        chat_system(signature)
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
@@ -139,6 +151,10 @@ impl Adapter for JsonAdapter {
         // dspy splits in the base `format`, which both adapters inherit, so a custom type
         // reaches a provider as blocks whichever wire format carries the rest of the request.
         (json_system(signature), blocks::split_custom_types(turns))
+    }
+
+    fn system_message(&self, signature: &Signature) -> String {
+        json_system(signature)
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {

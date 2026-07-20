@@ -23,12 +23,45 @@ except ImportError as error:  # pragma: no cover - environment dependent
         allow_module_level=True,
     )
 
+import rust_adapter  # noqa: E402
 from rust_adapter import RustChatAdapter, RustJSONAdapter  # noqa: E402
 
 # Upstream tests whose features this crate has not written yet, with the reason. Delete a line
 # once Rust renders that case; the strict xfail will fail the run if you forget.
 NOT_YET_IMPLEMENTED = {
 }
+
+
+# Upstream tests that pass without the crate rendering or parsing anything, with the reason.
+# They are not conformance: they exercise dspy's own Python — a type's `__str__`, a helper — and
+# would read as green whatever this crate did. Naming them keeps the passing count honest, and
+# anything not named here must cross into Rust or the run fails.
+DOES_NOT_EXERCISE_RUST = {
+    # Calls dspy's private `_call_postprocess` with outputs already parsed, so it exercises
+    # dspy's own plumbing around an adapter rather than anything the adapter renders.
+    "test_tool_call_with_null_content_does_not_raise": "dspy-internal postprocessing",
+}
+
+
+@pytest.fixture(autouse=True)
+def _require_a_crossing(request):
+    """Fail a test that passed without the crate doing anything.
+
+    A test can construct dspy's own adapter, or assert on a Python type directly, and never
+    reach Rust. It then passes for reasons this crate has no part in, which is the one way a
+    conformance suite can lie about its coverage.
+    """
+    before = rust_adapter.CROSSINGS
+    yield
+    if rust_adapter.CROSSINGS > before:
+        return
+    name = request.node.name.split("[")[0]
+    if name in DOES_NOT_EXERCISE_RUST or name.removesuffix("_async") in DOES_NOT_EXERCISE_RUST:
+        return
+    pytest.fail(
+        "this test passed without the crate rendering or parsing anything, so it says nothing "
+        "about conformance; give it a line in DOES_NOT_EXERCISE_RUST if that is expected"
+    )
 
 
 @pytest.fixture(autouse=True)

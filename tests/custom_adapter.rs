@@ -22,22 +22,25 @@ impl Adapter for XmlAdapter {
         _demos: &[Example],
         inputs: &[(&str, Value)],
     ) -> (String, Vec<ChatTurn>) {
-        let tags: Vec<String> = signature
-            .outputs
-            .iter()
-            .map(|field| format!("<{}>...</{}>", field.name, field.name))
-            .collect();
-        let system = format!(
-            "{}\nReply with {}.",
-            signature.instructions,
-            tags.join(" then ")
-        );
         let user = inputs
             .iter()
             .map(|(name, value)| format!("<{name}>{}</{name}>", format_field_value(value)))
             .collect::<Vec<_>>()
             .join("\n");
-        (system, vec![ChatTurn::user(user)])
+        (self.system_message(signature), vec![ChatTurn::user(user)])
+    }
+
+    fn system_message(&self, signature: &Signature) -> String {
+        let tags: Vec<String> = signature
+            .outputs
+            .iter()
+            .map(|field| format!("<{}>...</{}>", field.name, field.name))
+            .collect();
+        format!(
+            "{}\nReply with {}.",
+            signature.instructions,
+            tags.join(" then ")
+        )
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {

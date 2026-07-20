@@ -179,6 +179,11 @@ def described_outputs(signature) -> list[tuple]:
     ]
 
 
+#: How many times the crate rendered or parsed. A test that passes without moving this never
+#: exercised Rust, whatever its name says, so `conftest.py` refuses to count it as conformance.
+CROSSINGS = 0
+
+
 class _RustBacked:
     """Rendering and parsing through Rust, for whichever wire format subclasses it.
 
@@ -189,7 +194,20 @@ class _RustBacked:
 
     WIRE: str
     ADAPTER_NAME: str
+    def format_system_message(self, signature) -> str:
+        """dspy exposes this on its own, and a caller reading it should read the crate's."""
+        global CROSSINGS
+        CROSSINGS += 1
+        return dsrs_bridge.format_system_message(
+            self.WIRE,
+            signature.instructions,
+            describe(signature.input_fields),
+            described_outputs(signature),
+        )
+
     def format(self, signature, demos, inputs) -> list[dict[str, typing.Any]]:
+        global CROSSINGS
+        CROSSINGS += 1
         rendered_demos = [
             [
                 (name, format_field_value(field_info=field, value=demo[name]))
@@ -216,6 +234,8 @@ class _RustBacked:
         ]
 
     def parse(self, signature, completion):
+        global CROSSINGS
+        CROSSINGS += 1
         # Rust reports a parse failure as an error; dspy's contract is that a ChatAdapter
         # raises AdapterParseError, and callers — including its own fallback path — branch on
         # that type. Translating at the boundary is this shim's job, the same as field kinds.

@@ -198,6 +198,27 @@ fn format_messages(
     Ok((system, turns))
 }
 
+/// The system message the named adapter states for this signature.
+///
+/// dspy exposes this separately from a whole exchange, and a caller reading it should read the
+/// crate's, not a reimplementation of it.
+#[pyfunction]
+#[pyo3(signature = (adapter, instructions, inputs, outputs))]
+fn format_system_message(
+    adapter: &str,
+    instructions: &str,
+    inputs: Vec<PyInField>,
+    outputs: Vec<PyOutField>,
+) -> PyResult<String> {
+    let signature = build_signature(instructions, inputs, outputs)?;
+    let adapter: Box<dyn Adapter> = match adapter {
+        "chat" => Box::new(ChatAdapter::default()),
+        "json" => Box::new(JsonAdapter),
+        other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
+    };
+    Ok(adapter.system_message(&signature))
+}
+
 /// Parse a raw reply through the named adapter, returning JSON text.
 #[pyfunction]
 #[pyo3(signature = (adapter, instructions, inputs, outputs, raw))]
@@ -246,6 +267,7 @@ fn has_json_fallback(adapter: &str, use_json_adapter_fallback: bool) -> PyResult
 #[pymodule]
 fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(format_messages, module)?)?;
+    module.add_function(wrap_pyfunction!(format_system_message, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;
     module.add_function(wrap_pyfunction!(has_json_fallback, module)?)?;
     Ok(())
