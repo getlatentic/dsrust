@@ -10,7 +10,7 @@ use anyhow::{Result, anyhow};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::adapter::python_json::format_field_value;
+use crate::adapter::python_json::format_value;
 use crate::signature::{FieldKind, OutField};
 
 /// Python's `#` rather than another language's `//`. Upstream notes that a model follows the
@@ -142,9 +142,7 @@ impl Reflection {
             Node::Named { name } => Ok(name.clone()),
             Node::Model { model } => self.model(*model, indent, seen),
             Node::Literal { members } => Ok(joined(
-                members
-                    .iter()
-                    .map(|member| quoted(&format_field_value(member))),
+                members.iter().map(|member| quoted(&format_value(member))),
             )),
             Node::Union { of, optional } => {
                 let arms = of

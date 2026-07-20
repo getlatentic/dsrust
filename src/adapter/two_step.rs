@@ -15,7 +15,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use serde_json::Value;
 
-use crate::adapter::python_json::format_field_value;
+use crate::adapter::python_json::format_value;
 use crate::adapter::{Adapter, ChatAdapter, Extraction};
 use crate::example::Example;
 use crate::lm::{ChatTurn, DynChatModel};
@@ -84,7 +84,7 @@ fn user_message(signature: &Signature, inputs: &[(&str, Value)]) -> String {
         .iter()
         .filter_map(|field| {
             let (_, value) = inputs.iter().find(|(name, _)| *name == field.name)?;
-            Some(format!("{}: {}", field.name, format_field_value(value)))
+            Some(format!("{}: {}", field.name, format_value(value)))
         })
         .collect::<Vec<_>>()
         .join("\n\n")
@@ -99,7 +99,7 @@ fn demo_answer(signature: &Signature, example: &Example, missing: Option<&str>) 
         .iter()
         .filter_map(|field| {
             let value = match example.get(&field.name) {
-                Some(value) => format_field_value(value),
+                Some(value) => format_value(value),
                 None => missing?.to_owned(),
             };
             Some(format!("{}: {value}", field.name))

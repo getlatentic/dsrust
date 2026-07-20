@@ -15,8 +15,7 @@ use crate::signature::{FieldKind, Signature};
 
 use super::exchange::{Style, answer, plain};
 use super::{
-    Adapter, JsonAdapter, blocks, conversation, live_inputs, marker, output_slot,
-    python_json::format_field_value, section,
+    Adapter, JsonAdapter, blocks, conversation, live_inputs, marker, output_slot, section,
 };
 
 /// DSPy's default: every field in its own `[[ ## name ## ]]` section, readable by any model.
@@ -130,7 +129,7 @@ fn chat_user(signature: &Signature, inputs: &[(&str, Value)]) -> String {
     // by a blank line and stripped, rather than sections each carrying their own trailing gap.
     let mut parts: Vec<String> = inputs
         .iter()
-        .map(|(name, value)| section(name, &format_field_value(value)))
+        .map(|(name, value)| section(name, &plain(signature, name, value)))
         .collect();
     parts.push(output_requirements(signature));
     parts.join("\n\n").trim().to_owned()

@@ -12,7 +12,7 @@ use crate::example::Example;
 use crate::lm::ChatTurn;
 use crate::signature::Signature;
 
-use super::exchange::Style;
+use super::exchange::{Style, plain};
 use super::{blocks, conversation, live_inputs, output_slot, python_json::format_field_value};
 
 /// One field as a tag pair. dspy puts the value on its own line between the tags.
@@ -28,7 +28,7 @@ fn answer(signature: &Signature, example: &Example, missing: Option<&str>) -> Ch
         .iter()
         .filter_map(|field| {
             let value = match example.get(&field.name) {
-                Some(value) => format_field_value(value),
+                Some(value) => format_field_value(&field.kind, value),
                 None => missing?.to_owned(),
             };
             Some(wrap(&field.name, &value))
@@ -95,7 +95,7 @@ impl super::Adapter for XmlAdapter {
 fn user_message(signature: &Signature, inputs: &[(&str, Value)]) -> String {
     let mut parts: Vec<String> = inputs
         .iter()
-        .map(|(name, value)| wrap(name, &format_field_value(value)))
+        .map(|(name, value)| wrap(name, &plain(signature, name, value)))
         .collect();
     parts.push(output_requirements(signature));
     parts.join("\n\n").trim().to_owned()

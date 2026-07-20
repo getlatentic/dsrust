@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 use anyhow::{Result, anyhow};
 use serde_json::Value;
 
-use crate::adapter::python_json::format_field_value;
+use crate::adapter::python_json::format_value;
 
 /// One labelled example: field values, plus which of those fields are inputs.
 ///
@@ -118,7 +118,7 @@ impl Example {
     pub fn rendered(&self) -> Vec<(String, String)> {
         self.fields
             .iter()
-            .map(|(name, value)| (name.clone(), format_field_value(value)))
+            .map(|(name, value)| (name.clone(), format_value(value)))
             .collect()
     }
 }

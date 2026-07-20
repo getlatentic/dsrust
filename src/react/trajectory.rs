@@ -6,7 +6,7 @@
 
 use serde_json::{Value, json};
 
-use crate::adapter::python_json::format_field_value;
+use crate::adapter::python_json::format_value;
 
 /// One turn of the loop, kept so the next turn can read what already happened.
 #[derive(Debug, Clone, PartialEq)]
@@ -36,7 +36,7 @@ impl Trajectory {
             blocks.push(format!("[[ ## tool_name_{index} ## ]]\n{}", step.tool));
             blocks.push(format!(
                 "[[ ## tool_args_{index} ## ]]\n{}",
-                format_field_value(&step.args)
+                format_value(&step.args)
             ));
             blocks.push(format!(
                 "[[ ## observation_{index} ## ]]\n{}",

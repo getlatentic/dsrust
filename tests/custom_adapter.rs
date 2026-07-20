@@ -6,7 +6,7 @@
 
 use anyhow::{Result, anyhow};
 use dsrs::Example;
-use dsrs::adapter::python_json::format_field_value;
+use dsrs::adapter::python_json::format_value;
 use dsrs::lm::ChatTurn;
 use dsrs::signature::{FieldKind, OutField, Signature};
 use dsrs::{Adapter, ChatAdapter};
@@ -24,7 +24,7 @@ impl Adapter for XmlAdapter {
     ) -> (String, Vec<ChatTurn>) {
         let user = inputs
             .iter()
-            .map(|(name, value)| format!("<{name}>{}</{name}>", format_field_value(value)))
+            .map(|(name, value)| format!("<{name}>{}</{name}>", format_value(value)))
             .collect::<Vec<_>>()
             .join("\n");
         (self.system_message(signature), vec![ChatTurn::user(user)])

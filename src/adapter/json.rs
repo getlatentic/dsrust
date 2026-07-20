@@ -15,10 +15,7 @@ use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::{FieldKind, Signature};
 
 use super::exchange::{Style, json_answer, plain};
-use super::{
-    Adapter, blocks, conversation, live_inputs, output_slot, python_json::format_field_value,
-    section,
-};
+use super::{Adapter, blocks, conversation, live_inputs, output_slot, section};
 
 /// The provider's native structured output, carrying the signature's JSON schema.
 #[derive(Debug, Clone, Copy, Default)]
@@ -117,7 +114,7 @@ pub(super) fn json_output_requirements(signature: &Signature) -> String {
 fn json_user(signature: &Signature, inputs: &[(&str, Value)]) -> String {
     let mut parts: Vec<String> = inputs
         .iter()
-        .map(|(name, value)| section(name, &format_field_value(value)))
+        .map(|(name, value)| section(name, &plain(signature, name, value)))
         .collect();
     parts.push(json_output_requirements(signature));
     parts.join("\n\n").trim().to_owned()

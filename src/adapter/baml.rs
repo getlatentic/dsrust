@@ -21,7 +21,7 @@ use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::Signature;
 
 use super::exchange::{Style, json_answer};
-use super::python_json::format_field_value;
+use super::python_json::format_value;
 use super::{Adapter, JsonAdapter, blocks, conversation, live_inputs, marker, section};
 
 /// Marker sections and a JSON reply, as the JSON adapter has it, laying a record out over
@@ -136,8 +136,8 @@ fn input_value(signature: &Signature, name: &str, value: &Value) -> String {
         .find(|field| field.name == name)
         .is_some_and(|field| notation::is_record(&field.kind));
     match declared_record && value.is_object() {
-        true => serde_json::to_string_pretty(value).unwrap_or_else(|_| format_field_value(value)),
-        false => format_field_value(value),
+        true => serde_json::to_string_pretty(value).unwrap_or_else(|_| format_value(value)),
+        false => format_value(value),
     }
 }
 

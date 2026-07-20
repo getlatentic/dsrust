@@ -7,10 +7,10 @@
 
 use serde_json::Value;
 
-use crate::adapter::python_json::format_field_value;
+use crate::adapter::python_json::{format_field_value, format_value};
 use crate::example::Example;
 use crate::lm::ChatTurn;
-use crate::signature::Signature;
+use crate::signature::{FieldKind, Signature};
 
 use super::{marker, section};
 
@@ -23,9 +23,32 @@ pub(super) type Wrap = fn(&str, &str) -> String;
 /// differently decides that here, so a demo and a live request agree on it.
 pub(super) type Render = fn(&Signature, &str, &Value) -> String;
 
-/// dspy `format_field_value`, which reads nothing off the field but the value itself.
-pub(super) fn plain(_: &Signature, _: &str, value: &Value) -> String {
-    format_field_value(value)
+/// dspy `format_field_value`: the value as the field it belongs to has it read.
+///
+/// The field is looked up rather than passed because the callers hold a name and a value —
+/// which is the shape dspy's own `format_field_value(field_info, value)` has, once its caller
+/// has resolved the name.
+pub(super) fn plain(signature: &Signature, name: &str, value: &Value) -> String {
+    match kind_of(signature, name) {
+        Some(kind) => format_field_value(kind, value),
+        None => format_value(value),
+    }
+}
+
+/// The declared kind of a field, whichever half of the signature declares it.
+pub(super) fn kind_of<'a>(signature: &'a Signature, name: &str) -> Option<&'a FieldKind> {
+    let input = signature
+        .inputs
+        .iter()
+        .find(|f| f.name == name)
+        .map(|f| &f.kind);
+    input.or_else(|| {
+        signature
+            .outputs
+            .iter()
+            .find(|f| f.name == name)
+            .map(|f| &f.kind)
+    })
 }
 
 /// The user turn an example would have sent. Only the inputs it carries appear: dspy leaves a
@@ -59,7 +82,7 @@ pub(super) fn answer(signature: &Signature, example: &Example, missing: Option<&
         .iter()
         .filter_map(|field| {
             let value = match example.get(&field.name) {
-                Some(value) => format_field_value(value),
+                Some(value) => format_field_value(&field.kind, value),
                 None => missing?.to_owned(),
             };
             Some(section(&field.name, &value))
