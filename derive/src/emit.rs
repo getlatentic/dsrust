@@ -87,27 +87,22 @@ fn spec_impl(model: &Model) -> TokenStream {
 
             fn input_pairs(
                 inputs: &Self::Inputs,
-            ) -> ::std::vec::Vec<(&'static str, ::std::string::String)> {
+            ) -> ::std::vec::Vec<(&'static str, ::serde_json::Value)> {
                 ::std::vec![ #( (#pair_names, #pair_values) ),* ]
             }
         }
     }
 }
 
-/// How one input renders for the adapters: `String` clones, scalar kinds go through
-/// `to_string`, and a `Json` field serializes to JSON text. That serialization only fails
-/// on a broken `Serialize` impl — programmer error, not model behavior — so the generated
-/// code expects success and names the field.
+/// How one input reaches the adapters. Every field crosses as a `Value`, which is what dspy
+/// hands its adapters: rendering is the adapter's job, and a structured field that arrived
+/// pre-rendered could not expand into the turns a `History` needs. Serialization only fails on
+/// a broken `Serialize` impl — programmer error, not model behavior — so this expects success
+/// and names the field.
 fn pair_value(field: &Field) -> TokenStream {
     let ident = &field.ident;
-    match field.kind {
-        Kind::Str => quote! { ::std::clone::Clone::clone(&inputs.#ident) },
-        Kind::Json => {
-            let message = format!("input `{ident}` must serialize to JSON");
-            quote! { ::serde_json::to_string(&inputs.#ident).expect(#message) }
-        }
-        _ => quote! { ::std::string::ToString::to_string(&inputs.#ident) },
-    }
+    let message = format!("input `{ident}` must serialize to JSON");
+    quote! { ::serde_json::to_value(&inputs.#ident).expect(#message) }
 }
 
 /// The host crate's `FieldKind` for this field. Every non-scalar becomes the opaque `Json`

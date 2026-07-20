@@ -115,10 +115,16 @@ fn format_messages(
     demos: Option<Vec<Vec<(String, String)>>>,
 ) -> PyResult<(String, Vec<(String, String)>)> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let pairs: Vec<(&str, String)> = values
+    // Python sends each value as JSON text so its structure survives the crossing; the
+    // adapter renders it, which is where dspy renders too.
+    let pairs: Vec<(&str, Value)> = values
         .iter()
-        .map(|(name, value)| (name.as_str(), value.clone()))
-        .collect();
+        .map(|(name, json)| {
+            serde_json::from_str(json)
+                .map(|value| (name.as_str(), value))
+                .map_err(|error| PyValueError::new_err(format!("input `{name}`: {error}")))
+        })
+        .collect::<PyResult<_>>()?;
     let adapter: Box<dyn Adapter> = match adapter {
         "chat" => Box::new(ChatAdapter::default()),
         "json" => Box::new(JsonAdapter),

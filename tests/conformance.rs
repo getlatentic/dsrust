@@ -6,7 +6,6 @@
 //! question "are we faithful?" is answered by the test run instead of by reading both
 //! codebases. A divergence here is a bug in this crate until upstream is shown to be wrong.
 
-use dsrs::adapter::python_json::format_field_value;
 use dsrs::signature::{FieldKind, InField, OutField, Signature};
 use dsrs::{Adapter, ChatAdapter, Example};
 use serde_json::Value;
@@ -16,7 +15,7 @@ struct Fixture {
     source: String,
     signature: Signature,
     demos: Vec<Example>,
-    values: Vec<(String, String)>,
+    values: Vec<(String, Value)>,
     expected_system: String,
     expected_turns: Vec<(String, String)>,
 }
@@ -71,7 +70,7 @@ fn load(path: &std::path::Path) -> Fixture {
         .iter()
         .filter_map(|field| {
             let value = json["values"].get(&field.name)?;
-            Some((field.name.clone(), format_field_value(value)))
+            Some((field.name.clone(), value.clone()))
         })
         .collect();
 
@@ -165,7 +164,7 @@ fn assert_same(label: &str, fixture: &Fixture, expected: &str, actual: &str) {
 #[test]
 fn chat_adapter_renders_what_python_dspy_renders() {
     for fixture in fixtures() {
-        let values: Vec<(&str, String)> = fixture
+        let values: Vec<(&str, Value)> = fixture
             .values
             .iter()
             .map(|(name, value)| (name.as_str(), value.clone()))

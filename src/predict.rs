@@ -82,7 +82,7 @@ impl Predict {
             .first()
             .map_or("request", |f| f.name.as_str());
         Ok(self
-            .call_with_inputs(http, lm, &[(name, input.to_owned())])
+            .call_with_inputs(http, lm, &[(name, Value::String(input.to_owned()))])
             .await?
             .value)
     }
@@ -95,7 +95,7 @@ impl Predict {
         adapter: &dyn Adapter,
         http: &reqwest::Client,
         lm: &dyn DynChatModel,
-        inputs: &[(&str, String)],
+        inputs: &[(&str, Value)],
         feedback: Option<&Feedback>,
     ) -> Result<String> {
         let schema = self.signature.schema();
@@ -109,7 +109,7 @@ impl Predict {
         &self,
         http: &reqwest::Client,
         lm: &dyn DynChatModel,
-        inputs: &[(&str, String)],
+        inputs: &[(&str, Value)],
         feedback: Option<&Feedback>,
     ) -> Result<String> {
         self.ask_through(self.adapter.as_ref(), http, lm, inputs, feedback)
@@ -120,7 +120,7 @@ impl Predict {
         &self,
         http: &reqwest::Client,
         lm: &dyn DynChatModel,
-        inputs: &[(&str, String)],
+        inputs: &[(&str, Value)],
     ) -> Result<Validated> {
         // dspy's ChatAdapter catches a parse failure and re-asks the whole exchange through
         // the JSON adapter; `use_json_adapter_fallback` turns that off. The adapter states the
@@ -167,7 +167,7 @@ impl Predict {
         &self,
         http: &reqwest::Client,
         lm: &dyn DynChatModel,
-        inputs: &[(&str, String)],
+        inputs: &[(&str, Value)],
         feedback: &Feedback,
     ) -> Result<(String, Value)> {
         let raw = self.ask(http, lm, inputs, Some(feedback)).await?;
@@ -779,7 +779,8 @@ mod tests {
         );
         let opening = &calls[0].turns[0].content;
         assert!(opening.contains("[[ ## age ## ]]\n61"));
-        assert!(opening.contains("[[ ## fan ## ]]\ntrue"));
+        // Python's spelling: dspy 3.2.1 hands a bare bool to `str`, so the model reads `True`.
+        assert!(opening.contains("[[ ## fan ## ]]\nTrue"));
         assert!(opening.contains("[[ ## budget ## ]]\n0.5"));
     }
 
@@ -871,10 +872,9 @@ impl Module for Predict {
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
             let (http, lm) = global::current()?;
-            let rendered = inputs.rendered();
-            let pairs: Vec<(&str, String)> = rendered
-                .iter()
-                .map(|(name, value)| (name.as_str(), value.clone()))
+            let pairs: Vec<(&str, Value)> = inputs
+                .fields()
+                .map(|(name, value)| (name, value.clone()))
                 .collect();
             let validated = self.call_with_inputs(&http, lm.as_ref(), &pairs).await?;
             Ok(Prediction::new(

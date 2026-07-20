@@ -9,7 +9,7 @@ mod demos;
 mod parse;
 pub mod python_json;
 
-use python_json::json_dumps;
+use python_json::{format_field_value, json_dumps};
 
 use demos::demo_turns;
 
@@ -38,7 +38,7 @@ pub trait Adapter: Send + Sync {
         &self,
         signature: &Signature,
         demos: &[Example],
-        inputs: &[(&str, String)],
+        inputs: &[(&str, Value)],
     ) -> (String, Vec<ChatTurn>);
 
     /// Extract the signature's fields from a raw reply. A reply that does not speak this
@@ -101,7 +101,7 @@ impl Adapter for ChatAdapter {
         &self,
         signature: &Signature,
         demos: &[Example],
-        inputs: &[(&str, String)],
+        inputs: &[(&str, Value)],
     ) -> (String, Vec<ChatTurn>) {
         let mut turns = demo_turns(signature, demos);
         turns.push(ChatTurn::user(chat_user(signature, inputs)));
@@ -123,7 +123,7 @@ impl Adapter for JsonAdapter {
         &self,
         signature: &Signature,
         _demos: &[Example],
-        inputs: &[(&str, String)],
+        inputs: &[(&str, Value)],
     ) -> (String, Vec<ChatTurn>) {
         (
             json_system(signature),
@@ -280,12 +280,12 @@ fn task_description(signature: &Signature) -> String {
 
 /// DSPy ChatAdapter's user message: each input in its own marker section, then the recap of
 /// the output field order.
-fn chat_user(signature: &Signature, inputs: &[(&str, String)]) -> String {
+fn chat_user(signature: &Signature, inputs: &[(&str, Value)]) -> String {
     // dspy `format_user_message_content`: input sections and the reminder are one list joined
     // by a blank line and stripped, rather than sections each carrying their own trailing gap.
     let mut parts: Vec<String> = inputs
         .iter()
-        .map(|(name, value)| section(name, value))
+        .map(|(name, value)| section(name, &format_field_value(value)))
         .collect();
     parts.push(output_requirements(signature));
     parts.join("\n\n").trim().to_owned()
@@ -322,10 +322,10 @@ fn json_system(signature: &Signature) -> String {
 }
 
 /// The JSON adapter's user message: each input as a labeled line.
-fn json_user(inputs: &[(&str, String)]) -> String {
+fn json_user(inputs: &[(&str, Value)]) -> String {
     inputs
         .iter()
-        .map(|(name, value)| format!("{name}: {value}"))
+        .map(|(name, value)| format!("{name}: {}", format_field_value(value)))
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -426,8 +426,8 @@ mod tests {
         signature
     }
 
-    fn single_request(value: &str) -> Vec<(&'static str, String)> {
-        vec![("request", value.to_owned())]
+    fn single_request(value: &str) -> Vec<(&'static str, Value)> {
+        vec![("request", Value::String(value.to_owned()))]
     }
 
     #[test]
@@ -522,10 +522,7 @@ mod tests {
 
     #[test]
     fn chat_user_renders_each_input_as_its_own_section_then_recaps_outputs() {
-        let inputs = vec![
-            ("room", "the study".to_owned()),
-            ("mood", "calm focus".to_owned()),
-        ];
+        let inputs = vec![("room", json!("the study")), ("mood", json!("calm focus"))];
         let user = chat_user(&multi_signature(), &inputs);
         assert!(user.starts_with(
             "[[ ## room ## ]]\nthe study\n\n[[ ## mood ## ]]\ncalm focus\n\nRespond with"
@@ -536,10 +533,7 @@ mod tests {
 
     #[test]
     fn json_user_labels_every_input_line() {
-        let inputs = vec![
-            ("room", "the study".to_owned()),
-            ("mood", "calm focus".to_owned()),
-        ];
+        let inputs = vec![("room", json!("the study")), ("mood", json!("calm focus"))];
         assert_eq!(json_user(&inputs), "room: the study\nmood: calm focus");
         assert_eq!(json_user(&single_request("hi")), "request: hi");
     }

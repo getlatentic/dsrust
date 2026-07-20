@@ -6,10 +6,11 @@
 
 use anyhow::{Result, anyhow};
 use dsrs::Example;
+use dsrs::adapter::python_json::format_field_value;
 use dsrs::lm::ChatTurn;
 use dsrs::signature::{FieldKind, OutField, Signature};
 use dsrs::{Adapter, ChatAdapter};
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 
 /// Fields wrapped in XML tags rather than `[[ ## markers ## ]]`.
 struct XmlAdapter;
@@ -19,7 +20,7 @@ impl Adapter for XmlAdapter {
         &self,
         signature: &Signature,
         _demos: &[Example],
-        inputs: &[(&str, String)],
+        inputs: &[(&str, Value)],
     ) -> (String, Vec<ChatTurn>) {
         let tags: Vec<String> = signature
             .outputs
@@ -33,7 +34,7 @@ impl Adapter for XmlAdapter {
         );
         let user = inputs
             .iter()
-            .map(|(name, value)| format!("<{name}>{value}</{name}>"))
+            .map(|(name, value)| format!("<{name}>{}</{name}>", format_field_value(value)))
             .collect::<Vec<_>>()
             .join("\n");
         (system, vec![ChatTurn::user(user)])
@@ -71,7 +72,7 @@ fn signature() -> Signature {
 
 #[test]
 fn an_adapter_defined_outside_the_crate_formats_and_parses() {
-    let inputs = [("request", "something calm".to_owned())];
+    let inputs = [("request", json!("something calm"))];
     let (system, turns) = XmlAdapter.format(&signature(), &[], &inputs);
     assert!(system.contains("<colour>...</colour>"));
     assert_eq!(turns.len(), 1);
@@ -87,7 +88,7 @@ fn an_adapter_defined_outside_the_crate_formats_and_parses() {
 fn a_custom_adapter_is_interchangeable_with_the_shipped_ones() {
     let adapters: Vec<Box<dyn Adapter>> =
         vec![Box::new(ChatAdapter::default()), Box::new(XmlAdapter)];
-    let inputs = [("request", "something calm".to_owned())];
+    let inputs = [("request", json!("something calm"))];
     for adapter in &adapters {
         let (system, _) = adapter.format(&signature(), &[], &inputs);
         assert!(

@@ -22,7 +22,7 @@ import dspy
 import pydantic
 from dspy.adapters.base import Adapter
 from dspy.adapters.json_adapter import JSONAdapter
-from dspy.adapters.utils import format_field_value, get_annotation_name, parse_value
+from dspy.adapters.utils import format_field_value, get_annotation_name, parse_value, serialize_for_json
 from dspy.utils.exceptions import AdapterParseError
 from litellm import ContextWindowExceededError
 
@@ -141,7 +141,7 @@ class RustChatAdapter(dspy.ChatAdapter):
             for demo in demos
         ]
         values = [
-            (name, format_field_value(field_info=signature.input_fields[name], value=value))
+            (name, json.dumps(serialize_for_json(value), ensure_ascii=False))
             for name, value in inputs.items()
             if name in signature.input_fields
         ]

@@ -11,6 +11,7 @@ use anyhow::Result;
 use dsrs::lm::{ChatModel, ChatTurn, OutputMode, Role};
 use dsrs::signature::{FieldKind, OutField, Signature};
 use dsrs::{Adapter, ChatAdapter, Example, LabeledFewShot, example};
+use serde_json::json;
 
 struct Recorder {
     replies: Mutex<VecDeque<String>>,
@@ -104,7 +105,7 @@ fn a_compiled_program_and_an_uncompiled_one_render_differently() {
     let mut compiled = dsrs::predict::Predict::new(signature());
     LabeledFewShot::new(2).compile(&mut compiled, &trainset());
 
-    let inputs = [("request", "capital of Spain?".to_owned())];
+    let inputs = [("request", json!("capital of Spain?"))];
     let (_, bare_turns) = ChatAdapter::default().format(&signature(), &bare.demos, &inputs);
     let (_, compiled_turns) = ChatAdapter::default().format(&signature(), &compiled.demos, &inputs);
 

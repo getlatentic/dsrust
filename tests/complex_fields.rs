@@ -135,19 +135,21 @@ fn derive_maps_complex_field_types_to_json() {
 }
 
 #[test]
-fn input_pairs_serialize_complex_inputs_as_json() {
+fn input_pairs_hand_complex_inputs_over_with_their_structure_intact() {
+    // The adapter renders, so a field arrives as the value it is rather than as text. A
+    // structured field could not otherwise expand into the turns a `History` needs.
     let pairs = IdeasTask::input_pairs(&inputs());
     assert_eq!(
         pairs[0],
         (
             "recipient",
-            r#"{"name":"Dad","age":61,"hobbies":["fishing","grilling"]}"#.to_owned()
+            json!({ "name": "Dad", "age": 61, "hobbies": ["fishing", "grilling"] })
         )
     );
-    assert_eq!(pairs[1], ("themes", r#"["surprise"]"#.to_owned()));
+    assert_eq!(pairs[1], ("themes", json!(["surprise"])));
     assert_eq!(
         pairs[2],
-        ("past", r#"[{"title":"Socks","why":"Warm"}]"#.to_owned())
+        ("past", json!([{ "title": "Socks", "why": "Warm" }]))
     );
 }
 
@@ -189,9 +191,14 @@ async fn prompts_annotate_json_fields_and_a_marker_reply_deserializes() {
         "got: {system}"
     );
 
+    // `json.dumps` spacing, because the adapter renders the value rather than receiving text
+    // some other serializer already wrote.
     let opening = &calls[0].turns[0].content;
-    assert!(opening.contains("[[ ## recipient ## ]]\n{\"name\":\"Dad\",\"age\":61"));
-    assert!(opening.contains("[[ ## past ## ]]\n[{\"title\":\"Socks\",\"why\":\"Warm\"}]"));
+    assert!(
+        opening.contains("[[ ## recipient ## ]]\n{\"name\": \"Dad\", \"age\": 61"),
+        "got: {opening}"
+    );
+    assert!(opening.contains("[[ ## past ## ]]\n[{\"title\": \"Socks\", \"why\": \"Warm\"}]"));
 }
 
 #[tokio::test]

@@ -32,7 +32,7 @@ fn demos_become_solved_turns_before_the_request() {
         demo("something calm", "blue"),
         demo("something warm", "amber"),
     ];
-    let inputs = [("request", "something bold".to_owned())];
+    let inputs = [("request", json!("something bold"))];
     let (_, turns) = ChatAdapter::default().format(&signature(), &demos, &inputs);
 
     // Two demos, each a user/assistant pair, then the real ask.
@@ -133,7 +133,7 @@ fn a_demo_renders_every_value_shape_the_way_python_prints_it() {
 #[test]
 fn a_demo_with_no_answer_is_dropped_rather_than_half_shown() {
     let unanswered = Example::new([("request", json!("something calm"))]);
-    let inputs = [("request", "something bold".to_owned())];
+    let inputs = [("request", json!("something bold"))];
     let (_, turns) = ChatAdapter::default().format(&signature(), &[unanswered], &inputs);
 
     assert_eq!(turns.len(), 1, "only the real request survives");
@@ -152,7 +152,7 @@ fn a_partial_demo_is_flagged_and_leads_the_whole_ones() {
         ("request", json!("something calm")),
         ("colour", json!(null)),
     ]);
-    let inputs = [("request", "something bold".to_owned())];
+    let inputs = [("request", json!("something bold"))];
     let demos = [demo("something warm", "amber"), partial];
     let (_, turns) = ChatAdapter::default().format(&signature(), &demos, &inputs);
 

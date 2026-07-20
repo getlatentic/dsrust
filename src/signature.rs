@@ -107,7 +107,7 @@ pub trait SignatureSpec {
     type Outputs: serde::de::DeserializeOwned;
     fn signature() -> Signature;
     /// The input values in signature order, ready for the adapters to render.
-    fn input_pairs(inputs: &Self::Inputs) -> Vec<(&'static str, String)>;
+    fn input_pairs(inputs: &Self::Inputs) -> Vec<(&'static str, Value)>;
 }
 
 impl Signature {
@@ -625,7 +625,7 @@ mod tests {
         });
         assert_eq!(
             pairs,
-            vec![("topic", "rain".to_owned()), ("mood", "wistful".to_owned())]
+            vec![("topic", json!("rain")), ("mood", json!("wistful"))]
         );
     }
 
@@ -664,12 +664,14 @@ mod tests {
             price: 0.04,
             urgent: true,
         });
+        // A scalar keeps its type across the boundary, which is what lets the adapter reach
+        // Python's spelling: dspy 3.2.1 renders this `urgent` as `True`, not `true`.
         assert_eq!(
             pairs,
             vec![
-                ("pitch", "a bakery".to_owned()),
-                ("price", "0.04".to_owned()),
-                ("urgent", "true".to_owned()),
+                ("pitch", json!("a bakery")),
+                ("price", json!(0.04)),
+                ("urgent", json!(true)),
             ]
         );
     }
