@@ -8,7 +8,8 @@ name = "dsrs"
 path = "src/lib.rs"
 
 [workspace]
-members = ["derive"]
+# The bridge is a conformance tool, not part of a normal build.
+members = ["derive", "bridge"]
 default-members = [".", "derive"]
 
 [dependencies]

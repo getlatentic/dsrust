@@ -129,7 +129,7 @@ fn assert_same(label: &str, fixture: &Fixture, expected: &str, actual: &str) {
 #[test]
 fn chat_adapter_renders_what_python_dspy_renders() {
     for fixture in fixtures() {
-        let (system, user) = ChatAdapter.format(&fixture.signature, &fixture.values);
+        let (system, user) = ChatAdapter::default().format(&fixture.signature, &fixture.values);
         assert_same("system message", &fixture, &fixture.expected_system, &system);
         assert_same("user message", &fixture, &fixture.expected_user, &user);
     }

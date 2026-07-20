@@ -31,7 +31,7 @@ impl Predict {
     pub fn new(signature: Signature) -> Self {
         Self {
             signature,
-            adapter: Box::new(ChatAdapter),
+            adapter: Box::new(ChatAdapter::default()),
         }
     }
 
@@ -74,6 +74,21 @@ impl Predict {
     /// One attempt: render through the adapter, ask the model, hand back the raw reply.
     /// dspy's `Adapter.__call__` in the module rather than the adapter, because a Rust trait
     /// carrying an async model call could not also be object-safe.
+    async fn ask_through(
+        &self,
+        adapter: &dyn Adapter,
+        http: &reqwest::Client,
+        lm: &impl ChatModel,
+        inputs: &[(&str, String)],
+        feedback: Option<&Feedback>,
+    ) -> Result<String> {
+        let schema = self.signature.schema();
+        let (system, opening) = adapter.format(&self.signature, inputs);
+        let mode = adapter.output_mode(&schema);
+        lm.chat(http, &system, &turns_for(opening, feedback), &mode)
+            .await
+    }
+
     async fn ask(
         &self,
         http: &reqwest::Client,
@@ -81,10 +96,7 @@ impl Predict {
         inputs: &[(&str, String)],
         feedback: Option<&Feedback>,
     ) -> Result<String> {
-        let schema = self.signature.schema();
-        let (system, opening) = self.adapter.format(&self.signature, inputs);
-        let mode = self.adapter.output_mode(&schema);
-        lm.chat(http, &system, &turns_for(opening, feedback), &mode)
+        self.ask_through(self.adapter.as_ref(), http, lm, inputs, feedback)
             .await
     }
 
@@ -94,11 +106,24 @@ impl Predict {
         lm: &impl ChatModel,
         inputs: &[(&str, String)],
     ) -> Result<Validated> {
-        // A reply that does not speak the adapter's format is a failure, not a cue to try
-        // another format: dspy raises here, and a caller who chose an adapter chose its wire
-        // contract. Value-level problems still earn the feedback retry below.
+        // dspy's ChatAdapter catches a parse failure and re-asks the whole exchange through
+        // the JSON adapter; `use_json_adapter_fallback` turns that off. The adapter states the
+        // policy, this module carries it out, because only the module can call the model.
         let raw = self.ask(http, lm, inputs, None).await?;
-        let mut value = self.adapter.parse(&self.signature, &raw)?;
+        let (raw, mut value) = match self.adapter.parse(&self.signature, &raw) {
+            Ok(value) => (raw, value),
+            Err(error) => match self.adapter.json_fallback() {
+                None => return Err(error),
+                Some(fallback) => {
+                    tracing::warn!(%error, "reply did not parse; re-asking through the fallback");
+                    let raw = self
+                        .ask_through(fallback.as_ref(), http, lm, inputs, None)
+                        .await?;
+                    let value = fallback.parse(&self.signature, &raw)?;
+                    (raw, value)
+                }
+            },
+        };
         // Coercion failures ride the same feedback retry as validation failures: the reply
         // spoke the adapter's format, only a value was off, so the model gets the precise
         // error rather than a different wire format.
@@ -463,18 +488,39 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn an_unparseable_reply_is_final_like_dspy() {
-        // dspy's `Adapter.__call__` raises when a reply does not speak the adapter's format;
-        // it never re-asks in a different one. A caller who picked an adapter picked its
-        // contract, so silently switching would hand back a reply they did not ask for.
+    async fn an_unparseable_reply_re_asks_through_the_json_adapter() {
+        // dspy `test_chat_adapter_fallback_to_json_adapter_on_exception`: a reply the marker
+        // parser rejects sends the whole exchange again through the JSON adapter.
+        let lm = Scripted::new(&[
+            "red because it is calm",
+            r#"{ "color": "red", "why": "calm" }"#,
+        ]);
+        let value = Predict::new(signature())
+            .call_with(&reqwest::Client::new(), &lm, "draft it")
+            .await
+            .expect("the fallback parses");
+        assert_eq!(value["color"], "red");
+
+        let calls = lm.calls();
+        assert_eq!(calls.len(), 2);
+        assert!(!calls[0].json_mode);
+        assert!(calls[1].json_mode, "the second ask engages structured output");
+    }
+
+    #[tokio::test]
+    async fn the_fallback_can_be_turned_off() {
+        // dspy `test_chat_adapter_respects_use_json_adapter_fallback_flag`: with the flag
+        // cleared the parse failure is final and the JSON adapter is never reached.
         let lm = Scripted::new(&["red because it is calm", r#"{ "color": "red" }"#]);
+        let predict =
+            Predict::new(signature()).with_adapter(ChatAdapter::without_json_fallback());
         assert!(
-            Predict::new(signature())
+            predict
                 .call_with(&reqwest::Client::new(), &lm, "draft it")
                 .await
                 .is_err()
         );
-        assert_eq!(lm.calls().len(), 1, "no second ask in another format");
+        assert_eq!(lm.calls().len(), 1, "no second ask when the fallback is off");
     }
 
     #[tokio::test]

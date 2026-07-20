@@ -1,0 +1,16 @@
+[package]
+name = "dsrs-bridge"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# A thin PyO3 shim so Python DSPy's own pytest suite can drive this crate's renderer. It
+# exists only for conformance: nothing in `dsrs` depends on it.
+[lib]
+name = "dsrs_bridge"
+crate-type = ["cdylib"]
+
+[dependencies]
+dsrs = { path = ".." }
+pyo3 = { version = "0.23", features = ["extension-module"] }
+serde_json = "1"

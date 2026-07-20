@@ -33,11 +33,41 @@ pub trait Adapter: Send + Sync {
         OutputMode::Text
     }
 
+    /// The adapter to re-ask through when a reply fails to parse, if any.
+    ///
+    /// dspy's `ChatAdapter.__call__` catches a parse failure and retries the whole exchange
+    /// through `JSONAdapter`, which its `use_json_adapter_fallback` flag disables. Most
+    /// adapters have no second opinion to offer, so the default is none.
+    fn json_fallback(&self) -> Option<Box<dyn Adapter>> {
+        None
+    }
+
 }
 
 /// DSPy's default: every field in its own `[[ ## name ## ]]` section, readable by any model.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct ChatAdapter;
+#[derive(Debug, Clone, Copy)]
+pub struct ChatAdapter {
+    /// Re-ask through [`JsonAdapter`] when a reply does not speak the marker format. On by
+    /// default, matching dspy's `use_json_adapter_fallback`.
+    pub use_json_adapter_fallback: bool,
+}
+
+impl Default for ChatAdapter {
+    fn default() -> Self {
+        Self { use_json_adapter_fallback: true }
+    }
+}
+
+impl ChatAdapter {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A parse failure becomes final rather than a second ask in JSON.
+    pub fn without_json_fallback() -> Self {
+        Self { use_json_adapter_fallback: false }
+    }
+}
 
 /// The provider's native structured output, carrying the signature's JSON schema.
 #[derive(Debug, Clone, Copy, Default)]
@@ -50,6 +80,11 @@ impl Adapter for ChatAdapter {
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
         parse_markers(signature, raw)
+    }
+
+    fn json_fallback(&self) -> Option<Box<dyn Adapter>> {
+        self.use_json_adapter_fallback
+            .then(|| Box::new(JsonAdapter) as Box<dyn Adapter>)
     }
 }
 

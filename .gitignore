@@ -1,3 +1,4 @@
 /target/
 derive/target/
 .dspy-venv/
+target/upstream-tests/
