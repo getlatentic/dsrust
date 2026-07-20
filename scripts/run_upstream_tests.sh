@@ -31,6 +31,7 @@ SUITES=(
   adapters/test_document.py adapters/test_audio.py adapters/test_reasoning.py adapters/test_tool.py
   adapters/test_xml_adapter.py adapters/test_baml_adapter.py adapters/test_two_step_adapter.py
   predict/test_predict.py predict/test_chain_of_thought.py predict/test_react.py
+  teleprompt/test_bootstrap.py
 )
 
 echo "==> Fetching upstream tests at dspy $VERSION (unmodified)"
