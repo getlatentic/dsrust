@@ -1,0 +1,25 @@
+[package]
+name = "dsrs"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "dsrs"
+path = "src/lib.rs"
+
+[workspace]
+members = ["derive"]
+default-members = [".", "derive"]
+
+[dependencies]
+anyhow = "1"
+dsrs-derive = { version = "0.1.0", path = "derive" }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
