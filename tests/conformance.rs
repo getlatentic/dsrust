@@ -15,15 +15,9 @@ struct Fixture {
     source: String,
     signature: Signature,
     demos: Vec<Example>,
-    values: Vec<(&'static str, String)>,
+    values: Vec<(String, String)>,
     expected_system: String,
     expected_turns: Vec<(String, String)>,
-}
-
-/// Field names are `&'static str` in the signature types, and fixtures are read at run time.
-/// Leaking is the honest trade in a test binary: a handful of names for the process lifetime.
-fn static_str(value: &str) -> &'static str {
-    Box::leak(value.to_owned().into_boxed_str())
 }
 
 fn kind_from(name: &str) -> FieldKind {
@@ -45,7 +39,7 @@ fn load(path: &std::path::Path) -> Fixture {
         .expect("inputs array")
         .iter()
         .map(|field| InField {
-            name: static_str(field["name"].as_str().expect("input name")),
+            name: field["name"].as_str().expect("input name").to_owned(),
             desc: field["desc"].as_str().unwrap_or_default().to_owned(),
             kind: kind_from(field["kind"].as_str().expect("input kind")),
         })
@@ -56,7 +50,7 @@ fn load(path: &std::path::Path) -> Fixture {
         .expect("outputs array")
         .iter()
         .map(|field| OutField {
-            name: static_str(field["name"].as_str().expect("output name")),
+            name: field["name"].as_str().expect("output name").to_owned(),
             desc: field["desc"].as_str().unwrap_or_default().to_owned(),
             kind: kind_from(field["kind"].as_str().expect("output kind")),
             values: None,
@@ -73,7 +67,7 @@ fn load(path: &std::path::Path) -> Fixture {
                 Value::String(text) => text.clone(),
                 other => other.to_string(),
             };
-            (static_str(name), rendered)
+            (name.clone(), rendered)
         })
         .collect();
 
@@ -167,8 +161,13 @@ fn assert_same(label: &str, fixture: &Fixture, expected: &str, actual: &str) {
 #[test]
 fn chat_adapter_renders_what_python_dspy_renders() {
     for fixture in fixtures() {
+        let values: Vec<(&str, String)> = fixture
+            .values
+            .iter()
+            .map(|(name, value)| (name.as_str(), value.clone()))
+            .collect();
         let (system, turns) =
-            ChatAdapter::default().format(&fixture.signature, &fixture.demos, &fixture.values);
+            ChatAdapter::default().format(&fixture.signature, &fixture.demos, &values);
         assert_same(
             "system message",
             &fixture,

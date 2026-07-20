@@ -22,9 +22,9 @@ fn weather() -> Box<dyn Tool> {
     ))
 }
 
-fn out(name: &'static str, kind: FieldKind) -> OutField {
+fn out(name: &str, kind: FieldKind) -> OutField {
     OutField {
-        name,
+        name: name.into(),
         desc: String::new(),
         kind,
         values: None,
@@ -39,7 +39,7 @@ fn task() -> Signature {
     Signature {
         instructions: "Answer the question.".to_owned(),
         inputs: vec![InField {
-            name: "request",
+            name: "request".into(),
             desc: String::new(),
             kind: FieldKind::Str,
         }],
@@ -53,12 +53,12 @@ fn wide_task() -> Signature {
         instructions: "Do it.".to_owned(),
         inputs: vec![
             InField {
-                name: "question",
+                name: "question".into(),
                 desc: String::new(),
                 kind: FieldKind::Str,
             },
             InField {
-                name: "context",
+                name: "context".into(),
                 desc: String::new(),
                 kind: FieldKind::Str,
             },
@@ -88,7 +88,7 @@ fn extract_signature(react: &mut ReAct) -> &mut Signature {
         .signature
 }
 
-fn field_names(fields: impl Iterator<Item = &'static str>) -> Vec<&'static str> {
+fn field_names<'a>(fields: impl Iterator<Item = &'a str>) -> Vec<&'a str> {
     fields.collect()
 }
 
@@ -161,11 +161,11 @@ fn the_turn_signature_carries_dspys_fields_in_dspys_order() {
     let signature = turn_signature(&mut react);
 
     assert_eq!(
-        field_names(signature.inputs.iter().map(|field| field.name)),
+        field_names(signature.inputs.iter().map(|field| field.name.as_str())),
         ["request", "trajectory"]
     );
     assert_eq!(
-        field_names(signature.outputs.iter().map(|field| field.name)),
+        field_names(signature.outputs.iter().map(|field| field.name.as_str())),
         ["next_thought", "next_tool_name", "next_tool_args"]
     );
 }
@@ -199,7 +199,10 @@ fn the_tool_name_field_is_closed_over_the_tools_that_exist() {
         .iter()
         .find(|field| field.name == "next_tool_name")
         .expect("next_tool_name is an output");
-    assert_eq!(tool_name.values, Some(vec!["get_weather", "finish"]));
+    assert_eq!(
+        tool_name.values,
+        Some(vec!["get_weather".to_owned(), "finish".to_owned()])
+    );
 }
 
 #[test]
@@ -212,11 +215,11 @@ fn the_extract_signature_is_a_chain_of_thought_over_the_untouched_task() {
 
     assert_eq!(signature.instructions, "Do it.");
     assert_eq!(
-        field_names(signature.inputs.iter().map(|field| field.name)),
+        field_names(signature.inputs.iter().map(|field| field.name.as_str())),
         ["question", "context", "trajectory"]
     );
     assert_eq!(
-        field_names(signature.outputs.iter().map(|field| field.name)),
+        field_names(signature.outputs.iter().map(|field| field.name.as_str())),
         ["reasoning", "answer", "confidence"]
     );
 }
@@ -330,6 +333,62 @@ fn the_turn_prompt_tells_the_model_which_tool_names_are_legal() {
         ),
         "got: {}",
         lm.asked()[0].system
+    );
+}
+
+/// Copied from `dspy.ChatAdapter().format(react.react.signature, ...)` over the same task.
+/// dspy types the two fields it adds as `Literal[tuple(tools)]` and `dict[str, Any]`, and
+/// prints those Python types beside the field names — the closed set is the annotation, not a
+/// note appended after the description.
+#[test]
+fn the_turn_prompt_numbers_the_fields_with_dspys_python_annotations() {
+    let lm = Arc::new(DummyLM::new([
+        example! { next_thought: "done", next_tool_name: "finish", next_tool_args: json!({}) },
+        example! { reasoning: "nothing to do", answer: "ok" },
+    ]));
+    let _guard = install(lm.clone());
+
+    let react = ReAct::new(task(), vec![weather()]);
+    block_on(react.forward(example! { request: "x" }.with_inputs(["request"])));
+
+    assert!(
+        lm.asked()[0].system.starts_with(
+            "Your input fields are:\n\
+             1. `request` (str): \n\
+             2. `trajectory` (str):\n\
+             Your output fields are:\n\
+             1. `next_thought` (str): \n\
+             2. `next_tool_name` (Literal['get_weather', 'finish']): \n\
+             3. `next_tool_args` (dict[str, Any]):\n"
+        ),
+        "got: {}",
+        lm.asked()[0].system
+    );
+}
+
+/// dspy's closing reminder repeats the Python type of every output that is not plain `str`,
+/// which both fields ReAct adds are.
+#[test]
+fn the_turn_prompt_repeats_those_annotations_in_the_closing_reminder() {
+    let lm = Arc::new(DummyLM::new([
+        example! { next_thought: "done", next_tool_name: "finish", next_tool_args: json!({}) },
+        example! { reasoning: "nothing to do", answer: "ok" },
+    ]));
+    let _guard = install(lm.clone());
+
+    let react = ReAct::new(task(), vec![weather()]);
+    block_on(react.forward(example! { request: "x" }.with_inputs(["request"])));
+
+    assert!(
+        lm.asked()[0].last_message().ends_with(
+            "Respond with the corresponding output fields, starting with the field \
+             `[[ ## next_thought ## ]]`, then `[[ ## next_tool_name ## ]]` (must be formatted \
+             as a valid Python Literal['get_weather', 'finish']), then \
+             `[[ ## next_tool_args ## ]]` (must be formatted as a valid Python dict[str, Any]), \
+             and then ending with the marker for `[[ ## completed ## ]]`."
+        ),
+        "got: {}",
+        lm.asked()[0].last_message()
     );
 }
 

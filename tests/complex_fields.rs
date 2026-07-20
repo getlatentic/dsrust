@@ -115,13 +115,10 @@ impl ChatModel for Scripted {
 #[test]
 fn derive_maps_complex_field_types_to_json() {
     let signature = IdeasTask::signature();
-    let in_kinds: Vec<_> = signature.inputs.iter().map(|f| f.kind).collect();
-    assert!(
-        in_kinds
-            .iter()
-            .all(|kind| *kind == dsrs::signature::FieldKind::Json)
-    );
-    assert_eq!(signature.outputs[0].kind, dsrs::signature::FieldKind::Json);
+    // The derive knows the Rust type but not the Python name dspy would print for it.
+    let json = dsrs::signature::FieldKind::opaque_json();
+    assert!(signature.inputs.iter().all(|field| field.kind == json));
+    assert_eq!(signature.outputs[0].kind, json);
     assert_eq!(signature.outputs[1].kind, dsrs::signature::FieldKind::Str);
 
     let ideas_schema = json_field_schema::<Vec<GiftIdea>>();

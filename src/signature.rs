@@ -8,47 +8,71 @@ pub use dsrs_derive::{Signature, chain_of_thought, predict};
 /// The wire type of a field. It decides the schema type, the annotation prompts carry next
 /// to the field name, and how a reply value coerces before validation. `Json` covers every
 /// non-scalar Rust type — `Vec<String>`, user structs, `Vec<Struct>` — carried as JSON.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FieldKind {
     Str,
     Bool,
     Int,
     Float,
-    Json,
+    /// The scalar kinds name themselves in Python; a non-scalar does not, so the annotation
+    /// dspy would print travels with the variant — `dict[str, Any]`, `list[str]`.
+    Json(String),
 }
 
 impl FieldKind {
+    /// A non-scalar whose Python type this crate cannot name. The derive maps every such Rust
+    /// type here, so prompts print `json` where dspy would print `list[Idea]`.
+    pub fn opaque_json() -> Self {
+        FieldKind::Json("json".to_owned())
+    }
+
     /// The JSON-schema type name for scalar kinds; a `Json` field has no single type name —
     /// it carries its full nested schema on the [`OutField`] instead.
-    pub fn schema_type(self) -> Option<&'static str> {
+    pub fn schema_type(&self) -> Option<&'static str> {
         match self {
             FieldKind::Str => Some("string"),
             FieldKind::Bool => Some("boolean"),
             FieldKind::Int => Some("integer"),
             FieldKind::Float => Some("number"),
-            FieldKind::Json => None,
+            FieldKind::Json(_) => None,
         }
     }
 
-    /// The parenthesized annotation prompts put after a field name; `Str` keeps DSPy's
-    /// `(str)`, scalars use the schema words so prompt and schema tell the model one story.
     /// The name the model is shown for this field's type. dspy prints Python's own type names
     /// through `get_annotation_name`, so a model tuned on DSPy prompts sees `int`, not the
     /// JSON Schema spelling `integer`. The conformance fixtures pin this.
-    pub fn annotation(self) -> &'static str {
+    pub fn annotation(&self) -> &str {
         match self {
             FieldKind::Str => "str",
             FieldKind::Bool => "bool",
             FieldKind::Int => "int",
             FieldKind::Float => "float",
-            FieldKind::Json => "json",
+            FieldKind::Json(annotation) => annotation,
         }
+    }
+}
+
+/// dspy's `get_annotation_name` over a `Literal`: the members, quoted the way Python spells
+/// them, inside `Literal[...]`.
+fn literal_annotation(values: &[String]) -> String {
+    let members: Vec<String> = values.iter().map(|value| quoted_member(value)).collect();
+    format!("Literal[{}]", members.join(", "))
+}
+
+/// dspy's `_quoted_string_for_literal_type_annotation`: single quotes, unless the value holds
+/// one and no double quote, in which case double quotes avoid the escape. A value carrying
+/// both styles escapes its single quotes.
+fn quoted_member(value: &str) -> String {
+    match (value.contains('\''), value.contains('"')) {
+        (true, false) => format!("\"{value}\""),
+        (true, true) => format!("'{}'", value.replace('\'', "\\'")),
+        _ => format!("'{value}'"),
     }
 }
 
 /// One input field of a signature: a name, a one-line description, and a wire type.
 pub struct InField {
-    pub name: &'static str,
+    pub name: String,
     pub desc: String,
     pub kind: FieldKind,
 }
@@ -57,14 +81,24 @@ pub struct InField {
 /// optional closed set of allowed values (legal on `Str` fields only), and — for `Json`
 /// fields — the nested JSON schema of the declared type.
 pub struct OutField {
-    pub name: &'static str,
+    pub name: String,
     pub desc: String,
     pub kind: FieldKind,
-    pub values: Option<Vec<&'static str>>,
+    pub values: Option<Vec<String>>,
     pub schema: Option<Value>,
 }
 
 impl OutField {
+    /// The Python type prompts print for this field. dspy spells a closed set as
+    /// `Literal['a', 'b']` and prints that as the annotation, so the set *is* the type here
+    /// rather than a note sitting beside it.
+    pub fn annotation(&self) -> String {
+        match &self.values {
+            Some(values) => literal_annotation(values),
+            None => self.kind.annotation().to_owned(),
+        }
+    }
+
     /// The property this field contributes to [`Signature::schema`]: scalar kinds map to
     /// their type name plus any closed set; a `Json` field drops in its real nested schema
     /// so structured-output providers enforce the shape, or accepts anything without one.
@@ -132,7 +166,7 @@ impl Signature {
         Self {
             instructions: instructions.into(),
             inputs: vec![InField {
-                name: "request",
+                name: "request".into(),
                 desc: "the request".into(),
                 kind: FieldKind::Str,
             }],
@@ -144,9 +178,9 @@ impl Signature {
     pub fn schema(&self) -> Value {
         let mut properties = Map::new();
         for field in &self.outputs {
-            properties.insert(field.name.into(), field.property_schema());
+            properties.insert(field.name.clone(), field.property_schema());
         }
-        let required: Vec<&str> = self.outputs.iter().map(|f| f.name).collect();
+        let required: Vec<&str> = self.outputs.iter().map(|f| f.name.as_str()).collect();
         json!({
             "type": "object",
             "properties": properties,
@@ -159,11 +193,11 @@ impl Signature {
     /// A `Json` field's shape note replaces its kind annotation: the schema already says
     /// "json" and the pair would read twice.
     pub fn output_clause(&self) -> String {
-        let keys: Vec<&str> = self.outputs.iter().map(|f| f.name).collect();
+        let keys: Vec<&str> = self.outputs.iter().map(|f| f.name.as_str()).collect();
         let mut clause = format!("Respond with a JSON object with keys {}.", keys.join(", "));
         for field in &self.outputs {
             clause.push(' ');
-            clause.push_str(field.name);
+            clause.push_str(&field.name);
             let suffix = field.schema_suffix();
             if field.kind != FieldKind::Str && suffix.is_none() {
                 clause.push_str(&format!(" ({})", field.kind.annotation()));
@@ -188,8 +222,8 @@ impl Signature {
     /// fields are skipped so ensure reports them as missing.
     pub(crate) fn coerce(&self, value: &mut Value) -> Result<()> {
         for field in &self.outputs {
-            if let Some(entry) = value.get_mut(field.name) {
-                coerce_value(field.kind, field.name, entry)?;
+            if let Some(entry) = value.get_mut(&field.name) {
+                coerce_value(&field.kind, &field.name, entry)?;
             }
         }
         Ok(())
@@ -203,15 +237,15 @@ impl Signature {
         for field in &self.outputs {
             let missing = || anyhow!("the {} field is missing and is required", field.name);
             if field.kind != FieldKind::Str {
-                value.get(field.name).ok_or_else(missing)?;
+                value.get(&field.name).ok_or_else(missing)?;
                 continue;
             }
             let got = value
-                .get(field.name)
+                .get(&field.name)
                 .and_then(Value::as_str)
                 .ok_or_else(missing)?;
             if let Some(values) = &field.values
-                && !values.contains(&got)
+                && !values.iter().any(|value| value == got)
             {
                 return Err(anyhow!(
                     "{} must be one of {}; got {got:?}",
@@ -224,13 +258,13 @@ impl Signature {
     }
 }
 
-fn coerce_value(kind: FieldKind, name: &str, value: &mut Value) -> Result<()> {
+fn coerce_value(kind: &FieldKind, name: &str, value: &mut Value) -> Result<()> {
     match kind {
         FieldKind::Str => Ok(()),
         FieldKind::Bool => coerce_bool(name, value),
         FieldKind::Int => coerce_int(name, value),
         FieldKind::Float => coerce_float(name, value),
-        FieldKind::Json => coerce_json(name, value),
+        FieldKind::Json(_) => coerce_json(name, value),
     }
 }
 
@@ -314,14 +348,14 @@ mod tests {
             "Pick a color.",
             vec![
                 OutField {
-                    name: "color",
+                    name: "color".into(),
                     desc: "the chosen color".into(),
                     kind: FieldKind::Str,
-                    values: Some(vec!["red", "blue"]),
+                    values: Some(vec!["red".into(), "blue".into()]),
                     schema: None,
                 },
                 OutField {
-                    name: "why",
+                    name: "why".into(),
                     desc: "one short sentence".into(),
                     kind: FieldKind::Str,
                     values: None,
@@ -331,9 +365,9 @@ mod tests {
         )
     }
 
-    fn typed_out(name: &'static str, kind: FieldKind) -> OutField {
+    fn typed_out(name: &str, kind: FieldKind) -> OutField {
         OutField {
-            name,
+            name: name.into(),
             desc: name.into(),
             kind,
             values: None,
@@ -351,6 +385,38 @@ mod tests {
                 typed_out("amount", FieldKind::Float),
             ],
         )
+    }
+
+    /// The expected strings are upstream's own, from
+    /// `test_chat_adapter_quotes_literals_as_expected`: dspy quotes a member with double
+    /// quotes only to avoid escaping a single quote it contains.
+    #[test]
+    fn a_closed_set_quotes_its_members_the_way_dspy_does() {
+        for (values, expected) in [
+            (
+                vec!["one", "two", "three\""],
+                "Literal['one', 'two', 'three\"']",
+            ),
+            (
+                vec!["she's here", "okay", "test"],
+                "Literal[\"she's here\", 'okay', 'test']",
+            ),
+            (
+                vec!["both\"and'", "another"],
+                "Literal['both\"and\\'', 'another']",
+            ),
+            (vec!["foo", "bar"], "Literal['foo', 'bar']"),
+        ] {
+            let owned: Vec<String> = values.iter().map(|value| (*value).to_owned()).collect();
+            assert_eq!(literal_annotation(&owned), expected);
+        }
+    }
+
+    #[test]
+    fn a_closed_set_is_the_fields_annotation_and_a_bare_kind_is_not() {
+        let sig = signature();
+        assert_eq!(sig.outputs[0].annotation(), "Literal['red', 'blue']");
+        assert_eq!(sig.outputs[1].annotation(), "str");
     }
 
     #[test]
@@ -505,9 +571,9 @@ mod tests {
         Signature::single_input(
             "Suggest ideas.",
             vec![OutField {
-                name: "ideas",
+                name: "ideas".into(),
                 desc: "three concrete ideas".into(),
-                kind: FieldKind::Json,
+                kind: FieldKind::opaque_json(),
                 values: None,
                 schema: Some(ideas_schema()),
             }],
@@ -681,15 +747,18 @@ mod tests {
     fn derive_carries_closed_sets_on_outputs() {
         let sig = AttrTask::signature();
         assert_eq!(sig.outputs[0].values, None);
-        assert_eq!(sig.outputs[1].values, Some(vec!["playful", "solemn"]));
+        assert_eq!(
+            sig.outputs[1].values,
+            Some(vec!["playful".to_owned(), "solemn".to_owned()])
+        );
     }
 
     #[test]
     fn derive_keeps_declaration_order_and_renders_pairs_from_it() {
         let sig = AttrTask::signature();
-        let names: Vec<&str> = sig.inputs.iter().map(|f| f.name).collect();
+        let names: Vec<&str> = sig.inputs.iter().map(|f| f.name.as_str()).collect();
         assert_eq!(names, ["topic", "mood"]);
-        let outs: Vec<&str> = sig.outputs.iter().map(|f| f.name).collect();
+        let outs: Vec<&str> = sig.outputs.iter().map(|f| f.name.as_str()).collect();
         assert_eq!(outs, ["couplet", "tone"]);
 
         let pairs = AttrTask::input_pairs(&derived::AttrTaskInputs {
@@ -714,12 +783,12 @@ mod tests {
     #[test]
     fn derive_maps_rust_types_to_field_kinds() {
         let sig = derived::JudgeTask::signature();
-        let in_kinds: Vec<FieldKind> = sig.inputs.iter().map(|f| f.kind).collect();
+        let in_kinds: Vec<FieldKind> = sig.inputs.iter().map(|f| f.kind.clone()).collect();
         assert_eq!(
             in_kinds,
             [FieldKind::Str, FieldKind::Float, FieldKind::Bool]
         );
-        let out_kinds: Vec<FieldKind> = sig.outputs.iter().map(|f| f.kind).collect();
+        let out_kinds: Vec<FieldKind> = sig.outputs.iter().map(|f| f.kind.clone()).collect();
         assert_eq!(
             out_kinds,
             [FieldKind::Bool, FieldKind::Float, FieldKind::Int]

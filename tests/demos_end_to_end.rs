@@ -13,7 +13,7 @@ fn signature() -> Signature {
     Signature::single_input(
         "Pick a colour.",
         vec![OutField {
-            name: "colour",
+            name: "colour".into(),
             desc: "the chosen colour".into(),
             kind: FieldKind::Str,
             values: None,

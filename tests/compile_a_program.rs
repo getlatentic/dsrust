@@ -50,7 +50,7 @@ fn signature() -> Signature {
     Signature::single_input(
         "Answer the question.",
         vec![OutField {
-            name: "answer",
+            name: "answer".into(),
             desc: "the answer".into(),
             kind: FieldKind::Str,
             values: None,

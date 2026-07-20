@@ -76,7 +76,11 @@ impl Predict {
         lm: &dyn DynChatModel,
         input: &str,
     ) -> Result<Value> {
-        let name = self.signature.inputs.first().map_or("request", |f| f.name);
+        let name = self
+            .signature
+            .inputs
+            .first()
+            .map_or("request", |f| f.name.as_str());
         Ok(self
             .call_with_inputs(http, lm, &[(name, input.to_owned())])
             .await?
@@ -264,7 +268,7 @@ impl ChainOfThought {
         signature.outputs.insert(
             0,
             OutField {
-                name: "reasoning",
+                name: "reasoning".into(),
                 desc: "think step by step about the request before the other fields".into(),
                 kind: FieldKind::Str,
                 values: None,
@@ -366,14 +370,14 @@ mod tests {
             "Pick a color.",
             vec![
                 OutField {
-                    name: "color",
+                    name: "color".into(),
                     desc: "the chosen color".into(),
                     kind: FieldKind::Str,
-                    values: Some(vec!["red", "blue"]),
+                    values: Some(vec!["red".into(), "blue".into()]),
                     schema: None,
                 },
                 OutField {
-                    name: "why",
+                    name: "why".into(),
                     desc: "one short sentence".into(),
                     kind: FieldKind::Str,
                     values: None,
@@ -384,8 +388,8 @@ mod tests {
     }
 
     fn typed_signature() -> Signature {
-        let typed = |name: &'static str, kind: FieldKind| OutField {
-            name,
+        let typed = |name: &str, kind: FieldKind| OutField {
+            name: name.into(),
             desc: name.into(),
             kind,
             values: None,

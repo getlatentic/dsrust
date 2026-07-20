@@ -5,6 +5,8 @@ use crate::example::Example;
 use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::{FieldKind, Signature};
 
+mod repair;
+
 /// How a signature travels over the wire.
 ///
 /// Mirrors DSPy's `Adapter` base class: implement it to teach the crate a new wire format.
@@ -146,26 +148,19 @@ fn marker(name: &str) -> String {
     format!("[[ ## {name} ## ]]")
 }
 
+/// dspy `get_field_description_string`, one line: the number, the field name, its Python
+/// annotation, and the description. A closed set says itself through the annotation
+/// (`Literal['a', 'b']`), so nothing is appended after the description.
 fn numbered_line(
     index: usize,
     name: &str,
-    kind: FieldKind,
+    annotation: &str,
     desc: &str,
-    values: Option<&[&str]>,
     shape: Option<String>,
 ) -> String {
-    let mut line = format!(
-        "{}. `{}` ({}): {}",
-        index + 1,
-        name,
-        kind.annotation(),
-        desc
-    );
+    let mut line = format!("{}. `{name}` ({annotation}): {desc}", index + 1);
     if let Some(shape) = shape {
         line.push_str(&format!(" ({shape})"));
-    }
-    if let Some(values) = values {
-        line.push_str(&format!(" (must be one of: {})", values.join(", ")));
     }
     line
 }
@@ -183,7 +178,15 @@ fn numbered_input_lines(signature: &Signature) -> String {
         .inputs
         .iter()
         .enumerate()
-        .map(|(index, field)| numbered_line(index, field.name, field.kind, &field.desc, None, None))
+        .map(|(index, field)| {
+            numbered_line(
+                index,
+                &field.name,
+                field.kind.annotation(),
+                &field.desc,
+                None,
+            )
+        })
         .collect();
     numbered_block(lines)
 }
@@ -196,10 +199,9 @@ fn numbered_output_lines(signature: &Signature) -> String {
         .map(|(index, field)| {
             numbered_line(
                 index,
-                field.name,
-                field.kind,
+                &field.name,
+                &field.annotation(),
                 &field.desc,
-                field.values.as_deref(),
                 field.schema_suffix(),
             )
         })
@@ -225,12 +227,12 @@ fn chat_system(signature: &Signature) -> String {
         .iter()
         // dspy `translate_field_type` returns an empty note for every input: the model reads
         // input values, it does not produce them, so there is nothing to constrain.
-        .map(|field| (field.name, format!("{{{}}}", field.name)))
+        .map(|field| (field.name.as_str(), format!("{{{}}}", field.name)))
         .collect();
     let outputs = signature
         .outputs
         .iter()
-        .map(|field| (field.name, output_slot(field)))
+        .map(|field| (field.name.as_str(), output_slot(field)))
         .collect();
     let structure = [
         "All interactions will be structured in the following way, with the appropriate values filled in.".to_owned(),
@@ -256,7 +258,7 @@ fn chat_system(signature: &Signature) -> String {
 /// value must take. `str` says nothing, since a string needs no constraint; everything else
 /// earns a note on the same line, indented eight spaces as a comment.
 fn output_slot(field: &crate::signature::OutField) -> String {
-    let note = match field.kind {
+    let note = match &field.kind {
         FieldKind::Str => match &field.values {
             Some(values) => format!(
                 "must exactly match (no extra characters) one of: {}",
@@ -267,7 +269,7 @@ fn output_slot(field: &crate::signature::OutField) -> String {
         FieldKind::Bool => "must be True or False".to_owned(),
         FieldKind::Int => "must be a single int value".to_owned(),
         FieldKind::Float => "must be a single float value".to_owned(),
-        FieldKind::Json => match &field.schema {
+        FieldKind::Json(_) => match &field.schema {
             Some(schema) => format!("must adhere to the JSON schema: {schema}"),
             None => String::new(),
         },
@@ -308,19 +310,19 @@ fn chat_user(signature: &Signature, inputs: &[(&str, String)]) -> String {
 
 /// dspy `user_message_output_requirements`: the closing reminder of field order, where every
 /// non-string output repeats its Python type so a long conversation cannot drift off-format.
+/// dspy branches on the annotation rather than the wire type, so a closed set earns the hint —
+/// it is a `Literal[...]`, not a plain `str`.
 fn output_requirements(signature: &Signature) -> String {
     let fields: Vec<String> = signature
         .outputs
         .iter()
         .map(|field| {
-            let hint = match field.kind {
-                FieldKind::Str => String::new(),
-                kind => format!(
-                    " (must be formatted as a valid Python {})",
-                    kind.annotation()
-                ),
+            let annotation = field.annotation();
+            let hint = match annotation == FieldKind::Str.annotation() {
+                true => String::new(),
+                false => format!(" (must be formatted as a valid Python {annotation})"),
             };
-            format!("`{}`{hint}", marker(field.name))
+            format!("`{}`{hint}", marker(&field.name))
         })
         .collect();
     format!(
@@ -341,8 +343,8 @@ fn chat_demo_turns(signature: &Signature, demo: &Example) -> Vec<ChatTurn> {
         .iter()
         .filter_map(|field| {
             Some(section(
-                field.name,
-                demo.get(field.name).map(crate::example::render)?,
+                &field.name,
+                demo.get(&field.name).map(crate::example::render)?,
             ))
         })
         .collect::<Vec<_>>()
@@ -352,8 +354,8 @@ fn chat_demo_turns(signature: &Signature, demo: &Example) -> Vec<ChatTurn> {
         .iter()
         .filter_map(|field| {
             Some(section(
-                field.name,
-                demo.get(field.name).map(crate::example::render)?,
+                &field.name,
+                demo.get(&field.name).map(crate::example::render)?,
             ))
         })
         .collect::<Vec<_>>();
@@ -393,15 +395,31 @@ fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
     }
     let mut fields = Map::new();
     for (name, lines) in sections {
-        let declared = signature.outputs.iter().any(|field| field.name == name);
-        if declared && !fields.contains_key(name) {
-            fields.insert(name.to_owned(), Value::from(lines.join("\n").trim()));
+        let Some(field) = signature.outputs.iter().find(|field| field.name == name) else {
+            continue;
+        };
+        if fields.contains_key(name) {
+            continue;
         }
+        let joined = lines.join("\n");
+        fields.insert(name.to_owned(), section_value(field, joined.trim()));
     }
     if fields.is_empty() {
         return Err(anyhow!("reply has no [[ ## field ## ]] sections"));
     }
     Ok(Value::Object(fields))
+}
+
+/// A section's text as the value it denotes. dspy runs every section through json-repair
+/// before validating it, so a `Json` field answered in Python's literal syntax — single
+/// quotes, `True`/`False`/`None`, digit-group underscores — lands as its declared type
+/// rather than as the text that spells it. Every other section stays text for
+/// [`Signature::coerce`], which is also where strict JSON is still read.
+fn section_value(field: &crate::signature::OutField, text: &str) -> Value {
+    match field.kind {
+        FieldKind::Json(_) => repair::python_literal(text).unwrap_or_else(|| Value::from(text)),
+        _ => Value::from(text),
+    }
 }
 
 /// A section header at the start of a line: `[[ ## name ## ]]` with a word-character name,
@@ -440,14 +458,14 @@ mod tests {
             "Pick a color.",
             vec![
                 OutField {
-                    name: "color",
+                    name: "color".into(),
                     desc: "the chosen color".into(),
                     kind: FieldKind::Str,
-                    values: Some(vec!["red", "blue"]),
+                    values: Some(vec!["red".into(), "blue".into()]),
                     schema: None,
                 },
                 OutField {
-                    name: "why",
+                    name: "why".into(),
                     desc: "one short sentence".into(),
                     kind: FieldKind::Str,
                     values: None,
@@ -461,12 +479,12 @@ mod tests {
         let mut signature = signature();
         signature.inputs = vec![
             InField {
-                name: "room",
+                name: "room".into(),
                 desc: "the room being painted".into(),
                 kind: FieldKind::Str,
             },
             InField {
-                name: "mood",
+                name: "mood".into(),
                 desc: "the mood to set".into(),
                 kind: FieldKind::Str,
             },
@@ -479,14 +497,14 @@ mod tests {
             "Size the gift.",
             vec![
                 OutField {
-                    name: "amount",
+                    name: "amount".into(),
                     desc: "amount in MON".into(),
                     kind: FieldKind::Float,
                     values: None,
                     schema: None,
                 },
                 OutField {
-                    name: "double",
+                    name: "double".into(),
                     desc: "double it".into(),
                     kind: FieldKind::Bool,
                     values: None,
@@ -495,7 +513,7 @@ mod tests {
             ],
         );
         signature.inputs = vec![InField {
-            name: "age",
+            name: "age".into(),
             desc: "the age turned".into(),
             kind: FieldKind::Int,
         }];
@@ -506,17 +524,17 @@ mod tests {
         let mut signature = Signature::single_input(
             "Suggest ideas.",
             vec![OutField {
-                name: "ideas",
+                name: "ideas".into(),
                 desc: "three concrete ideas".into(),
-                kind: FieldKind::Json,
+                kind: FieldKind::opaque_json(),
                 values: None,
                 schema: Some(json!({ "type": "array", "items": { "type": "string" } })),
             }],
         );
         signature.inputs = vec![InField {
-            name: "recipient",
+            name: "recipient".into(),
             desc: "who the gift is for".into(),
-            kind: FieldKind::Json,
+            kind: FieldKind::opaque_json(),
         }];
         signature
     }
@@ -529,7 +547,9 @@ mod tests {
     fn chat_system_lists_fields_structure_and_objective() {
         let system = chat_system(&signature());
         assert!(system.contains("Your input fields are:\n1. `request` (str): the request"));
-        assert!(system.contains("1. `color` (str): the chosen color (must be one of: red, blue)"));
+        // dspy types a closed set as `Literal[...]` and prints it as the annotation, with
+        // nothing trailing the description.
+        assert!(system.contains("1. `color` (Literal['red', 'blue']): the chosen color"));
         assert!(system.contains("2. `why` (str): one short sentence"));
         assert!(system.contains("[[ ## request ## ]]\n{request}"));
         assert!(system.contains("[[ ## color ## ]]\n{color}"));
@@ -538,6 +558,32 @@ mod tests {
         assert!(system.ends_with(
             "In adhering to this structure, your objective is: \n        Pick a color."
         ));
+    }
+
+    /// Copied from `dspy.ChatAdapter().format(...)` over the same signature: a closed set is a
+    /// `Literal[...]` in both the numbered line and the closing reminder, because dspy branches
+    /// on the annotation and a `Literal` is not `str`.
+    #[test]
+    fn a_closed_set_renders_as_dspys_literal_annotation() {
+        let signature = signature();
+        assert!(
+            chat_system(&signature).starts_with(
+                "Your input fields are:\n\
+                 1. `request` (str): the request\n\
+                 Your output fields are:\n\
+                 1. `color` (Literal['red', 'blue']): the chosen color\n\
+                 2. `why` (str): one short sentence\n"
+            ),
+            "got: {}",
+            chat_system(&signature)
+        );
+        assert_eq!(
+            output_requirements(&signature),
+            "Respond with the corresponding output fields, starting with the field \
+             `[[ ## color ## ]]` (must be formatted as a valid Python Literal['red', 'blue']), \
+             then `[[ ## why ## ]]`, and then ending with the marker for \
+             `[[ ## completed ## ]]`."
+        );
     }
 
     #[test]
@@ -630,6 +676,23 @@ mod tests {
     #[test]
     fn parse_markers_rejects_a_reply_with_no_sections() {
         assert!(parse_markers(&signature(), "red, because it is calm").is_err());
+    }
+
+    /// Upstream's `test_chat_adapter_parses_float_with_underscores` sends exactly this reply
+    /// for a field declared as a model with one float, and expects 123456.789.
+    #[test]
+    fn parse_markers_reads_a_json_field_written_as_a_python_literal() {
+        let raw = "[[ ## ideas ## ]]\n{'score': 123_456.789}\n[[ ## completed ## ]]";
+        let value = parse_markers(&json_signature(), raw).expect("parses");
+        assert_eq!(value["ideas"], json!({ "score": 123_456.789 }));
+        assert_eq!(value["ideas"]["score"], json!(123456.789));
+    }
+
+    #[test]
+    fn parse_markers_leaves_a_strict_json_field_as_text_to_coerce() {
+        let raw = "[[ ## ideas ## ]]\n[\"a\", \"b\"]";
+        let value = parse_markers(&json_signature(), raw).expect("parses");
+        assert_eq!(value["ideas"], json!("[\"a\", \"b\"]"));
     }
 
     #[test]

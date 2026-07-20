@@ -126,7 +126,7 @@ pub struct ReAct {
 impl ReAct {
     pub fn new(signature: Signature, tools: Vec<Box<dyn Tool>>) -> Self {
         let finish = Finish::new(&backticked(
-            signature.outputs.iter().map(|field| field.name),
+            signature.outputs.iter().map(|field| field.name.as_str()),
         ));
         let tools = as_dict(tools.into_iter().chain([Box::new(finish) as Box<dyn Tool>]));
         let react = Predict::new(react_signature(&signature, &tools));
@@ -188,7 +188,7 @@ fn as_dict(tools: impl Iterator<Item = Box<dyn Tool>>) -> Vec<Box<dyn Tool>> {
 }
 
 /// The field-name list dspy interpolates into the instructions, each name in backticks.
-fn backticked(names: impl Iterator<Item = &'static str>) -> String {
+fn backticked<'a>(names: impl Iterator<Item = &'a str>) -> String {
     names
         .map(|name| format!("`{name}`"))
         .collect::<Vec<_>>()
@@ -241,8 +241,8 @@ impl Tool for Finish {
 /// dspy's `instr` list, joined by newlines. The blocks that end in `\n` are the ones that
 /// become blank-line separated in the prompt; the rest run on consecutive lines.
 fn react_instructions(signature: &Signature, tools: &[Box<dyn Tool>]) -> String {
-    let inputs = backticked(signature.inputs.iter().map(|field| field.name));
-    let outputs = backticked(signature.outputs.iter().map(|field| field.name));
+    let inputs = backticked(signature.inputs.iter().map(|field| field.name.as_str()));
+    let outputs = backticked(signature.outputs.iter().map(|field| field.name.as_str()));
 
     // dspy drops the task's own block entirely when the signature carries no instructions,
     // rather than opening the prompt with a blank line.
@@ -298,9 +298,9 @@ fn task_inputs(signature: &Signature) -> Vec<InField> {
         .inputs
         .iter()
         .map(|field| InField {
-            name: field.name,
+            name: field.name.clone(),
             desc: field.desc.clone(),
-            kind: field.kind,
+            kind: field.kind.clone(),
         })
         .collect()
 }
@@ -309,7 +309,7 @@ fn task_inputs(signature: &Signature) -> Vec<InField> {
 /// its own: the instructions already say what the trajectory is.
 fn trajectory_field() -> InField {
     InField {
-        name: "trajectory",
+        name: "trajectory".to_owned(),
         desc: String::new(),
         kind: FieldKind::Str,
     }
@@ -317,20 +317,13 @@ fn trajectory_field() -> InField {
 
 /// dspy types `next_tool_name` as `Literal[tuple(tools.keys())]`, which the chat adapter turns
 /// into the closed set the model must match exactly.
-///
-/// A signature's closed set is `&'static str` while a tool owns its name, so the names are
-/// leaked once as the agent is built. That is bounded by how many agents a program
-/// constructs, not by how many requests it serves.
-fn tool_name_set(tools: &[Box<dyn Tool>]) -> Vec<&'static str> {
-    tools
-        .iter()
-        .map(|tool| &*Box::leak(tool.name().to_owned().into_boxed_str()))
-        .collect()
+fn tool_name_set(tools: &[Box<dyn Tool>]) -> Vec<String> {
+    tools.iter().map(|tool| tool.name().to_owned()).collect()
 }
 
-fn out_field(name: &'static str, values: Option<Vec<&'static str>>, kind: FieldKind) -> OutField {
+fn out_field(name: &str, values: Option<Vec<String>>, kind: FieldKind) -> OutField {
     OutField {
-        name,
+        name: name.to_owned(),
         desc: String::new(),
         kind,
         values,
@@ -350,7 +343,13 @@ fn react_signature(signature: &Signature, tools: &[Box<dyn Tool>]) -> Signature 
         outputs: vec![
             out_field("next_thought", None, FieldKind::Str),
             out_field("next_tool_name", Some(tool_name_set(tools)), FieldKind::Str),
-            out_field("next_tool_args", None, FieldKind::Json),
+            // dspy types the argument object `dict[str, Any]`, and prints that Python type
+            // beside the field name.
+            out_field(
+                "next_tool_args",
+                None,
+                FieldKind::Json("dict[str, Any]".to_owned()),
+            ),
         ],
     }
 }
@@ -364,9 +363,9 @@ fn extract_signature(signature: &Signature) -> Signature {
 
     let mut outputs = vec![out_field("reasoning", None, FieldKind::Str)];
     outputs.extend(signature.outputs.iter().map(|field| OutField {
-        name: field.name,
+        name: field.name.clone(),
         desc: field.desc.clone(),
-        kind: field.kind,
+        kind: field.kind.clone(),
         values: field.values.clone(),
         schema: field.schema.clone(),
     }));
@@ -469,7 +468,7 @@ mod tests {
         Signature::single_input(
             "Answer the question.",
             vec![OutField {
-                name: "answer",
+                name: "answer".into(),
                 desc: "the answer".into(),
                 kind: FieldKind::Str,
                 values: None,
@@ -532,7 +531,7 @@ mod tests {
             .signature
             .outputs
             .iter()
-            .map(|field| field.name)
+            .map(|field| field.name.as_str())
             .collect();
         assert_eq!(names, ["next_thought", "next_tool_name", "next_tool_args"]);
     }
@@ -546,7 +545,7 @@ mod tests {
             .signature
             .outputs
             .iter()
-            .map(|field| field.name)
+            .map(|field| field.name.as_str())
             .collect();
         assert_eq!(names, ["reasoning", "answer"]);
         let inputs: Vec<&str> = react
@@ -554,7 +553,7 @@ mod tests {
             .signature
             .inputs
             .iter()
-            .map(|field| field.name)
+            .map(|field| field.name.as_str())
             .collect();
         assert_eq!(inputs, ["request", "trajectory"]);
     }
