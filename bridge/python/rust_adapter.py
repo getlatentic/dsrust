@@ -17,6 +17,7 @@ import typing
 
 import dspy
 from dspy.adapters.utils import format_field_value, parse_value
+from dspy.utils.exceptions import AdapterParseError
 
 import dsrs_bridge
 
@@ -60,25 +61,37 @@ class RustChatAdapter(dspy.ChatAdapter):
             for name, value in inputs.items()
             if name in signature.input_fields
         ]
-        system, user = dsrs_bridge.format_messages(
+        system, turns = dsrs_bridge.format_messages(
             "chat",
             signature.instructions,
             describe(signature.input_fields),
             described_outputs(signature),
             values,
         )
-        return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+        return [{"role": "system", "content": system}] + [
+            {"role": role, "content": content} for role, content in turns
+        ]
 
     def parse(self, signature, completion):
-        parsed = json.loads(
-            dsrs_bridge.parse_reply(
+        # Rust reports a parse failure as an error; dspy's contract is that a ChatAdapter
+        # raises AdapterParseError, and callers — including its own fallback path — branch on
+        # that type. Translating at the boundary is this shim's job, the same as field kinds.
+        try:
+            rendered = dsrs_bridge.parse_reply(
                 "chat",
                 signature.instructions,
                 describe(signature.input_fields),
                 described_outputs(signature),
                 completion,
             )
-        )
+        except ValueError as error:
+            raise AdapterParseError(
+                adapter_name="ChatAdapter",
+                signature=signature,
+                lm_response=completion,
+                message=str(error),
+            ) from error
+        parsed = json.loads(rendered)
         # Rust hands back strings; dspy's callers expect the signature's declared types.
         return {
             name: parse_value(value, signature.output_fields[name].annotation)

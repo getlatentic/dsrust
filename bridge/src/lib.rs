@@ -68,7 +68,7 @@ fn build_signature(
     })
 }
 
-/// Render one exchange, returning `(system, user)` for the named adapter.
+/// Render one exchange for the named adapter, as `(system, [(role, content), ...])`.
 #[pyfunction]
 #[pyo3(signature = (adapter, instructions, inputs, outputs, values))]
 fn format_messages(
@@ -77,7 +77,7 @@ fn format_messages(
     inputs: Vec<(String, String, String)>,
     outputs: Vec<(String, String, String, Option<String>)>,
     values: Vec<(String, String)>,
-) -> PyResult<(String, String)> {
+) -> PyResult<(String, Vec<(String, String)>)> {
     let signature = build_signature(instructions, inputs, outputs)?;
     let pairs: Vec<(&str, String)> = values
         .iter()
@@ -88,7 +88,12 @@ fn format_messages(
         "json" => Box::new(JsonAdapter),
         other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
     };
-    Ok(adapter.format(&signature, &pairs))
+    let (system, turns) = adapter.format(&signature, &pairs);
+    let turns = turns
+        .into_iter()
+        .map(|turn| (turn.role.as_str().to_owned(), turn.content))
+        .collect();
+    Ok((system, turns))
 }
 
 /// Parse a raw reply through the named adapter, returning JSON text.

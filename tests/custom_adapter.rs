@@ -6,6 +6,7 @@
 
 use anyhow::{Result, anyhow};
 use dsrs::signature::{FieldKind, OutField, Signature};
+use dsrs::lm::ChatTurn;
 use dsrs::{Adapter, ChatAdapter};
 use serde_json::{Map, Value};
 
@@ -13,7 +14,7 @@ use serde_json::{Map, Value};
 struct XmlAdapter;
 
 impl Adapter for XmlAdapter {
-    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, String) {
+    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, Vec<ChatTurn>) {
         let tags: Vec<String> = signature
             .outputs
             .iter()
@@ -25,7 +26,7 @@ impl Adapter for XmlAdapter {
             .map(|(name, value)| format!("<{name}>{value}</{name}>"))
             .collect::<Vec<_>>()
             .join("\n");
-        (system, user)
+        (system, vec![ChatTurn::user(user)])
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
@@ -61,9 +62,10 @@ fn signature() -> Signature {
 #[test]
 fn an_adapter_defined_outside_the_crate_formats_and_parses() {
     let inputs = [("request", "something calm".to_owned())];
-    let (system, user) = XmlAdapter.format(&signature(), &inputs);
+    let (system, turns) = XmlAdapter.format(&signature(), &inputs);
     assert!(system.contains("<colour>...</colour>"));
-    assert_eq!(user, "<request>something calm</request>");
+    assert_eq!(turns.len(), 1);
+    assert_eq!(turns[0].content, "<request>something calm</request>");
 
     let parsed = XmlAdapter
         .parse(&signature(), "<colour>blue</colour>")

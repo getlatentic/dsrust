@@ -28,10 +28,6 @@ NOT_YET_IMPLEMENTED = {
     "test_citations_output_field_keeps_json_schema_in_prompt": "dspy.Citations fields",
     "test_chat_adapter_formats_conversation_history": "dspy.History fields",
     "test_chat_adapter_parses_float_with_underscores": "python numeric literal parsing",
-    "test_chat_adapter_exception_raised_on_failure": "AdapterParseError is not raised yet",
-    "test_chat_adapter_respects_use_json_adapter_fallback_flag": (
-        "the flag is not read through the bridge"
-    ),
 }
 
 

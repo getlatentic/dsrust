@@ -61,7 +61,8 @@ pub enum Role {
 }
 
 impl Role {
-    fn as_str(self) -> &'static str {
+    /// The name this role travels under on the wire, and the one dspy's message dicts use.
+    pub fn as_str(self) -> &'static str {
         match self {
             Role::User => "user",
             Role::Assistant => "assistant",

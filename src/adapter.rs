@@ -18,8 +18,10 @@ use crate::signature::{FieldKind, Signature};
 /// conversation. That split keeps this trait object-safe, so a caller can hold
 /// `Box<dyn Adapter>` and swap wire formats at run time.
 pub trait Adapter: Send + Sync {
-    /// The system and opening user message, with no model call. Mirrors `Adapter.format`.
-    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, String);
+    /// The whole conversation to send, with no model call: the system message, then the
+    /// turns. Mirrors `Adapter.format`, which returns a message list for the same reason —
+    /// a demo or a conversation history expands into several turns, not one.
+    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, Vec<ChatTurn>);
 
     /// Extract the signature's fields from a raw reply. A reply that does not speak this
     /// adapter's format at all fails here; a reply missing individual fields parses and
@@ -74,8 +76,11 @@ impl ChatAdapter {
 pub struct JsonAdapter;
 
 impl Adapter for ChatAdapter {
-    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, String) {
-        (chat_system(signature), chat_user(signature, inputs))
+    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, Vec<ChatTurn>) {
+        (
+            chat_system(signature),
+            vec![ChatTurn::user(chat_user(signature, inputs))],
+        )
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
@@ -89,8 +94,11 @@ impl Adapter for ChatAdapter {
 }
 
 impl Adapter for JsonAdapter {
-    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, String) {
-        (json_system(signature), json_user(inputs))
+    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, Vec<ChatTurn>) {
+        (
+            json_system(signature),
+            vec![ChatTurn::user(json_user(inputs))],
+        )
     }
 
     fn parse(&self, _signature: &Signature, raw: &str) -> Result<Value> {
@@ -107,19 +115,6 @@ impl Adapter for JsonAdapter {
 pub struct Feedback {
     pub previous: String,
     pub error: String,
-}
-
-fn conversation(opening: String, feedback: Option<&Feedback>) -> Vec<ChatTurn> {
-    let mut turns = vec![ChatTurn::user(opening)];
-    if let Some(feedback) = feedback {
-        turns.push(ChatTurn::assistant(feedback.previous.clone()));
-        turns.push(ChatTurn::user(format!(
-            "Your previous reply was rejected: {}. Send the corrected reply now, in the same \
-             format, with every output field present and valid.",
-            feedback.error
-        )));
-    }
-    turns
 }
 
 fn marker(name: &str) -> String {
@@ -591,16 +586,24 @@ mod tests {
             previous: "[[ ## color ## ]]\ngreen".into(),
             error: "color must be one of red, blue; got \"green\"".into(),
         };
-        let turns = conversation("draft it".into(), Some(&feedback));
+        let turns = turns_for(vec![ChatTurn::user("draft it")], Some(&feedback));
         assert_eq!(turns.len(), 3);
         assert_eq!(turns[1].content, "[[ ## color ## ]]\ngreen");
         assert!(turns[2].content.contains("color must be one of red, blue"));
-        assert!(conversation("draft it".into(), None).len() == 1);
+        assert!(turns_for(vec![ChatTurn::user("draft it")], None).len() == 1);
     }
 }
 
-/// The conversation a module sends for one attempt: the rendered opening, plus the rejected
+/// The turns a module sends for one attempt: whatever the adapter rendered, plus the rejected
 /// reply and its error when this is a feedback retry.
-pub fn turns_for(opening: String, feedback: Option<&Feedback>) -> Vec<ChatTurn> {
-    conversation(opening, feedback)
+pub fn turns_for(mut turns: Vec<ChatTurn>, feedback: Option<&Feedback>) -> Vec<ChatTurn> {
+    if let Some(feedback) = feedback {
+        turns.push(ChatTurn::assistant(feedback.previous.clone()));
+        turns.push(ChatTurn::user(format!(
+            "Your previous reply was rejected: {}. Send the corrected reply now, in the same \
+             format, with every output field present and valid.",
+            feedback.error
+        )));
+    }
+    turns
 }
