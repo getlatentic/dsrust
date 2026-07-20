@@ -1,7 +1,7 @@
 //! ReAct against Python DSPy 3.2.1, byte for byte.
 //!
 //! Every expected string here was produced by running `dspy.ReAct` over the same task and
-//! copying what it built. The unit tests in `src/react.rs` check the pieces; these pin the
+//! copying what it built. The unit tests in `src/react/` check the pieces; these pin the
 //! whole artefact — the per-turn instructions, both inner signatures, and the prompt a
 //! provider actually receives — because a paraphrase of dspy's wording is a different prompt
 //! and gets different behaviour out of a model.
