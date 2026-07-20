@@ -40,7 +40,40 @@ DOES_NOT_EXERCISE_RUST = {
     # Calls dspy's private `_call_postprocess` with outputs already parsed, so it exercises
     # dspy's own plumbing around an adapter rather than anything the adapter renders.
     "test_tool_call_with_null_content_does_not_raise": "dspy-internal postprocessing",
+    # `dspy.Citations` and `dspy.Reasoning` validating, formatting and concatenating
+    # themselves. Their files are not blanket-declared because each has one test that does
+    # reach an adapter.
+    "test_citation_extraction_from_lm_response": "dspy.Citations parsing itself",
+    "test_citation_format": "dspy.Citations' own string form",
+    "test_citation_validate_input": "dspy.Citations validating itself",
+    "test_citation_with_all_fields": "dspy.Citations construction",
+    "test_citations_format": "dspy.Citations' own string form",
+    "test_citations_from_dict_list": "dspy.Citations construction",
+    "test_citations_in_nested_type": "dspy.Type annotation walking",
+    "test_reasoning_basic_operations": "dspy.Reasoning behaving as a string",
+    "test_reasoning_concatenation": "dspy.Reasoning behaving as a string",
+    "test_reasoning_error_message": "dspy.Reasoning's attribute error",
+    "test_reasoning_string_methods": "dspy.Reasoning behaving as a string",
 }
+
+# Whole files that test dspy's own Python rather than anything an adapter renders: a type's
+# string form, a tool invoking a Python function, a value validating itself. Every test in one
+# of these was measured as never reaching the crate. The check runs both ways — a test here
+# that *does* cross fails the run, because that means the file has started covering this port
+# and each of its tests deserves triaging rather than a blanket pass.
+NOT_ADAPTER_CONFORMANCE = {
+    "upstream_test_adapter_utils.py": "dspy's own field-formatting helpers, called directly",
+    "upstream_test_base_type.py": "dspy.Type's annotation walking, in Python",
+    "upstream_test_code.py": "dspy.Code's own parsing and string form",
+    "upstream_test_document.py": "dspy.Document, a type this crate does not carry",
+    "upstream_test_audio.py": "dspy.Audio, a type this crate does not carry",
+    "upstream_test_tool.py": "dspy.Tool invoking Python functions, sync and async",
+}
+
+
+#: Names of tests that reached the crate, for the summary line. A bare pass count would read
+#: as coverage this suite does not claim, since most of the type files never cross.
+_CROSSED: set[str] = set()
 
 
 @pytest.fixture(autouse=True)
@@ -53,7 +86,18 @@ def _require_a_crossing(request):
     """
     before = rust_adapter.CROSSINGS
     yield
-    if rust_adapter.CROSSINGS > before:
+    crossed = rust_adapter.CROSSINGS > before
+    if crossed:
+        _CROSSED.add(request.node.nodeid)
+    module = request.node.module.__name__ + ".py"
+    if module in NOT_ADAPTER_CONFORMANCE:
+        if crossed:
+            pytest.fail(
+                f"{module} is declared as not covering this port, but this test reached the "
+                "crate; drop the file's line and triage its tests individually"
+            )
+        return
+    if crossed:
         return
     name = request.node.name.split("[")[0]
     if name in DOES_NOT_EXERCISE_RUST or name.removesuffix("_async") in DOES_NOT_EXERCISE_RUST:
@@ -62,6 +106,22 @@ def _require_a_crossing(request):
         "this test passed without the crate rendering or parsing anything, so it says nothing "
         "about conformance; give it a line in DOES_NOT_EXERCISE_RUST if that is expected"
     )
+
+
+@pytest.fixture(autouse=True)
+def _default_adapter_is_rust():
+    """Make the adapter dspy reaches for by default the Rust-backed one.
+
+    `dspy.Predict` resolves `settings.adapter or ChatAdapter()`, where that name was bound when
+    its module was imported — long before any patch here. Rebinding the attribute in every
+    module that imported it would be a game of catch-up, and missing one means a test runs on
+    dspy's own renderer while reading as conformance. `settings.adapter` is the seam dspy
+    provides for supplying an adapter, so this uses that.
+    """
+    previous = dspy.settings.adapter
+    dspy.settings.configure(adapter=RustChatAdapter())
+    yield
+    dspy.settings.configure(adapter=previous)
 
 
 @pytest.fixture(autouse=True)
@@ -89,3 +149,16 @@ def pytest_collection_modifyitems(items):
         reason = NOT_YET_IMPLEMENTED.get(item.name) or NOT_YET_IMPLEMENTED.get(base)
         if reason:
             item.add_marker(pytest.mark.xfail(strict=True, reason=f"not in Rust yet: {reason}"))
+
+
+def pytest_terminal_summary(terminalreporter):
+    """State how much of the run actually exercised the crate.
+
+    A pass count alone would overstate it: the type files are carried here to catch one of
+    them starting to cross, not because they test this port.
+    """
+    outcomes = ("passed", "failed", "error", "xfailed", "xpassed")
+    total = sum(len(terminalreporter.stats.get(key, [])) for key in outcomes)
+    terminalreporter.write_sep(
+        "-", f"{len(_CROSSED)} of {total} tests rendered or parsed through the crate"
+    )
