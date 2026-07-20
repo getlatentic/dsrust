@@ -42,7 +42,8 @@ and `the_fallback_can_be_turned_off` — and the committed goldens still run und
 | LM layer, global config with per-call override | built |
 | Two-tier feedback retry | built |
 | Demos (few-shot examples) rendered as turns | built, conformance-checked |
-| `Example` with the input/label split, `Prediction` | built |
+| `Example` with the input/label split, `Prediction` | built, semantics checked against dspy |
+| `Module` trait: write your own, walk its predictors | built |
 | `Evaluate` over a devset, with a metric | built (sequential) |
 | Optimizers: labelled few-shot, then bootstrap | next |
 | Optimizers (labeled few-shot → bootstrap → search) | planned |

@@ -66,6 +66,12 @@ fn a_demo_missing_a_field_renders_the_fields_it_has() {
 #[test]
 fn the_input_label_split_is_what_an_evaluator_would_use() {
     let example = demo("something calm", "blue");
-    assert_eq!(example.inputs().rendered(), vec![("request".to_owned(), "something calm".to_owned())]);
-    assert_eq!(example.labels().rendered(), vec![("colour".to_owned(), "blue".to_owned())]);
+    assert_eq!(
+        example.inputs().unwrap().rendered(),
+        vec![("request".to_owned(), "something calm".to_owned())]
+    );
+    assert_eq!(
+        example.labels().unwrap().rendered(),
+        vec![("colour".to_owned(), "blue".to_owned())]
+    );
 }

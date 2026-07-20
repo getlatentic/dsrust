@@ -86,7 +86,21 @@ where
     pub async fn run(&self) -> Evaluation {
         let mut results = Vec::with_capacity(self.devset.len());
         for example in &self.devset {
-            let outcome = (self.program)(example.inputs()).await;
+            // An example whose split was never declared is a devset mistake, not a program
+            // failure. It scores like a failure but says so, rather than handing the program
+            // an empty input set and reporting the resulting zero as a model problem.
+            let inputs = match example.inputs() {
+                Ok(inputs) => inputs,
+                Err(error) => {
+                    results.push(Scored {
+                        example: example.clone(),
+                        prediction: Err(format!("{error:#}")),
+                        score: self.failure_score,
+                    });
+                    continue;
+                }
+            };
+            let outcome = (self.program)(inputs).await;
             let (prediction, score) = match outcome {
                 Ok(prediction) => {
                     let score = (self.metric)(example, &prediction);
@@ -110,7 +124,11 @@ where
 
 /// A metric for the common case: every label field must match the prediction exactly.
 pub fn exact_match(example: &Example, prediction: &Prediction) -> f64 {
-    let labels = example.labels();
+    // An undeclared example cannot be scored; the runner reports that as a row failure, so
+    // reaching here with one means scoring nothing rather than everything.
+    let Ok(labels) = example.labels() else {
+        return 0.0;
+    };
     if labels.is_empty() {
         return 0.0;
     }

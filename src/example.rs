@@ -8,6 +8,7 @@
 
 use std::collections::BTreeSet;
 
+use anyhow::{Result, anyhow};
 use serde_json::Value;
 
 /// One labelled example: field values, plus which of those fields are inputs.
@@ -17,7 +18,10 @@ use serde_json::Value;
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Example {
     fields: Vec<(String, Value)>,
-    input_keys: BTreeSet<String>,
+    /// `None` until [`Self::with_inputs`] declares the split. dspy raises rather than guess
+    /// when this is unset, and so does this: an evaluator that silently scored against an
+    /// empty input set would report a meaningless number instead of a mistake.
+    input_keys: Option<BTreeSet<String>>,
 }
 
 impl Example {
@@ -27,7 +31,7 @@ impl Example {
                 .into_iter()
                 .map(|(name, value)| (name.into(), value))
                 .collect(),
-            input_keys: BTreeSet::new(),
+            input_keys: None,
         }
     }
 
@@ -35,7 +39,7 @@ impl Example {
     /// `Example.with_inputs`, and is required before [`Self::inputs`] or [`Self::labels`]
     /// mean anything.
     pub fn with_inputs<S: Into<String>>(mut self, keys: impl IntoIterator<Item = S>) -> Self {
-        self.input_keys = keys.into_iter().map(Into::into).collect();
+        self.input_keys = Some(keys.into_iter().map(Into::into).collect());
         self
     }
 
@@ -61,17 +65,30 @@ impl Example {
     }
 
     pub fn is_input(&self, name: &str) -> bool {
-        self.input_keys.contains(name)
+        self.input_keys
+            .as_ref()
+            .is_some_and(|keys| keys.contains(name))
     }
 
     /// Only the declared input fields, for handing to a program.
-    pub fn inputs(&self) -> Example {
-        self.subset(|name| self.input_keys.contains(name))
+    ///
+    /// Errors when the split was never declared, matching dspy's `ValueError`. Returning an
+    /// empty set instead would let an evaluator score a program that received nothing.
+    pub fn inputs(&self) -> Result<Example> {
+        let keys = self.declared()?;
+        Ok(self.subset(|name| keys.contains(name)))
     }
 
     /// Everything not declared an input: the expected answer to score against.
-    pub fn labels(&self) -> Example {
-        self.subset(|name| !self.input_keys.contains(name))
+    pub fn labels(&self) -> Result<Example> {
+        let keys = self.declared()?;
+        Ok(self.subset(|name| !keys.contains(name)))
+    }
+
+    fn declared(&self) -> Result<&BTreeSet<String>> {
+        self.input_keys.as_ref().ok_or_else(|| {
+            anyhow!("inputs have not been set for this example; call with_inputs first")
+        })
     }
 
     fn subset(&self, keep: impl Fn(&str) -> bool) -> Example {
@@ -111,7 +128,7 @@ impl Example {
 /// ```
 /// let example = dsrs::example! { question: "Why is the sky blue?", answer: "Scattering." }
 ///     .with_inputs(["question"]);
-/// assert_eq!(example.labels().len(), 1);
+/// assert_eq!(example.labels().unwrap().len(), 1);
 /// ```
 #[macro_export]
 macro_rules! example {
@@ -171,19 +188,42 @@ mod tests {
     #[test]
     fn with_inputs_splits_the_fields_into_inputs_and_labels() {
         let example = qa().with_inputs(["question"]);
-        assert_eq!(example.inputs().len(), 1);
-        assert_eq!(example.labels().len(), 1);
-        assert_eq!(example.inputs().get("question").unwrap(), &json!("Why is the sky blue?"));
-        assert_eq!(example.labels().get("answer").unwrap(), &json!("Rayleigh scattering."));
+        assert_eq!(example.inputs().unwrap().len(), 1);
+        assert_eq!(example.labels().unwrap().len(), 1);
+        assert_eq!(
+            example.inputs().unwrap().get("question").unwrap(),
+            &json!("Why is the sky blue?")
+        );
+        assert_eq!(
+            example.labels().unwrap().get("answer").unwrap(),
+            &json!("Rayleigh scattering.")
+        );
     }
 
     #[test]
-    fn an_undeclared_example_has_no_inputs_and_labels_everything() {
-        // dspy requires with_inputs before the split means anything; the same holds here, and
-        // an evaluator that forgets it gets an empty input set rather than a wrong one.
+    fn an_undeclared_example_refuses_to_split() {
+        // Checked against dspy 3.2.1, which raises ValueError here. Answering with an empty
+        // input set would hand a program nothing and still score it.
         let example = qa();
-        assert!(example.inputs().is_empty());
-        assert_eq!(example.labels().len(), 2);
+        assert!(example.inputs().is_err());
+        assert!(example.labels().is_err());
+    }
+
+    #[test]
+    fn with_inputs_leaves_the_original_undeclared() {
+        // dspy's with_inputs copies; mutating in place would surprise a caller reusing a
+        // trainset example.
+        let base = qa();
+        let _marked = base.clone().with_inputs(["question"]);
+        assert!(base.inputs().is_err());
+    }
+
+    #[test]
+    fn marking_a_field_that_does_not_exist_is_allowed_and_yields_nothing() {
+        // dspy tolerates this rather than validating against the field list.
+        let example = qa().with_inputs(["missing"]);
+        assert!(example.inputs().unwrap().is_empty());
+        assert_eq!(example.labels().unwrap().len(), 2);
     }
 
     #[test]
@@ -191,7 +231,7 @@ mod tests {
         let example = qa().with_inputs(["question"]);
         let names: Vec<&str> = example.fields().map(|(name, _)| name).collect();
         assert_eq!(names, ["question", "answer"]);
-        let labels = example.labels();
+        let labels = example.labels().unwrap();
         let label_names: Vec<&str> = labels.fields().map(|(name, _)| name).collect();
         assert_eq!(label_names, ["answer"]);
     }
