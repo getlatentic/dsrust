@@ -5,12 +5,11 @@
 //! so dspy sorts them three ways: whole demos stand as solved turns, partial ones announce
 //! themselves first, and a demo with no input or no output is dropped rather than shown.
 
-use crate::adapter::python_json::format_field_value;
 use crate::example::Example;
 use crate::lm::ChatTurn;
 use crate::signature::Signature;
 
-use super::{marker, section};
+use super::exchange::{answer, ask};
 
 /// dspy `incomplete_demo_prefix`, opening the user turn of a demo that is missing something.
 const PARTIAL_PREFIX: &str =
@@ -68,45 +67,6 @@ fn classify(signature: &Signature, demo: &Example) -> Kind {
         true => Kind::Partial,
         false => Kind::Dropped,
     }
-}
-
-/// The user turn a demo would have sent. Only the inputs it carries appear: dspy leaves a
-/// missing input out entirely rather than marking it, since the prefix already says so.
-fn ask(signature: &Signature, demo: &Example, prefix: Option<&str>) -> ChatTurn {
-    let sections = signature.inputs.iter().filter_map(|field| {
-        Some(section(
-            &field.name,
-            &format_field_value(demo.get(&field.name)?),
-        ))
-    });
-    let parts: Vec<String> = prefix
-        .map(str::to_owned)
-        .into_iter()
-        .chain(sections)
-        .collect();
-    ChatTurn::user(parts.join("\n\n").trim().to_owned())
-}
-
-/// The assistant turn a demo produced. Every output field earns a marker even when the demo
-/// lacks it, so the model always reads the full set of sections it is asked to produce.
-fn answer(signature: &Signature, demo: &Example, missing: Option<&str>) -> ChatTurn {
-    let sections: Vec<String> = signature
-        .outputs
-        .iter()
-        .filter_map(|field| {
-            let value = match demo.get(&field.name) {
-                Some(value) => format_field_value(value),
-                None => missing?.to_owned(),
-            };
-            Some(section(&field.name, &value))
-        })
-        .collect();
-    // dspy strips the field block before appending the marker, never after.
-    ChatTurn::assistant(format!(
-        "{}\n\n{}\n",
-        sections.join("\n\n").trim(),
-        marker("completed")
-    ))
 }
 
 #[cfg(test)]

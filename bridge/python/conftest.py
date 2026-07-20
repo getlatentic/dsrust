@@ -39,7 +39,6 @@ NOT_YET_IMPLEMENTED = {
     "test_chat_adapter_with_code": "dspy.Code fields",
     "test_code_output_field_omits_json_schema_in_prompt": "dspy.Code fields",
     "test_citations_output_field_keeps_json_schema_in_prompt": "dspy.Citations fields",
-    "test_chat_adapter_formats_conversation_history": "dspy.History fields",
 }
 
 

@@ -13,6 +13,7 @@ pub use dsrs_derive::{Signature, chain_of_thought, predict};
 
 /// One input field of a signature: a name, a one-line description, a wire type, and an
 /// optional closed set the prompt spells as the field's type in place of that wire type.
+#[derive(Clone)]
 pub struct InField {
     pub name: String,
     pub desc: String,
@@ -31,6 +32,7 @@ impl InField {
 /// One output field of a signature: a name, a one-line description, a wire type, an
 /// optional closed set of allowed values (legal on `Str` fields only), and — for `Json`
 /// fields — the nested JSON schema of the declared type.
+#[derive(Clone)]
 pub struct OutField {
     pub name: String,
     pub desc: String,
@@ -94,6 +96,7 @@ pub fn json_field_schema<T: schemars::JsonSchema>() -> Value {
 /// A DSPy-style signature: the task instructions plus the typed input and output fields.
 /// The signature owns WHAT the task is; the modules in [`mod@crate::predict`] own HOW the model
 /// is asked.
+#[derive(Clone)]
 pub struct Signature {
     pub instructions: String,
     pub inputs: Vec<InField>,

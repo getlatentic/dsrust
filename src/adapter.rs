@@ -6,6 +6,8 @@ use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::{FieldKind, Signature, wire_forms};
 
 mod demos;
+mod exchange;
+mod history;
 mod parse;
 pub mod python_json;
 
@@ -103,8 +105,26 @@ impl Adapter for ChatAdapter {
         demos: &[Example],
         inputs: &[(&str, Value)],
     ) -> (String, Vec<ChatTurn>) {
+        // dspy renders the demos against the caller's signature but the conversation and the
+        // live request against one without the history field, and builds the system message
+        // from the original — so the field is announced up top and rendered in no turn.
         let mut turns = demo_turns(signature, demos);
-        turns.push(ChatTurn::user(chat_user(signature, inputs)));
+        let asked = match history::field_name(signature) {
+            None => signature.clone(),
+            Some(name) => {
+                let stripped = history::without_field(signature, name);
+                if let Some((_, value)) = inputs.iter().find(|(field, _)| *field == name) {
+                    turns.extend(history::turns(&stripped, value));
+                }
+                stripped
+            }
+        };
+        let live: Vec<(&str, Value)> = inputs
+            .iter()
+            .filter(|(field, _)| asked.inputs.iter().any(|input| input.name == *field))
+            .cloned()
+            .collect();
+        turns.push(ChatTurn::user(chat_user(&asked, &live)));
         (chat_system(signature), turns)
     }
 
