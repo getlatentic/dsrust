@@ -151,11 +151,14 @@ mod tests {
     fn devset() -> Vec<Example> {
         vec![
             example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"]),
-            example! { question: "capital of Germany?", answer: "Berlin" }.with_inputs(["question"]),
+            example! { question: "capital of Germany?", answer: "Berlin" }
+                .with_inputs(["question"]),
         ]
     }
 
-    fn answering(answer: &'static str) -> impl Fn(Example) -> std::future::Ready<anyhow::Result<Prediction>> {
+    fn answering(
+        answer: &'static str,
+    ) -> impl Fn(Example) -> std::future::Ready<anyhow::Result<Prediction>> {
         move |_| {
             std::future::ready(Ok(Prediction::new(
                 Example::new([("answer", json!(answer))]),
@@ -226,7 +229,10 @@ mod tests {
     async fn the_program_only_sees_the_declared_inputs() {
         // Handing the labels to the program would let it score perfectly by reading the answer.
         let program = |example: Example| {
-            assert!(example.get("answer").is_none(), "the label must not reach the program");
+            assert!(
+                example.get("answer").is_none(),
+                "the label must not reach the program"
+            );
             std::future::ready(Ok(Prediction::new(
                 Example::new([("answer", json!("Paris"))]),
                 "raw",

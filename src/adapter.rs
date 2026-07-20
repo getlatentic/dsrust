@@ -1,8 +1,8 @@
 use anyhow::{Result, anyhow};
 use serde_json::{Map, Value};
 
-use crate::lm::{ChatTurn, OutputMode};
 use crate::example::Example;
+use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::{FieldKind, Signature};
 
 /// How a signature travels over the wire.
@@ -53,7 +53,6 @@ pub trait Adapter: Send + Sync {
     fn json_fallback(&self) -> Option<Box<dyn Adapter>> {
         None
     }
-
 }
 
 /// DSPy's default: every field in its own `[[ ## name ## ]]` section, readable by any model.
@@ -66,7 +65,9 @@ pub struct ChatAdapter {
 
 impl Default for ChatAdapter {
     fn default() -> Self {
-        Self { use_json_adapter_fallback: true }
+        Self {
+            use_json_adapter_fallback: true,
+        }
     }
 }
 
@@ -77,7 +78,9 @@ impl ChatAdapter {
 
     /// A parse failure becomes final rather than a second ask in JSON.
     pub fn without_json_fallback() -> Self {
-        Self { use_json_adapter_fallback: false }
+        Self {
+            use_json_adapter_fallback: false,
+        }
     }
 }
 
@@ -271,7 +274,11 @@ fn output_slot(field: &crate::signature::OutField) -> String {
     };
     match note.is_empty() {
         true => format!("{{{}}}", field.name),
-        false => format!("{{{}}}{}# note: the value you produce {note}", field.name, " ".repeat(8)),
+        false => format!(
+            "{{{}}}{}# note: the value you produce {note}",
+            field.name,
+            " ".repeat(8)
+        ),
     }
 }
 
@@ -332,13 +339,23 @@ fn chat_demo_turns(signature: &Signature, demo: &Example) -> Vec<ChatTurn> {
     let ask = signature
         .inputs
         .iter()
-        .filter_map(|field| Some(section(field.name, demo.get(field.name).map(crate::example::render)?)))
+        .filter_map(|field| {
+            Some(section(
+                field.name,
+                demo.get(field.name).map(crate::example::render)?,
+            ))
+        })
         .collect::<Vec<_>>()
         .join("\n\n");
     let mut answer = signature
         .outputs
         .iter()
-        .filter_map(|field| Some(section(field.name, demo.get(field.name).map(crate::example::render)?)))
+        .filter_map(|field| {
+            Some(section(
+                field.name,
+                demo.get(field.name).map(crate::example::render)?,
+            ))
+        })
         .collect::<Vec<_>>();
     answer.push(format!("{}\n", marker("completed")));
     vec![

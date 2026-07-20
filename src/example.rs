@@ -264,7 +264,10 @@ mod tests {
     #[test]
     fn a_prediction_keeps_the_reply_that_produced_it() {
         let prediction = Prediction::new(qa(), "[[ ## answer ## ]]\nRayleigh scattering.");
-        assert_eq!(prediction.get("answer").unwrap(), &json!("Rayleigh scattering."));
+        assert_eq!(
+            prediction.get("answer").unwrap(),
+            &json!("Rayleigh scattering.")
+        );
         assert!(prediction.raw.contains("[[ ## answer ## ]]"));
     }
 }

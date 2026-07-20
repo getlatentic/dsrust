@@ -207,7 +207,8 @@ mod tests {
     fn trainset() -> Vec<Example> {
         vec![
             example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"]),
-            example! { question: "capital of Germany?", answer: "Berlin" }.with_inputs(["question"]),
+            example! { question: "capital of Germany?", answer: "Berlin" }
+                .with_inputs(["question"]),
         ]
     }
 

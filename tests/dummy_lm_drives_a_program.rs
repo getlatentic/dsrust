@@ -15,7 +15,9 @@ use serde_json::Value;
 static GLOBAL_LM: Mutex<()> = Mutex::new(());
 
 fn install(lm: Arc<DummyLM>) -> std::sync::MutexGuard<'static, ()> {
-    let guard = GLOBAL_LM.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let guard = GLOBAL_LM
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     global::configure_model(reqwest::Client::new(), lm);
     guard
 }
@@ -44,7 +46,10 @@ async fn a_predict_answers_from_the_script() {
         .await
         .expect("the scripted answer parses");
 
-    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("Paris"));
+    assert_eq!(
+        prediction.get("answer").and_then(Value::as_str),
+        Some("Paris")
+    );
     // The dummy kept the prompt, so a test can assert on what the model was actually shown.
     assert!(lm.asked()[0].last_message().contains("capital of France?"));
 }
@@ -79,11 +84,20 @@ async fn a_keyed_dummy_suits_a_loop_whose_order_the_model_chooses() {
     let _guard = install(lm.clone());
 
     let predict = dsrs::predict::Predict::new(signature());
-    for (question, expected) in [("capital of Spain?", "Madrid"), ("capital of France?", "Paris")] {
+    for (question, expected) in [
+        ("capital of Spain?", "Madrid"),
+        ("capital of France?", "Paris"),
+    ] {
         let prediction = predict
-            .forward(Example::new([("request", Value::String(question.into()))]).with_inputs(["request"]))
+            .forward(
+                Example::new([("request", Value::String(question.into()))])
+                    .with_inputs(["request"]),
+            )
             .await
             .expect("keyed answer found");
-        assert_eq!(prediction.get("answer").and_then(Value::as_str), Some(expected));
+        assert_eq!(
+            prediction.get("answer").and_then(Value::as_str),
+            Some(expected)
+        );
     }
 }

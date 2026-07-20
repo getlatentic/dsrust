@@ -23,16 +23,15 @@ fn signature() -> Signature {
 }
 
 fn demo(request: &str, colour: &str) -> Example {
-    Example::new([
-        ("request", json!(request)),
-        ("colour", json!(colour)),
-    ])
-    .with_inputs(["request"])
+    Example::new([("request", json!(request)), ("colour", json!(colour))]).with_inputs(["request"])
 }
 
 #[test]
 fn demos_become_solved_turns_before_the_request() {
-    let demos = [demo("something calm", "blue"), demo("something warm", "amber")];
+    let demos = [
+        demo("something calm", "blue"),
+        demo("something warm", "amber"),
+    ];
     let inputs = [("request", "something bold".to_owned())];
     let (_, turns) = ChatAdapter::default().format(&signature(), &demos, &inputs);
 
@@ -40,16 +39,37 @@ fn demos_become_solved_turns_before_the_request() {
     let roles: Vec<Role> = turns.iter().map(|turn| turn.role).collect();
     assert_eq!(
         roles,
-        [Role::User, Role::Assistant, Role::User, Role::Assistant, Role::User]
+        [
+            Role::User,
+            Role::Assistant,
+            Role::User,
+            Role::Assistant,
+            Role::User
+        ]
     );
 
     assert_eq!(turns[0].content, "[[ ## request ## ]]\nsomething calm");
-    assert_eq!(turns[1].content, "[[ ## colour ## ]]\nblue\n\n[[ ## completed ## ]]\n");
-    assert!(turns[4].content.starts_with("[[ ## request ## ]]\nsomething bold"));
+    assert_eq!(
+        turns[1].content,
+        "[[ ## colour ## ]]\nblue\n\n[[ ## completed ## ]]\n"
+    );
+    assert!(
+        turns[4]
+            .content
+            .starts_with("[[ ## request ## ]]\nsomething bold")
+    );
 
     // Only the real ask carries the format reminder; a demo already shows the answer.
-    assert!(!turns[0].content.contains("Respond with the corresponding output fields"));
-    assert!(turns[4].content.contains("Respond with the corresponding output fields"));
+    assert!(
+        !turns[0]
+            .content
+            .contains("Respond with the corresponding output fields")
+    );
+    assert!(
+        turns[4]
+            .content
+            .contains("Respond with the corresponding output fields")
+    );
 }
 
 #[test]

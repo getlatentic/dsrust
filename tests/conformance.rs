@@ -111,13 +111,19 @@ fn load(path: &std::path::Path) -> Fixture {
         name: path.file_stem().unwrap().to_string_lossy().into_owned(),
         source: json["source"].as_str().unwrap_or_default().to_owned(),
         signature: Signature {
-            instructions: json["instructions"].as_str().expect("instructions").to_owned(),
+            instructions: json["instructions"]
+                .as_str()
+                .expect("instructions")
+                .to_owned(),
             inputs,
             outputs,
         },
         demos,
         values,
-        expected_system: json["expected_system"].as_str().expect("expected_system").to_owned(),
+        expected_system: json["expected_system"]
+            .as_str()
+            .expect("expected_system")
+            .to_owned(),
         expected_turns,
     }
 }
@@ -163,7 +169,12 @@ fn chat_adapter_renders_what_python_dspy_renders() {
     for fixture in fixtures() {
         let (system, turns) =
             ChatAdapter::default().format(&fixture.signature, &fixture.demos, &fixture.values);
-        assert_same("system message", &fixture, &fixture.expected_system, &system);
+        assert_same(
+            "system message",
+            &fixture,
+            &fixture.expected_system,
+            &system,
+        );
         assert_eq!(
             turns.len(),
             fixture.expected_turns.len(),
@@ -174,7 +185,12 @@ fn chat_adapter_renders_what_python_dspy_renders() {
         );
         for (index, (expected, actual)) in fixture.expected_turns.iter().zip(&turns).enumerate() {
             assert_eq!(expected.0, actual.role.as_str(), "turn {index} role");
-            assert_same(&format!("turn {index}"), &fixture, &expected.1, &actual.content);
+            assert_same(
+                &format!("turn {index}"),
+                &fixture,
+                &expected.1,
+                &actual.content,
+            );
         }
     }
 }

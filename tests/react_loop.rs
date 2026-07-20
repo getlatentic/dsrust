@@ -79,7 +79,12 @@ fn weather() -> Box<dyn Tool> {
         "get_weather",
         "look up the weather for a city",
         serde_json::json!({ "city": { "type": "string" } }),
-        |args: &Value| Ok(format!("The weather in {} is sunny.", arg_str(args, "city")?)),
+        |args: &Value| {
+            Ok(format!(
+                "The weather in {} is sunny.",
+                arg_str(args, "city")?
+            ))
+        },
     ))
 }
 
@@ -90,7 +95,9 @@ static GLOBAL_LM: Mutex<()> = Mutex::new(());
 /// A `Module` reaches its model through the global, matching dspy's settings, so a scripted
 /// model is installed the same way a `DummyLM` would be.
 fn configure(lm: Arc<Scripted>) -> std::sync::MutexGuard<'static, ()> {
-    let guard = GLOBAL_LM.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let guard = GLOBAL_LM
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     global::configure_model(reqwest::Client::new(), lm);
     guard
 }
@@ -98,7 +105,11 @@ fn configure(lm: Arc<Scripted>) -> std::sync::MutexGuard<'static, ()> {
 #[tokio::test]
 async fn the_agent_calls_a_tool_then_finishes() {
     let lm = Arc::new(Scripted::new(&[
-        &turn("I should look up the weather", "get_weather", r#"{"city":"Tokyo"}"#),
+        &turn(
+            "I should look up the weather",
+            "get_weather",
+            r#"{"city":"Tokyo"}"#,
+        ),
         &turn("Now I can answer", "finish", "{}"),
         &answer("It is sunny in Tokyo."),
     ]));
@@ -126,12 +137,7 @@ async fn the_agent_calls_a_tool_then_finishes() {
 async fn the_budget_stops_a_model_that_never_finishes() {
     // Without a cap this would loop against a paid provider forever.
     let never = turn("still thinking", "get_weather", r#"{"city":"Tokyo"}"#);
-    let lm = Arc::new(Scripted::new(&[
-        &never,
-        &never,
-        &never,
-        &answer("gave up"),
-    ]));
+    let lm = Arc::new(Scripted::new(&[&never, &never, &never, &answer("gave up")]));
     let _guard = configure(lm.clone());
 
     let react = ReAct::new(task(), vec![weather()]).with_max_iters(3);
@@ -140,7 +146,11 @@ async fn the_budget_stops_a_model_that_never_finishes() {
         .await
         .expect("the episode ends at the budget");
 
-    assert_eq!(lm.calls(), 4, "three turns capped by max_iters, then extract");
+    assert_eq!(
+        lm.calls(),
+        4,
+        "three turns capped by max_iters, then extract"
+    );
 }
 
 #[tokio::test]

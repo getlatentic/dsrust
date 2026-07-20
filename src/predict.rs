@@ -6,8 +6,8 @@ use serde_json::Value;
 
 use crate::adapter::{Adapter, ChatAdapter, Feedback, turns_for};
 use crate::example::{Example, Prediction};
-use crate::module::{Module, NamedPredictor};
 use crate::lm::{DynChatModel, global};
+use crate::module::{Module, NamedPredictor};
 use crate::signature::{FieldKind, OutField, Signature, SignatureSpec};
 
 /// dspy.Predict: ask through the configured adapter, demand the signature's fields back,
@@ -69,7 +69,7 @@ impl Predict {
     }
 
     /// Ask through an explicit client and model: the per-call override, and the seam tests
-    /// script with a canned [`ChatModel`].
+    /// script with a canned [`ChatModel`](crate::lm::ChatModel).
     pub async fn call_with(
         &self,
         http: &reqwest::Client,
@@ -211,7 +211,7 @@ impl<S: SignatureSpec> TypedPredict<S> {
     }
 
     /// Ask through an explicit client and model: the per-call override, and the seam tests
-    /// script with a canned [`ChatModel`].
+    /// script with a canned [`ChatModel`](crate::lm::ChatModel).
     pub async fn call_with(
         &self,
         http: &reqwest::Client,
@@ -291,7 +291,7 @@ impl ChainOfThought {
     }
 
     /// Ask through an explicit client and model: the per-call override, and the seam tests
-    /// script with a canned [`ChatModel`].
+    /// script with a canned [`ChatModel`](crate::lm::ChatModel).
     pub async fn call_with(
         &self,
         http: &reqwest::Client,
@@ -333,7 +333,7 @@ impl<S: SignatureSpec> TypedChainOfThought<S> {
     }
 
     /// Ask through an explicit client and model: the per-call override, and the seam tests
-    /// script with a canned [`ChatModel`].
+    /// script with a canned [`ChatModel`](crate::lm::ChatModel).
     pub async fn call_with(
         &self,
         http: &reqwest::Client,
@@ -517,7 +517,10 @@ mod tests {
         let calls = lm.calls();
         assert_eq!(calls.len(), 2);
         assert!(!calls[0].json_mode);
-        assert!(calls[1].json_mode, "the second ask engages structured output");
+        assert!(
+            calls[1].json_mode,
+            "the second ask engages structured output"
+        );
     }
 
     #[tokio::test]
@@ -525,15 +528,18 @@ mod tests {
         // dspy `test_chat_adapter_respects_use_json_adapter_fallback_flag`: with the flag
         // cleared the parse failure is final and the JSON adapter is never reached.
         let lm = Scripted::new(&["red because it is calm", r#"{ "color": "red" }"#]);
-        let predict =
-            Predict::new(signature()).with_adapter(ChatAdapter::without_json_fallback());
+        let predict = Predict::new(signature()).with_adapter(ChatAdapter::without_json_fallback());
         assert!(
             predict
                 .call_with(&reqwest::Client::new(), &lm, "draft it")
                 .await
                 .is_err()
         );
-        assert_eq!(lm.calls().len(), 1, "no second ask when the fallback is off");
+        assert_eq!(
+            lm.calls().len(),
+            1,
+            "no second ask when the fallback is off"
+        );
     }
 
     #[tokio::test]
@@ -561,7 +567,11 @@ mod tests {
                 .await
                 .is_err()
         );
-        assert_eq!(lm.calls().len(), 2, "one ask plus one feedback retry, then stop");
+        assert_eq!(
+            lm.calls().len(),
+            2,
+            "one ask plus one feedback retry, then stop"
+        );
     }
 
     #[derive(Debug, serde::Deserialize)]
@@ -756,16 +766,8 @@ mod tests {
         assert_eq!(outputs.count, 3);
 
         let calls = lm.calls();
-        assert!(
-            calls[0]
-                .system
-                .contains("1. `age` (int): the age turned")
-        );
-        assert!(
-            calls[0]
-                .system
-                .contains("2. `fan` (bool): a lifelong fan")
-        );
+        assert!(calls[0].system.contains("1. `age` (int): the age turned"));
+        assert!(calls[0].system.contains("2. `fan` (bool): a lifelong fan"));
         assert!(
             calls[0]
                 .system
@@ -871,7 +873,10 @@ impl Module for Predict {
                 .map(|(name, value)| (name.as_str(), value.clone()))
                 .collect();
             let validated = self.call_with_inputs(&http, lm.as_ref(), &pairs).await?;
-            Ok(Prediction::new(prediction_example(&validated.value), validated.raw))
+            Ok(Prediction::new(
+                prediction_example(&validated.value),
+                validated.raw,
+            ))
         })
     }
 

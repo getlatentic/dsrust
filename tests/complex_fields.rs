@@ -6,9 +6,9 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use anyhow::{Result, anyhow};
+use dsrs::JsonAdapter;
 use dsrs::lm::{self, ChatModel, ChatTurn, LM, OutputMode, Role};
 use dsrs::signature::{Signature, SignatureSpec, chain_of_thought, json_field_schema, predict};
-use dsrs::JsonAdapter;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -232,7 +232,10 @@ async fn the_json_adapter_passes_native_arrays_through() {
 
     let calls = lm.calls();
     assert_eq!(calls.len(), 1);
-    assert!(calls[0].json_mode, "the json adapter engages native structured output");
+    assert!(
+        calls[0].json_mode,
+        "the json adapter engages native structured output"
+    );
 }
 
 #[tokio::test]
@@ -295,7 +298,11 @@ async fn typed_calls_stay_bounded_at_three_provider_calls() {
     let calls = lm.calls();
     assert_eq!(calls.len(), 3);
     let modes: Vec<bool> = calls.iter().map(|call| call.json_mode).collect();
-    assert_eq!(modes, [true, true, true], "the chosen adapter is used throughout");
+    assert_eq!(
+        modes,
+        [true, true, true],
+        "the chosen adapter is used throughout"
+    );
     assert!(
         calls[1]
             .turns

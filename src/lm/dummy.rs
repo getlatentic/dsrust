@@ -100,9 +100,9 @@ impl DummyLM {
         if let Some(answer) = self.answers.lock().expect("not poisoned").pop_front() {
             return Ok(answer);
         }
-        self.fallback.clone().ok_or_else(|| {
-            anyhow!("DummyLM has no answer left for this request: {request:.120}")
-        })
+        self.fallback
+            .clone()
+            .ok_or_else(|| anyhow!("DummyLM has no answer left for this request: {request:.120}"))
     }
 }
 

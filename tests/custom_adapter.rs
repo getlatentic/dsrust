@@ -5,9 +5,9 @@
 //! can implement without touching this one, and this test is the proof.
 
 use anyhow::{Result, anyhow};
-use dsrs::signature::{FieldKind, OutField, Signature};
-use dsrs::lm::ChatTurn;
 use dsrs::Example;
+use dsrs::lm::ChatTurn;
+use dsrs::signature::{FieldKind, OutField, Signature};
 use dsrs::{Adapter, ChatAdapter};
 use serde_json::{Map, Value};
 
@@ -26,7 +26,11 @@ impl Adapter for XmlAdapter {
             .iter()
             .map(|field| format!("<{}>...</{}>", field.name, field.name))
             .collect();
-        let system = format!("{}\nReply with {}.", signature.instructions, tags.join(" then "));
+        let system = format!(
+            "{}\nReply with {}.",
+            signature.instructions,
+            tags.join(" then ")
+        );
         let user = inputs
             .iter()
             .map(|(name, value)| format!("<{name}>{value}</{name}>"))
@@ -81,10 +85,14 @@ fn an_adapter_defined_outside_the_crate_formats_and_parses() {
 
 #[test]
 fn a_custom_adapter_is_interchangeable_with_the_shipped_ones() {
-    let adapters: Vec<Box<dyn Adapter>> = vec![Box::new(ChatAdapter::default()), Box::new(XmlAdapter)];
+    let adapters: Vec<Box<dyn Adapter>> =
+        vec![Box::new(ChatAdapter::default()), Box::new(XmlAdapter)];
     let inputs = [("request", "something calm".to_owned())];
     for adapter in &adapters {
         let (system, _) = adapter.format(&signature(), &[], &inputs);
-        assert!(system.contains("Pick a colour."), "every adapter carries the instruction");
+        assert!(
+            system.contains("Pick a colour."),
+            "every adapter carries the instruction"
+        );
     }
 }

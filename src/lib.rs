@@ -8,10 +8,10 @@ extern crate self as dsrs;
 
 pub mod adapter;
 pub mod evaluate;
-pub mod module;
-pub mod optimize;
 pub mod example;
 pub mod lm;
+pub mod module;
+pub mod optimize;
 pub mod predict;
 pub mod react;
 pub mod signature;

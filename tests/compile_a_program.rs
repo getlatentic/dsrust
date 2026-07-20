@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use anyhow::Result;
 use dsrs::lm::{ChatModel, ChatTurn, OutputMode, Role};
 use dsrs::signature::{FieldKind, OutField, Signature};
-use dsrs::{Adapter, ChatAdapter, Example, LabeledFewShot, Module, example};
+use dsrs::{Adapter, ChatAdapter, Example, LabeledFewShot, example};
 
 struct Recorder {
     replies: Mutex<VecDeque<String>>,
@@ -34,7 +34,10 @@ impl ChatModel for Recorder {
         turns: &[ChatTurn],
         _mode: &OutputMode<'_>,
     ) -> Result<String> {
-        self.turns.lock().expect("not poisoned").push(turns.to_vec());
+        self.turns
+            .lock()
+            .expect("not poisoned")
+            .push(turns.to_vec());
         self.replies
             .lock()
             .expect("not poisoned")
@@ -103,8 +106,7 @@ fn a_compiled_program_and_an_uncompiled_one_render_differently() {
 
     let inputs = [("request", "capital of Spain?".to_owned())];
     let (_, bare_turns) = ChatAdapter::default().format(&signature(), &bare.demos, &inputs);
-    let (_, compiled_turns) =
-        ChatAdapter::default().format(&signature(), &compiled.demos, &inputs);
+    let (_, compiled_turns) = ChatAdapter::default().format(&signature(), &compiled.demos, &inputs);
 
     assert_eq!(bare_turns.len(), 1);
     assert_eq!(compiled_turns.len(), 5);

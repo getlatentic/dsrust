@@ -20,7 +20,9 @@ fn kind_from(name: &str) -> PyResult<FieldKind> {
         "float" => Ok(FieldKind::Float),
         "bool" => Ok(FieldKind::Bool),
         "json" => Ok(FieldKind::Json),
-        other => Err(PyValueError::new_err(format!("unsupported field kind: {other}"))),
+        other => Err(PyValueError::new_err(format!(
+            "unsupported field kind: {other}"
+        ))),
     }
 }
 

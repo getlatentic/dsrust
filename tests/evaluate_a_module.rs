@@ -11,7 +11,7 @@ use std::sync::Mutex;
 use anyhow::Result;
 use dsrs::lm::{ChatModel, ChatTurn, OutputMode};
 use dsrs::signature::{FieldKind, OutField, Signature};
-use dsrs::{Evaluate, Example, Prediction, example, exact_match};
+use dsrs::{Evaluate, Example, Prediction, exact_match, example};
 use serde_json::json;
 
 /// Pops one canned reply per call, so a whole devset can be scripted in order.
@@ -136,5 +136,8 @@ async fn a_wrong_answer_scores_zero_and_keeps_the_reply_for_inspection() {
     // The failing row keeps what the model said, which is the first thing to look at.
     let wrong = &evaluation.results[0];
     assert_eq!(wrong.score, 0.0);
-    assert_eq!(wrong.prediction.as_ref().unwrap().get("answer"), Some(&json!("Lyon")));
+    assert_eq!(
+        wrong.prediction.as_ref().unwrap().get("answer"),
+        Some(&json!("Lyon"))
+    );
 }
