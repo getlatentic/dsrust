@@ -158,17 +158,29 @@ fn numbered_output_lines(signature: &Signature) -> String {
 fn chat_system(signature: &Signature) -> String {
     // dspy `format_field_structure`: the template blocks join with a blank line and the whole
     // section is stripped, so the trailing newline after `completed` never survives.
-    let block = |names: Vec<&str>| -> String {
-        names
+    let block = |slots: Vec<(&str, String)>| -> String {
+        slots
             .iter()
-            .map(|name| format!("{}\n{{{name}}}", marker(name)))
+            .map(|(name, slot)| format!("{}\n{slot}", marker(name)))
             .collect::<Vec<_>>()
             .join("\n\n")
     };
+    let inputs = signature
+        .inputs
+        .iter()
+        // dspy `translate_field_type` returns an empty note for every input: the model reads
+        // input values, it does not produce them, so there is nothing to constrain.
+        .map(|field| (field.name, format!("{{{}}}", field.name)))
+        .collect();
+    let outputs = signature
+        .outputs
+        .iter()
+        .map(|field| (field.name, output_slot(field)))
+        .collect();
     let structure = [
         "All interactions will be structured in the following way, with the appropriate values filled in.".to_owned(),
-        block(signature.inputs.iter().map(|field| field.name).collect()),
-        block(signature.outputs.iter().map(|field| field.name).collect()),
+        block(inputs),
+        block(outputs),
         format!("{}\n", marker("completed")),
     ]
     .join("\n\n");
@@ -185,6 +197,32 @@ fn chat_system(signature: &Signature) -> String {
     )
 }
 
+/// dspy `translate_field_type`: an output slot carries a note telling the model what shape the
+/// value must take. `str` says nothing, since a string needs no constraint; everything else
+/// earns a note on the same line, indented eight spaces as a comment.
+fn output_slot(field: &crate::signature::OutField) -> String {
+    let note = match field.kind {
+        FieldKind::Str => match &field.values {
+            Some(values) => format!(
+                "must exactly match (no extra characters) one of: {}",
+                values.join("; ")
+            ),
+            None => String::new(),
+        },
+        FieldKind::Bool => "must be True or False".to_owned(),
+        FieldKind::Int => "must be a single int value".to_owned(),
+        FieldKind::Float => "must be a single float value".to_owned(),
+        FieldKind::Json => match &field.schema {
+            Some(schema) => format!("must adhere to the JSON schema: {schema}"),
+            None => String::new(),
+        },
+    };
+    match note.is_empty() {
+        true => format!("{{{}}}", field.name),
+        false => format!("{{{}}}{}# note: the value you produce {note}", field.name, " ".repeat(8)),
+    }
+}
+
 /// dspy `format_task_description`: the instruction is dedented, then every line is pushed onto
 /// its own 8-space-indented line — including the first, which is why the objective sentence
 /// ends in a space and the instruction starts on the next line.
@@ -199,25 +237,37 @@ fn task_description(signature: &Signature) -> String {
 /// DSPy ChatAdapter's user message: each input in its own marker section, then the recap of
 /// the output field order.
 fn chat_user(signature: &Signature, inputs: &[(&str, String)]) -> String {
-    let sections: String = inputs
+    // dspy `format_user_message_content`: input sections and the reminder are one list joined
+    // by a blank line and stripped, rather than sections each carrying their own trailing gap.
+    let mut parts: Vec<String> = inputs
         .iter()
-        .map(|(name, value)| format!("{}\n{value}\n\n", marker(name)))
+        .map(|(name, value)| format!("{}\n{value}", marker(name)))
         .collect();
-    let order: String = signature
+    parts.push(output_requirements(signature));
+    parts.join("\n\n").trim().to_owned()
+}
+
+/// dspy `user_message_output_requirements`: the closing reminder of field order, where every
+/// non-string output repeats its Python type so a long conversation cannot drift off-format.
+fn output_requirements(signature: &Signature) -> String {
+    let fields: Vec<String> = signature
         .outputs
         .iter()
-        .enumerate()
-        .map(|(index, field)| {
-            if index == 0 {
-                format!("starting with the field `{}`", marker(field.name))
-            } else {
-                format!(", then `{}`", marker(field.name))
-            }
+        .map(|field| {
+            let hint = match field.kind {
+                FieldKind::Str => String::new(),
+                kind => format!(
+                    " (must be formatted as a valid Python {})",
+                    kind.annotation()
+                ),
+            };
+            format!("`{}`{hint}", marker(field.name))
         })
         .collect();
     format!(
-        "{sections}Respond with the corresponding output fields, {order}, and then \
+        "Respond with the corresponding output fields, starting with the field {}, and then \
          ending with the marker for `{}`.",
+        fields.join(", then "),
         marker("completed"),
     )
 }
@@ -401,9 +451,9 @@ mod tests {
     #[test]
     fn numbered_lines_annotate_each_field_with_its_kind() {
         let system = chat_system(&typed_signature());
-        assert!(system.contains("1. `age` (integer): the age turned"));
-        assert!(system.contains("1. `amount` (number): amount in MON"));
-        assert!(system.contains("2. `double` (boolean): double it"));
+        assert!(system.contains("1. `age` (int): the age turned"));
+        assert!(system.contains("1. `amount` (float): amount in MON"));
+        assert!(system.contains("2. `double` (bool): double it"));
     }
 
     #[test]

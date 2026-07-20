@@ -697,17 +697,17 @@ mod tests {
         assert!(
             calls[0]
                 .system
-                .contains("1. `age` (integer): the age turned")
+                .contains("1. `age` (int): the age turned")
         );
         assert!(
             calls[0]
                 .system
-                .contains("2. `fan` (boolean): a lifelong fan")
+                .contains("2. `fan` (bool): a lifelong fan")
         );
         assert!(
             calls[0]
                 .system
-                .contains("1. `amount` (number): amount in MON")
+                .contains("1. `amount` (float): amount in MON")
         );
         let opening = &calls[0].turns[0].content;
         assert!(opening.contains("[[ ## age ## ]]\n61"));

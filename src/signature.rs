@@ -32,12 +32,15 @@ impl FieldKind {
 
     /// The parenthesized annotation prompts put after a field name; `Str` keeps DSPy's
     /// `(str)`, scalars use the schema words so prompt and schema tell the model one story.
+    /// The name the model is shown for this field's type. dspy prints Python's own type names
+    /// through `get_annotation_name`, so a model tuned on DSPy prompts sees `int`, not the
+    /// JSON Schema spelling `integer`. The conformance fixtures pin this.
     pub fn annotation(self) -> &'static str {
         match self {
             FieldKind::Str => "str",
-            FieldKind::Bool => "boolean",
-            FieldKind::Int => "integer",
-            FieldKind::Float => "number",
+            FieldKind::Bool => "bool",
+            FieldKind::Int => "int",
+            FieldKind::Float => "float",
             FieldKind::Json => "json",
         }
     }
@@ -404,9 +407,9 @@ mod tests {
     fn output_clause_annotates_typed_fields_and_leaves_str_alone() {
         let clause = typed_signature().output_clause();
         assert!(clause.contains("note: note."));
-        assert!(clause.contains("double (boolean): double."));
-        assert!(clause.contains("count (integer): count."));
-        assert!(clause.contains("amount (number): amount."));
+        assert!(clause.contains("double (bool): double."));
+        assert!(clause.contains("count (int): count."));
+        assert!(clause.contains("amount (float): amount."));
     }
 
     #[test]
