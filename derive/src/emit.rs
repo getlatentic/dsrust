@@ -110,13 +110,15 @@ fn pair_value(field: &Field) -> TokenStream {
     }
 }
 
+/// The host crate's `FieldKind` for this field. Every non-scalar becomes the opaque `Json`
+/// kind: the derive reads the Rust type, which does not tell it the Python type dspy prints.
 fn kind(field: &Field) -> TokenStream {
     let variant = match field.kind {
         Kind::Str => quote! { Str },
         Kind::Bool => quote! { Bool },
         Kind::Int => quote! { Int },
         Kind::Float => quote! { Float },
-        Kind::Json => quote! { Json },
+        Kind::Json => return quote! { ::dsrs::signature::FieldKind::opaque_json() },
     };
     quote! { ::dsrs::signature::FieldKind::#variant }
 }
@@ -126,7 +128,11 @@ fn in_field(field: &Field) -> TokenStream {
     let desc = &field.desc;
     let kind = kind(field);
     quote! {
-        ::dsrs::signature::InField { name: #name, desc: #desc.to_owned(), kind: #kind }
+        ::dsrs::signature::InField {
+            name: #name.to_owned(),
+            desc: #desc.to_owned(),
+            kind: #kind,
+        }
     }
 }
 
@@ -138,7 +144,9 @@ fn out_field(field: &Field) -> TokenStream {
     let desc = &field.desc;
     let kind = kind(field);
     let values = match &field.values {
-        Some(values) => quote! { ::std::option::Option::Some(::std::vec![ #( #values ),* ]) },
+        Some(values) => {
+            quote! { ::std::option::Option::Some(::std::vec![ #( #values.to_owned() ),* ]) }
+        }
         None => quote! { ::std::option::Option::None },
     };
     let schema = match field.kind {
@@ -154,7 +162,7 @@ fn out_field(field: &Field) -> TokenStream {
     };
     quote! {
         ::dsrs::signature::OutField {
-            name: #name,
+            name: #name.to_owned(),
             desc: #desc.to_owned(),
             kind: #kind,
             values: #values,
