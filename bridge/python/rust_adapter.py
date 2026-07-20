@@ -4,10 +4,13 @@ Upstream's suite constructs `dspy.ChatAdapter()` and asserts on the messages it 
 Subclassing it and overriding `format` and `parse` means their tests run unmodified while the
 bytes under assertion come from Rust.
 
-There is deliberately no deferral to the Python implementation. A shim that quietly handed an
-unsupported case back to dspy would report a pass for code this crate has not written, which
-is the one thing a conformance suite must never do. When Rust cannot render a case this
-raises, the test goes red, and `conftest.py` carries the red ones as a declared to-do list.
+The re-ask through `JSONAdapter` survives here because dspy has it: a ChatAdapter that cannot
+read a reply retries through the JSON one, and upstream tests that behaviour directly. What
+must never reach that path is a case Rust has not implemented, because rendering it on Python
+would report a pass for code this crate has not written — the one thing a conformance suite
+must never do. `Unsupported` is therefore a `BaseException`, out of reach of every
+`except Exception` on both the sync and async paths, so an unimplemented case goes red and
+`conftest.py` carries the red ones as a declared to-do list.
 """
 
 from __future__ import annotations
@@ -29,8 +32,14 @@ import dsrs_bridge
 KINDS: dict[typing.Any, str] = {str: "str", int: "int", float: "float", bool: "bool"}
 
 
-class Unsupported(Exception):
-    """The case needs a Rust feature that does not exist yet. Never caught here on purpose."""
+class Unsupported(BaseException):
+    """The case needs a Rust feature that does not exist yet.
+
+    Deriving from `BaseException` puts this outside `except Exception`, which is what dspy's
+    JSON-adapter fallback catches on both paths. Inheriting from `Exception` would leave the
+    exclusion resting on a matching `except Unsupported: raise` in every handler that could
+    ever see one, and the async path already inherits a handler this shim does not write.
+    """
 
 
 def kind_of(annotation: typing.Any) -> str:
@@ -39,6 +48,11 @@ def kind_of(annotation: typing.Any) -> str:
     Sending `json:<annotation>` rather than a bare `json` is what lets the numbered line read
     `(PetOwner)` the way dspy renders it, instead of collapsing every non-scalar to one word.
     """
+    if typing.get_origin(annotation) is typing.Literal:
+        # The closed set travelling beside this becomes the printed annotation, so what is
+        # named here is the wire type under it: text, which is how every member of a Literal
+        # reaches the marker path whatever its Python type.
+        return "str"
     try:
         return KINDS[annotation]
     except (KeyError, TypeError):
@@ -48,44 +62,74 @@ def kind_of(annotation: typing.Any) -> str:
     raise Unsupported(f"no Rust FieldKind for annotation {annotation!r}")
 
 
+def closed_set_of(annotation: typing.Any) -> str | None:
+    """A `Literal`'s members as JSON, or None where the annotation is not one.
+
+    JSON is what the bridge carries a closed set over, and it spells the three member types
+    Rust models. A `Literal` over anything else — an Enum, None, bytes — has no crossing yet,
+    and must say so rather than lose members on the way across.
+    """
+    if typing.get_origin(annotation) is not typing.Literal:
+        return None
+    members = typing.get_args(annotation)
+    if not all(isinstance(member, (str, int, bool)) for member in members):
+        raise Unsupported(f"no Rust closed set for annotation {annotation!r}")
+    return json.dumps(members)
+
+
 def describe(fields: dict) -> list[tuple]:
     described = []
     for name, info in fields.items():
         desc = info.json_schema_extra.get("desc") or ""
         if desc == f"${{{name}}}":  # dspy's placeholder for "no description given"
             desc = ""
-        described.append((name, kind_of(info.annotation), desc))
+        annotation = info.annotation
+        described.append((name, kind_of(annotation), desc, closed_set_of(annotation)))
     return described
 
 
 def described_outputs(signature) -> list[tuple]:
-    return [(name, kind, desc, None) for name, kind, desc in describe(signature.output_fields)]
+    """Outputs carry a nested-schema slot ahead of the closed set; nothing fills it yet."""
+    return [
+        (name, kind, desc, None, values)
+        for name, kind, desc, values in describe(signature.output_fields)
+    ]
 
 
 class RustChatAdapter(dspy.ChatAdapter):
-    """Renders and parses through Rust, or raises. It never falls through to Python."""
+    """Renders and parses through Rust; only a reply Rust rejects may re-ask through Python."""
+
+    def _retry_adapter(self, error):
+        """The adapter to re-ask through after `error`, or no adapter if it must propagate.
+
+        dspy's ChatAdapter decides this from its own Python flag. Both of its entry points are
+        overridden below so the decision comes from Rust instead, because a conformance run
+        that never consults this crate's policy is not testing it. Python still owns the model
+        call itself, since that is litellm's job on this side of the bridge.
+        """
+        if isinstance(error, ContextWindowExceededError):
+            return None
+        if not dsrs_bridge.has_json_fallback("chat", self.use_json_adapter_fallback):
+            return None
+        return JSONAdapter()
 
     def __call__(self, lm, lm_kwargs, signature, demos, inputs):
-        """dspy's ChatAdapter re-asks through the JSON adapter when a reply fails to parse.
-
-        Inheriting dspy's `__call__` would let its Python flag make that decision, and the
-        conformance run would pass without this crate's policy ever being consulted. Asking
-        Rust keeps the decision where the implementation is; Python still owns the model call
-        itself, because that is litellm's job on this side of the bridge.
-        """
         try:
             return Adapter.__call__(self, lm, lm_kwargs, signature, demos, inputs)
-        except Unsupported:
-            # dspy's fallback exists for a reply the marker parser cannot read, not for a
-            # case this crate has not written. Letting it swallow `Unsupported` would run the
-            # exchange on Python's JSONAdapter and report a pass for absent Rust — the one
-            # thing this harness must never do.
-            raise
         except Exception as error:
-            fallback = dsrs_bridge.has_json_fallback("chat", self.use_json_adapter_fallback)
-            if isinstance(error, ContextWindowExceededError) or not fallback:
+            retry = self._retry_adapter(error)
+            if retry is None:
                 raise
-            return JSONAdapter()(lm, lm_kwargs, signature, demos, inputs)
+            return retry(lm, lm_kwargs, signature, demos, inputs)
+
+    async def acall(self, lm, lm_kwargs, signature, demos, inputs):
+        try:
+            return await Adapter.acall(self, lm, lm_kwargs, signature, demos, inputs)
+        except Exception as error:
+            retry = self._retry_adapter(error)
+            if retry is None:
+                raise
+            return await retry.acall(lm, lm_kwargs, signature, demos, inputs)
 
     def format(self, signature, demos, inputs) -> list[dict[str, typing.Any]]:
         rendered_demos = [

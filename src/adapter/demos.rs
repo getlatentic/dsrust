@@ -5,7 +5,8 @@
 //! so dspy sorts them three ways: whole demos stand as solved turns, partial ones announce
 //! themselves first, and a demo with no input or no output is dropped rather than shown.
 
-use crate::example::{Example, render};
+use crate::adapter::python_json::format_field_value;
+use crate::example::Example;
 use crate::lm::ChatTurn;
 use crate::signature::Signature;
 
@@ -72,10 +73,12 @@ fn classify(signature: &Signature, demo: &Example) -> Kind {
 /// The user turn a demo would have sent. Only the inputs it carries appear: dspy leaves a
 /// missing input out entirely rather than marking it, since the prefix already says so.
 fn ask(signature: &Signature, demo: &Example, prefix: Option<&str>) -> ChatTurn {
-    let sections = signature
-        .inputs
-        .iter()
-        .filter_map(|field| Some(section(&field.name, &render(demo.get(&field.name)?))));
+    let sections = signature.inputs.iter().filter_map(|field| {
+        Some(section(
+            &field.name,
+            &format_field_value(demo.get(&field.name)?),
+        ))
+    });
     let parts: Vec<String> = prefix
         .map(str::to_owned)
         .into_iter()
@@ -92,7 +95,7 @@ fn answer(signature: &Signature, demo: &Example, missing: Option<&str>) -> ChatT
         .iter()
         .filter_map(|field| {
             let value = match demo.get(&field.name) {
-                Some(value) => render(value),
+                Some(value) => format_field_value(value),
                 None => missing?.to_owned(),
             };
             Some(section(&field.name, &value))
@@ -119,6 +122,7 @@ mod tests {
             name: name.into(),
             desc: desc.into(),
             kind: FieldKind::Str,
+            values: None,
         };
         let output = |name: &str, desc: &str| OutField {
             name: name.into(),

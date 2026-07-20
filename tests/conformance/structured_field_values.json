@@ -1,0 +1,69 @@
+{
+  "source": "generated from dspy==3.2.1 via scripts/generate_fixtures.py",
+  "dspy_version": "3.2.1",
+  "instructions": "Answer the question from the context.",
+  "inputs": [
+    {
+      "name": "question",
+      "kind": "str",
+      "desc": null
+    },
+    {
+      "name": "context",
+      "kind": "json:list[str]",
+      "desc": null
+    },
+    {
+      "name": "weights",
+      "kind": "json:dict[str, int]",
+      "desc": null
+    }
+  ],
+  "outputs": [
+    {
+      "name": "answer",
+      "kind": "str",
+      "desc": null
+    }
+  ],
+  "demos": [
+    {
+      "question": "Which capital?",
+      "context": [
+        "Berlin is in Germany.",
+        "Paris is in France."
+      ],
+      "weights": {
+        "alpha": 1,
+        "beta": 2
+      },
+      "answer": "Berlin"
+    }
+  ],
+  "values": {
+    "question": "Which river?",
+    "context": [
+      "The Seine runs through Paris.",
+      "Voici de l'eau — 日本語."
+    ],
+    "weights": {
+      "alpha": 3,
+      "beta": 4
+    }
+  },
+  "expected_system": "Your input fields are:\n1. `question` (str): \n2. `context` (list[str]): \n3. `weights` (dict[str, int]):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## context ## ]]\n{context}\n\n[[ ## weights ## ]]\n{weights}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer the question from the context.",
+  "expected_turns": [
+    {
+      "role": "user",
+      "content": "[[ ## question ## ]]\nWhich capital?\n\n[[ ## context ## ]]\n[\"Berlin is in Germany.\", \"Paris is in France.\"]\n\n[[ ## weights ## ]]\n{\"alpha\": 1, \"beta\": 2}"
+    },
+    {
+      "role": "assistant",
+      "content": "[[ ## answer ## ]]\nBerlin\n\n[[ ## completed ## ]]\n"
+    },
+    {
+      "role": "user",
+      "content": "[[ ## question ## ]]\nWhich river?\n\n[[ ## context ## ]]\n[\"The Seine runs through Paris.\", \"Voici de l'eau — 日本語.\"]\n\n[[ ## weights ## ]]\n{\"alpha\": 3, \"beta\": 4}\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+    }
+  ]
+}

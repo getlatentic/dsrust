@@ -5,7 +5,7 @@
 //! see them as solved turns before the real request.
 
 use dsrs::lm::Role;
-use dsrs::signature::{FieldKind, OutField, Signature};
+use dsrs::signature::{FieldKind, InField, OutField, Signature};
 use dsrs::{Adapter, ChatAdapter, Example};
 use serde_json::json;
 
@@ -69,6 +69,62 @@ fn demos_become_solved_turns_before_the_request() {
         turns[4]
             .content
             .contains("Respond with the corresponding output fields")
+    );
+}
+
+/// The expected bytes are what `dspy.ChatAdapter().format` emits for this signature and demo
+/// on dspy 3.2.1. Every field is supplied, which keeps the comparison to rendering alone —
+/// the separate path upstream takes for a partial demo is covered in `adapter::demos`.
+#[test]
+fn a_demo_renders_every_value_shape_the_way_python_prints_it() {
+    let inputs = ["obj", "arr", "flag", "text", "num"];
+    let mut signature = Signature::single_input(
+        "Read the fields.",
+        vec![OutField {
+            name: "out".into(),
+            desc: "the answer".into(),
+            kind: FieldKind::Str,
+            values: None,
+            schema: None,
+        }],
+    );
+    signature.inputs = inputs
+        .iter()
+        .map(|name| InField {
+            name: (*name).to_owned(),
+            desc: String::new(),
+            kind: FieldKind::opaque_json(),
+            values: None,
+        })
+        .collect();
+
+    let demo = Example::new([
+        ("obj", json!({ "a": 1, "b": { "c": [1, 2] } })),
+        ("arr", json!([1, "two", true, null])),
+        ("flag", json!(true)),
+        ("text", json!("plain string")),
+        ("num", json!(1.5)),
+        ("out", json!("done")),
+    ])
+    .with_inputs(inputs);
+
+    let (_, turns) = ChatAdapter::default().format(&signature, &[demo], &[]);
+
+    // A nested `null` keeps JSON's spelling because `json.dumps` writes it; only the bool,
+    // which is a field value in its own right, reaches Python's `str`.
+    assert_eq!(
+        turns[0].content,
+        concat!(
+            "[[ ## obj ## ]]\n{\"a\": 1, \"b\": {\"c\": [1, 2]}}\n\n",
+            "[[ ## arr ## ]]\n[1, \"two\", true, null]\n\n",
+            "[[ ## flag ## ]]\nTrue\n\n",
+            "[[ ## text ## ]]\nplain string\n\n",
+            "[[ ## num ## ]]\n1.5",
+        )
+    );
+    assert_eq!(
+        turns[1].content,
+        "[[ ## out ## ]]\ndone\n\n[[ ## completed ## ]]\n"
     );
 }
 

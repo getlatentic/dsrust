@@ -164,11 +164,11 @@ fn parse_field(field: &syn::Field) -> Result<(Field, Direction)> {
     } else {
         Direction::Output
     };
-    let (desc, values) = marker_body(marker, &direction)?;
+    let (desc, values) = marker_body(marker)?;
     if values.is_some() && kind != Kind::Str {
         return Err(Error::new_spanned(
             marker,
-            "values(...) is only allowed on String outputs",
+            "values(...) is only allowed on String fields",
         ));
     }
     let desc = desc
@@ -192,12 +192,10 @@ fn parse_field(field: &syn::Field) -> Result<(Field, Direction)> {
     ))
 }
 
-/// The body of one `#[input(...)]` / `#[output(...)]`: an optional `desc = "..."` and, for
-/// outputs only, an optional `values("a", "b")` closed set.
-fn marker_body(
-    attr: &Attribute,
-    direction: &Direction,
-) -> Result<(Option<String>, Option<Vec<String>>)> {
+/// The body of one `#[input(...)]` / `#[output(...)]`: an optional `desc = "..."` and an
+/// optional `values("a", "b")` closed set. dspy renders a `Literal` annotation on either
+/// direction, so a closed set is legal on either here too.
+fn marker_body(attr: &Attribute) -> Result<(Option<String>, Option<Vec<String>>)> {
     let mut desc = None;
     let mut values = None;
     if matches!(attr.meta, syn::Meta::Path(_)) {
@@ -209,9 +207,6 @@ fn marker_body(
             desc = Some(lit.value());
             Ok(())
         } else if meta.path.is_ident("values") {
-            if matches!(direction, Direction::Input) {
-                return Err(meta.error("values(...) is only allowed on #[output(...)]"));
-            }
             let content;
             syn::parenthesized!(content in meta.input);
             let list = content.parse_terminated(<LitStr as syn::parse::Parse>::parse, Token![,])?;
@@ -316,12 +311,12 @@ mod tests {
     }
 
     #[test]
-    fn rejects_values_on_typed_and_json_outputs() {
+    fn rejects_values_on_typed_and_json_fields_in_either_direction() {
         for (bad, name) in [
             (quote::quote!(bool), "bool"),
             (quote::quote!(Vec<String>), "Vec<String>"),
         ] {
-            let Err(error) = model(&parse_quote! {
+            let outputs = parse_quote! {
                 #[signature(instructions = "Do the task.")]
                 struct Task {
                     #[input]
@@ -329,13 +324,43 @@ mod tests {
                     #[output(values("yes", "no"))]
                     ok: #bad,
                 }
-            }) else {
-                panic!("values on a {name} output should be rejected");
             };
-            assert_eq!(
-                error.to_string(),
-                "values(...) is only allowed on String outputs"
-            );
+            let inputs = parse_quote! {
+                #[signature(instructions = "Do the task.")]
+                struct Task {
+                    #[input(values("yes", "no"))]
+                    ok: #bad,
+                    #[output]
+                    text: String,
+                }
+            };
+            for (declaration, direction) in [(outputs, "output"), (inputs, "input")] {
+                let Err(error) = model(&declaration) else {
+                    panic!("values on a {name} {direction} should be rejected");
+                };
+                assert_eq!(
+                    error.to_string(),
+                    "values(...) is only allowed on String fields"
+                );
+            }
         }
+    }
+
+    #[test]
+    fn accepts_a_closed_set_on_a_string_input() {
+        let model = model(&parse_quote! {
+            #[signature(instructions = "Do the task.")]
+            struct Task {
+                #[input(values("terse", "florid"))]
+                style: String,
+                #[output]
+                text: String,
+            }
+        })
+        .expect("a closed set on a String input is legal");
+        assert_eq!(
+            model.inputs[0].values,
+            Some(vec!["terse".to_owned(), "florid".to_owned()])
+        );
     }
 }

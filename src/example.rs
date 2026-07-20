@@ -11,6 +11,8 @@ use std::collections::BTreeSet;
 use anyhow::{Result, anyhow};
 use serde_json::Value;
 
+use crate::adapter::python_json::format_field_value;
+
 /// One labelled example: field values, plus which of those fields are inputs.
 ///
 /// Field order is preserved, because prompts render fields in signature order and a stable
@@ -116,7 +118,7 @@ impl Example {
     pub fn rendered(&self) -> Vec<(String, String)> {
         self.fields
             .iter()
-            .map(|(name, value)| (name.clone(), render(value)))
+            .map(|(name, value)| (name.clone(), format_field_value(value)))
             .collect()
     }
 }
@@ -137,20 +139,6 @@ macro_rules! example {
             $((stringify!($name), $crate::__macro_support::json!($value))),*
         ])
     };
-}
-
-/// dspy `format_field_value`: a string is itself, anything else is its JSON form. Quoting a
-/// string would change what the model reads, and upstream is careful to avoid that.
-///
-/// A null is the exception: upstream reaches it through `str(None)`, so the model reads Python's
-/// spelling. Only a top-level one — a null nested inside a structure is part of that structure's
-/// JSON, and upstream dumps it as such.
-pub fn render(value: &Value) -> String {
-    match value {
-        Value::String(text) => text.clone(),
-        Value::Null => "None".to_owned(),
-        other => other.to_string(),
-    }
 }
 
 /// What a module returns: the parsed output fields, plus what produced them.
@@ -261,16 +249,9 @@ mod tests {
             vec![
                 ("note".to_owned(), "hello".to_owned()),
                 ("count".to_owned(), "3".to_owned()),
-                ("tags".to_owned(), r#"["a","b"]"#.to_owned()),
+                ("tags".to_owned(), r#"["a", "b"]"#.to_owned()),
             ]
         );
-    }
-
-    /// A null reaches the model as Python's spelling, because upstream formats it with `str`
-    /// rather than as JSON — a demo carrying one shows the model `None`.
-    #[test]
-    fn a_null_renders_the_way_python_prints_none() {
-        assert_eq!(render(&json!(null)), "None");
     }
 
     #[test]
