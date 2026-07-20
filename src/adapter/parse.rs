@@ -122,6 +122,7 @@ mod tests {
             name: "recipient".into(),
             desc: "who the gift is for".into(),
             kind: FieldKind::opaque_json(),
+            values: None,
         }];
         signature
     }
