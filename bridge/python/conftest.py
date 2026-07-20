@@ -53,6 +53,11 @@ NOT_YET_IMPLEMENTED = {
 # would read as green whatever this crate did. Naming them keeps the passing count honest, and
 # anything not named here must cross into Rust or the run fails.
 DOES_NOT_EXERCISE_RUST = {
+    # dspy's optimizer reads its own constructor back; nothing is rendered.
+    "test_bootstrap_initialization": "an optimizer's own constructor",
+    # The student raises before a prompt exists, so no rendering is reached. The crate's own
+    # optimizer is not what runs here either — upstream's does, over this crate's adapter.
+    "test_error_handling_during_bootstrap": "a student that raises before any prompt is built",
     # `Predict`'s own state: what `dump_state`/`load_state` round-trip, and the checks that stop
     # a serialized file from redirecting a later run at another endpoint. dspy's module
     # bookkeeping and its security posture around it, both above the wire this crate speaks.
