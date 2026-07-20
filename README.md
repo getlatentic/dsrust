@@ -40,6 +40,7 @@ that error rather than letting a broken build read as a pass.
 | Signatures (`#[derive(Signature)]`, typed + complex fields) | built |
 | `Adapter` trait: `ChatAdapter`, `JsonAdapter`, or your own | built, conformance-checked |
 | `Predict`, `ChainOfThought` (+ typed forms) | built |
+| `ReAct` with tools, trajectory, and an iteration budget | built |
 | LM layer, global config with per-call override | built |
 | Two-tier feedback retry | built |
 | Demos (few-shot examples) rendered as turns | built, conformance-checked |
@@ -49,7 +50,6 @@ that error rather than letting a broken build read as a pass.
 | `LabeledFewShot` and `BootstrapFewShot` | built |
 | Instruction-search optimizers (COPRO/MIPRO-style) | next |
 | Optimizers (labeled few-shot → bootstrap → search) | planned |
-| ReAct | planned |
 
 ## Why another one
 

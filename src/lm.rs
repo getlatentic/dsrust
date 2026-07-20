@@ -105,14 +105,42 @@ pub enum OutputMode<'a> {
 
 /// The raw model call behind every adapter — the one seam unit tests script with canned
 /// replies while production speaks to real providers through [`LM`].
+/// The object-safe form of [`ChatModel`], so a model can be stored behind a pointer.
+///
+/// `ChatModel` returns `impl Future`, which is ergonomic to implement and impossible to make
+/// into a trait object. Every `ChatModel` gets this for free through the blanket impl below,
+/// and the global configuration stores this form — which is what lets a test install a
+/// scripted model the way dspy installs a `DummyLM`.
+pub trait DynChatModel: Send + Sync {
+    fn chat_dyn<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+        system: &'a str,
+        turns: &'a [ChatTurn],
+        mode: &'a OutputMode<'a>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>>;
+}
+
+impl<T: ChatModel + Send + Sync> DynChatModel for T {
+    fn chat_dyn<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+        system: &'a str,
+        turns: &'a [ChatTurn],
+        mode: &'a OutputMode<'a>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
+        Box::pin(self.chat(http, system, turns, mode))
+    }
+}
+
 pub trait ChatModel {
-    fn chat(
-        &self,
-        http: &reqwest::Client,
-        system: &str,
-        turns: &[ChatTurn],
-        mode: &OutputMode<'_>,
-    ) -> impl Future<Output = Result<String>> + Send;
+    fn chat<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+        system: &'a str,
+        turns: &'a [ChatTurn],
+        mode: &'a OutputMode<'a>,
+    ) -> impl Future<Output = Result<String>> + Send + 'a;
 }
 
 /// One configured language model: a model reference plus the credentials and hosts its

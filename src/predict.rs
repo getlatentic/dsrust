@@ -7,7 +7,7 @@ use serde_json::Value;
 use crate::adapter::{Adapter, ChatAdapter, Feedback, JsonAdapter, turns_for};
 use crate::example::{Example, Prediction};
 use crate::module::{Module, NamedPredictor};
-use crate::lm::{ChatModel, global};
+use crate::lm::{ChatModel, DynChatModel, global};
 use crate::signature::{FieldKind, OutField, Signature, SignatureSpec};
 
 /// dspy.Predict: ask through the configured adapter, demand the signature's fields back,
@@ -73,7 +73,7 @@ impl Predict {
     pub async fn call_with(
         &self,
         http: &reqwest::Client,
-        lm: &impl ChatModel,
+        lm: &dyn DynChatModel,
         input: &str,
     ) -> Result<Value> {
         let name = self.signature.inputs.first().map_or("request", |f| f.name);
@@ -90,21 +90,21 @@ impl Predict {
         &self,
         adapter: &dyn Adapter,
         http: &reqwest::Client,
-        lm: &impl ChatModel,
+        lm: &dyn DynChatModel,
         inputs: &[(&str, String)],
         feedback: Option<&Feedback>,
     ) -> Result<String> {
         let schema = self.signature.schema();
         let (system, opening) = adapter.format(&self.signature, &self.demos, inputs);
         let mode = adapter.output_mode(&schema);
-        lm.chat(http, &system, &turns_for(opening, feedback), &mode)
+        lm.chat_dyn(http, &system, &turns_for(opening, feedback), &mode)
             .await
     }
 
     async fn ask(
         &self,
         http: &reqwest::Client,
-        lm: &impl ChatModel,
+        lm: &dyn DynChatModel,
         inputs: &[(&str, String)],
         feedback: Option<&Feedback>,
     ) -> Result<String> {
@@ -115,7 +115,7 @@ impl Predict {
     async fn call_with_inputs(
         &self,
         http: &reqwest::Client,
-        lm: &impl ChatModel,
+        lm: &dyn DynChatModel,
         inputs: &[(&str, String)],
     ) -> Result<Validated> {
         // dspy's ChatAdapter catches a parse failure and re-asks the whole exchange through
@@ -162,7 +162,7 @@ impl Predict {
     async fn feedback_ask(
         &self,
         http: &reqwest::Client,
-        lm: &impl ChatModel,
+        lm: &dyn DynChatModel,
         inputs: &[(&str, String)],
         feedback: &Feedback,
     ) -> Result<(String, Value)> {
@@ -182,7 +182,7 @@ impl Predict {
     pub async fn call_typed_with<T: DeserializeOwned>(
         &self,
         http: &reqwest::Client,
-        lm: &impl ChatModel,
+        lm: &dyn DynChatModel,
         input: &str,
     ) -> Result<T> {
         typed(self.call_with(http, lm, input).await?)
@@ -215,7 +215,7 @@ impl<S: SignatureSpec> TypedPredict<S> {
     pub async fn call_with(
         &self,
         http: &reqwest::Client,
-        lm: &impl ChatModel,
+        lm: &dyn DynChatModel,
         inputs: &S::Inputs,
     ) -> Result<S::Outputs> {
         typed_task::<S>(&self.predict, http, lm, inputs, std::convert::identity).await
@@ -230,7 +230,7 @@ impl<S: SignatureSpec> TypedPredict<S> {
 async fn typed_task<S: SignatureSpec>(
     predict: &Predict,
     http: &reqwest::Client,
-    lm: &impl ChatModel,
+    lm: &dyn DynChatModel,
     inputs: &S::Inputs,
     shape: fn(Value) -> Value,
 ) -> Result<S::Outputs> {
@@ -295,7 +295,7 @@ impl ChainOfThought {
     pub async fn call_with(
         &self,
         http: &reqwest::Client,
-        lm: &impl ChatModel,
+        lm: &dyn DynChatModel,
         input: &str,
     ) -> Result<Value> {
         Ok(without_reasoning(
@@ -312,7 +312,7 @@ impl ChainOfThought {
     pub async fn call_typed_with<T: DeserializeOwned>(
         &self,
         http: &reqwest::Client,
-        lm: &impl ChatModel,
+        lm: &dyn DynChatModel,
         input: &str,
     ) -> Result<T> {
         typed(self.call_with(http, lm, input).await?)
@@ -337,7 +337,7 @@ impl<S: SignatureSpec> TypedChainOfThought<S> {
     pub async fn call_with(
         &self,
         http: &reqwest::Client,
-        lm: &impl ChatModel,
+        lm: &dyn DynChatModel,
         inputs: &S::Inputs,
     ) -> Result<S::Outputs> {
         typed_task::<S>(&self.cot.predict, http, lm, inputs, without_reasoning).await

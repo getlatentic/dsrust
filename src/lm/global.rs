@@ -6,13 +6,13 @@ use std::sync::{Arc, RwLock};
 
 use anyhow::{Result, anyhow};
 
-use super::LM;
+use super::{DynChatModel, LM};
 
 /// The configured pair travels together: provider calls must go out on the client the
 /// configurer chose (the server passes its pooled one).
 struct Configured {
     http: reqwest::Client,
-    lm: Arc<LM>,
+    lm: Arc<dyn DynChatModel>,
 }
 
 static GLOBAL: RwLock<Option<Configured>> = RwLock::new(None);
@@ -24,15 +24,19 @@ pub fn configure(lm: LM) {
 
 /// Make `lm` the process-wide default, sending its provider calls on `http`.
 pub fn configure_with_client(http: reqwest::Client, lm: LM) {
-    *GLOBAL.write().expect("lock not poisoned") = Some(Configured {
-        http,
-        lm: Arc::new(lm),
-    });
+    configure_model(http, Arc::new(lm));
+}
+
+/// Install any model as the process-wide default, including a scripted one. dspy's `DummyLM`
+/// exists for the same reason: a module reaches its model through the global, so without this
+/// nothing built on `Module` could be tested without a provider.
+pub fn configure_model(http: reqwest::Client, lm: Arc<dyn DynChatModel>) {
+    *GLOBAL.write().expect("lock not poisoned") = Some(Configured { http, lm });
 }
 
 /// The current default, cloned out so in-flight calls never hold the lock across await
 /// points and a concurrent reconfigure only affects later calls.
-pub(crate) fn current() -> Result<(reqwest::Client, Arc<LM>)> {
+pub(crate) fn current() -> Result<(reqwest::Client, Arc<dyn DynChatModel>)> {
     GLOBAL
         .read()
         .expect("lock not poisoned")

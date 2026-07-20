@@ -13,6 +13,7 @@ pub mod optimize;
 pub mod example;
 pub mod lm;
 pub mod predict;
+pub mod react;
 pub mod signature;
 
 pub use adapter::{Adapter, ChatAdapter, JsonAdapter};
@@ -20,6 +21,7 @@ pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
 pub use example::{Example, Prediction};
 pub use module::{Module, NamedPredictor};
 pub use optimize::{BootstrapFewShot, LabeledFewShot};
+pub use react::{FnTool, ReAct, Tool, Trajectory};
 
 /// Re-exports the macros need so a caller does not have to depend on them directly.
 #[doc(hidden)]
