@@ -9,7 +9,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 
-use dsrs::lm::{ChatModel, ChatTurn, JsonFormat, LM, OutputMode};
+use dsrs::lm::{ChatModel, ChatTurn, JsonFormat, LM, OutputMode, TokenLimitRule};
 use serde_json::{Value, json};
 
 const REPLY: &str = r#"{"choices":[{"message":{"content":"the reply"}}]}"#;
@@ -124,11 +124,15 @@ fn write_response(stream: &mut TcpStream, status: u16, body: &str) {
     stream.flush().expect("the reply is flushed");
 }
 
-fn probe_lm(stub: &Stub) -> LM {
-    LM::new("openai/gpt-4o-mini")
+fn probe_lm_for(stub: &Stub, model: &str) -> LM {
+    LM::new(model)
         .expect("valid model ref")
         .with_openai_key("sk-test")
         .with_openai_base_url(stub.base_url.as_str())
+}
+
+fn probe_lm(stub: &Stub) -> LM {
+    probe_lm_for(stub, "openai/gpt-4o-mini")
 }
 
 async fn ask(lm: &LM, mode: &OutputMode<'_>) -> anyhow::Result<String> {
@@ -206,6 +210,62 @@ async fn the_schema_envelope_is_opt_in_and_carries_the_schema() {
     assert_eq!(format["type"], "json_schema");
     assert_eq!(format["json_schema"]["strict"], true);
     assert_eq!(format["json_schema"]["schema"], schema);
+}
+
+/// OpenAI's reasoning models reject `max_tokens` outright, so what leaves the process for
+/// one of them has to carry the cap under the other key and nothing under the old one.
+#[tokio::test]
+async fn a_reasoning_model_caps_completion_tokens_on_the_wire() {
+    let stub = Stub::answering(200, REPLY);
+    ask(&probe_lm_for(&stub, "openai/o3"), &OutputMode::Text)
+        .await
+        .expect("the stub answers");
+
+    let request = stub.received();
+    assert_eq!(request.body["max_completion_tokens"], 1024);
+    assert_eq!(request.body.get("max_tokens"), None);
+}
+
+#[tokio::test]
+async fn a_chat_model_caps_max_tokens_on_the_wire() {
+    let stub = Stub::answering(200, REPLY);
+    ask(&probe_lm(&stub), &OutputMode::Text)
+        .await
+        .expect("the stub answers");
+
+    let request = stub.received();
+    assert_eq!(request.body["max_tokens"], 1024);
+    assert_eq!(request.body.get("max_completion_tokens"), None);
+}
+
+/// `gpt-5-chat` is the plain chat model of the family; only its reasoning siblings moved.
+#[tokio::test]
+async fn the_gpt_5_chat_line_keeps_max_tokens_on_the_wire() {
+    let stub = Stub::answering(200, REPLY);
+    ask(
+        &probe_lm_for(&stub, "openai/gpt-5-chat-latest"),
+        &OutputMode::Text,
+    )
+    .await
+    .expect("the stub answers");
+
+    let request = stub.received();
+    assert_eq!(request.body["max_tokens"], 1024);
+    assert_eq!(request.body.get("max_completion_tokens"), None);
+}
+
+/// A self-hosted server behind the same wire format need not know the newer field, and
+/// saying so has to hold for a model whose name looks like one of OpenAI's.
+#[tokio::test]
+async fn a_host_pinned_to_max_tokens_sends_it_for_a_reasoning_model_too() {
+    let stub = Stub::answering(200, REPLY);
+    let lm = probe_lm_for(&stub, "openai/o3")
+        .with_openai_token_limit_rule(TokenLimitRule::AlwaysMaxTokens);
+    ask(&lm, &OutputMode::Text).await.expect("the stub answers");
+
+    let request = stub.received();
+    assert_eq!(request.body["max_tokens"], 1024);
+    assert_eq!(request.body.get("max_completion_tokens"), None);
 }
 
 #[tokio::test]

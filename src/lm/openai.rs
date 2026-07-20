@@ -6,6 +6,7 @@
 use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
+use super::token_limit::TokenLimitRule;
 use super::{ChatTurn, OutputMode, PROVIDER_TIMEOUT, env_nonempty, wire_messages};
 
 /// OpenAI's own endpoint, and the value every other service replaces.
@@ -22,6 +23,10 @@ const BASE_URL_VAR: &str = "OPENAI_BASE_URL";
 const OPENROUTER_BASE_URL: &str = "https://openrouter.ai/api/v1";
 
 const OPENROUTER_KEY_VAR: &str = "OPENROUTER_API_KEY";
+
+/// The cap every OpenAI-shaped call is sent, large enough for a full structured reply
+/// without inviting an unbounded one.
+const MAX_OUTPUT_TOKENS: u32 = 1024;
 
 /// Which `response_format` envelope an endpoint understands.
 ///
@@ -57,6 +62,8 @@ pub struct OpenAiConfig {
     /// as soon as the endpoint is pointed at Groq or Together.
     pub key_var: String,
     pub json_format: JsonFormat,
+    /// Which generation-cap field this service takes. See [`TokenLimitRule`].
+    pub token_limit_rule: TokenLimitRule,
 }
 
 impl Default for OpenAiConfig {
@@ -66,6 +73,10 @@ impl Default for OpenAiConfig {
             api_key: None,
             key_var: DEFAULT_OPENAI_KEY_VAR.to_owned(),
             json_format: JsonFormat::Object,
+            // The stock endpoint is OpenAI's own, and pointing `base_url` elsewhere leaves
+            // this rule in place on purpose: a service is chosen by the caller, not
+            // inferred from a host that a proxy or gateway can freely change.
+            token_limit_rule: TokenLimitRule::ByOpenAiModelFamily,
         }
     }
 }
@@ -90,10 +101,13 @@ pub(super) struct Endpoint<'a> {
     api_key: Option<&'a str>,
     key_var: &'a str,
     json_format: JsonFormat,
+    token_limit_rule: TokenLimitRule,
 }
 
 impl<'a> Endpoint<'a> {
     /// OpenRouter: its own host and credential, on the envelope it has always been sent.
+    /// It accepts `max_tokens` for every model it hosts, OpenAI's reasoning models included,
+    /// so the model name never moves the cap to another field here.
     pub(super) fn openrouter(api_key: Option<&'a str>) -> Self {
         Self {
             label: "openrouter",
@@ -101,6 +115,7 @@ impl<'a> Endpoint<'a> {
             api_key,
             key_var: OPENROUTER_KEY_VAR,
             json_format: JsonFormat::Object,
+            token_limit_rule: TokenLimitRule::AlwaysMaxTokens,
         }
     }
 
@@ -113,6 +128,7 @@ impl<'a> Endpoint<'a> {
             api_key: config.api_key.as_deref(),
             key_var: &config.key_var,
             json_format: config.json_format,
+            token_limit_rule: config.token_limit_rule,
         }
     }
 
@@ -131,7 +147,14 @@ impl<'a> Endpoint<'a> {
             .post(chat_completions_url(self.base_url))
             .bearer_auth(key)
             .timeout(PROVIDER_TIMEOUT)
-            .json(&request(model, system, turns, mode, self.json_format))
+            .json(&request(
+                model,
+                system,
+                turns,
+                mode,
+                self.json_format,
+                self.token_limit_rule,
+            ))
             .send()
             .await
             .with_context(|| format!("{} request failed", self.label))?;
@@ -156,12 +179,13 @@ fn request(
     turns: &[ChatTurn],
     mode: &OutputMode<'_>,
     json_format: JsonFormat,
+    token_limit_rule: TokenLimitRule,
 ) -> Value {
     let mut request = json!({
         "model": model,
-        "max_tokens": 1024,
         "messages": wire_messages(system, turns),
     });
+    request[token_limit_rule.field_for(model).wire_name()] = json!(MAX_OUTPUT_TOKENS);
     if let OutputMode::Json { schema } = mode {
         request["response_format"] = response_format(schema, json_format);
     }
@@ -193,6 +217,7 @@ fn reply(label: &str, status: reqwest::StatusCode, body: &Value) -> Result<Strin
 
 #[cfg(test)]
 mod tests {
+    use super::super::token_limit::TokenLimitField;
     use super::*;
 
     fn schema() -> Value {
@@ -212,6 +237,19 @@ mod tests {
             &[ChatTurn::user("hi")],
             &OutputMode::Json { schema: &schema },
             json_format,
+            TokenLimitRule::ByOpenAiModelFamily,
+        )
+    }
+
+    /// The body a text-mode call to `model` produces on OpenAI's own endpoint.
+    fn text_request(model: &str, token_limit_rule: TokenLimitRule) -> Value {
+        request(
+            model,
+            "be helpful",
+            &[ChatTurn::user("hi")],
+            &OutputMode::Text,
+            JsonFormat::Object,
+            token_limit_rule,
         )
     }
 
@@ -222,6 +260,7 @@ mod tests {
         assert_eq!(config.key_var, "OPENAI_API_KEY");
         assert_eq!(config.api_key, None);
         assert_eq!(config.json_format, JsonFormat::Object);
+        assert_eq!(config.token_limit_rule, TokenLimitRule::ByOpenAiModelFamily);
     }
 
     #[test]
@@ -238,13 +277,7 @@ mod tests {
 
     #[test]
     fn text_mode_asks_for_no_particular_response_format() {
-        let request = request(
-            "gpt-4o-mini",
-            "be helpful",
-            &[ChatTurn::user("hi")],
-            &OutputMode::Text,
-            JsonFormat::Object,
-        );
+        let request = text_request("gpt-4o-mini", TokenLimitRule::ByOpenAiModelFamily);
         assert_eq!(request.get("response_format"), None);
         assert_eq!(request["model"], "gpt-4o-mini");
         assert_eq!(request["max_tokens"], 1024);
@@ -292,12 +325,69 @@ mod tests {
             api_key: None,
             key_var: "GROQ_API_KEY".into(),
             json_format: JsonFormat::Object,
+            token_limit_rule: TokenLimitRule::AlwaysMaxTokens,
         };
         let endpoint = Endpoint::configured(&config);
         assert_eq!(endpoint.key_var, "GROQ_API_KEY");
         assert_eq!(
             chat_completions_url(endpoint.base_url),
             "https://api.groq.com/openai/v1/chat/completions"
+        );
+    }
+
+    /// The bug this guards: OpenAI's reasoning models reject `max_tokens` outright, so the
+    /// cap has to move to the other key rather than be sent alongside it.
+    #[test]
+    fn a_reasoning_model_caps_completion_tokens_and_sends_no_max_tokens() {
+        let request = text_request("o3", TokenLimitRule::ByOpenAiModelFamily);
+        assert_eq!(request["max_completion_tokens"], MAX_OUTPUT_TOKENS);
+        assert_eq!(request.get("max_tokens"), None);
+    }
+
+    #[test]
+    fn a_chat_model_caps_max_tokens_and_sends_no_completion_tokens() {
+        let request = text_request("gpt-4o-mini", TokenLimitRule::ByOpenAiModelFamily);
+        assert_eq!(request["max_tokens"], MAX_OUTPUT_TOKENS);
+        assert_eq!(request.get("max_completion_tokens"), None);
+    }
+
+    /// OpenRouter's body is pinned whole. It reaches the wire through the shared builder,
+    /// so a model name that OpenAI treats specially must still leave these exact bytes.
+    #[test]
+    fn openrouter_sends_every_model_on_the_max_tokens_envelope() {
+        let endpoint = Endpoint::openrouter(Some("key"));
+        for model in ["openai/gpt-5", "openai/o3", "openai/gpt-oss-120b"] {
+            let body = request(
+                model,
+                "be helpful",
+                &[ChatTurn::user("hi")],
+                &OutputMode::Text,
+                endpoint.json_format,
+                endpoint.token_limit_rule,
+            );
+            assert_eq!(
+                body.to_string(),
+                format!(
+                    r#"{{"max_tokens":1024,"messages":[{{"content":"be helpful","role":"system"}},{{"content":"hi","role":"user"}}],"model":"{model}"}}"#
+                )
+            );
+        }
+    }
+
+    /// The rule is a property of the endpoint, and reading it back is how a caller checks
+    /// which field a service will be sent.
+    #[test]
+    fn each_endpoint_reports_the_token_limit_rule_it_follows() {
+        assert_eq!(
+            Endpoint::openrouter(Some("key")).token_limit_rule,
+            TokenLimitRule::AlwaysMaxTokens
+        );
+        let config = OpenAiConfig::default();
+        assert_eq!(
+            Endpoint::configured(&config)
+                .token_limit_rule
+                .field_for("o3"),
+            TokenLimitField::MaxCompletionTokens
         );
     }
 

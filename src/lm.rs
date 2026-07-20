@@ -1,6 +1,7 @@
 pub mod dummy;
 pub mod global;
 mod openai;
+mod token_limit;
 
 use std::time::Duration;
 
@@ -9,6 +10,7 @@ use serde_json::{Value, json};
 
 pub use global::{configure, configure_with_client};
 pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig};
+pub use token_limit::{TokenLimitField, TokenLimitRule};
 
 /// Bound every provider call, so one slow upstream cannot hold a worker for the whole request
 /// timeout while the agent's in-flight slots stay occupied.
@@ -217,6 +219,14 @@ impl LM {
         self.openai.json_format = json_format;
         self
     }
+
+    /// Choose which generation-cap field this endpoint is sent. The default follows
+    /// OpenAI's own rule; a service that predates `max_completion_tokens` wants
+    /// [`TokenLimitRule::AlwaysMaxTokens`].
+    pub fn with_openai_token_limit_rule(mut self, rule: TokenLimitRule) -> Self {
+        self.openai.token_limit_rule = rule;
+        self
+    }
 }
 
 /// An unset variable and an empty one mean the same thing: not configured.
@@ -413,10 +423,12 @@ mod tests {
             .expect("valid ref")
             .with_openai_base_url("http://localhost:8000/v1")
             .with_openai_key("sk-local")
-            .with_openai_json_format(JsonFormat::Schema);
+            .with_openai_json_format(JsonFormat::Schema)
+            .with_openai_token_limit_rule(TokenLimitRule::AlwaysMaxTokens);
         assert_eq!(lm.openai.base_url, "http://localhost:8000/v1");
         assert_eq!(lm.openai.api_key.as_deref(), Some("sk-local"));
         assert_eq!(lm.openai.json_format, JsonFormat::Schema);
+        assert_eq!(lm.openai.token_limit_rule, TokenLimitRule::AlwaysMaxTokens);
     }
 
     /// PATH stands in for a provider variable: the assertion needs a name that is certainly
