@@ -9,7 +9,7 @@
 //! the only things the renderer needs.
 
 use dsrs::signature::{FieldKind, InField, OutField, Signature};
-use dsrs::{Adapter, ChatAdapter, JsonAdapter};
+use dsrs::{Adapter, ChatAdapter, Example, JsonAdapter};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
@@ -70,13 +70,14 @@ fn build_signature(
 
 /// Render one exchange for the named adapter, as `(system, [(role, content), ...])`.
 #[pyfunction]
-#[pyo3(signature = (adapter, instructions, inputs, outputs, values))]
+#[pyo3(signature = (adapter, instructions, inputs, outputs, values, demos = None))]
 fn format_messages(
     adapter: &str,
     instructions: &str,
     inputs: Vec<(String, String, String)>,
     outputs: Vec<(String, String, String, Option<String>)>,
     values: Vec<(String, String)>,
+    demos: Option<Vec<Vec<(String, String)>>>,
 ) -> PyResult<(String, Vec<(String, String)>)> {
     let signature = build_signature(instructions, inputs, outputs)?;
     let pairs: Vec<(&str, String)> = values
@@ -88,7 +89,18 @@ fn format_messages(
         "json" => Box::new(JsonAdapter),
         other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
     };
-    let (system, turns) = adapter.format(&signature, &pairs);
+    let demos: Vec<Example> = demos
+        .unwrap_or_default()
+        .into_iter()
+        .map(|fields| {
+            Example::new(
+                fields
+                    .into_iter()
+                    .map(|(name, value)| (name, serde_json::Value::String(value))),
+            )
+        })
+        .collect();
+    let (system, turns) = adapter.format(&signature, &demos, &pairs);
     let turns = turns
         .into_iter()
         .map(|turn| (turn.role.as_str().to_owned(), turn.content))

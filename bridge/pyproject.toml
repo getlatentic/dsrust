@@ -1,11 +1,11 @@
 [build-system]
-requires = ["maturin>=1.7,<2"]
+requires = ["maturin>=1.14,<2"]
 build-backend = "maturin"
 
 [project]
 name = "dsrs-bridge"
-requires-python = ">=3.10"
 version = "0.1.0"
+requires-python = ">=3.10"
 description = "PyO3 bridge so Python DSPy's own test suite can drive the dsrs renderer"
 
 [tool.maturin]

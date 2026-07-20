@@ -27,7 +27,7 @@ from rust_adapter import RustChatAdapter  # noqa: E402
 # once Rust renders that case; the strict xfail will fail the run if you forget.
 NOT_YET_IMPLEMENTED = {
     "test_chat_adapter_formats_image": "dspy.Image fields",
-    "test_chat_adapter_formats_image_with_few_shot_examples": "dspy.Image fields and demos",
+    "test_chat_adapter_formats_image_with_few_shot_examples": "dspy.Image fields",
     "test_chat_adapter_formats_image_with_nested_images": "dspy.Image fields",
     "test_chat_adapter_formats_image_with_few_shot_examples_with_nested_images": (
         "dspy.Image fields and demos"

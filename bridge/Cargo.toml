@@ -12,5 +12,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 dsrs = { path = ".." }
-pyo3 = { version = "0.23", features = ["auto-initialize"] }
+# No `extension-module` feature: current PyO3 recommends against it, because it disables
+# Python linking for tests and binaries and produces undefined _Py symbols. build.rs supplies
+# the macOS link arguments instead, scoped to this crate rather than the whole workspace.
+pyo3 = "0.29"
 serde_json = "1"
+
+[build-dependencies]
+pyo3-build-config = "0.29"

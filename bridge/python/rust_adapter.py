@@ -73,8 +73,14 @@ class RustChatAdapter(dspy.ChatAdapter):
             return JSONAdapter()(lm, lm_kwargs, signature, demos, inputs)
 
     def format(self, signature, demos, inputs) -> list[dict[str, typing.Any]]:
-        if demos:
-            raise Unsupported("demos are not implemented in Rust yet")
+        rendered_demos = [
+            [
+                (name, format_field_value(field_info=field, value=demo[name]))
+                for name, field in {**signature.input_fields, **signature.output_fields}.items()
+                if name in demo
+            ]
+            for demo in demos
+        ]
         values = [
             (name, format_field_value(field_info=signature.input_fields[name], value=value))
             for name, value in inputs.items()
@@ -86,6 +92,7 @@ class RustChatAdapter(dspy.ChatAdapter):
             describe(signature.input_fields),
             described_outputs(signature),
             values,
+            rendered_demos,
         )
         return [{"role": "system", "content": system}] + [
             {"role": role, "content": content} for role, content in turns
