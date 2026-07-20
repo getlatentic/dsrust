@@ -16,8 +16,11 @@ import json
 import typing
 
 import dspy
+from dspy.adapters.base import Adapter
+from dspy.adapters.json_adapter import JSONAdapter
 from dspy.adapters.utils import format_field_value, parse_value
 from dspy.utils.exceptions import AdapterParseError
+from litellm import ContextWindowExceededError
 
 import dsrs_bridge
 
@@ -52,6 +55,22 @@ def described_outputs(signature) -> list[tuple]:
 
 class RustChatAdapter(dspy.ChatAdapter):
     """Renders and parses through Rust, or raises. It never falls through to Python."""
+
+    def __call__(self, lm, lm_kwargs, signature, demos, inputs):
+        """dspy's ChatAdapter re-asks through the JSON adapter when a reply fails to parse.
+
+        Inheriting dspy's `__call__` would let its Python flag make that decision, and the
+        conformance run would pass without this crate's policy ever being consulted. Asking
+        Rust keeps the decision where the implementation is; Python still owns the model call
+        itself, because that is litellm's job on this side of the bridge.
+        """
+        try:
+            return Adapter.__call__(self, lm, lm_kwargs, signature, demos, inputs)
+        except Exception as error:
+            fallback = dsrs_bridge.has_json_fallback("chat", self.use_json_adapter_fallback)
+            if isinstance(error, ContextWindowExceededError) or not fallback:
+                raise
+            return JSONAdapter()(lm, lm_kwargs, signature, demos, inputs)
 
     def format(self, signature, demos, inputs) -> list[dict[str, typing.Any]]:
         if demos:

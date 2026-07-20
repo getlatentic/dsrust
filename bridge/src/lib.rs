@@ -118,9 +118,25 @@ fn parse_reply(
         .map_err(|error| PyValueError::new_err(format!("{error:#}")))
 }
 
+/// Whether the named adapter, configured this way, offers a fallback when a reply fails to
+/// parse. The decision lives in Rust so the Python side cannot quietly answer it instead.
+#[pyfunction]
+#[pyo3(signature = (adapter, use_json_adapter_fallback))]
+fn has_json_fallback(adapter: &str, use_json_adapter_fallback: bool) -> PyResult<bool> {
+    let adapter: Box<dyn Adapter> = match adapter {
+        "chat" => Box::new(ChatAdapter {
+            use_json_adapter_fallback,
+        }),
+        "json" => Box::new(JsonAdapter),
+        other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
+    };
+    Ok(adapter.json_fallback().is_some())
+}
+
 #[pymodule]
 fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(format_messages, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;
+    module.add_function(wrap_pyfunction!(has_json_fallback, module)?)?;
     Ok(())
 }

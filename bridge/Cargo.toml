@@ -12,5 +12,5 @@ crate-type = ["cdylib"]
 
 [dependencies]
 dsrs = { path = ".." }
-pyo3 = { version = "0.23", features = ["extension-module"] }
+pyo3 = { version = "0.23", features = ["auto-initialize"] }
 serde_json = "1"

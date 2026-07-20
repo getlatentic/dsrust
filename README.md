@@ -22,8 +22,15 @@ and runs it **unmodified**, through a PyO3 bridge, with a `conftest.py` that swa
 
 Nothing in that path falls back to the Python implementation: a case Rust cannot render
 raises. The unbuilt ones are named in `conftest.py` and marked `xfail(strict=True)`, so they
-never count as passes, and the run fails if one starts passing while still listed. Today that
-reads **19 passed, 11 xfailed** — the 13 are the backlog, in code, unable to go stale.
+never count as passes, and the run fails if one starts passing while still listed. The last
+green run read **19 passed, 11 xfailed** — the 11 are the backlog, in code, unable to go stale.
+
+**Known toolchain gap.** On macOS 26+ with ld-27034 the extension module links but dyld
+rejects it (`mis-aligned LINKEDIT string pool`), so the bridge cannot be imported there and
+the whole upstream run skips with that reason. It skips rather than passes on purpose. The
+Rust behaviour it would check is still covered by this crate's own tests — the JSON fallback
+and its off switch are `predict::tests::an_unparseable_reply_re_asks_through_the_json_adapter`
+and `the_fallback_can_be_turned_off` — and the committed goldens still run under `cargo test`.
 
 ## Status
 

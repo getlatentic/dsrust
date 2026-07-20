@@ -10,15 +10,15 @@ VERSION="$(cat "$ROOT/scripts/DSPY_VERSION")"
 WORK="$ROOT/target/upstream-tests"
 VENV="$ROOT/.dspy-venv"
 
-[ -x "$VENV/bin/python" ] || { echo "run: uv venv .dspy-venv --python 3.12 && uv pip install --python $VENV/bin/python dspy==$VERSION pytest" >&2; exit 1; }
+[ -x "$VENV/bin/python" ] || { echo "run: uv venv .dspy-venv --python 3.12 && uv pip install --python $VENV/bin/python dspy==$VERSION pytest pytest-asyncio maturin" >&2; exit 1; }
 
-echo "==> Building the Rust bridge"
-cargo build --release -p dsrs-bridge --manifest-path "$ROOT/Cargo.toml" 2>&1 | tail -1
+echo "==> Building and installing the Rust bridge"
+# maturin knows how to link a CPython extension module on each platform; hand-rolled linker
+# flags produced a dylib that dlopen rejected.
+( cd "$ROOT/bridge" && VIRTUAL_ENV="$VENV" "$VENV/bin/maturin" develop --release 2>&1 | tail -1 )
 
 mkdir -p "$WORK"
 cp "$ROOT/bridge/python/rust_adapter.py" "$ROOT/bridge/python/conftest.py" "$WORK/"
-cp "$ROOT/target/release/libdsrs_bridge.dylib" "$WORK/dsrs_bridge.so" 2>/dev/null \
-  || cp "$ROOT/target/release/libdsrs_bridge.so" "$WORK/dsrs_bridge.so"
 
 echo "==> Fetching upstream tests at dspy $VERSION (unmodified)"
 for file in tests/adapters/test_chat_adapter.py tests/adapters/conftest.py; do

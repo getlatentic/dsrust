@@ -1,7 +1,0 @@
-# A PyO3 extension module resolves CPython symbols at import time, not at link time. macOS
-# needs to be told that explicitly; without it the bridge fails to link.
-[target.aarch64-apple-darwin]
-rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
-
-[target.x86_64-apple-darwin]
-rustflags = ["-C", "link-arg=-undefined", "-C", "link-arg=dynamic_lookup"]
