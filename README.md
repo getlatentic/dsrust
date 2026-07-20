@@ -41,6 +41,7 @@ and `the_fallback_can_be_turned_off` — and the committed goldens still run und
 | `Predict`, `ChainOfThought` (+ typed forms) | built |
 | LM layer, global config with per-call override | built |
 | Two-tier feedback retry | built |
+| Demos (few-shot examples) rendered as turns | built, conformance-checked |
 | `Example` / `Prediction` with provenance | next |
 | `Evaluate` (dataset + metric + parallel) | planned |
 | Optimizers (labeled few-shot → bootstrap → search) | planned |

@@ -10,7 +10,7 @@ never needs Python — only regeneration does.
     .dspy-venv/bin/python scripts/generate_fixtures.py
 
 Adding a case: append to CASES. Keep each one inside the subset the Rust harness models
-(scalar fields, no demos) until the corresponding Rust support lands, and widen together.
+(scalar fields and demos today) until the matching Rust support lands, and widen together.
 """
 
 from __future__ import annotations
@@ -56,6 +56,29 @@ CASES = [
         "values": {"sentence": "Three cats sat down."},
     },
     {
+        # Demos are what an optimizer produces, so rendering them is the load-bearing case.
+        "name": "one_demo",
+        "instructions": "Answer the question.",
+        "inputs": [{"name": "question", "type": str, "kind": "str", "desc": None}],
+        "outputs": [{"name": "answer", "type": str, "kind": "str", "desc": None}],
+        "demos": [{"question": "What is the capital of Germany?", "answer": "Berlin"}],
+        "values": {"question": "What is the capital of France?"},
+    },
+    {
+        "name": "two_demos_with_descriptions",
+        "instructions": "Pick a colour and justify it.",
+        "inputs": [{"name": "request", "type": str, "kind": "str", "desc": "the request"}],
+        "outputs": [
+            {"name": "colour", "type": str, "kind": "str", "desc": "the chosen colour"},
+            {"name": "why", "type": str, "kind": "str", "desc": "one short sentence"},
+        ],
+        "demos": [
+            {"request": "something calm", "colour": "blue", "why": "It reads as still."},
+            {"request": "something warm", "colour": "amber", "why": "It holds light."},
+        ],
+        "values": {"request": "something bold"},
+    },
+    {
         "name": "multiline_instructions",
         "instructions": "Answer the question.\nBe brief.\nNever guess.",
         "inputs": [{"name": "question", "type": str, "kind": "str", "desc": None}],
@@ -81,13 +104,13 @@ def build_signature(case: dict) -> type[dspy.Signature]:
     return type(case["name"], (dspy.Signature,), namespace)
 
 
-def render(signature: type[dspy.Signature], values: dict) -> tuple[str, str]:
+def render(signature: type[dspy.Signature], demos: list, values: dict) -> tuple[str, list]:
     """The messages DSPy's own ChatAdapter produces, with no LM involved."""
-    messages = dspy.ChatAdapter().format(signature, [], values)
-    roles = {message["role"]: message["content"] for message in messages}
-    if set(roles) != {"system", "user"}:
-        raise SystemExit(f"unexpected roles from dspy: {sorted(roles)}")
-    return roles["system"], roles["user"]
+    messages = dspy.ChatAdapter().format(signature, demos, values)
+    if messages[0]["role"] != "system":
+        raise SystemExit(f"expected a leading system message, got {messages[0]['role']}")
+    turns = [(message["role"], message["content"]) for message in messages[1:]]
+    return messages[0]["content"], turns
 
 
 def main() -> None:
@@ -95,16 +118,18 @@ def main() -> None:
         raise SystemExit(f"expected dspy {PINNED}, found {dspy.__version__}")
     OUT.mkdir(parents=True, exist_ok=True)
     for case in CASES:
-        system, user = render(build_signature(case), case["values"])
+        demos = case.get("demos", [])
+        system, turns = render(build_signature(case), demos, case["values"])
         fixture = {
             "source": f"generated from dspy=={PINNED} via scripts/generate_fixtures.py",
             "dspy_version": PINNED,
             "instructions": case["instructions"],
             "inputs": [{k: spec[k] for k in ("name", "kind", "desc")} for spec in case["inputs"]],
             "outputs": [{k: spec[k] for k in ("name", "kind", "desc")} for spec in case["outputs"]],
+            "demos": demos,
             "values": case["values"],
             "expected_system": system,
-            "expected_user": user,
+            "expected_turns": [{"role": role, "content": content} for role, content in turns],
         }
         path = OUT / f"{case['name']}.json"
         path.write_text(json.dumps(fixture, indent=2, ensure_ascii=False) + "\n")

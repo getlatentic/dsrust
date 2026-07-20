@@ -26,9 +26,15 @@
       "desc": "sure about it"
     }
   ],
+  "demos": [],
   "values": {
     "sentence": "Three cats sat down."
   },
   "expected_system": "Your input fields are:\n1. `sentence` (str):\nYour output fields are:\n1. `count` (int): how many items\n2. `score` (float): confidence 0-1\n3. `certain` (bool): sure about it\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## sentence ## ]]\n{sentence}\n\n[[ ## count ## ]]\n{count}        # note: the value you produce must be a single int value\n\n[[ ## score ## ]]\n{score}        # note: the value you produce must be a single float value\n\n[[ ## certain ## ]]\n{certain}        # note: the value you produce must be True or False\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Read the sentence and report the numbers.",
-  "expected_user": "[[ ## sentence ## ]]\nThree cats sat down.\n\nRespond with the corresponding output fields, starting with the field `[[ ## count ## ]]` (must be formatted as a valid Python int), then `[[ ## score ## ]]` (must be formatted as a valid Python float), then `[[ ## certain ## ]]` (must be formatted as a valid Python bool), and then ending with the marker for `[[ ## completed ## ]]`."
+  "expected_turns": [
+    {
+      "role": "user",
+      "content": "[[ ## sentence ## ]]\nThree cats sat down.\n\nRespond with the corresponding output fields, starting with the field `[[ ## count ## ]]` (must be formatted as a valid Python int), then `[[ ## score ## ]]` (must be formatted as a valid Python float), then `[[ ## certain ## ]]` (must be formatted as a valid Python bool), and then ending with the marker for `[[ ## completed ## ]]`."
+    }
+  ]
 }

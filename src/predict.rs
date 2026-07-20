@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::adapter::{Adapter, ChatAdapter, Feedback, JsonAdapter, turns_for};
+use crate::adapter::{Adapter, ChatAdapter, Demo, Feedback, JsonAdapter, turns_for};
 use crate::lm::{ChatModel, global};
 use crate::signature::{FieldKind, OutField, Signature, SignatureSpec};
 
@@ -17,6 +17,9 @@ use crate::signature::{FieldKind, OutField, Signature, SignatureSpec};
 pub struct Predict {
     pub signature: Signature,
     pub adapter: Box<dyn Adapter>,
+    /// Solved examples shown before the request. An optimizer's output is a chosen set of
+    /// these, so a compiled program is this field plus the signature's instructions.
+    pub demos: Vec<Demo>,
 }
 
 /// One accepted reply: the value that passed coercion and validation, the raw text it was
@@ -32,7 +35,14 @@ impl Predict {
         Self {
             signature,
             adapter: Box::new(ChatAdapter::default()),
+            demos: Vec::new(),
         }
+    }
+
+    /// Show the model these solved examples before the request.
+    pub fn with_demos(mut self, demos: impl IntoIterator<Item = Demo>) -> Self {
+        self.demos = demos.into_iter().collect();
+        self
     }
 
     /// Send this module's prompts through a different wire format. Any [`Adapter`] works,
@@ -83,7 +93,7 @@ impl Predict {
         feedback: Option<&Feedback>,
     ) -> Result<String> {
         let schema = self.signature.schema();
-        let (system, opening) = adapter.format(&self.signature, inputs);
+        let (system, opening) = adapter.format(&self.signature, &self.demos, inputs);
         let mode = adapter.output_mode(&schema);
         lm.chat(http, &system, &turns_for(opening, feedback), &mode)
             .await
@@ -802,6 +812,7 @@ mod tests {
             let predict = Predict {
                 signature: typed_signature(),
                 adapter: Box::new(JsonAdapter),
+                demos: Vec::new(),
             };
             let value = predict
                 .call_with(&reqwest::Client::new(), &lm, "size it")

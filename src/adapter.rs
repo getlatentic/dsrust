@@ -21,7 +21,16 @@ pub trait Adapter: Send + Sync {
     /// The whole conversation to send, with no model call: the system message, then the
     /// turns. Mirrors `Adapter.format`, which returns a message list for the same reason —
     /// a demo or a conversation history expands into several turns, not one.
-    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, Vec<ChatTurn>);
+    ///
+    /// `demos` are the solved examples that precede the real request. An optimizer's whole
+    /// output is a set of these, so an adapter that cannot render them cannot run a compiled
+    /// program.
+    fn format(
+        &self,
+        signature: &Signature,
+        demos: &[Demo],
+        inputs: &[(&str, String)],
+    ) -> (String, Vec<ChatTurn>);
 
     /// Extract the signature's fields from a raw reply. A reply that does not speak this
     /// adapter's format at all fails here; a reply missing individual fields parses and
@@ -76,11 +85,18 @@ impl ChatAdapter {
 pub struct JsonAdapter;
 
 impl Adapter for ChatAdapter {
-    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, Vec<ChatTurn>) {
-        (
-            chat_system(signature),
-            vec![ChatTurn::user(chat_user(signature, inputs))],
-        )
+    fn format(
+        &self,
+        signature: &Signature,
+        demos: &[Demo],
+        inputs: &[(&str, String)],
+    ) -> (String, Vec<ChatTurn>) {
+        let mut turns: Vec<ChatTurn> = demos
+            .iter()
+            .flat_map(|demo| chat_demo_turns(signature, demo))
+            .collect();
+        turns.push(ChatTurn::user(chat_user(signature, inputs)));
+        (chat_system(signature), turns)
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
@@ -94,7 +110,12 @@ impl Adapter for ChatAdapter {
 }
 
 impl Adapter for JsonAdapter {
-    fn format(&self, signature: &Signature, inputs: &[(&str, String)]) -> (String, Vec<ChatTurn>) {
+    fn format(
+        &self,
+        signature: &Signature,
+        _demos: &[Demo],
+        inputs: &[(&str, String)],
+    ) -> (String, Vec<ChatTurn>) {
         (
             json_system(signature),
             vec![ChatTurn::user(json_user(inputs))],
@@ -107,6 +128,29 @@ impl Adapter for JsonAdapter {
 
     fn output_mode<'a>(&self, schema: &'a Value) -> OutputMode<'a> {
         OutputMode::Json { schema }
+    }
+}
+
+/// One solved example shown to the model before the real request: the field values of a call
+/// that went well. dspy calls these demos, and an optimizer's product is a chosen set of them.
+#[derive(Debug, Clone, Default)]
+pub struct Demo {
+    /// Field name to rendered value, covering inputs and outputs alike.
+    pub fields: Vec<(String, String)>,
+}
+
+impl Demo {
+    pub fn new(fields: impl IntoIterator<Item = (String, String)>) -> Self {
+        Self {
+            fields: fields.into_iter().collect(),
+        }
+    }
+
+    fn value(&self, name: &str) -> Option<&str> {
+        self.fields
+            .iter()
+            .find(|(field, _)| field == name)
+            .map(|(_, value)| value.as_str())
     }
 }
 
@@ -300,6 +344,29 @@ fn output_requirements(signature: &Signature) -> String {
         fields.join(", then "),
         marker("completed"),
     )
+}
+
+/// dspy `format_demos`: a demo becomes the user turn it would have been, then the assistant
+/// turn it produced. The user turn carries no output-requirements reminder — the answer is
+/// already there — and the assistant turn closes with the completed marker.
+fn chat_demo_turns(signature: &Signature, demo: &Demo) -> Vec<ChatTurn> {
+    let section = |name: &str, value: &str| format!("{}\n{value}", marker(name));
+    let ask = signature
+        .inputs
+        .iter()
+        .filter_map(|field| Some(section(field.name, demo.value(field.name)?)))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    let mut answer = signature
+        .outputs
+        .iter()
+        .filter_map(|field| Some(section(field.name, demo.value(field.name)?)))
+        .collect::<Vec<_>>();
+    answer.push(format!("{}\n", marker("completed")));
+    vec![
+        ChatTurn::user(ask),
+        ChatTurn::assistant(answer.join("\n\n")),
+    ]
 }
 
 /// The JSON contract in prose, for the provider-native structured-output path.

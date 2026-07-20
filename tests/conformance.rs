@@ -6,6 +6,7 @@
 //! question "are we faithful?" is answered by the test run instead of by reading both
 //! codebases. A divergence here is a bug in this crate until upstream is shown to be wrong.
 
+use dsrs::adapter::Demo;
 use dsrs::signature::{FieldKind, InField, OutField, Signature};
 use dsrs::{Adapter, ChatAdapter};
 use serde_json::Value;
@@ -14,9 +15,10 @@ struct Fixture {
     name: String,
     source: String,
     signature: Signature,
+    demos: Vec<Demo>,
     values: Vec<(&'static str, String)>,
     expected_system: String,
-    expected_user: String,
+    expected_turns: Vec<(String, String)>,
 }
 
 /// Field names are `&'static str` in the signature types, and fixtures are read at run time.
@@ -76,6 +78,38 @@ fn load(path: &std::path::Path) -> Fixture {
         })
         .collect();
 
+    let demos = json["demos"]
+        .as_array()
+        .map(|entries| {
+            entries
+                .iter()
+                .map(|entry| {
+                    Demo::new(entry.as_object().expect("demo object").iter().map(
+                        |(name, value)| {
+                            let rendered = match value {
+                                Value::String(text) => text.clone(),
+                                other => other.to_string(),
+                            };
+                            (name.clone(), rendered)
+                        },
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let expected_turns = json["expected_turns"]
+        .as_array()
+        .expect("expected_turns array")
+        .iter()
+        .map(|turn| {
+            (
+                turn["role"].as_str().expect("turn role").to_owned(),
+                turn["content"].as_str().expect("turn content").to_owned(),
+            )
+        })
+        .collect();
+
     Fixture {
         name: path.file_stem().unwrap().to_string_lossy().into_owned(),
         source: json["source"].as_str().unwrap_or_default().to_owned(),
@@ -84,9 +118,10 @@ fn load(path: &std::path::Path) -> Fixture {
             inputs,
             outputs,
         },
+        demos,
         values,
         expected_system: json["expected_system"].as_str().expect("expected_system").to_owned(),
-        expected_user: json["expected_user"].as_str().expect("expected_user").to_owned(),
+        expected_turns,
     }
 }
 
@@ -129,9 +164,20 @@ fn assert_same(label: &str, fixture: &Fixture, expected: &str, actual: &str) {
 #[test]
 fn chat_adapter_renders_what_python_dspy_renders() {
     for fixture in fixtures() {
-        let (system, turns) = ChatAdapter::default().format(&fixture.signature, &fixture.values);
+        let (system, turns) =
+            ChatAdapter::default().format(&fixture.signature, &fixture.demos, &fixture.values);
         assert_same("system message", &fixture, &fixture.expected_system, &system);
-        assert_eq!(turns.len(), 1, "a fixture without demos renders one user turn");
-        assert_same("user message", &fixture, &fixture.expected_user, &turns[0].content);
+        assert_eq!(
+            turns.len(),
+            fixture.expected_turns.len(),
+            "fixture `{}` expects {} turns, got {}",
+            fixture.name,
+            fixture.expected_turns.len(),
+            turns.len()
+        );
+        for (index, (expected, actual)) in fixture.expected_turns.iter().zip(&turns).enumerate() {
+            assert_eq!(expected.0, actual.role.as_str(), "turn {index} role");
+            assert_same(&format!("turn {index}"), &fixture, &expected.1, &actual.content);
+        }
     }
 }
