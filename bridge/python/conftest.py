@@ -141,6 +141,24 @@ def _default_adapter_is_rust():
 
 
 @pytest.fixture(autouse=True)
+def _clear_settings():
+    """Reset dspy's settings after each test, as upstream's own root conftest does.
+
+    That conftest is not used here — it imports a test server this harness does not run — so
+    the isolation it provides has to be reproduced. Without it dspy's global settings carry
+    from one upstream test into the next, and a test asserting on accumulated state reads
+    another test's leftovers rather than its own: `test_trace_size_limit` saw 24 entries where
+    it wrote 3. A conformance run that fails for that reason says nothing about this crate.
+    """
+    yield
+    import copy
+
+    from dspy.dsp.utils.settings import DEFAULT_CONFIG
+
+    dspy.configure(**copy.deepcopy(DEFAULT_CONFIG), inherit_config=False)
+
+
+@pytest.fixture(autouse=True)
 def _use_rust_adapter(monkeypatch):
     monkeypatch.setattr(dspy, "ChatAdapter", RustChatAdapter)
     monkeypatch.setattr("dspy.adapters.ChatAdapter", RustChatAdapter, raising=False)
