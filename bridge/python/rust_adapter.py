@@ -1,32 +1,31 @@
 """A dspy.ChatAdapter whose rendering is this crate's Rust, for running upstream's own tests.
 
 Upstream's suite constructs `dspy.ChatAdapter()` and asserts on the messages it returns.
-Subclassing it and overriding only `format` means their tests run unmodified while the bytes
-under assertion come from Rust. Anything not yet implemented in Rust — demos, images, tool
-calls — falls through to the Python implementation, so an unsupported case is a Python pass
-rather than a false Rust failure. `RUST_ADAPTER_STRICT=1` turns those into errors instead,
-which is how you find out what is left to build.
+Subclassing it and overriding `format` and `parse` means their tests run unmodified while the
+bytes under assertion come from Rust.
+
+There is deliberately no deferral to the Python implementation. A shim that quietly handed an
+unsupported case back to dspy would report a pass for code this crate has not written, which
+is the one thing a conformance suite must never do. When Rust cannot render a case this
+raises, the test goes red, and `conftest.py` carries the red ones as a declared to-do list.
 """
 
 from __future__ import annotations
 
 import json
-import os
 import typing
 
 import dspy
-from dspy.adapters.utils import format_field_value
+from dspy.adapters.utils import format_field_value, parse_value
 
 import dsrs_bridge
-
-STRICT = os.environ.get("RUST_ADAPTER_STRICT") == "1"
 
 # The Rust FieldKind each Python annotation maps to. Anything absent is not yet modelled.
 KINDS: dict[typing.Any, str] = {str: "str", int: "int", float: "float", bool: "bool"}
 
 
 class Unsupported(Exception):
-    """The case needs a Rust feature that does not exist yet."""
+    """The case needs a Rust feature that does not exist yet. Never caught here on purpose."""
 
 
 def kind_of(annotation: typing.Any) -> str:
@@ -46,53 +45,43 @@ def describe(fields: dict) -> list[tuple]:
     return described
 
 
+def described_outputs(signature) -> list[tuple]:
+    return [(name, kind, desc, None) for name, kind, desc in describe(signature.output_fields)]
+
+
 class RustChatAdapter(dspy.ChatAdapter):
-    """Renders through Rust; defers to Python for anything Rust cannot express yet."""
+    """Renders and parses through Rust, or raises. It never falls through to Python."""
 
     def format(self, signature, demos, inputs) -> list[dict[str, typing.Any]]:
-        try:
-            if demos:
-                raise Unsupported("demos are not implemented in Rust yet")
-            described_inputs = describe(signature.input_fields)
-            described_outputs = [
-                (name, kind, desc, None) for name, kind, desc in describe(signature.output_fields)
-            ]
-            values = [
-                (name, format_field_value(field_info=signature.input_fields[name], value=value))
-                for name, value in inputs.items()
-                if name in signature.input_fields
-            ]
-            system, user = dsrs_bridge.format_messages(
-                "chat",
-                signature.instructions,
-                described_inputs,
-                described_outputs,
-                values,
-            )
-        except Unsupported:
-            if STRICT:
-                raise
-            return super().format(signature, demos, inputs)
+        if demos:
+            raise Unsupported("demos are not implemented in Rust yet")
+        values = [
+            (name, format_field_value(field_info=signature.input_fields[name], value=value))
+            for name, value in inputs.items()
+            if name in signature.input_fields
+        ]
+        system, user = dsrs_bridge.format_messages(
+            "chat",
+            signature.instructions,
+            describe(signature.input_fields),
+            described_outputs(signature),
+            values,
+        )
         return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
     def parse(self, signature, completion):
-        try:
-            described_inputs = describe(signature.input_fields)
-            described_outputs = [
-                (name, kind, desc, None) for name, kind, desc in describe(signature.output_fields)
-            ]
-            parsed = json.loads(
-                dsrs_bridge.parse_reply(
-                    "chat", signature.instructions, described_inputs, described_outputs, completion
-                )
+        parsed = json.loads(
+            dsrs_bridge.parse_reply(
+                "chat",
+                signature.instructions,
+                describe(signature.input_fields),
+                described_outputs(signature),
+                completion,
             )
-        except (Unsupported, ValueError):
-            if STRICT:
-                raise
-            return super().parse(signature, completion)
+        )
         # Rust hands back strings; dspy's callers expect the signature's declared types.
         return {
-            name: dspy.adapters.utils.parse_value(value, signature.output_fields[name].annotation)
+            name: parse_value(value, signature.output_fields[name].annotation)
             for name, value in parsed.items()
             if name in signature.output_fields
         }
