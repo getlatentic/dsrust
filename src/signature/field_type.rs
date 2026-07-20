@@ -31,6 +31,15 @@ pub struct JsonType {
     /// Each custom type the annotation names. Empty for a plain structure, which says nothing
     /// about itself.
     pub descriptions: Vec<TypeDescription>,
+    /// The annotation's own structure, as Python reflected it: the members each model declares,
+    /// their names, descriptions and aliases, and every model's docstring.
+    ///
+    /// A JSON schema is the same type through a lossy lens — it keys a property by the alias or
+    /// by the name but never carries both, and has no spelling at all for `object`, a dict's key
+    /// type or a `datetime` — so an adapter that states the declared type itself rather than a
+    /// schema of it reads this. Absent wherever nothing reflected the type, which is every
+    /// signature declared in Rust.
+    pub reflection: Option<Value>,
 }
 
 /// What one custom type says about itself on its field's prompt line.
@@ -56,6 +65,7 @@ impl JsonType {
         Self {
             annotation: annotation.into(),
             descriptions: Vec::new(),
+            reflection: None,
         }
     }
 }
@@ -118,7 +128,7 @@ impl LiteralValue {
 
     /// The text a marker-path reply carries for this member. Every value crosses that path as
     /// text, so this is what a closed set is checked against and what prompts list.
-    pub(super) fn wire_form(&self) -> String {
+    pub(crate) fn wire_form(&self) -> String {
         match self {
             LiteralValue::Str(text) => text.clone(),
             typed => typed.annotation(),

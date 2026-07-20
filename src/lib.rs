@@ -16,6 +16,7 @@ pub mod predict;
 pub mod react;
 pub mod signature;
 
+pub use adapter::baml::BamlAdapter;
 pub use adapter::{Adapter, ChatAdapter, JsonAdapter};
 pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
 pub use example::{Example, Prediction};

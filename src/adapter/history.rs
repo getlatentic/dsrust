@@ -74,7 +74,7 @@ pub(super) fn turns(stripped: &Signature, value: &Value, style: Style) -> Vec<Ch
         .iter()
         .flat_map(|exchange| {
             [
-                ask(stripped, exchange, None, style.wrap),
+                ask(stripped, exchange, None, style),
                 (style.answer)(stripped, exchange, Some(NOT_SUPPLIED)),
             ]
         })

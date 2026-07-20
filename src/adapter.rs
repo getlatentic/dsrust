@@ -5,6 +5,7 @@ use crate::example::Example;
 use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::{FieldKind, Signature};
 
+pub mod baml;
 mod blocks;
 mod demos;
 mod exchange;
@@ -21,9 +22,11 @@ use python_json::format_field_value;
 /// How a signature travels over the wire.
 ///
 /// Mirrors DSPy's `Adapter` base class: implement it to teach the crate a new wire format.
-/// The two shipped implementations are [`ChatAdapter`], which speaks `[[ ## field ## ]]`
-/// marker sections any model can produce with no provider support, and [`JsonAdapter`],
-/// which engages the provider's native structured output. Chat is DSPy's default and ours.
+/// [`ChatAdapter`] speaks `[[ ## field ## ]]` marker sections any model can produce with no
+/// provider support, and is DSPy's default and ours; [`xml::XmlAdapter`] wraps the same fields
+/// in tags, which some models follow more reliably. [`JsonAdapter`] engages the provider's
+/// native structured output, and [`baml::BamlAdapter`] builds on it, trading the JSON schema it
+/// states for a compact notation of the same type.
 ///
 /// Like DSPy, a parse failure is final: there is no silent retry in another format, because a
 /// caller who chose an adapter chose the wire contract it implies.
@@ -214,12 +217,14 @@ fn chat_system(signature: &Signature) -> String {
 /// The chat adapter's exchange: marker sections both ways.
 const MARKER_STYLE: exchange::Style = exchange::Style {
     wrap: section,
+    value: exchange::plain,
     answer: exchange::answer,
 };
 
 /// The JSON adapter's: marker sections for the request, one object for the reply.
 const JSON_STYLE: exchange::Style = exchange::Style {
     wrap: section,
+    value: exchange::plain,
     answer: exchange::json_answer,
 };
 
@@ -397,6 +402,7 @@ mod tests {
                         text: description.to_owned(),
                         replaces_schema,
                     }],
+                    reflection: None,
                 }),
                 values: None,
                 schema: Some(json!({ "type": "object" })),

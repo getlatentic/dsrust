@@ -41,13 +41,13 @@ pub(super) fn demo_turns(signature: &Signature, demos: &[Example], style: Style)
     };
     let partial = matching(Kind::Partial).flat_map(|demo| {
         [
-            ask(signature, demo, Some(PARTIAL_PREFIX), style.wrap),
+            ask(signature, demo, Some(PARTIAL_PREFIX), style),
             (style.answer)(signature, demo, Some(NOT_SUPPLIED)),
         ]
     });
     let complete = matching(Kind::Complete).flat_map(|demo| {
         [
-            ask(signature, demo, None, style.wrap),
+            ask(signature, demo, None, style),
             (style.answer)(signature, demo, None),
         ]
     });

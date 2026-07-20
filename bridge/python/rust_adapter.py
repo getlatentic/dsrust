@@ -1,14 +1,15 @@
-"""A dspy.ChatAdapter whose rendering is this crate's Rust, for running upstream's own tests.
+"""dspy adapters whose rendering is this crate's Rust, for running upstream's own tests.
 
 Upstream's suite constructs `dspy.ChatAdapter()` and asserts on the messages it returns.
 Subclassing it and overriding `format` and `parse` means their tests run unmodified while the
-bytes under assertion come from Rust.
+bytes under assertion come from Rust. `reflect.py` answers the questions about a signature
+that only Python can answer; everything a model reads is written on the other side.
 
 The re-ask through `JSONAdapter` survives here because dspy has it: a ChatAdapter that cannot
 read a reply retries through the JSON one, and upstream tests that behaviour directly. What
 must never reach that path is a case Rust has not implemented, because rendering it on Python
 would report a pass for code this crate has not written — the one thing a conformance suite
-must never do. `Unsupported` is therefore a `BaseException`, out of reach of every
+must never do. `reflect.Unsupported` is therefore a `BaseException`, out of reach of every
 `except Exception` on both the sync and async paths, so an unimplemented case goes red and
 `conftest.py` carries the red ones as a declared to-do list.
 """
@@ -21,15 +22,11 @@ import typing
 import dspy
 import pydantic
 from dspy.adapters.base import Adapter
+from dspy.adapters.baml_adapter import BAMLAdapter
 from dspy.adapters.json_adapter import JSONAdapter
-from dspy.adapters.types.base_type import Type
-from dspy.adapters.types.code import Code
 from dspy.adapters.xml_adapter import XMLAdapter
 from dspy.adapters.utils import (
-    _annotation_is_subclass,
-    _get_json_schema,
     format_field_value,
-    get_annotation_name,
     parse_value,
     serialize_for_json,
 )
@@ -37,148 +34,7 @@ from dspy.utils.exceptions import AdapterParseError
 from litellm import ContextWindowExceededError
 
 import dsrs_bridge
-
-# The Rust FieldKind each Python annotation maps to. Anything absent is not yet modelled.
-KINDS: dict[typing.Any, str] = {str: "str", int: "int", float: "float", bool: "bool"}
-
-
-class Unsupported(BaseException):
-    """The case needs a Rust feature that does not exist yet.
-
-    Deriving from `BaseException` puts this outside `except Exception`, which is what dspy's
-    JSON-adapter fallback catches on both paths. Inheriting from `Exception` would leave the
-    exclusion resting on a matching `except Unsupported: raise` in every handler that could
-    ever see one, and the async path already inherits a handler this shim does not write.
-    """
-
-
-def kind_of(annotation: typing.Any) -> str:
-    """A scalar names itself; anything else carries the name dspy would print.
-
-    Sending `json:<annotation>` rather than a bare `json` is what lets the numbered line read
-    `(PetOwner)` the way dspy renders it, instead of collapsing every non-scalar to one word.
-    """
-    if typing.get_origin(annotation) is typing.Literal:
-        # The closed set travelling beside this becomes the printed annotation, so what is
-        # named here is the wire type under it: text, which is how every member of a Literal
-        # reaches the marker path whatever its Python type.
-        return "str"
-    try:
-        return KINDS[annotation]
-    except (KeyError, TypeError):
-        pass
-    if _carries_as_json(annotation):
-        return f"json:{get_annotation_name(annotation)}"
-    raise Unsupported(f"no Rust FieldKind for annotation {annotation!r}")
-
-
-def _carries_as_json(annotation: typing.Any) -> bool:
-    """Whether the crate's `Json` kind can carry values of this annotation.
-
-    A model does, since its values are objects. A container does exactly when everything it
-    holds does — `list[Tool]` rides on `Tool` — because the container is JSON either way and
-    what is inside it is what has to survive the crossing. Anything else says so rather than
-    crossing as an annotation whose values were never checked: a kind that renders a value
-    wrongly is worse than one that refuses it, because the prompt still looks plausible.
-    """
-    if isinstance(annotation, type) and issubclass(annotation, pydantic.BaseModel):
-        return True
-    args = typing.get_args(annotation)
-    return bool(args) and all(
-        arg is Ellipsis or arg is type(None) or _scalar_or_json(arg) for arg in args
-    )
-
-
-def _scalar_or_json(annotation: typing.Any) -> bool:
-    """Whether one member of a container is itself carryable."""
-    try:
-        return annotation in KINDS or _carries_as_json(annotation)
-    except TypeError:
-        return _carries_as_json(annotation)
-
-
-def closed_set_of(annotation: typing.Any) -> str | None:
-    """A `Literal`'s members as JSON, or None where the annotation is not one.
-
-    JSON is what the bridge carries a closed set over, and it spells the three member types
-    Rust models. A `Literal` over anything else — an Enum, None, bytes — has no crossing yet,
-    and must say so rather than lose members on the way across.
-    """
-    if typing.get_origin(annotation) is not typing.Literal:
-        return None
-    members = typing.get_args(annotation)
-    if not all(isinstance(member, (str, int, bool)) for member in members):
-        raise Unsupported(f"no Rust closed set for annotation {annotation!r}")
-    return json.dumps(members)
-
-
-def schema_of(kind: str, annotation: typing.Any) -> str | None:
-    """A structured field's JSON schema, as dspy builds it, or None for a scalar.
-
-    Reading a schema off a Python annotation is pydantic's job, so upstream's own extractor runs
-    here — key order included, since it is part of the bytes. Whether the schema reaches the
-    prompt stays the crate's decision: a type whose description already states its contract
-    drops the note, and the crate is what knows that.
-
-    Only a structured field is asked for one, which is where the crate consults it and where
-    dspy computes it. An annotation that cannot produce one is a gap in this bridge rather than
-    a field to render blank, so it says so instead of quietly dropping the schema — a missing
-    note renders a prompt that looks right and is not.
-    """
-    if not kind.startswith("json:"):
-        return None
-    try:
-        return json.dumps(_get_json_schema(annotation), ensure_ascii=False)
-    except Exception as error:
-        raise Unsupported(f"no JSON schema for annotation {annotation!r}: {error}") from error
-
-
-def type_descriptions_of(annotation: typing.Any) -> str | None:
-    """The custom types an annotation names, as JSON `[[name, prose], ...]`, or None.
-
-    Which types an annotation mentions is Python reflection, so it happens here; how the pairs
-    read in a prompt is the crate's business, so only the pairs cross.
-    """
-    described = [
-        {
-            "name": get_annotation_name(custom),
-            "text": custom.description(),
-            # dspy asks whether the annotation *is* a `dspy.Code`, not what it is called, so
-            # this asks the same way: a subclass counts and a look-alike does not.
-            "replaces_schema": _annotation_is_subclass(custom, Code),
-        }
-        for custom in Type.extract_custom_type_from_annotation(annotation)
-        if custom.description()
-    ]
-    return json.dumps(described) if described else None
-
-
-def describe(fields: dict) -> list[tuple]:
-    described = []
-    for name, info in fields.items():
-        desc = info.json_schema_extra.get("desc") or ""
-        if desc == f"${{{name}}}":  # dspy's placeholder for "no description given"
-            desc = ""
-        annotation = info.annotation
-        described.append(
-            (
-                name,
-                kind_of(annotation),
-                desc,
-                closed_set_of(annotation),
-                type_descriptions_of(annotation),
-            )
-        )
-    return described
-
-
-def described_outputs(signature) -> list[tuple]:
-    """Outputs carry the nested schema of a structured field ahead of the closed set."""
-    return [
-        (name, kind, desc, schema_of(kind, signature.output_fields[name].annotation), values, types)
-        for name, kind, desc, values, types in describe(signature.output_fields)
-    ]
-
+from reflect import describe, described_outputs
 
 #: How many times the crate rendered or parsed. A test that passes without moving this never
 #: exercised Rust, whatever its name says, so `conftest.py` refuses to count it as conformance.
@@ -188,13 +44,22 @@ CROSSINGS = 0
 class _RustBacked:
     """Rendering and parsing through Rust, for whichever wire format subclasses it.
 
-    Both adapters cross the same bridge and differ only in the format they name, so the two
-    calls live here once. `WIRE` picks the crate's adapter; `ADAPTER_NAME` is what dspy's own
-    error type expects to be told.
+    Every adapter crosses the same bridge and differs only in the format it names, so the calls
+    live here once. `WIRE` picks the crate's adapter; `ADAPTER_NAME` is what dspy's own error
+    type expects to be told.
     """
 
     WIRE: str
     ADAPTER_NAME: str
+
+    def crossing_value(self, value: typing.Any) -> str:
+        """One input value as the JSON text it crosses in.
+
+        Serializing a Python object is pydantic's job and stays here. How the text is laid out
+        in a prompt is the crate's, so nothing about that is decided on this side.
+        """
+        return json.dumps(serialize_for_json(value), ensure_ascii=False)
+
     def format_system_message(self, signature) -> str:
         """dspy exposes this on its own, and a caller reading it should read the crate's."""
         global CROSSINGS
@@ -218,7 +83,7 @@ class _RustBacked:
             for demo in demos
         ]
         values = [
-            (name, json.dumps(serialize_for_json(value), ensure_ascii=False))
+            (name, self.crossing_value(value))
             for name, value in inputs.items()
             if name in signature.input_fields
         ]
@@ -273,6 +138,7 @@ class _RustBacked:
             if name in signature.output_fields
         }
 
+
 class RustChatAdapter(_RustBacked, dspy.ChatAdapter):
     """The marker-based adapter, whose parse failures may re-ask through Python's JSON one."""
 
@@ -324,3 +190,34 @@ class RustXMLAdapter(_RustBacked, XMLAdapter):
 
     WIRE = "xml"
     ADAPTER_NAME = "XMLAdapter"
+
+
+class RustBAMLAdapter(_RustBacked, BAMLAdapter):
+    """Each output's type stated as a compact notation, rendered and parsed by the crate.
+
+    Upstream builds this on its JSON adapter and inherits the parse outright, so a failure is
+    reported under that adapter's name and its own tests assert as much.
+    """
+
+    WIRE = "baml"
+    ADAPTER_NAME = "JSONAdapter"
+
+    def crossing_value(self, value: typing.Any) -> str:
+        """A pydantic instance crosses keyed by its aliases, which is the form BAML renders."""
+        if isinstance(value, pydantic.BaseModel):
+            return value.model_dump_json(by_alias=True)
+        return super().crossing_value(value)
+
+    def format_field_structure(self, signature) -> str:
+        """Upstream's tests read this section on its own, so it has to be the crate's.
+
+        It is the only section any adapter states alone, and the only one that can refuse a
+        signature — the crate raises on a model that reaches itself, exactly where dspy does.
+        """
+        global CROSSINGS
+        CROSSINGS += 1
+        return dsrs_bridge.baml_field_structure(
+            signature.instructions,
+            describe(signature.input_fields),
+            described_outputs(signature),
+        )

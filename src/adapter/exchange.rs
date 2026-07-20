@@ -18,18 +18,29 @@ use super::{marker, section};
 /// and each adapter overrides it: marker sections, XML tags, a JSON member.
 pub(super) type Wrap = fn(&str, &str) -> String;
 
+/// How an adapter writes one input's value, given the field it belongs to. Most write every
+/// value the one way dspy's `format_field_value` does; a format that lays some values out
+/// differently decides that here, so a demo and a live request agree on it.
+pub(super) type Render = fn(&Signature, &str, &Value) -> String;
+
+/// dspy `format_field_value`, which reads nothing off the field but the value itself.
+pub(super) fn plain(_: &Signature, _: &str, value: &Value) -> String {
+    format_field_value(value)
+}
+
 /// The user turn an example would have sent. Only the inputs it carries appear: dspy leaves a
 /// missing input out entirely rather than marking it, since the prefix already says so.
 pub(super) fn ask(
     signature: &Signature,
     example: &Example,
     prefix: Option<&str>,
-    wrap: Wrap,
+    style: Style,
 ) -> ChatTurn {
     let sections = signature.inputs.iter().filter_map(|field| {
-        Some(wrap(
+        let value = example.get(&field.name)?;
+        Some((style.wrap)(
             &field.name,
-            &format_field_value(example.get(&field.name)?),
+            &(style.value)(signature, &field.name, value),
         ))
     });
     let parts: Vec<String> = prefix
@@ -65,12 +76,14 @@ pub(super) fn answer(signature: &Signature, example: &Example, missing: Option<&
 /// How an adapter writes the assistant half of an exchange.
 pub(super) type Answer = fn(&Signature, &Example, Option<&str>) -> ChatTurn;
 
-/// How one adapter writes an already-answered exchange: the field form its requests use, and
-/// the shape its replies take. dspy spreads these across `format_field_with_value` and
-/// `format_assistant_message_content`; a demo and a history entry both need the pair.
+/// How one adapter writes an already-answered exchange: the field form its requests use, how a
+/// value is laid out inside that form, and the shape its replies take. dspy spreads these across
+/// `format_field_with_value`, `format_user_message_content` and
+/// `format_assistant_message_content`; a demo and a history entry both need the set.
 #[derive(Clone, Copy)]
 pub(super) struct Style {
     pub wrap: Wrap,
+    pub value: Render,
     pub answer: Answer,
 }
 

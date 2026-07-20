@@ -25,6 +25,7 @@ except ImportError as error:  # pragma: no cover - environment dependent
 
 import rust_adapter  # noqa: E402
 from rust_adapter import (  # noqa: E402
+    RustBAMLAdapter,
     RustChatAdapter,
     RustJSONAdapter,
     RustXMLAdapter,
@@ -34,6 +35,7 @@ from rust_adapter import (  # noqa: E402
 #: did `from … import XMLAdapter` holds its own reference, bound when pytest imported it, so the
 #: fixture below rebinds the name in the running test's module as well as on dspy.
 RUST_BACKED = {
+    "BAMLAdapter": RustBAMLAdapter,
     "ChatAdapter": RustChatAdapter,
     "JSONAdapter": RustJSONAdapter,
     "XMLAdapter": RustXMLAdapter,

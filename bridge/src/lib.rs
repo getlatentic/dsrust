@@ -13,14 +13,21 @@ use dsrs::adapter::xml::XmlAdapter;
 use dsrs::signature::{
     FieldKind, InField, JsonType, LiteralValue, OutField, Signature, TypeDescription,
 };
-use dsrs::{Adapter, ChatAdapter, Example, JsonAdapter};
+use dsrs::{Adapter, BamlAdapter, ChatAdapter, Example, JsonAdapter};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde_json::Value;
 
-/// One input field as Python describes it: name, kind, description, any closed set, and the
-/// prose any custom type in its annotation contributes.
-type PyInField = (String, String, String, Option<String>, Option<String>);
+/// One input field as Python describes it: name, kind, description, any closed set, the prose
+/// any custom type in its annotation contributes, and the annotation's reflected structure.
+type PyInField = (
+    String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
 /// One output field, which additionally carries the nested schema of a `Json` field.
 type PyOutField = (
     String,
@@ -29,9 +36,14 @@ type PyOutField = (
     Option<String>,
     Option<String>,
     Option<String>,
+    Option<String>,
 );
 
-fn kind_from(name: &str, descriptions: Option<String>) -> PyResult<FieldKind> {
+fn kind_from(
+    name: &str,
+    descriptions: Option<String>,
+    reflection: Option<String>,
+) -> PyResult<FieldKind> {
     match name {
         "str" => Ok(FieldKind::Str),
         "int" => Ok(FieldKind::Int),
@@ -43,12 +55,24 @@ fn kind_from(name: &str, descriptions: Option<String>) -> PyResult<FieldKind> {
             Some(annotation) => Ok(FieldKind::Json(JsonType {
                 annotation: annotation.to_owned(),
                 descriptions: type_descriptions_from(descriptions)?,
+                reflection: json_text(reflection, "type reflection")?,
             })),
             None => Err(PyValueError::new_err(format!(
                 "unsupported field kind: {other}"
             ))),
         },
     }
+}
+
+/// A structure Python reflected, as the JSON text it crossed in. Only Python can read a type
+/// off an annotation, and only this crate decides how the result reads, so what travels is the
+/// description itself rather than anything rendered from it.
+fn json_text(text: Option<String>, what: &str) -> PyResult<Option<Value>> {
+    text.map(|text| {
+        serde_json::from_str(&text)
+            .map_err(|error| PyValueError::new_err(format!("bad {what}: {error}")))
+    })
+    .transpose()
 }
 
 /// Which custom types an annotation names is Python reflection, so Python extracts the pairs
@@ -114,36 +138,45 @@ fn build_signature(
 ) -> PyResult<Signature> {
     let inputs = inputs
         .into_iter()
-        .map(|(name, kind, desc, values, descriptions)| {
+        .map(|(name, kind, desc, values, descriptions, reflection)| {
             Ok(InField {
                 name,
                 desc,
-                kind: kind_from(&kind, descriptions)?,
+                kind: kind_from(&kind, descriptions, reflection)?,
                 values: closed_set_from(values)?,
             })
         })
         .collect::<PyResult<Vec<_>>>()?;
     let outputs = outputs
         .into_iter()
-        .map(|(name, kind, desc, schema, values, descriptions)| {
-            let schema = schema
-                .map(|text| serde_json::from_str(&text))
-                .transpose()
-                .map_err(|error| PyValueError::new_err(format!("bad field schema: {error}")))?;
-            Ok(OutField {
-                name,
-                desc,
-                kind: kind_from(&kind, descriptions)?,
-                values: closed_set_from(values)?,
-                schema,
-            })
-        })
+        .map(
+            |(name, kind, desc, schema, values, descriptions, reflection)| {
+                Ok(OutField {
+                    name,
+                    desc,
+                    kind: kind_from(&kind, descriptions, reflection)?,
+                    values: closed_set_from(values)?,
+                    schema: json_text(schema, "field schema")?,
+                })
+            },
+        )
         .collect::<PyResult<Vec<_>>>()?;
     Ok(Signature {
         instructions: instructions.to_owned(),
         inputs,
         outputs,
     })
+}
+
+/// The crate's adapter for the name Python sends.
+fn adapter_named(adapter: &str) -> PyResult<Box<dyn Adapter>> {
+    match adapter {
+        "chat" => Ok(Box::new(ChatAdapter::default())),
+        "json" => Ok(Box::new(JsonAdapter)),
+        "xml" => Ok(Box::new(XmlAdapter)),
+        "baml" => Ok(Box::new(BamlAdapter)),
+        other => Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
+    }
 }
 
 /// Render one exchange for the named adapter, as `(system, [(role, content), ...])`.
@@ -171,12 +204,7 @@ fn format_messages(
                 .map_err(|error| PyValueError::new_err(format!("input `{name}`: {error}")))
         })
         .collect::<PyResult<_>>()?;
-    let adapter: Box<dyn Adapter> = match adapter {
-        "chat" => Box::new(ChatAdapter::default()),
-        "json" => Box::new(JsonAdapter),
-        "xml" => Box::new(XmlAdapter),
-        other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
-    };
+    let adapter = adapter_named(adapter)?;
     let demos: Vec<Example> = demos
         .unwrap_or_default()
         .into_iter()
@@ -213,13 +241,27 @@ fn format_system_message(
     outputs: Vec<PyOutField>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let adapter: Box<dyn Adapter> = match adapter {
-        "chat" => Box::new(ChatAdapter::default()),
-        "json" => Box::new(JsonAdapter),
-        "xml" => Box::new(XmlAdapter),
-        other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
-    };
+    let adapter = adapter_named(adapter)?;
     Ok(adapter.system_message(&signature))
+}
+
+/// The field-structure section of the BAML adapter's system message.
+///
+/// dspy declares `format_field_structure` on every adapter, but only this one states anything
+/// there a caller reads on its own — the compact notation for each output's type — and only
+/// this one can refuse a signature outright, which is what its recursion test asserts. The
+/// others reach a caller through the whole system message.
+#[pyfunction]
+#[pyo3(signature = (instructions, inputs, outputs))]
+fn baml_field_structure(
+    instructions: &str,
+    inputs: Vec<PyInField>,
+    outputs: Vec<PyOutField>,
+) -> PyResult<String> {
+    let signature = build_signature(instructions, inputs, outputs)?;
+    BamlAdapter
+        .field_structure(&signature)
+        .map_err(|error| PyValueError::new_err(format!("{error:#}")))
 }
 
 /// Parse a raw reply through the named adapter, returning JSON text.
@@ -233,12 +275,7 @@ fn parse_reply(
     raw: &str,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let adapter: Box<dyn Adapter> = match adapter {
-        "chat" => Box::new(ChatAdapter::default()),
-        "json" => Box::new(JsonAdapter),
-        "xml" => Box::new(XmlAdapter),
-        other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
-    };
+    let adapter = adapter_named(adapter)?;
     adapter
         .parse(&signature, raw)
         .map(|value| value.to_string())
@@ -262,9 +299,7 @@ fn has_json_fallback(adapter: &str, use_json_adapter_fallback: bool) -> PyResult
         "chat" => Box::new(ChatAdapter {
             use_json_adapter_fallback,
         }),
-        "json" => Box::new(JsonAdapter),
-        "xml" => Box::new(XmlAdapter),
-        other => return Err(PyValueError::new_err(format!("unknown adapter: {other}"))),
+        other => adapter_named(other)?,
     };
     Ok(adapter.json_fallback().is_some())
 }
@@ -273,6 +308,7 @@ fn has_json_fallback(adapter: &str, use_json_adapter_fallback: bool) -> PyResult
 fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(format_messages, module)?)?;
     module.add_function(wrap_pyfunction!(format_system_message, module)?)?;
+    module.add_function(wrap_pyfunction!(baml_field_structure, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;
     module.add_function(wrap_pyfunction!(has_json_fallback, module)?)?;
     Ok(())

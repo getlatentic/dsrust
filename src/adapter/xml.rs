@@ -37,7 +37,11 @@ fn answer(signature: &Signature, example: &Example, missing: Option<&str>) -> Ch
     ChatTurn::assistant(sections.join("\n\n"))
 }
 
-const STYLE: Style = Style { wrap, answer };
+const STYLE: Style = Style {
+    wrap,
+    value: super::exchange::plain,
+    answer,
+};
 
 /// Tag-wrapped fields rather than marker sections.
 #[derive(Default)]
