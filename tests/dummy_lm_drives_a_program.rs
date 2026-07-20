@@ -55,6 +55,31 @@ async fn a_predict_answers_from_the_script() {
 }
 
 #[tokio::test]
+async fn a_scripted_bool_survives_the_render_and_parse_round_trip() {
+    // The dummy renders a field the way the adapter does, which spells a bool Python's way.
+    // Whatever it writes, the parser on the other side has to read back.
+    let bool_signature = Signature::single_input(
+        "Decide.",
+        vec![OutField {
+            name: "sure".into(),
+            desc: "sure about it".into(),
+            kind: FieldKind::Bool,
+            values: None,
+            schema: None,
+        }],
+    );
+    let lm = Arc::new(DummyLM::new([example! { sure: true }]));
+    let _guard = install(lm.clone());
+
+    let prediction = dsrs::predict::Predict::new(bool_signature)
+        .forward(example! { request: "is the sky blue?" }.with_inputs(["request"]))
+        .await
+        .expect("the scripted bool parses");
+
+    assert_eq!(prediction.get("sure"), Some(&Value::Bool(true)));
+}
+
+#[tokio::test]
 async fn a_compiled_program_shows_its_demos_to_the_model() {
     let lm = Arc::new(DummyLM::new([example! { answer: "Madrid" }]));
     let _guard = install(lm.clone());

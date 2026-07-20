@@ -4,7 +4,9 @@ use serde_json::{Map, Value};
 use crate::example::Example;
 use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::{FieldKind, Signature};
+use python_json::format_field_value;
 
+pub(crate) mod python_json;
 mod repair;
 
 /// How a signature travels over the wire.
@@ -344,7 +346,7 @@ fn chat_demo_turns(signature: &Signature, demo: &Example) -> Vec<ChatTurn> {
         .filter_map(|field| {
             Some(section(
                 &field.name,
-                demo.get(&field.name).map(crate::example::render)?,
+                demo.get(&field.name).map(format_field_value)?,
             ))
         })
         .collect::<Vec<_>>()
@@ -355,7 +357,7 @@ fn chat_demo_turns(signature: &Signature, demo: &Example) -> Vec<ChatTurn> {
         .filter_map(|field| {
             Some(section(
                 &field.name,
-                demo.get(&field.name).map(crate::example::render)?,
+                demo.get(&field.name).map(format_field_value)?,
             ))
         })
         .collect::<Vec<_>>();

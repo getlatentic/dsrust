@@ -268,19 +268,26 @@ fn coerce_value(kind: &FieldKind, name: &str, value: &mut Value) -> Result<()> {
     }
 }
 
-/// `bool::from_str` accepts exactly "true" and "false", so string forms stay as strict as
-/// the native ones.
+/// Either case of the two keywords, because the crate asks the model for a bool in Python's
+/// spelling and renders one the same way; a reply that echoes what it was shown has to parse.
 fn coerce_bool(name: &str, value: &mut Value) -> Result<()> {
     if value.is_boolean() {
         return Ok(());
     }
-    if let Some(text) = value.as_str()
-        && let Ok(parsed) = text.trim().parse::<bool>()
-    {
-        *value = Value::Bool(parsed);
-        return Ok(());
+    let parsed = value
+        .as_str()
+        .and_then(|text| match text.trim().to_ascii_lowercase().as_str() {
+            "true" => Some(true),
+            "false" => Some(false),
+            _ => None,
+        });
+    match parsed {
+        Some(parsed) => {
+            *value = Value::Bool(parsed);
+            Ok(())
+        }
+        None => Err(anyhow!("{name} must be true or false, got {value}")),
     }
-    Err(anyhow!("{name} must be true or false, got {value}"))
 }
 
 fn coerce_int(name: &str, value: &mut Value) -> Result<()> {
@@ -496,6 +503,18 @@ mod tests {
     }
 
     #[test]
+    fn coerce_reads_a_bool_back_in_pythons_spelling() {
+        // The prompt asks for `True`/`False` and a demo renders one that way, so the parser
+        // has to accept the spelling the model was shown.
+        for (text, expected) in [("True", true), ("False", false), ("TRUE", true)] {
+            let sig = typed_signature();
+            let mut value = json!({ "note": "hi", "double": text, "count": 1, "amount": 0.5 });
+            sig.coerce(&mut value).expect("coerces");
+            assert_eq!(value["double"], json!(expected));
+        }
+    }
+
+    #[test]
     fn coerce_accepts_native_json_values_as_is() {
         let sig = typed_signature();
         let mut value = json!({ "note": "hi", "double": false, "count": 3, "amount": 2 });
@@ -512,8 +531,8 @@ mod tests {
         let sig = typed_signature();
         for (patch, message) in [
             (
-                json!({ "double": "True" }),
-                "double must be true or false, got \"True\"",
+                json!({ "double": "maybe" }),
+                "double must be true or false, got \"maybe\"",
             ),
             (
                 json!({ "double": 1 }),

@@ -10,6 +10,7 @@ mod tool;
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
+use crate::adapter::python_json::format_field_value;
 use crate::example::{Example, Prediction};
 use crate::module::{Module, NamedPredictor};
 use crate::predict::Predict;
@@ -46,7 +47,7 @@ impl Trajectory {
             blocks.push(format!("[[ ## tool_name_{index} ## ]]\n{}", step.tool));
             blocks.push(format!(
                 "[[ ## tool_args_{index} ## ]]\n{}",
-                field_value(&step.args)
+                format_field_value(&step.args)
             ));
             blocks.push(format!(
                 "[[ ## observation_{index} ## ]]\n{}",
@@ -71,40 +72,6 @@ impl Trajectory {
 
     pub fn is_empty(&self) -> bool {
         self.steps.is_empty()
-    }
-}
-
-/// dspy's `format_field_value`: a structured value is rendered as JSON text, and anything
-/// scalar goes in the way Python's `str` would print it — a bare string, unquoted.
-fn field_value(value: &Value) -> String {
-    match value {
-        Value::Object(_) | Value::Array(_) => json_dumps(value),
-        Value::String(text) => text.clone(),
-        Value::Null => "None".to_owned(),
-        Value::Bool(true) => "True".to_owned(),
-        Value::Bool(false) => "False".to_owned(),
-        number => number.to_string(),
-    }
-}
-
-/// Python's `json.dumps` spacing — `", "` between items, `": "` after a key. dspy renders a
-/// tool call's arguments into the trajectory through it, and serde_json's own `Display` emits
-/// neither space, so the two differ on every argument object the model ever sees.
-fn json_dumps(value: &Value) -> String {
-    match value {
-        Value::Array(items) => format!(
-            "[{}]",
-            items.iter().map(json_dumps).collect::<Vec<_>>().join(", ")
-        ),
-        Value::Object(fields) => format!(
-            "{{{}}}",
-            fields
-                .iter()
-                .map(|(key, value)| format!("{}: {}", json!(key), json_dumps(value)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        scalar => scalar.to_string(),
     }
 }
 
@@ -625,10 +592,10 @@ mod tests {
         // dspy formats the argument object with `json.dumps`, which puts a space after every
         // colon and comma; serde_json's own `Display` puts neither.
         assert_eq!(
-            field_value(&json!({ "city": "Tokyo", "days": [1, 2] })),
+            format_field_value(&json!({ "city": "Tokyo", "days": [1, 2] })),
             "{\"city\": \"Tokyo\", \"days\": [1, 2]}"
         );
-        assert_eq!(field_value(&json!({})), "{}");
+        assert_eq!(format_field_value(&json!({})), "{}");
     }
 
     #[test]

@@ -11,6 +11,8 @@ use std::collections::BTreeSet;
 use anyhow::{Result, anyhow};
 use serde_json::Value;
 
+use crate::adapter::python_json::format_field_value;
+
 /// One labelled example: field values, plus which of those fields are inputs.
 ///
 /// Field order is preserved, because prompts render fields in signature order and a stable
@@ -116,7 +118,7 @@ impl Example {
     pub fn rendered(&self) -> Vec<(String, String)> {
         self.fields
             .iter()
-            .map(|(name, value)| (name.clone(), render(value)))
+            .map(|(name, value)| (name.clone(), format_field_value(value)))
             .collect()
     }
 }
@@ -137,15 +139,6 @@ macro_rules! example {
             $((stringify!($name), $crate::__macro_support::json!($value))),*
         ])
     };
-}
-
-/// dspy `format_field_value`: a string is itself, anything else is its JSON form. Quoting a
-/// string would change what the model reads, and upstream is careful to avoid that.
-pub fn render(value: &Value) -> String {
-    match value {
-        Value::String(text) => text.clone(),
-        other => other.to_string(),
-    }
 }
 
 /// What a module returns: the parsed output fields, plus what produced them.
@@ -256,7 +249,7 @@ mod tests {
             vec![
                 ("note".to_owned(), "hello".to_owned()),
                 ("count".to_owned(), "3".to_owned()),
-                ("tags".to_owned(), r#"["a","b"]"#.to_owned()),
+                ("tags".to_owned(), r#"["a", "b"]"#.to_owned()),
             ]
         );
     }
