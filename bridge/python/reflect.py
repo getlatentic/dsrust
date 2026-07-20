@@ -12,6 +12,7 @@ on Python would report a pass for code this crate has not written.
 
 from __future__ import annotations
 
+import enum
 import json
 import types
 import typing
@@ -54,6 +55,10 @@ def kind_of(annotation: typing.Any) -> str:
         return KINDS[annotation]
     except (KeyError, TypeError):
         pass
+    # Ahead of the JSON kinds: pydantic can schema an enum, but dspy does not describe one that
+    # way — it names the type and lists its members' values.
+    if isinstance(annotation, type) and issubclass(annotation, enum.Enum):
+        return f"enum:{get_annotation_name(annotation)}"
     if _carries_as_json(annotation):
         return f"json:{get_annotation_name(annotation)}"
     raise Unsupported(f"no Rust FieldKind for annotation {annotation!r}")
@@ -70,6 +75,15 @@ def _carries_as_json(annotation: typing.Any) -> bool:
     """
     if isinstance(annotation, type) and issubclass(annotation, pydantic.BaseModel):
         return True
+    # A plain class pydantic can describe carries too — `datetime` reaches the model as the
+    # string its schema says it is. Asking pydantic is the same question the crate's schema
+    # note asks later, so a type that answers it renders consistently.
+    if isinstance(annotation, type) and not typing.get_args(annotation):
+        try:
+            pydantic.TypeAdapter(annotation).json_schema()
+            return True
+        except Exception:
+            return False
     args = typing.get_args(annotation)
     return bool(args) and all(
         arg is Ellipsis or arg is type(None) or _scalar_or_json(arg) for arg in args
@@ -91,6 +105,9 @@ def closed_set_of(annotation: typing.Any) -> str | None:
     Rust models. A `Literal` over anything else — an Enum, None, bytes — has no crossing yet,
     and must say so rather than lose members on the way across.
     """
+    # An enum's members are its closed set, carried as the values dspy asks the model for.
+    if isinstance(annotation, type) and issubclass(annotation, enum.Enum):
+        return json.dumps([member.value for member in annotation])
     if typing.get_origin(annotation) is not typing.Literal:
         return None
     members = typing.get_args(annotation)

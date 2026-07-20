@@ -102,6 +102,18 @@ pub(super) fn output_type(field: &OutField) -> Result<String> {
         FieldKind::Int => Ok("int".to_owned()),
         FieldKind::Float => Ok("float".to_owned()),
         FieldKind::Bool => Ok("boolean".to_owned()),
+        // BAML quotes each member, the way it writes a `Literal`'s.
+        FieldKind::Enum(_) => Ok(field
+            .values
+            .as_ref()
+            .map(|values| {
+                values
+                    .iter()
+                    .map(|member| quoted(&member.wire_form()))
+                    .collect::<Vec<_>>()
+                    .join(" or ")
+            })
+            .unwrap_or_default()),
         FieldKind::Json(json) => match &json.reflection {
             Some(reflection) => reflected(reflection)?.render(),
             None => Ok(json.annotation.clone()),

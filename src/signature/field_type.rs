@@ -16,6 +16,12 @@ pub enum FieldKind {
     /// The scalar kinds name themselves in Python; a non-scalar does not, so the Python type
     /// dspy would print travels with the variant — `dict[str, Any]`, `list[str]`.
     Json(JsonType),
+    /// A field whose value is one of a named type's members — Python's `enum.Enum`.
+    ///
+    /// Distinct from a closed set spelled `Literal[...]`: dspy prints the type's own name as the
+    /// annotation and asks the model to produce one of the members' *values*, where a `Literal`
+    /// prints its members and asks for an exact match on the spelling.
+    Enum(String),
 }
 
 /// A non-scalar field's Python type, and the prose any custom type in it contributes.
@@ -86,6 +92,8 @@ impl FieldKind {
             FieldKind::Int => Some("integer"),
             FieldKind::Float => Some("number"),
             FieldKind::Json(_) => None,
+            // dspy schemas an enum by its members, which the field carries beside this.
+            FieldKind::Enum(_) => Some("string"),
         }
     }
 
@@ -99,6 +107,7 @@ impl FieldKind {
             FieldKind::Int => "int",
             FieldKind::Float => "float",
             FieldKind::Json(json) => &json.annotation,
+            FieldKind::Enum(name) => name,
         }
     }
 }
@@ -188,9 +197,12 @@ pub(crate) fn wire_forms(values: &[LiteralValue], separator: &str) -> String {
 /// A closed set is the field's type where there is one: dspy spells it `Literal['a', 'b']`
 /// and prints that as the annotation, rather than a note sitting beside the kind.
 pub(super) fn annotation_of(values: Option<&Vec<LiteralValue>>, kind: &FieldKind) -> String {
-    match values {
-        Some(values) => literal_annotation(values),
-        None => kind.annotation().to_owned(),
+    match (kind, values) {
+        // An enum's members are its closed set, but dspy prints the type that named them
+        // rather than the members — `Status`, not `Literal['active', 'done']`.
+        (FieldKind::Enum(name), _) => name.clone(),
+        (_, Some(values)) => literal_annotation(values),
+        (_, None) => kind.annotation().to_owned(),
     }
 }
 
@@ -212,6 +224,9 @@ pub(super) fn coerce_value(kind: &FieldKind, name: &str, value: &mut Value) -> R
         FieldKind::Int => coerce_int(name, value),
         FieldKind::Float => coerce_float(name, value),
         FieldKind::Json(_) => coerce_json(name, value),
+        // A member reaches the marker path as the text of its value, which is what the model
+        // was asked for; naming the member it belongs to is the declared type's job.
+        FieldKind::Enum(_) => Ok(()),
     }
 }
 
@@ -358,5 +373,21 @@ mod tests {
         assert_eq!(member.wire_form(), "Colour.RED");
         // A plain string in the same position keeps its quotes, which is the distinction.
         assert_eq!(LiteralValue::Str("red".to_owned()).annotation(), "'red'");
+    }
+
+    #[test]
+    fn an_enum_prints_its_type_and_asks_for_a_member_value() {
+        // dspy names the type in the annotation and lists the members' values in the note,
+        // where a `Literal` prints the members themselves and demands an exact match.
+        let kind = FieldKind::Enum("Status".to_owned());
+        let members = vec![
+            LiteralValue::Str("active".to_owned()),
+            LiteralValue::Str("done".to_owned()),
+        ];
+        assert_eq!(annotation_of(Some(&members), &kind), "Status");
+        assert_eq!(
+            annotation_of(Some(&members), &FieldKind::Str),
+            "Literal['active', 'done']"
+        );
     }
 }

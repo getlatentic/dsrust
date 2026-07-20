@@ -74,6 +74,9 @@ fn kind_from(
         "bool" => Ok(FieldKind::Bool),
         // Anything not a scalar arrives as `json:<annotation>`, so the Python type name
         // dspy prints survives the crossing instead of being flattened to "json".
+        other if other.starts_with("enum:") => Ok(FieldKind::Enum(
+            other.trim_start_matches("enum:").to_owned(),
+        )),
         other => match other.strip_prefix("json:") {
             Some(annotation) => Ok(FieldKind::Json(JsonType {
                 annotation: annotation.to_owned(),

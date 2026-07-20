@@ -125,6 +125,11 @@ pub(super) fn output_slot(field: &OutField) -> String {
         // A type whose description already states its contract does not repeat it as a schema,
         // which would spend a large block of the prompt saying the same thing twice. Every
         // other custom type keeps the schema, which is what steers a structured reply.
+        // dspy asks for one of the members' values, and prints the type's own name above.
+        FieldKind::Enum(_) => match &field.values {
+            Some(values) => format!("must be one of: {}", wire_forms(values, "; ")),
+            None => String::new(),
+        },
         FieldKind::Json(json) if states_its_own_contract(json) => String::new(),
         FieldKind::Json(_) => match &field.schema {
             Some(schema) => format!("must adhere to the JSON schema: {}", json_dumps(schema)),
