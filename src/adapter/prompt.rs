@@ -62,7 +62,7 @@ fn numbered_block(lines: Vec<String>) -> String {
     lines.join("\n").trim().to_owned()
 }
 
-fn numbered_input_lines(signature: &Signature) -> String {
+pub(super) fn numbered_input_lines(signature: &Signature) -> String {
     let lines: Vec<String> = signature
         .inputs
         .iter()
@@ -82,7 +82,7 @@ fn numbered_input_lines(signature: &Signature) -> String {
 
 /// A `Json` field's schema does not appear here: upstream states it once, in the field's own
 /// slot in the interaction template, which [`output_slot`] renders.
-fn numbered_output_lines(signature: &Signature) -> String {
+pub(super) fn numbered_output_lines(signature: &Signature) -> String {
     let lines: Vec<String> = signature
         .outputs
         .iter()

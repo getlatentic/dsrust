@@ -11,6 +11,8 @@ name = "dsrs_bridge"
 crate-type = ["cdylib"]
 
 [dependencies]
+anyhow = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 dsrs = { path = ".." }
 # No `extension-module` feature: current PyO3 recommends against it, because it disables
 # Python linking for tests and binaries and produces undefined _Py symbols. build.rs supplies

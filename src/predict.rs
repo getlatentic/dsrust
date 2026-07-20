@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::adapter::parse::FieldMismatch;
-use crate::adapter::{Adapter, ChatAdapter, Feedback, turns_for};
+use crate::adapter::{Adapter, ChatAdapter, Extraction, Feedback, turns_for};
 use crate::example::{Example, Prediction};
 use crate::lm::{DynChatModel, global};
 use crate::module::{Module, NamedPredictor};
@@ -127,6 +127,11 @@ impl Predict {
         // the JSON adapter; `use_json_adapter_fallback` turns that off. The adapter states the
         // policy, this module carries it out, because only the module can call the model.
         let raw = self.ask(http, lm, inputs, None).await?;
+        // An adapter that answers in prose has a second model read the fields out of it. The
+        // adapter says what to ask and who to ask; only this module can do the asking.
+        if let Some(extraction) = self.adapter.extraction(&self.signature) {
+            return self.extract(http, extraction, raw).await;
+        }
         let (raw, mut value) = match self.adapter.parse(&self.signature, &raw) {
             Ok(value) => (raw, value),
             // A reply that spoke the format but left a field out is the case the feedback ask
@@ -170,6 +175,43 @@ impl Predict {
                 Ok(Validated { raw, value })
             }
         }
+    }
+
+    /// The second ask of a two-step adapter: hand the first reply to the extraction model and
+    /// read the signature's fields out of what it answers.
+    ///
+    /// The extraction speaks its own adapter over its own signature — `text` in, the task's
+    /// outputs out — so nothing here knows it is reading prose rather than a fresh request.
+    async fn extract(
+        &self,
+        http: &reqwest::Client,
+        extraction: Extraction<'_>,
+        raw: String,
+    ) -> Result<Validated> {
+        let text = [("text", Value::String(raw.clone()))];
+        let (system, turns) = extraction.adapter.format(&extraction.signature, &[], &text);
+        let schema = extraction.signature.schema();
+        let mode = extraction.adapter.output_mode(&schema);
+        let extracted = extraction
+            .model
+            .chat_dyn(http, &system, &turns, &mode)
+            .await
+            .context("the extraction model did not answer")?;
+        let mut value = extraction
+            .adapter
+            .parse(&extraction.signature, &extracted)
+            // dspy names the *first* reply here, not the extraction's. That is the one a
+            // caller can act on: the extraction failing usually means the prose never carried
+            // the fields, and the prose is what they would go and look at.
+            .with_context(|| {
+                format!("Failed to parse response from the original completion: {raw}")
+            })?;
+        self.signature.coerce(&mut value)?;
+        self.signature.ensure(&value)?;
+        Ok(Validated {
+            raw: extracted,
+            value,
+        })
     }
 
     /// One more ask on the same adapter carrying the rejected reply and its error; every

@@ -2,11 +2,13 @@ use anyhow::Result;
 use serde_json::Value;
 
 use crate::example::Example;
-use crate::lm::{ChatTurn, OutputMode};
+use crate::lm::{ChatTurn, DynChatModel, OutputMode};
 use crate::signature::{FieldKind, Signature};
 
 pub mod baml;
 mod blocks;
+mod two_step;
+pub use two_step::{TwoStepAdapter, extractor_signature};
 mod demos;
 mod exchange;
 mod history;
@@ -74,6 +76,28 @@ pub trait Adapter: Send + Sync {
     fn json_fallback(&self) -> Option<Box<dyn Adapter>> {
         None
     }
+
+    /// A second exchange this adapter needs before its reply carries the signature's fields.
+    ///
+    /// dspy's `TwoStepAdapter` lets the main model answer in prose, then asks a second model to
+    /// pull the fields out of that prose. The second ask is a model call, which this trait
+    /// cannot make and stay object-safe — so, exactly as [`Adapter::json_fallback`] hands back
+    /// an adapter for the module to re-ask through, this hands back everything the module needs
+    /// to run the extraction itself. Most adapters read their own replies and answer none.
+    fn extraction(&self, _signature: &Signature) -> Option<Extraction<'_>> {
+        None
+    }
+}
+
+/// The second ask an adapter cannot make for itself: what to ask, how to render it, and which
+/// model to ask.
+pub struct Extraction<'a> {
+    /// dspy's `_create_extractor_signature`: `text` in, the original outputs out.
+    pub signature: Signature,
+    /// The wire format the extraction speaks, which is dspy's `ChatAdapter`.
+    pub adapter: &'a dyn Adapter,
+    /// The model asked to do the extracting — a smaller one than answered the task.
+    pub model: &'a dyn DynChatModel,
 }
 
 /// DSPy's default: every field in its own `[[ ## name ## ]]` section, readable by any model.

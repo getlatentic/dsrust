@@ -28,6 +28,7 @@ from rust_adapter import (  # noqa: E402
     RustBAMLAdapter,
     RustChatAdapter,
     RustJSONAdapter,
+    RustTwoStepAdapter,
     RustXMLAdapter,
 )
 
@@ -152,6 +153,8 @@ def _use_rust_adapter(monkeypatch):
     monkeypatch.setattr(dspy, "XMLAdapter", RustXMLAdapter, raising=False)
     monkeypatch.setattr("dspy.adapters.XMLAdapter", RustXMLAdapter, raising=False)
     monkeypatch.setattr("dspy.adapters.xml_adapter.XMLAdapter", RustXMLAdapter, raising=False)
+    monkeypatch.setattr(dspy, "TwoStepAdapter", RustTwoStepAdapter, raising=False)
+    monkeypatch.setattr("dspy.adapters.TwoStepAdapter", RustTwoStepAdapter, raising=False)
 
 
 @pytest.fixture(autouse=True)
