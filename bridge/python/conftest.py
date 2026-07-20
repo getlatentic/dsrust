@@ -1,10 +1,12 @@
 """Point upstream's test suite at the Rust-backed adapter, and be honest about the gaps.
 
-Every test here runs against Rust; nothing silently defers to the Python implementation. The
-cases this crate cannot render yet are listed below and marked `xfail(strict=True)`, which
-means two things: they are never counted as passes, and if one starts passing the run FAILS
-until its name is deleted from the list. The list is therefore the to-do list, it cannot
-drift out of date, and a green run means every case not named here genuinely runs on Rust.
+Rust renders and parses every case here. A reply Rust rejects may re-ask through Python's
+JSONAdapter, since that is dspy's own behaviour and upstream tests it directly; a case Rust
+has not implemented may not, and raises instead. Those cases are listed below and marked
+`xfail(strict=True)`, which means two things: they are never counted as passes, and if one
+starts passing the run FAILS until its name is deleted from the list. The list is therefore
+the to-do list, it cannot drift out of date, and a green run means every case not named here
+genuinely runs on Rust.
 """
 
 import dspy
@@ -26,7 +28,6 @@ from rust_adapter import RustChatAdapter  # noqa: E402
 # Upstream tests whose features this crate has not written yet, with the reason. Delete a line
 # once Rust renders that case; the strict xfail will fail the run if you forget.
 NOT_YET_IMPLEMENTED = {
-    "test_chat_adapter_quotes_literals_as_expected": "Literal[...] field annotations",
     "test_chat_adapter_formats_image": "dspy.Image fields",
     "test_chat_adapter_formats_image_with_few_shot_examples": "dspy.Image fields",
     "test_chat_adapter_formats_image_with_nested_images": "dspy.Image fields",
@@ -40,7 +41,6 @@ NOT_YET_IMPLEMENTED = {
     "test_citations_output_field_keeps_json_schema_in_prompt": "dspy.Citations fields",
     "test_chat_adapter_formats_conversation_history": "dspy.History fields",
 }
-
 
 
 @pytest.fixture(autouse=True)

@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::example::Example;
 use crate::lm::{ChatTurn, OutputMode};
-use crate::signature::{FieldKind, Signature};
+use crate::signature::{FieldKind, Signature, wire_forms};
 
 mod parse;
 
@@ -179,13 +179,7 @@ fn numbered_input_lines(signature: &Signature) -> String {
         .iter()
         .enumerate()
         .map(|(index, field)| {
-            numbered_line(
-                index,
-                &field.name,
-                field.kind.annotation(),
-                &field.desc,
-                None,
-            )
+            numbered_line(index, &field.name, &field.annotation(), &field.desc, None)
         })
         .collect();
     numbered_block(lines)
@@ -262,7 +256,7 @@ fn output_slot(field: &crate::signature::OutField) -> String {
         FieldKind::Str => match &field.values {
             Some(values) => format!(
                 "must exactly match (no extra characters) one of: {}",
-                values.join("; ")
+                wire_forms(values, "; ")
             ),
             None => String::new(),
         },
@@ -415,11 +409,13 @@ mod tests {
                 name: "room".into(),
                 desc: "the room being painted".into(),
                 kind: FieldKind::Str,
+                values: None,
             },
             InField {
                 name: "mood".into(),
                 desc: "the mood to set".into(),
                 kind: FieldKind::Str,
+                values: None,
             },
         ];
         signature
@@ -449,6 +445,7 @@ mod tests {
             name: "age".into(),
             desc: "the age turned".into(),
             kind: FieldKind::Int,
+            values: None,
         }];
         signature
     }
@@ -468,6 +465,7 @@ mod tests {
             name: "recipient".into(),
             desc: "who the gift is for".into(),
             kind: FieldKind::opaque_json(),
+            values: None,
         }];
         signature
     }

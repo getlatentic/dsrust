@@ -20,10 +20,13 @@ pinned dspy (`scripts/generate_fixtures.py`), so `cargo test` needs no Python. A
 and runs it **unmodified**, through a PyO3 bridge, with a `conftest.py` that swaps
 `dspy.ChatAdapter` for a subclass whose rendering is this crate.
 
-Nothing in that path falls back to the Python implementation: a case Rust cannot render
-raises. The unbuilt ones are named in `conftest.py` and marked `xfail(strict=True)`, so they
-never count as passes, and the run fails if one starts passing while still listed. The last
-green run read **15 passed, 15 xfailed** — the 15 are the backlog, in code, unable to go stale.
+A case Rust cannot render raises rather than quietly reaching Python: `Unsupported` derives
+from `BaseException`, so the `except Exception` that guards dspy's JSON re-ask cannot catch
+it on either the sync or the async path. That re-ask itself stays, because dspy has it and
+upstream tests it — what it may never do is stand in for code this crate has not written. The
+unbuilt cases are named in `conftest.py` and marked `xfail(strict=True)`, so they never count
+as passes, and the run fails if one starts passing while still listed. The last green run read
+**20 passed, 10 xfailed** — the 10 are the backlog, in code, unable to go stale.
 
 The bridge builds through maturin with `build.rs` calling
 `pyo3_build_config::add_extension_module_link_args()`, and deliberately does **not** use
