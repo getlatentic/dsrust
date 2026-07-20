@@ -5,7 +5,10 @@ use crate::example::Example;
 use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::{FieldKind, Signature};
 
+mod demos;
 mod repair;
+
+use demos::demo_turns;
 
 /// How a signature travels over the wire.
 ///
@@ -97,10 +100,7 @@ impl Adapter for ChatAdapter {
         demos: &[Example],
         inputs: &[(&str, String)],
     ) -> (String, Vec<ChatTurn>) {
-        let mut turns: Vec<ChatTurn> = demos
-            .iter()
-            .flat_map(|demo| chat_demo_turns(signature, demo))
-            .collect();
+        let mut turns = demo_turns(signature, demos);
         turns.push(ChatTurn::user(chat_user(signature, inputs)));
         (chat_system(signature), turns)
     }
@@ -146,6 +146,11 @@ pub struct Feedback {
 
 fn marker(name: &str) -> String {
     format!("[[ ## {name} ## ]]")
+}
+
+/// A field on the wire: its marker, then its value on the next line.
+fn section(name: &str, value: &str) -> String {
+    format!("{}\n{value}", marker(name))
 }
 
 /// dspy `get_field_description_string`, one line: the number, the field name, its Python
@@ -218,7 +223,7 @@ fn chat_system(signature: &Signature) -> String {
     let block = |slots: Vec<(&str, String)>| -> String {
         slots
             .iter()
-            .map(|(name, slot)| format!("{}\n{slot}", marker(name)))
+            .map(|(name, slot)| section(name, slot))
             .collect::<Vec<_>>()
             .join("\n\n")
     };
@@ -302,7 +307,7 @@ fn chat_user(signature: &Signature, inputs: &[(&str, String)]) -> String {
     // by a blank line and stripped, rather than sections each carrying their own trailing gap.
     let mut parts: Vec<String> = inputs
         .iter()
-        .map(|(name, value)| format!("{}\n{value}", marker(name)))
+        .map(|(name, value)| section(name, value))
         .collect();
     parts.push(output_requirements(signature));
     parts.join("\n\n").trim().to_owned()
@@ -331,39 +336,6 @@ fn output_requirements(signature: &Signature) -> String {
         fields.join(", then "),
         marker("completed"),
     )
-}
-
-/// dspy `format_demos`: a demo becomes the user turn it would have been, then the assistant
-/// turn it produced. The user turn carries no output-requirements reminder — the answer is
-/// already there — and the assistant turn closes with the completed marker.
-fn chat_demo_turns(signature: &Signature, demo: &Example) -> Vec<ChatTurn> {
-    let section = |name: &str, value: String| format!("{}\n{value}", marker(name));
-    let ask = signature
-        .inputs
-        .iter()
-        .filter_map(|field| {
-            Some(section(
-                &field.name,
-                demo.get(&field.name).map(crate::example::render)?,
-            ))
-        })
-        .collect::<Vec<_>>()
-        .join("\n\n");
-    let mut answer = signature
-        .outputs
-        .iter()
-        .filter_map(|field| {
-            Some(section(
-                &field.name,
-                demo.get(&field.name).map(crate::example::render)?,
-            ))
-        })
-        .collect::<Vec<_>>();
-    answer.push(format!("{}\n", marker("completed")));
-    vec![
-        ChatTurn::user(ask),
-        ChatTurn::assistant(answer.join("\n\n")),
-    ]
 }
 
 /// The JSON contract in prose, for the provider-native structured-output path.
