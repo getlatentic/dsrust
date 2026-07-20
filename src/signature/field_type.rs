@@ -13,16 +13,41 @@ pub enum FieldKind {
     Bool,
     Int,
     Float,
-    /// The scalar kinds name themselves in Python; a non-scalar does not, so the annotation
+    /// The scalar kinds name themselves in Python; a non-scalar does not, so the Python type
     /// dspy would print travels with the variant — `dict[str, Any]`, `list[str]`.
-    Json(String),
+    Json(JsonType),
+}
+
+/// A non-scalar field's Python type, and the prose any custom type in it contributes.
+///
+/// dspy reads a description off the *annotation*, not the field: `Type.description()` belongs to
+/// `dspy.Code` itself, and every field annotated with it earns the same line. An annotation can
+/// name more than one custom type, so the descriptions are a list in the order dspy extracts
+/// them.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct JsonType {
+    /// The annotation prompts carry — `dict[str, Any]`, `Citations`, `list[str]`.
+    pub annotation: String,
+    /// Each custom type the annotation names, as its printed name and its description. Empty
+    /// for a plain structure, which contributes no prose.
+    pub descriptions: Vec<(String, String)>,
+}
+
+impl JsonType {
+    /// A structure whose annotation carries no custom-type prose.
+    pub fn plain(annotation: impl Into<String>) -> Self {
+        Self {
+            annotation: annotation.into(),
+            descriptions: Vec::new(),
+        }
+    }
 }
 
 impl FieldKind {
     /// A non-scalar whose Python type this crate cannot name. The derive maps every such Rust
     /// type here, so prompts print `json` where dspy would print `list[Idea]`.
     pub fn opaque_json() -> Self {
-        FieldKind::Json("json".to_owned())
+        FieldKind::Json(JsonType::plain("json"))
     }
 
     /// The JSON-schema type name for scalar kinds; a `Json` field has no single type name —
@@ -46,7 +71,7 @@ impl FieldKind {
             FieldKind::Bool => "bool",
             FieldKind::Int => "int",
             FieldKind::Float => "float",
-            FieldKind::Json(annotation) => annotation,
+            FieldKind::Json(json) => &json.annotation,
         }
     }
 }

@@ -22,7 +22,14 @@ import dspy
 import pydantic
 from dspy.adapters.base import Adapter
 from dspy.adapters.json_adapter import JSONAdapter
-from dspy.adapters.utils import format_field_value, get_annotation_name, parse_value, serialize_for_json
+from dspy.adapters.types.base_type import Type
+from dspy.adapters.utils import (
+    _get_json_schema,
+    format_field_value,
+    get_annotation_name,
+    parse_value,
+    serialize_for_json,
+)
 from dspy.utils.exceptions import AdapterParseError
 from litellm import ContextWindowExceededError
 
@@ -77,6 +84,34 @@ def closed_set_of(annotation: typing.Any) -> str | None:
     return json.dumps(members)
 
 
+def schema_of(annotation: typing.Any) -> str | None:
+    """A structured field's JSON schema, as dspy builds it, or None where it has none.
+
+    Reading a schema off a Python annotation is pydantic's job, so upstream's own extractor
+    runs here — key order included, since it is part of the bytes. Whether the schema reaches
+    the prompt is the crate's decision, not this shim's: `dspy.Code` states its contract in its
+    type description instead, and the crate is what knows that.
+    """
+    try:
+        return json.dumps(_get_json_schema(annotation), ensure_ascii=False)
+    except Exception:
+        return None
+
+
+def type_descriptions_of(annotation: typing.Any) -> str | None:
+    """The custom types an annotation names, as JSON `[[name, prose], ...]`, or None.
+
+    Which types an annotation mentions is Python reflection, so it happens here; how the pairs
+    read in a prompt is the crate's business, so only the pairs cross.
+    """
+    pairs = [
+        (get_annotation_name(custom), custom.description())
+        for custom in Type.extract_custom_type_from_annotation(annotation)
+        if custom.description()
+    ]
+    return json.dumps(pairs) if pairs else None
+
+
 def describe(fields: dict) -> list[tuple]:
     described = []
     for name, info in fields.items():
@@ -84,15 +119,23 @@ def describe(fields: dict) -> list[tuple]:
         if desc == f"${{{name}}}":  # dspy's placeholder for "no description given"
             desc = ""
         annotation = info.annotation
-        described.append((name, kind_of(annotation), desc, closed_set_of(annotation)))
+        described.append(
+            (
+                name,
+                kind_of(annotation),
+                desc,
+                closed_set_of(annotation),
+                type_descriptions_of(annotation),
+            )
+        )
     return described
 
 
 def described_outputs(signature) -> list[tuple]:
-    """Outputs carry a nested-schema slot ahead of the closed set; nothing fills it yet."""
+    """Outputs carry the nested schema of a structured field ahead of the closed set."""
     return [
-        (name, kind, desc, None, values)
-        for name, kind, desc, values in describe(signature.output_fields)
+        (name, kind, desc, schema_of(signature.output_fields[name].annotation), values, types)
+        for name, kind, desc, values, types in describe(signature.output_fields)
     ]
 
 

@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use crate::example::{Example, Prediction};
 use crate::module::{Module, NamedPredictor};
 use crate::predict::Predict;
-use crate::signature::{FieldKind, InField, LiteralValue, OutField, Signature};
+use crate::signature::{FieldKind, InField, JsonType, LiteralValue, OutField, Signature};
 use tool::describe;
 
 pub use tool::{FINISH, FnTool, Tool, arg_str, tool_args};
@@ -264,7 +264,7 @@ fn react_signature(signature: &Signature, tools: &[Box<dyn Tool>]) -> Signature 
                 ..out_field(
                     "next_tool_args",
                     None,
-                    FieldKind::Json("dict[str, Any]".to_owned()),
+                    FieldKind::Json(JsonType::plain("dict[str, Any]")),
                 )
             },
         ],

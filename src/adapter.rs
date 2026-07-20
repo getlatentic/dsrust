@@ -179,8 +179,31 @@ fn section(name: &str, value: &str) -> String {
 /// dspy `get_field_description_string`, one line: the number, the field name, its Python
 /// annotation, and the description. A closed set says itself through the annotation
 /// (`Literal['a', 'b']`), so nothing is appended after the description.
-fn numbered_line(index: usize, name: &str, annotation: &str, desc: &str) -> String {
-    format!("{}. `{name}` ({annotation}): {desc}", index + 1)
+fn numbered_line(
+    index: usize,
+    name: &str,
+    kind: &FieldKind,
+    annotation: &str,
+    desc: &str,
+) -> String {
+    format!(
+        "{}. `{name}` ({annotation}): {desc}{}",
+        index + 1,
+        type_descriptions(kind)
+    )
+}
+
+/// dspy appends one indented line per custom type the annotation names, before the field's own
+/// description is placed after the colon. A type with empty prose contributes nothing.
+fn type_descriptions(kind: &FieldKind) -> String {
+    let FieldKind::Json(json) = kind else {
+        return String::new();
+    };
+    json.descriptions
+        .iter()
+        .filter(|(_, text)| !text.is_empty())
+        .map(|(name, text)| format!("\n    Type description of {name}: {text}"))
+        .collect()
 }
 
 /// dspy `get_field_description_string`: join the numbered lines with a newline, then strip the
@@ -195,7 +218,15 @@ fn numbered_input_lines(signature: &Signature) -> String {
         .inputs
         .iter()
         .enumerate()
-        .map(|(index, field)| numbered_line(index, &field.name, &field.annotation(), &field.desc))
+        .map(|(index, field)| {
+            numbered_line(
+                index,
+                &field.name,
+                &field.kind,
+                &field.annotation(),
+                &field.desc,
+            )
+        })
         .collect();
     numbered_block(lines)
 }
@@ -207,7 +238,15 @@ fn numbered_output_lines(signature: &Signature) -> String {
         .outputs
         .iter()
         .enumerate()
-        .map(|(index, field)| numbered_line(index, &field.name, &field.annotation(), &field.desc))
+        .map(|(index, field)| {
+            numbered_line(
+                index,
+                &field.name,
+                &field.kind,
+                &field.annotation(),
+                &field.desc,
+            )
+        })
         .collect();
     numbered_block(lines)
 }
@@ -260,6 +299,9 @@ fn chat_system(signature: &Signature) -> String {
 /// dspy `translate_field_type`: an output slot carries a note telling the model what shape the
 /// value must take. `str` says nothing, since a string needs no constraint; everything else
 /// earns a note on the same line, indented eight spaces as a comment.
+/// The one custom type whose description stands in for its schema.
+const CODE: &str = "Code";
+
 fn output_slot(field: &crate::signature::OutField) -> String {
     let note = match &field.kind {
         FieldKind::Str => match &field.values {
@@ -272,6 +314,12 @@ fn output_slot(field: &crate::signature::OutField) -> String {
         FieldKind::Bool => "must be True or False".to_owned(),
         FieldKind::Int => "must be a single int value".to_owned(),
         FieldKind::Float => "must be a single float value".to_owned(),
+        // dspy states `Code`'s contract in its type description instead, so repeating the
+        // schema here would spend a large block of the prompt saying it twice. Every other
+        // custom type keeps the schema, which is what steers a structured reply.
+        FieldKind::Json(json) if json.annotation == CODE && !json.descriptions.is_empty() => {
+            String::new()
+        }
         FieldKind::Json(_) => match &field.schema {
             Some(schema) => format!("must adhere to the JSON schema: {}", json_dumps(schema)),
             None => String::new(),
@@ -353,8 +401,86 @@ fn json_user(inputs: &[(&str, Value)]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::signature::{InField, OutField};
+    use crate::signature::{InField, JsonType, OutField};
     use serde_json::json;
+
+    /// A structured output whose annotation names a custom type, the way `Citations` or `Code`
+    /// reach the crate across the bridge.
+    fn custom_output(annotation: &str, description: &str) -> Signature {
+        Signature::single_input(
+            "Answer.",
+            vec![OutField {
+                name: "answer".into(),
+                desc: String::new(),
+                kind: FieldKind::Json(JsonType {
+                    annotation: annotation.to_owned(),
+                    descriptions: vec![(annotation.to_owned(), description.to_owned())],
+                }),
+                values: None,
+                schema: Some(json!({ "type": "object" })),
+            }],
+        )
+    }
+
+    #[test]
+    fn a_custom_type_states_its_description_under_the_field_line() {
+        let system = chat_system(&custom_output("Citations", "Citations with quoted text."));
+        assert!(
+            system.contains(
+                "1. `answer` (Citations): \n    Type description of Citations: Citations with quoted text."
+            ),
+            "got: {system}"
+        );
+    }
+
+    #[test]
+    fn every_custom_type_in_one_annotation_earns_its_own_line() {
+        // dspy walks the annotation and appends a line per type it finds, so a nested one is
+        // announced as fully as a bare one.
+        let mut signature = custom_output("Citations", "Quoted text.");
+        let FieldKind::Json(json) = &mut signature.outputs[0].kind else {
+            unreachable!("built as a structured field")
+        };
+        json.descriptions
+            .push(("Document".to_owned(), "A source.".to_owned()));
+        let system = chat_system(&signature);
+        assert!(system.contains("\n    Type description of Citations: Quoted text."));
+        assert!(system.contains("\n    Type description of Document: A source."));
+    }
+
+    #[test]
+    fn a_type_with_no_prose_adds_no_line() {
+        let mut signature = custom_output("Citations", "");
+        let system = chat_system(&signature);
+        assert!(!system.contains("Type description"), "got: {system}");
+        // And the same field with prose does add one, so the emptiness is what silenced it.
+        signature = custom_output("Citations", "Quoted text.");
+        assert!(chat_system(&signature).contains("Type description"));
+    }
+
+    #[test]
+    fn code_states_its_contract_once_rather_than_repeating_its_schema() {
+        // dspy drops the schema note for `Code` alone: its type description already says what
+        // the field must contain, and the schema block is large.
+        let system = chat_system(&custom_output("Code", "Code represented in a string."));
+        assert!(
+            system.contains("Type description of Code:"),
+            "got: {system}"
+        );
+        assert!(
+            !system.contains("must adhere to the JSON schema"),
+            "got: {system}"
+        );
+    }
+
+    #[test]
+    fn another_custom_type_keeps_the_schema_that_steers_its_reply() {
+        let system = chat_system(&custom_output("Citations", "Citations with quoted text."));
+        assert!(
+            system.contains("must adhere to the JSON schema"),
+            "got: {system}"
+        );
+    }
 
     fn signature() -> Signature {
         Signature::single_input(

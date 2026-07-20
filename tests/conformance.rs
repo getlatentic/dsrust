@@ -6,7 +6,7 @@
 //! question "are we faithful?" is answered by the test run instead of by reading both
 //! codebases. A divergence here is a bug in this crate until upstream is shown to be wrong.
 
-use dsrs::signature::{FieldKind, InField, OutField, Signature};
+use dsrs::signature::{FieldKind, InField, JsonType, OutField, Signature};
 use dsrs::{Adapter, ChatAdapter, Example};
 use serde_json::Value;
 
@@ -29,7 +29,7 @@ fn kind_from(name: &str) -> FieldKind {
         // A non-scalar arrives as `json:<annotation>`, carrying the Python type dspy prints on
         // the numbered line instead of collapsing every non-scalar to one word.
         other => match other.strip_prefix("json:") {
-            Some(annotation) => FieldKind::Json(annotation.to_owned()),
+            Some(annotation) => FieldKind::Json(JsonType::plain(annotation)),
             None => panic!("fixture uses an unmapped field kind: {other}"),
         },
     }

@@ -8,18 +8,26 @@
 //! instructions, ordered fields, and the already-formatted input values — because those are
 //! the only things the renderer needs.
 
-use dsrs::signature::{FieldKind, InField, LiteralValue, OutField, Signature};
+use dsrs::signature::{FieldKind, InField, JsonType, LiteralValue, OutField, Signature};
 use dsrs::{Adapter, ChatAdapter, Example, JsonAdapter};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde_json::Value;
 
-/// One input field as Python describes it: name, kind, description, and any closed set.
-type PyInField = (String, String, String, Option<String>);
+/// One input field as Python describes it: name, kind, description, any closed set, and the
+/// prose any custom type in its annotation contributes.
+type PyInField = (String, String, String, Option<String>, Option<String>);
 /// One output field, which additionally carries the nested schema of a `Json` field.
-type PyOutField = (String, String, String, Option<String>, Option<String>);
+type PyOutField = (
+    String,
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
 
-fn kind_from(name: &str) -> PyResult<FieldKind> {
+fn kind_from(name: &str, descriptions: Option<String>) -> PyResult<FieldKind> {
     match name {
         "str" => Ok(FieldKind::Str),
         "int" => Ok(FieldKind::Int),
@@ -28,12 +36,25 @@ fn kind_from(name: &str) -> PyResult<FieldKind> {
         // Anything not a scalar arrives as `json:<annotation>`, so the Python type name
         // dspy prints survives the crossing instead of being flattened to "json".
         other => match other.strip_prefix("json:") {
-            Some(annotation) => Ok(FieldKind::Json(annotation.to_owned())),
+            Some(annotation) => Ok(FieldKind::Json(JsonType {
+                annotation: annotation.to_owned(),
+                descriptions: type_descriptions_from(descriptions)?,
+            })),
             None => Err(PyValueError::new_err(format!(
                 "unsupported field kind: {other}"
             ))),
         },
     }
+}
+
+/// Which custom types an annotation names is Python reflection, so Python extracts the pairs
+/// and this side renders them: the crossing carries `[[name, prose], ...]` as JSON text.
+fn type_descriptions_from(descriptions: Option<String>) -> PyResult<Vec<(String, String)>> {
+    let Some(text) = descriptions else {
+        return Ok(Vec::new());
+    };
+    serde_json::from_str(&text)
+        .map_err(|error| PyValueError::new_err(format!("bad type descriptions: {error}")))
 }
 
 /// A closed set crosses as JSON text, the way a field schema does: Python's `Literal` mixes
@@ -71,18 +92,18 @@ fn build_signature(
 ) -> PyResult<Signature> {
     let inputs = inputs
         .into_iter()
-        .map(|(name, kind, desc, values)| {
+        .map(|(name, kind, desc, values, descriptions)| {
             Ok(InField {
                 name,
                 desc,
-                kind: kind_from(&kind)?,
+                kind: kind_from(&kind, descriptions)?,
                 values: closed_set_from(values)?,
             })
         })
         .collect::<PyResult<Vec<_>>>()?;
     let outputs = outputs
         .into_iter()
-        .map(|(name, kind, desc, schema, values)| {
+        .map(|(name, kind, desc, schema, values, descriptions)| {
             let schema = schema
                 .map(|text| serde_json::from_str(&text))
                 .transpose()
@@ -90,7 +111,7 @@ fn build_signature(
             Ok(OutField {
                 name,
                 desc,
-                kind: kind_from(&kind)?,
+                kind: kind_from(&kind, descriptions)?,
                 values: closed_set_from(values)?,
                 schema,
             })

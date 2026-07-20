@@ -84,7 +84,7 @@ pub(super) fn turns(stripped: &Signature, value: &Value) -> Vec<ChatTurn> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::signature::{FieldKind, InField, OutField};
+    use crate::signature::{FieldKind, InField, JsonType, OutField};
     use serde_json::json;
 
     fn signature() -> Signature {
@@ -108,7 +108,7 @@ mod tests {
             InField {
                 name: "history".into(),
                 desc: String::new(),
-                kind: FieldKind::Json(ANNOTATION.to_owned()),
+                kind: FieldKind::Json(JsonType::plain(ANNOTATION)),
                 values: None,
             },
         ];
