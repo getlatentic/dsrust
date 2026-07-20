@@ -8,10 +8,16 @@
 //! instructions, ordered fields, and the already-formatted input values — because those are
 //! the only things the renderer needs.
 
-use dsrs::signature::{FieldKind, InField, OutField, Signature};
+use dsrs::signature::{FieldKind, InField, LiteralValue, OutField, Signature};
 use dsrs::{Adapter, ChatAdapter, Example, JsonAdapter};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use serde_json::Value;
+
+/// One input field as Python describes it: name, kind, description, and any closed set.
+type PyInField = (String, String, String, Option<String>);
+/// One output field, which additionally carries the nested schema of a `Json` field.
+type PyOutField = (String, String, String, Option<String>, Option<String>);
 
 fn kind_from(name: &str) -> PyResult<FieldKind> {
     match name {
@@ -30,24 +36,53 @@ fn kind_from(name: &str) -> PyResult<FieldKind> {
     }
 }
 
+/// A closed set crosses as JSON text, the way a field schema does: Python's `Literal` mixes
+/// member types freely and JSON is the one spelling that carries each of them intact.
+fn closed_set_from(values: Option<String>) -> PyResult<Option<Vec<LiteralValue>>> {
+    let Some(text) = values else {
+        return Ok(None);
+    };
+    let members: Vec<Value> = serde_json::from_str(&text)
+        .map_err(|error| PyValueError::new_err(format!("bad closed set: {error}")))?;
+    members
+        .into_iter()
+        .map(literal_from)
+        .collect::<PyResult<Vec<_>>>()
+        .map(Some)
+}
+
+fn literal_from(member: Value) -> PyResult<LiteralValue> {
+    match member {
+        Value::String(text) => Ok(LiteralValue::Str(text)),
+        Value::Bool(flag) => Ok(LiteralValue::Bool(flag)),
+        Value::Number(number) => number.as_i64().map(LiteralValue::Int).ok_or_else(|| {
+            PyValueError::new_err(format!("closed set member is not an integer: {number}"))
+        }),
+        other => Err(PyValueError::new_err(format!(
+            "closed set member has no Literal spelling: {other}"
+        ))),
+    }
+}
+
 fn build_signature(
     instructions: &str,
-    inputs: Vec<(String, String, String)>,
-    outputs: Vec<(String, String, String, Option<String>)>,
+    inputs: Vec<PyInField>,
+    outputs: Vec<PyOutField>,
 ) -> PyResult<Signature> {
     let inputs = inputs
         .into_iter()
-        .map(|(name, kind, desc)| {
+        .map(|(name, kind, desc, values)| {
             Ok(InField {
                 name,
                 desc,
                 kind: kind_from(&kind)?,
+                values: closed_set_from(values)?,
             })
         })
         .collect::<PyResult<Vec<_>>>()?;
     let outputs = outputs
         .into_iter()
-        .map(|(name, kind, desc, schema)| {
+        .map(|(name, kind, desc, schema, values)| {
             let schema = schema
                 .map(|text| serde_json::from_str(&text))
                 .transpose()
@@ -56,7 +91,7 @@ fn build_signature(
                 name,
                 desc,
                 kind: kind_from(&kind)?,
-                values: None,
+                values: closed_set_from(values)?,
                 schema,
             })
         })
@@ -74,8 +109,8 @@ fn build_signature(
 fn format_messages(
     adapter: &str,
     instructions: &str,
-    inputs: Vec<(String, String, String)>,
-    outputs: Vec<(String, String, String, Option<String>)>,
+    inputs: Vec<PyInField>,
+    outputs: Vec<PyOutField>,
     values: Vec<(String, String)>,
     demos: Option<Vec<Vec<(String, String)>>>,
 ) -> PyResult<(String, Vec<(String, String)>)> {
@@ -114,8 +149,8 @@ fn format_messages(
 fn parse_reply(
     adapter: &str,
     instructions: &str,
-    inputs: Vec<(String, String, String)>,
-    outputs: Vec<(String, String, String, Option<String>)>,
+    inputs: Vec<PyInField>,
+    outputs: Vec<PyOutField>,
     raw: &str,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;

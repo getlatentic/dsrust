@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 use crate::example::{Example, Prediction};
 use crate::module::{Module, NamedPredictor};
 use crate::predict::Predict;
-use crate::signature::{FieldKind, InField, OutField, Signature};
+use crate::signature::{FieldKind, InField, LiteralValue, OutField, Signature};
 use tool::describe;
 
 pub use tool::{FINISH, FnTool, Tool, arg_str, tool_args};
@@ -301,6 +301,7 @@ fn task_inputs(signature: &Signature) -> Vec<InField> {
             name: field.name.clone(),
             desc: field.desc.clone(),
             kind: field.kind.clone(),
+            values: field.values.clone(),
         })
         .collect()
 }
@@ -312,16 +313,17 @@ fn trajectory_field() -> InField {
         name: "trajectory".to_owned(),
         desc: String::new(),
         kind: FieldKind::Str,
+        values: None,
     }
 }
 
 /// dspy types `next_tool_name` as `Literal[tuple(tools.keys())]`, which the chat adapter turns
 /// into the closed set the model must match exactly.
-fn tool_name_set(tools: &[Box<dyn Tool>]) -> Vec<String> {
-    tools.iter().map(|tool| tool.name().to_owned()).collect()
+fn tool_name_set(tools: &[Box<dyn Tool>]) -> Vec<LiteralValue> {
+    tools.iter().map(|tool| tool.name().into()).collect()
 }
 
-fn out_field(name: &str, values: Option<Vec<String>>, kind: FieldKind) -> OutField {
+fn out_field(name: &str, values: Option<Vec<LiteralValue>>, kind: FieldKind) -> OutField {
     OutField {
         name: name.to_owned(),
         desc: String::new(),
