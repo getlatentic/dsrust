@@ -243,7 +243,7 @@ fn usage(usage: &Value) -> Option<LmUsage> {
             output_tokens: output.map(|count| count as u32),
             ..LmUsage::default()
         }
-        .filled()
+        .fill_aliases()
     })
 }
 

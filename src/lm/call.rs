@@ -164,16 +164,15 @@ impl LmUsage {
             output_tokens: Some(output_tokens),
             ..Self::default()
         }
-        .filled()
+        .fill_aliases()
     }
 
-    /// dspy's `fill_aliases`: each naming convention filled from the other, and the total from
-    /// both.
+    /// Each naming convention filled from the other, and the total from both.
     ///
     /// Upstream populates *both* sets rather than normalising onto one, because "both are
     /// existing user-visible interfaces". A caller reading `prompt_tokens` finds the same number
     /// as one reading `input_tokens`.
-    pub fn filled(mut self) -> Self {
+    pub fn fill_aliases(mut self) -> Self {
         self.input_tokens = self.input_tokens.or(self.prompt_tokens);
         self.output_tokens = self.output_tokens.or(self.completion_tokens);
         self.prompt_tokens = self.prompt_tokens.or(self.input_tokens);
@@ -217,7 +216,7 @@ impl LmUsage {
                     details: left.details.into_iter().chain(right.details).collect(),
                     extra: left.extra.into_iter().chain(right.extra).collect(),
                 }
-                .filled(),
+                .fill_aliases(),
             ),
         }
     }
@@ -326,7 +325,7 @@ mod tests {
             completion_tokens: Some(30),
             ..LmUsage::default()
         }
-        .filled();
+        .fill_aliases();
         assert_eq!(from_provider_names.input_tokens, Some(12));
         assert_eq!(from_provider_names.output_tokens, Some(30));
         assert_eq!(
@@ -370,7 +369,7 @@ mod tests {
             input_tokens: Some(9),
             ..LmUsage::default()
         }
-        .filled();
+        .fill_aliases();
         assert_eq!(half.output_tokens, None);
         assert_eq!(half.total_tokens, None, "a total needs both halves");
     }
@@ -384,7 +383,7 @@ mod tests {
             reasoning_tokens: Some(7),
             ..LmUsage::counted(6, 2)
         }
-        .filled();
+        .fill_aliases();
 
         let both = LmUsage::merge(Some(plain), Some(reasoned)).expect("merged");
         assert_eq!(both.input_tokens, Some(16));

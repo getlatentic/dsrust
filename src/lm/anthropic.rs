@@ -94,7 +94,7 @@ fn usage(usage: &Value) -> Option<LmUsage> {
             cache_write_tokens: reported(count("cache_creation_input_tokens")),
             ..LmUsage::default()
         }
-        .filled()
+        .fill_aliases()
     })
 }
 

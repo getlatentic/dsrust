@@ -52,8 +52,8 @@ impl LmMessage {
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LmToolSpec {
-    #[serde(rename = "type", default = "function_type")]
-    pub kind: String,
+    #[serde(default = "function_type")]
+    pub r#type: String,
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -67,7 +67,7 @@ pub struct LmToolSpec {
 impl LmToolSpec {
     pub fn new(name: impl Into<String>, parameters: Metadata) -> Self {
         Self {
-            kind: function_type(),
+            r#type: function_type(),
             name: name.into(),
             description: None,
             parameters,
@@ -84,7 +84,7 @@ impl LmToolSpec {
     /// The shape a provider's `tools` array takes.
     pub fn to_openai(&self) -> Value {
         serde_json::json!({
-            "type": self.kind,
+            "type": self.r#type,
             "function": {
                 "name": self.name,
                 "description": self.description,
@@ -139,7 +139,7 @@ mod tests {
         parameters.insert("type".to_owned(), json!("object"));
         let spec = LmToolSpec::new("search", parameters).described("look things up");
 
-        assert_eq!(spec.kind, "function");
+        assert_eq!(spec.r#type, "function");
         assert_eq!(
             spec.to_openai(),
             json!({
