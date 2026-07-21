@@ -336,6 +336,45 @@ settings.trace.
 suites = []
 
 [[sprint]]
+id = "s13"
+name = "The normalized LM types, in full"
+state = "planned"
+outcome = "Every type in dspy 3.3's LM contract exists here, with nothing modelled by a stand-in."
+notes = '''
+Reference: docs/lm-api-3.3.md, measured from dspy-3.3.0b1/dspy/core/types.py. That file also holds
+the per-type gap table, so this sprint is transcription rather than design.
+
+**The constraint that governs the whole sprint: the rendered bytes must not move.** The pin for
+prompt bytes is 3.2.1 and this is a 3.3 *type* layer. Every conformance fixture and the upstream
+suite must stay green through every commit — they are what proves a type port did not become a
+behaviour change. A commit that greens by regenerating a fixture has failed.
+
+Order, leaves first, so nothing is half-typed at any point:
+
+  s13-1  LmUsage — ten counters where there are two. Touches every provider's usage reader and
+         `Usage::merge`. Smallest real slice, and `spend()`/the tracker depend on it.
+  s13-2  The part hierarchy — LmPart with text/image/audio/video/document, over LmSourcePart with
+         its one-source validation. This replaces `Content{Text, Blocks}`, which is the single
+         widest change: every adapter renders a turn.
+  s13-3  LmMessage{role, parts, name, metadata} replacing ChatTurn, and LmToolSpec.
+  s13-4  LmConfig — the eight missing typed fields, the four nested configs, `extensions`, and the
+         four flat aliases folded on construction. `rollout_id` moves to `cache.rollout_id` and
+         widens to int-or-string, so `LmConfig::rollout` and every caller of it change.
+  s13-5  LmOutput — a candidate becomes a structure. `finish_reason` and `truncated` are things a
+         caller cannot currently see at all.
+  s13-6  LmResponse — model, cost, response_id, provider_response, metadata; `outputs` becomes
+         `Vec<LmOutput>` with at least one enforced.
+  s13-7  LmRequest — model, tools, metadata; `mode` folds into `config.response_format`.
+
+Each slice is a breaking change to a public type, so each lands on its own with the gates green
+rather than as one sweep. s13-2 and s13-7 are the two that reach the adapters, and are where a
+byte divergence would appear if one is going to.
+
+Not in scope: BaseLM's own runtime, `dump_state`/`load_state` (that is s7 arriving upstream), and
+`dspy.LMError` (a typed error surface, worth its own decision — this crate raises `anyhow`).
+'''
+
+[[sprint]]
 id = "s11"
 name = "Trying more than once"
 state = "planned"
