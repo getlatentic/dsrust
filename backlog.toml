@@ -30,7 +30,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-21"
 
 [status]
-rust_tests = 455
+rust_tests = 456
 upstream_tests_passing = 380
 upstream_tests_crossing = 180
 upstream_tests_deciding_signatures = 260
@@ -437,6 +437,27 @@ here at all; size it before promising it.
 # ---------------------------------------------------------------------------
 # Backlog — triaged at sprint planning, not scheduled
 # ---------------------------------------------------------------------------
+
+[[backlog]]
+id = "b9"
+title = "The derive put a field's own name on every undescribed field line"
+kind = "known-divergence"
+state = "done"
+closed = "2026-07-21"
+detail = """
+`1. `recipient` (Recipient): recipient` where dspy writes `1. `recipient` (Recipient):`.
+
+dspy stores the sentinel `${name}` as an undescribed field's `desc` and then drops it again when
+rendering — `adapters/utils.py::get_field_description_string` compares against that exact string
+and substitutes `""`. So the name is a placeholder that never reaches a prompt. The derive read
+half of that and substituted the bare name, which then rendered.
+
+Invisible to every gate. A conformance fixture builds its `Signature` from JSON with `desc: null`,
+so the fixture path was always right; only the *derive* path was wrong, and nothing rendered a
+derived signature and compared it to dspy. Found by diffing a whole system message against dspy's
+for the equivalent pydantic signature — which is the check HANDOFF already tells you to run and
+which no test performs.
+"""
 
 [[backlog]]
 id = "b8"

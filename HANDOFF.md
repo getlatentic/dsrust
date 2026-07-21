@@ -25,7 +25,7 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 455 passing |
+| Rust tests | 456 passing |
 | Upstream dspy tests | 380 passing, 180 rendering and 260 deciding a signature |
 | Known-gap backlog | empty |
 

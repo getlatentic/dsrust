@@ -171,15 +171,14 @@ fn parse_field(field: &syn::Field) -> Result<(Field, Direction)> {
             "values(...) is only allowed on String fields",
         ));
     }
+    // A field that says nothing about itself describes itself with nothing. dspy stores the
+    // sentinel `${name}` for an undescribed field and then drops it again when rendering
+    // (`adapters/utils.py`, `get_field_description_string`), so the name never reaches a prompt;
+    // substituting it here put it on every field line that had no `desc`.
     let desc = desc
         .unwrap_or_else(|| doc_text(&field.attrs))
         .trim()
         .to_owned();
-    let desc = if desc.is_empty() {
-        ident.to_string()
-    } else {
-        desc
-    };
     Ok((
         Field {
             ident,

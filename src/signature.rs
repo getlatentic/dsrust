@@ -644,17 +644,25 @@ mod tests {
         );
     }
 
+    /// A description comes from the attribute, then the doc comment, and then nowhere.
+    ///
+    /// Not from the field's own name: dspy stores `${name}` for an undescribed field and drops it
+    /// again when rendering, so the name never reaches a prompt. Substituting it here put it on
+    /// every field line that carried no `desc` — visible only by diffing a whole message against
+    /// dspy's, since no fixture exercises the derive.
     #[test]
-    fn derive_desc_falls_back_from_attribute_to_doc_to_name() {
+    fn derive_desc_falls_back_from_attribute_to_doc_to_nothing() {
         let sig = AttrTask::signature();
         assert_eq!(sig.inputs[0].desc, "the topic to rhyme on");
         assert_eq!(sig.inputs[1].desc, "the mood to strike");
         assert_eq!(sig.outputs[0].desc, "two rhyming lines");
-        assert_eq!(sig.outputs[1].desc, "tone");
+        assert_eq!(sig.outputs[1].desc, "", "an undescribed field says nothing");
 
+        // Neither an attribute nor a doc comment, so nothing — where this used to answer
+        // "essay" and "grade".
         let doc = DocTask::signature();
-        assert_eq!(doc.inputs[0].desc, "essay");
-        assert_eq!(doc.outputs[0].desc, "grade");
+        assert_eq!(doc.inputs[0].desc, "");
+        assert_eq!(doc.outputs[0].desc, "");
     }
 
     #[test]

@@ -504,3 +504,37 @@ fn a_rust_type_reaches_baml_as_its_structure_rather_than_as_the_word_json() {
          Output field `tip` should be of type: string"
     );
 }
+
+/// A field that says nothing about itself contributes nothing to its line.
+///
+/// dspy stores the sentinel `${name}` for an undescribed field and drops it again when rendering
+/// (`adapters/utils.py::get_field_description_string`), so a field's own name never reaches a
+/// prompt. The derive used to substitute the name here, which put it on the end of every
+/// undescribed field line — invisible to every fixture, because a fixture builds its `Signature`
+/// from JSON rather than through the derive.
+#[test]
+fn an_undescribed_field_line_ends_at_the_colon() {
+    #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
+    struct Note {
+        body: String,
+    }
+
+    #[allow(dead_code)]
+    #[derive(Signature)]
+    /// Suggest a gift.
+    struct Bare {
+        #[input]
+        recipient: Note,
+        #[output]
+        idea: String,
+    }
+
+    let system = dsrs::BamlAdapter
+        .system_message(&Bare::signature())
+        .expect("renders");
+    assert!(
+        system.contains("1. `recipient` (Note):\n"),
+        "the name must not follow the colon; got: {system}"
+    );
+    assert!(!system.contains("(Note): recipient"));
+}
