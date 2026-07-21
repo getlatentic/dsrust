@@ -30,7 +30,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-21"
 
 [status]
-rust_tests = 441
+rust_tests = 439
 upstream_tests_passing = 380
 upstream_tests_crossing = 180
 upstream_tests_deciding_signatures = 260
