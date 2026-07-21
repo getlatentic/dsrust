@@ -171,7 +171,7 @@ mod tests {
             &reqwest::Client::new(),
             &LmRequest::new("system", &[ChatTurn::user(message)], OutputMode::Text),
         ))
-        .map(|answered| answered.text)
+        .map(|answered| answered.into_text())
     }
 
     /// The dummy never awaits anything real, so a trivial executor keeps these tests
@@ -249,7 +249,7 @@ mod tests {
             ),
         ))
         .unwrap();
-        assert_eq!(reply.text, r#"{"answer":"red"}"#);
+        assert_eq!(reply.text_ref(), r#"{"answer":"red"}"#);
         assert_eq!(reply.usage, None, "a scripted answer cost nothing to make");
     }
 

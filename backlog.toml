@@ -30,7 +30,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-21"
 
 [status]
-rust_tests = 390
+rust_tests = 422
 upstream_tests_passing = 380
 upstream_tests_crossing = 180
 upstream_tests_deciding_signatures = 260
@@ -99,9 +99,10 @@ that changes behaviour is caught by a named check; the survivors were equivalent
 missed, and one of them turned out to mark a branch that could never fire, which was then removed.
 """
 remaining = """
-Unasserted, and not assertable here: max_rounds forcing a *different* answer (b2). A
-deterministic model cannot distinguish a re-ask that was forced from one that was not, so the
-attempt count matches upstream while the forcing does not exist. b5 records the other limit.
+Was unasserted: max_rounds forcing a *different* answer. s12 closed b2, and the forcing is now
+asserted directly — a scripted predictor records the sampling each round was asked with, so a
+round that did not become a fresh rollout fails a named test rather than being invisible to a
+deterministic model. b5 records the other limit.
 """
 narrative = """
 As someone trusting dsrs to compile a program, I want the crate's optimizer held to dspy's
@@ -285,24 +286,27 @@ What a module asks for and what comes back are values, so an attempt can differ 
 before it and a caller can say what a single call should do.
 """
 state_note = """
-Both halves shipped. `LmRequest` carries system, turns, mode and a `Sampling`; `LmResponse`
-carries text, usage, cache_hit and provider_data. All three providers send the sampling on the key
-their own format names and read their own usage counters back onto one `Usage`, and a `Prediction`
-reports what every call behind it cost — a fallback and a feedback retry included, since a
-`forward` bills up to four.
+Shipped whole, and **b2 is closed**.
 
-Four of upstream's fields are deliberately absent, each because this seam cannot carry it rather
-than to save work. Request: `n` (chat answers with one completion, so several could only be billed
-and discarded) and `rollout_id` (upstream varies it to miss its own cache and drops it before the
-provider call; there is no cache here, so a value that never reaches a wire changes nothing).
-Response: `outputs`, which holds the *parsed* fields an adapter produces from text — this seam sits
-below every adapter, so a field here could only ever be empty. `cache_hit` is present and always
-false: it reports a fact rather than asking a caller to supply one, which is the distinction that
-keeps it honest while `rollout_id` would not have been.
+`LmRequest` carries system, turns, mode and a `Sampling` of temperature, max_tokens, n and
+rollout_id. `LmResponse` carries outputs, usage, cache_hit and provider_data. Every field is
+upstream's and every one does its job: all three providers send the sampling on the key their own
+format names and read their own usage counters back onto one `Usage`; the OpenAI-shaped path sends
+`n` and reads every choice into `outputs`; `Cached` keys entries on the whole request so
+`rollout_id` breaks the key exactly as upstream's does, and `cache_hit` reports whether a reply was
+replayed. A `Prediction` reports what every call behind it cost, a fallback and a feedback retry
+included, since a `forward` bills up to four.
 
-b2 is not closed by this. `Predict::with_sampling` reaches one module, but a compile cannot set
-sampling on every predictor in a program, so `max_rounds` still cannot force a different answer.
-That last step is an API decision, recorded under Open decisions in HANDOFF.md.
+b2 closed by widening the predictor walk: `NamedPredictor` lends its predictor's `Sampling`, and
+`Module::set_sampling` assigns to all of them — dspy's `set_lm` semantics, with sampling on the
+request where upstream puts it on a copied model. `BootstrapFewShot` asks each round after the
+first as `Sampling::rollout(round)` (temperature 1.0, fresh id) and puts the teacher back
+afterwards, so a second attempt is a genuinely different ask. That unblocks s11: `BestOfN` and
+`Refine` need exactly this, and `BestOfN` can also read several completions from one round trip
+rather than re-asking.
+
+Also fixed here: five tests raced on the process-wide `GLOBAL` model, which failed about once in
+25 full runs. `global::install_for_test` serialises them.
 """
 rationale = """
 b2 is half built: a module can be given its own model, and nothing can make two models disagree.
@@ -447,7 +451,21 @@ src/adapter/baml.rs::input_value. Reopen only if a real caller hits it.
 id = "b2"
 title = "max_rounds re-asks but nothing forces a different answer"
 kind = "known-limit"
+state = "done"
+closed = "2026-07-21"
 detail = """
+Closed by s12. Sampling travels on the request — temperature, max_tokens, n and rollout_id on
+`LmRequest` — and reaches every predictor in a program through `Module::set_sampling`, the
+widened `NamedPredictor` walk. `BootstrapFewShot` asks each round after the first as
+`Sampling::rollout(round)`, so a re-ask is a genuinely different ask; `Cached` gives rollout_id
+the cache it exists to miss. Asserted by
+`optimize::bootstrap::tests::every_round_after_the_first_is_asked_as_a_fresh_rollout`, and by
+`the_teacher_is_left_asking_the_way_it_was_found` for the restore.
+
+What follows is the reasoning as it stood while this was open.
+
+"""
+history = """
 Upstream forces divergence with lm.copy(rollout_id=round_idx, temperature=1.0), which is two
 things and only one is now built.
 

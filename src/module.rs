@@ -12,6 +12,7 @@
 use anyhow::Result;
 
 use crate::example::{Example, Prediction};
+use crate::lm::Sampling;
 use crate::signature::Signature;
 
 /// One predictor inside a program: its signature and its demos, borrowed for inspection or
@@ -20,6 +21,13 @@ pub struct NamedPredictor<'a> {
     pub name: String,
     pub signature: &'a mut Signature,
     pub demos: &'a mut Vec<Example>,
+    /// How this predictor asks for its reply to be sampled.
+    ///
+    /// Unlike the other two this is not something an optimizer *learns* — it is set for the
+    /// duration of a round and then set back. It rides the same walk because reaching every
+    /// predictor is the same problem, and dspy solves it the same way: `set_lm` on a program
+    /// assigns to all of them.
+    pub sampling: &'a mut Sampling,
 }
 
 /// One predictor call: which predictor ran, what it was asked, and what it answered.
@@ -78,6 +86,19 @@ pub trait Module: Send + Sync {
     /// improved ones. A leaf module returns itself; a composed one returns its children.
     fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
         Vec::new()
+    }
+
+    /// Ask every predictor in this program for its reply to be sampled this way.
+    ///
+    /// dspy's `set_lm`, which assigns one model to a whole program so `lm.copy(rollout_id=n,
+    /// temperature=1.0)` reaches every call an attempt makes. Sampling travels on a request here
+    /// rather than on a model, so this sets sampling instead — the effect is the one upstream
+    /// relies on: a second attempt at a program differs from the first everywhere, not only at
+    /// whichever predictor a caller remembered.
+    fn set_sampling(&mut self, sampling: Sampling) {
+        for predictor in self.named_predictors() {
+            *predictor.sampling = sampling.clone();
+        }
     }
 
     /// Run the program, recording which predictor saw what.
@@ -142,6 +163,7 @@ mod tests {
     struct Echo {
         signature: Signature,
         demos: Vec<Example>,
+        sampling: Sampling,
     }
 
     impl Module for Echo {
@@ -163,6 +185,7 @@ mod tests {
                 name: "self".to_owned(),
                 signature: &mut self.signature,
                 demos: &mut self.demos,
+                sampling: &mut self.sampling,
             }]
         }
     }
@@ -171,6 +194,7 @@ mod tests {
         Echo {
             signature: Signature::single_input("Echo the request.", Vec::new()),
             demos: Vec::new(),
+            sampling: Sampling::default(),
         }
     }
 

@@ -161,7 +161,7 @@ async fn a_call_reaches_chat_completions_under_the_configured_base_url() {
     let reply = ask(&probe_lm(&stub), &OutputMode::Text)
         .await
         .expect("the stub answers");
-    assert_eq!(reply.text, "the reply");
+    assert_eq!(reply.text_ref(), "the reply");
 
     let request = stub.received();
     assert_eq!(request.path, "/v1/chat/completions");

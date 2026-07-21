@@ -4,6 +4,7 @@
 use anyhow::{Result, anyhow};
 
 use crate::example::{Example, Prediction};
+use crate::lm::Sampling;
 use crate::module::Module;
 
 use super::Optimizer;
@@ -51,12 +52,9 @@ pub struct BootstrapFewShot<M> {
     /// How many times one example may be attempted before the walk moves on. dspy's default
     /// is 1.
     ///
-    /// dspy makes each round after the first a fresh rollout at `temperature=1.0` so the
-    /// answers actually differ. [`Predict::with_sampling`](crate::Predict::with_sampling) now
-    /// reaches that setting, but a compile cannot yet apply it to every predictor in a program:
-    /// [`NamedPredictor`](crate::NamedPredictor) walks signatures and demos, not sampling. Until
-    /// it does, a round here re-asks and nothing forces a different answer, so extra rounds only
-    /// pay off for a program that is already non-deterministic.
+    /// Each round after the first is asked as a fresh rollout at `temperature = 1.0`, matching
+    /// dspy, so a second attempt at an example is a genuinely different ask rather than a repeat
+    /// of the one that just failed. The teacher is put back the way it was found afterwards.
     pub max_rounds: usize,
     /// How many failures the compile absorbs before giving up and returning the last one.
     ///
@@ -147,7 +145,16 @@ where
             if kept >= self.max_bootstrapped_demos {
                 break;
             }
-            for _round in 0..self.max_rounds {
+            // What the teacher asks for when left alone, put back once this example is done so
+            // one example's rollout cannot leak into the next one's first round.
+            let resting = resting_sampling(teacher);
+            for round in 0..self.max_rounds {
+                // dspy makes every round after the first a fresh rollout at temperature 1.0. The
+                // rollout id is what misses the cache, and the temperature is what makes the
+                // answer differ once it does; without both, a re-ask is the same ask.
+                if round > 0 {
+                    teacher.set_sampling(Sampling::rollout(round as u64));
+                }
                 match self.attempt(teacher, example).await {
                     Ok(Some(demo)) => {
                         earned.file(demo);
@@ -160,12 +167,14 @@ where
                     Err(error) => {
                         errors += 1;
                         if errors >= self.max_errors {
+                            restore_sampling(teacher, &resting);
                             return Err(error);
                         }
                         tracing::error!(%error, "failed to run or to evaluate an example");
                     }
                 }
             }
+            restore_sampling(teacher, &resting);
         }
 
         let mut validation: Vec<Example> = trainset
@@ -262,6 +271,26 @@ where
             };
             Ok(())
         }
+    }
+}
+
+/// What each predictor asks for before a round overrides it, in `named_predictors` order.
+fn resting_sampling<T: Module + ?Sized>(teacher: &mut T) -> Vec<Sampling> {
+    teacher
+        .named_predictors()
+        .iter()
+        .map(|predictor| predictor.sampling.clone())
+        .collect()
+}
+
+/// Put back what [`resting_sampling`] read.
+///
+/// A teacher outlives the compile that borrowed it, so leaving a rollout on it would silently
+/// change how it answers everything afterwards — and at `temperature = 1.0`, which is nobody's
+/// idea of a default.
+fn restore_sampling<T: Module + ?Sized>(teacher: &mut T, resting: &[Sampling]) {
+    for (predictor, was) in teacher.named_predictors().into_iter().zip(resting) {
+        *predictor.sampling = was.clone();
     }
 }
 
@@ -493,6 +522,64 @@ mod tests {
         .await
         .expect("compile succeeds");
         assert_eq!(kept, 0, "one round should not get a second ask");
+    }
+
+    /// What `b2` was open on. A round that only re-asks is worthless against a deterministic
+    /// model: it sends byte-identical bytes and gets the identical answer back. dspy makes each
+    /// round after the first `lm.copy(rollout_id=round, temperature=1.0)`, and this is that —
+    /// the rollout id to miss the cache, the temperature to make the answer differ once it does.
+    #[tokio::test]
+    async fn every_round_after_the_first_is_asked_as_a_fresh_rollout() {
+        let mut student = Solver::new(Answers::RightOnRound(3));
+        BootstrapFewShot {
+            max_rounds: 3,
+            max_bootstrapped_demos: 1,
+            ..bootstrap(exact_match)
+        }
+        .compile(&mut student, &trainset())
+        .await
+        .expect("compile succeeds");
+
+        let asks: Vec<Sampling> = student
+            .calls()
+            .into_iter()
+            .take(3)
+            .map(|call| call.sampling)
+            .collect();
+        assert_eq!(
+            asks[0],
+            Sampling::default(),
+            "the first round is asked however the teacher already asks"
+        );
+        assert_eq!(asks[1], Sampling::rollout(1));
+        assert_eq!(asks[2], Sampling::rollout(2));
+        assert_ne!(asks[1], asks[2], "two rounds are two different asks");
+    }
+
+    /// A teacher outlives the compile, so a rollout left on it would quietly re-sample every
+    /// later call at `temperature = 1.0`.
+    #[tokio::test]
+    async fn the_teacher_is_left_asking_the_way_it_was_found() {
+        let mut student = Solver::new(Answers::Wrongly);
+        let resting = Sampling {
+            temperature: Some(0.2),
+            ..Sampling::default()
+        };
+        student.set_sampling(resting.clone());
+
+        BootstrapFewShot {
+            max_rounds: 3,
+            ..bootstrap(exact_match)
+        }
+        .compile(&mut student, &trainset())
+        .await
+        .expect("compile succeeds");
+
+        assert_eq!(
+            student.named_predictors()[0].sampling.clone(),
+            resting,
+            "the rounds borrowed the teacher's sampling and gave it back"
+        );
     }
 
     #[tokio::test]

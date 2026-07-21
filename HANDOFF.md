@@ -132,27 +132,15 @@ JSON schema, and why coercion splits between parse time and `Predict`.
 
 ## Open decisions
 
-**Applying sampling across a program.** The per-call seam `b2` asked for exists: `LmRequest`
-carries a `Sampling` to `ChatModel::chat`, all three providers send it, and
-`Predict::with_sampling` sets it on one module. What is still missing is a compile's way to set
-it on *every* predictor in a program — `NamedPredictor` walks signatures and demos only, so
-`BootstrapFewShot::max_rounds` still cannot make round two differ from round one.
-
-The decision is what that walk should be, and it is an API promise: widening `NamedPredictor`
-puts sampling next to the things an optimizer *learns and writes back*, when sampling is instead
-set transiently for a round — so a separate walk (`Module::set_sampling`, say) may be the honest
-shape. `NamedPredictor` is re-exported from the crate root and every caller-written `Module` and
-every `#[derive(Module)]` expansion satisfies it, so the choice is not free to revisit.
-
-Four of upstream's request/response fields are deliberately absent — `n`, `rollout_id`, `outputs`,
-and only those. Each reasoning is on the type that would have carried it, in `src/lm/call.rs`. They
-look like oversights and are not; read the doc comment before adding one back.
-
 **Usage on the typed paths.** `Prediction` reports what a call cost, so the value-level paths carry
 it. `Predict::call_typed` and the derived-task paths answer with the caller's own struct instead,
 which leaves nowhere for a `Usage` to go — `typed_pairs` drops it explicitly. Surfacing it there
 means either a wrapper type around the caller's struct or an out-parameter, and both are worse than
 the gap until something actually needs the number on that path.
+
+**The cache is in memory only.** dspy writes a disk layer as well, which buys a warm cache across
+processes at the cost of a serialisation format to keep compatible. `Cached` is opt-in by wrapping,
+where dspy's is on by default; nothing here runs long enough to want either yet.
 
 **BAML record provenance.** dspy branches on `isinstance(value, BaseModel)`; we branch on the
 field's declared type. They agree whenever a value matches its declaration. Closing the gap means

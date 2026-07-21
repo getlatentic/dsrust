@@ -34,6 +34,28 @@ pub fn configure_model(http: reqwest::Client, lm: Arc<dyn DynChatModel>) {
     *GLOBAL.write().expect("lock not poisoned") = Some(Configured { http, lm });
 }
 
+/// Install a model for the duration of one test, keeping every other such test out meanwhile.
+///
+/// [`GLOBAL`] is one static for the whole test binary and cargo runs tests on parallel threads,
+/// so two tests that each configure it race: the later install wins, and the earlier test's
+/// module then reads a script written for another test. That surfaces as a scripted answer
+/// appearing in the wrong assertion, or as "no answer left" — intermittently, and nowhere near
+/// the test that caused it.
+///
+/// Hold the returned guard for as long as the test uses the model, which means binding it:
+/// `let _configured = install_for_test(...)` and not `let _ = ...`, which drops it at once.
+#[cfg(test)]
+pub(crate) fn install_for_test(lm: Arc<dyn DynChatModel>) -> std::sync::MutexGuard<'static, ()> {
+    static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    // A test that panicked while holding this poisoned it. Its failure is already reported, and
+    // the next test still needs the lock, so the poison is stepped over rather than propagated.
+    let guard = SERIAL
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    configure_model(reqwest::Client::new(), lm);
+    guard
+}
+
 /// The current default, cloned out so in-flight calls never hold the lock across await
 /// points and a concurrent reconfigure only affects later calls.
 pub(crate) fn current() -> Result<(reqwest::Client, Arc<dyn DynChatModel>)> {

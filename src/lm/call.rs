@@ -5,7 +5,7 @@
 //! Following that rather than the shape it is removing is what lets one call differ from the one
 //! before it, and it is what gives a caller somewhere to read a reply's cost from.
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use super::{ChatTurn, OutputMode};
 
@@ -15,18 +15,35 @@ use super::{ChatTurn, OutputMode};
 /// attempts differ only here. That is what lets `BestOfN` mean anything and what lets a bootstrap
 /// round after the first not repeat itself.
 ///
-/// Two of upstream's fields are deliberately absent, both because this seam cannot carry them.
-/// `n`: [`ChatModel::chat`](super::ChatModel::chat) answers with one completion, so asking for
-/// several could only ever be billed and then discarded — asking for many is a change of return
-/// type, not a field. `rollout_id`: upstream varies it to miss *its own* response cache and drops
-/// it before the provider call, so it never reaches a wire. There is no cache here, which leaves
-/// nothing for it to change; what makes a re-ask differ is `temperature`. It earns a field when a
-/// cache lands and needs a key to vary.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Sampling {
     /// Unset leaves each provider on the default it is already sent.
     pub temperature: Option<f64>,
     pub max_tokens: Option<u32>,
+    /// How many completions to ask for, upstream's `n`. They arrive in
+    /// [`LmResponse::outputs`]; only the OpenAI-shaped services take the field, so the others
+    /// answer once however many are asked for.
+    pub completions: Option<u32>,
+    /// Varied to miss the response cache, so a second attempt is answered rather than replayed.
+    ///
+    /// Never sent to a provider — it is part of the cache key and nothing else, which is exactly
+    /// what upstream does with it. Two requests alike but for this one number are two different
+    /// cache entries and therefore two real calls, and that is the whole mechanism behind
+    /// `BestOfN` and behind a bootstrap round after the first.
+    pub rollout_id: Option<u64>,
+}
+
+impl Sampling {
+    /// A fresh rollout at the temperature upstream re-asks with. dspy's
+    /// `lm.copy(rollout_id=n, temperature=1.0)`, which is how every one of its retry-shaped
+    /// modules makes attempt two differ from attempt one.
+    pub fn rollout(id: u64) -> Self {
+        Self {
+            temperature: Some(1.0),
+            rollout_id: Some(id),
+            ..Self::default()
+        }
+    }
 }
 
 /// One call: what to say, what shape to say it in, and how to sample the reply.
@@ -54,6 +71,32 @@ impl<'a> LmRequest<'a> {
     pub fn sampled(mut self, sampling: Sampling) -> Self {
         self.sampling = sampling;
         self
+    }
+
+    /// What two identical calls share, and what [`Sampling::rollout_id`] exists to break.
+    ///
+    /// Everything the provider is sent is in here, because anything left out would let one call
+    /// be answered with another's reply. `rollout_id` is in here and is *not* sent, which is the
+    /// whole of what it does: it changes this string and nothing else.
+    pub fn cache_key(&self) -> String {
+        let turns: Vec<Value> = self
+            .turns
+            .iter()
+            .map(|turn| json!({ "role": turn.role.as_str(), "content": turn.content }))
+            .collect();
+        json!({
+            "system": self.system,
+            "turns": turns,
+            "schema": match self.mode {
+                OutputMode::Text => Value::Null,
+                OutputMode::Json { schema } => schema.clone(),
+            },
+            "temperature": self.sampling.temperature,
+            "max_tokens": self.sampling.max_tokens,
+            "n": self.sampling.completions,
+            "rollout_id": self.sampling.rollout_id,
+        })
+        .to_string()
     }
 }
 
@@ -91,20 +134,19 @@ impl Usage {
     }
 }
 
-/// What a model answered with.
-///
-/// dspy's `LMResponse`. Upstream's `outputs` has no field here: it holds the *parsed* fields, which
-/// an adapter produces from `text`, and this seam sits below every adapter — a field at this level
-/// could only ever be empty. [`Predict`](crate::Predict) is where text becomes fields.
+/// What a model answered with. dspy's `LMResponse`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LmResponse {
-    /// The completion itself, which is what an adapter parses.
-    pub text: String,
+    /// Every completion the provider returned — as many as [`Sampling::completions`] asked for,
+    /// and one when it asked for nothing.
+    ///
+    /// `BestOfN` reads this rather than re-asking, since one request for several is one round
+    /// trip where several requests are several.
+    pub outputs: Vec<String>,
     /// Absent when a provider reported none, which a caller must not read as free.
     pub usage: Option<Usage>,
-    /// Whether the reply was replayed rather than generated. Nothing caches replies yet, so this
-    /// is false throughout — it reports a fact rather than asking a caller to supply one, which is
-    /// why it is here while `rollout_id` is not.
+    /// Whether this was replayed from the cache rather than generated. A replay is not billed,
+    /// so a hit carries the usage the original call reported and costs nothing again.
     pub cache_hit: bool,
     /// What the provider said that this crate does not model — a stop reason, a fingerprint, a
     /// filter verdict. Kept whole rather than picked over, so reading a new one needs no release.
@@ -116,9 +158,29 @@ impl LmResponse {
     /// tests install, and any provider that omits a usage block.
     pub fn text(text: impl Into<String>) -> Self {
         Self {
-            text: text.into(),
+            outputs: vec![text.into()],
             ..Self::default()
         }
+    }
+
+    /// Several completions from one request, in the order the provider returned them.
+    pub fn completions(outputs: impl IntoIterator<Item = String>) -> Self {
+        Self {
+            outputs: outputs.into_iter().collect(),
+            ..Self::default()
+        }
+    }
+
+    /// The completion an adapter parses: the first, which is the only one unless several were
+    /// asked for. Empty when a provider answered with no choices at all, which every caller here
+    /// treats as an unparseable reply rather than a panic.
+    pub fn text_ref(&self) -> &str {
+        self.outputs.first().map_or("", String::as_str)
+    }
+
+    /// The first completion, taken by value.
+    pub fn into_text(self) -> String {
+        self.outputs.into_iter().next().unwrap_or_default()
     }
 
     pub fn with_usage(mut self, usage: Option<Usage>) -> Self {
@@ -139,7 +201,7 @@ mod tests {
     #[test]
     fn a_reply_with_no_reported_cost_is_absent_rather_than_zero() {
         let scripted = LmResponse::text("the reply");
-        assert_eq!(scripted.text, "the reply");
+        assert_eq!(scripted.text_ref(), "the reply");
         assert_eq!(scripted.usage, None, "nothing is not the same as free");
         assert!(!scripted.cache_hit);
     }

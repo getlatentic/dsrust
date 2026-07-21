@@ -186,6 +186,9 @@ fn request(
     if let Some(temperature) = call.sampling.temperature {
         request["temperature"] = json!(temperature);
     }
+    if let Some(completions) = call.sampling.completions {
+        request["n"] = json!(completions);
+    }
     if let OutputMode::Json { schema } = call.mode {
         request["response_format"] = response_format(schema, json_format);
     }
@@ -209,10 +212,20 @@ fn reply(label: &str, status: reqwest::StatusCode, body: &Value) -> Result<LmRes
         let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
         return Err(anyhow!("{label} {status}: {detail}"));
     }
-    let text = body["choices"][0]["message"]["content"]
-        .as_str()
-        .with_context(|| format!("{label} returned no content"))?;
-    Ok(LmResponse::text(text)
+    let outputs: Vec<String> = body["choices"]
+        .as_array()
+        .map(|choices| {
+            choices
+                .iter()
+                .filter_map(|choice| choice["message"]["content"].as_str())
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+    if outputs.is_empty() {
+        return Err(anyhow!("{label} returned no content"));
+    }
+    Ok(LmResponse::completions(outputs)
         .with_usage(usage(&body["usage"]))
         .with_provider_data(provider_data(body)))
 }
@@ -459,7 +472,7 @@ mod tests {
         assert_eq!(
             reply("openai", reqwest::StatusCode::OK, &body)
                 .expect("a reply")
-                .text,
+                .text_ref(),
             "hello"
         );
     }
@@ -481,6 +494,42 @@ mod tests {
             answered.provider_data.expect("a finish reason")["finish_reason"],
             "length"
         );
+    }
+
+    /// Asking for several is one round trip where re-asking would be several, so `n` has to
+    /// reach the wire and every choice has to be read back rather than only the first.
+    #[test]
+    fn asking_for_several_completions_sends_n_and_reads_every_choice() {
+        let asked = sampled_request(
+            "gpt-4o-mini",
+            TokenLimitRule::ByOpenAiModelFamily,
+            Sampling {
+                completions: Some(3),
+                ..Sampling::default()
+            },
+        );
+        assert_eq!(asked["n"], 3);
+
+        let body = json!({ "choices": [
+            { "message": { "content": "first" } },
+            { "message": { "content": "second" } },
+            { "message": { "content": "third" } },
+        ]});
+        let answered = reply("openai", reqwest::StatusCode::OK, &body).expect("a reply");
+        assert_eq!(answered.outputs, ["first", "second", "third"]);
+        assert_eq!(
+            answered.text_ref(),
+            "first",
+            "an adapter parses the first and the rest stay available"
+        );
+    }
+
+    /// Unset means the field is left off, so a service that rejects `n` is untouched by a
+    /// caller who never asked for several.
+    #[test]
+    fn no_n_is_sent_when_none_was_asked_for() {
+        let asked = text_request("gpt-4o-mini", TokenLimitRule::ByOpenAiModelFamily);
+        assert_eq!(asked.get("n"), None);
     }
 
     #[test]

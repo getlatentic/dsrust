@@ -256,7 +256,7 @@ async fn shows_each_attempt_what_dspy_showed_it() {
 async fn a_derived_signature_can_be_compiled() {
     use std::sync::Arc;
 
-    use crate::lm::global::configure_model;
+    use crate::lm::global::install_for_test;
     use crate::module::Module;
     use crate::predict::Predict;
     use crate::signature::{InField, OutField, Signature, SignatureSpec};
@@ -287,13 +287,10 @@ async fn a_derived_signature_can_be_compiled() {
         }
     }
 
-    configure_model(
-        reqwest::Client::new(),
-        Arc::new(DummyLM::keyed([
-            ("France", example! { answer: "Paris" }),
-            ("Germany", example! { answer: "Berlin" }),
-        ])),
-    );
+    let _configured = install_for_test(Arc::new(DummyLM::keyed([
+        ("France", example! { answer: "Paris" }),
+        ("Germany", example! { answer: "Berlin" }),
+    ])));
 
     let mut student = Predict::task::<Capital>();
     let solvable = vec![

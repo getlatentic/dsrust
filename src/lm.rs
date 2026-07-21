@@ -1,4 +1,5 @@
 mod anthropic;
+mod cache;
 mod call;
 pub mod dummy;
 pub mod global;
@@ -11,6 +12,7 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
+pub use cache::Cached;
 pub use call::{LmRequest, LmResponse, Sampling, Usage};
 pub use global::{configure, configure_with_client};
 pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig};

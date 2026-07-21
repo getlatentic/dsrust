@@ -101,6 +101,7 @@ mod tests {
             &sampled(Sampling {
                 temperature: Some(0.1),
                 max_tokens: Some(64),
+                ..Sampling::default()
             }),
         );
         assert_eq!(named["options"]["temperature"], 0.1);
@@ -133,7 +134,7 @@ mod tests {
             "done_reason": "length",
         });
         let answered = reply(&body).expect("a reply");
-        assert_eq!(answered.text, "the reply");
+        assert_eq!(answered.text_ref(), "the reply");
         let usage = answered.usage.expect("counts");
         assert_eq!(usage.input_tokens, 26);
         assert_eq!(usage.output_tokens, 298);

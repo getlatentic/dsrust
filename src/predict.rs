@@ -234,7 +234,7 @@ impl<S> Predict<S> {
         // policy, this module carries it out, because only the module can call the model.
         let answered = self.ask(http, lm, inputs, None).await?;
         let usage = answered.usage;
-        let raw = answered.text;
+        let raw = answered.into_text();
         // An adapter that answers in prose has a second model read the fields out of it. The
         // adapter says what to ask and who to ask; only this module can do the asking.
         if let Some(extraction) = self.adapter.extraction(&self.signature) {
@@ -259,8 +259,9 @@ impl<S> Predict<S> {
                     let answered = self
                         .ask_through(fallback.as_ref(), http, lm, inputs, None)
                         .await?;
-                    let value = fallback.parse(&self.signature, &answered.text)?;
-                    (answered.text, value, Usage::merge(usage, answered.usage))
+                    let value = fallback.parse(&self.signature, answered.text_ref())?;
+                    let merged = Usage::merge(usage, answered.usage);
+                    (answered.into_text(), value, merged)
                 }
             },
         };
@@ -317,7 +318,7 @@ impl<S> Predict<S> {
             .context("the extraction model did not answer")?;
         let mut value = extraction
             .adapter
-            .parse(&extraction.signature, &extracted.text)
+            .parse(&extraction.signature, extracted.text_ref())
             // dspy names the *first* reply here, not the extraction's. That is the one a
             // caller can act on: the extraction failing usually means the prose never carried
             // the fields, and the prose is what they would go and look at.
@@ -327,9 +328,9 @@ impl<S> Predict<S> {
         self.signature.coerce(&mut value)?;
         self.signature.ensure(&value)?;
         Ok(Validated {
-            raw: extracted.text,
-            value,
             usage: Usage::merge(asking, extracted.usage),
+            raw: extracted.into_text(),
+            value,
         })
     }
 
@@ -343,10 +344,11 @@ impl<S> Predict<S> {
         feedback: &Feedback,
     ) -> Result<(String, Value, Option<Usage>)> {
         let answered = self.ask(http, lm, inputs, Some(feedback)).await?;
-        let mut value = self.adapter.parse(&self.signature, &answered.text)?;
+        let mut value = self.adapter.parse(&self.signature, answered.text_ref())?;
         self.signature.coerce(&mut value)?;
         self.signature.ensure(&value)?;
-        Ok((answered.text, value, answered.usage))
+        let usage = answered.usage;
+        Ok((answered.into_text(), value, usage))
     }
 }
 
@@ -812,6 +814,7 @@ impl<S: Send + Sync> Module for Predict<S> {
             name: "self".to_owned(),
             signature: &mut self.signature,
             demos: &mut self.demos,
+            sampling: &mut self.sampling,
         }]
     }
 
@@ -861,10 +864,10 @@ mod one_api {
     async fn both_signature_forms_are_built_and_asked_the_same_way() {
         let reply = "[[ ## color ## ]]\nred\n\n[[ ## why ## ]]\ncalm\n\n[[ ## completed ## ]]";
 
-        crate::lm::global::configure_model(
-            reqwest::Client::new(),
-            std::sync::Arc::new(Scripted::new(&[reply, reply])),
-        );
+        let _configured =
+            crate::lm::global::install_for_test(std::sync::Arc::new(Scripted::new(&[
+                reply, reply,
+            ])));
 
         let declared = predict!("request -> color, why");
         let derived = predict!(RoomTask);
@@ -899,10 +902,9 @@ mod per_call_model {
     /// will not answer from a cache. Neither can reach a process-wide default to arrange it.
     #[tokio::test]
     async fn a_module_asks_its_own_model_over_the_configured_one() {
-        crate::lm::global::configure_model(
-            reqwest::Client::new(),
-            Arc::new(DummyLM::new([example! { answer: "from the default" }])),
-        );
+        let _configured = crate::lm::global::install_for_test(Arc::new(DummyLM::new([
+            example! { answer: "from the default" },
+        ])));
 
         let asking = predict!("question -> answer");
         assert!(asking.lm().is_none(), "it defers until given one");
@@ -951,6 +953,7 @@ mod per_call_model {
             .with_sampling(Sampling {
                 temperature: Some(1.0),
                 max_tokens: Some(64),
+                ..Sampling::default()
             });
         varied
             .forward(input! { question: "q" })

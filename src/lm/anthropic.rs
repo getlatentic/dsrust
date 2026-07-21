@@ -118,6 +118,7 @@ mod tests {
             &sampled(Sampling {
                 temperature: Some(1.0),
                 max_tokens: Some(64),
+                ..Sampling::default()
             }),
         );
         assert_eq!(named["max_tokens"], 64);
@@ -151,7 +152,7 @@ mod tests {
         assert_eq!(
             reply(reqwest::StatusCode::OK, &body)
                 .expect("a text block")
-                .text,
+                .text_ref(),
             "the reply"
         );
     }

@@ -358,7 +358,7 @@ mod macro_tests {
 mod ergonomics {
     use std::sync::Arc;
 
-    use crate::lm::global::configure_model;
+    use crate::lm::global::install_for_test;
     use crate::{DummyLM, example, predict};
 
     /// The shortest spelling end to end, against dspy's:
@@ -369,10 +369,9 @@ mod ergonomics {
     /// ```
     #[tokio::test]
     async fn a_single_input_task_is_declared_and_called_in_two_lines() {
-        configure_model(
-            reqwest::Client::new(),
-            Arc::new(DummyLM::new([example! { haiku: "silicon dreaming" }])),
-        );
+        let _configured = install_for_test(Arc::new(DummyLM::new([
+            example! { haiku: "silicon dreaming" },
+        ])));
 
         let haiku_generator = predict!("subject -> haiku");
         let result = haiku_generator
@@ -388,19 +387,16 @@ mod ergonomics {
 mod many_inputs {
     use std::sync::Arc;
 
-    use crate::lm::global::configure_model;
+    use crate::lm::global::install_for_test;
     use crate::{DummyLM, Module, call, example, input, predict};
 
     /// Both spellings, on a signature with more than one input.
     #[tokio::test]
     async fn several_inputs_are_named_in_either_spelling() {
-        configure_model(
-            reqwest::Client::new(),
-            Arc::new(DummyLM::keyed([(
-                "computer science",
-                example! { haiku: "silicon dreaming", mood: "wry" },
-            )])),
-        );
+        let _configured = install_for_test(Arc::new(DummyLM::keyed([(
+            "computer science",
+            example! { haiku: "silicon dreaming", mood: "wry" },
+        )])));
 
         let haiku = predict!("subject, tone -> haiku, mood");
 
