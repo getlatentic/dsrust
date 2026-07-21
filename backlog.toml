@@ -440,6 +440,43 @@ here at all; size it before promising it.
 
 [[backlog]]
 id = "b1"
+state = "next"
+plan = """
+Confirmed a prompt-byte divergence, not a theoretical one. Measured against dspy 3.2.1: the same
+record-declared field renders
+
+  model instance          loose dict
+  {                       {"name": "Dad", "age": 61}
+    "name": "Dad",
+    "age": 61
+  }
+
+because dspy asks `isinstance(value, BaseModel)` — a fact about the value — where
+`src/adapter/baml.rs::input_value` asks whether the *field* was declared a record. We render the
+pretty form for both, so a loose map handed to a record-declared field puts bytes in the prompt
+that dspy would not. Reachable: a record kind only comes from a derived signature, but a derived
+signature can still be asked through `Module::forward` with an `Example` built by `input!`.
+
+No value-based rule can close it. A struct serialized by serde and a hand-written map with the
+same keys are identical `Value`s, so the distinction has to be carried, not recovered.
+
+The chain, which is the whole cost:
+  - the derive knows the Rust type, so `emit.rs::pair_value` is where the flag originates;
+  - `SignatureSpec::input_pairs` has to carry it, so its return type changes;
+  - `Predict` passes it through `call_with_inputs`;
+  - `Adapter::format` takes it — `&[(&str, Value)]` becomes `&[Input<'_>]` carrying
+    `{ name, value, record }`, which is the honest model since a value and its provenance belong
+    together;
+  - only `baml.rs::input_value` reads it. The other four adapters pass it through untouched.
+
+Two call sites in `src/predict.rs` and one in `bridge/src/lib.rs`, six `format` impls, ~11 test
+sites. The bridge is the payoff as well as a cost: Python *can* do `isinstance`, so the shim sets
+the flag truthfully and upstream's own BAML suite then exercises our exact rule rather than a
+declaration-shaped approximation of it.
+
+Widening `Adapter::format` is a promise to callers writing their own adapter, which is goal #2,
+so it is worth doing once and deliberately rather than twice.
+"""
 title = "BAML record inputs branch on the declaration, not the value"
 kind = "known-divergence"
 decision = "accepted"
