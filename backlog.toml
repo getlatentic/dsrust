@@ -663,7 +663,20 @@ What it actually waits on is purpose: PythonInterpreter exists for rlm.py, code_
 program_of_thought.py. Port those and the interpreter comes with them; port the interpreter
 alone and nothing uses it. Size the three modules before scheduling any of it.
 
-How to run the sandbox is a real choice rather than a copy, and being in Rust changes it:
+Decided 2026-07-21: a trait with two implementations, not one choice.
+
+`deno` + pyodide is the default and the conformance target, because it is literally the sandbox
+upstream runs — identical behaviour by construction, and the external prerequisite is one dspy
+already imposes rather than one this crate adds. `rustpython` rides alongside as an opt-in for a
+caller who will not install deno.
+
+It has to be a seam rather than a swap because the interpreter's output *reaches the model*:
+`ProgramOfThought` feeds it back as `code_output`, an InputField desc'd "output of
+previously-generated python code". Float formatting, exception text and dict ordering all land in
+the next prompt, so a second interpreter is a documented divergence a caller opts into — the same
+shape as `LM::without_cache`, and the same seam pattern as ChatModel/Adapter/Optimizer.
+
+The options, and why the default is the default:
 
   deno + pyodide   what dspy does. Same external prerequisite, and identical behaviour because
                    it is literally the same sandbox.
