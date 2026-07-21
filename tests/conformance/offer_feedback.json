@@ -1,0 +1,86 @@
+{
+  "source": "generated from dspy==3.2.1 via scripts/generate_fixtures.py",
+  "dspy_version": "3.2.1",
+  "instructions": "In the discussion, assign blame to each module that contributed to the final reward being below the threshold, if\nany. Then, prescribe concrete advice of how the module should act on its future input when we retry the process, if\nit were to receive the same or similar inputs. If a module is not to blame, the advice should be N/A.\nThe module will not see its own history, so it needs to rely on entirely concrete and actionable advice from you\nto avoid the same mistake on the same or similar inputs.",
+  "inputs": [
+    {
+      "name": "program_code",
+      "kind": "str",
+      "desc": "The code of the program that we are analyzing"
+    },
+    {
+      "name": "modules_defn",
+      "kind": "str",
+      "desc": "The definition of each module in the program, including its I/O"
+    },
+    {
+      "name": "program_inputs",
+      "kind": "str",
+      "desc": "The inputs to the program that we are analyzing"
+    },
+    {
+      "name": "program_trajectory",
+      "kind": "str",
+      "desc": "The trajectory of the program's execution, showing each module's I/O"
+    },
+    {
+      "name": "program_outputs",
+      "kind": "str",
+      "desc": "The outputs of the program that we are analyzing"
+    },
+    {
+      "name": "reward_code",
+      "kind": "str",
+      "desc": "The code of the reward function that we are analyzing"
+    },
+    {
+      "name": "target_threshold",
+      "kind": "float",
+      "desc": "The target threshold for the reward function"
+    },
+    {
+      "name": "reward_value",
+      "kind": "float",
+      "desc": "The reward value assigned to the program's outputs"
+    },
+    {
+      "name": "module_names",
+      "kind": "json:list[str]",
+      "desc": "The names of the modules in the program, for which we seek advice"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "discussion",
+      "kind": "str",
+      "desc": "Discussing blame of where each module went wrong, if it did"
+    },
+    {
+      "name": "advice",
+      "kind": "json:dict[str, str]",
+      "desc": "For each module, describe very concretely, in this order: the specific scenarios in which it has made mistakes in the past and what each mistake was, followed by what it should do differently in that kind ofscenario in the future. If the module is not to blame, write N/A."
+    }
+  ],
+  "module": "offer_feedback",
+  "demos": [],
+  "values": {
+    "program_code": "class Program: ...",
+    "modules_defn": "predict = Predict(question -> answer)",
+    "program_inputs": "{\n  \"question\": \"Why?\"\n}",
+    "program_trajectory": "[]",
+    "program_outputs": "{\n  \"answer\": \"Because.\"\n}",
+    "reward_code": "def reward(inputs, outputs): ...",
+    "target_threshold": 1.0,
+    "reward_value": 0.5,
+    "module_names": [
+      "predict"
+    ]
+  },
+  "expected_system": "Your input fields are:\n1. `program_code` (str): The code of the program that we are analyzing\n2. `modules_defn` (str): The definition of each module in the program, including its I/O\n3. `program_inputs` (str): The inputs to the program that we are analyzing\n4. `program_trajectory` (str): The trajectory of the program's execution, showing each module's I/O\n5. `program_outputs` (str): The outputs of the program that we are analyzing\n6. `reward_code` (str): The code of the reward function that we are analyzing\n7. `target_threshold` (float): The target threshold for the reward function\n8. `reward_value` (float): The reward value assigned to the program's outputs\n9. `module_names` (list[str]): The names of the modules in the program, for which we seek advice\nYour output fields are:\n1. `discussion` (str): Discussing blame of where each module went wrong, if it did\n2. `advice` (dict[str, str]): For each module, describe very concretely, in this order: the specific scenarios in which it has made mistakes in the past and what each mistake was, followed by what it should do differently in that kind ofscenario in the future. If the module is not to blame, write N/A.\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## program_code ## ]]\n{program_code}\n\n[[ ## modules_defn ## ]]\n{modules_defn}\n\n[[ ## program_inputs ## ]]\n{program_inputs}\n\n[[ ## program_trajectory ## ]]\n{program_trajectory}\n\n[[ ## program_outputs ## ]]\n{program_outputs}\n\n[[ ## reward_code ## ]]\n{reward_code}\n\n[[ ## target_threshold ## ]]\n{target_threshold}\n\n[[ ## reward_value ## ]]\n{reward_value}\n\n[[ ## module_names ## ]]\n{module_names}\n\n[[ ## discussion ## ]]\n{discussion}\n\n[[ ## advice ## ]]\n{advice}        # note: the value you produce must adhere to the JSON schema: {\"type\": \"object\", \"additionalProperties\": {\"type\": \"string\"}}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        In the discussion, assign blame to each module that contributed to the final reward being below the threshold, if\n        any. Then, prescribe concrete advice of how the module should act on its future input when we retry the process, if\n        it were to receive the same or similar inputs. If a module is not to blame, the advice should be N/A.\n        The module will not see its own history, so it needs to rely on entirely concrete and actionable advice from you\n        to avoid the same mistake on the same or similar inputs.",
+  "expected_turns": [
+    {
+      "role": "user",
+      "content": "[[ ## program_code ## ]]\nclass Program: ...\n\n[[ ## modules_defn ## ]]\npredict = Predict(question -> answer)\n\n[[ ## program_inputs ## ]]\n{\n  \"question\": \"Why?\"\n}\n\n[[ ## program_trajectory ## ]]\n[]\n\n[[ ## program_outputs ## ]]\n{\n  \"answer\": \"Because.\"\n}\n\n[[ ## reward_code ## ]]\ndef reward(inputs, outputs): ...\n\n[[ ## target_threshold ## ]]\n1.0\n\n[[ ## reward_value ## ]]\n0.5\n\n[[ ## module_names ## ]]\n[\"predict\"]\n\nRespond with the corresponding output fields, starting with the field `[[ ## discussion ## ]]`, then `[[ ## advice ## ]]` (must be formatted as a valid Python dict[str, str]), and then ending with the marker for `[[ ## completed ## ]]`."
+    }
+  ]
+}

@@ -21,6 +21,7 @@ import pathlib
 import sys
 
 import dspy
+from dspy.predict.refine import OfferFeedback
 
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
 OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance"
@@ -142,6 +143,26 @@ CASES = [
         "values": {"photo": dspy.Image(url="https://example.com/a.jpg")},
     },
     {
+        # Refine's feedback step, and the widest signature dspy ships: nine inputs, a float pair,
+        # a list and a dict output. Its instructions and its `advice` description reach a prompt
+        # verbatim — including upstream's "kind ofscenario", where two literals meet without a
+        # space — so a transcription is exactly what must not be trusted here.
+        "name": "offer_feedback",
+        "module": "offer_feedback",
+        "dspy_signature": OfferFeedback,
+        "values": {
+            "program_code": "class Program: ...",
+            "modules_defn": "predict = Predict(question -> answer)",
+            "program_inputs": '{\n  "question": "Why?"\n}',
+            "program_trajectory": "[]",
+            "program_outputs": '{\n  "answer": "Because."\n}',
+            "reward_code": "def reward(inputs, outputs): ...",
+            "target_threshold": 1.0,
+            "reward_value": 0.5,
+            "module_names": ["predict"],
+        },
+    },
+    {
         "name": "multiline_instructions",
         "instructions": "Answer the question.\nBe brief.\nNever guess.",
         "inputs": [{"name": "question", "type": str, "kind": "str", "desc": None}],
@@ -152,6 +173,8 @@ CASES = [
 
 
 def build_signature(case: dict) -> type[dspy.Signature]:
+    if "dspy_signature" in case:
+        return case["dspy_signature"]
     fields, annotations = {}, {}
     for spec in case["inputs"]:
         annotations[spec["name"]] = spec["type"]
@@ -165,6 +188,34 @@ def build_signature(case: dict) -> type[dspy.Signature]:
         )
     namespace = {"__doc__": case["instructions"], "__annotations__": annotations, **fields}
     return type(case["name"], (dspy.Signature,), namespace)
+
+
+def specs_of(signature, case: dict, half: str) -> list[dict]:
+    """The field list for the fixture, described by the case or read back off a real signature."""
+    if "dspy_signature" not in case:
+        return [{k: spec[k] for k in ("name", "kind", "desc")} for spec in case[half]]
+    fields = signature.input_fields if half == "inputs" else signature.output_fields
+    return [
+        {"name": name, "kind": kind_of(field.annotation),
+         "desc": field.json_schema_extra.get("desc") or None}
+        for name, field in fields.items()
+    ]
+
+
+def kind_of(annotation) -> str:
+    """The fixture's spelling of a declared type: a scalar by name, anything else as json:<python>."""
+    scalars = {str: "str", int: "int", float: "float", bool: "bool"}
+    if annotation in scalars:
+        return scalars[annotation]
+    return "json:" + python_spelling(annotation)
+
+
+def python_spelling(annotation) -> str:
+    origin, args = getattr(annotation, "__origin__", None), getattr(annotation, "__args__", ())
+    if origin is None:
+        return getattr(annotation, "__name__", str(annotation))
+    inner = ", ".join(python_spelling(a) for a in args)
+    return f"{origin.__name__}[{inner}]"
 
 
 def recorded(value):
@@ -191,7 +242,8 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for case in CASES:
         demos = case.get("demos", [])
-        signature = build_signature(case)
+        declared = build_signature(case)
+        signature = declared
         # `chain_of_thought` renders the signature that module prepends `reasoning` to, which is
         # the only way a fixture sees the field it adds and the description it does *not* add.
         if case.get("module") == "chain_of_thought":
@@ -202,9 +254,9 @@ def main() -> None:
         fixture = {
             "source": f"generated from dspy=={PINNED} via scripts/generate_fixtures.py",
             "dspy_version": PINNED,
-            "instructions": case["instructions"],
-            "inputs": [{k: spec[k] for k in ("name", "kind", "desc")} for spec in case["inputs"]],
-            "outputs": [{k: spec[k] for k in ("name", "kind", "desc")} for spec in case["outputs"]],
+            "instructions": case.get("instructions", declared.instructions),
+            "inputs": specs_of(declared, case, "inputs"),
+            "outputs": specs_of(declared, case, "outputs"),
             "module": case.get("module", "predict"),
             "demos": demos,
             "values": {name: recorded(value) for name, value in case["values"].items()},

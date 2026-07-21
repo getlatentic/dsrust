@@ -18,7 +18,7 @@ mod derived;
 mod hint;
 mod multi_chain_comparison;
 mod parallel;
-mod refine;
+pub mod refine;
 pub use aggregation::{Normalize, majority, normalize_text};
 pub use best_of_n::BestOfN;
 pub use chain_of_thought::{ChainOfThought, TypedChainOfThought};

@@ -127,6 +127,10 @@ fn load(path: &std::path::Path) -> Fixture {
                 ChainOfThought::from_signature(declared).signature().clone()
             }
             Some("react") => ReAct::new(declared, Vec::new()).turn_signature().clone(),
+            // Declared by the crate rather than by the fixture: what is under test is whether
+            // our own OfferFeedback renders what dspy's does, so reading it back out of the
+            // fixture would compare the fixture to itself.
+            Some("offer_feedback") => dsrs::predict::refine::feedback::signature(),
             _ => declared,
         },
         demos,
