@@ -40,6 +40,12 @@ pub(crate) enum Answers {
     /// last one. Without that a "keep the best" rule and a "keep the last" rule agree, and a
     /// test cannot tell which one is implemented.
     RightOnlyOnRound(usize),
+    /// Answers (wrongly) for this many attempts and then fails every time after.
+    ///
+    /// A run where everything fails cannot tell an index-against-budget rule from a plain failure
+    /// count — both give out on the same attempt. Successes early are what separate them, since
+    /// they advance the index without spending the budget.
+    FailingAfter(usize),
     /// Every call fails, which is what the error budget counts.
     Failing,
 }
@@ -107,6 +113,10 @@ impl Module for Solver {
                 Answers::Wrongly => false,
                 Answers::RightOnRound(round) => asked_before + 1 >= round,
                 Answers::RightOnlyOnRound(round) => asked_before + 1 == round,
+                Answers::FailingAfter(good) if asked_before >= good => {
+                    return Err(anyhow!("the provider is down"));
+                }
+                Answers::FailingAfter(_) => false,
                 Answers::Failing => return Err(anyhow!("the provider is down")),
             };
             Ok(Prediction::new(

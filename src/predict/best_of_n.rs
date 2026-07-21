@@ -43,12 +43,18 @@ pub struct BestOfN<M, R> {
     /// Scores one attempt. dspy passes the module's inputs alongside the prediction, and so does
     /// this: a reward that cannot see what was asked cannot judge whether it was answered.
     pub reward: R,
-    /// Stop at the first attempt scoring this or better. `None` runs every attempt and keeps the
-    /// best, which is what upstream does when no threshold is set.
-    pub threshold: Option<f64>,
-    /// How many attempts may fail before the whole call does. dspy defaults it to `N`, meaning a
-    /// run where every attempt errors still raises.
-    pub fail_count: usize,
+    /// Stop at the first attempt scoring this or better.
+    ///
+    /// Required, as upstream's is: `BestOfN.forward` compares `reward >= self.threshold` with no
+    /// guard, so a missing threshold is not a state dspy can be in. (`Refine`
+    /// does guard, and takes an optional one.)
+    pub threshold: f64,
+    /// How many attempts may fail before the whole call does. Unset means `n`.
+    ///
+    /// `Some(0)` also means `n`, which looks wrong and is upstream: `fail_count or N` reads a
+    /// zero as unset, the same Python falsiness that makes `metric_threshold` of `0.0` mean *no
+    /// threshold* in [`BootstrapFewShot`](crate::BootstrapFewShot).
+    pub fail_count: Option<usize>,
 }
 
 impl<M, R> BestOfN<M, R>
@@ -56,32 +62,36 @@ where
     M: Module,
     R: Fn(&Example, &Prediction) -> f64,
 {
-    /// Ask `module` up to `n` times, scored by `reward`, keeping the best.
-    pub fn new(module: M, n: usize, reward: R) -> Self {
+    /// Ask `module` up to `n` times, scored by `reward`, stopping at `threshold`.
+    ///
+    /// The four dspy takes positionally, in its order.
+    pub fn new(module: M, n: usize, reward: R, threshold: f64) -> Self {
         Self {
             module: Mutex::new(module),
             n,
             reward,
-            threshold: None,
-            fail_count: n,
+            threshold,
+            fail_count: None,
+        }
+    }
+
+    /// The budget of failed attempts, which upstream defaults to `n`.
+    pub fn with_fail_count(mut self, fail_count: usize) -> Self {
+        self.fail_count = Some(fail_count);
+        self
+    }
+
+    /// dspy's `fail_count or N`, zero included.
+    fn budget(&self) -> usize {
+        match self.fail_count {
+            Some(given) if given != 0 => given,
+            _ => self.n,
         }
     }
 
     /// The module back, for a caller that wants it after the wrapper is done with it.
     pub fn into_inner(self) -> M {
         self.module.into_inner()
-    }
-
-    /// Stop as soon as an attempt scores this or better.
-    pub fn with_threshold(mut self, threshold: f64) -> Self {
-        self.threshold = Some(threshold);
-        self
-    }
-
-    /// How many attempts may fail before the call does.
-    pub fn with_fail_count(mut self, fail_count: usize) -> Self {
-        self.fail_count = fail_count;
-        self
     }
 
     /// Ask up to `n` times and answer with the best attempt.
@@ -102,7 +112,9 @@ where
     /// The attempts themselves, so [`run`](Self::run) can put the module back however this ends.
     async fn attempts(&self, module: &mut M, inputs: Example) -> Result<Prediction> {
         let mut best: Option<(f64, Prediction)> = None;
-        let mut failures = 0;
+        // dspy compares the *attempt index* against a budget it decrements, rather than counting
+        // failures — so how far into the run a failure happens is part of whether it is fatal.
+        let mut budget = self.budget();
         let mut last_error = None;
 
         for attempt in 0..self.n {
@@ -112,11 +124,11 @@ where
             let answered = match module.forward(inputs.clone()).await {
                 Ok(prediction) => prediction,
                 Err(error) => {
-                    failures += 1;
                     tracing::warn!(%error, attempt, "an attempt failed");
-                    if failures > self.fail_count {
+                    if attempt > budget {
                         return Err(error);
                     }
+                    budget = budget.saturating_sub(1);
                     last_error = Some(error);
                     continue;
                 }
@@ -127,7 +139,7 @@ where
             if improved {
                 best = Some((scored, answered));
             }
-            if self.threshold.is_some_and(|bar| scored >= bar) {
+            if scored >= self.threshold {
                 break;
             }
         }
@@ -187,7 +199,7 @@ where
                 if best.as_ref().is_none_or(|(high, _, _)| scored > *high) {
                     best = Some((scored, answered, attempted));
                 }
-                if self.threshold.is_some_and(|bar| scored >= bar) {
+                if scored >= self.threshold {
                     break;
                 }
             }
@@ -259,7 +271,7 @@ mod tests {
     #[tokio::test]
     async fn the_first_attempt_that_clears_the_threshold_ends_the_run() {
         let solver = Solver::new(Answers::RightOnRound(2));
-        let best = BestOfN::new(solver, 4, correctness).with_threshold(1.0);
+        let best = BestOfN::new(solver, 4, correctness, 1.0);
 
         let answered = best
             .run(asked("capital of France?"))
@@ -278,7 +290,7 @@ mod tests {
     #[tokio::test]
     async fn each_attempt_is_asked_as_its_own_rollout() {
         let solver = Solver::new(Answers::Wrongly);
-        let best = BestOfN::new(solver, 3, correctness);
+        let best = BestOfN::new(solver, 3, correctness, 1.0);
         best.run(asked("capital of France?"))
             .await
             .expect("an answer");
@@ -307,7 +319,7 @@ mod tests {
     #[tokio::test]
     async fn the_best_attempt_wins_even_when_a_later_one_is_worse() {
         let solver = Solver::new(Answers::RightOnlyOnRound(2));
-        let best = BestOfN::new(solver, 3, correctness).with_threshold(2.0);
+        let best = BestOfN::new(solver, 3, correctness, 2.0);
 
         let answered = best
             .run(asked("capital of France?"))
@@ -336,7 +348,7 @@ mod tests {
         };
         solver.set_sampling(resting.clone());
 
-        let best = BestOfN::new(solver, 2, correctness);
+        let best = BestOfN::new(solver, 2, correctness, 1.0);
         best.run(asked("capital of France?"))
             .await
             .expect("an answer");
@@ -370,7 +382,7 @@ mod tests {
     #[tokio::test]
     async fn a_later_attempt_that_only_ties_does_not_displace_the_first() {
         let numbered = Numbered(std::sync::Mutex::new(0));
-        let answered = BestOfN::new(numbered, 3, |_: &Example, _: &Prediction| 1.0)
+        let answered = BestOfN::new(numbered, 3, |_: &Example, _: &Prediction| 1.0, 2.0)
             .run(asked("anything"))
             .await
             .expect("an answer");
@@ -380,18 +392,74 @@ mod tests {
     #[tokio::test]
     async fn enough_failures_end_the_call_with_the_failure() {
         let solver = Solver::new(Answers::Failing);
-        let refused = BestOfN::new(solver, 3, correctness)
+        let refused = BestOfN::new(solver, 3, correctness, 1.0)
             .with_fail_count(1)
             .run(asked("capital of France?"))
             .await;
         assert!(refused.is_err(), "two failures exceed a budget of one");
     }
 
+    /// dspy weighs *when* a failure happened, not how many there were: it compares the attempt
+    /// index against a budget it decrements, so with the default budget of `n` a run where
+    /// everything fails still raises — on the third attempt of three.
+    ///
+    /// A plain "failures > fail_count" counter would never raise here, which is what this crate
+    /// did until the two were traced side by side.
+    #[tokio::test]
+    async fn the_default_budget_still_gives_out_when_every_attempt_fails() {
+        let solver = Solver::new(Answers::Failing);
+        let best = BestOfN::new(solver, 3, correctness, 1.0);
+        let refused = best.run(asked("capital of France?")).await;
+
+        assert!(refused.is_err());
+        assert_eq!(
+            best.into_inner().calls().len(),
+            3,
+            "it gave out on the third, having spent the budget on the first two"
+        );
+    }
+
+    /// The rule dspy actually implements, and where it parts from counting failures.
+    ///
+    /// Two attempts answer (badly) and the rest fail, with a budget of one. Upstream compares the
+    /// *index* — attempt 2 is already past a budget of 1 — so the first failure is fatal and the
+    /// run stops at three calls. A failure counter would spend one failure, carry on, and make a
+    /// fourth call.
+    #[tokio::test]
+    async fn a_failure_late_in_the_run_is_fatal_where_the_same_failure_early_is_not() {
+        let solver = Solver::new(Answers::FailingAfter(2));
+        let best = BestOfN::new(solver, 5, correctness, 1.0).with_fail_count(1);
+        let refused = best.run(asked("capital of France?")).await;
+
+        assert!(refused.is_err(), "the run gave out");
+        assert_eq!(
+            best.into_inner().calls().len(),
+            3,
+            "two answers then one failure, which at index 2 is already past a budget of 1"
+        );
+    }
+
+    /// dspy reads `fail_count or N`, so a zero is falsy and means *unset* rather than *none
+    /// allowed* — the same Python falsiness that makes a `metric_threshold` of `0.0` mean no
+    /// threshold at all.
+    #[tokio::test]
+    async fn a_fail_count_of_zero_means_n_rather_than_none_allowed() {
+        let solver = Solver::new(Answers::FailingAfter(2));
+        let best = BestOfN::new(solver, 4, correctness, 1.0).with_fail_count(0);
+        let _ = best.run(asked("capital of France?")).await;
+
+        assert_eq!(
+            best.into_inner().calls().len(),
+            4,
+            "a zero budget read as none allowed would have given out on the third call"
+        );
+    }
+
     /// Failing inside the budget is not success: there is still no answer to hand back.
     #[tokio::test]
     async fn every_attempt_failing_is_an_error_even_inside_the_budget() {
         let solver = Solver::new(Answers::Failing);
-        let refused = BestOfN::new(solver, 2, correctness)
+        let refused = BestOfN::new(solver, 2, correctness, 1.0)
             .with_fail_count(10)
             .run(asked("capital of France?"))
             .await;
@@ -403,7 +471,7 @@ mod tests {
     #[tokio::test]
     async fn it_is_a_module_a_program_can_hold_and_an_optimizer_can_walk() {
         let solver = Solver::new(Answers::Correctly);
-        let mut best = BestOfN::new(solver, 2, correctness);
+        let mut best = BestOfN::new(solver, 2, correctness, 1.0);
 
         let held: &dyn Module = &best;
         let answered = held
@@ -427,7 +495,7 @@ mod tests {
     #[tokio::test]
     async fn call_reaches_it_by_field_name_like_any_other_module() {
         let solver = Solver::new(Answers::Correctly);
-        let best = BestOfN::new(solver, 2, correctness);
+        let best = BestOfN::new(solver, 2, correctness, 1.0);
 
         let answered = crate::call!(best, question = "capital of France?")
             .await
@@ -439,7 +507,7 @@ mod tests {
     #[tokio::test]
     async fn only_the_winning_attempt_is_traced() {
         let solver = Solver::new(Answers::Correctly);
-        let best = BestOfN::new(solver, 3, correctness).with_threshold(1.0);
+        let best = BestOfN::new(solver, 3, correctness, 1.0);
 
         let mut trace = Vec::new();
         best.forward_traced(asked("capital of France?"), &mut trace)
@@ -451,7 +519,7 @@ mod tests {
     #[tokio::test]
     async fn asking_zero_times_is_refused_rather_than_answered_with_nothing() {
         let solver = Solver::new(Answers::Correctly);
-        let refused = BestOfN::new(solver, 0, correctness)
+        let refused = BestOfN::new(solver, 0, correctness, 1.0)
             .run(asked("capital of France?"))
             .await;
         assert!(refused.is_err());
