@@ -439,6 +439,37 @@ here at all; size it before promising it.
 # ---------------------------------------------------------------------------
 
 [[backlog]]
+id = "b14"
+title = "s12 was built ahead of the pin, and has no oracle at 3.2.1"
+kind = "verification-gap"
+state = "next"
+detail = '''
+`LMRequest` and `LMResponse` do not exist in dspy 3.2.1 — zero occurrences in the whole package.
+Everything s12 built was modelled from a description of where upstream is going, not from source
+anyone can diff against. So the request/response layer is the one part of this crate with no
+conformance fixture and no upstream test, and it cannot get one while the pin is 3.2.1.
+
+Everything byte-compared so far — adapters, `inspect_modules`, field lines, the BAML notation —
+exists in 3.2.1 and was checked against it. This does not.
+
+**Do not simply move the pin.** PyPI's latest stable is 3.2.1; the only 3.3 is `3.3.0b1`, a beta
+whose API can still move before release. Benchmarking prompt bytes against a beta would make
+every fixture provisional to buy verification of one layer.
+
+The split that fits: keep **3.2.1 as the conformance pin** — it is stable, it is what users run,
+and it governs every byte this crate is held to. Add **3.3.0b1 as a second reference used only
+for the LM request/response shape**, so s12's field-for-field choices stop being an inference.
+Two references, each answering what it is actually authoritative for.
+
+Worth confirming from upstream's own PRs rather than by inference: the working theory is that
+normalising onto a request and a response is groundwork for decoupling from litellm, which is
+what `**config` being an untyped bag currently depends on. `clients/provider.py` already exists
+at 3.2.1. If that theory holds, `b13`'s overflow map is not optional — the open-ended provider
+bag stops being litellm's job and becomes the framework's, which is the position this crate is
+already in, having no litellm at all.
+'''
+
+[[backlog]]
 id = "b13"
 title = "Predict's **config is broader than Sampling, and carries a rule we do not implement"
 kind = "known-divergence"
