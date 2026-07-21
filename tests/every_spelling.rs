@@ -7,11 +7,14 @@
 use std::sync::Arc;
 
 use dsrs::{
-    Ask, ChainOfThought, DummyLM, Example, Module, Predict, Signature, call, chain_of_thought,
-    example, input, predict,
+    Ask, DummyLM, Module, Predict, Signature, call, chain_of_thought, example, input, predict,
 };
 
 /// One in, one out.
+///
+/// The fields are read through the generated companions rather than the struct itself, which
+/// is what the derive exists to do.
+#[allow(dead_code)]
 #[derive(Signature)]
 /// Answer the question.
 struct QA {
@@ -22,6 +25,7 @@ struct QA {
 }
 
 /// Two in, two out.
+#[allow(dead_code)]
 #[derive(Signature)]
 /// Draft a haiku and say what it is about.
 struct Haiku {
