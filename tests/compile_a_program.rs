@@ -67,7 +67,7 @@ fn trainset() -> Vec<Example> {
 
 #[test]
 fn compiling_a_predict_writes_demos_through_the_module_seam() {
-    let mut predict = dsrs::predict::Predict::new(signature());
+    let mut predict = dsrs::predict::Predict::from_signature(signature());
     assert!(predict.demos.is_empty());
 
     LabeledFewShot::new(2).compile(&mut predict, &trainset());
@@ -78,7 +78,7 @@ fn compiling_a_predict_writes_demos_through_the_module_seam() {
 
 #[tokio::test]
 async fn the_chosen_demos_reach_the_prompt() {
-    let mut predict = dsrs::predict::Predict::new(signature());
+    let mut predict = dsrs::predict::Predict::from_signature(signature());
     LabeledFewShot::new(2).compile(&mut predict, &trainset());
 
     let lm = Recorder::new(&["[[ ## answer ## ]]\nMadrid\n\n[[ ## completed ## ]]"]);
@@ -111,8 +111,8 @@ async fn the_chosen_demos_reach_the_prompt() {
 
 #[test]
 fn a_compiled_program_and_an_uncompiled_one_render_differently() {
-    let bare = dsrs::predict::Predict::new(signature());
-    let mut compiled = dsrs::predict::Predict::new(signature());
+    let bare = dsrs::predict::Predict::from_signature(signature());
+    let mut compiled = dsrs::predict::Predict::from_signature(signature());
     LabeledFewShot::new(2).compile(&mut compiled, &trainset());
 
     let inputs = [("request", json!("capital of Spain?"))];

@@ -78,7 +78,7 @@ fn emit(call: &Call, module: Module) -> TokenStream {
     // a non-empty vec! must already hold the field's element type (`Into` is not
     // element-wise: vec!["a"] cannot become Vec<String>).
     quote! {
-        #task::#constructor().call(&#inputs {
+        #task::#constructor().call_inputs(&#inputs {
             #( #names: (#values).into(), )*
         })
     }

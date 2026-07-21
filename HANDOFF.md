@@ -25,8 +25,8 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 331 passing |
-| Upstream dspy tests | 256 passing, 156 crossing into Rust |
+| Rust tests | 347 passing |
+| Upstream dspy tests | 300 passing, 160 rendering and 229 deciding a signature |
 | Known-gap backlog | empty |
 
 Ported: five adapters (chat, JSON, XML, BAML, TwoStep), `Predict`, `ChainOfThought`, `ReAct`,
@@ -67,7 +67,11 @@ Everything below has produced a confident "verified" that was false.
   `N of M tests rendered or parsed through the crate`. A test that passes without touching Rust
   fails unless declared in `DOES_NOT_EXERCISE_RUST` or `NOT_ADAPTER_CONFORMANCE`.
 - **A crossing is not proof the right Rust ran.** `teleprompt/test_bootstrap.py` crosses on
-  every test — through the adapter, while testing dspy's optimizer. See the open decision below.
+  every test — through the adapter, while testing dspy's optimizer. `src/optimize/conformance.rs`
+  is what actually holds this crate's optimizer to upstream's decisions.
+- **A result can match while the work behind it did not.** Leave-one-out withholding and the
+  teacher's labelled priming are both undone before `compile` returns, so deleting either left
+  every demo list identical. Compare what each *attempt was shown*, not only what came out.
 
 ## How conformance works
 
@@ -94,7 +98,7 @@ running pytest there directly uses a stale list. Always go through the script.
 
 `bridge/` is a PyO3 extension letting dspy's Python tests drive Rust. The division is deliberate:
 
-> **Python reflects. Rust renders.**
+> **Python reflects. Rust decides.**
 
 Python does what only Python can — walk a pydantic annotation, ask whether a type subclasses
 `dspy.Code`, produce a JSON schema. Rust decides every byte the model reads. When a shim starts
@@ -128,11 +132,10 @@ JSON schema, and why coercion splits between parse time and `Predict`.
 
 ## Open decisions
 
-**Optimizer conformance.** `src/optimize/` is verified by Rust tests and mutation testing, not by
-upstream's suite — `test_bootstrap.py` runs *dspy's* optimizer over our adapter. Two ways to
-close it: route `compile` into Rust (hard — upstream drives model calls from Python, so Rust
-would call back mid-loop), or replay identical traces through both and compare which demos
-survive. The second is tractable: the optimizer's decisions are pure logic given traces.
+**Per-call LM overrides.** `max_rounds` re-asks, but nothing forces a different answer, because
+upstream's `lm.copy(rollout_id=..., temperature=1.0)` has no equivalent reachable through
+`Module::forward`. Backlog `b2`. Closing it needs a per-call override seam, which is also what a
+deterministic model would need before the forcing could be asserted at all.
 
 **BAML record provenance.** dspy branches on `isinstance(value, BaseModel)`; we branch on the
 field's declared type. They agree whenever a value matches its declaration. Closing the gap means

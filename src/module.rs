@@ -22,6 +22,18 @@ pub struct NamedPredictor<'a> {
     pub demos: &'a mut Vec<Example>,
 }
 
+/// One predictor call: which predictor ran, what it was asked, and what it answered.
+///
+/// dspy's `settings.trace` step, a `(predictor, inputs, outputs)` triple appended to a
+/// thread-local that an optimizer reads afterwards. Here the trace is passed rather than
+/// ambient, and a predictor is identified by the name [`Module::named_predictors`] gives it
+/// rather than by object identity, so the two walks agree by construction.
+pub struct TraceStep {
+    pub predictor: String,
+    pub inputs: Example,
+    pub outputs: Example,
+}
+
 /// A callable program. Implement it to add a module of your own.
 pub trait Module: Send + Sync {
     /// Run the program over one example's inputs.
@@ -39,6 +51,57 @@ pub trait Module: Send + Sync {
     fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
         Vec::new()
     }
+
+    /// Run the program, recording which predictor saw what.
+    ///
+    /// An optimizer needs this to give each predictor demos its own calls earned. A composed
+    /// module passes the trace down and relabels what its children recorded, the same way
+    /// [`Self::named_predictors`] relabels theirs, so a step's name always matches a predictor's.
+    ///
+    /// Recording nothing is allowed and means the program cannot be attributed, so every
+    /// predictor in it receives the same program-level demo. That costs nothing for a program
+    /// with one predictor, where the two are the same list.
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: Example,
+        trace: &'a mut Vec<TraceStep>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        let _ = trace;
+        self.forward(inputs)
+    }
+}
+
+/// Rename every step `record` added, which is how a composed module claims its children's calls
+/// as its own predictor.
+pub fn relabel(trace: &mut [TraceStep], from: usize, name: &str) {
+    for step in &mut trace[from..] {
+        step.predictor = name.to_owned();
+    }
+}
+
+/// Ask a module, naming each input where its value goes.
+///
+/// ```
+/// # async fn wrapper(haiku: dsrs::Predict) -> anyhow::Result<()> {
+/// let result = dsrs::call!(haiku, subject = "computer science", tone = "wry").await?;
+/// # Ok(()) }
+/// ```
+///
+/// Rust has neither named arguments nor a mapping literal, so the two are written here instead:
+/// the field name sits where the value does, which is what `subject=` does in Python. Evaluates
+/// to the call's future, so the caller writes `.await?` and sees where the model is reached.
+///
+/// Asks through [`Ask`], so what comes back is whatever the module promised. A module of your
+/// own joins in with one line — `dsrs::asks_with_a_prediction!(YourModule);` — which is the same
+/// line the modules here use.
+#[macro_export]
+macro_rules! call {
+    ($module:expr, $($field:ident = $value:expr),* $(,)?) => {
+        $crate::Ask::ask(
+            &$module,
+            $crate::input! { $($field: $value),* },
+        )
+    };
 }
 
 #[cfg(test)]
@@ -117,4 +180,47 @@ mod tests {
         assert_eq!(module.demos.len(), 1);
         assert_eq!(module.signature.instructions, "Echo it exactly.");
     }
+}
+
+/// What asking one module answers with.
+///
+/// dspy has one call spelling across both ways of declaring a task, because every module there
+/// answers with the same dynamic `Prediction`. Rust need not give that up to match: the spelling
+/// is shared and the answer stays whatever the module promised, so a derived task still hands
+/// back its own outputs struct and `result.answer` still means the field.
+pub trait Ask {
+    type Answer;
+
+    fn ask<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Self::Answer>> + Send + 'a>>;
+}
+
+/// Answer with the fields the module parsed, which is what a task declared by its field names
+/// has to give.
+///
+/// Written per module rather than blanket over [`Module`], because a derived task is a `Module`
+/// too and answers with something better than a `Prediction`. One blanket impl would make that
+/// unreachable.
+#[macro_export]
+macro_rules! asks_with_a_prediction {
+    ($module:ty) => {
+        impl $crate::Ask for $module {
+            type Answer = $crate::Prediction;
+
+            fn ask<'a>(
+                &'a self,
+                inputs: $crate::Example,
+            ) -> ::std::pin::Pin<
+                ::std::boxed::Box<
+                    dyn ::std::future::Future<Output = ::anyhow::Result<$crate::Prediction>>
+                        + Send
+                        + 'a,
+                >,
+            > {
+                $crate::Module::forward(self, inputs)
+            }
+        }
+    };
 }

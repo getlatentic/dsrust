@@ -30,7 +30,7 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
     };
 
     let unconfigured = ProbeTask::predict()
-        .call(&inputs)
+        .call_inputs(&inputs)
         .await
         .expect_err("nothing configured yet");
     assert!(
@@ -52,7 +52,7 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
             .with_ollama_host(UNROUTABLE_OLLAMA),
     );
     let provider_error = ProbeTask::predict()
-        .call(&inputs)
+        .call_inputs(&inputs)
         .await
         .expect_err("host is unroutable");
     let rendered = format!("{provider_error:#}");
@@ -69,7 +69,7 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
             .with_ollama_host(UNROUTABLE_OLLAMA),
     );
     let reconfigured = ProbeTask::chain_of_thought()
-        .call(&inputs)
+        .call_inputs(&inputs)
         .await
         .expect_err("host is still unroutable");
     assert!(

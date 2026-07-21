@@ -13,6 +13,7 @@ use proc_macro::TokenStream;
 mod call;
 mod emit;
 mod parse;
+mod signature_str;
 
 /// `String`, `bool`, fixed-width integers, and floats travel as scalar wire fields; any
 /// other field type — `Vec<String>`, your own structs, `Vec<Struct>` — travels as JSON.
@@ -30,6 +31,9 @@ pub fn derive_signature(input: TokenStream) -> TokenStream {
     }
 }
 
+/// `predict!("subject -> haiku")` — the module a string signature declares, built. The spelling
+/// is checked as this crate compiles, so there is no `?` to write and no runtime failure left.
+///
 /// `predict!(Task { field: value, ... })` — one `Predict` call on a derived task. Expands to
 /// `Task::predict().call(&TaskInputs { field: (value).into(), ... })` and evaluates to that
 /// call's future, so the caller writes `.await?`. Values coerce through `Into` toward each
@@ -37,12 +41,32 @@ pub fn derive_signature(input: TokenStream) -> TokenStream {
 /// compile error.
 #[proc_macro]
 pub fn predict(input: TokenStream) -> TokenStream {
+    if let Ok(spelling) = syn::parse::<syn::LitStr>(input.clone()) {
+        return signature_str::expand_module(spelling, "Predict");
+    }
+    if let Ok(task) = syn::parse::<syn::Ident>(input.clone()) {
+        return quote::quote! { ::dsrs::Predict::task::<#task>() }.into();
+    }
     call::expand(input, call::Module::Predict)
+}
+
+/// `signature!("subject -> haiku")` — dspy's string spelling, refused while this crate compiles
+/// rather than when the program runs. Evaluates to a `Signature`, so it drops straight into
+/// `Predict::new` with no `?` to write and no failure left to handle.
+#[proc_macro]
+pub fn signature(input: TokenStream) -> TokenStream {
+    signature_str::expand(input)
 }
 
 /// `chain_of_thought!(Task { field: value, ... })` — the [`predict!`] grammar driving the
 /// task's `ChainOfThought` module instead.
 #[proc_macro]
 pub fn chain_of_thought(input: TokenStream) -> TokenStream {
+    if let Ok(spelling) = syn::parse::<syn::LitStr>(input.clone()) {
+        return signature_str::expand_module(spelling, "ChainOfThought");
+    }
+    if let Ok(task) = syn::parse::<syn::Ident>(input.clone()) {
+        return quote::quote! { ::dsrs::ChainOfThought::task::<#task>() }.into();
+    }
     call::expand(input, call::Module::ChainOfThought)
 }

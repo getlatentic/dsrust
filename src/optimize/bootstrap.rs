@@ -6,6 +6,8 @@ use anyhow::{Result, anyhow};
 use crate::example::{Example, Prediction};
 use crate::module::Module;
 
+use super::Optimizer;
+use super::earned::{Bootstrapped, Solved};
 use super::labeled::LabeledFewShot;
 use super::rng::Rng;
 
@@ -60,22 +62,6 @@ pub struct BootstrapFewShot<M> {
     /// dspy reads `max_errors=None` off `dspy.settings.max_errors`, whose default is 10. There
     /// is no settings object here, so 10 is the default outright.
     pub max_errors: usize,
-}
-
-/// What one bootstrap pass produced.
-struct Bootstrapped {
-    /// dspy's `name2traces`, which keys demos by the predictor that produced them: it reads
-    /// `dspy.settings.trace`, a thread-local every `Predict` call appends to, and so can tell
-    /// which step of a multi-predictor program each demo belongs to.
-    ///
-    /// [`Module::forward`] hands back only the finished [`Prediction`], so there is nothing here
-    /// to attribute by and the demos stay program-level. For a program with one predictor those
-    /// are the same list — dspy's trace has exactly one step, over the same inputs and outputs.
-    /// For a program with several, dspy would give each predictor demos of its own and this
-    /// gives them all the same demos.
-    demos: Vec<Example>,
-    /// dspy's `validation`: the trainset examples no round solved, shuffled.
-    validation: Vec<Example>,
 }
 
 impl<M> BootstrapFewShot<M> {
@@ -150,18 +136,22 @@ where
             LabeledFewShot::new(self.max_labeled_demos).compile(teacher, trainset);
         }
 
-        let mut demos = Vec::new();
+        let mut earned = Bootstrapped::empty();
         let mut solved = vec![false; trainset.len()];
         let mut errors = 0;
+        // dspy counts the examples it solved, not the demos they produced. With several
+        // predictors one example earns several demos, so the two part company here.
+        let mut kept = 0;
         for (index, example) in trainset.iter().enumerate() {
-            if demos.len() >= self.max_bootstrapped_demos {
+            if kept >= self.max_bootstrapped_demos {
                 break;
             }
             for _round in 0..self.max_rounds {
                 match self.attempt(teacher, example).await {
                     Ok(Some(demo)) => {
-                        demos.push(demo);
+                        earned.file(demo);
                         solved[index] = true;
+                        kept += 1;
                         break;
                     }
                     // Scored too low to keep. Not a failure, and not charged to the budget.
@@ -184,7 +174,8 @@ where
             .map(|(example, _)| example.clone())
             .collect();
         Rng::seeded(0).shuffle(&mut validation);
-        Ok(Bootstrapped { demos, validation })
+        earned.validation = validation;
+        Ok(earned)
     }
 
     /// dspy `_bootstrap_one_example`: one round of asking the teacher to solve one example.
@@ -196,10 +187,11 @@ where
         &self,
         teacher: &mut T,
         example: &Example,
-    ) -> Result<Option<Example>> {
+    ) -> Result<Option<Solved>> {
         let inputs = example.inputs()?;
         let withheld = withhold(teacher, example);
-        let prediction = teacher.forward(inputs.clone()).await;
+        let mut trace = Vec::new();
+        let prediction = teacher.forward_traced(inputs.clone(), &mut trace).await;
         // Unconditionally, before the failure is handed on. dspy's restore sits after the call
         // inside the same `try`, so a program that raises leaves the example struck out of the
         // teacher's demos for the whole rest of the compile. Nothing decides that; it leaks.
@@ -210,7 +202,13 @@ where
             None => true,
             Some(metric) => self.accepts(metric(example, &prediction)),
         };
-        Ok(accepted.then(|| solved_turn(&inputs, &prediction)))
+        Ok(accepted.then(|| Solved {
+            program: solved_turn(&inputs, &prediction.example),
+            per_predictor: trace
+                .into_iter()
+                .map(|step| (step.predictor, solved_turn(&step.inputs, &step.outputs)))
+                .collect(),
+        }))
     }
 
     /// dspy reads the metric for truth the way Python reads a float — anything but zero passes —
@@ -224,12 +222,13 @@ where
     }
 
     /// dspy `_train`: bootstrapped demos first, then labelled ones to fill the budget out.
-    fn train<S: Module + ?Sized>(&self, student: &mut S, bootstrapped: Bootstrapped) -> usize {
-        let Bootstrapped { demos, validation } = bootstrapped;
-        let augmented = &demos[..self.max_bootstrapped_demos.min(demos.len())];
+    fn train<S: Module + ?Sized>(&self, student: &mut S, mut bootstrapped: Bootstrapped) -> usize {
         let mut rng = Rng::seeded(0);
-        let mut raw = validation;
+        let mut raw = std::mem::take(&mut bootstrapped.validation);
+        let mut widest = 0;
         for predictor in student.named_predictors() {
+            let augmented = bootstrapped.earned(&predictor.name, self.max_bootstrapped_demos);
+            widest = widest.max(augmented.len());
             // The bootstrapped demos are spent from the labelled budget, not added on top of it.
             let room = self.max_labeled_demos.saturating_sub(augmented.len());
             // dspy rebinds `raw_demos` to the sample it just drew, so the next predictor draws
@@ -238,7 +237,30 @@ where
             raw = rng.sample(&raw, room);
             *predictor.demos = augmented.iter().chain(&raw).cloned().collect();
         }
-        augmented.len()
+        widest
+    }
+}
+
+impl<M> Optimizer for BootstrapFewShot<M>
+where
+    M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+{
+    fn compile<'a>(
+        &'a self,
+        student: &'a mut dyn Module,
+        teacher: Option<&'a mut dyn Module>,
+        trainset: &'a [Example],
+    ) -> impl Future<Output = Result<()>> + Send + 'a {
+        async move {
+            match teacher {
+                Some(teacher) => {
+                    self.compile_with_teacher(student, teacher, trainset)
+                        .await?
+                }
+                None => BootstrapFewShot::compile(self, student, trainset).await?,
+            };
+            Ok(())
+        }
     }
 }
 
@@ -250,9 +272,9 @@ where
 /// `propose/grounded_proposer.py`, which belongs to MIPROv2 rather than to this optimizer.
 /// Setting it here would put a field on every demo that every adapter would then have to know
 /// to ignore.
-fn solved_turn(inputs: &Example, prediction: &Prediction) -> Example {
+fn solved_turn(inputs: &Example, outputs: &Example) -> Example {
     let mut demo = inputs.clone();
-    for (name, value) in prediction.example.fields() {
+    for (name, value) in outputs.fields() {
         demo.set(name, value.clone());
     }
     demo
@@ -323,7 +345,7 @@ mod tests {
     use super::*;
     use crate::evaluate::exact_match;
     use crate::example;
-    use crate::optimize::scripted::{Answers, Pair, Solver, answers, trainset};
+    use crate::optimize::scripted::{Answers, Lopsided, Pair, Solver, answers, trainset};
     use crate::signature::{OutField, Signature};
     use serde_json::json;
 
@@ -752,15 +774,87 @@ mod tests {
         // examples, then one drawn from that single-example pool.
         assert_eq!(student.first_demos.len(), 3);
         assert_eq!(student.second_demos.len(), 3);
-        let (first, second) = (
-            answers(&student.first_demos),
-            answers(&student.second_demos),
-        );
-        assert_eq!(first[..2], SOLVABLE);
-        assert_eq!(second[..2], SOLVABLE);
         assert_eq!(
-            first[2], second[2],
+            answers(&student.first_demos[2..]),
+            answers(&student.second_demos[2..]),
             "the second predictor's only choice is the first predictor's sample"
+        );
+    }
+
+    /// Each predictor is taught by the calls it made, not by the program's result.
+    ///
+    /// `Pair` drafts in its first half and answers from that draft in its second, so the two
+    /// earn demos that the other could not have: a misattribution shows up as the wrong fields
+    /// rather than as a different ordering.
+    #[tokio::test]
+    async fn each_predictor_is_taught_by_its_own_calls() {
+        let mut student = Pair::new();
+        bootstrap(exact_match)
+            .compile(&mut student, &trainset())
+            .await
+            .expect("compile succeeds");
+
+        assert_eq!(student.first_demos.len(), 2);
+        assert_eq!(student.second_demos.len(), 2);
+        assert!(
+            student
+                .first_demos
+                .iter()
+                .all(|demo| demo.get("question").is_some() && demo.get("answer").is_none()),
+            "the drafting half is taught by what it was asked and what it drafted"
+        );
+        assert!(
+            student
+                .second_demos
+                .iter()
+                .all(|demo| demo.get("draft").is_some() && demo.get("question").is_none()),
+            "the answering half is taught by the draft it read, never by the question"
+        );
+        assert_eq!(answers(&student.second_demos), SOLVABLE);
+    }
+
+    /// A predictor that never ran is taught by nothing, which is dspy starting every name at an
+    /// empty list rather than falling back to what the program as a whole managed.
+    #[tokio::test]
+    async fn a_predictor_that_never_ran_is_taught_by_nothing() {
+        let mut student = Lopsided::new();
+        bootstrap(exact_match)
+            .compile(&mut student, &trainset())
+            .await
+            .expect("compile succeeds");
+
+        assert_eq!(answers(&student.ran_demos), SOLVABLE);
+        assert!(
+            student.idle_demos.is_empty(),
+            "an idle predictor should not inherit its sibling's demos"
+        );
+    }
+
+    /// The walk stops once enough *examples* are solved, not once enough demos are collected.
+    ///
+    /// With two predictors one example earns two demos, so counting demos would carry the walk
+    /// past the budget. `train` caps what each predictor keeps either way, which hides the
+    /// difference in the demos themselves; where it shows is the validation set, because an
+    /// example the walk never reached is one more the labelled tail can draw from.
+    #[tokio::test]
+    async fn the_budget_counts_solved_examples_rather_than_demos() {
+        let mut student = Pair::new();
+        BootstrapFewShot {
+            max_bootstrapped_demos: 1,
+            // Room for the whole validation set, so its size is read off the demos directly
+            // rather than through which members a partial draw happened to take.
+            max_labeled_demos: 6,
+            ..bootstrap(exact_match)
+        }
+        .compile(&mut student, &trainset())
+        .await
+        .expect("compile succeeds");
+
+        // France alone was solved, leaving Germany and the four riddles to be drawn whole.
+        assert_eq!(student.first_demos.len(), 6);
+        assert!(
+            answers(&student.first_demos).contains(&"Berlin".to_owned()),
+            "the walk stopped before Germany, so it stays available to the labelled draw"
         );
     }
 

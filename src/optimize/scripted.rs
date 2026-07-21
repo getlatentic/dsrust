@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use crate::example;
 use crate::example::{Example, Prediction};
-use crate::module::{Module, NamedPredictor};
+use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::Signature;
 
 /// What a program was looking at when it was asked one question.
@@ -133,6 +133,12 @@ impl Pair {
     }
 }
 
+/// The intermediate the first half hands the second, so a demo earned by one is not a demo the
+/// other could have earned. Interchangeable halves would hide misattribution rather than show it.
+fn drafted(answer: &str) -> String {
+    format!("draft: {answer}")
+}
+
 impl Module for Pair {
     fn forward<'a>(
         &'a self,
@@ -150,6 +156,35 @@ impl Module for Pair {
         })
     }
 
+    /// Two calls: the first drafts from the question, the second answers from the draft.
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: Example,
+        trace: &'a mut Vec<TraceStep>,
+    ) -> Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        Box::pin(async move {
+            let prediction = self.forward(inputs.clone()).await?;
+            let answered = prediction
+                .get("answer")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned();
+            let draft = drafted(&answered);
+
+            trace.push(TraceStep {
+                predictor: "first".to_owned(),
+                inputs,
+                outputs: Example::new([("draft", json!(draft))]),
+            });
+            trace.push(TraceStep {
+                predictor: "second".to_owned(),
+                inputs: Example::new([("draft", json!(draft))]),
+                outputs: Example::new([("answer", json!(answered))]),
+            });
+            Ok(prediction)
+        })
+    }
+
     fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
         vec![
             NamedPredictor {
@@ -161,6 +196,76 @@ impl Module for Pair {
                 name: "second".to_owned(),
                 signature: &mut self.second,
                 demos: &mut self.second_demos,
+            },
+        ]
+    }
+}
+
+/// Two predictors of which only one ever runs, which is what a branch in a program looks like to
+/// an optimizer. dspy starts every predictor's traces at an empty list, so the idle half is
+/// taught by nothing rather than by its sibling's work.
+pub(super) struct Lopsided {
+    ran: Signature,
+    pub(super) ran_demos: Vec<Example>,
+    idle: Signature,
+    pub(super) idle_demos: Vec<Example>,
+}
+
+impl Lopsided {
+    pub(super) fn new() -> Self {
+        Self {
+            ran: Signature::single_input("Answer.", Vec::new()),
+            ran_demos: Vec::new(),
+            idle: Signature::single_input("Answer.", Vec::new()),
+            idle_demos: Vec::new(),
+        }
+    }
+}
+
+impl Module for Lopsided {
+    fn forward<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        Box::pin(async move {
+            let question = inputs
+                .get("question")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            Ok(Prediction::new(
+                Example::new([("answer", json!(answer(question, true)))]),
+                "raw",
+            ))
+        })
+    }
+
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: Example,
+        trace: &'a mut Vec<TraceStep>,
+    ) -> Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        Box::pin(async move {
+            let prediction = self.forward(inputs.clone()).await?;
+            trace.push(TraceStep {
+                predictor: "ran".to_owned(),
+                inputs,
+                outputs: prediction.example.clone(),
+            });
+            Ok(prediction)
+        })
+    }
+
+    fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
+        vec![
+            NamedPredictor {
+                name: "ran".to_owned(),
+                signature: &mut self.ran,
+                demos: &mut self.ran_demos,
+            },
+            NamedPredictor {
+                name: "idle".to_owned(),
+                signature: &mut self.idle,
+                demos: &mut self.idle_demos,
             },
         ]
     }

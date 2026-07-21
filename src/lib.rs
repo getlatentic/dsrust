@@ -20,8 +20,8 @@ pub use adapter::baml::BamlAdapter;
 pub use adapter::{Adapter, ChatAdapter, Extraction, JsonAdapter, TwoStepAdapter};
 pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
 pub use example::{Example, Prediction};
-pub use module::{Module, NamedPredictor};
-pub use optimize::{BootstrapFewShot, LabeledFewShot};
+pub use module::{Ask, Module, NamedPredictor, TraceStep};
+pub use optimize::{BootstrapFewShot, DynOptimizer, LabeledFewShot, Optimizer};
 pub use react::{FnTool, ReAct, Tool, Trajectory};
 
 /// Re-exports the macros need so a caller does not have to depend on them directly.
@@ -36,5 +36,5 @@ pub use lm::{
 pub use predict::{ChainOfThought, Predict, TypedChainOfThought, TypedPredict};
 pub use signature::{
     FieldKind, InField, LiteralValue, OutField, Signature, SignatureSpec, chain_of_thought,
-    json_field_schema, predict,
+    json_field_schema, predict, signature,
 };

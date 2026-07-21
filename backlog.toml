@@ -8,19 +8,25 @@
 # file to SUITES in scripts/run_upstream_tests.sh and triaging the failures it arrives
 # with. A story is not done because its suite is green; it is done when the suite is green
 # AND its tests cross into Rust — the runner prints that count.
+#
+# This file is the plan; SUITES is what runs. scripts/check_plan.py holds one to the other on
+# every upstream run, so a sprint cannot be marked done naming a suite nothing executes. A
+# `suites` entry naming a group rather than a file ("signatures/* (4 files)") reads as intent
+# and is not checked.
 
 [project]
 name = "dsrs"
 upstream = "dspy"
 upstream_version = "3.2.1"
-updated = "2026-07-20"
+updated = "2026-07-21"
 
 [status]
-rust_tests = 331
-upstream_tests_passing = 256
-upstream_tests_crossing = 156
+rust_tests = 372
+upstream_tests_passing = 300
+upstream_tests_crossing = 160
+upstream_tests_deciding_signatures = 229
 xfail_backlog = 0
-suites_run = 17
+suites_run = 18
 
 # ---------------------------------------------------------------------------
 # Shipped
@@ -56,18 +62,38 @@ suites = ["predict/test_predict.py", "predict/test_chain_of_thought.py", "predic
 [[sprint]]
 id = "s3"
 name = "Optimizer conformance"
-state = "next"
+state = "done"
+shipped = "2026-07-21"
+suites = ["teleprompt/test_bootstrap.py"]
 outcome = """
 The crate's own optimizer is held to upstream's behaviour, not just to its own tests.
-This is the sprint that closes the project's one known blind spot.
+This is the sprint that closed the project's one known blind spot.
 """
 
 [[story]]
 id = "s3-1"
 sprint = "s3"
 title = "Prove the crate's BootstrapFewShot makes upstream's decisions"
-state = "todo"
+state = "done"
 size = "L"
+done = """
+Trace replay, chosen over routing compile into Rust and recorded in src/optimize/conformance.rs.
+scripts/generate_bootstrap_fixture.py runs upstream's optimizer against a DummyLM answering from
+a fixed table, so a compile is a pure function of trainset, metric and configuration. Nineteen
+single-predictor cases compare demo for demo; a second check compares what every attempt was
+*shown*, which is where withholding and teacher priming live; and five two-predictor cases
+compare each predictor's demos, which is what makes the raw_demos rebinding visible — upstream's
+own answer hands the second predictor the first's sample in a different order.
+
+Mutation testing drove the shape of all three. Of the deliberate wrong decisions tried, every one
+that changes behaviour is caught by a named check; the survivors were equivalent rather than
+missed, and one of them turned out to mark a branch that could never fire, which was then removed.
+"""
+remaining = """
+Unasserted, and not assertable here: max_rounds forcing a *different* answer (b2). A
+deterministic model cannot distinguish a re-ask that was forced from one that was not, so the
+attempt count matches upstream while the forcing does not exist. b5 records the other limit.
+"""
 narrative = """
 As someone trusting dsrs to compile a program, I want the crate's optimizer held to dspy's
 own behaviour, so that a compiled program is the one dspy would have produced.
@@ -93,15 +119,35 @@ notes = """
 Routing compile into Rust is hard — upstream drives model calls from Python, so Rust would
 call back mid-loop. Trace replay is tractable because the optimizer's decisions are pure
 logic given traces even though the driving is I/O.
+
+Comparing demos by identity is only possible because src/optimize/rng.rs reproduces CPython's
+Mersenne Twister. A demo list is a deterministic bootstrapped prefix followed by a tail drawn
+by random.sample; under the xorshift generator that preceded it the tail could never match
+dspy's, and the acceptance criterion below would have had to be weakened to a structural
+comparison. Anything that changes the generator reopens that.
 """
 
 [[story]]
 id = "s3-2"
 sprint = "s3"
 title = "Per-predictor demos for a multi-predictor program"
-state = "blocked"
+state = "done"
 size = "M"
 blocked_by = "s3-1"
+done = """
+Module::forward_traced carries a Vec<TraceStep> the caller owns, so attribution is a parameter
+rather than dspy's thread-local settings.trace. A composed module passes it down and relabels
+what its children recorded, the same way named_predictors relabels theirs. Predict, ChainOfThought
+and ReAct implement it; ReAct's episode moved into one private run() so forward and forward_traced
+cannot drift. BootstrapFewShot files demos under the predictor that earned them, falls back to
+program-level only when nothing was traced, and counts solved examples rather than demos — with
+several predictors one example earns several demos and the two part company.
+"""
+remaining = """
+s3-1's raw_demos rebinding is exercised by a Rust test but still not compared against upstream;
+that needs a two-predictor dspy program in generate_bootstrap_fixture.py. b5 records the one
+decision that cannot be compared at all.
+"""
 narrative = """
 As someone compiling a program with several predictors, I want each predictor to receive the
 demos its own calls earned, so that compiling a pipeline is worth more than compiling one step.
@@ -124,12 +170,33 @@ acceptance = [
 [[sprint]]
 id = "s4"
 name = "Signatures and primitives"
-state = "planned"
+state = "in-progress"
 outcome = "The declaration layer is held to upstream directly, not only through adapters."
-suites = ["signatures/* (4 files)", "primitives/* (4 files)"]
+suites = ["signatures/test_signature.py"]
 rationale = """
-Signature behaviour is currently proven only where an adapter happens to render it. These
-suites test it head-on, and they are small — the cheapest real coverage left.
+Signature behaviour was proven only where an adapter happened to render it. These suites test
+it head-on.
+
+Not the cheap win it was filed as. The bridge substituted adapters and nothing else, so these
+files ran dspy's Python against itself; a suite added without more would have grown the pass
+count and left the crossing count flat, which is the lie the counter exists to catch. Earning
+them means giving the crate decisions to make below the wire.
+"""
+done = """
+infer_prefix is the crate's, held to a 45-name golden covering the boundaries upstream's four
+expressions disagree about: its letter classes are ASCII while its digit class is not, so
+text٢number splits where ПриветМир does not. Mutation testing drove three of those names.
+
+The crossing counter split in two. Rendering and parsing is one fact; deciding a signature is
+another, and it moves during almost any signature construction, so folding them together would
+have reported coverage no assertion backs. Both are printed.
+"""
+remaining = """
+Five tests in test_signature.py raise while a declaration is still being validated, so nothing
+reaches the crate. Two of the five are structural and portable: exactly one arrow, and no name
+claimed by both sides. The other three are pydantic field validation. primitives/ is untouched:
+test_python_interpreter.py needs a deno sandbox, and test_base_module.py with test_module.py are
+the state layer the handoff lists as not started.
 """
 
 [[sprint]]
@@ -147,8 +214,17 @@ outcome = "The optimizers a real dspy user reaches for, ported on the seam s3 es
 rationale = """
 Deliberately after s3. Porting more optimizers before their conformance story exists would
 repeat the blind spot five more times.
+
+The Optimizer trait these are written against already exists, for the same reason: five
+implementations against no shared shape would have grown five bespoke ones. DynOptimizer is
+what BetterTogether needs, since upstream's holds other optimizers and runs them in sequence.
 """
 candidates = ["COPRO", "MIPROv2", "GEPA", "BetterTogether", "KNNFewShot"]
+notes = """
+The trait carries student, teacher and trainset. Upstream's Teleprompter.compile also takes
+valset, which MIPROv2 uses and nothing here does yet; widening the trait is a breaking change,
+so it wants doing when MIPROv2 lands and before b4 publishes an API that promises otherwise.
+"""
 
 # ---------------------------------------------------------------------------
 # Backlog — triaged at sprint planning, not scheduled
@@ -175,6 +251,39 @@ detail = """
 Upstream forces divergence with lm.copy(rollout_id=round_idx, temperature=1.0). No per-call LM
 override is reachable through Module::forward, so a second round re-asks identically. The loop
 and its break-on-success are ported; the forcing is not. Needs a per-call LM override seam.
+"""
+
+[[backlog]]
+id = "b6"
+title = "One call spelling across declared and derived signatures"
+kind = "ergonomics"
+state = "done"
+detail = """
+dspy builds and asks both signature forms identically, so a difference here was a defect rather
+than a trade-off. predict! takes a spelling or a task type, and call! asks either.
+
+What does NOT collapse is the answer, and that is the point of the Ask trait: a task declared by
+its field names has only fields to hand back, while a derived one hands back its own outputs, so
+result.answer keeps meaning the field. Ask is written per module rather than blanket over Module,
+because a derived task is a Module too and one blanket impl would make its better answer
+unreachable. A module of a caller's own opts in with asks_with_a_prediction!.
+"""
+
+[[backlog]]
+id = "b5"
+title = "A predictor traced twice for one example takes its last trace"
+kind = "known-divergence"
+decision = "accepted"
+detail = """
+When one predictor produces several traces for a single example, dspy collapses them to one demo,
+choosing evenly between the last trace and a random earlier one. The choice is seeded with
+Hasher.hash(tuple(demos)), which is xxhash64 over pickle.dumps — reproducing CPython pickle bytes
+for dspy Example objects is not something this port can do, so src/optimize/bootstrap.rs::file
+takes the last trace. That agrees with upstream whenever upstream's coin lands on the last trace.
+
+Only reachable when a predictor is called more than once per example, which means a loop: ReAct's
+per-turn predictor is the case in this crate. A pipeline whose predictors each run once never
+reaches the branch, and neither does any single-predictor program.
 """
 
 [[backlog]]

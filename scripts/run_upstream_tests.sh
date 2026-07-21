@@ -21,7 +21,7 @@ WHEEL=$(ls -t "$ROOT"/target/wheels/dsrs_bridge-*.whl | head -1)
   || uv pip install --python "$VENV/bin/python" --force-reinstall -q --no-deps "$WHEEL"
 
 mkdir -p "$WORK"
-cp "$ROOT"/bridge/python/{rust_adapter,reflect,conftest}.py "$WORK/"
+cp "$ROOT"/bridge/python/{rust_adapter,rust_signature,crossings,reflect,conftest}.py "$WORK/"
 
 # The upstream files this crate is held to. Adding one here is how coverage grows: it will
 # arrive with failures, and each becomes a named entry in conftest.py's to-do list or a fix.
@@ -32,7 +32,25 @@ SUITES=(
   adapters/test_xml_adapter.py adapters/test_baml_adapter.py adapters/test_two_step_adapter.py
   predict/test_predict.py predict/test_chain_of_thought.py predict/test_react.py
   teleprompt/test_bootstrap.py
+  signatures/test_signature.py
 )
+
+# SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against
+# everything upstream ships stops green from reading as done, and catches a name that no longer
+# exists after a version bump.
+MANIFEST="$ROOT/scripts/upstream_tests.txt"
+echo "==> Upstream coverage"
+# The backlog says which suites a sprint shipped; this array says which ones actually run. A
+# claim without evidence is the failure mode a plan has, so the two are checked against each
+# other before anything else.
+python3 "$ROOT/scripts/check_plan.py"
+TOTAL=$(grep -vc '^#' "$MANIFEST")
+echo "  ${#SUITES[@]} of $TOTAL upstream test files ($(( ${#SUITES[@]} * 100 / TOTAL ))%)"
+grep -v '^#' "$MANIFEST" | sed 's|tests/||;s|/.*||' | sort -u | while read -r area; do
+  have=$(printf '%s\n' "${SUITES[@]}" | grep -c "^$area/" || true)
+  want=$(grep -c "^tests/$area/" "$MANIFEST" || true)
+  [ "$have" -lt "$want" ] && printf '    %-14s %s of %s\n' "$area" "$have" "$want"
+done || true
 
 echo "==> Fetching upstream tests at dspy $VERSION (unmodified)"
 for file in "${SUITES[@]}" conftest.py; do

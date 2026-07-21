@@ -22,6 +22,7 @@ serde = { version = "1", features = ["derive"] }
 # order pydantic built it. Sorted keys would reorder every schema note dspy renders.
 serde_json = { version = "1", features = ["preserve_order"] }
 tracing = "0.1"
+unicode-general-category = "1.1.0"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

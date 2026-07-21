@@ -4,10 +4,11 @@ use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use super::{Predict, typed, typed_task};
+use super::Predict;
+use super::derived::{typed, typed_task};
 use crate::example::{Example, Prediction};
 use crate::lm::{DynChatModel, global};
-use crate::module::{Module, NamedPredictor};
+use crate::module::{Ask, Module, NamedPredictor, TraceStep};
 use crate::signature::{OutField, Signature, SignatureSpec};
 
 /// dspy.ChainOfThought: the same signature with a leading `reasoning` field. The model puts
@@ -17,7 +18,9 @@ pub struct ChainOfThought {
 }
 
 impl ChainOfThought {
-    pub fn new(mut signature: Signature) -> Self {
+    /// A module for a signature held as field names, matching
+    /// [`Predict::from_signature`](super::Predict::from_signature).
+    pub fn from_signature(mut signature: Signature) -> Self {
         signature.outputs.insert(
             0,
             OutField {
@@ -27,14 +30,14 @@ impl ChainOfThought {
             },
         );
         Self {
-            predict: Predict::new(signature),
+            predict: Predict::<super::Dynamic>::from_signature(signature),
         }
     }
 
     /// The module for a derived signature; its caller speaks the signature's own types.
     pub fn task<S: SignatureSpec>() -> TypedChainOfThought<S> {
         TypedChainOfThought {
-            cot: ChainOfThought::new(S::signature()),
+            cot: ChainOfThought::from_signature(S::signature()),
             spec: PhantomData,
         }
     }
@@ -83,20 +86,20 @@ pub struct TypedChainOfThought<S: SignatureSpec> {
 
 impl<S: SignatureSpec> TypedChainOfThought<S> {
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
-    pub async fn call(&self, inputs: &S::Inputs) -> Result<S::Outputs> {
+    pub async fn call_inputs(&self, inputs: &S::Inputs) -> Result<S::Outputs> {
         let (http, lm) = global::current()?;
-        self.call_with(&http, lm.as_ref(), inputs).await
+        self.call_inputs_with(&http, lm.as_ref(), inputs).await
     }
 
     /// Ask through an explicit client and model: the per-call override, and the seam tests
     /// script with a canned [`ChatModel`](crate::lm::ChatModel).
-    pub async fn call_with(
+    pub async fn call_inputs_with(
         &self,
         http: &reqwest::Client,
         lm: &dyn DynChatModel,
         inputs: &S::Inputs,
     ) -> Result<S::Outputs> {
-        typed_task::<S>(&self.cot.predict, http, lm, inputs, without_reasoning).await
+        typed_task::<S, _>(&self.cot.predict, http, lm, inputs, without_reasoning).await
     }
 }
 
@@ -117,8 +120,39 @@ impl Module for ChainOfThought {
         self.predict.forward(inputs)
     }
 
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: Example,
+        trace: &'a mut Vec<TraceStep>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        self.predict.forward_traced(inputs, trace)
+    }
+
     fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
         self.predict.named_predictors()
+    }
+}
+
+/// The [`TypedPredict`](super::TypedPredict) reasoning: a derived signature stays reachable by
+/// an optimizer whichever module drives it.
+impl<S: SignatureSpec + Send + Sync> Module for TypedChainOfThought<S> {
+    fn forward<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        self.cot.forward(inputs)
+    }
+
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: Example,
+        trace: &'a mut Vec<TraceStep>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        self.cot.forward_traced(inputs, trace)
+    }
+
+    fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
+        self.cot.named_predictors()
     }
 }
 
@@ -130,7 +164,7 @@ mod tests {
 
     #[test]
     fn chain_of_thought_leads_with_reasoning_and_strips_it() {
-        let cot = ChainOfThought::new(signature());
+        let cot = ChainOfThought::from_signature(signature());
         let sig = &cot.predict.signature;
         assert_eq!(sig.outputs[0].name, "reasoning");
         assert_eq!(sig.schema()["required"][0], json!("reasoning"));
@@ -146,7 +180,7 @@ mod tests {
     async fn chain_of_thought_strips_reasoning_from_the_typed_path() {
         let reply = "[[ ## reasoning ## ]]\nthinking\n\n[[ ## color ## ]]\nred\n\n[[ ## why ## ]]\ncalm\n\n[[ ## completed ## ]]";
         let lm = Scripted::new(&[reply]);
-        let cot = ChainOfThought::new(signature());
+        let cot = ChainOfThought::from_signature(signature());
         let value = cot
             .call_with(&reqwest::Client::new(), &lm, "draft it")
             .await
@@ -166,10 +200,41 @@ mod tests {
         let reply = "[[ ## reasoning ## ]]\nthinking\n\n[[ ## color ## ]]\nblue\n\n[[ ## why ## ]]\nfresh\n\n[[ ## completed ## ]]";
         let lm = Scripted::new(&[reply]);
         let outputs = RoomTask::chain_of_thought()
-            .call_with(&reqwest::Client::new(), &lm, &room_inputs())
+            .call_inputs_with(&reqwest::Client::new(), &lm, &room_inputs())
             .await
             .expect("valid reply");
         assert_eq!(outputs.color, "blue");
         assert_eq!(outputs.why, "fresh");
+    }
+}
+
+crate::asks_with_a_prediction!(ChainOfThought);
+
+/// The [`TypedPredict`](super::TypedPredict) answer: a derived task keeps its own outputs.
+impl<S: SignatureSpec + Send + Sync> Ask for TypedChainOfThought<S>
+where
+    S::Outputs: Send,
+{
+    type Answer = S::Outputs;
+
+    fn ask<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
+        Box::pin(async move {
+            let (http, lm) = global::current()?;
+            let pairs: Vec<(&str, Value)> = inputs
+                .fields()
+                .map(|(name, value)| (name, value.clone()))
+                .collect();
+            super::derived::typed_pairs::<S, _>(
+                &self.cot.predict,
+                &http,
+                lm.as_ref(),
+                pairs,
+                without_reasoning,
+            )
+            .await
+        })
     }
 }
