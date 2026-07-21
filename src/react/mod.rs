@@ -41,8 +41,8 @@ impl ReAct {
             signature.outputs.iter().map(|field| field.name.as_str()),
         ));
         let tools = as_dict(tools.into_iter().chain([Box::new(finish) as Box<dyn Tool>]));
-        let react = Predict::new(react_signature(&signature, &tools));
-        let extract = Predict::new(extract_signature(&signature));
+        let react = Predict::from_signature(react_signature(&signature, &tools));
+        let extract = Predict::from_signature(extract_signature(&signature));
         Self {
             signature,
             tools,

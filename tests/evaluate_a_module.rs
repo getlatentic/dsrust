@@ -69,7 +69,7 @@ fn reply(answer: &str) -> String {
 async fn a_module_that_answers_correctly_scores_one() {
     let lm = Scripted::new(&[&reply("Paris"), &reply("Berlin")]);
     let http = reqwest::Client::new();
-    let predict = dsrs::predict::Predict::new(signature());
+    let predict = dsrs::predict::Predict::from_signature(signature());
 
     let evaluation = Evaluate::new(
         devset(),
@@ -104,7 +104,7 @@ async fn a_module_that_answers_correctly_scores_one() {
 async fn a_wrong_answer_scores_zero_and_keeps_the_reply_for_inspection() {
     let lm = Scripted::new(&[&reply("Lyon"), &reply("Berlin")]);
     let http = reqwest::Client::new();
-    let predict = dsrs::predict::Predict::new(signature());
+    let predict = dsrs::predict::Predict::from_signature(signature());
 
     let evaluation = Evaluate::new(
         devset(),

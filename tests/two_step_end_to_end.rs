@@ -30,7 +30,8 @@ async fn the_task_model_answers_in_prose_and_a_second_model_names_the_fields() {
         .with_fallback(example! { reply: "The capital of France is Paris." });
     let extractor = Arc::new(DummyLM::new([example! { answer: "Paris" }]));
 
-    let predict = Predict::new(signature()).with_adapter(TwoStepAdapter::new(extractor.clone()));
+    let predict =
+        Predict::from_signature(signature()).with_adapter(TwoStepAdapter::new(extractor.clone()));
     let value = predict
         .call_with(
             &reqwest::Client::new(),
@@ -57,7 +58,7 @@ async fn the_task_model_is_never_shown_a_wire_format() {
         DummyLM::new([example! { reply: "Paris." }]).with_fallback(example! { reply: "Paris." });
     let extractor = Arc::new(DummyLM::new([example! { answer: "Paris" }]));
 
-    Predict::new(signature())
+    Predict::from_signature(signature())
         .with_adapter(TwoStepAdapter::new(extractor))
         .call_with(&reqwest::Client::new(), &task, "Where?")
         .await
@@ -79,7 +80,7 @@ async fn the_extraction_model_is_shown_the_first_reply_as_its_text_field() {
     let task = DummyLM::new([example! { reply: prose }]).with_fallback(example! { reply: prose });
     let extractor = Arc::new(DummyLM::new([example! { answer: "Paris" }]));
 
-    Predict::new(signature())
+    Predict::from_signature(signature())
         .with_adapter(TwoStepAdapter::new(extractor.clone()))
         .call_with(&reqwest::Client::new(), &task, "Where?")
         .await
@@ -109,7 +110,7 @@ async fn a_failed_extraction_names_the_prose_it_was_reading() {
     let task = DummyLM::new([example! { reply: prose }]).with_fallback(example! { reply: prose });
     let extractor = Arc::new(DummyLM::new([]).with_fallback(example! { unrelated: "nothing" }));
 
-    let error = Predict::new(signature())
+    let error = Predict::from_signature(signature())
         .with_adapter(TwoStepAdapter::new(extractor))
         .call_with(&reqwest::Client::new(), &task, "Where?")
         .await

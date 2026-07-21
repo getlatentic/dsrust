@@ -26,13 +26,21 @@ mod scripted;
 /// on the value-level paths; the typed task paths add one more possible ask when the
 /// validated reply does not deserialize into the task's outputs, so four at most there.
 /// Every call is already bounded by the provider timeout.
-pub struct Predict {
+pub struct Predict<S = Dynamic> {
     pub signature: Signature,
     pub adapter: Box<dyn Adapter>,
     /// Solved examples shown before the request. An optimizer's output is a chosen set of
     /// these, so a compiled program is this field plus the signature's instructions.
     pub demos: Vec<Example>,
+    spec: PhantomData<S>,
 }
+
+/// A signature carried as field names rather than as a type.
+///
+/// dspy has one `Predict` class because a signature there is always a value it holds. This is
+/// the same shape: one type, and what a call answers with follows from whether that type knows
+/// its outputs. `Predict<Dynamic>` knows only the names, so it answers with the fields it parsed.
+pub struct Dynamic;
 
 /// One accepted reply: the value that passed coercion and validation, the raw text it was
 /// parsed from, and the adapter that produced it — enough for a typed caller to push a
@@ -42,22 +50,16 @@ struct Validated {
     value: Value,
 }
 
-impl Predict {
-    pub fn new(signature: Signature) -> Self {
-        Self {
-            signature,
-            adapter: Box::new(ChatAdapter::default()),
-            demos: Vec::new(),
+impl<S> Predict<S> {
+    /// The same module, told which task it asks. The signature and demos are unchanged; only
+    /// what a call answers with follows from the type.
+    pub(crate) fn into_task<T>(self) -> Predict<T> {
+        Predict {
+            spec: PhantomData,
+            signature: self.signature,
+            adapter: self.adapter,
+            demos: self.demos,
         }
-    }
-
-    /// dspy `Predict("email -> sentiment")`: declare the task by naming its fields.
-    ///
-    /// The shortest way to a working module. A field with no type is a string, which is what
-    /// makes the untyped spelling useful for a first pass; `Predict::task` takes a derived
-    /// signature when the types matter.
-    pub fn parse(signature: &str) -> Result<Self> {
-        Ok(Self::new(signature.parse()?))
     }
 
     /// Show the model these solved examples before the request.
@@ -72,13 +74,33 @@ impl Predict {
         self.adapter = Box::new(adapter);
         self
     }
+}
 
-    /// The module for a derived signature; its caller speaks the signature's own types.
-    pub fn task<S: SignatureSpec>() -> TypedPredict<S> {
-        TypedPredict {
-            predict: Predict::new(S::signature()),
+impl Predict<Dynamic> {
+    /// A module for a signature held as field names. `predict!("question -> answer")` is the
+    /// spelling to reach for; this is what it expands to.
+    pub fn from_signature(signature: Signature) -> Self {
+        Self {
             spec: PhantomData,
+            signature,
+            adapter: Box::new(ChatAdapter::default()),
+            demos: Vec::new(),
         }
+    }
+
+    /// dspy `Predict("email -> sentiment")`: declare the task by naming its fields.
+    ///
+    /// The shortest way to a working module. A field with no type is a string, which is what
+    /// makes the untyped spelling useful for a first pass; `Predict::task` takes a derived
+    /// signature when the types matter.
+    pub fn parse(signature: &str) -> Result<Self> {
+        Ok(Self::from_signature(signature.parse()?))
+    }
+
+    /// The module for a derived signature, which is `Predict::<Task>::new()` reached from the
+    /// untyped name.
+    pub fn task<S: SignatureSpec + Send + Sync>() -> Predict<S> {
+        Predict::<S>::new()
     }
 
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
@@ -105,7 +127,9 @@ impl Predict {
             .await?
             .value)
     }
+}
 
+impl<S> Predict<S> {
     /// One attempt: render through the adapter, ask the model, hand back the raw reply.
     /// dspy's `Adapter.__call__` in the module rather than the adapter, because a Rust trait
     /// carrying an async model call could not also be object-safe.
@@ -249,7 +273,9 @@ impl Predict {
         self.signature.ensure(&value)?;
         Ok((raw, value))
     }
+}
 
+impl Predict<Dynamic> {
     /// The validated reply as a caller-owned struct instead of loose JSON.
     pub async fn call_typed<T: DeserializeOwned>(&self, input: &str) -> Result<T> {
         typed(self.call(input).await?)
@@ -300,7 +326,7 @@ mod tests {
     #[tokio::test]
     async fn a_marker_reply_flows_through_the_chat_adapter() {
         let lm = Scripted::new(&[MARKER_REPLY]);
-        let value = Predict::new(signature())
+        let value = Predict::from_signature(signature())
             .call_with(&reqwest::Client::new(), &lm, "draft it")
             .await
             .expect("valid reply");
@@ -315,7 +341,7 @@ mod tests {
     async fn a_validation_failure_retries_once_with_the_error_and_previous_output() {
         let bad = "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\ncalm";
         let lm = Scripted::new(&[bad, MARKER_REPLY]);
-        let value = Predict::new(signature())
+        let value = Predict::from_signature(signature())
             .call_with(&reqwest::Client::new(), &lm, "draft it")
             .await
             .expect("second reply is valid");
@@ -344,7 +370,7 @@ mod tests {
             "red because it is calm",
             r#"{ "color": "red", "why": "calm" }"#,
         ]);
-        let value = Predict::new(signature())
+        let value = Predict::from_signature(signature())
             .call_with(&reqwest::Client::new(), &lm, "draft it")
             .await
             .expect("the fallback parses");
@@ -364,7 +390,8 @@ mod tests {
         // dspy `test_chat_adapter_respects_use_json_adapter_fallback_flag`: with the flag
         // cleared the parse failure is final and the JSON adapter is never reached.
         let lm = Scripted::new(&["red because it is calm", r#"{ "color": "red" }"#]);
-        let predict = Predict::new(signature()).with_adapter(ChatAdapter::without_json_fallback());
+        let predict =
+            Predict::from_signature(signature()).with_adapter(ChatAdapter::without_json_fallback());
         assert!(
             predict
                 .call_with(&reqwest::Client::new(), &lm, "draft it")
@@ -386,7 +413,7 @@ mod tests {
             "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\ncalm",
             "[[ ## color ## ]]\nblue\n\n[[ ## why ## ]]\ncalm",
         ]);
-        let value = Predict::new(signature())
+        let value = Predict::from_signature(signature())
             .call_with(&reqwest::Client::new(), &lm, "draft it")
             .await
             .expect("second reply is valid");
@@ -398,7 +425,7 @@ mod tests {
             "[[ ## color ## ]]\nmauve\n\n[[ ## why ## ]]\ncalm",
         ]);
         assert!(
-            Predict::new(signature())
+            Predict::from_signature(signature())
                 .call_with(&reqwest::Client::new(), &lm, "draft it")
                 .await
                 .is_err()
@@ -413,7 +440,7 @@ mod tests {
     #[tokio::test]
     async fn call_typed_hands_back_a_struct_or_a_shape_error() {
         let lm = Scripted::new(&[MARKER_REPLY]);
-        let pick: Pick = Predict::new(signature())
+        let pick: Pick = Predict::from_signature(signature())
             .call_typed_with(&reqwest::Client::new(), &lm, "draft it")
             .await
             .expect("deserializes");
@@ -426,7 +453,7 @@ mod tests {
             color: u32,
         }
         let lm = Scripted::new(&[MARKER_REPLY]);
-        let wrong: Result<Wrong> = Predict::new(signature())
+        let wrong: Result<Wrong> = Predict::from_signature(signature())
             .call_typed_with(&reqwest::Client::new(), &lm, "draft it")
             .await;
         assert!(wrong.is_err());
@@ -436,7 +463,7 @@ mod tests {
     async fn a_typed_task_renders_every_input_and_returns_the_outputs_struct() {
         let lm = Scripted::new(&[MARKER_REPLY]);
         let outputs = Predict::task::<RoomTask>()
-            .call_with(&reqwest::Client::new(), &lm, &room_inputs())
+            .call_inputs_with(&reqwest::Client::new(), &lm, &room_inputs())
             .await
             .expect("valid reply");
         assert_eq!(outputs.color, "red");
@@ -459,7 +486,7 @@ mod tests {
         let bad = "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\ncalm";
         let lm = Scripted::new(&[bad, MARKER_REPLY]);
         let outputs = RoomTask::predict()
-            .call_with(&reqwest::Client::new(), &lm, &room_inputs())
+            .call_inputs_with(&reqwest::Client::new(), &lm, &room_inputs())
             .await
             .expect("second reply is valid");
         assert_eq!(outputs.color, "red");
@@ -547,7 +574,7 @@ mod tests {
             years: 30,
         };
         let outputs = SizeTask::predict()
-            .call_with(&reqwest::Client::new(), &lm, &inputs)
+            .call_inputs_with(&reqwest::Client::new(), &lm, &inputs)
             .await
             .expect("valid reply");
         assert_eq!(outputs.amount, 0.04);
@@ -574,7 +601,7 @@ mod tests {
         let bad = "[[ ## amount ## ]]\nabc\n\n[[ ## double ## ]]\ntrue\n\n[[ ## count ## ]]\n3";
         let good = "[[ ## amount ## ]]\n0.02\n\n[[ ## double ## ]]\nfalse\n\n[[ ## count ## ]]\n1";
         let lm = Scripted::new(&[bad, good]);
-        let value = Predict::new(typed_signature())
+        let value = Predict::from_signature(typed_signature())
             .call_with(&reqwest::Client::new(), &lm, "size it")
             .await
             .expect("second reply is valid");
@@ -607,6 +634,7 @@ mod tests {
         ] {
             let lm = Scripted::new(&[reply]);
             let predict = Predict {
+                spec: PhantomData,
                 signature: typed_signature(),
                 adapter: Box::new(JsonAdapter),
                 demos: Vec::new(),
@@ -652,7 +680,7 @@ mod tests {
 /// dspy's `Predict` is a `Module`, and so is this one. Without this an optimizer could not
 /// walk a program to reach the demos it exists to rewrite, and an evaluator could not take a
 /// built-in module and a caller's own module through the same door.
-impl Module for Predict {
+impl<S: Send + Sync> Module for Predict<S> {
     fn forward<'a>(
         &'a self,
         inputs: Example,

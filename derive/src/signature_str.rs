@@ -85,7 +85,7 @@ pub(crate) fn expand_module(literal: syn::LitStr, module: &str) -> TokenStream {
         Err(error) => return error.into_compile_error().into(),
     };
     let module = syn::Ident::new(module, literal.span());
-    quote! { ::dsrs::#module::new(#built) }.into()
+    quote! { ::dsrs::#module::from_signature(#built) }.into()
 }
 
 #[cfg(test)]

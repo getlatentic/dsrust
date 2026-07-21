@@ -28,7 +28,7 @@ impl ChainOfThought {
             },
         );
         Self {
-            predict: Predict::new(signature),
+            predict: Predict::<super::Dynamic>::from_signature(signature),
         }
     }
 
@@ -84,20 +84,20 @@ pub struct TypedChainOfThought<S: SignatureSpec> {
 
 impl<S: SignatureSpec> TypedChainOfThought<S> {
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
-    pub async fn call(&self, inputs: &S::Inputs) -> Result<S::Outputs> {
+    pub async fn call_inputs(&self, inputs: &S::Inputs) -> Result<S::Outputs> {
         let (http, lm) = global::current()?;
-        self.call_with(&http, lm.as_ref(), inputs).await
+        self.call_inputs_with(&http, lm.as_ref(), inputs).await
     }
 
     /// Ask through an explicit client and model: the per-call override, and the seam tests
     /// script with a canned [`ChatModel`](crate::lm::ChatModel).
-    pub async fn call_with(
+    pub async fn call_inputs_with(
         &self,
         http: &reqwest::Client,
         lm: &dyn DynChatModel,
         inputs: &S::Inputs,
     ) -> Result<S::Outputs> {
-        typed_task::<S>(&self.cot.predict, http, lm, inputs, without_reasoning).await
+        typed_task::<S, _>(&self.cot.predict, http, lm, inputs, without_reasoning).await
     }
 }
 
@@ -198,7 +198,7 @@ mod tests {
         let reply = "[[ ## reasoning ## ]]\nthinking\n\n[[ ## color ## ]]\nblue\n\n[[ ## why ## ]]\nfresh\n\n[[ ## completed ## ]]";
         let lm = Scripted::new(&[reply]);
         let outputs = RoomTask::chain_of_thought()
-            .call_with(&reqwest::Client::new(), &lm, &room_inputs())
+            .call_inputs_with(&reqwest::Client::new(), &lm, &room_inputs())
             .await
             .expect("valid reply");
         assert_eq!(outputs.color, "blue");
@@ -225,7 +225,7 @@ where
                 .fields()
                 .map(|(name, value)| (name, value.clone()))
                 .collect();
-            super::derived::typed_pairs::<S>(
+            super::derived::typed_pairs::<S, _>(
                 &self.cot.predict,
                 &http,
                 lm.as_ref(),
