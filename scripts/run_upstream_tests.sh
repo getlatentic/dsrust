@@ -34,6 +34,7 @@ SUITES=(
   teleprompt/test_bootstrap.py
   signatures/test_signature.py signatures/test_custom_types.py
   signatures/test_adapter_file.py signatures/test_adapter_image.py
+  primitives/test_example.py
 )
 
 # SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against

@@ -23,3 +23,30 @@ def infer_prefix(attribute_name: str) -> str:
     """
     crossings.record_signature()
     return dsrs_bridge.infer_prefix(attribute_name)
+
+
+def split_example(example):
+    """dspy `Example.inputs()`, with the split decided by the crate.
+
+    Which fields are inputs and which are labels is the record's one real decision, and it is
+    the crate's. Python keeps the values and rebuilds the record around the answer, the same
+    division `reflect.py` draws for adapters.
+    """
+    crossings.record_signature()
+    names = list(example._store)
+    declared = None if example._input_keys is None else list(example._input_keys)
+    return dsrs_bridge.split_example(names, declared)
+
+
+def inputs(self):
+    """Upstream's `Example.inputs`, answering from the crate's split."""
+    names, _ = split_example(self)
+    kept = type(self)(base={name: self._store[name] for name in names})
+    kept._input_keys = self._input_keys
+    return kept
+
+
+def labels(self):
+    """Upstream's `Example.labels`, which drops the declaration rather than carrying it."""
+    _, names = split_example(self)
+    return type(self)(base={name: self._store[name] for name in names})

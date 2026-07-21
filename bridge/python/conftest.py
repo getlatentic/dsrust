@@ -173,6 +173,28 @@ DOES_NOT_EXERCISE_RUST = {
     "test_image_input_formats[encoded_pil_image-encoded PIL image string]": (
         "dspy.Image decoding a PIL object"
     ),
+    # `dspy.Example` behaving as a Python object: constructing, subscripting, attribute access,
+    # deletion, length, equality, hashing, iteration, copying, and its string forms. The record's
+    # one real decision is which fields are inputs and which are labels, and that one crosses.
+    "test_example_initialization": "dspy.Example construction",
+    "test_example_initialization_from_base": "dspy.Example construction",
+    "test_example_initialization_from_dict": "dspy.Example construction",
+    "test_example_set_get_item": "Python's mapping protocol on dspy.Example",
+    "test_example_attribute_access": "Python's attribute protocol on dspy.Example",
+    "test_example_deletion": "Python's mapping protocol on dspy.Example",
+    "test_example_len": "Python's mapping protocol on dspy.Example",
+    "test_example_get": "Python's mapping protocol on dspy.Example",
+    "test_example_keys_values_items": "Python's mapping protocol on dspy.Example",
+    "test_example_eq": "dspy.Example comparing itself",
+    "test_example_hash": "dspy.Example hashing itself",
+    "test_example_repr_str": "dspy.Example's own string form",
+    "test_example_repr_str_img": "dspy.Example's own string form",
+    "test_example_copy_without": "dspy.Example copying itself",
+    "test_example_to_dict": "dspy.Example as a plain dict",
+    "test_example_to_dict_with_history": "dspy.Example as a plain dict",
+    # Recording the declaration, which stores what it was told rather than deciding anything.
+    # `inputs` and `labels` are where that declaration is read, and they reach the crate.
+    "test_example_with_inputs": "dspy.Example recording which fields it was asked about",
     # A signature declaration this crate has not been given a say in yet. Each raises while the
     # declaration is still being validated, before any field exists to name, so nothing reaches
     # the crate. The structural half of that validation — one arrow, and no name claimed by both
@@ -191,6 +213,7 @@ DOES_NOT_EXERCISE_RUST = {
 # and each of its tests deserves triaging rather than a blanket pass.
 SIGNATURE_CONFORMANCE = {
     "upstream_test_signature.py": "how a signature is built, named and described",
+    "upstream_test_example.py": "how a record splits into what was asked and what was expected",
 }
 
 # Whole files whose subject is beneath the wire: a signature's own construction, naming and
@@ -347,6 +370,9 @@ def _signature_layer_is_rust(monkeypatch):
         "dspy.signatures.signature.infer_prefix", rust_signature.infer_prefix
     )
     monkeypatch.setattr("dspy.signatures.infer_prefix", rust_signature.infer_prefix, raising=False)
+    # `Example.inputs`/`labels` are the record's one decision, so they answer from the crate too.
+    monkeypatch.setattr(dspy.Example, "inputs", rust_signature.inputs)
+    monkeypatch.setattr(dspy.Example, "labels", rust_signature.labels)
 
 
 @pytest.fixture(autouse=True)

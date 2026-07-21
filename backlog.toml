@@ -22,11 +22,11 @@ updated = "2026-07-21"
 
 [status]
 rust_tests = 372
-upstream_tests_passing = 355
+upstream_tests_passing = 373
 upstream_tests_crossing = 179
-upstream_tests_deciding_signatures = 253
+upstream_tests_deciding_signatures = 254
 xfail_backlog = 0
-suites_run = 21
+suites_run = 22
 
 # ---------------------------------------------------------------------------
 # Shipped
@@ -175,6 +175,7 @@ outcome = "The declaration layer is held to upstream directly, not only through 
 suites = [
   "signatures/test_signature.py", "signatures/test_custom_types.py",
   "signatures/test_adapter_file.py", "signatures/test_adapter_image.py",
+  "primitives/test_example.py",
 ]
 rationale = """
 Signature behaviour was proven only where an adapter happened to render it. These suites test
@@ -201,9 +202,19 @@ which is Python answering about its own type system rather than anything this cr
 Four tests in test_signature.py raise while a declaration is still being validated; two of those
 are structural and portable (exactly one arrow, no name claimed by both sides).
 
-primitives/ is the rest of the sprint. test_python_interpreter.py needs a deno sandbox, and
-test_base_module.py with test_module.py are the state layer the handoff lists as not started, so
-test_example.py is the one plainly in scope.
+primitives/test_example.py runs: the record's one real decision — which fields are inputs and
+which are labels — is the crate's, and the rest of that file is Python's data model on a Python
+object.
+
+test_base_module.py and test_module.py are the state layer, which is not started: they are
+dspy.Module's own bookkeeping — dump_state, load_state, deepcopy, named_sub_modules — over
+ChainOfThought and LM. That is the next real body of work in this sprint.
+
+test_python_interpreter.py is NOT blocked by deno, which was a wrong reading. Deno is not a dspy
+dependency at all; it is an external runtime a user installs, and PythonInterpreter shells out to
+it exactly as this crate would with std::process::Command. What gates it is that it exists to
+serve rlm.py, code_act.py and program_of_thought.py, none of which are ported — so it belongs
+with those modules rather than here. See b7.
 """
 
 [[sprint]]
@@ -291,6 +302,21 @@ takes the last trace. That agrees with upstream whenever upstream's coin lands o
 Only reachable when a predictor is called more than once per example, which means a loop: ReAct's
 per-turn predictor is the case in this crate. A pipeline whose predictors each run once never
 reaches the branch, and neither does any single-predictor program.
+"""
+
+[[backlog]]
+id = "b7"
+title = "PythonInterpreter, and the modules that need it"
+kind = "unscoped"
+detail = """
+dspy runs generated code in a Pyodide sandbox by shelling out to `deno run`. Deno is not a dspy
+dependency — it is a prerequisite a user installs — so a Rust port carries the same external
+requirement and std::process::Command does what subprocess does. Portable, in other words, and
+earlier notes calling it blocked were wrong.
+
+What it actually waits on is purpose: PythonInterpreter exists for rlm.py, code_act.py and
+program_of_thought.py. Port those and the interpreter comes with them; port the interpreter
+alone and nothing uses it. Size the three modules before scheduling any of it.
 """
 
 [[backlog]]
