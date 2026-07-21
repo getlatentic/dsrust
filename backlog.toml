@@ -574,9 +574,32 @@ And the request around it:
 
 which differs structurally from ours: `LmRequest` carries `system`/`turns`/`mode`/`sampling` and
 no model, where upstream carries the model, splits tools out as their own field, and expresses
-what our `OutputMode` says through `config.response_format`. Note also that `rollout_id` is *not*
-an `LMConfig` field at 3.3 — it would arrive through `extensions`, which is worth confirming
-before assuming our typed field still matches.
+what our `OutputMode` says through `config.response_format`. **Correction:** an earlier note here said `rollout_id` is not an `LMConfig` field at 3.3 and would
+arrive through `extensions`. That was wrong. `_KNOWN_CONFIG_KEYS` lists it explicitly, so it is
+recognised rather than overflowed.
+
+The two lists differ, and the difference is the interesting part. Sixteen recognised keys:
+
+    temperature, max_tokens, top_p, stop, n, logprobs, response_format, reasoning,
+    reasoning_effort, tool_choice, parallel_tool_calls, cache, rollout_id, prompt_cache,
+    prompt_cache_key, extensions
+
+Twelve declared fields:
+
+    temperature, max_tokens, top_p, stop, n, logprobs, response_format, reasoning,
+    tool_choice, cache, prompt_cache, extensions
+
+So four recognised keys are *not* fields — `reasoning_effort`, `parallel_tool_calls`,
+`rollout_id`, `prompt_cache_key`. They are input spellings folded into structured fields by the
+`_normalize_*` helpers before construction, which `extra="forbid"` then requires: an unfolded key
+would raise rather than attach. `reasoning_effort` demonstrably folds into `reasoning`, and
+`prompt_cache_key` into `prompt_cache`.
+
+**Unverified and worth reading before porting:** where `rollout_id` lands. `_normalize_cache_config`
+is the likely home, since cache-busting is the whole of what it does — which would mean upstream
+now models it as part of the cache configuration rather than as a flat sampling field, and this
+crate's typed top-level `rollout_id` is placed differently. Read `_normalize_cache_config` and
+`LMCacheConfig` before deciding.
 
 **The shape, and why it is not a straight port.** Upstream's config is untyped end to end —
 `**config` unannotated on `Predict`, `**kwargs` on `LM.__call__`, `{**self.kwargs, **kwargs}`
