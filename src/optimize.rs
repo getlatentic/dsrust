@@ -14,6 +14,7 @@
 //! teacher.
 
 mod bootstrap;
+mod earned;
 mod labeled;
 mod rng;
 

@@ -1,14 +1,13 @@
 //! dspy `BootstrapFewShot` (`teleprompt/bootstrap.py`): demos a program earned rather than
 //! demos it was handed.
 
-use std::collections::BTreeMap;
-
 use anyhow::{Result, anyhow};
 
 use crate::example::{Example, Prediction};
 use crate::module::Module;
 
 use super::Optimizer;
+use super::earned::{Bootstrapped, Solved};
 use super::labeled::LabeledFewShot;
 use super::rng::Rng;
 
@@ -63,55 +62,6 @@ pub struct BootstrapFewShot<M> {
     /// dspy reads `max_errors=None` off `dspy.settings.max_errors`, whose default is 10. There
     /// is no settings object here, so 10 is the default outright.
     pub max_errors: usize,
-}
-
-/// What one bootstrap pass produced.
-struct Bootstrapped {
-    /// dspy's `name2traces`: demos keyed by the predictor whose own calls earned them, so each
-    /// step of a pipeline is taught by its own successes rather than the program's.
-    ///
-    /// A predictor that never ran gets nothing, which is dspy initialising every name to an
-    /// empty list rather than to the program's demos.
-    per_predictor: BTreeMap<String, Vec<Example>>,
-    /// Demos for a program that recorded no trace at all, which every predictor then receives.
-    ///
-    /// [`Module::forward_traced`] may record nothing, and then there is no attribution to make.
-    /// For a program with one predictor the two are the same list anyway.
-    program: Vec<Example>,
-    /// dspy's `validation`: the trainset examples no round solved, shuffled.
-    validation: Vec<Example>,
-}
-
-/// What one solved example earned, before it is filed under a predictor.
-struct Solved {
-    /// The whole turn, used when nothing was traced.
-    program: Example,
-    /// dspy's `Example(augmented=True, **inputs, **outputs)` per traced call.
-    per_predictor: Vec<(String, Example)>,
-}
-
-impl Bootstrapped {
-    /// File one solved example's demos under the predictors that earned them.
-    ///
-    /// dspy collapses a predictor that traced more than once for a single example down to one
-    /// demo, choosing evenly between its last trace and a random earlier one. The choice is
-    /// seeded with `xxhash64(pickle.dumps(demos))`, and reproducing Python pickle bytes is not
-    /// something this port can do, so the last trace is taken instead. That agrees with upstream
-    /// whenever upstream's coin lands on the last trace, and a predictor called once per example
-    /// never reaches the branch at all.
-    fn file(&mut self, solved: Solved) {
-        if solved.per_predictor.is_empty() {
-            self.program.push(solved.program);
-            return;
-        }
-        let mut last: BTreeMap<String, Example> = BTreeMap::new();
-        for (predictor, demo) in solved.per_predictor {
-            last.insert(predictor, demo);
-        }
-        for (predictor, demo) in last {
-            self.per_predictor.entry(predictor).or_default().push(demo);
-        }
-    }
 }
 
 impl<M> BootstrapFewShot<M> {
@@ -186,11 +136,7 @@ where
             LabeledFewShot::new(self.max_labeled_demos).compile(teacher, trainset);
         }
 
-        let mut earned = Bootstrapped {
-            per_predictor: BTreeMap::new(),
-            program: Vec::new(),
-            validation: Vec::new(),
-        };
+        let mut earned = Bootstrapped::empty();
         let mut solved = vec![false; trainset.len()];
         let mut errors = 0;
         // dspy counts the examples it solved, not the demos they produced. With several
@@ -276,25 +222,12 @@ where
     }
 
     /// dspy `_train`: bootstrapped demos first, then labelled ones to fill the budget out.
-    fn train<S: Module + ?Sized>(&self, student: &mut S, bootstrapped: Bootstrapped) -> usize {
-        let Bootstrapped {
-            per_predictor,
-            program,
-            validation,
-        } = bootstrapped;
+    fn train<S: Module + ?Sized>(&self, student: &mut S, mut bootstrapped: Bootstrapped) -> usize {
         let mut rng = Rng::seeded(0);
-        let mut raw = validation;
+        let mut raw = std::mem::take(&mut bootstrapped.validation);
         let mut widest = 0;
         for predictor in student.named_predictors() {
-            // A traced program answers per predictor. An untraced one files everything under
-            // `program` instead, and the two are exclusive: nothing is filed both ways, so a
-            // predictor missing from a traced program falls through to an empty `program` and
-            // is taught by nothing — which is dspy starting every name at an empty list.
-            let earned = match per_predictor.get(&predictor.name) {
-                Some(earned) => earned.as_slice(),
-                None => program.as_slice(),
-            };
-            let augmented = &earned[..self.max_bootstrapped_demos.min(earned.len())];
+            let augmented = bootstrapped.earned(&predictor.name, self.max_bootstrapped_demos);
             widest = widest.max(augmented.len());
             // The bootstrapped demos are spent from the labelled budget, not added on top of it.
             let room = self.max_labeled_demos.saturating_sub(augmented.len());
