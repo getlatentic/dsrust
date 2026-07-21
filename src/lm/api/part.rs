@@ -210,12 +210,73 @@ pub enum LmPart {
     },
 }
 
+/// Upstream's `validate_source`: `source` and a media source are mutually exclusive, but a
+/// payload carrying `source` still spells the four media keys as nulls, so their presence is not
+/// what decides — only a non-null one is.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(try_from = "DocumentFields", into = "DocumentFields")]
 pub enum DocumentSource {
     Source(Metadata),
-    #[serde(untagged)]
     Media(LmSource),
+}
+
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+struct DocumentFields {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    data: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    file_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    path: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    source: Option<Metadata>,
+}
+
+impl TryFrom<DocumentFields> for DocumentSource {
+    type Error = String;
+
+    fn try_from(fields: DocumentFields) -> Result<Self, Self::Error> {
+        let media = SourceFields {
+            data: fields.data,
+            url: fields.url,
+            file_id: fields.file_id,
+            path: fields.path,
+        };
+        let has_media = LmSource::try_from(media.clone()).is_ok();
+        match fields.source {
+            Some(_) if has_media => {
+                Err("a document takes either source or one media source, not both".to_owned())
+            }
+            Some(source) if source.is_empty() => {
+                Err("a document's source must not be empty".to_owned())
+            }
+            Some(source) => Ok(Self::Source(source)),
+            None => LmSource::try_from(media).map(Self::Media),
+        }
+    }
+}
+
+impl From<DocumentSource> for DocumentFields {
+    fn from(source: DocumentSource) -> Self {
+        match source {
+            DocumentSource::Source(source) => Self {
+                source: Some(source),
+                ..Self::default()
+            },
+            DocumentSource::Media(media) => {
+                let media = SourceFields::from(media);
+                Self {
+                    data: media.data,
+                    url: media.url,
+                    file_id: media.file_id,
+                    path: media.path,
+                    source: None,
+                }
+            }
+        }
+    }
 }
 
 impl LmPart {

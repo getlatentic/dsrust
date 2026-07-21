@@ -1,0 +1,520 @@
+{
+  "source": "generated from dspy==3.3.0b1 via scripts/generate_lm_api_fixture.py",
+  "dspy_version": "3.3.0b1",
+  "entries": [
+    {
+      "rust": "LmPart",
+      "python": "LMTextPart",
+      "json": {
+        "type": "text",
+        "metadata": {},
+        "text": "plain"
+      }
+    },
+    {
+      "rust": "LmPart",
+      "python": "LMImagePart",
+      "json": {
+        "type": "image",
+        "metadata": {},
+        "media_type": "image/png",
+        "data": null,
+        "url": "https://example.com/a.jpg",
+        "file_id": null,
+        "path": null,
+        "detail": "high"
+      }
+    },
+    {
+      "rust": "LmPart",
+      "python": "LMAudioPart",
+      "json": {
+        "type": "audio",
+        "metadata": {},
+        "media_type": "audio/wav",
+        "data": "YQ==",
+        "url": null,
+        "file_id": null,
+        "path": null
+      }
+    },
+    {
+      "rust": "LmPart",
+      "python": "LMVideoPart",
+      "json": {
+        "type": "video",
+        "metadata": {},
+        "media_type": "video/mp4",
+        "data": null,
+        "url": "https://example.com/a.mp4",
+        "file_id": null,
+        "path": null
+      }
+    },
+    {
+      "rust": "LmPart",
+      "python": "LMBinaryPart",
+      "json": {
+        "type": "binary",
+        "metadata": {},
+        "media_type": "application/octet-stream",
+        "data": null,
+        "url": null,
+        "file_id": "f_1",
+        "path": null,
+        "filename": "a.pdf"
+      }
+    },
+    {
+      "rust": "LmPart",
+      "python": "LMDocumentPart",
+      "json": {
+        "type": "document",
+        "metadata": {},
+        "media_type": "application/pdf",
+        "data": null,
+        "url": null,
+        "file_id": null,
+        "path": null,
+        "source": {
+          "type": "text",
+          "data": "the contract"
+        },
+        "citations": {},
+        "title": "Contract",
+        "context": null
+      }
+    },
+    {
+      "rust": "LmPart",
+      "python": "LMToolCallPart",
+      "json": {
+        "type": "tool_call",
+        "metadata": {},
+        "id": "call_1",
+        "name": "search",
+        "args": {
+          "q": "Paris"
+        },
+        "provider_data": {}
+      }
+    },
+    {
+      "rust": "LmPart",
+      "python": "LMToolResultPart",
+      "json": {
+        "type": "tool_result",
+        "metadata": {},
+        "call_id": "call_1",
+        "name": "search",
+        "content": [
+          {
+            "type": "text",
+            "metadata": {},
+            "text": "42"
+          }
+        ],
+        "is_error": false,
+        "provider_data": {}
+      }
+    },
+    {
+      "rust": "LmPart",
+      "python": "LMThinkingPart",
+      "json": {
+        "type": "thinking",
+        "metadata": {},
+        "text": "hmm",
+        "redacted": false
+      }
+    },
+    {
+      "rust": "LmPart",
+      "python": "LMCitationPart",
+      "json": {
+        "type": "citation",
+        "metadata": {},
+        "text": "the quote",
+        "title": "The Paper",
+        "url": "https://example.com"
+      }
+    },
+    {
+      "rust": "LmPart",
+      "python": "LMRefusalPart",
+      "json": {
+        "type": "refusal",
+        "metadata": {},
+        "text": "no"
+      }
+    },
+    {
+      "rust": "LmMessage",
+      "python": "LMMessage",
+      "json": {
+        "role": "user",
+        "parts": [
+          {
+            "type": "text",
+            "metadata": {},
+            "text": "Why?"
+          },
+          {
+            "type": "image",
+            "metadata": {},
+            "media_type": "image/png",
+            "data": null,
+            "url": "https://example.com/a.jpg",
+            "file_id": null,
+            "path": null,
+            "detail": "high"
+          }
+        ],
+        "name": null,
+        "metadata": {}
+      }
+    },
+    {
+      "rust": "LmToolSpec",
+      "python": "LMToolSpec",
+      "json": {
+        "type": "function",
+        "name": "search",
+        "description": "look things up",
+        "parameters": {
+          "type": "object"
+        },
+        "metadata": {},
+        "provider_data": {}
+      }
+    },
+    {
+      "rust": "LmReasoningConfig",
+      "python": "LMReasoningConfig",
+      "json": {
+        "effort": "high",
+        "max_tokens": 512,
+        "summary": "concise"
+      }
+    },
+    {
+      "rust": "LmToolChoice",
+      "python": "LMToolChoice",
+      "json": {
+        "mode": "required",
+        "allowed": [
+          "search"
+        ],
+        "parallel": false
+      }
+    },
+    {
+      "rust": "LmCacheConfig",
+      "python": "LMCacheConfig",
+      "json": {
+        "enabled": true,
+        "rollout_id": 7
+      }
+    },
+    {
+      "rust": "LmCacheConfig",
+      "python": "LMCacheConfig",
+      "json": {
+        "enabled": null,
+        "rollout_id": "attempt-two"
+      }
+    },
+    {
+      "rust": "LmPromptCacheConfig",
+      "python": "LMPromptCacheConfig",
+      "json": {
+        "enabled": true,
+        "key": "k"
+      }
+    },
+    {
+      "rust": "LmConfig",
+      "python": "LMConfig",
+      "json": {
+        "temperature": 0.7,
+        "max_tokens": 100,
+        "top_p": 0.9,
+        "stop": [
+          "\n\n"
+        ],
+        "n": 2,
+        "logprobs": 5,
+        "response_format": null,
+        "reasoning": {
+          "effort": "high",
+          "max_tokens": null,
+          "summary": null
+        },
+        "tool_choice": {
+          "mode": "auto",
+          "allowed": null,
+          "parallel": false
+        },
+        "cache": {
+          "enabled": null,
+          "rollout_id": 3
+        },
+        "prompt_cache": {
+          "enabled": null,
+          "key": "k"
+        },
+        "extensions": {
+          "anthropic_beta": "tools-2024"
+        }
+      }
+    },
+    {
+      "rust": "LmOutput",
+      "python": "LMOutput",
+      "json": {
+        "parts": [
+          {
+            "type": "text",
+            "metadata": {},
+            "text": "Paris"
+          }
+        ],
+        "finish_reason": "stop",
+        "truncated": false,
+        "logprobs": null,
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "rust": "LmResponse",
+      "python": "LMResponse",
+      "json": {
+        "model": "openai/gpt-4o",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "Paris"
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 4,
+          "total_tokens": 14,
+          "prompt_tokens": 10,
+          "completion_tokens": 4,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": 0.002,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "rust": "LmRequest",
+      "python": "LMRequest",
+      "json": {
+        "model": "openai/gpt-4o",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "Why?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "search",
+            "description": null,
+            "parameters": {},
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": 0.7,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      }
+    },
+    {
+      "rust": "LmUsage",
+      "python": "LMUsage",
+      "json": {
+        "input_tokens": 10,
+        "output_tokens": 4,
+        "total_tokens": 14,
+        "prompt_tokens": 10,
+        "completion_tokens": 4,
+        "reasoning_tokens": 2,
+        "cache_read_tokens": null,
+        "cache_write_tokens": null,
+        "input_audio_tokens": null,
+        "output_audio_tokens": null,
+        "details": {}
+      }
+    },
+    {
+      "rust": "LmDelta",
+      "python": "LMTextDelta",
+      "json": {
+        "type": "text_delta",
+        "text": "Par"
+      }
+    },
+    {
+      "rust": "LmDelta",
+      "python": "LMThinkingDelta",
+      "json": {
+        "type": "thinking_delta",
+        "text": "hmm"
+      }
+    },
+    {
+      "rust": "LmDelta",
+      "python": "LMToolCallDelta",
+      "json": {
+        "type": "tool_call_delta",
+        "id": "call_1",
+        "name": "search",
+        "args_delta": "{\"q\""
+      }
+    },
+    {
+      "rust": "LmDelta",
+      "python": "LMCitationDelta",
+      "json": {
+        "type": "citation_delta",
+        "citation": {
+          "type": "citation",
+          "metadata": {},
+          "text": "the quote",
+          "title": "The Paper",
+          "url": "https://example.com"
+        }
+      }
+    },
+    {
+      "rust": "LmDelta",
+      "python": "LMImageDelta",
+      "json": {
+        "type": "image_delta",
+        "image": {
+          "type": "image",
+          "metadata": {},
+          "media_type": "image/png",
+          "data": null,
+          "url": "https://example.com/a.jpg",
+          "file_id": null,
+          "path": null,
+          "detail": "high"
+        }
+      }
+    },
+    {
+      "rust": "LmDelta",
+      "python": "LMAudioDelta",
+      "json": {
+        "type": "audio_delta",
+        "audio": {
+          "type": "audio",
+          "metadata": {},
+          "media_type": "audio/wav",
+          "data": "YQ==",
+          "url": null,
+          "file_id": null,
+          "path": null
+        }
+      }
+    },
+    {
+      "rust": "LmStreamEvent",
+      "python": "LMStreamStartEvent",
+      "json": {
+        "type": "start",
+        "model": "openai/gpt-4o"
+      }
+    },
+    {
+      "rust": "LmStreamEvent",
+      "python": "LMStreamDeltaEvent",
+      "json": {
+        "type": "delta",
+        "output_index": 0,
+        "part_index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "Par"
+        }
+      }
+    },
+    {
+      "rust": "LmStreamEvent",
+      "python": "LMStreamOutputEndEvent",
+      "json": {
+        "type": "output_end",
+        "output_index": 0,
+        "finish_reason": "stop",
+        "truncated": false
+      }
+    },
+    {
+      "rust": "LmStreamEvent",
+      "python": "LMStreamEndEvent",
+      "json": {
+        "type": "end",
+        "usage": {
+          "input_tokens": 1,
+          "output_tokens": 1,
+          "total_tokens": 2,
+          "prompt_tokens": 1,
+          "completion_tokens": 1,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": 0.001,
+        "response": null
+      }
+    }
+  ]
+}

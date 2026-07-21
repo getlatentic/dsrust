@@ -299,9 +299,13 @@ async fn a_refused_call_carries_the_status_and_the_services_own_message() {
 /// No stub: the call must fail on the missing credential before anything is sent.
 #[tokio::test]
 async fn a_missing_key_names_the_variable_the_endpoint_was_told_to_read() {
+    // Not about the cache, and asking through it would initialise the process-global one before
+    // the cache test can point it at a scratch directory — which is a race, since the two run
+    // on different threads.
     let lm = LM::new("openai/llama-3.3-70b")
         .expect("valid model ref")
-        .with_openai_key_env("DSRS_TEST_KEY_THAT_IS_NOT_SET");
+        .with_openai_key_env("DSRS_TEST_KEY_THAT_IS_NOT_SET")
+        .without_cache();
     let error = ask(&lm, &OutputMode::Text)
         .await
         .expect_err("no credential is configured");
