@@ -278,10 +278,31 @@ against a thread pool, and it doubles a model call to buy it.
 [[sprint]]
 id = "s12"
 name = "A request, and a model that answers it"
-state = "next"
+state = "done"
+shipped = "2026-07-21"
 outcome = """
 What a module asks for and what comes back are values, so an attempt can differ from the one
 before it and a caller can say what a single call should do.
+"""
+state_note = """
+Both halves shipped. `LmRequest` carries system, turns, mode and a `Sampling`; `LmResponse`
+carries text, usage, cache_hit and provider_data. All three providers send the sampling on the key
+their own format names and read their own usage counters back onto one `Usage`, and a `Prediction`
+reports what every call behind it cost — a fallback and a feedback retry included, since a
+`forward` bills up to four.
+
+Four of upstream's fields are deliberately absent, each because this seam cannot carry it rather
+than to save work. Request: `n` (chat answers with one completion, so several could only be billed
+and discarded) and `rollout_id` (upstream varies it to miss its own cache and drops it before the
+provider call; there is no cache here, so a value that never reaches a wire changes nothing).
+Response: `outputs`, which holds the *parsed* fields an adapter produces from text — this seam sits
+below every adapter, so a field here could only ever be empty. `cache_hit` is present and always
+false: it reports a fact rather than asking a caller to supply one, which is the distinction that
+keeps it honest while `rollout_id` would not have been.
+
+b2 is not closed by this. `Predict::with_sampling` reaches one module, but a compile cannot set
+sampling on every predictor in a program, so `max_rounds` still cannot force a different answer.
+That last step is an API decision, recorded under Open decisions in HANDOFF.md.
 """
 rationale = """
 b2 is half built: a module can be given its own model, and nothing can make two models disagree.

@@ -1,4 +1,5 @@
 mod anthropic;
+mod call;
 pub mod dummy;
 pub mod global;
 mod ollama;
@@ -10,6 +11,7 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
+pub use call::{LmRequest, LmResponse, Sampling, Usage};
 pub use global::{configure, configure_with_client};
 pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig};
 pub use token_limit::{TokenLimitField, TokenLimitRule};
@@ -147,55 +149,6 @@ pub enum OutputMode<'a> {
     Json { schema: &'a Value },
 }
 
-/// How a model should sample its reply.
-///
-/// dspy is normalising these onto a request rather than onto a model, because they belong to one
-/// call: the same model answers twice and the two attempts differ only here. That is what lets
-/// `BestOfN` mean anything and what lets a bootstrap round after the first not repeat itself.
-///
-/// Two of upstream's fields are deliberately absent, both because this seam cannot carry them.
-/// `n`: [`ChatModel::chat`] answers with one completion, so asking for several could only ever
-/// be billed and then discarded — asking for many is a change of return type, not a field.
-/// `rollout_id`: upstream varies it to miss *its own* response cache and drops it before the
-/// provider call, so it never reaches a wire. There is no cache here, which leaves nothing for
-/// it to change; what makes a re-ask differ is `temperature`. It earns a field when a cache
-/// lands and needs a key to vary.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Sampling {
-    /// Unset leaves each provider on the default it is already sent.
-    pub temperature: Option<f64>,
-    pub max_tokens: Option<u32>,
-}
-
-/// One call: what to say, what shape to say it in, and how to sample the reply.
-///
-/// dspy's `LMRequest`, which its normalised API takes in place of loose keyword arguments. A
-/// request travelling as a value is also why no ambient state is needed to override a model for
-/// one call — `dspy.context` scopes a ContextVar to do the same thing.
-pub struct LmRequest<'a> {
-    pub system: &'a str,
-    pub turns: &'a [ChatTurn],
-    pub mode: OutputMode<'a>,
-    pub sampling: Sampling,
-}
-
-impl<'a> LmRequest<'a> {
-    /// One call at the provider's own defaults.
-    pub fn new(system: &'a str, turns: &'a [ChatTurn], mode: OutputMode<'a>) -> Self {
-        Self {
-            system,
-            turns,
-            mode,
-            sampling: Sampling::default(),
-        }
-    }
-
-    pub fn sampled(mut self, sampling: Sampling) -> Self {
-        self.sampling = sampling;
-        self
-    }
-}
-
 /// The raw model call behind every adapter — the one seam unit tests script with canned
 /// replies while production speaks to real providers through [`LM`].
 /// The object-safe form of [`ChatModel`], so a model can be stored behind a pointer.
@@ -209,7 +162,7 @@ pub trait DynChatModel: Send + Sync {
         &'a self,
         http: &'a reqwest::Client,
         request: &'a LmRequest<'a>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>>;
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>>;
 }
 
 impl<T: ChatModel + Send + Sync> DynChatModel for T {
@@ -217,7 +170,7 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
         &'a self,
         http: &'a reqwest::Client,
         request: &'a LmRequest<'a>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>> {
         Box::pin(self.chat(http, request))
     }
 }
@@ -227,7 +180,7 @@ pub trait ChatModel {
         &'a self,
         http: &'a reqwest::Client,
         request: &'a LmRequest<'a>,
-    ) -> impl Future<Output = Result<String>> + Send + 'a;
+    ) -> impl Future<Output = Result<LmResponse>> + Send + 'a;
 }
 
 /// One configured language model: a model reference plus the credentials and hosts its
@@ -312,7 +265,7 @@ fn env_nonempty(key: &str) -> Option<String> {
 }
 
 impl ChatModel for LM {
-    async fn chat(&self, http: &reqwest::Client, request: &LmRequest<'_>) -> Result<String> {
+    async fn chat(&self, http: &reqwest::Client, request: &LmRequest<'_>) -> Result<LmResponse> {
         match self.model.provider {
             Provider::Anthropic => {
                 anthropic::chat(

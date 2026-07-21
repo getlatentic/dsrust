@@ -144,7 +144,15 @@ set transiently for a round — so a separate walk (`Module::set_sampling`, say)
 shape. `NamedPredictor` is re-exported from the crate root and every caller-written `Module` and
 every `#[derive(Module)]` expansion satisfies it, so the choice is not free to revisit.
 
-Upstream's `rollout_id` is deliberately absent from `Sampling`; the reasoning is on the struct.
+Four of upstream's request/response fields are deliberately absent — `n`, `rollout_id`, `outputs`,
+and only those. Each reasoning is on the type that would have carried it, in `src/lm/call.rs`. They
+look like oversights and are not; read the doc comment before adding one back.
+
+**Usage on the typed paths.** `Prediction` reports what a call cost, so the value-level paths carry
+it. `Predict::call_typed` and the derived-task paths answer with the caller's own struct instead,
+which leaves nowhere for a `Usage` to go — `typed_pairs` drops it explicitly. Surfacing it there
+means either a wrapper type around the caller's struct or an out-parameter, and both are worse than
+the gap until something actually needs the number on that path.
 
 **BAML record provenance.** dspy branches on `isinstance(value, BaseModel)`; we branch on the
 field's declared type. They agree whenever a value matches its declaration. Closing the gap means

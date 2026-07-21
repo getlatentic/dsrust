@@ -7,7 +7,7 @@
 use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
-use super::{LmRequest, OutputMode, PROVIDER_TIMEOUT, turn_json};
+use super::{LmRequest, LmResponse, OutputMode, PROVIDER_TIMEOUT, Usage, turn_json};
 
 const MESSAGES_URL: &str = "https://api.anthropic.com/v1/messages";
 
@@ -19,7 +19,7 @@ pub(super) async fn chat(
     model: &str,
     api_key: Option<&str>,
     call: &LmRequest<'_>,
-) -> Result<String> {
+) -> Result<LmResponse> {
     let key = api_key.ok_or_else(|| anyhow!("ANTHROPIC_API_KEY is not set"))?;
     let response = http
         .post(MESSAGES_URL)
@@ -58,7 +58,7 @@ fn request(model: &str, call: &LmRequest<'_>) -> Value {
 /// The first text block, or the message Anthropic itself gave for refusing the call. A reply
 /// carrying only non-text blocks stands in as an empty object, which the JSON adapters parse
 /// into a missing-field error rather than a panic.
-fn reply(status: reqwest::StatusCode, body: &Value) -> Result<String> {
+fn reply(status: reqwest::StatusCode, body: &Value) -> Result<LmResponse> {
     if !status.is_success() {
         let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
         return Err(anyhow!("anthropic {status}: {detail}"));
@@ -72,7 +72,28 @@ fn reply(status: reqwest::StatusCode, body: &Value) -> Result<String> {
                 .and_then(|block| block["text"].as_str())
         })
         .unwrap_or("{}");
-    Ok(text.to_owned())
+    Ok(LmResponse::text(text)
+        .with_usage(usage(&body["usage"]))
+        .with_provider_data(provider_data(body)))
+}
+
+/// Anthropic's cache counters are charged separately from `input_tokens`, so a cached call whose
+/// prompt tokens were all read from cache reports zero input without being free.
+fn usage(usage: &Value) -> Option<Usage> {
+    let count = |key: &str| usage[key].as_u64().unwrap_or(0) as u32;
+    let input = count("input_tokens") + count("cache_creation_input_tokens");
+    let output = count("output_tokens");
+    (usage.is_object() && (input > 0 || output > 0)).then_some(Usage {
+        input_tokens: input + count("cache_read_input_tokens"),
+        output_tokens: output,
+    })
+}
+
+/// Why generation stopped, which is the one thing here a caller acts on: `max_tokens` means the
+/// reply was cut off, so a parse failure is a budget problem rather than a prompt problem.
+fn provider_data(body: &Value) -> Option<Value> {
+    let stop_reason = body["stop_reason"].as_str()?;
+    Some(json!({ "stop_reason": stop_reason }))
 }
 
 #[cfg(test)]
@@ -128,8 +149,58 @@ mod tests {
             { "type": "text", "text": "the reply" },
         ]});
         assert_eq!(
-            reply(reqwest::StatusCode::OK, &body).expect("a text block"),
+            reply(reqwest::StatusCode::OK, &body)
+                .expect("a text block")
+                .text,
             "the reply"
         );
+    }
+
+    /// Anthropic charges cache reads and cache writes on their own counters, so a caller adding
+    /// up `input_tokens` alone would under-report a prompt that was mostly cached.
+    #[test]
+    fn every_input_counter_is_charged_to_the_input_total() {
+        let body = json!({
+            "content": [{ "type": "text", "text": "hi" }],
+            "usage": {
+                "input_tokens": 10,
+                "cache_creation_input_tokens": 4,
+                "cache_read_input_tokens": 100,
+                "output_tokens": 7,
+            },
+        });
+        let usage = reply(reqwest::StatusCode::OK, &body)
+            .expect("a reply")
+            .usage
+            .expect("a usage block");
+        assert_eq!(usage.input_tokens, 114);
+        assert_eq!(usage.output_tokens, 7);
+    }
+
+    /// A provider that reported nothing must not read as a call that cost nothing.
+    #[test]
+    fn a_reply_with_no_usage_block_reports_none() {
+        let body = json!({ "content": [{ "type": "text", "text": "hi" }] });
+        assert_eq!(
+            reply(reqwest::StatusCode::OK, &body)
+                .expect("a reply")
+                .usage,
+            None
+        );
+    }
+
+    /// The one field a caller acts on: a reply cut off at the cap failed for a reason the prompt
+    /// cannot fix.
+    #[test]
+    fn the_stop_reason_survives_as_provider_data() {
+        let body = json!({
+            "content": [{ "type": "text", "text": "hi" }],
+            "stop_reason": "max_tokens",
+        });
+        let data = reply(reqwest::StatusCode::OK, &body)
+            .expect("a reply")
+            .provider_data
+            .expect("a stop reason");
+        assert_eq!(data["stop_reason"], "max_tokens");
     }
 }

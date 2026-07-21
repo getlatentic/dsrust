@@ -7,7 +7,9 @@ use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
 use super::token_limit::TokenLimitRule;
-use super::{LmRequest, OutputMode, PROVIDER_TIMEOUT, env_nonempty, wire_messages};
+use super::{
+    LmRequest, LmResponse, OutputMode, PROVIDER_TIMEOUT, Usage, env_nonempty, wire_messages,
+};
 
 /// OpenAI's own endpoint, and the value every other service replaces.
 pub const DEFAULT_OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
@@ -137,7 +139,7 @@ impl<'a> Endpoint<'a> {
         http: &reqwest::Client,
         model: &str,
         call: &LmRequest<'_>,
-    ) -> Result<String> {
+    ) -> Result<LmResponse> {
         let key = self
             .api_key
             .ok_or_else(|| anyhow!("{} is not set", self.key_var))?;
@@ -202,15 +204,36 @@ fn response_format(schema: &Value, json_format: JsonFormat) -> Value {
 }
 
 /// The reply text, or the message the service itself gave for refusing the call.
-fn reply(label: &str, status: reqwest::StatusCode, body: &Value) -> Result<String> {
+fn reply(label: &str, status: reqwest::StatusCode, body: &Value) -> Result<LmResponse> {
     if !status.is_success() {
         let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
         return Err(anyhow!("{label} {status}: {detail}"));
     }
-    body["choices"][0]["message"]["content"]
+    let text = body["choices"][0]["message"]["content"]
         .as_str()
-        .map(str::to_owned)
-        .with_context(|| format!("{label} returned no content"))
+        .with_context(|| format!("{label} returned no content"))?;
+    Ok(LmResponse::text(text)
+        .with_usage(usage(&body["usage"]))
+        .with_provider_data(provider_data(body)))
+}
+
+/// `prompt_tokens` already includes whatever was read from cache here, unlike Anthropic's split
+/// counters, so the two fields are the whole of it.
+fn usage(usage: &Value) -> Option<Usage> {
+    let input = usage["prompt_tokens"].as_u64();
+    let output = usage["completion_tokens"].as_u64();
+    (input.is_some() || output.is_some()).then(|| Usage {
+        input_tokens: input.unwrap_or(0) as u32,
+        output_tokens: output.unwrap_or(0) as u32,
+    })
+}
+
+/// `finish_reason` is this format's name for why generation stopped — `length` where Anthropic
+/// says `max_tokens`. It is left under the name the service used rather than translated, because
+/// a caller reading it is already reading one provider's vocabulary.
+fn provider_data(body: &Value) -> Option<Value> {
+    let finish_reason = body["choices"][0]["finish_reason"].as_str()?;
+    Some(json!({ "finish_reason": finish_reason }))
 }
 
 #[cfg(test)]
@@ -434,8 +457,40 @@ mod tests {
     fn a_reply_is_read_from_the_first_choice() {
         let body = json!({ "choices": [{ "message": { "content": "hello" } }] });
         assert_eq!(
-            reply("openai", reqwest::StatusCode::OK, &body).expect("a reply"),
+            reply("openai", reqwest::StatusCode::OK, &body)
+                .expect("a reply")
+                .text,
             "hello"
+        );
+    }
+
+    /// This format names its counts for the two halves of the call rather than for the tokens,
+    /// and `prompt_tokens` is already the whole input — unlike Anthropic's split counters.
+    #[test]
+    fn the_prompt_and_completion_counts_become_the_shared_usage() {
+        let body = json!({
+            "choices": [{ "message": { "content": "hello" }, "finish_reason": "length" }],
+            "usage": { "prompt_tokens": 26, "completion_tokens": 298, "total_tokens": 324 },
+        });
+        let answered = reply("openai", reqwest::StatusCode::OK, &body).expect("a reply");
+        let usage = answered.usage.expect("counts");
+        assert_eq!(usage.input_tokens, 26);
+        assert_eq!(usage.output_tokens, 298);
+        assert_eq!(usage.total(), 324, "the service's own total agrees");
+        assert_eq!(
+            answered.provider_data.expect("a finish reason")["finish_reason"],
+            "length"
+        );
+    }
+
+    #[test]
+    fn a_reply_reporting_no_counts_reports_no_usage() {
+        let body = json!({ "choices": [{ "message": { "content": "hello" } }] });
+        assert_eq!(
+            reply("openai", reqwest::StatusCode::OK, &body)
+                .expect("a reply")
+                .usage,
+            None
         );
     }
 

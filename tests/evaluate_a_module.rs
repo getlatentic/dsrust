@@ -9,7 +9,7 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use anyhow::Result;
-use dsrs::lm::{ChatModel, LmRequest};
+use dsrs::lm::{ChatModel, LmRequest, LmResponse};
 use dsrs::signature::{OutField, Signature};
 use dsrs::{Evaluate, Example, Prediction, exact_match, example};
 use serde_json::json;
@@ -28,11 +28,12 @@ impl Scripted {
 }
 
 impl ChatModel for Scripted {
-    async fn chat(&self, _http: &reqwest::Client, _request: &LmRequest<'_>) -> Result<String> {
+    async fn chat(&self, _http: &reqwest::Client, _request: &LmRequest<'_>) -> Result<LmResponse> {
         self.replies
             .lock()
             .expect("not poisoned")
             .pop_front()
+            .map(LmResponse::text)
             .ok_or_else(|| anyhow::anyhow!("the script ran out of replies"))
     }
 }

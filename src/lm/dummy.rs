@@ -14,7 +14,7 @@ use serde_json::Value;
 
 use crate::adapter::python_json::format_value;
 use crate::example::Example;
-use crate::lm::{ChatModel, ChatTurn, LmRequest, OutputMode, Sampling};
+use crate::lm::{ChatModel, ChatTurn, LmRequest, LmResponse, OutputMode, Sampling};
 
 /// What the model was asked, kept so a test can assert on the prompt it produced.
 #[derive(Debug, Clone)]
@@ -138,7 +138,7 @@ impl ChatModel for DummyLM {
         &'a self,
         _http: &'a reqwest::Client,
         request: &'a LmRequest<'a>,
-    ) -> impl Future<Output = Result<String>> + Send + 'a {
+    ) -> impl Future<Output = Result<LmResponse>> + Send + 'a {
         let (system, turns, mode) = (request.system, request.turns, &request.mode);
         let json_mode = matches!(mode, OutputMode::Json { .. });
         let asked = Asked {
@@ -151,10 +151,12 @@ impl ChatModel for DummyLM {
         self.asked.lock().expect("not poisoned").push(asked);
         async move {
             let answer = self.choose(&request)?;
-            Ok(match json_mode {
+            // No usage: a scripted answer had no cost, and reporting zero would let a test
+            // assert a total that no provider produced.
+            Ok(LmResponse::text(match json_mode {
                 true => as_json_reply(&answer),
                 false => as_marker_reply(&answer),
-            })
+            }))
         }
     }
 }
@@ -169,6 +171,7 @@ mod tests {
             &reqwest::Client::new(),
             &LmRequest::new("system", &[ChatTurn::user(message)], OutputMode::Text),
         ))
+        .map(|answered| answered.text)
     }
 
     /// The dummy never awaits anything real, so a trivial executor keeps these tests
@@ -246,7 +249,8 @@ mod tests {
             ),
         ))
         .unwrap();
-        assert_eq!(reply, r#"{"answer":"red"}"#);
+        assert_eq!(reply.text, r#"{"answer":"red"}"#);
+        assert_eq!(reply.usage, None, "a scripted answer cost nothing to make");
     }
 
     #[test]

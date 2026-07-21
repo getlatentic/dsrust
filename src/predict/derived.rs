@@ -68,7 +68,13 @@ pub(crate) async fn typed_pairs<S: SignatureSpec, P>(
     pairs: Vec<(&str, Value)>,
     shape: fn(Value) -> Value,
 ) -> Result<S::Outputs> {
-    let Validated { raw, value } = predict.call_with_inputs(http, lm, &pairs).await?;
+    // A typed call answers with the caller's own struct, so there is nowhere here for what it
+    // cost to go. Usage is readable on the value-level paths, which answer with a `Prediction`.
+    let Validated {
+        raw,
+        value,
+        usage: _,
+    } = predict.call_with_inputs(http, lm, &pairs).await?;
     let error = match typed::<S::Outputs>(shape(value)) {
         Ok(outputs) => return Ok(outputs),
         Err(error) => error,
@@ -78,7 +84,7 @@ pub(crate) async fn typed_pairs<S: SignatureSpec, P>(
         previous: raw,
         error: format!("{error:#}"),
     };
-    let (_, value) = predict.feedback_ask(http, lm, &pairs, &feedback).await?;
+    let (_, value, _) = predict.feedback_ask(http, lm, &pairs, &feedback).await?;
     typed(shape(value))
 }
 

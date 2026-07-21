@@ -10,7 +10,7 @@
 
 use dsrs::adapter::parse::FieldMismatch;
 use dsrs::adapter::xml::XmlAdapter;
-use dsrs::lm::{DynChatModel, LmRequest};
+use dsrs::lm::{DynChatModel, LmRequest, LmResponse};
 use dsrs::signature::{
     FieldKind, InField, JsonType, LiteralValue, OutField, Signature, TypeDescription,
 };
@@ -30,7 +30,7 @@ impl DynChatModel for NotOnThisSide {
         &'a self,
         _http: &'a reqwest::Client,
         _request: &'a LmRequest<'a>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<String>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<LmResponse>> + Send + 'a>> {
         Box::pin(async {
             Err(anyhow::anyhow!(
                 "the bridge does not call models; Python runs the extraction"

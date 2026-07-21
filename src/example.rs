@@ -11,6 +11,8 @@ use std::collections::BTreeSet;
 use anyhow::{Result, anyhow};
 use serde_json::Value;
 
+use crate::lm::Usage;
+
 use crate::adapter::python_json::format_value;
 
 /// One labelled example: field values, plus which of those fields are inputs.
@@ -170,6 +172,13 @@ pub struct Prediction {
     pub example: Example,
     /// The model's reply exactly as it arrived, before parsing.
     pub raw: String,
+    /// What every call behind this answer cost together, or nothing when no model reported it —
+    /// which is what a scripted model reports, and what a provider omitting the block reports.
+    ///
+    /// dspy reaches the same number through `Prediction.get_lm_usage()`, filled only while
+    /// `track_usage` is set. It is unconditional here because it arrives on the response either
+    /// way, so there is no setting for it to be switched off by and no ambient state to read.
+    pub usage: Option<Usage>,
 }
 
 impl Prediction {
@@ -177,7 +186,14 @@ impl Prediction {
         Self {
             example,
             raw: raw.into(),
+            usage: None,
         }
+    }
+
+    /// What the calls behind this answer cost.
+    pub fn with_usage(mut self, usage: Option<Usage>) -> Self {
+        self.usage = usage;
+        self
     }
 
     pub fn get(&self, name: &str) -> Option<&Value> {

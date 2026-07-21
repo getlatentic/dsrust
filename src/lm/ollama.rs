@@ -6,7 +6,7 @@
 use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
-use super::{LmRequest, OutputMode, PROVIDER_TIMEOUT, wire_messages};
+use super::{LmRequest, LmResponse, OutputMode, PROVIDER_TIMEOUT, Usage, wire_messages};
 
 /// ollama samples at 0.8 when told nothing, which is loose for a program parsing the reply
 /// back into fields.
@@ -17,7 +17,7 @@ pub(super) async fn chat(
     model: &str,
     host: &str,
     call: &LmRequest<'_>,
-) -> Result<String> {
+) -> Result<LmResponse> {
     let response = http
         .post(format!("{host}/api/chat"))
         .timeout(PROVIDER_TIMEOUT)
@@ -32,10 +32,34 @@ pub(super) async fn chat(
         .json()
         .await
         .context("ollama response was not JSON")?;
-    body["message"]["content"]
+    reply(&body)
+}
+
+fn reply(body: &Value) -> Result<LmResponse> {
+    let text = body["message"]["content"]
         .as_str()
-        .map(str::to_owned)
-        .context("ollama returned no content")
+        .context("ollama returned no content")?;
+    Ok(LmResponse::text(text)
+        .with_usage(usage(body))
+        .with_provider_data(provider_data(body)))
+}
+
+/// ollama counts at the top level rather than under a usage object, and names the two counts
+/// after the passes that produce them.
+fn usage(body: &Value) -> Option<Usage> {
+    let input = body["prompt_eval_count"].as_u64();
+    let output = body["eval_count"].as_u64();
+    (input.is_some() || output.is_some()).then(|| Usage {
+        input_tokens: input.unwrap_or(0) as u32,
+        output_tokens: output.unwrap_or(0) as u32,
+    })
+}
+
+/// ollama's own name for why generation stopped, which is `length` when the reply hit
+/// `num_predict`.
+fn provider_data(body: &Value) -> Option<Value> {
+    let done_reason = body["done_reason"].as_str()?;
+    Some(json!({ "done_reason": done_reason }))
 }
 
 fn request(model: &str, call: &LmRequest<'_>) -> Value {
@@ -96,5 +120,38 @@ mod tests {
         );
         assert_eq!(body.get("num_predict"), None);
         assert_eq!(body.get("max_tokens"), None);
+    }
+
+    /// ollama names its counts after the passes that produce them and puts them at the top
+    /// level, so nothing about reading them looks like the other two providers.
+    #[test]
+    fn the_eval_counts_become_the_shared_usage() {
+        let body = json!({
+            "message": { "content": "the reply" },
+            "prompt_eval_count": 26,
+            "eval_count": 298,
+            "done_reason": "length",
+        });
+        let answered = reply(&body).expect("a reply");
+        assert_eq!(answered.text, "the reply");
+        let usage = answered.usage.expect("counts");
+        assert_eq!(usage.input_tokens, 26);
+        assert_eq!(usage.output_tokens, 298);
+        assert_eq!(
+            answered.provider_data.expect("a done reason")["done_reason"],
+            "length"
+        );
+    }
+
+    #[test]
+    fn a_reply_reporting_no_counts_reports_no_usage() {
+        let body = json!({ "message": { "content": "the reply" } });
+        assert_eq!(reply(&body).expect("a reply").usage, None);
+    }
+
+    #[test]
+    fn a_reply_carrying_no_content_is_an_error() {
+        let error = reply(&json!({ "message": {} })).expect_err("no content");
+        assert!(error.to_string().contains("no content"));
     }
 }

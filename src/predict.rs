@@ -7,7 +7,7 @@ use serde_json::Value;
 use crate::adapter::parse::FieldMismatch;
 use crate::adapter::{Adapter, ChatAdapter, Extraction, Feedback, turns_for};
 use crate::example::{Example, Prediction};
-use crate::lm::{DynChatModel, LmRequest, Sampling, global};
+use crate::lm::{DynChatModel, LmRequest, LmResponse, Sampling, Usage, global};
 use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::{Signature, SignatureSpec};
 
@@ -67,6 +67,9 @@ pub struct Dynamic;
 struct Validated {
     raw: String,
     value: Value,
+    /// What every call behind this one cost together — a fallback and a feedback retry each add
+    /// their own, so the accepted reply carries the whole exchange rather than its last ask.
+    usage: Option<Usage>,
 }
 
 impl<S> Predict<S> {
@@ -197,7 +200,7 @@ impl<S> Predict<S> {
         lm: &dyn DynChatModel,
         inputs: &[(&str, Value)],
         feedback: Option<&Feedback>,
-    ) -> Result<String> {
+    ) -> Result<LmResponse> {
         let schema = self.signature.schema();
         let (system, opening) = adapter.format(&self.signature, &self.demos, inputs)?;
         let mode = adapter.output_mode(&schema);
@@ -215,7 +218,7 @@ impl<S> Predict<S> {
         lm: &dyn DynChatModel,
         inputs: &[(&str, Value)],
         feedback: Option<&Feedback>,
-    ) -> Result<String> {
+    ) -> Result<LmResponse> {
         self.ask_through(self.adapter.as_ref(), http, lm, inputs, feedback)
             .await
     }
@@ -229,14 +232,16 @@ impl<S> Predict<S> {
         // dspy's ChatAdapter catches a parse failure and re-asks the whole exchange through
         // the JSON adapter; `use_json_adapter_fallback` turns that off. The adapter states the
         // policy, this module carries it out, because only the module can call the model.
-        let raw = self.ask(http, lm, inputs, None).await?;
+        let answered = self.ask(http, lm, inputs, None).await?;
+        let usage = answered.usage;
+        let raw = answered.text;
         // An adapter that answers in prose has a second model read the fields out of it. The
         // adapter says what to ask and who to ask; only this module can do the asking.
         if let Some(extraction) = self.adapter.extraction(&self.signature) {
-            return self.extract(http, extraction, raw).await;
+            return self.extract(http, extraction, raw, usage).await;
         }
-        let (raw, mut value) = match self.adapter.parse(&self.signature, &raw) {
-            Ok(value) => (raw, value),
+        let (raw, mut value, usage) = match self.adapter.parse(&self.signature, &raw) {
+            Ok(value) => (raw, value, usage),
             // A reply that spoke the format but left a field out is the case the feedback ask
             // exists for, so it carries on with whatever the reply did say and lets `ensure`
             // name the gap. Upstream rejects it at parse because it has no such second ask.
@@ -245,17 +250,17 @@ impl<S> Predict<S> {
                     .downcast::<FieldMismatch>()
                     .map(|mismatch| mismatch.parsed)
                     .unwrap_or(Value::Null);
-                (raw, partial)
+                (raw, partial, usage)
             }
             Err(error) => match self.adapter.json_fallback() {
                 None => return Err(error),
                 Some(fallback) => {
                     tracing::warn!(%error, "reply did not parse; re-asking through the fallback");
-                    let raw = self
+                    let answered = self
                         .ask_through(fallback.as_ref(), http, lm, inputs, None)
                         .await?;
-                    let value = fallback.parse(&self.signature, &raw)?;
-                    (raw, value)
+                    let value = fallback.parse(&self.signature, &answered.text)?;
+                    (answered.text, value, Usage::merge(usage, answered.usage))
                 }
             },
         };
@@ -267,15 +272,19 @@ impl<S> Predict<S> {
             .coerce(&mut value)
             .and_then(|()| self.signature.ensure(&value))
         {
-            Ok(()) => Ok(Validated { raw, value }),
+            Ok(()) => Ok(Validated { raw, value, usage }),
             Err(error) => {
                 tracing::warn!(%error, "retrying with feedback");
                 let feedback = Feedback {
                     previous: raw,
                     error: error.to_string(),
                 };
-                let (raw, value) = self.feedback_ask(http, lm, inputs, &feedback).await?;
-                Ok(Validated { raw, value })
+                let (raw, value, retried) = self.feedback_ask(http, lm, inputs, &feedback).await?;
+                Ok(Validated {
+                    raw,
+                    value,
+                    usage: Usage::merge(usage, retried),
+                })
             }
         }
     }
@@ -290,6 +299,7 @@ impl<S> Predict<S> {
         http: &reqwest::Client,
         extraction: Extraction<'_>,
         raw: String,
+        asking: Option<Usage>,
     ) -> Result<Validated> {
         let text = [("text", Value::String(raw.clone()))];
         let (system, turns) = extraction
@@ -307,7 +317,7 @@ impl<S> Predict<S> {
             .context("the extraction model did not answer")?;
         let mut value = extraction
             .adapter
-            .parse(&extraction.signature, &extracted)
+            .parse(&extraction.signature, &extracted.text)
             // dspy names the *first* reply here, not the extraction's. That is the one a
             // caller can act on: the extraction failing usually means the prose never carried
             // the fields, and the prose is what they would go and look at.
@@ -317,8 +327,9 @@ impl<S> Predict<S> {
         self.signature.coerce(&mut value)?;
         self.signature.ensure(&value)?;
         Ok(Validated {
-            raw: extracted,
+            raw: extracted.text,
             value,
+            usage: Usage::merge(asking, extracted.usage),
         })
     }
 
@@ -330,12 +341,12 @@ impl<S> Predict<S> {
         lm: &dyn DynChatModel,
         inputs: &[(&str, Value)],
         feedback: &Feedback,
-    ) -> Result<(String, Value)> {
-        let raw = self.ask(http, lm, inputs, Some(feedback)).await?;
-        let mut value = self.adapter.parse(&self.signature, &raw)?;
+    ) -> Result<(String, Value, Option<Usage>)> {
+        let answered = self.ask(http, lm, inputs, Some(feedback)).await?;
+        let mut value = self.adapter.parse(&self.signature, &answered.text)?;
         self.signature.coerce(&mut value)?;
         self.signature.ensure(&value)?;
-        Ok((raw, value))
+        Ok((answered.text, value, answered.usage))
     }
 }
 
@@ -365,6 +376,7 @@ mod tests {
         Pick, RoomTask, RoomTaskInputs, RoomTaskOutputs, Scripted, room_inputs, signature,
     };
     use crate::signature::{FieldKind, OutField};
+    use crate::{input, module::Module};
     use serde_json::json;
 
     fn typed_signature() -> Signature {
@@ -424,6 +436,36 @@ mod tests {
                 .unwrap()
                 .contains("color must be one of red, blue")
         );
+    }
+
+    /// A `forward` can make up to four provider calls, and every one of them is billed. Reporting
+    /// only the last would understate a retry by exactly the calls the recovery cost — which is
+    /// the number a caller is trying to see when they go looking.
+    #[tokio::test]
+    async fn what_a_forward_cost_is_every_call_behind_it_summed() {
+        let bad = "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\ncalm";
+        let lm = Scripted::new(&[bad, MARKER_REPLY]).costing(30, 12);
+        let answered = Predict::from_signature(signature())
+            .with_lm(std::sync::Arc::new(lm))
+            .forward(input! { request: "draft it" })
+            .await
+            .expect("the retry is valid");
+
+        let usage = answered.usage.expect("both calls reported a cost");
+        assert_eq!(usage.input_tokens, 60, "the first ask and the retry");
+        assert_eq!(usage.output_tokens, 24);
+    }
+
+    /// A model reporting nothing must not report zero: a caller adding a scripted run to a real
+    /// one would otherwise get a total that looks whole and is not.
+    #[tokio::test]
+    async fn a_model_that_reports_no_cost_answers_with_none_rather_than_zero() {
+        let answered = Predict::from_signature(signature())
+            .with_lm(std::sync::Arc::new(Scripted::new(&[MARKER_REPLY])))
+            .forward(input! { request: "draft it" })
+            .await
+            .expect("a valid reply");
+        assert_eq!(answered.usage, None);
     }
 
     #[tokio::test]
@@ -758,10 +800,10 @@ impl<S: Send + Sync> Module for Predict<S> {
                 .map(|(name, value)| (name, value.clone()))
                 .collect();
             let validated = self.call_with_inputs(&http, lm.as_ref(), &pairs).await?;
-            Ok(Prediction::new(
-                prediction_example(&validated.value),
-                validated.raw,
-            ))
+            Ok(
+                Prediction::new(prediction_example(&validated.value), validated.raw)
+                    .with_usage(validated.usage),
+            )
         })
     }
 

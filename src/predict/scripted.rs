@@ -6,7 +6,7 @@ use std::sync::Mutex;
 
 use anyhow::{Result, anyhow};
 
-use crate::lm::{ChatModel, ChatTurn, LmRequest, OutputMode};
+use crate::lm::{ChatModel, ChatTurn, LmRequest, LmResponse, OutputMode, Usage};
 use crate::signature::{OutField, Signature};
 
 pub(super) fn signature() -> Signature {
@@ -33,6 +33,8 @@ pub(super) fn signature() -> Signature {
 pub(super) struct Scripted {
     replies: Mutex<VecDeque<&'static str>>,
     calls: Mutex<Vec<Call>>,
+    /// Reported on every reply, so a test forcing several calls can assert on their sum.
+    usage: Option<Usage>,
 }
 
 #[derive(Clone)]
@@ -47,7 +49,18 @@ impl Scripted {
         Self {
             replies: Mutex::new(replies.iter().copied().collect()),
             calls: Mutex::new(Vec::new()),
+            usage: None,
         }
+    }
+
+    /// Report this cost on every reply. A provider charges each call, so a module that asks
+    /// twice should answer with twice this.
+    pub(super) fn costing(mut self, input_tokens: u32, output_tokens: u32) -> Self {
+        self.usage = Some(Usage {
+            input_tokens,
+            output_tokens,
+        });
+        self
     }
 
     pub(super) fn calls(&self) -> Vec<Call> {
@@ -56,7 +69,7 @@ impl Scripted {
 }
 
 impl ChatModel for Scripted {
-    async fn chat(&self, _http: &reqwest::Client, request: &LmRequest<'_>) -> Result<String> {
+    async fn chat(&self, _http: &reqwest::Client, request: &LmRequest<'_>) -> Result<LmResponse> {
         self.calls.lock().expect("not poisoned").push(Call {
             system: request.system.to_owned(),
             turns: request.turns.to_vec(),
@@ -66,7 +79,7 @@ impl ChatModel for Scripted {
             .lock()
             .expect("not poisoned")
             .pop_front()
-            .map(str::to_owned)
+            .map(|reply| LmResponse::text(reply).with_usage(self.usage))
             .ok_or_else(|| anyhow!("script exhausted"))
     }
 }

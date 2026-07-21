@@ -9,7 +9,9 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 
-use dsrs::lm::{ChatModel, ChatTurn, JsonFormat, LM, LmRequest, OutputMode, TokenLimitRule};
+use dsrs::lm::{
+    ChatModel, ChatTurn, JsonFormat, LM, LmRequest, LmResponse, OutputMode, TokenLimitRule,
+};
 use serde_json::{Value, json};
 
 const REPLY: &str = r#"{"choices":[{"message":{"content":"the reply"}}]}"#;
@@ -135,7 +137,7 @@ fn probe_lm(stub: &Stub) -> LM {
     probe_lm_for(stub, "openai/gpt-4o-mini")
 }
 
-async fn ask(lm: &LM, mode: &OutputMode<'_>) -> anyhow::Result<String> {
+async fn ask(lm: &LM, mode: &OutputMode<'_>) -> anyhow::Result<LmResponse> {
     let turns = [ChatTurn::user("hi")];
     lm.chat(
         &reqwest::Client::new(),
@@ -159,7 +161,7 @@ async fn a_call_reaches_chat_completions_under_the_configured_base_url() {
     let reply = ask(&probe_lm(&stub), &OutputMode::Text)
         .await
         .expect("the stub answers");
-    assert_eq!(reply, "the reply");
+    assert_eq!(reply.text, "the reply");
 
     let request = stub.received();
     assert_eq!(request.path, "/v1/chat/completions");
