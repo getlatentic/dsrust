@@ -439,6 +439,34 @@ here at all; size it before promising it.
 # ---------------------------------------------------------------------------
 
 [[backlog]]
+id = "b12"
+title = "The predict/ suites test dspy's modules over our adapter, not our modules"
+kind = "blind-spot"
+state = "next"
+detail = '''
+`b11` sat in every ChainOfThought prompt this crate produced, with 478 tests green and
+`predict/test_chain_of_thought.py` passing and crossing on every test. The reason generalises,
+and it is the same shape HANDOFF already records for `teleprompt/test_bootstrap.py`.
+
+`bridge/python/conftest.py` monkeypatches **adapters only** — ChatAdapter, JSONAdapter,
+XMLAdapter and the rest. It never replaces a module. So `test_chain_of_thought.py` runs *dspy's
+Python* `ChainOfThought`, which builds the signature with dspy's reasoning field, and renders it
+through our Rust adapter. Every test passes, every test counts as a crossing, and
+`src/predict/chain_of_thought.rs` is never executed.
+
+The same is true of `test_predict.py` and `test_react.py`. What those suites prove is that our
+adapters render what dspy renders — which is worth having, and is not what their names suggest.
+
+What actually covers a Rust module is a conformance fixture rendered *through* it, which is what
+`chain_of_thought_reasoning.json` now does via the generator's `module` key. Two obvious gaps
+remain: `Predict` has no such fixture, and `ReAct` has none — and ReAct builds far more of its
+prompt than CoT does.
+
+Either add a fixture per module, or route the module itself across the bridge. The first is
+cheaper and catches signature construction, which is where b11 lived.
+'''
+
+[[backlog]]
 id = "b11"
 title = "ChainOfThought puts prose where dspy puts nothing"
 kind = "known-divergence"
