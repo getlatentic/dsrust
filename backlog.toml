@@ -394,7 +394,8 @@ Not in scope: BaseLM's own runtime, `dump_state`/`load_state` (that is s7 arrivi
 [[sprint]]
 id = "s11"
 name = "Trying more than once"
-state = "planned"
+state = "done"
+closed = "2026-07-22"
 outcome = "A program can attempt something several times and keep the best attempt."
 suites = ["predict/test_best_of_n.py", "predict/test_refine.py"]
 rationale = """
@@ -759,7 +760,19 @@ during a compile, so the two disagree on both.
 id = "b10"
 title = "Refine: the feedback half of s11"
 kind = "scoped"
-state = "next"
+state = "done"
+closed = "2026-07-22"
+resolution = '''
+All five pieces shipped. The rollout loop with a nullable threshold; the OfferFeedback signature,
+byte-checked against dspy via the offer_feedback conformance golden; inspect_modules
+(describe.rs); the trajectory assembly (trajectory.rs, no upstream oracle so tested against its
+own assertions); and the advice→hint hop, keyed by module name with an "N/A" fallback. The
+program/reward source is caller-supplied via with_code, since Rust has no runtime getsource — a
+closure has no recoverable source and the struct's tokens are the derive's to capture.
+
+Surfaced and fixed a pre-existing bug: Predict::asking required a global LM even when the module
+held its own. Added lm::global::client() for the client-without-model case.
+'''
 detail = '''
 `BestOfN` shipped; `Refine` is the other half and is not a small mirror of it. Five pieces, and
 the rollout loop is only the first.
