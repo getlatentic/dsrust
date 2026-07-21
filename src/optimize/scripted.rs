@@ -36,6 +36,10 @@ pub(crate) enum Answers {
     /// Wrong until the same question has been asked this many times, then right — the shape
     /// `max_rounds` exists for.
     RightOnRound(usize),
+    /// Right on exactly this attempt and wrong on every other, so the best answer is not the
+    /// last one. Without that a "keep the best" rule and a "keep the last" rule agree, and a
+    /// test cannot tell which one is implemented.
+    RightOnlyOnRound(usize),
     /// Every call fails, which is what the error budget counts.
     Failing,
 }
@@ -102,6 +106,7 @@ impl Module for Solver {
                 Answers::Correctly => true,
                 Answers::Wrongly => false,
                 Answers::RightOnRound(round) => asked_before + 1 >= round,
+                Answers::RightOnlyOnRound(round) => asked_before + 1 == round,
                 Answers::Failing => return Err(anyhow!("the provider is down")),
             };
             Ok(Prediction::new(

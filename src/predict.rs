@@ -12,11 +12,13 @@ use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::{Signature, SignatureSpec};
 
 mod aggregation;
+mod best_of_n;
 mod chain_of_thought;
 mod derived;
 mod multi_chain_comparison;
 mod parallel;
 pub use aggregation::{Normalize, majority, normalize_text};
+pub use best_of_n::BestOfN;
 pub use chain_of_thought::{ChainOfThought, TypedChainOfThought};
 pub use derived::TypedPredict;
 use derived::typed;
