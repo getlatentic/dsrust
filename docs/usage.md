@@ -261,6 +261,9 @@ keeps the highest-scoring attempt — stopping early at the first to reach `thre
 
 ```python
 # dspy
+def one_word(inputs, out):
+    return 1.0 if len(out.answer.split()) == 1 else 0.0
+
 qa = dspy.ChainOfThought("question -> answer")
 best = dspy.BestOfN(module=qa, N=3, reward_fn=one_word, threshold=1.0)
 out = best(question="capital of Belgium?")
@@ -268,22 +271,31 @@ out = best(question="capital of Belgium?")
 
 ```rust
 // dsrs
-let best = BestOfN::new(
-    predict!("question -> answer"),
-    3,
-    |_inputs: &Example, out: &Prediction| match out.get("answer").and_then(|a| a.as_str()) {
+fn one_word(_inputs: &Example, out: &Prediction) -> f64 {
+    match out.get("answer").and_then(|answer| answer.as_str()) {
         Some(answer) if answer.split_whitespace().count() == 1 => 1.0,
         _ => 0.0,
-    },
-    1.0,
-);
+    }
+}
+
+let qa = chain_of_thought!("question -> answer");
+let best = best_of_n!(qa, n = 3, reward = one_word, threshold = 1.0);
 let out = call!(best, question = "capital of Belgium?").await?;
 ```
 
-All four arguments are upstream's, in its order. Two details are upstream's too and easy to read
-as bugs: `threshold` is **required**, because `BestOfN.forward` compares against it with no
-guard; and `with_fail_count(0)` means *n*, not *none allowed*, because dspy reads
-`fail_count or N` and Python treats zero as unset.
+The reward is a named function in both, which is what dspy's own example does. A Rust closure
+works too — `|inputs: &Example, out: &Prediction| …` — but writing one inline inside the
+constructor buries the three arguments around it.
+
+**`best_of_n!` names the arguments** because dspy passes all four by keyword and Rust has no named
+arguments. `BestOfN::new(qa, 3, one_word, 1.0)` compiles and says nothing about which number is
+`n` and which is `threshold`. This is the same reason `call!` and `input!` exist: the macros
+supply what the language does not. `fail_count` is optional in the macro as it is upstream.
+
+All four arguments are upstream's. Two of its details are easy to read as bugs and are not:
+`threshold` is **required**, because `BestOfN.forward` compares against it with no guard; and
+`fail_count = 0` means *n*, not *none allowed*, because dspy reads `fail_count or N` and Python
+treats zero as unset.
 
 A wrapper is still a module — it nests, `call!` reaches it, and an optimizer's walk goes straight
 through to the predictors inside it.

@@ -17,6 +17,10 @@ use crate::module::{Ask, Module, NamedPredictor, TraceStep};
 
 /// Ask up to `n` times and answer with the best attempt.
 ///
+/// Reach for [`best_of_n!`](crate::best_of_n) rather than `new`: dspy names all four arguments at
+/// the call site, and `BestOfN::new(qa, 3, one_word, 1.0)` leaves a reader guessing which number
+/// is which. Rust has no named arguments, so the macro supplies them the way `call!` does.
+///
 /// ```ignore
 /// let best = BestOfN::new(3, |_inputs: &Example, pred: &Prediction| {
 ///     match pred.get("answer").and_then(|a| a.as_str()) {
@@ -233,6 +237,39 @@ where
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Module::forward(self, inputs)
     }
+}
+
+/// `best_of_n!(module, n = 3, reward = f, threshold = 1.0)` — upstream's call, named.
+///
+/// dspy passes all four by keyword. Rust has no named arguments, so this supplies them, the same
+/// reason [`call!`](crate::call) and [`input!`](crate::input) exist. `fail_count` is optional
+/// here as it is there.
+///
+/// ```
+/// # use dsrs::{best_of_n, predict, Example, Prediction};
+/// fn one_word(_inputs: &Example, out: &Prediction) -> f64 {
+///     match out.get("answer").and_then(|answer| answer.as_str()) {
+///         Some(answer) if answer.split_whitespace().count() == 1 => 1.0,
+///         _ => 0.0,
+///     }
+/// }
+///
+/// let best = best_of_n!(
+///     predict!("question -> answer"),
+///     n = 3,
+///     reward = one_word,
+///     threshold = 1.0
+/// );
+/// ```
+#[macro_export]
+macro_rules! best_of_n {
+    ($module:expr, n = $n:expr, reward = $reward:expr, threshold = $threshold:expr $(,)?) => {
+        $crate::BestOfN::new($module, $n, $reward, $threshold)
+    };
+    ($module:expr, n = $n:expr, reward = $reward:expr, threshold = $threshold:expr,
+     fail_count = $fail_count:expr $(,)?) => {
+        $crate::BestOfN::new($module, $n, $reward, $threshold).with_fail_count($fail_count)
+    };
 }
 
 /// What each predictor asks for before an attempt overrides it.

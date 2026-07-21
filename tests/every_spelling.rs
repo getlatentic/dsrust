@@ -264,6 +264,15 @@ async fn a_module_of_your_own_composes_and_is_optimizable() {
 // Wrapping a module in another module
 // ---------------------------------------------------------------------------
 
+/// A reward is a named function in dspy's own example, and reads better than a closure written
+/// inline between the three arguments around it.
+fn one_word(_inputs: &dsrs::Example, out: &dsrs::Prediction) -> f64 {
+    match out.get("answer").and_then(|answer| answer.as_str()) {
+        Some(answer) if answer.split_whitespace().count() == 1 => 1.0,
+        _ => 0.0,
+    }
+}
+
 /// `BestOfN` takes a *module*, not a signature — upstream's is
 /// `BestOfN(module=qa, N=…, reward_fn=…, threshold=…)`. There is no signature to hand it; the
 /// signature lives in whatever it wraps.
@@ -296,11 +305,11 @@ async fn best_of_n_wraps_a_module_and_is_called_like_one() {
 async fn best_of_n_is_a_module_an_optimizer_can_walk() {
     use dsrs::Module;
 
-    let mut best = dsrs::BestOfN::new(
+    let mut best = dsrs::best_of_n!(
         predict!("question -> answer"),
-        2,
-        |_: &dsrs::Example, _: &dsrs::Prediction| 1.0,
-        1.0,
+        n = 2,
+        reward = one_word,
+        threshold = 1.0
     );
     assert_eq!(best.named_predictors().len(), 1);
 }
