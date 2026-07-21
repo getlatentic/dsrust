@@ -83,7 +83,17 @@ impl<'a> LmRequest<'a> {
     /// Credentials are deliberately absent, matching upstream's `ignored_args_for_cache_key`:
     /// rotating a key does not change what a model answers, and a key has no business in a
     /// map that outlives the call.
+    /// Hashed rather than kept whole, which is what makes an entry nameable as a file and keeps
+    /// a long conversation from being held twice — once as a reply and once as its own key.
+    /// Upstream hashes the same way, `sha256(orjson.dumps(params, sort_keys))`.
     pub fn cache_key(&self, model: &str) -> String {
+        use sha2::Digest;
+        let digest = sha2::Sha256::digest(self.cache_identity(model).as_bytes());
+        digest.iter().map(|byte| format!("{byte:02x}")).collect()
+    }
+
+    /// Everything two calls must share to be the same call, as JSON.
+    fn cache_identity(&self, model: &str) -> String {
         let turns: Vec<Value> = self
             .turns
             .iter()
@@ -112,7 +122,7 @@ impl<'a> LmRequest<'a> {
 /// OpenAI-shaped services `prompt_tokens`/`completion_tokens`, ollama `prompt_eval_count`/
 /// `eval_count` — so normalising them here is the whole reason a caller can compare the cost of
 /// two adapters without knowing who answered.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Usage {
     pub input_tokens: u32,
     pub output_tokens: u32,
@@ -141,7 +151,7 @@ impl Usage {
 }
 
 /// What a model answered with. dspy's `LMResponse`.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LmResponse {
     /// Every completion the provider returned — as many as [`Sampling::completions`] asked for,
     /// and one when it asked for nothing.

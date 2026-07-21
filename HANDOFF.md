@@ -132,16 +132,11 @@ JSON schema, and why coercion splits between parse time and `Predict`.
 
 ## Open decisions
 
-**Usage on the typed paths.** `Prediction` reports what a call cost, so the value-level paths carry
-it. `Predict::call_typed` and the derived-task paths answer with the caller's own struct instead,
-which leaves nowhere for a `Usage` to go — `typed_pairs` drops it explicitly. Surfacing it there
-means either a wrapper type around the caller's struct or an out-parameter, and both are worse than
-the gap until something actually needs the number on that path.
-
-**The cache is in memory only.** `LM` caches by default onto a process-wide bounded LRU, which is
-upstream's shape. What upstream also has and this does not is the *disk* layer — a warm cache
-across processes, at the cost of a serialisation format to keep compatible. Nothing here runs long
-enough to want it yet.
+**The cache.** `LM` caches by default onto a process-wide bounded LRU backed by a directory,
+which is upstream's shape: memory then disk, a disk hit promoted into memory, `~/.dsrs_cache` at
+30 GB unless `DSRS_CACHEDIR`/`DSRS_CACHE_LIMIT` say otherwise. Entries are JSON rather than
+upstream's pickle — nothing else reads the directory, so the format is ours, and the directory is
+not dspy's because the same path holding two formats would be worse than two paths.
 
 Two things about it are worth knowing before writing a test against a stub. The store is shared and
 keyed on the request, and `base_url` is deliberately **not** in the key (upstream's

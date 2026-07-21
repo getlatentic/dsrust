@@ -56,7 +56,7 @@ impl Parallel {
     pub async fn run<'a>(
         &self,
         work: impl IntoIterator<Item = (&'a dyn Module, Example)>,
-    ) -> Result<Vec<Option<Prediction>>> {
+    ) -> Result<Answered> {
         let asked: Vec<(&dyn Module, Example)> = work.into_iter().collect();
         let total = asked.len();
 
@@ -70,12 +70,14 @@ impl Parallel {
 
         let mut ordered: Vec<Option<Prediction>> = (0..total).map(|_| None).collect();
         let mut failures = 0;
+        let mut failed = Vec::new();
         for (at, answer) in answers {
             match answer {
                 Ok(prediction) => ordered[at] = Some(prediction),
                 Err(error) => {
                     failures += 1;
                     tracing::error!(%error, branch = at, "a branch of a parallel call failed");
+                    failed.push((at, error));
                 }
             }
         }
@@ -84,7 +86,38 @@ impl Parallel {
                 "parallel call abandoned: {failures} of {total} branches failed"
             ));
         }
-        Ok(ordered)
+        Ok(Answered {
+            results: ordered,
+            failed,
+        })
+    }
+}
+
+/// What a parallel call answered with.
+///
+/// The failures travel beside the results rather than only into the log, because a hole in
+/// `results` says a branch failed and nothing else — and "why" is the question a caller has next.
+/// dspy hands back the same pairing through `batch(return_failed_examples=True)`, which answers
+/// with the results, the examples that failed, and the exceptions they raised.
+pub struct Answered {
+    /// Each branch's answer where its question sat, and `None` where the branch failed.
+    pub results: Vec<Option<Prediction>>,
+    /// Which branches failed and why, in the order they were asked.
+    pub failed: Vec<(usize, anyhow::Error)>,
+}
+
+impl Answered {
+    /// Just the answers, for a caller that has no use for the failures.
+    pub fn into_results(self) -> Vec<Option<Prediction>> {
+        self.results
+    }
+
+    /// The error a given branch failed with, if it did.
+    pub fn failure(&self, branch: usize) -> Option<&anyhow::Error> {
+        self.failed
+            .iter()
+            .find(|(at, _)| *at == branch)
+            .map(|(_, error)| error)
     }
 }
 
@@ -115,6 +148,7 @@ mod tests {
 
         let answers = Parallel::new(4).run(work).await.expect("runs");
         let read: Vec<&str> = answers
+            .results
             .iter()
             .map(|a| a.as_ref().unwrap().get("answer").unwrap().as_str().unwrap())
             .collect();
@@ -133,9 +167,25 @@ mod tests {
         ];
 
         let answers = Parallel::default().run(work).await.expect("runs");
-        assert!(answers[0].is_some());
-        assert!(answers[1].is_none(), "the failed branch is a hole");
-        assert!(answers[2].is_some(), "a sibling is unaffected");
+        assert!(answers.results[0].is_some());
+        assert!(answers.results[1].is_none(), "the failed branch is a hole");
+        assert!(answers.results[2].is_some(), "a sibling is unaffected");
+
+        // A hole says a branch failed and nothing else; upstream's `return_failed_examples`
+        // hands back the reason, and reading it out of the log is not the same thing.
+        assert_eq!(answers.failed.len(), 1);
+        assert_eq!(answers.failed[0].0, 1, "named by the branch that failed");
+        assert!(
+            answers
+                .failure(1)
+                .expect("the reason survived")
+                .to_string()
+                .contains("provider is down")
+        );
+        assert!(
+            answers.failure(0).is_none(),
+            "a branch that worked has none"
+        );
     }
 
     /// Enough failures abandon the call, rather than handing back a mostly-empty answer.
@@ -166,6 +216,6 @@ mod tests {
             .collect();
 
         let answers = Parallel::new(1).run(work).await.expect("runs");
-        assert_eq!(answers.iter().filter(|a| a.is_some()).count(), 3);
+        assert_eq!(answers.results.iter().filter(|a| a.is_some()).count(), 3);
     }
 }

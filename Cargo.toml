@@ -25,6 +25,9 @@ serde = { version = "1", features = ["derive"] }
 # `preserve_order`: Python dicts keep insertion order, so `json.dumps` writes a schema in the
 # order pydantic built it. Sorted keys would reorder every schema note dspy renders.
 serde_json = { version = "1", features = ["preserve_order"] }
+# Cache entries are named by the SHA-256 of the request, which is what upstream keys on and what
+# lets an entry be a file on disk.
+sha2 = "0.11.0"
 tracing = "0.1"
 unicode-general-category = "1.1.0"
 unicode-normalization = "0.1.25"

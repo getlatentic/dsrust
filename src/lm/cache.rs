@@ -23,6 +23,10 @@ use std::sync::{Mutex, OnceLock};
 use anyhow::Result;
 use lru::LruCache;
 
+pub mod disk;
+
+pub use disk::DiskCache;
+
 use super::{ChatModel, LmRequest, LmResponse};
 
 /// dspy's `memory_max_entries`, which is effectively "grow until something is clearly wrong"
@@ -30,43 +34,67 @@ use super::{ChatModel, LmRequest, LmResponse};
 const MAX_ENTRIES: usize = 1_000_000;
 
 /// Replies kept against the requests that produced them.
+///
+/// Two tiers, as upstream's is: memory first, then disk, and a disk hit is promoted into memory
+/// so the next read of it is quick. The disk half is what makes re-running a compile cheap.
 pub struct ResponseCache {
     entries: Mutex<LruCache<String, LmResponse>>,
+    disk: Option<DiskCache>,
 }
 
 impl ResponseCache {
-    /// A store holding at most `max_entries`, dropping the least recently read to stay under.
+    /// A store holding at most `max_entries` in memory, dropping the least recently read to stay
+    /// under, and keeping nothing on disk.
     pub fn new(max_entries: NonZeroUsize) -> Self {
         Self {
             entries: Mutex::new(LruCache::new(max_entries)),
+            disk: None,
         }
+    }
+
+    /// The same, also writing through to a directory that outlives the process.
+    pub fn with_disk(mut self, disk: DiskCache) -> Self {
+        self.disk = Some(disk);
+        self
     }
 
     /// What one call answered with before, marked as the replay it is.
     ///
     /// Reading counts as a use, so a request asked throughout a long run is not the one evicted.
     pub fn replay(&self, key: &str) -> Option<LmResponse> {
-        let kept = self
-            .entries
-            .lock()
-            .expect("not poisoned")
-            .get(key)
-            .cloned()?;
+        let kept = self.remembered(key).or_else(|| self.recovered(key))?;
         Some(LmResponse {
             cache_hit: true,
             ..kept
         })
     }
 
+    fn remembered(&self, key: &str) -> Option<LmResponse> {
+        self.entries.lock().expect("not poisoned").get(key).cloned()
+    }
+
+    /// A reply an earlier run paid for, brought back into memory so the next read is quick.
+    fn recovered(&self, key: &str) -> Option<LmResponse> {
+        let found = self.disk.as_ref()?.get(key)?;
+        self.entries
+            .lock()
+            .expect("not poisoned")
+            .put(key.to_owned(), found.clone());
+        Some(found)
+    }
+
     /// Keep this reply against the request that produced it.
     pub fn keep(&self, key: String, response: LmResponse) {
+        if let Some(disk) = &self.disk {
+            disk.put(&key, &response);
+        }
         self.entries
             .lock()
             .expect("not poisoned")
             .put(key, response);
     }
 
-    /// How many distinct requests are held.
+    /// How many distinct requests are held in memory.
     pub fn len(&self) -> usize {
         self.entries.lock().expect("not poisoned").len()
     }
@@ -75,13 +103,24 @@ impl ResponseCache {
         self.len() == 0
     }
 
-    /// Forget everything, so the next call of every shape reaches a model again.
+    /// The directory this writes through to, if it has one.
+    pub fn disk(&self) -> Option<&DiskCache> {
+        self.disk.as_ref()
+    }
+
+    /// Forget everything, in memory and on disk, so the next call of every shape reaches a model
+    /// again.
     pub fn clear(&self) {
         self.entries.lock().expect("not poisoned").clear();
+        if let Some(disk) = &self.disk {
+            disk.clear();
+        }
     }
 }
 
 impl Default for ResponseCache {
+    /// Memory only. [`shared`] adds the disk half; a cache built by hand is usually a test's, and
+    /// a test writing into someone's home directory would be a surprise.
     fn default() -> Self {
         Self::new(NonZeroUsize::new(MAX_ENTRIES).expect("a non-zero constant"))
     }
@@ -93,8 +132,13 @@ static SHARED: OnceLock<ResponseCache> = OnceLock::new();
 ///
 /// Shared rather than per-model so that two `LM` values built for the same model — which is what
 /// a program that constructs one per call ends up with — answer each other's repeated requests.
+/// Backed by disk as well as memory when there is a directory to use, which is upstream's
+/// default and what makes a repeated compile cheap.
 pub fn shared() -> &'static ResponseCache {
-    SHARED.get_or_init(ResponseCache::default)
+    SHARED.get_or_init(|| match DiskCache::from_env() {
+        Some(disk) => ResponseCache::default().with_disk(disk),
+        None => ResponseCache::default(),
+    })
 }
 
 /// A model that answers a repeated request from memory, with a store of its own.
@@ -263,6 +307,39 @@ mod tests {
             ask(&lm, Sampling::rollout(id));
         }
         assert_eq!(lm.len(), 2, "three distinct requests, room for two");
+    }
+
+    /// What the disk half is for: a second run pays nothing for what the first one bought. A
+    /// fresh `ResponseCache` stands in for the fresh process, since the memory half of the first
+    /// one is exactly what a restart loses.
+    #[test]
+    fn a_reply_kept_on_disk_outlives_the_cache_that_wrote_it() {
+        let dir = std::env::temp_dir().join("dsrs-cache-across-runs");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let first = ResponseCache::default().with_disk(DiskCache::new(&dir, 1_000_000));
+        first.keep("key".to_owned(), LmResponse::text("bought once"));
+
+        let restarted = ResponseCache::default().with_disk(DiskCache::new(&dir, 1_000_000));
+        assert!(
+            restarted.is_empty(),
+            "memory starts cold, as a new process would"
+        );
+
+        let replayed = restarted.replay("key").expect("recovered from disk");
+        assert!(replayed.cache_hit);
+        assert_eq!(replayed.text_ref(), "bought once");
+        assert_eq!(restarted.len(), 1, "and is promoted into memory once read");
+
+        restarted.clear();
+        assert_eq!(
+            ResponseCache::default()
+                .with_disk(DiskCache::new(&dir, 1_000_000))
+                .replay("key"),
+            None,
+            "clearing reaches the disk half too"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A hit is a replay, not a purchase. dspy skips its usage tracker on one for the same

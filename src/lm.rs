@@ -6,6 +6,7 @@ pub mod global;
 mod ollama;
 mod openai;
 mod token_limit;
+pub mod usage;
 
 use std::time::Duration;
 
@@ -17,6 +18,7 @@ pub use call::{LmRequest, LmResponse, Sampling, Usage};
 pub use global::{configure, configure_with_client};
 pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig};
 pub use token_limit::{TokenLimitField, TokenLimitRule};
+pub use usage::{UsageTracker, track as track_usage};
 
 /// Bound every provider call, so one slow upstream cannot hold a worker for the whole request
 /// timeout while the agent's in-flight slots stay occupied.
@@ -282,13 +284,16 @@ fn env_nonempty(key: &str) -> Option<String> {
 impl ChatModel for LM {
     async fn chat(&self, http: &reqwest::Client, request: &LmRequest<'_>) -> Result<LmResponse> {
         if !self.cache {
-            return self.ask_provider(http, request).await;
+            let answered = self.ask_provider(http, request).await?;
+            usage::record(&self.model.id, answered.spend());
+            return Ok(answered);
         }
         let key = request.cache_key(&self.model.id);
         if let Some(replayed) = cache::shared().replay(&key) {
             return Ok(replayed);
         }
         let answered = self.ask_provider(http, request).await?;
+        usage::record(&self.model.id, answered.spend());
         cache::shared().keep(key, answered.clone());
         Ok(answered)
     }
