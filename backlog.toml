@@ -240,6 +240,58 @@ program and an optimizer improves one, and today neither result can be written d
 """
 
 [[sprint]]
+id = "s8"
+name = "The modules that compose others"
+state = "planned"
+outcome = """
+The modules a program is built out of rather than the one it ends at: retrying, sampling more
+than once, and running branches side by side.
+"""
+suites = [
+  "predict/test_refine.py", "predict/test_best_of_n.py", "predict/test_parallel.py",
+  "predict/test_aggregation.py", "predict/test_multi_chain_comparison.py",
+  "predict/test_retry.py",
+]
+rationale = """
+dspy ships thirteen modules and three are ported. These six are the ones that need no runtime
+this crate does not already have: each wraps a module it was handed and decides how often to
+call it, or how to reconcile several answers. Parallel is the one with a design question, since
+it needs concurrency where Evaluate is still sequential.
+
+Ahead of the code-executing three because nothing here waits on a sandbox.
+"""
+
+[[sprint]]
+id = "s9"
+name = "The modules that run code"
+state = "planned"
+outcome = "A program can write code, run it in a sandbox, and use the result."
+suites = [
+  "predict/test_program_of_thought.py", "predict/test_code_act.py", "predict/test_rlm.py",
+  "primitives/test_python_interpreter.py",
+]
+rationale = """
+ProgramOfThought, CodeAct and RLM all reach PythonInterpreter, so they arrive together with the
+sandbox decision in b7 rather than after it. That decision is the sprint's first task, not a
+prerequisite to settle elsewhere: deno as dspy does it, pyodide hosted directly, or rustpython
+in-process.
+"""
+
+[[sprint]]
+id = "s10"
+name = "Retrieval"
+state = "planned"
+outcome = "A program can look something up before it answers, which is what RAG is."
+suites = [
+  "predict/test_knn.py", "retrievers/test_embeddings.py", "retrievers/test_colbertv2.py",
+]
+rationale = """
+KNN is also what KNNFewShot in s6 needs, so this unblocks one of the remaining optimizers rather
+than only adding a module. test_colbertv2.py talks to a hosted service and may not be runnable
+here at all; size it before promising it.
+"""
+
+[[sprint]]
 id = "s5"
 name = "Evaluate"
 state = "planned"
@@ -260,6 +312,7 @@ implementations against no shared shape would have grown five bespoke ones. DynO
 what BetterTogether needs, since upstream's holds other optimizers and runs them in sequence.
 """
 candidates = ["COPRO", "MIPROv2", "GEPA", "BetterTogether", "KNNFewShot"]
+depends_on = "s10 for KNNFewShot, which needs the KNN retriever"
 notes = """
 The trait carries student, teacher and trainset. Upstream's Teleprompter.compile also takes
 valset, which MIPROv2 uses and nothing here does yet; widening the trait is a breaking change,
