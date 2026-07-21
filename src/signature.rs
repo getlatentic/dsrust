@@ -2,11 +2,13 @@ use anyhow::{Result, anyhow};
 use serde_json::{Map, Value, json};
 
 mod field_type;
+mod parse;
 mod prefix;
 
 pub(crate) use field_type::wire_forms;
 pub use field_type::{FieldKind, JsonType, LiteralValue, TypeDescription};
 use field_type::{annotation_of, coerce_value};
+pub use parse::parse;
 pub use prefix::infer_prefix;
 
 /// The derive plus its call-site macros: `predict!(Task { field: value, ... })` and the
@@ -134,6 +136,18 @@ pub trait SignatureSpec {
     fn signature() -> Signature;
     /// The input values in signature order, ready for the adapters to render.
     fn input_pairs(inputs: &Self::Inputs) -> Vec<(&'static str, Value)>;
+}
+
+/// dspy's string signature: `"email -> sentiment".parse()`.
+///
+/// The field names and their order are the declaration; a name with no type is a string, and
+/// the instructions read the way upstream writes them when nobody wrote any.
+impl std::str::FromStr for Signature {
+    type Err = anyhow::Error;
+
+    fn from_str(spelling: &str) -> Result<Self> {
+        parse::parse(spelling)
+    }
 }
 
 impl Signature {

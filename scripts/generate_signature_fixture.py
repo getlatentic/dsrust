@@ -89,6 +89,71 @@ NAMES = [
 ]
 
 
+# Signature strings, spelled the way a caller writes them. The refusals are here too, because
+# what a malformed signature is told is as much upstream's behaviour as what a good one becomes.
+SIGNATURES = [
+    "email -> sentiment",
+    "question -> answer",
+    "question, context -> answer",
+    "question, context -> reasoning, answer",
+    "a: int -> b: float",
+    "a: int, b: float, c: bool -> d: str",
+    "ctx: list[str] -> answer",
+    "ctx: list[str], weights: dict[str, int] -> answer",
+    "nested: dict[str, list[int]] -> out: tuple[int, str]",
+    "  spaced   ,  out  ->   answer  ",
+    "x: Optional[int] -> y: str",
+    "x: int | None -> y: str",
+    "x: int | str -> y: str",
+    "x: int | str | None -> y: str",
+    "x: list[int] | None -> y: str",
+    "x: dict[str, int | None] -> y: str",
+    "x: list[int | str] -> y: str",
+    "x: tuple[int | None, str] -> y: str",
+    "x: Union[int, str] -> y: str",
+    "x: Optional[list[str]] -> y: str",
+    # Refused, each for its own reason.
+    "",
+    "question",
+    "a -> b -> c",
+    "a, b -> b, a",
+    "a -> a",
+]
+
+
+def parsed(spelling: str) -> dict:
+    """What dspy makes of one signature string, or what it says when it will not."""
+    try:
+        signature = dspy.Signature(spelling)
+    except Exception as error:  # noqa: BLE001 - the message is the recorded behaviour
+        return {"signature": spelling, "error": str(error)}
+    return {
+        "signature": spelling,
+        "instructions": signature.instructions,
+        "inputs": [
+            {"name": name, "annotation": _annotation(field)}
+            for name, field in signature.input_fields.items()
+        ],
+        "outputs": [
+            {"name": name, "annotation": _annotation(field)}
+            for name, field in signature.output_fields.items()
+        ],
+    }
+
+
+def _annotation(field) -> str:
+    """The annotation as dspy holds it, which is a resolved type rather than the source text.
+
+    That resolution is why `int | None` comes back as `Optional[int]`: upstream parses the
+    annotation into a Python type and the spelling it prints afterwards is that type's own. A
+    port owns the structure around the annotation, not the type system that canonicalises it.
+    """
+    annotation = field.annotation
+    if annotation in (str, int, float, bool):
+        return annotation.__name__
+    return str(annotation).replace("typing.", "")
+
+
 def main() -> None:
     if dspy.__version__ != PINNED:
         raise SystemExit(f"expected dspy {PINNED}, found {dspy.__version__}")
@@ -97,6 +162,7 @@ def main() -> None:
         "source": f"generated from dspy=={PINNED} via scripts/generate_signature_fixture.py",
         "dspy_version": PINNED,
         "infer_prefix": [{"name": name, "prefix": infer_prefix(name)} for name in NAMES],
+        "parse": [parsed(spelling) for spelling in SIGNATURES],
     }
 
     OUT.mkdir(parents=True, exist_ok=True)

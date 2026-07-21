@@ -48,6 +48,15 @@ impl Predict {
         }
     }
 
+    /// dspy `Predict("email -> sentiment")`: declare the task by naming its fields.
+    ///
+    /// The shortest way to a working module. A field with no type is a string, which is what
+    /// makes the untyped spelling useful for a first pass; `Predict::task` takes a derived
+    /// signature when the types matter.
+    pub fn parse(signature: &str) -> Result<Self> {
+        Ok(Self::new(signature.parse()?))
+    }
+
     /// Show the model these solved examples before the request.
     pub fn with_demos(mut self, demos: impl IntoIterator<Item = Example>) -> Self {
         self.demos = demos.into_iter().collect();

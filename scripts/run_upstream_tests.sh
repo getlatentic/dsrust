@@ -35,6 +35,23 @@ SUITES=(
   signatures/test_signature.py
 )
 
+# SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against
+# everything upstream ships stops green from reading as done, and catches a name that no longer
+# exists after a version bump.
+MANIFEST="$ROOT/scripts/upstream_tests.txt"
+echo "==> Upstream coverage"
+for file in "${SUITES[@]}"; do
+  grep -qx "tests/$file" "$MANIFEST" \
+    || { echo "  $file is not in $MANIFEST; refresh it or fix the name" >&2; exit 1; }
+done
+TOTAL=$(grep -vc '^#' "$MANIFEST")
+echo "  ${#SUITES[@]} of $TOTAL upstream test files ($(( ${#SUITES[@]} * 100 / TOTAL ))%)"
+grep -v '^#' "$MANIFEST" | sed 's|tests/||;s|/.*||' | sort -u | while read -r area; do
+  have=$(printf '%s\n' "${SUITES[@]}" | grep -c "^$area/" || true)
+  want=$(grep -c "^tests/$area/" "$MANIFEST" || true)
+  [ "$have" -lt "$want" ] && printf '    %-14s %s of %s\n' "$area" "$have" "$want"
+done || true
+
 echo "==> Fetching upstream tests at dspy $VERSION (unmodified)"
 for file in "${SUITES[@]}" conftest.py; do
   out="$WORK/upstream_$(basename "$file")"
