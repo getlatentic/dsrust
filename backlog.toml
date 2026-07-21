@@ -357,9 +357,22 @@ Order, leaves first, so nothing is half-typed at any point:
          literal runs no validator. Anthropic's cache work now has real homes in
          `cache_read_tokens`/`cache_write_tokens`, and ollama and openai stopped reporting an
          omitted count as zero — optional counters made "one of the two is unknown" sayable.
-  s13-2  The part hierarchy — LmPart with text/image/audio/video/document, over LmSourcePart with
-         its one-source validation. This replaces `Content{Text, Blocks}`, which is the single
-         widest change: every adapter renders a turn.
+  s13-2  HALF DONE. The types landed: LmPart with all *eleven* upstream variants (the five this
+         file used to name were a summary, not the list), LmSource making one-source
+         unrepresentable, and `Content` demoted from a type to a rendering rule in
+         `lm/part/wire.rs`. Byte-neutrality is measured, not argued: 3.2.1's rendered image
+         prompt round-trips through 3.3's own conversion unchanged, wildcard blocks included.
+
+         What is left is the wiring, and it uncovered two gaps worth their own attention:
+         (a) `adapter/blocks.rs` still yields `Vec<Value>`, so nothing constructs an LmPart yet;
+         (b) no Rust caller can produce a multimodal prompt at all — nothing in the crate writes
+         the `<<CUSTOM-TYPE-*-IDENTIFIER>>` sentinel that the splitter looks for, so
+         `Content::Blocks` is reachable only by hand-writing one into a string value. There is
+         no `dspy.Image` equivalent. That makes the whole multimodal path unexercised by any
+         golden, which (c) `tests/conformance.rs` could not hold anyway: it reads turn content
+         with `.as_str()` and asserts `a text-only fixture`. Widen the harness and the generator,
+         add an Image case from the 3.2.1 golden captured in `lm/part/wire.rs`, and only then
+         swap the splitter over — the fixture is what makes the swap provable rather than hopeful.
   s13-3  LmMessage{role, parts, name, metadata} replacing ChatTurn, and LmToolSpec.
   s13-4  LmConfig — the eight missing typed fields, the four nested configs, `extensions`, and the
          four flat aliases folded on construction. `rollout_id` moves to `cache.rollout_id` and
