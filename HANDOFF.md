@@ -25,8 +25,8 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 347 passing |
-| Upstream dspy tests | 300 passing, 160 rendering and 229 deciding a signature |
+| Rust tests | 439 passing |
+| Upstream dspy tests | 380 passing, 180 rendering and 260 deciding a signature |
 | Known-gap backlog | empty |
 
 Ported: five adapters (chat, JSON, XML, BAML, TwoStep), `Predict`, `ChainOfThought`, `ReAct`,
@@ -118,7 +118,8 @@ src/
   predict.rs      Predict + the recovery engine; chain_of_thought.rs
   react/          ReAct, Trajectory, Tool
   optimize/       rng, labeled, bootstrap
-  lm/             ChatModel/DynChatModel, openai, dummy
+  lm/             ChatModel/DynChatModel, call (request/response), cache (+disk),
+                  usage, anthropic, ollama, openai, dummy
 ```
 
 **Adapters share everything but three seams:** the structure block, the user trailer, and
