@@ -25,7 +25,7 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 439 passing |
+| Rust tests | 455 passing |
 | Upstream dspy tests | 380 passing, 180 rendering and 260 deciding a signature |
 | Known-gap backlog | empty |
 
@@ -112,6 +112,7 @@ per wire format, over a shared `_RustBacked` mixin.
 ```
 src/
   signature/      Signature, InField/OutField, FieldKind, LiteralValue
+                  reflect.rs (a declared type's shape, from its schemars schema)
   adapter/        prompt.rs (shared frame) + chat, json, xml, baml, two_step
                   exchange.rs (Style: how one adapter differs)
                   demos.rs, history.rs, blocks.rs, parse/, python_json.rs
@@ -147,10 +148,17 @@ one *hangs* rather than failing. Any test that inspects what reached the wire wa
 `LM::without_cache`. `DummyLM` and the other scripted models are unaffected: they are not `LM`, and
 upstream draws the same line by extending `BaseLM`.
 
-**BAML record provenance.** dspy branches on `isinstance(value, BaseModel)`; we branch on the
-field's declared type. They agree whenever a value matches its declaration. Closing the gap means
-putting per-call provenance into the public `Adapter::format`, which is a worse trade than the
-divergence. Reasoning is in `src/adapter/baml.rs` at `input_value`.
+**BAML carries a type's shape, and where it comes from differs by side.** An output field's
+structure is read off its `schemars` schema by `src/signature/reflect.rs`; the derive emits it, so
+a Rust type states itself rather than arriving as the word `json`. An *input* carries no such tree
+— `output_type` takes an `OutField`, and requiring `JsonSchema` of every input type would be a
+bound no caller owes. What an input does carry is `Input::record`, the answer to dspy's
+`isinstance(value, BaseModel)`, which decides whether its value is laid out over lines.
+
+Neither is caught by upstream's suite. Its BAML test asserts a substring true of both layouts, so
+inverting the bridge flag leaves all 380 passing; and no upstream test renders a Rust type at all.
+Both are pinned instead by byte literals taken from dspy 3.2.1 directly — in `baml.rs` and in
+`complex_fields.rs`. Do not trust the upstream run to catch a regression in either.
 
 ## Project memory
 

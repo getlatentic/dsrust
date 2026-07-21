@@ -124,9 +124,41 @@ fn kind(field: &Field) -> TokenStream {
         Kind::Bool => quote! { Bool },
         Kind::Int => quote! { Int },
         Kind::Float => quote! { Float },
-        Kind::Json => return quote! { ::dsrs::signature::FieldKind::opaque_json() },
+        Kind::Json => {
+            let annotation = crate::annotate::python_spelling(&field.ty);
+            return quote! {
+                ::dsrs::signature::FieldKind::Json(
+                    ::dsrs::signature::JsonType::plain(#annotation),
+                )
+            };
+        }
     };
     quote! { ::dsrs::signature::FieldKind::#variant }
+}
+
+/// An output field's kind, carrying the structure of its declared type as well as its name.
+///
+/// [`BamlAdapter`](dsrs::BamlAdapter) states a type instead of a schema of it, and without this
+/// every Rust type reached it as the bare word `json`. The shape comes from `schemars`, whose
+/// `JsonSchema` bound an output field already carries for its schema — so this asks nothing new
+/// of a caller, and needs no annotation of the kind other ports require.
+///
+/// Only outputs. An input's structure is never stated: a request carries the value itself, and
+/// requiring `JsonSchema` of every input type would be a bound no caller owes today.
+fn out_kind(field: &Field) -> TokenStream {
+    let Kind::Json = field.kind else {
+        return kind(field);
+    };
+    let ty = &field.ty;
+    let annotation = crate::annotate::python_spelling(ty);
+    quote! {
+        ::dsrs::signature::FieldKind::Json(
+            ::dsrs::signature::JsonType::reflected(
+                #annotation,
+                ::dsrs::signature::json_field_reflection::<#ty>(),
+            ),
+        )
+    }
 }
 
 fn in_field(field: &Field) -> TokenStream {
@@ -164,7 +196,7 @@ fn closed_set(field: &Field) -> TokenStream {
 fn out_field(field: &Field) -> TokenStream {
     let name = field.ident.to_string();
     let desc = &field.desc;
-    let kind = kind(field);
+    let kind = out_kind(field);
     let values = closed_set(field);
     let schema = match field.kind {
         Kind::Json => {

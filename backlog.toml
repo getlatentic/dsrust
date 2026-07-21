@@ -30,7 +30,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-21"
 
 [status]
-rust_tests = 439
+rust_tests = 455
 upstream_tests_passing = 380
 upstream_tests_crossing = 180
 upstream_tests_deciding_signatures = 260
@@ -437,6 +437,40 @@ here at all; size it before promising it.
 # ---------------------------------------------------------------------------
 # Backlog — triaged at sprint planning, not scheduled
 # ---------------------------------------------------------------------------
+
+[[backlog]]
+id = "b8"
+title = "A Rust type reached BAML as the bare word `json`"
+kind = "known-divergence"
+state = "done"
+closed = "2026-07-21"
+detail = """
+BAML states a type instead of a schema of it, which is the whole reason to choose that adapter.
+It reads `JsonType::reflection`, a tree dspy builds by walking a pydantic annotation at run time —
+and the derive left it `None` for every Rust type, because Rust has no annotation to walk. So a
+Rust-declared signature rendered `Output field `ideas` should be of type: json`, and the field
+line read `(json)` where dspy prints `(list[GiftIdea])`. The adapter only produced a good prompt
+through the bridge, where Python supplies the tree.
+
+Closed by reading the shape off the one description of a Rust type that already exists: the
+`schemars` schema every output field is required to have. `src/signature/reflect.rs` converts a
+JSON schema into the same tree `bridge/python/reflect.py` produces, and the derive emits it. No
+new bound and no `#[BamlType]`-style annotation — which is what the other Rust port
+(krypticmouse/DSRs) requires, and worth knowing about when comparing.
+
+Only outputs carry it. `output_type` takes an `OutField`, and requiring `JsonSchema` of every
+*input* type would be a bound no caller owes today.
+
+`derive/src/annotate.rs` supplies the other half, the annotation itself: `list[Gift]`,
+`dict[str, int]`, `Union[str, NoneType]`. Every spelling was read off dspy 3.2.1 rather than
+guessed — `Optional[str]` prints as `Union[str, NoneType]`, which is neither spelling a reader
+would reach for.
+
+Verified by diffing the rendered block against dspy's for the equivalent pydantic signature:
+byte-identical. Pinned by
+`complex_fields::a_rust_type_reaches_baml_as_its_structure_rather_than_as_the_word_json`, which
+was written *after* confirming that dropping the reflection left every other test passing.
+"""
 
 [[backlog]]
 id = "b1"

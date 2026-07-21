@@ -10,6 +10,7 @@
 
 use proc_macro::TokenStream;
 
+mod annotate;
 mod call;
 mod emit;
 mod module;

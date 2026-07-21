@@ -4,12 +4,14 @@ use serde_json::{Map, Value, json};
 mod field_type;
 mod parse;
 mod prefix;
+mod reflect;
 
 pub(crate) use field_type::wire_forms;
 pub use field_type::{FieldKind, JsonType, LiteralValue, TypeDescription};
 use field_type::{annotation_of, coerce_value};
 pub use parse::parse;
 pub use prefix::infer_prefix;
+pub use reflect::json_field_reflection;
 
 /// The derive plus its call-site macros: `predict!(Task { field: value, ... })` and the
 /// `chain_of_thought!` twin evaluate to one typed module call awaiting the caller's `?`.

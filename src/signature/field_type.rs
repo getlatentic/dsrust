@@ -77,11 +77,24 @@ impl JsonType {
             reflection: None,
         }
     }
+
+    /// The same, carrying the structure of the declared type.
+    ///
+    /// What an adapter that *states* a type rather than a schema of it needs. The derive fills
+    /// this from `schemars`, which is the only description of a Rust type available to it.
+    pub fn reflected(annotation: impl Into<String>, reflection: Value) -> Self {
+        Self {
+            annotation: annotation.into(),
+            descriptions: Vec::new(),
+            reflection: Some(reflection),
+        }
+    }
 }
 
 impl FieldKind {
-    /// A non-scalar whose Python type this crate cannot name. The derive maps every such Rust
-    /// type here, so prompts print `json` where dspy would print `list[Idea]`.
+    /// A non-scalar whose Python type this crate cannot name, and whose structure nothing
+    /// described. `FieldKind::reflected_json` is what the derive reaches for instead wherever a
+    /// `schemars` schema exists, which is every field it generates.
     pub fn opaque_json() -> Self {
         FieldKind::Json(JsonType::plain("json"))
     }

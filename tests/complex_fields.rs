@@ -2,6 +2,7 @@
 //! and a `Vec<Struct>` output declared on one derived signature, driven through a scripted
 //! model — prompt rendering, JSON coercion, both retry layers, and the call macros.
 
+use dsrs::Adapter;
 use dsrs::adapter::Input;
 use std::collections::VecDeque;
 use std::sync::Mutex;
@@ -109,12 +110,23 @@ impl ChatModel for Scripted {
 }
 
 #[test]
-fn derive_maps_complex_field_types_to_json() {
+fn derive_spells_complex_field_types_the_way_dspy_prints_them() {
     let signature = IdeasTask::signature();
-    // The derive knows the Rust type but not the Python name dspy would print for it.
-    let json = dsrs::signature::FieldKind::opaque_json();
-    assert!(signature.inputs.iter().all(|field| field.kind == json));
-    assert_eq!(signature.outputs[0].kind, json);
+    let annotation = |kind: &dsrs::signature::FieldKind| match kind {
+        dsrs::signature::FieldKind::Json(json) => json.annotation.clone(),
+        other => format!("{other:?}"),
+    };
+    let inputs: Vec<String> = signature
+        .inputs
+        .iter()
+        .map(|field| annotation(&field.kind))
+        .collect();
+    assert_eq!(
+        inputs,
+        ["Recipient", "list[str]", "list[GiftIdea]"],
+        "a declared type keeps its name and a Vec becomes a list, as dspy prints them"
+    );
+    assert_eq!(annotation(&signature.outputs[0].kind), "list[GiftIdea]");
     assert_eq!(signature.outputs[1].kind, dsrs::signature::FieldKind::Str);
 
     let ideas_schema = json_field_schema::<Vec<GiftIdea>>();
@@ -182,10 +194,10 @@ async fn prompts_annotate_json_fields_and_a_marker_reply_deserializes() {
     let calls = lm.calls();
     assert_eq!(calls.len(), 1);
     let system = &calls[0].system;
-    assert!(system.contains("1. `recipient` (json): who the gift is for\n"));
-    assert!(system.contains("2. `themes` (json): keywords to build on\n"));
+    assert!(system.contains("1. `recipient` (Recipient): who the gift is for\n"));
+    assert!(system.contains("2. `themes` (list[str]): keywords to build on\n"));
     assert!(
-        system.contains("1. `ideas` (json): three concrete ideas\n"),
+        system.contains("1. `ideas` (list[GiftIdea]): three concrete ideas\n"),
         "got: {system}"
     );
     // The schema reaches the model through the slot note alone, spaced as `json.dumps` writes
@@ -461,4 +473,34 @@ async fn live_complex_output() -> Result<()> {
             .all(|idea| !idea.title.is_empty() && !idea.why.is_empty())
     );
     Ok(())
+}
+
+/// What the whole reflection tree exists for: BAML states a type rather than a schema of it, and
+/// a Rust-declared type reached it as the bare word `json` until the derive started carrying its
+/// shape.
+///
+/// The expectation is dspy 3.2.1's own output for the equivalent pydantic signature, taken by
+/// running it rather than reasoned about. Nothing else in the suite pins this — dropping the
+/// reflection from the derive leaves every other test passing.
+#[test]
+fn a_rust_type_reaches_baml_as_its_structure_rather_than_as_the_word_json() {
+    let system = dsrs::BamlAdapter
+        .system_message(&IdeasTask::signature())
+        .expect("renders");
+    let at = system.find("Output field").expect("an output type block");
+    let end = system[at..]
+        .find("[[ ## completed")
+        .map_or(system.len(), |offset| at + offset);
+
+    assert_eq!(
+        system[at..end].trim_end(),
+        "Output field `ideas` should be of type: [\n\
+         \x20 {\n\
+         \x20   title: string,\n\
+         \x20   why: string,\n\
+         \x20 }\n\
+         ]\n\n\
+         [[ ## tip ## ]]\n\
+         Output field `tip` should be of type: string"
+    );
 }
