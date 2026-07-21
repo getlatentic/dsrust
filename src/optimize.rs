@@ -21,7 +21,7 @@ mod rng;
 #[cfg(test)]
 mod conformance;
 #[cfg(test)]
-mod scripted;
+pub(crate) mod scripted;
 
 pub use bootstrap::BootstrapFewShot;
 pub use labeled::LabeledFewShot;

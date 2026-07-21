@@ -30,7 +30,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-21"
 
 [status]
-rust_tests = 376
+rust_tests = 388
 upstream_tests_passing = 380
 upstream_tests_crossing = 180
 upstream_tests_deciding_signatures = 260
@@ -239,7 +239,7 @@ suites = [
   "predict/test_aggregation.py", "predict/test_multi_chain_comparison.py",
   "predict/test_parallel.py",
 ]
-shipped_so_far = "majority and MultiChainComparison; Parallel remains"
+state_note = "all three shipped; predict/test_parallel.py not in SUITES — see remaining"
 rationale = """
 dspy ships thirteen modules and three are ported. These three need nothing this crate lacks:
 majority reconciles several answers, MultiChainComparison shows a model its own prior attempts,
@@ -252,16 +252,23 @@ porting a comment. BestOfN and Refine moved to s11 because both vary attempts wi
 no seam for. That is the same limit that leaves max_rounds unable to force a different answer.
 """
 constraint = """
-tokio is a dev-dependency, not a dependency: this crate is async but runtime-agnostic, and
-nothing in src/ spawns or joins anything today. Parallel therefore cannot reach for
-tokio::spawn or a JoinSet without forcing a runtime on every caller, which is a promise the
-crate has so far declined to make.
+Settled: futures-util, no default features. It pulls four foundational crates (futures-core,
+futures-task, pin-project-lite, slab) and gives buffer_unordered, which is dspy's num_threads
+bound exactly. Hand-rolling bounded concurrency correctly is not worth owning.
 
-What fits instead is concurrency without parallelism — polling many futures on one task, the
-way join_all does — which suits network-bound model calls and keeps the crate runtime-free.
-dspy's Parallel is thread-based because Python's calls are blocking; that reason does not carry
-over. The open question is whether to take a futures dependency for the join or write it, and
-Evaluate wants the same answer, so whichever lands first decides for both.
+The crate stays runtime-agnostic — tokio is still a dev-dependency and nothing spawns. dspy's
+Parallel is thread-based because a Python model call blocks; nothing blocks here, so many calls
+poll on one task instead. Evaluate should take the same route when it stops being sequential.
+"""
+remaining = """
+predict/test_parallel.py is not in SUITES. Upstream's Parallel takes (module, example) pairs
+where the example may be an Example, a dict, a tuple or a nested Parallel, and dispatches on the
+Python type; its tests are written against that duck typing rather than against results. Reaching
+them needs a bridge shim deciding what a pair means, which is a different job from the module.
+
+Also unported deliberately: straggler resubmission. Upstream re-submits a branch that has run
+past a timeout when few remain, and takes whichever copy lands first. That is a latency hedge
+against a thread pool, and it doubles a model call to buy it.
 """
 
 [[sprint]]

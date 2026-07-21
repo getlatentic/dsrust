@@ -15,16 +15,16 @@ use crate::signature::Signature;
 
 /// What a program was looking at when it was asked one question.
 #[derive(Clone)]
-pub(super) struct Call {
-    pub(super) question: String,
+pub(crate) struct Call {
+    pub(crate) question: String,
     /// The demos the predictor held at the moment of the call. dspy hides the example being
     /// solved for exactly this window and puts it back afterwards, so a test that only reads
     /// the demos after a compile cannot see the difference.
-    pub(super) demos: Vec<Example>,
+    pub(crate) demos: Vec<Example>,
 }
 
 /// How a scripted program answers.
-pub(super) enum Answers {
+pub(crate) enum Answers {
     /// From the capital table, so `exact_match` scores it 1.0.
     Correctly,
     /// The same wrong answer every time.
@@ -37,15 +37,15 @@ pub(super) enum Answers {
 }
 
 /// One predictor, one rule for answering it.
-pub(super) struct Solver {
+pub(crate) struct Solver {
     signature: Signature,
-    pub(super) demos: Vec<Example>,
+    pub(crate) demos: Vec<Example>,
     answers: Answers,
     calls: Mutex<Vec<Call>>,
 }
 
 impl Solver {
-    pub(super) fn new(answers: Answers) -> Self {
+    pub(crate) fn new(answers: Answers) -> Self {
         Self {
             signature: Signature::single_input("Answer.", Vec::new()),
             demos: Vec::new(),
@@ -54,7 +54,7 @@ impl Solver {
         }
     }
 
-    pub(super) fn calls(&self) -> Vec<Call> {
+    pub(crate) fn calls(&self) -> Vec<Call> {
         self.calls.lock().expect("not poisoned").clone()
     }
 }
@@ -115,15 +115,15 @@ impl Module for Solver {
 
 /// Two predictors, so the decisions `_train` makes per predictor are observable. It answers
 /// correctly and records nothing: what is under test is which demos each half ends up with.
-pub(super) struct Pair {
+pub(crate) struct Pair {
     first: Signature,
-    pub(super) first_demos: Vec<Example>,
+    pub(crate) first_demos: Vec<Example>,
     second: Signature,
-    pub(super) second_demos: Vec<Example>,
+    pub(crate) second_demos: Vec<Example>,
 }
 
 impl Pair {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             first: Signature::single_input("Answer.", Vec::new()),
             first_demos: Vec::new(),
@@ -204,15 +204,15 @@ impl Module for Pair {
 /// Two predictors of which only one ever runs, which is what a branch in a program looks like to
 /// an optimizer. dspy starts every predictor's traces at an empty list, so the idle half is
 /// taught by nothing rather than by its sibling's work.
-pub(super) struct Lopsided {
+pub(crate) struct Lopsided {
     ran: Signature,
-    pub(super) ran_demos: Vec<Example>,
+    pub(crate) ran_demos: Vec<Example>,
     idle: Signature,
-    pub(super) idle_demos: Vec<Example>,
+    pub(crate) idle_demos: Vec<Example>,
 }
 
 impl Lopsided {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             ran: Signature::single_input("Answer.", Vec::new()),
             ran_demos: Vec::new(),
@@ -277,7 +277,7 @@ impl Module for Lopsided {
 /// Every example carries a distinct answer, so a test that reports which demos a predictor ended
 /// up with can tell any two of them apart. Interchangeable answers hide the difference between a
 /// draw that was made once and a draw that was made per predictor.
-pub(super) fn trainset() -> Vec<Example> {
+pub(crate) fn trainset() -> Vec<Example> {
     let mut examples = vec![
         example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"]),
         example! { question: "capital of Germany?", answer: "Berlin" }.with_inputs(["question"]),
@@ -290,7 +290,7 @@ pub(super) fn trainset() -> Vec<Example> {
 }
 
 /// The `answer` field of each demo, which is all most assertions need to identify one.
-pub(super) fn answers(demos: &[Example]) -> Vec<String> {
+pub(crate) fn answers(demos: &[Example]) -> Vec<String> {
     demos
         .iter()
         .filter_map(|demo| demo.get("answer")?.as_str().map(str::to_owned))

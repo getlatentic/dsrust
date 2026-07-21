@@ -106,6 +106,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "dsrs-derive",
+ "futures-util",
  "reqwest",
  "schemars",
  "serde",
