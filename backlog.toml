@@ -8,6 +8,11 @@
 # file to SUITES in scripts/run_upstream_tests.sh and triaging the failures it arrives
 # with. A story is not done because its suite is green; it is done when the suite is green
 # AND its tests cross into Rust — the runner prints that count.
+#
+# This file is the plan; SUITES is what runs. scripts/check_plan.py holds one to the other on
+# every upstream run, so a sprint cannot be marked done naming a suite nothing executes. A
+# `suites` entry naming a group rather than a file ("signatures/* (4 files)") reads as intent
+# and is not checked.
 
 [project]
 name = "dsrs"
@@ -59,6 +64,7 @@ id = "s3"
 name = "Optimizer conformance"
 state = "done"
 shipped = "2026-07-21"
+suites = ["teleprompt/test_bootstrap.py"]
 outcome = """
 The crate's own optimizer is held to upstream's behaviour, not just to its own tests.
 This is the sprint that closed the project's one known blind spot.

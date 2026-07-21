@@ -40,10 +40,10 @@ SUITES=(
 # exists after a version bump.
 MANIFEST="$ROOT/scripts/upstream_tests.txt"
 echo "==> Upstream coverage"
-for file in "${SUITES[@]}"; do
-  grep -qx "tests/$file" "$MANIFEST" \
-    || { echo "  $file is not in $MANIFEST; refresh it or fix the name" >&2; exit 1; }
-done
+# The backlog says which suites a sprint shipped; this array says which ones actually run. A
+# claim without evidence is the failure mode a plan has, so the two are checked against each
+# other before anything else.
+python3 "$ROOT/scripts/check_plan.py"
 TOTAL=$(grep -vc '^#' "$MANIFEST")
 echo "  ${#SUITES[@]} of $TOTAL upstream test files ($(( ${#SUITES[@]} * 100 / TOTAL ))%)"
 grep -v '^#' "$MANIFEST" | sed 's|tests/||;s|/.*||' | sort -u | while read -r area; do
