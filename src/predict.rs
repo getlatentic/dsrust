@@ -12,7 +12,10 @@ use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::{Signature, SignatureSpec};
 
 mod chain_of_thought;
+mod derived;
 pub use chain_of_thought::{ChainOfThought, TypedChainOfThought};
+pub use derived::TypedPredict;
+use derived::typed;
 
 #[cfg(test)]
 mod scripted;
@@ -261,70 +264,6 @@ impl Predict {
     ) -> Result<T> {
         typed(self.call_with(http, lm, input).await?)
     }
-}
-
-/// A [`Predict`] bound to a derived signature: the inputs struct in, the outputs struct back,
-/// through the same adapter-fallback and feedback-retry path.
-pub struct TypedPredict<S: SignatureSpec> {
-    predict: Predict,
-    spec: PhantomData<S>,
-}
-
-impl<S: SignatureSpec> TypedPredict<S> {
-    /// Send this module's prompts through a different wire format; see
-    /// [`Predict::with_adapter`].
-    pub fn with_adapter(mut self, adapter: impl Adapter + 'static) -> Self {
-        self.predict = self.predict.with_adapter(adapter);
-        self
-    }
-
-    /// Ask through the globally configured LM; see [`crate::lm::configure`].
-    pub async fn call(&self, inputs: &S::Inputs) -> Result<S::Outputs> {
-        let (http, lm) = global::current()?;
-        self.call_with(&http, lm.as_ref(), inputs).await
-    }
-
-    /// Ask through an explicit client and model: the per-call override, and the seam tests
-    /// script with a canned [`ChatModel`](crate::lm::ChatModel).
-    pub async fn call_with(
-        &self,
-        http: &reqwest::Client,
-        lm: &dyn DynChatModel,
-        inputs: &S::Inputs,
-    ) -> Result<S::Outputs> {
-        typed_task::<S>(&self.predict, http, lm, inputs, std::convert::identity).await
-    }
-}
-
-/// The typed tail shared by [`TypedPredict`] and [`TypedChainOfThought`]: deserialize the
-/// validated reply into the task's outputs, giving a shape mismatch one feedback retry that
-/// carries the serde error — the typed paths' fourth possible provider call. A second
-/// failure of any kind is final. `shape` trims module-owned fields (chain-of-thought's
-/// `reasoning`) before deserializing.
-async fn typed_task<S: SignatureSpec>(
-    predict: &Predict,
-    http: &reqwest::Client,
-    lm: &dyn DynChatModel,
-    inputs: &S::Inputs,
-    shape: fn(Value) -> Value,
-) -> Result<S::Outputs> {
-    let pairs = S::input_pairs(inputs);
-    let Validated { raw, value } = predict.call_with_inputs(http, lm, &pairs).await?;
-    let error = match typed::<S::Outputs>(shape(value)) {
-        Ok(outputs) => return Ok(outputs),
-        Err(error) => error,
-    };
-    tracing::warn!(%error, "retrying with shape feedback");
-    let feedback = Feedback {
-        previous: raw,
-        error: format!("{error:#}"),
-    };
-    let (_, value) = predict.feedback_ask(http, lm, &pairs, &feedback).await?;
-    typed(shape(value))
-}
-
-fn typed<T: DeserializeOwned>(value: Value) -> Result<T> {
-    serde_json::from_value(value).context("validated reply did not fit the requested type")
 }
 
 #[cfg(test)]
@@ -770,28 +709,38 @@ fn prediction_example(value: &Value) -> Example {
     }
 }
 
-/// A typed module is a module: same walk, same trace, so an optimizer reaches a derived
-/// signature exactly as it reaches a declared one.
-///
-/// Without this a program written the idiomatic way — a struct and a derive — could be asked
-/// but never compiled, which is the half of DSPy that makes the other half worth having.
-impl<S: SignatureSpec + Send + Sync> Module for TypedPredict<S> {
-    fn forward<'a>(
-        &'a self,
-        inputs: Example,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
-        self.predict.forward(inputs)
-    }
+crate::asks_with_a_prediction!(Predict);
+#[cfg(test)]
+mod one_api {
+    use crate::predict::scripted::{RoomTask, Scripted};
+    use crate::{call, predict};
 
-    fn forward_traced<'a>(
-        &'a self,
-        inputs: Example,
-        trace: &'a mut Vec<TraceStep>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
-        self.predict.forward_traced(inputs, trace)
-    }
+    /// One constructor and one call across both ways of declaring a task, which is what dspy
+    /// gives and what a caller should not have to think about.
+    ///
+    /// The answer differs on purpose: a task declared by its field names has only fields to
+    /// hand back, while a derived one hands back its own outputs, so `.color` keeps meaning the
+    /// field rather than a lookup that might miss.
+    #[tokio::test]
+    async fn both_signature_forms_are_built_and_asked_the_same_way() {
+        let reply = "[[ ## color ## ]]\nred\n\n[[ ## why ## ]]\ncalm\n\n[[ ## completed ## ]]";
 
-    fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
-        self.predict.named_predictors()
+        crate::lm::global::configure_model(
+            reqwest::Client::new(),
+            std::sync::Arc::new(Scripted::new(&[reply, reply])),
+        );
+
+        let declared = predict!("request -> color, why");
+        let derived = predict!(RoomTask);
+
+        let from_declared = call!(declared, request = "something calm")
+            .await
+            .expect("asks");
+        let from_derived = call!(derived, request = "something calm")
+            .await
+            .expect("asks");
+
+        assert_eq!(from_declared.get("color").unwrap(), "red");
+        assert_eq!(from_derived.color, "red");
     }
 }

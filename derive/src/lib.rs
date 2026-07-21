@@ -41,10 +41,13 @@ pub fn derive_signature(input: TokenStream) -> TokenStream {
 /// compile error.
 #[proc_macro]
 pub fn predict(input: TokenStream) -> TokenStream {
-    match syn::parse::<syn::LitStr>(input.clone()) {
-        Ok(spelling) => signature_str::expand_module(spelling, "Predict"),
-        Err(_) => call::expand(input, call::Module::Predict),
+    if let Ok(spelling) = syn::parse::<syn::LitStr>(input.clone()) {
+        return signature_str::expand_module(spelling, "Predict");
     }
+    if let Ok(task) = syn::parse::<syn::Ident>(input.clone()) {
+        return quote::quote! { ::dsrs::Predict::task::<#task>() }.into();
+    }
+    call::expand(input, call::Module::Predict)
 }
 
 /// `signature!("subject -> haiku")` — dspy's string spelling, refused while this crate compiles
@@ -59,8 +62,11 @@ pub fn signature(input: TokenStream) -> TokenStream {
 /// task's `ChainOfThought` module instead.
 #[proc_macro]
 pub fn chain_of_thought(input: TokenStream) -> TokenStream {
-    match syn::parse::<syn::LitStr>(input.clone()) {
-        Ok(spelling) => signature_str::expand_module(spelling, "ChainOfThought"),
-        Err(_) => call::expand(input, call::Module::ChainOfThought),
+    if let Ok(spelling) = syn::parse::<syn::LitStr>(input.clone()) {
+        return signature_str::expand_module(spelling, "ChainOfThought");
     }
+    if let Ok(task) = syn::parse::<syn::Ident>(input.clone()) {
+        return quote::quote! { ::dsrs::ChainOfThought::task::<#task>() }.into();
+    }
+    call::expand(input, call::Module::ChainOfThought)
 }

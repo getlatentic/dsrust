@@ -4,10 +4,11 @@ use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use super::{Predict, typed, typed_task};
+use super::Predict;
+use super::derived::{typed, typed_task};
 use crate::example::{Example, Prediction};
 use crate::lm::{DynChatModel, global};
-use crate::module::{Module, NamedPredictor, TraceStep};
+use crate::module::{Ask, Module, NamedPredictor, TraceStep};
 use crate::signature::{OutField, Signature, SignatureSpec};
 
 /// dspy.ChainOfThought: the same signature with a leading `reasoning` field. The model puts
@@ -202,5 +203,36 @@ mod tests {
             .expect("valid reply");
         assert_eq!(outputs.color, "blue");
         assert_eq!(outputs.why, "fresh");
+    }
+}
+
+crate::asks_with_a_prediction!(ChainOfThought);
+
+/// The [`TypedPredict`](super::TypedPredict) answer: a derived task keeps its own outputs.
+impl<S: SignatureSpec + Send + Sync> Ask for TypedChainOfThought<S>
+where
+    S::Outputs: Send,
+{
+    type Answer = S::Outputs;
+
+    fn ask<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
+        Box::pin(async move {
+            let (http, lm) = global::current()?;
+            let pairs: Vec<(&str, Value)> = inputs
+                .fields()
+                .map(|(name, value)| (name, value.clone()))
+                .collect();
+            super::derived::typed_pairs::<S>(
+                &self.cot.predict,
+                &http,
+                lm.as_ref(),
+                pairs,
+                without_reasoning,
+            )
+            .await
+        })
     }
 }

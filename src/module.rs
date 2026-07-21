@@ -82,7 +82,7 @@ pub fn relabel(trace: &mut [TraceStep], from: usize, name: &str) {
 /// Ask a module, naming each input where its value goes.
 ///
 /// ```
-/// # async fn wrapper(haiku: impl dsrs::Module) -> anyhow::Result<()> {
+/// # async fn wrapper(haiku: dsrs::Predict) -> anyhow::Result<()> {
 /// let result = dsrs::call!(haiku, subject = "computer science", tone = "wry").await?;
 /// # Ok(()) }
 /// ```
@@ -90,10 +90,14 @@ pub fn relabel(trace: &mut [TraceStep], from: usize, name: &str) {
 /// Rust has neither named arguments nor a mapping literal, so the two are written here instead:
 /// the field name sits where the value does, which is what `subject=` does in Python. Evaluates
 /// to the call's future, so the caller writes `.await?` and sees where the model is reached.
+///
+/// Asks through [`Ask`], so what comes back is whatever the module promised. A module of your
+/// own joins in with one line — `dsrs::asks_with_a_prediction!(YourModule);` — which is the same
+/// line the modules here use.
 #[macro_export]
 macro_rules! call {
     ($module:expr, $($field:ident = $value:expr),* $(,)?) => {
-        $crate::Module::forward(
+        $crate::Ask::ask(
             &$module,
             $crate::input! { $($field: $value),* },
         )
@@ -176,4 +180,47 @@ mod tests {
         assert_eq!(module.demos.len(), 1);
         assert_eq!(module.signature.instructions, "Echo it exactly.");
     }
+}
+
+/// What asking one module answers with.
+///
+/// dspy has one call spelling across both ways of declaring a task, because every module there
+/// answers with the same dynamic `Prediction`. Rust need not give that up to match: the spelling
+/// is shared and the answer stays whatever the module promised, so a derived task still hands
+/// back its own outputs struct and `result.answer` still means the field.
+pub trait Ask {
+    type Answer;
+
+    fn ask<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Self::Answer>> + Send + 'a>>;
+}
+
+/// Answer with the fields the module parsed, which is what a task declared by its field names
+/// has to give.
+///
+/// Written per module rather than blanket over [`Module`], because a derived task is a `Module`
+/// too and answers with something better than a `Prediction`. One blanket impl would make that
+/// unreachable.
+#[macro_export]
+macro_rules! asks_with_a_prediction {
+    ($module:ty) => {
+        impl $crate::Ask for $module {
+            type Answer = $crate::Prediction;
+
+            fn ask<'a>(
+                &'a self,
+                inputs: $crate::Example,
+            ) -> ::std::pin::Pin<
+                ::std::boxed::Box<
+                    dyn ::std::future::Future<Output = ::anyhow::Result<$crate::Prediction>>
+                        + Send
+                        + 'a,
+                >,
+            > {
+                $crate::Module::forward(self, inputs)
+            }
+        }
+    };
 }

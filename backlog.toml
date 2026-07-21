@@ -16,7 +16,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-21"
 
 [status]
-rust_tests = 364
+rust_tests = 365
 upstream_tests_passing = 300
 upstream_tests_crossing = 160
 upstream_tests_deciding_signatures = 229
@@ -251,15 +251,16 @@ and its break-on-success are ported; the forcing is not. Needs a per-call LM ove
 id = "b6"
 title = "One call spelling across declared and derived signatures"
 kind = "ergonomics"
+state = "done"
 detail = """
-A derived signature is now a Module, so an optimizer reaches it — that was the gap that
-mattered and it is closed. What is left is the call spelling: a declared signature is asked
-with call!/input! and answers with a Prediction, while a derived one is asked with
-predict!(Task { .. }) and answers with the task's own Outputs struct.
+dspy builds and asks both signature forms identically, so a difference here was a defect rather
+than a trade-off. predict! takes a spelling or a task type, and call! asks either.
 
-The difference is not accidental. The typed path exists to give compile-checked field names and
-a typed result, and routing it through call! would give both of those up. Worth revisiting only
-with a design that keeps the types, not by collapsing to the dynamic spelling.
+What does NOT collapse is the answer, and that is the point of the Ask trait: a task declared by
+its field names has only fields to hand back, while a derived one hands back its own outputs, so
+result.answer keeps meaning the field. Ask is written per module rather than blanket over Module,
+because a derived task is a Module too and one blanket impl would make its better answer
+unreachable. A module of a caller's own opts in with asks_with_a_prediction!.
 """
 
 [[backlog]]
