@@ -134,3 +134,42 @@ class LMToolSpec:  type: "function"; name: str; description: str|None; parameter
 The largest single divergence is `outputs`: ours is a list of strings, upstream's is a list of
 structured candidates. `finish_reason` and `truncated` in particular are things a caller currently
 cannot see at all.
+
+## Porting pydantic to serde
+
+Most of it maps directly.
+
+| pydantic | serde |
+|---|---|
+| `x: int \| None = None` | `Option<u32>` + `#[serde(default, skip_serializing_if = "Option::is_none")]` |
+| `Field(default_factory=dict)` | `#[serde(default)]` |
+| `extra="forbid"` | `#[serde(deny_unknown_fields)]` |
+| `extra="allow"` | `#[serde(flatten)] extra: Map<String, Value>` — cannot combine with `deny_unknown_fields`, and does not need to |
+| an input key under another name | `#[serde(alias = "…")]`, which accepts several spellings on the way in |
+
+Two things it does not do.
+
+**Validators do not run on construction.** `@model_validator(mode="after")` fires every time
+pydantic builds the model; a Rust struct literal has no hook at all. `LMUsage::fill_aliases` —
+mirroring `input_tokens` ↔ `prompt_tokens` and deriving `total_tokens` — therefore cannot be a
+derive. Two options, and the sprint should pick one and keep to it:
+
+- a constructor (`LmUsage::new(...)` / `from_parts`) that normalizes, with the literal left
+  un-normalized. Cheap, and a caller who writes the literal silently skips it.
+- `#[serde(from = "ShadowLmUsage")]`, deserializing into a private twin and converting through the
+  same normalizer. Covers the deserialize path — the disk cache — but still not direct literals.
+
+Both are needed for full cover: the shadow for data arriving, the constructor for code building.
+`LmConfig::from_kwargs` is the same shape, folding the four flat aliases into their nested homes.
+
+**Some validators should not be ported at all.** `LMSourcePart` validates that exactly one of
+`data`, `url`, `file_id`, `path` is set. That constraint exists because Python cannot say it in a
+type — Rust can:
+
+```rust
+enum LmSource { Data(String), Url(String), FileId(String), Path(PathBuf) }
+```
+
+which makes the invalid state unrepresentable rather than rejected. Prefer that wherever a
+validator is enforcing a shape the type system can carry, and keep a runtime check only where the
+rule is genuinely about values.
