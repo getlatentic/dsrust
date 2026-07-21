@@ -132,6 +132,25 @@ impl Example {
 ///     .with_inputs(["question"]);
 /// assert_eq!(example.labels().unwrap().len(), 1);
 /// ```
+/// The inputs of one call, each field named where its value goes.
+///
+/// ```
+/// # async fn wrapper(haiku: impl dsrs::Module) -> anyhow::Result<()> {
+/// let out = haiku.forward(dsrs::input! { subject: "computer science" }).await?;
+/// # Ok(()) }
+/// ```
+///
+/// Every field is an input, which is what asking a module means and what separates this from
+/// `example!`: a trainset row carries labels beside its inputs and has to say which are which,
+/// while a call carries only what it is asking about.
+#[macro_export]
+macro_rules! input {
+    ($($name:ident : $value:expr),* $(,)?) => {
+        $crate::example! { $($name: $value),* }
+            .with_inputs([$(stringify!($name)),*])
+    };
+}
+
 #[macro_export]
 macro_rules! example {
     ($($name:ident : $value:expr),* $(,)?) => {
@@ -262,5 +281,22 @@ mod tests {
             &json!("Rayleigh scattering.")
         );
         assert!(prediction.raw.contains("[[ ## answer ## ]]"));
+    }
+}
+
+#[cfg(test)]
+mod input_macro {
+    /// A call's fields are all inputs; a trainset row's are not, until it says so.
+    #[test]
+    fn every_field_of_a_call_is_an_input() {
+        let asking = crate::input! { subject: "computer science", tone: "wry" };
+        assert_eq!(asking.inputs().expect("declared").fields().count(), 2);
+        assert!(asking.labels().expect("declared").fields().next().is_none());
+
+        let row = crate::example! { subject: "computer science", haiku: "silicon dreaming" };
+        assert!(
+            row.inputs().is_err(),
+            "a row has not said which fields are inputs"
+        );
     }
 }

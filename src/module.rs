@@ -95,7 +95,7 @@ macro_rules! call {
     ($module:expr, $($field:ident = $value:expr),* $(,)?) => {
         $crate::Module::forward(
             &$module,
-            $crate::example! { $($field: $value),* },
+            $crate::input! { $($field: $value),* },
         )
     };
 }
