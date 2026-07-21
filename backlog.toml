@@ -5,7 +5,13 @@
 # only runs in the main checkout.
 #
 # Sprints run in the order they appear, not by id. An id is a stable reference and is never
-# renumbered, so a sprint split out later carries a higher number while sitting earlier.
+# renumbered, so a sprint added later can sit anywhere in the order.
+#
+# The order is a dependency chain, and reads as one sentence: declare a task, build the modules
+# that run it, score what they produce, improve it, save the improvement, then let a program look
+# something up before it answers. Each sprint needs the one before it to have something to work
+# on — an optimizer needs modules to optimize and a score to optimize against, and saving needs
+# something worth saving.
 #
 # Stories carry the upstream test files that prove them. "Add a suite" means adding the
 # file to SUITES in scripts/run_upstream_tests.sh and triaging the failures it arrives
@@ -222,27 +228,9 @@ with those modules rather than here. See b7.
 """
 
 [[sprint]]
-id = "s7"
-name = "Saving a compiled program"
-state = "next"
-outcome = """
-A compiled program survives the process that compiled it, which is what makes optimizing worth
-the model calls it costs.
-"""
-suites = ["primitives/test_base_module.py", "primitives/test_module.py"]
-rationale = """
-Split out of s4, which bundled it with coverage work. Everything else there was triaging a suite;
-this is a feature that does not exist yet: dump_state, load_state, deepcopy and named_sub_modules
-over a program and its LM.
-
-It ranks above s5 and s6 because both of those produce something worth keeping. Evaluate scores a
-program and an optimizer improves one, and today neither result can be written down.
-"""
-
-[[sprint]]
 id = "s8"
 name = "The modules that compose others"
-state = "planned"
+state = "next"
 outcome = """
 The modules a program is built out of rather than the one it ends at: retrying, sampling more
 than once, and running branches side by side.
@@ -278,20 +266,6 @@ in-process.
 """
 
 [[sprint]]
-id = "s10"
-name = "Retrieval"
-state = "planned"
-outcome = "A program can look something up before it answers, which is what RAG is."
-suites = [
-  "predict/test_knn.py", "retrievers/test_embeddings.py", "retrievers/test_colbertv2.py",
-]
-rationale = """
-KNN is also what KNNFewShot in s6 needs, so this unblocks one of the remaining optimizers rather
-than only adding a module. test_colbertv2.py talks to a hosted service and may not be runnable
-here at all; size it before promising it.
-"""
-
-[[sprint]]
 id = "s5"
 name = "Evaluate"
 state = "planned"
@@ -311,12 +285,47 @@ The Optimizer trait these are written against already exists, for the same reaso
 implementations against no shared shape would have grown five bespoke ones. DynOptimizer is
 what BetterTogether needs, since upstream's holds other optimizers and runs them in sequence.
 """
-candidates = ["COPRO", "MIPROv2", "GEPA", "BetterTogether", "KNNFewShot"]
-depends_on = "s10 for KNNFewShot, which needs the KNN retriever"
+candidates = ["COPRO", "MIPROv2", "GEPA", "BetterTogether"]
 notes = """
 The trait carries student, teacher and trainset. Upstream's Teleprompter.compile also takes
 valset, which MIPROv2 uses and nothing here does yet; widening the trait is a breaking change,
 so it wants doing when MIPROv2 lands and before b4 publishes an API that promises otherwise.
+"""
+
+[[sprint]]
+id = "s7"
+name = "Saving a compiled program"
+state = "planned"
+outcome = """
+A compiled program survives the process that compiled it, which is what makes optimizing worth
+the model calls it costs.
+"""
+suites = ["primitives/test_base_module.py", "primitives/test_module.py"]
+rationale = """
+Split out of s4, which bundled it with coverage work. Everything else there was triaging a suite;
+this is a feature that does not exist yet: dump_state, load_state, deepcopy and named_sub_modules
+over a program and its LM.
+
+It follows the optimizers rather than leading them, because what needs saving is whatever they
+produce. Demos are easy and already understood; an instruction search's candidates and a
+reflective optimizer's state are not, and designing the format before those exist would be
+guessing at their shape. Written first it would have been rework.
+"""
+
+[[sprint]]
+id = "s10"
+name = "Retrieval"
+state = "planned"
+outcome = "A program can look something up before it answers, which is what RAG is."
+suites = [
+  "predict/test_knn.py", "retrievers/test_embeddings.py", "retrievers/test_colbertv2.py",
+  "teleprompt/test_knn_fewshot.py",
+]
+rationale = """
+KNNFewShot lives here rather than with the other optimizers, because what it needs is the KNN
+retriever rather than anything the optimizer sprint builds. Splitting it that way is what lets
+retrieval come last without blocking s6. test_colbertv2.py talks to a hosted service and may not be runnable
+here at all; size it before promising it.
 """
 
 # ---------------------------------------------------------------------------
