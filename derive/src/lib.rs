@@ -31,6 +31,9 @@ pub fn derive_signature(input: TokenStream) -> TokenStream {
     }
 }
 
+/// `predict!("subject -> haiku")` — the module a string signature declares, built. The spelling
+/// is checked as this crate compiles, so there is no `?` to write and no runtime failure left.
+///
 /// `predict!(Task { field: value, ... })` — one `Predict` call on a derived task. Expands to
 /// `Task::predict().call(&TaskInputs { field: (value).into(), ... })` and evaluates to that
 /// call's future, so the caller writes `.await?`. Values coerce through `Into` toward each
@@ -38,7 +41,10 @@ pub fn derive_signature(input: TokenStream) -> TokenStream {
 /// compile error.
 #[proc_macro]
 pub fn predict(input: TokenStream) -> TokenStream {
-    call::expand(input, call::Module::Predict)
+    match syn::parse::<syn::LitStr>(input.clone()) {
+        Ok(spelling) => signature_str::expand_module(spelling, "Predict"),
+        Err(_) => call::expand(input, call::Module::Predict),
+    }
 }
 
 /// `signature!("subject -> haiku")` — dspy's string spelling, refused while this crate compiles
@@ -53,5 +59,8 @@ pub fn signature(input: TokenStream) -> TokenStream {
 /// task's `ChainOfThought` module instead.
 #[proc_macro]
 pub fn chain_of_thought(input: TokenStream) -> TokenStream {
-    call::expand(input, call::Module::ChainOfThought)
+    match syn::parse::<syn::LitStr>(input.clone()) {
+        Ok(spelling) => signature_str::expand_module(spelling, "ChainOfThought"),
+        Err(_) => call::expand(input, call::Module::ChainOfThought),
+    }
 }

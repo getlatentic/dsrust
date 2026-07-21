@@ -332,6 +332,17 @@ mod tests {
 mod macro_tests {
     use crate::signature;
 
+    /// `predict!("subject -> haiku")` builds the module, the way dspy's `Predict(spelling)` does.
+    #[test]
+    fn the_string_form_builds_a_module() {
+        let mut haiku = crate::predict!("subject -> haiku");
+        let named: Vec<String> = crate::module::Module::named_predictors(&mut haiku)
+            .into_iter()
+            .map(|predictor| predictor.signature.outputs[0].name.clone())
+            .collect();
+        assert_eq!(named, ["haiku"]);
+    }
+
     /// The spelling a caller writes, checked while this crate compiles.
     #[test]
     fn the_macro_reads_the_same_signature_the_parser_reads() {

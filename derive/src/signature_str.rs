@@ -59,18 +59,33 @@ fn names(side: &str) -> Vec<&str> {
         .collect()
 }
 
+/// The signature expression a checked literal becomes.
+fn checked(literal: &syn::LitStr) -> Result<proc_macro2::TokenStream, syn::Error> {
+    if let Some(refusal) = refusal(&literal.value()) {
+        return Err(syn::Error::new(literal.span(), refusal));
+    }
+    Ok(quote! {
+        ::dsrs::signature::parse(#literal).expect("refused at compile time if it could fail")
+    })
+}
+
 pub(crate) fn expand(input: TokenStream) -> TokenStream {
     let literal = syn::parse_macro_input!(input as syn::LitStr);
-    let spelling = literal.value();
-    if let Some(refusal) = refusal(&spelling) {
-        return syn::Error::new(literal.span(), refusal)
-            .into_compile_error()
-            .into();
+    match checked(&literal) {
+        Ok(signature) => signature.into(),
+        Err(error) => error.into_compile_error().into(),
     }
-    quote! {
-        ::dsrs::signature::parse(#literal).expect("refused at compile time if it could fail")
-    }
-    .into()
+}
+
+/// `predict!("subject -> haiku")` and its `chain_of_thought!` twin: the module a spelling
+/// declares, built rather than described.
+pub(crate) fn expand_module(literal: syn::LitStr, module: &str) -> TokenStream {
+    let built = match checked(&literal) {
+        Ok(signature) => signature,
+        Err(error) => return error.into_compile_error().into(),
+    };
+    let module = syn::Ident::new(module, literal.span());
+    quote! { ::dsrs::#module::new(#built) }.into()
 }
 
 #[cfg(test)]
