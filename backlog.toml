@@ -443,50 +443,50 @@ id = "b10"
 title = "Refine: the feedback half of s11"
 kind = "scoped"
 state = "next"
-detail = """
+detail = '''
 `BestOfN` shipped; `Refine` is the other half and is not a small mirror of it. Five pieces, and
 the rollout loop is only the first.
 
-1. **The loop.** Same as `BestOfN` — n attempts at `Sampling::rollout(i)`, keep the best, same
+1. The loop. Same as `BestOfN` — n attempts at `Sampling::rollout(i)`, keep the best, same
    index-against-budget failure rule. One difference that is upstream's: `threshold` is
    *nullable* here (`if self.threshold is not None and reward >= self.threshold`) where
    `BestOfN` compares unguarded. So `Option<f64>`, required positionally.
 
-2. **`OfferFeedback`**, a signature of nine inputs — program_code, modules_defn, program_inputs,
+2. `OfferFeedback`, a signature of nine inputs — program_code, modules_defn, program_inputs,
    program_trajectory, program_outputs, reward_code, target_threshold, reward_value, module_names
    — answering with `discussion` and `advice: dict[str, str]`, keyed by module name.
 
-3. **`inspect_modules`**, byte-sensitive prompt text. Oracle captured from dspy 3.2.1 for
-   `ChainOfThought("question -> answer")`:
+3. `inspect_modules`, byte-sensitive prompt text. Capture the oracle again with:
 
-   `--------` (80) `\nModule predict\n\tInput Fields:\n\t\t1. \`question\` (str):\n\tOutput
-   Fields:\n\t\t1. \`reasoning\` (str): \n\t\t2. \`answer\` (str):\n\tOriginal Instructions:
-   \n\t\tGiven the fields \`question\`, produce the fields \`answer\`.\n` + 80 dashes
+     .dspy-venv/bin/python -c "import dspy; from dspy.predict.refine import inspect_modules; \
+       print(repr(inspect_modules(dspy.ChainOfThought('question -> answer'))))"
 
-   Note the trailing space after `(str):` on `reasoning` but *not* on `answer` or `question`:
-   `get_field_description_string` strips the block as a whole, so only the last field of each
-   group loses it. Reason about this from the oracle, never from the code.
-   `adapter::prompt::numbered_input_lines`/`numbered_output_lines` already render these lines and
-   need widening from `pub(super)` to reach a module outside `adapter`.
+   Two things it shows that reading the code does not. The separator is eighty dashes. And the
+   field lines carry a trailing space after `(str):` on every field EXCEPT the last of each
+   group — `get_field_description_string` strips the block as a whole, so only the final line
+   loses it. Reason about this from the oracle, never from the code.
 
-4. **The trajectory as JSON**, upstream's `recursive_mask` + `orjson.dumps(option=OPT_INDENT_2)`.
+   `adapter::prompt::numbered_input_lines` / `numbered_output_lines` already render those lines
+   and need widening from `pub(super)` to reach a module outside `adapter`.
 
-5. **Injecting the advice**, and this is the open design question. dspy subclasses the live
-   adapter per attempt, appends a `hint_` InputField to the signature and sets its value from
-   `advice[module_name]` — so each predictor gets *its own* hint. Here `NamedPredictor` reaches a
+4. The trajectory as JSON, upstream's `recursive_mask` plus `orjson.dumps(option=OPT_INDENT_2)`.
+
+5. Injecting the advice, and this is the open design question. dspy subclasses the live adapter
+   per attempt, appends a `hint_` InputField to the signature and sets its value from
+   `advice[module_name]` — so each predictor gets its own hint. Here `NamedPredictor` reaches a
    predictor's signature and demos but not its adapter, and one `Example` carries one value for
    every predictor. Options: widen `NamedPredictor` with the adapter, or give it a
-   `hint: &mut Option<String>` that `Predict` renders as an extra input. The second is smaller and
-   keeps the adapter seam closed; decide before writing the loop.
+   `hint: &mut Option<String>` that `Predict` renders as an extra input. The second is smaller
+   and keeps the adapter seam closed; decide before writing the loop.
 
 `inspect.getsource` is settled: `#[derive(Module)]` captures the struct's own tokens for
 `program_code`, and the reward function's description is caller-supplied because a Rust closure
-has no recoverable source. Both are prose in a prompt — nothing parses or runs them, which is what
-separates this from s9's sandbox.
+has no recoverable source. Both are prose in a prompt — nothing parses or runs them, which is
+what separates this from s9's sandbox.
 
 Same standard as `BestOfN`: `Module` + `Ask` + crate-root export + a `refine!` macro naming the
 arguments, since dspy passes all five by keyword.
-"""
+'''
 
 [[backlog]]
 id = "b9"
