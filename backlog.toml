@@ -487,8 +487,25 @@ carry `text` *and* `outputs`, where this crate derives `text_ref()` from `output
 beta has not been superseded. That strengthens keeping 3.2.1 as the byte pin rather than weakens
 it — the experimental path is explicitly opt-in even in 3.3.
 
-**Also new in 3.3.0b1 and unported:** `ReActV2`, with native tool-calling. That is a tenth module
-this crate does not have, and it is not in the nine `b12` and the usage doc enumerate.
+**What 3.3.0b1 adds, and what it means here.** From its release notes:
+
+- **`ReActV2`** — "built around native tool calling", using `dspy.History`, `dspy.Tool` and
+  `dspy.ToolCalls` in place of a trajectory string. Each turn is a structured message rather than
+  "one ever-growing trajectory string", with parallel tool calls preserved by id and prior calls
+  replayed as assistant/tool messages. That is a different design from our `ReAct`, not a
+  revision of it — the trajectory rendering `react_trajectory.json` now pins is the *old* one,
+  which is correct for the 3.2.1 pin and will not carry over.
+- **`dump_state()` / `load_state()`** on the LM. That is s7's subject arriving upstream, so s7
+  should be designed against 3.3 rather than invented.
+- **`SandboxSerializable`** for passing richer objects (DataFrames) through RLM's sandbox — s9.
+- **`dspy.LMError` classes** replacing provider-specific exceptions. This crate raises `anyhow`
+  throughout; a typed error surface is a decision s11/s9 will keep bumping into.
+- **Dependencies dropped: asyncer, xxhash, typeguard.** xxhash matters for `b5`: `Hasher.hash`
+  was xxhash64 over pickle, and if the hash changed the seed derivation changed with it. `b5` is
+  skipped on the grounds that upstream's own seed is not reproducible — recheck that at 3.3
+  before treating the reasoning as still true.
+
+None of this touches the 3.2.1 byte pin. It is the roadmap for what a second reference is for.
 '''
 
 [[backlog]]
