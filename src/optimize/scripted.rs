@@ -25,6 +25,9 @@ pub(crate) struct Call {
     /// What the predictor was asked to sample with at that moment, which is how a test sees a
     /// bootstrap round after the first arriving as a fresh rollout.
     pub(crate) config: LmConfig,
+    /// What the predictor was told to do differently, which is how a `Refine` test sees one
+    /// attempt's advice arriving as the next attempt's hint.
+    pub(crate) hint: Option<String>,
 }
 
 /// How a scripted program answers.
@@ -107,6 +110,7 @@ impl Module for Solver {
                     question: question.clone(),
                     demos: self.demos.clone(),
                     config: self.config.clone(),
+                    hint: self.hint.clone(),
                 });
                 before
             };

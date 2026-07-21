@@ -107,8 +107,8 @@ pub fn signature() -> Signature {
 ///
 /// A reply that parsed but named no module is not an error: every predictor then falls back to
 /// [`NO_ADVICE`], which is what upstream's `advice.get(name, "N/A")` does per lookup.
-pub(super) fn advice_of(outputs: &serde_json::Map<String, Value>) -> serde_json::Map<String, Value> {
-    match outputs.get("advice") {
+pub(super) fn advice_of(advice: Option<&Value>) -> serde_json::Map<String, Value> {
+    match advice {
         Some(Value::Object(advice)) => advice.clone(),
         _ => serde_json::Map::new(),
     }
@@ -158,14 +158,13 @@ mod tests {
 
     #[test]
     fn a_reply_naming_no_module_leaves_every_predictor_on_the_fallback() {
-        let outputs = serde_json::Map::new();
-        assert!(advice_of(&outputs).is_empty());
+        assert!(advice_of(None).is_empty());
+        assert!(advice_of(Some(&serde_json::json!("not an object"))).is_empty());
     }
 
     #[test]
     fn advice_is_read_back_keyed_by_module_name() {
-        let outputs = serde_json::json!({ "advice": { "predict": "be terser" } });
-        let advice = advice_of(outputs.as_object().expect("an object"));
+        let advice = advice_of(Some(&serde_json::json!({ "predict": "be terser" })));
         assert_eq!(advice["predict"], serde_json::json!("be terser"));
     }
 }

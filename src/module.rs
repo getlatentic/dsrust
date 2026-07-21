@@ -42,6 +42,7 @@ pub struct NamedPredictor<'a> {
 /// thread-local that an optimizer reads afterwards. Here the trace is passed rather than
 /// ambient, and a predictor is identified by the name [`Module::named_predictors`] gives it
 /// rather than by object identity, so the two walks agree by construction.
+#[derive(Clone)]
 pub struct TraceStep {
     pub predictor: String,
     pub inputs: Example,

@@ -66,3 +66,16 @@ pub(crate) fn current() -> Result<(reqwest::Client, Arc<dyn DynChatModel>)> {
         .map(|configured| (configured.http.clone(), Arc::clone(&configured.lm)))
         .ok_or_else(|| anyhow!("no global LM; call lm::configure(...) first"))
 }
+
+/// The configured HTTP client, or a fresh one.
+///
+/// A module carrying its own model still needs a client to make the call, but not the global
+/// model behind it — so this never errors, where [`current`] does when nothing is configured.
+pub(crate) fn client() -> reqwest::Client {
+    GLOBAL
+        .read()
+        .expect("lock not poisoned")
+        .as_ref()
+        .map(|configured| configured.http.clone())
+        .unwrap_or_default()
+}

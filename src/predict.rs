@@ -22,6 +22,7 @@ pub mod refine;
 pub use aggregation::{Normalize, majority, normalize_text};
 pub use best_of_n::BestOfN;
 pub use chain_of_thought::{ChainOfThought, TypedChainOfThought};
+pub use refine::Refine;
 pub use derived::TypedPredict;
 use derived::typed;
 pub use multi_chain_comparison::MultiChainComparison;
@@ -122,9 +123,15 @@ impl<S> Predict<S> {
     }
 
     /// The model and client one call should use: this module's own, or the configured default.
+    ///
+    /// A module with its own model needs only a client, not the global model behind it, so it
+    /// runs where none is configured — which is what `BestOfN` and `Refine` rely on when they
+    /// hand a predictor a scripted model.
     fn asking(&self) -> Result<(reqwest::Client, std::sync::Arc<dyn DynChatModel>)> {
-        let (http, configured) = global::current()?;
-        Ok((http, self.lm.clone().unwrap_or(configured)))
+        match &self.lm {
+            Some(lm) => Ok((global::client(), lm.clone())),
+            None => global::current(),
+        }
     }
 
     /// Show the model these solved examples before the request.
