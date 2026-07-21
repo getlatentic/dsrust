@@ -245,3 +245,74 @@ async fn shows_each_attempt_what_dspy_showed_it() {
         assert_eq!(ours, expected, "at {}", label(&case));
     }
 }
+
+/// A derived signature is compiled the same way a declared one is.
+///
+/// `TypedPredict` is the idiomatic way to write a task in Rust, and until it was a `Module` an
+/// optimizer could not walk it: the ergonomic front door led away from the half of DSPy that
+/// makes the other half worth having. Reaching `compile` at all is the assertion — it takes
+/// `M: Module`, which a derived program could not satisfy.
+#[tokio::test]
+async fn a_derived_signature_can_be_compiled() {
+    use std::sync::Arc;
+
+    use crate::lm::global::configure_model;
+    use crate::module::Module;
+    use crate::predict::Predict;
+    use crate::signature::{InField, OutField, Signature, SignatureSpec};
+    use crate::{DummyLM, example};
+
+    struct Capital;
+
+    impl SignatureSpec for Capital {
+        type Inputs = ();
+        type Outputs = serde_json::Map<String, Value>;
+
+        fn signature() -> Signature {
+            Signature {
+                instructions: "Answer.".to_owned(),
+                inputs: vec![InField {
+                    name: "question".to_owned(),
+                    ..Default::default()
+                }],
+                outputs: vec![OutField {
+                    name: "answer".to_owned(),
+                    ..Default::default()
+                }],
+            }
+        }
+
+        fn input_pairs(_: &Self::Inputs) -> Vec<(&'static str, Value)> {
+            Vec::new()
+        }
+    }
+
+    configure_model(
+        reqwest::Client::new(),
+        Arc::new(DummyLM::keyed([
+            ("France", example! { answer: "Paris" }),
+            ("Germany", example! { answer: "Berlin" }),
+        ])),
+    );
+
+    let mut student = Predict::task::<Capital>();
+    let solvable = vec![
+        example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"]),
+        example! { question: "capital of Germany?", answer: "Berlin" }.with_inputs(["question"]),
+    ];
+
+    let kept = BootstrapFewShot {
+        max_labeled_demos: 0,
+        ..BootstrapFewShot::new(exact_match)
+    }
+    .compile(&mut student, &solvable)
+    .await
+    .expect("a derived program compiles");
+
+    assert_eq!(kept, 2, "both examples were solved and kept");
+    let demos = student.named_predictors()[0].demos.len();
+    assert_eq!(
+        demos, 2,
+        "the optimizer wrote demos into the derived program"
+    );
+}

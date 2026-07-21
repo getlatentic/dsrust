@@ -130,6 +130,29 @@ impl Module for ChainOfThought {
     }
 }
 
+/// The [`TypedPredict`](super::TypedPredict) reasoning: a derived signature stays reachable by
+/// an optimizer whichever module drives it.
+impl<S: SignatureSpec + Send + Sync> Module for TypedChainOfThought<S> {
+    fn forward<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        self.cot.forward(inputs)
+    }
+
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: Example,
+        trace: &'a mut Vec<TraceStep>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        self.cot.forward_traced(inputs, trace)
+    }
+
+    fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
+        self.cot.named_predictors()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

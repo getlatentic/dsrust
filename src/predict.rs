@@ -769,3 +769,29 @@ fn prediction_example(value: &Value) -> Example {
         None => Example::default(),
     }
 }
+
+/// A typed module is a module: same walk, same trace, so an optimizer reaches a derived
+/// signature exactly as it reaches a declared one.
+///
+/// Without this a program written the idiomatic way — a struct and a derive — could be asked
+/// but never compiled, which is the half of DSPy that makes the other half worth having.
+impl<S: SignatureSpec + Send + Sync> Module for TypedPredict<S> {
+    fn forward<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        self.predict.forward(inputs)
+    }
+
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: Example,
+        trace: &'a mut Vec<TraceStep>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        self.predict.forward_traced(inputs, trace)
+    }
+
+    fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
+        self.predict.named_predictors()
+    }
+}

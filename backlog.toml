@@ -16,7 +16,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-21"
 
 [status]
-rust_tests = 363
+rust_tests = 364
 upstream_tests_passing = 300
 upstream_tests_crossing = 160
 upstream_tests_deciding_signatures = 229
@@ -245,6 +245,21 @@ detail = """
 Upstream forces divergence with lm.copy(rollout_id=round_idx, temperature=1.0). No per-call LM
 override is reachable through Module::forward, so a second round re-asks identically. The loop
 and its break-on-success are ported; the forcing is not. Needs a per-call LM override seam.
+"""
+
+[[backlog]]
+id = "b6"
+title = "One call spelling across declared and derived signatures"
+kind = "ergonomics"
+detail = """
+A derived signature is now a Module, so an optimizer reaches it — that was the gap that
+mattered and it is closed. What is left is the call spelling: a declared signature is asked
+with call!/input! and answers with a Prediction, while a derived one is asked with
+predict!(Task { .. }) and answers with the task's own Outputs struct.
+
+The difference is not accidental. The typed path exists to give compile-checked field names and
+a typed result, and routing it through call! would give both of those up. Worth revisiting only
+with a design that keeps the types, not by collapsing to the dynamic spelling.
 """
 
 [[backlog]]
