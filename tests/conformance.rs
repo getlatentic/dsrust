@@ -8,6 +8,7 @@
 
 use dsrs::adapter::Input;
 use dsrs::signature::{FieldKind, InField, JsonType, OutField, Signature};
+use dsrs::lm::Content;
 use dsrs::{Adapter, ChainOfThought, ChatAdapter, Example, ReAct};
 use serde_json::Value;
 
@@ -18,7 +19,9 @@ struct Fixture {
     demos: Vec<Example>,
     values: Vec<(String, Value)>,
     expected_system: String,
-    expected_turns: Vec<(String, String)>,
+    /// The content dspy rendered, kept as the JSON it is: a string for a text-only turn, and an
+    /// array of blocks once a multimodal field has split it.
+    expected_turns: Vec<(String, Value)>,
 }
 
 fn kind_from(name: &str) -> FieldKind {
@@ -99,7 +102,7 @@ fn load(path: &std::path::Path) -> Fixture {
         .map(|turn| {
             (
                 turn["role"].as_str().expect("turn role").to_owned(),
-                turn["content"].as_str().expect("turn content").to_owned(),
+                turn["content"].clone(),
             )
         })
         .collect();
@@ -172,6 +175,51 @@ fn assert_same(label: &str, fixture: &Fixture, expected: &str, actual: &str) {
     );
 }
 
+/// A turn's content, whichever of the two shapes dspy gave it.
+///
+/// The shapes are compared against each other rather than coerced: a message dspy rendered as
+/// blocks must not pass because ours happened to render as prose that reads the same.
+fn assert_content(fixture: &Fixture, index: usize, expected: &Value, actual: &Content) {
+    let label = format!("turn {index}");
+    match (expected, actual) {
+        (Value::String(expected), Content::Text(actual)) => {
+            assert_same(&label, fixture, expected, actual)
+        }
+        (Value::Array(expected), Content::Blocks(actual)) => {
+            assert_eq!(
+                expected.len(),
+                actual.len(),
+                "{label} of fixture `{}` has {} blocks, dspy rendered {}",
+                fixture.name,
+                actual.len(),
+                expected.len()
+            );
+            for (at, (expected, actual)) in expected.iter().zip(actual).enumerate() {
+                assert_eq!(
+                    expected,
+                    actual,
+                    "{label} block {at} of fixture `{}`\n  source: {}",
+                    fixture.name,
+                    fixture.source
+                );
+            }
+        }
+        (expected, actual) => panic!(
+            "{label} of fixture `{}` disagrees on shape\n  source: {}\n\n  dspy rendered: {}\n  we rendered:   {}\n",
+            fixture.name,
+            fixture.source,
+            match expected {
+                Value::String(_) => "prose",
+                _ => "blocks",
+            },
+            match actual {
+                Content::Text(_) => "prose",
+                Content::Blocks(_) => "blocks",
+            },
+        ),
+    }
+}
+
 #[test]
 fn chat_adapter_renders_what_python_dspy_renders() {
     for fixture in fixtures() {
@@ -201,12 +249,7 @@ fn chat_adapter_renders_what_python_dspy_renders() {
         );
         for (index, (expected, actual)) in fixture.expected_turns.iter().zip(&turns).enumerate() {
             assert_eq!(expected.0, actual.role.as_str(), "turn {index} role");
-            assert_same(
-                &format!("turn {index}"),
-                &fixture,
-                &expected.1,
-                actual.content.text().expect("a text-only fixture"),
-            );
+            assert_content(&fixture, index, &expected.1, &actual.content);
         }
     }
 }

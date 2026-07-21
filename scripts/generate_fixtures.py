@@ -131,6 +131,17 @@ CASES = [
         },
     },
     {
+        # The multimodal path, which had no golden at all: an image cannot reach a provider
+        # inside a string, so the rendered message is content *blocks* rather than prose. The
+        # value is a real dspy.Image; what lands in the fixture is the marker-wrapped string its
+        # pydantic serialization produces, which is what a Rust caller has to reproduce.
+        "name": "image_input_field",
+        "instructions": "Describe the picture.",
+        "inputs": [{"name": "photo", "type": dspy.Image, "kind": "json:Image", "desc": None}],
+        "outputs": [{"name": "caption", "type": str, "kind": "str", "desc": None}],
+        "values": {"photo": dspy.Image(url="https://example.com/a.jpg")},
+    },
+    {
         "name": "multiline_instructions",
         "instructions": "Answer the question.\nBe brief.\nNever guess.",
         "inputs": [{"name": "question", "type": str, "kind": "str", "desc": None}],
@@ -154,6 +165,15 @@ def build_signature(case: dict) -> type[dspy.Signature]:
         )
     namespace = {"__doc__": case["instructions"], "__annotations__": annotations, **fields}
     return type(case["name"], (dspy.Signature,), namespace)
+
+
+def recorded(value):
+    """What the Rust harness feeds its adapter.
+
+    A custom type reaches dspy's adapter already serialized to a marker-wrapped string, so that
+    string — not the object — is the input value a Rust caller supplies.
+    """
+    return value.serialize_model() if hasattr(value, "serialize_model") else value
 
 
 def render(signature: type[dspy.Signature], demos: list, values: dict) -> tuple[str, list]:
@@ -187,7 +207,7 @@ def main() -> None:
             "outputs": [{k: spec[k] for k in ("name", "kind", "desc")} for spec in case["outputs"]],
             "module": case.get("module", "predict"),
             "demos": demos,
-            "values": case["values"],
+            "values": {name: recorded(value) for name, value in case["values"].items()},
             "expected_system": system,
             "expected_turns": [{"role": role, "content": content} for role, content in turns],
         }
