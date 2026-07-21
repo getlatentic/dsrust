@@ -222,6 +222,23 @@ mod live_input_order {
         }
     }
 
+    /// A field named twice renders once, because upstream's inputs are a dict and cannot hold
+    /// the same key twice. `Example::set` replaces rather than appends, so a duplicate cannot
+    /// reach here from a module either — this pins the helper against a caller building pairs
+    /// by hand.
+    #[test]
+    fn a_field_named_twice_renders_once() {
+        let signature = two_inputs();
+        let repeated = [
+            ("alpha", json!("first")),
+            ("beta", json!("B")),
+            ("alpha", json!("second")),
+        ];
+        let rendered = live_inputs(&signature, &repeated);
+        let names: Vec<&str> = rendered.iter().map(|(name, _)| *name).collect();
+        assert_eq!(names, ["alpha", "beta"]);
+    }
+
     /// dspy walks the signature's own input list to render the live request, so the order a
     /// caller happened to pass values in never reaches a prompt. Every adapter shares this, and
     /// no existing caller passed them out of order, so nothing caught it.
