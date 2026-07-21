@@ -4,6 +4,15 @@
 # criteria hold under the five gates in HANDOFF.md — including the upstream suite, which
 # only runs in the main checkout.
 #
+# Sprints run in the order they appear, not by id. An id is a stable reference and is never
+# renumbered, so a sprint added later can sit anywhere in the order.
+#
+# The order is a dependency chain, and reads as one sentence: declare a task, build the modules
+# that run it, score what they produce, improve it, save the improvement, then let a program look
+# something up before it answers. Each sprint needs the one before it to have something to work
+# on — an optimizer needs modules to optimize and a score to optimize against, and saving needs
+# something worth saving.
+#
 # Stories carry the upstream test files that prove them. "Add a suite" means adding the
 # file to SUITES in scripts/run_upstream_tests.sh and triaging the failures it arrives
 # with. A story is not done because its suite is green; it is done when the suite is green
@@ -22,11 +31,11 @@ updated = "2026-07-21"
 
 [status]
 rust_tests = 372
-upstream_tests_passing = 300
-upstream_tests_crossing = 160
-upstream_tests_deciding_signatures = 229
+upstream_tests_passing = 373
+upstream_tests_crossing = 179
+upstream_tests_deciding_signatures = 254
 xfail_backlog = 0
-suites_run = 18
+suites_run = 22
 
 # ---------------------------------------------------------------------------
 # Shipped
@@ -170,9 +179,14 @@ acceptance = [
 [[sprint]]
 id = "s4"
 name = "Signatures and primitives"
-state = "in-progress"
+state = "done"
+shipped = "2026-07-21"
 outcome = "The declaration layer is held to upstream directly, not only through adapters."
-suites = ["signatures/test_signature.py"]
+suites = [
+  "signatures/test_signature.py", "signatures/test_custom_types.py",
+  "signatures/test_adapter_file.py", "signatures/test_adapter_image.py",
+  "primitives/test_example.py",
+]
 rationale = """
 Signature behaviour was proven only where an adapter happened to render it. These suites test
 it head-on.
@@ -192,11 +206,63 @@ another, and it moves during almost any signature construction, so folding them 
 have reported coverage no assertion backs. Both are printed.
 """
 remaining = """
-Five tests in test_signature.py raise while a declaration is still being validated, so nothing
-reaches the crate. Two of the five are structural and portable: exactly one arrow, and no name
-claimed by both sides. The other three are pydantic field validation. primitives/ is untouched:
-test_python_interpreter.py needs a deno sandbox, and test_base_module.py with test_module.py are
-the state layer the handoff lists as not started.
+signatures/ is complete: all four files run. What they leave declared rather than crossing is
+dspy.File, dspy.Image and custom-annotation resolution — a value building and describing itself,
+which is Python answering about its own type system rather than anything this crate renders.
+Four tests in test_signature.py raise while a declaration is still being validated; two of those
+are structural and portable (exactly one arrow, no name claimed by both sides).
+
+primitives/test_example.py runs: the record's one real decision — which fields are inputs and
+which are labels — is the crate's, and the rest of that file is Python's data model on a Python
+object.
+
+test_base_module.py and test_module.py moved out to s7. They are not a suite to triage but a
+feature to build — saving a compiled program and loading it back — and bundling a feature into a
+coverage sprint is what made this one read as unfinished when its coverage was complete.
+
+test_python_interpreter.py is NOT blocked by deno, which was a wrong reading. Deno is not a dspy
+dependency at all; it is an external runtime a user installs, and PythonInterpreter shells out to
+it exactly as this crate would with std::process::Command. What gates it is that it exists to
+serve rlm.py, code_act.py and program_of_thought.py, none of which are ported — so it belongs
+with those modules rather than here. See b7.
+"""
+
+[[sprint]]
+id = "s8"
+name = "The modules that compose others"
+state = "next"
+outcome = """
+The modules a program is built out of rather than the one it ends at: retrying, sampling more
+than once, and running branches side by side.
+"""
+suites = [
+  "predict/test_refine.py", "predict/test_best_of_n.py", "predict/test_parallel.py",
+  "predict/test_aggregation.py", "predict/test_multi_chain_comparison.py",
+  "predict/test_retry.py",
+]
+rationale = """
+dspy ships thirteen modules and three are ported. These six are the ones that need no runtime
+this crate does not already have: each wraps a module it was handed and decides how often to
+call it, or how to reconcile several answers. Parallel is the one with a design question, since
+it needs concurrency where Evaluate is still sequential.
+
+Ahead of the code-executing three because nothing here waits on a sandbox.
+"""
+
+[[sprint]]
+id = "s9"
+name = "The modules that run code"
+state = "planned"
+outcome = "A program can write code, run it in a sandbox, and use the result."
+suites = [
+  "predict/test_program_of_thought.py", "predict/test_code_act.py", "predict/test_rlm.py",
+  "primitives/test_python_interpreter.py",
+]
+rationale = """
+ProgramOfThought, CodeAct and RLM all reach PythonInterpreter, so they arrive together with the
+sandbox decision in b7 rather than after it. That decision is the sprint's first task, not a
+prerequisite to settle elsewhere: deno as dspy does it, pyodide hosted directly, or rustpython
+in-process.
 """
 
 [[sprint]]
@@ -219,11 +285,47 @@ The Optimizer trait these are written against already exists, for the same reaso
 implementations against no shared shape would have grown five bespoke ones. DynOptimizer is
 what BetterTogether needs, since upstream's holds other optimizers and runs them in sequence.
 """
-candidates = ["COPRO", "MIPROv2", "GEPA", "BetterTogether", "KNNFewShot"]
+candidates = ["COPRO", "MIPROv2", "GEPA", "BetterTogether"]
 notes = """
 The trait carries student, teacher and trainset. Upstream's Teleprompter.compile also takes
 valset, which MIPROv2 uses and nothing here does yet; widening the trait is a breaking change,
 so it wants doing when MIPROv2 lands and before b4 publishes an API that promises otherwise.
+"""
+
+[[sprint]]
+id = "s7"
+name = "Saving a compiled program"
+state = "planned"
+outcome = """
+A compiled program survives the process that compiled it, which is what makes optimizing worth
+the model calls it costs.
+"""
+suites = ["primitives/test_base_module.py", "primitives/test_module.py"]
+rationale = """
+Split out of s4, which bundled it with coverage work. Everything else there was triaging a suite;
+this is a feature that does not exist yet: dump_state, load_state, deepcopy and named_sub_modules
+over a program and its LM.
+
+It follows the optimizers rather than leading them, because what needs saving is whatever they
+produce. Demos are easy and already understood; an instruction search's candidates and a
+reflective optimizer's state are not, and designing the format before those exist would be
+guessing at their shape. Written first it would have been rework.
+"""
+
+[[sprint]]
+id = "s10"
+name = "Retrieval"
+state = "planned"
+outcome = "A program can look something up before it answers, which is what RAG is."
+suites = [
+  "predict/test_knn.py", "retrievers/test_embeddings.py", "retrievers/test_colbertv2.py",
+  "teleprompt/test_knn_fewshot.py",
+]
+rationale = """
+KNNFewShot lives here rather than with the other optimizers, because what it needs is the KNN
+retriever rather than anything the optimizer sprint builds. Splitting it that way is what lets
+retrieval come last without blocking s6. test_colbertv2.py talks to a hosted service and may not be runnable
+here at all; size it before promising it.
 """
 
 # ---------------------------------------------------------------------------
@@ -284,6 +386,32 @@ takes the last trace. That agrees with upstream whenever upstream's coin lands o
 Only reachable when a predictor is called more than once per example, which means a loop: ReAct's
 per-turn predictor is the case in this crate. A pipeline whose predictors each run once never
 reaches the branch, and neither does any single-predictor program.
+"""
+
+[[backlog]]
+id = "b7"
+title = "PythonInterpreter, and the modules that need it"
+kind = "unscoped"
+detail = """
+dspy runs generated code in a Pyodide sandbox by shelling out to `deno run`. Deno is not a dspy
+dependency — it is a prerequisite a user installs — so a Rust port carries the same external
+requirement and std::process::Command does what subprocess does. Portable, in other words, and
+earlier notes calling it blocked were wrong.
+
+What it actually waits on is purpose: PythonInterpreter exists for rlm.py, code_act.py and
+program_of_thought.py. Port those and the interpreter comes with them; port the interpreter
+alone and nothing uses it. Size the three modules before scheduling any of it.
+
+How to run the sandbox is a real choice rather than a copy, and being in Rust changes it:
+
+  deno + pyodide   what dspy does. Same external prerequisite, and identical behaviour because
+                   it is literally the same sandbox.
+  wasmtime         pyodide's wasm hosted directly, no deno. Pyodide is Emscripten-built and
+                   expects JS glue for its syscalls, so this needs proving before it is planned.
+  rustpython       a Python interpreter in Rust, in-process, no external runtime at all. Buys
+                   the dependency back at the cost of a different interpreter's behaviour.
+  pyo3             rejected. It embeds CPython with full host access, which removes the sandbox
+                   that is the whole point. It stays what it already is here: the test bridge.
 """
 
 [[backlog]]

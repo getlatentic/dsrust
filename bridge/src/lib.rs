@@ -241,6 +241,33 @@ fn infer_prefix(name: &str) -> String {
     dsrs::signature::infer_prefix(name)
 }
 
+/// dspy `Example.inputs()` / `Example.labels()`: which of a record's fields are which.
+///
+/// The split is the decision — a field is an input because it was declared one, and a label
+/// because it was not — and it belongs to the crate. Python keeps the values and rebuilds the
+/// record around the answer, which is the same division the adapters follow.
+///
+/// `declared` being absent is upstream's `ValueError`, raised rather than answered, because a
+/// record that never said which fields it was asked about cannot be split at all.
+#[pyfunction]
+fn split_example(
+    names: Vec<String>,
+    declared: Option<Vec<String>>,
+) -> PyResult<(Vec<String>, Vec<String>)> {
+    let mut example = Example::new(names.iter().map(|name| (name.as_str(), Value::Null)));
+    if let Some(declared) = declared {
+        example = example.with_inputs(declared);
+    }
+    let named = |split: Example| split.fields().map(|(name, _)| name.to_owned()).collect();
+    let inputs = example.inputs().map_err(to_value_error)?;
+    let labels = example.labels().map_err(to_value_error)?;
+    Ok((named(inputs), named(labels)))
+}
+
+fn to_value_error(error: anyhow::Error) -> PyErr {
+    pyo3::exceptions::PyValueError::new_err(error.to_string())
+}
+
 /// The instruction dspy's `_create_extractor_signature` writes for the second ask.
 ///
 /// The extractor's *fields* stay Python's: their annotations are Python types this side cannot
@@ -390,5 +417,6 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(extractor_instructions, module)?)?;
     module.add_function(wrap_pyfunction!(field_description, module)?)?;
     module.add_function(wrap_pyfunction!(infer_prefix, module)?)?;
+    module.add_function(wrap_pyfunction!(split_example, module)?)?;
     Ok(())
 }
