@@ -13,7 +13,7 @@ use futures_util::lock::Mutex;
 
 use crate::example::{Example, Prediction};
 use crate::lm::Sampling;
-use crate::module::{Module, NamedPredictor, TraceStep};
+use crate::module::{Ask, Module, NamedPredictor, TraceStep};
 
 /// Ask up to `n` times and answer with the best attempt.
 ///
@@ -201,6 +201,25 @@ where
                 None => Err(anyhow!("BestOfN made no attempt that produced an answer")),
             }
         })
+    }
+}
+
+/// A wrapper answers with whatever its module answered, so `call!` reaches it like any other.
+///
+/// Written by hand rather than through `asks_with_a_prediction!`, which takes a concrete type and
+/// cannot name the two parameters this carries.
+impl<M, R> Ask for BestOfN<M, R>
+where
+    M: Module,
+    R: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+{
+    type Answer = Prediction;
+
+    fn ask<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        Module::forward(self, inputs)
     }
 }
 
@@ -401,6 +420,19 @@ mod tests {
                 .collect::<Vec<_>>(),
             ["self"]
         );
+    }
+
+    /// The standard every module here is held to: a dspy Module subclass is a Rust `Module`,
+    /// and `call!` reaches it by name the same way it reaches a `Predict`.
+    #[tokio::test]
+    async fn call_reaches_it_by_field_name_like_any_other_module() {
+        let solver = Solver::new(Answers::Correctly);
+        let best = BestOfN::new(solver, 2, correctness);
+
+        let answered = crate::call!(best, question = "capital of France?")
+            .await
+            .expect("an answer");
+        assert_eq!(answered.get("answer").unwrap(), "Paris");
     }
 
     /// A compile learns from the attempt that won, not from every attempt that lost.
