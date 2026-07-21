@@ -353,3 +353,33 @@ mod macro_tests {
         assert!(built == parsed, "the macro and the parser should agree");
     }
 }
+
+#[cfg(test)]
+mod ergonomics {
+    use std::sync::Arc;
+
+    use crate::lm::global::configure_model;
+    use crate::{DummyLM, example, predict};
+
+    /// The shortest spelling end to end, against dspy's:
+    ///
+    /// ```python
+    /// haiku_generator = dspy.Predict("subject -> haiku")
+    /// result = haiku_generator(subject="computer science")
+    /// ```
+    #[tokio::test]
+    async fn a_single_input_task_is_declared_and_called_in_two_lines() {
+        configure_model(
+            reqwest::Client::new(),
+            Arc::new(DummyLM::new([example! { haiku: "silicon dreaming" }])),
+        );
+
+        let haiku_generator = predict!("subject -> haiku");
+        let result = haiku_generator
+            .call("computer science")
+            .await
+            .expect("asks");
+
+        assert_eq!(result["haiku"], "silicon dreaming");
+    }
+}
