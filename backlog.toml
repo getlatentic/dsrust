@@ -461,12 +461,34 @@ and it governs every byte this crate is held to. Add **3.3.0b1 as a second refer
 for the LM request/response shape**, so s12's field-for-field choices stop being an inference.
 Two references, each answering what it is actually authoritative for.
 
-Worth confirming from upstream's own PRs rather than by inference: the working theory is that
-normalising onto a request and a response is groundwork for decoupling from litellm, which is
-what `**config` being an untyped bag currently depends on. `clients/provider.py` already exists
-at 3.2.1. If that theory holds, `b13`'s overflow map is not optional — the open-ended provider
-bag stops being litellm's job and becomes the framework's, which is the position this crate is
-already in, having no litellm at all.
+**Confirmed from upstream, no longer inference.** The 3.3.0b1 release notes and
+`dspy.ai/community/normalized-lm-api-migration/` say it directly:
+
+  "LiteLLM imports are lazy, which keeps the core LM API less coupled to a specific provider
+   bridge at import time."
+
+and give the motive as "less OpenAI/LiteLLM-shaped logic inside adapters", with litellm's role
+moving from default to compatibility fallback. Not a stated decoupling *goal*, but the direction
+is upstream's own words rather than a guess.
+
+So `b13`'s overflow map is not optional. The open-ended provider bag stops being litellm's job
+and becomes the framework's — which is the position this crate has always been in, having no
+litellm at all.
+
+**The response shape we built is right.** The migration guide names `response.text`,
+`response.outputs`, `response.usage`, `response.cache_hit` and `response.provider_data` — the
+exact five `LmResponse` carries. One thing to check when the reference lands: upstream appears to
+carry `text` *and* `outputs`, where this crate derives `text_ref()` from `outputs`.
+
+**The timeline matches what was assumed:** 3.3 opt-in behind `dspy.context(experimental=True)`,
+3.4 warnings, 3.5 typed by default, 3.6/4.0 legacy removed.
+
+**Note on the beta.** 3.3.0b1 is the only 3.3 on PyPI and 3.2.1 is still latest stable, so the
+beta has not been superseded. That strengthens keeping 3.2.1 as the byte pin rather than weakens
+it — the experimental path is explicitly opt-in even in 3.3.
+
+**Also new in 3.3.0b1 and unported:** `ReActV2`, with native tool-calling. That is a tenth module
+this crate does not have, and it is not in the nine `b12` and the usage doc enumerate.
 '''
 
 [[backlog]]
