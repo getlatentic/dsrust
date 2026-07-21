@@ -89,8 +89,24 @@ class LMUsage:
     input_tokens, output_tokens, total_tokens,
     prompt_tokens, completion_tokens, reasoning_tokens,
     cache_read_tokens, cache_write_tokens,
-    input_audio_tokens, output_audio_tokens
+    input_audio_tokens, output_audio_tokens: int | None
+    details: dict[str, Any]
+    model_config = ConfigDict(extra="allow")     # allow, unlike LMConfig's forbid
 ```
+
+`LMUsage` keeps **both** naming conventions rather than normalizing to one — "Both DSPy token
+names and provider token names are populated because both are existing user-visible interfaces."
+A `fill_aliases` validator mirrors them after construction, in both directions, and computes the
+total:
+
+    input_tokens  <-> prompt_tokens
+    output_tokens <-> completion_tokens
+    total_tokens   = input_tokens + output_tokens   (when both are known and total is not)
+
+Two things separate it from `LMConfig`: `extra="allow"` rather than `forbid`, so an unknown
+counter attaches rather than raising, and `details` for structured provider breakdowns. This crate
+normalizes to one pair of names, which is a deliberate simplification that s13-1 has to unpick —
+a caller reading `prompt_tokens` upstream finds nothing here.
 
 ## Messages and parts
 
