@@ -5,9 +5,36 @@ modules, and — as they land — evaluation and optimizers.
 
 The goal is **fidelity, not inspiration**. Where DSPy renders a prompt, this crate renders the
 same bytes. That is a claim worth testing rather than asserting, so upstream's own adapter
-tests are the acceptance criteria: `tests/conformance/` holds cases lifted from DSPy's
-`format_exact_messages_*` suite with the expected messages copied verbatim, and
-`tests/conformance.rs` runs this crate's renderer against them.
+tests are the acceptance criteria: `tests/conformance/` holds goldens written by *running* the
+pinned dspy rather than by transcribing its assertions, and `tests/conformance.rs` runs this
+crate's renderer against them.
+
+```rust
+let qa = predict!("question -> answer");
+let out = call!(qa, question = "capital of France?").await?;
+println!("{}", out.get("answer").unwrap());
+```
+
+A task is declared by its field names or by a struct, and both produce the same type, are asked
+the same way, and can be compiled by an optimizer. A malformed signature fails the build rather
+than the run:
+
+```rust
+#[derive(Signature)]
+/// Answer the question.
+struct QA {
+    #[input]
+    question: String,
+    #[output]
+    answer: String,
+}
+
+let qa = predict!(QA);
+let out = call!(qa, question = "capital of France?").await?;
+println!("{}", out.answer);   // typed, checked when this compiles
+```
+
+Every spelling, against the Python it mirrors: **[docs/usage.md](docs/usage.md)**.
 
 ```bash
 cargo test                          # everything, including committed goldens
@@ -25,8 +52,20 @@ from `BaseException`, so the `except Exception` that guards dspy's JSON re-ask c
 it on either the sync or the async path. That re-ask itself stays, because dspy has it and
 upstream tests it — what it may never do is stand in for code this crate has not written. The
 unbuilt cases are named in `conftest.py` and marked `xfail(strict=True)`, so they never count
-as passes, and the run fails if one starts passing while still listed. The last green run read
-**20 passed, 10 xfailed** — the 10 are the backlog, in code, unable to go stale.
+as passes, and the run fails if one starts passing while still listed — a backlog in code,
+unable to go stale. It is currently empty.
+
+A pass count alone would overstate what that proves, so the runner reports how far each test
+reached and how much of upstream is carried at all:
+
+```
+18 of 81 upstream test files (22%)
+160 of 300 tests rendered or parsed through the crate
+229 of 300 tests decided a signature through the crate
+```
+
+The suite is an allowlist, so green means the files named in it pass. The first line is what
+stops that reading as done.
 
 The bridge builds through maturin with `build.rs` calling
 `pyo3_build_config::add_extension_module_link_args()`, and deliberately does **not** use
@@ -49,11 +88,11 @@ that error rather than letting a broken build read as a pass.
 | Two-tier feedback retry | built |
 | Demos (few-shot examples) rendered as turns | built, conformance-checked |
 | `Example` with the input/label split, `Prediction` | built, semantics checked against dspy |
-| `Module` trait, implemented by `Predict` and `ChainOfThought` | built |
+| `Module` trait, implemented by every module including derived tasks | built |
 | `Evaluate` over a devset, with a metric | built (sequential) |
-| `LabeledFewShot` and `BootstrapFewShot` | built |
-| Instruction-search optimizers (COPRO/MIPRO-style) | next |
-| Optimizers (labeled few-shot → bootstrap → search) | planned |
+| `LabeledFewShot` and `BootstrapFewShot` | built, compared against dspy's own decisions |
+| `Optimizer` trait, so a caller can write their own | built |
+| Instruction-search optimizers (COPRO, MIPROv2, GEPA) | next |
 
 ## Why another one
 
