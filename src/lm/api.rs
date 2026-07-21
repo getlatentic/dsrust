@@ -8,6 +8,7 @@ mod config;
 mod delta;
 mod event;
 mod history;
+pub(crate) mod interop;
 mod legacy;
 mod message;
 mod part;

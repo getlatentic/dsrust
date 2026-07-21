@@ -155,6 +155,29 @@ pub trait ChatModel {
         http: &'a reqwest::Client,
         request: &'a LmRequest<'a>,
     ) -> impl Future<Output = Result<LmResponse>> + Send + 'a;
+
+    /// The typed 3.3 boundary: dspy's `forward(request: LMRequest) -> LMResponse`.
+    ///
+    /// Defaulted so every model already speaks it — the request is lowered to the legacy shape
+    /// [`chat`](Self::chat) takes, sent, and the reply lifted back, which is dspy's own
+    /// `forward_contract="legacy"` bridge. A model backed natively by a provider that speaks the
+    /// typed vocabulary overrides this to skip the round trip, exactly as a `"typed_lm"` custom
+    /// LM does upstream. Nothing here moves a byte: the lowering renders each turn through the
+    /// same path a native call would.
+    fn forward<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+        request: &'a api::LmRequest,
+    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a
+    where
+        Self: Sync,
+    {
+        async move {
+            let lowered = api::interop::lower_request(request);
+            let response = self.chat(http, &lowered.as_call()).await?;
+            Ok(api::interop::lift_response(response))
+        }
+    }
 }
 
 /// One configured language model: a model reference plus the credentials and hosts its

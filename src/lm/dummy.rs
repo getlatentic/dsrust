@@ -222,6 +222,34 @@ mod tests {
         assert!(ask(&lm, "capital of France?").unwrap().contains("Paris"));
     }
 
+    /// The typed 3.3 boundary reaches the same model through the default `forward`, and lands the
+    /// same request the model would have seen natively — proof the lowering is a passthrough.
+    #[test]
+    fn the_typed_forward_lands_the_same_request_as_chat() {
+        use crate::lm::api::{LmMessage, LmPart, LmRequest as ApiRequest};
+
+        let lm = DummyLM::new([example! { answer: "Paris" }]);
+        let typed = ApiRequest::new(
+            "openai/gpt-4o",
+            vec![
+                LmMessage::system(vec![LmPart::text("Be concise.")]),
+                LmMessage::user(vec![LmPart::text("capital of France?")]),
+            ],
+        );
+
+        let answered = futures_lite_block_on(lm.forward(&reqwest::Client::new(), &typed))
+            .expect("the dummy answers a typed request");
+        assert_eq!(answered.first_text(), "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]");
+
+        // The dummy recorded exactly what a native `chat` would have carried: the system prompt
+        // and the one user turn, the multi-part message collapsed back to prose.
+        let seen = lm.asked();
+        let seen = seen.last().expect("one call was recorded");
+        assert_eq!(seen.system, "Be concise.");
+        assert_eq!(seen.turns.len(), 1);
+        assert_eq!(seen.turns[0].content.text(), Some("capital of France?"));
+    }
+
     #[test]
     fn an_unplanned_call_is_loud_rather_than_silent() {
         let lm = DummyLM::new([example! { answer: "only one" }]);
