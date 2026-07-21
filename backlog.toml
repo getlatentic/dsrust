@@ -442,7 +442,17 @@ here at all; size it before promising it.
 id = "b11"
 title = "ChainOfThought puts prose where dspy puts nothing"
 kind = "known-divergence"
-state = "next"
+state = "done"
+closed = "2026-07-21"
+fixed = '''
+Both closed. The `reasoning` field carries no description, as upstream's does; the predictor is
+named `predict`, as upstream names it.
+
+The durable half is the fixture. `generate_fixtures.py` gained a `module` key so a case can be
+rendered through `ChainOfThought` before comparison, and `chain_of_thought_reasoning.json` is
+generated from dspy 3.2.1. Putting the old description back now fails it, naming the byte.
+Without that, fixing the string would have left the next drift as invisible as this one.
+'''
 detail = '''
 Every ChainOfThought prompt this crate sends differs from dspy's on one line.
 

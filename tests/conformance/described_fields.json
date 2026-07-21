@@ -21,6 +21,7 @@
       "desc": "one short sentence"
     }
   ],
+  "module": "predict",
   "demos": [],
   "values": {
     "request": "something calm"

@@ -20,14 +20,25 @@ pub struct ChainOfThought {
 }
 
 impl ChainOfThought {
+    /// The signature this module actually asks with, `reasoning` and all.
+    ///
+    /// dspy reaches the same thing as `cot.predict.signature`. What it answers with is not the
+    /// signature handed in: this module prepends a field before asking.
+    pub fn signature(&self) -> &Signature {
+        &self.predict.signature
+    }
+
     /// A module for a signature held as field names, matching
     /// [`Predict::from_signature`](super::Predict::from_signature).
     pub fn from_signature(mut signature: Signature) -> Self {
+        // No description, which is upstream's. dspy sets the `${reasoning}` sentinel and then
+        // suppresses it when rendering, so the field reaches a prompt as its name alone — the
+        // "Let's think step by step" prefix it used to carry was removed upstream in PR #8822.
+        // Prose here is a line dspy never sends.
         signature.outputs.insert(
             0,
             OutField {
                 name: "reasoning".into(),
-                desc: "think step by step about the request before the other fields".into(),
                 ..Default::default()
             },
         );
@@ -130,8 +141,21 @@ impl Module for ChainOfThought {
         self.predict.forward_traced(inputs, trace)
     }
 
+    /// One predictor, named the way dspy names it.
+    ///
+    /// `Predict` calls its own `self`; upstream's `ChainOfThought` holds a `Predict` on an
+    /// attribute called `predict` and `named_predictors` reports the attribute name. The name
+    /// reaches a prompt through `Refine`'s module description, and keys demos during a compile,
+    /// so the two have to agree.
     fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
-        self.predict.named_predictors()
+        self.predict
+            .named_predictors()
+            .into_iter()
+            .map(|predictor| NamedPredictor {
+                name: "predict".to_owned(),
+                ..predictor
+            })
+            .collect()
     }
 }
 

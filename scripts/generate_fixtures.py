@@ -29,6 +29,17 @@ OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance"
 # `kind` names the Rust FieldKind the harness maps this annotation to.
 CASES = [
     {
+        # The one module that changes the signature before rendering it. Without this, nothing
+        # compared the `reasoning` field dspy adds against the one this crate adds, and the two
+        # disagreed on its description for as long as both existed.
+        "name": "chain_of_thought_reasoning",
+        "module": "chain_of_thought",
+        "instructions": "Answer the question.",
+        "inputs": [{"name": "question", "type": str, "kind": "str", "desc": None}],
+        "outputs": [{"name": "answer", "type": str, "kind": "str", "desc": None}],
+        "values": {"question": "What is the capital of France?"},
+    },
+    {
         "name": "simple_signature",
         "instructions": "Answer the question.",
         "inputs": [{"name": "question", "type": str, "kind": "str", "desc": None}],
@@ -150,13 +161,19 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for case in CASES:
         demos = case.get("demos", [])
-        system, turns = render(build_signature(case), demos, case["values"])
+        signature = build_signature(case)
+        # `chain_of_thought` renders the signature that module prepends `reasoning` to, which is
+        # the only way a fixture sees the field it adds and the description it does *not* add.
+        if case.get("module") == "chain_of_thought":
+            signature = dspy.ChainOfThought(signature).predict.signature
+        system, turns = render(signature, demos, case["values"])
         fixture = {
             "source": f"generated from dspy=={PINNED} via scripts/generate_fixtures.py",
             "dspy_version": PINNED,
             "instructions": case["instructions"],
             "inputs": [{k: spec[k] for k in ("name", "kind", "desc")} for spec in case["inputs"]],
             "outputs": [{k: spec[k] for k in ("name", "kind", "desc")} for spec in case["outputs"]],
+            "module": case.get("module", "predict"),
             "demos": demos,
             "values": case["values"],
             "expected_system": system,

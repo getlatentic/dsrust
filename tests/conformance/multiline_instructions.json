@@ -16,6 +16,7 @@
       "desc": null
     }
   ],
+  "module": "predict",
   "demos": [],
   "values": {
     "question": "Why is the sky blue?"

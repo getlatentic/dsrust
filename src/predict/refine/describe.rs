@@ -62,12 +62,9 @@ mod tests {
     /// Byte for byte against dspy 3.2.1's `inspect_modules` for the same program. The command in
     /// this module's header regenerates it.
     ///
-    /// Ignored, and the reason is the point: this comparison found two divergences in
-    /// `ChainOfThought` itself — it names its predictor `self` where dspy names it `predict`, and
-    /// gives `reasoning` a prose description where dspy gives the `${reasoning}` sentinel that
-    /// renders as nothing. Both are `b11`. Greening this by writing our own output into it would
-    /// bury exactly what it caught.
-    #[ignore = "b11: ChainOfThought diverges from dspy on the predictor name and reasoning desc"]
+    /// Writing this found two divergences in `ChainOfThought` itself, both since fixed: it named
+    /// its predictor `self` where dspy names it `predict`, and gave `reasoning` a prose
+    /// description where dspy gives a sentinel that renders as nothing.
     #[test]
     fn a_chain_of_thought_reads_the_way_upstream_renders_it() {
         let mut program =

@@ -8,7 +8,7 @@
 
 use dsrs::adapter::Input;
 use dsrs::signature::{FieldKind, InField, JsonType, OutField, Signature};
-use dsrs::{Adapter, ChatAdapter, Example};
+use dsrs::{Adapter, ChainOfThought, ChatAdapter, Example};
 use serde_json::Value;
 
 struct Fixture {
@@ -104,16 +104,26 @@ fn load(path: &std::path::Path) -> Fixture {
         })
         .collect();
 
+    let declared = Signature {
+        instructions: json["instructions"]
+            .as_str()
+            .expect("instructions")
+            .to_owned(),
+        inputs,
+        outputs,
+    };
+
     Fixture {
         name: path.file_stem().unwrap().to_string_lossy().into_owned(),
         source: json["source"].as_str().unwrap_or_default().to_owned(),
-        signature: Signature {
-            instructions: json["instructions"]
-                .as_str()
-                .expect("instructions")
-                .to_owned(),
-            inputs,
-            outputs,
+        // A fixture records which module rendered it, because one of them changes the signature
+        // first: `ChainOfThought` prepends `reasoning`, and comparing what it prepends against
+        // what dspy prepends is the whole reason that case exists.
+        signature: match json["module"].as_str() {
+            Some("chain_of_thought") => {
+                ChainOfThought::from_signature(declared).signature().clone()
+            }
+            _ => declared,
         },
         demos,
         values,

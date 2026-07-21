@@ -16,6 +16,7 @@
       "desc": null
     }
   ],
+  "module": "predict",
   "demos": [
     {
       "question": "What is the capital of Germany?",

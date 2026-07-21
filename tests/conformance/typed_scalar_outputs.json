@@ -26,6 +26,7 @@
       "desc": "sure about it"
     }
   ],
+  "module": "predict",
   "demos": [],
   "values": {
     "sentence": "Three cats sat down."
