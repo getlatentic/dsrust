@@ -28,6 +28,12 @@ pub struct NamedPredictor<'a> {
     /// predictor is the same problem, and dspy solves it the same way: `set_lm` on a program
     /// assigns to all of them.
     pub sampling: &'a mut Sampling,
+    /// Advice for this predictor from an earlier attempt, shown to it on the next one.
+    ///
+    /// `Refine` writes it and `Predict` renders it as one more input field. Per predictor rather
+    /// than per program because that is what upstream's advice is: `OfferFeedback` answers with a
+    /// map keyed by module name, so the module that went wrong is the one told about it.
+    pub hint: &'a mut Option<String>,
 }
 
 /// One predictor call: which predictor ran, what it was asked, and what it answered.
@@ -164,6 +170,7 @@ mod tests {
         signature: Signature,
         demos: Vec<Example>,
         sampling: Sampling,
+        hint: Option<String>,
     }
 
     impl Module for Echo {
@@ -186,6 +193,7 @@ mod tests {
                 signature: &mut self.signature,
                 demos: &mut self.demos,
                 sampling: &mut self.sampling,
+                hint: &mut self.hint,
             }]
         }
     }
@@ -195,6 +203,7 @@ mod tests {
             signature: Signature::single_input("Echo the request.", Vec::new()),
             demos: Vec::new(),
             sampling: Sampling::default(),
+            hint: None,
         }
     }
 

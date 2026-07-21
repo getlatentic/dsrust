@@ -15,6 +15,7 @@ mod aggregation;
 mod best_of_n;
 mod chain_of_thought;
 mod derived;
+mod hint;
 mod multi_chain_comparison;
 mod parallel;
 pub use aggregation::{Normalize, majority, normalize_text};
@@ -53,6 +54,8 @@ pub struct Predict<S = Dynamic> {
     /// this rather than the model, since what they need to differ is one call's sampling and
     /// not which provider answers.
     sampling: Sampling,
+    /// What an earlier attempt was told to do differently. See [`NamedPredictor::hint`].
+    hint: Option<String>,
     spec: PhantomData<S>,
 }
 
@@ -85,6 +88,7 @@ impl<S> Predict<S> {
             demos: self.demos,
             lm: self.lm,
             sampling: self.sampling,
+            hint: self.hint,
         }
     }
 
@@ -144,6 +148,7 @@ impl Predict<Dynamic> {
             spec: PhantomData,
             lm: None,
             sampling: Sampling::default(),
+            hint: None,
             signature,
             adapter: Box::new(ChatAdapter::default()),
             demos: Vec::new(),
@@ -207,8 +212,11 @@ impl<S> Predict<S> {
         inputs: &[Input<'_>],
         feedback: Option<&Feedback>,
     ) -> Result<LmResponse> {
-        let schema = self.signature.schema();
-        let (system, opening) = adapter.format(&self.signature, &self.demos, inputs)?;
+        let hint = self.hint.as_deref();
+        let asked = hint::signature_with(&self.signature, hint);
+        let hinted = hint::inputs_with(inputs, hint);
+        let schema = asked.schema();
+        let (system, opening) = adapter.format(&asked, &self.demos, &hinted)?;
         let mode = adapter.output_mode(&schema);
         lm.chat_dyn(
             http,
@@ -406,6 +414,48 @@ mod tests {
 
     const MARKER_REPLY: &str =
         "[[ ## color ## ]]\nred\n\n[[ ## why ## ]]\ncalm\n\n[[ ## completed ## ]]";
+
+    /// `Refine` writes advice onto a predictor between attempts, and the model has to actually
+    /// see it — as one more input field, which is what upstream appends.
+    #[tokio::test]
+    async fn a_hint_reaches_the_prompt_as_one_more_input_field() {
+        let lm = Scripted::new(&[MARKER_REPLY, MARKER_REPLY]);
+
+        let mut plain = Predict::from_signature(signature());
+        plain
+            .call_with(&reqwest::Client::new(), &lm, "draft it")
+            .await
+            .expect("valid reply");
+
+        for predictor in plain.named_predictors() {
+            *predictor.hint = Some("name a warm colour".to_owned());
+        }
+        plain
+            .call_with(&reqwest::Client::new(), &lm, "draft it")
+            .await
+            .expect("valid reply");
+
+        let calls = lm.calls();
+        assert!(
+            !calls[0].system.contains("hint_"),
+            "a module with no advice renders as though the field did not exist"
+        );
+        assert!(
+            calls[1]
+                .system
+                .contains("`hint_` (str): A hint to the module from an earlier run"),
+            "got: {}",
+            calls[1].system
+        );
+        assert!(
+            calls[1].turns[0]
+                .content
+                .text()
+                .expect("a request")
+                .contains("name a warm colour"),
+            "the advice itself travels, not only the field describing it"
+        );
+    }
 
     #[tokio::test]
     async fn a_marker_reply_flows_through_the_chat_adapter() {
@@ -751,6 +801,7 @@ mod tests {
                 spec: PhantomData,
                 lm: None,
                 sampling: Sampling::default(),
+                hint: None,
                 signature: typed_signature(),
                 adapter: Box::new(JsonAdapter),
                 demos: Vec::new(),
@@ -821,6 +872,7 @@ impl<S: Send + Sync> Module for Predict<S> {
             signature: &mut self.signature,
             demos: &mut self.demos,
             sampling: &mut self.sampling,
+            hint: &mut self.hint,
         }]
     }
 

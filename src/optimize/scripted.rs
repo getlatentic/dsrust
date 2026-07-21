@@ -54,6 +54,7 @@ pub(crate) enum Answers {
 pub(crate) struct Solver {
     signature: Signature,
     sampling: Sampling,
+    hint: Option<String>,
     pub(crate) demos: Vec<Example>,
     answers: Answers,
     calls: Mutex<Vec<Call>>,
@@ -64,6 +65,7 @@ impl Solver {
         Self {
             signature: Signature::single_input("Answer.", Vec::new()),
             sampling: Sampling::default(),
+            hint: None,
             demos: Vec::new(),
             answers,
             calls: Mutex::new(Vec::new()),
@@ -132,6 +134,7 @@ impl Module for Solver {
             signature: &mut self.signature,
             demos: &mut self.demos,
             sampling: &mut self.sampling,
+            hint: &mut self.hint,
         }]
     }
 }
@@ -140,7 +143,9 @@ impl Module for Solver {
 /// correctly and records nothing: what is under test is which demos each half ends up with.
 pub(crate) struct Pair {
     first_sampling: Sampling,
+    first_hint: Option<String>,
     second_sampling: Sampling,
+    second_hint: Option<String>,
     first: Signature,
     pub(crate) first_demos: Vec<Example>,
     second: Signature,
@@ -153,9 +158,11 @@ impl Pair {
             first: Signature::single_input("Answer.", Vec::new()),
             first_demos: Vec::new(),
             first_sampling: Sampling::default(),
+            first_hint: None,
             second: Signature::single_input("Answer.", Vec::new()),
             second_demos: Vec::new(),
             second_sampling: Sampling::default(),
+            second_hint: None,
         }
     }
 }
@@ -219,12 +226,14 @@ impl Module for Pair {
                 signature: &mut self.first,
                 demos: &mut self.first_demos,
                 sampling: &mut self.first_sampling,
+                hint: &mut self.first_hint,
             },
             NamedPredictor {
                 name: "second".to_owned(),
                 signature: &mut self.second,
                 demos: &mut self.second_demos,
                 sampling: &mut self.second_sampling,
+                hint: &mut self.second_hint,
             },
         ]
     }
@@ -235,7 +244,9 @@ impl Module for Pair {
 /// taught by nothing rather than by its sibling's work.
 pub(crate) struct Lopsided {
     ran_sampling: Sampling,
+    ran_hint: Option<String>,
     idle_sampling: Sampling,
+    idle_hint: Option<String>,
     ran: Signature,
     pub(crate) ran_demos: Vec<Example>,
     idle: Signature,
@@ -248,9 +259,11 @@ impl Lopsided {
             ran: Signature::single_input("Answer.", Vec::new()),
             ran_demos: Vec::new(),
             ran_sampling: Sampling::default(),
+            ran_hint: None,
             idle: Signature::single_input("Answer.", Vec::new()),
             idle_demos: Vec::new(),
             idle_sampling: Sampling::default(),
+            idle_hint: None,
         }
     }
 }
@@ -295,12 +308,14 @@ impl Module for Lopsided {
                 signature: &mut self.ran,
                 demos: &mut self.ran_demos,
                 sampling: &mut self.ran_sampling,
+                hint: &mut self.ran_hint,
             },
             NamedPredictor {
                 name: "idle".to_owned(),
                 signature: &mut self.idle,
                 demos: &mut self.idle_demos,
                 sampling: &mut self.idle_sampling,
+                hint: &mut self.idle_hint,
             },
         ]
     }
