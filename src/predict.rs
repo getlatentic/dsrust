@@ -8,7 +8,7 @@ use crate::adapter::parse::FieldMismatch;
 use crate::adapter::{Adapter, ChatAdapter, Extraction, Feedback, turns_for};
 use crate::example::{Example, Prediction};
 use crate::lm::{DynChatModel, global};
-use crate::module::{Module, NamedPredictor};
+use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::{Signature, SignatureSpec};
 
 mod chain_of_thought;
@@ -729,6 +729,23 @@ impl Module for Predict {
             signature: &mut self.signature,
             demos: &mut self.demos,
         }]
+    }
+
+    /// One call, so one step, under the name [`Self::named_predictors`] answers with.
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: Example,
+        trace: &'a mut Vec<TraceStep>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        Box::pin(async move {
+            let prediction = self.forward(inputs.clone()).await?;
+            trace.push(TraceStep {
+                predictor: "self".to_owned(),
+                inputs,
+                outputs: prediction.example.clone(),
+            });
+            Ok(prediction)
+        })
     }
 }
 

@@ -7,7 +7,7 @@ use serde_json::Value;
 use super::{Predict, typed, typed_task};
 use crate::example::{Example, Prediction};
 use crate::lm::{DynChatModel, global};
-use crate::module::{Module, NamedPredictor};
+use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::{OutField, Signature, SignatureSpec};
 
 /// dspy.ChainOfThought: the same signature with a leading `reasoning` field. The model puts
@@ -115,6 +115,14 @@ impl Module for ChainOfThought {
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         self.predict.forward(inputs)
+    }
+
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: Example,
+        trace: &'a mut Vec<TraceStep>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        self.predict.forward_traced(inputs, trace)
     }
 
     fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {

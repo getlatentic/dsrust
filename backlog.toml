@@ -16,7 +16,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-20"
 
 [status]
-rust_tests = 342
+rust_tests = 345
 upstream_tests_passing = 256
 upstream_tests_crossing = 156
 xfail_backlog = 0
@@ -121,9 +121,23 @@ comparison. Anything that changes the generator reopens that.
 id = "s3-2"
 sprint = "s3"
 title = "Per-predictor demos for a multi-predictor program"
-state = "blocked"
+state = "done"
 size = "M"
 blocked_by = "s3-1"
+done = """
+Module::forward_traced carries a Vec<TraceStep> the caller owns, so attribution is a parameter
+rather than dspy's thread-local settings.trace. A composed module passes it down and relabels
+what its children recorded, the same way named_predictors relabels theirs. Predict, ChainOfThought
+and ReAct implement it; ReAct's episode moved into one private run() so forward and forward_traced
+cannot drift. BootstrapFewShot files demos under the predictor that earned them, falls back to
+program-level only when nothing was traced, and counts solved examples rather than demos — with
+several predictors one example earns several demos and the two part company.
+"""
+remaining = """
+s3-1's raw_demos rebinding is exercised by a Rust test but still not compared against upstream;
+that needs a two-predictor dspy program in generate_bootstrap_fixture.py. b5 records the one
+decision that cannot be compared at all.
+"""
 narrative = """
 As someone compiling a program with several predictors, I want each predictor to receive the
 demos its own calls earned, so that compiling a pipeline is worth more than compiling one step.
@@ -206,6 +220,23 @@ detail = """
 Upstream forces divergence with lm.copy(rollout_id=round_idx, temperature=1.0). No per-call LM
 override is reachable through Module::forward, so a second round re-asks identically. The loop
 and its break-on-success are ported; the forcing is not. Needs a per-call LM override seam.
+"""
+
+[[backlog]]
+id = "b5"
+title = "A predictor traced twice for one example takes its last trace"
+kind = "known-divergence"
+decision = "accepted"
+detail = """
+When one predictor produces several traces for a single example, dspy collapses them to one demo,
+choosing evenly between the last trace and a random earlier one. The choice is seeded with
+Hasher.hash(tuple(demos)), which is xxhash64 over pickle.dumps — reproducing CPython pickle bytes
+for dspy Example objects is not something this port can do, so src/optimize/bootstrap.rs::file
+takes the last trace. That agrees with upstream whenever upstream's coin lands on the last trace.
+
+Only reachable when a predictor is called more than once per example, which means a loop: ReAct's
+per-turn predictor is the case in this crate. A pipeline whose predictors each run once never
+reaches the branch, and neither does any single-predictor program.
 """
 
 [[backlog]]

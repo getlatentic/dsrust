@@ -12,7 +12,7 @@ use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
 use crate::example::{Example, Prediction};
-use crate::module::{Module, NamedPredictor};
+use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::predict::Predict;
 use crate::signature::{FieldKind, InField, JsonType, LiteralValue, OutField, Signature};
 use tool::describe;
@@ -271,18 +271,19 @@ fn extract_signature(signature: &Signature) -> Signature {
     }
 }
 
-impl Module for ReAct {
-    fn forward<'a>(
-        &'a self,
-        inputs: Example,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
-        Box::pin(async move {
+impl ReAct {
+    /// The episode itself, written once because [`Module::forward`] and
+    /// [`Module::forward_traced`] differ only in whether anyone keeps what the trace records.
+    async fn run(&self, inputs: Example, trace: &mut Vec<TraceStep>) -> Result<Prediction> {
+        {
             let mut trajectory = Trajectory::default();
             for _ in 0..self.max_iters {
                 let mut turn_inputs = inputs.clone();
                 turn_inputs.set("trajectory", Value::String(trajectory.rendered()));
 
-                let step = self.react.forward(turn_inputs).await?;
+                let mark = trace.len();
+                let step = self.react.forward_traced(turn_inputs, trace).await?;
+                relabel(trace, mark, "react");
                 let thought = string_field(&step, "next_thought");
                 let tool = string_field(&step, "next_tool_name");
                 let args = step
@@ -305,7 +306,9 @@ impl Module for ReAct {
 
             let mut final_inputs = inputs;
             final_inputs.set("trajectory", Value::String(trajectory.rendered()));
-            let extracted = self.extract.forward(final_inputs).await?;
+            let mark = trace.len();
+            let extracted = self.extract.forward_traced(final_inputs, trace).await?;
+            relabel(trace, mark, "extract");
 
             // dspy returns `Prediction(trajectory=trajectory, **extract)`: what the agent did
             // travels back beside what it concluded, so a caller can inspect the episode.
@@ -314,7 +317,27 @@ impl Module for ReAct {
                 example.set(name, value.clone());
             }
             Ok(Prediction::new(example, extracted.raw))
+        }
+    }
+}
+
+impl Module for ReAct {
+    fn forward<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        Box::pin(async move {
+            let mut discarded = Vec::new();
+            self.run(inputs, &mut discarded).await
         })
+    }
+
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: Example,
+        trace: &'a mut Vec<TraceStep>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        Box::pin(self.run(inputs, trace))
     }
 
     /// Both predictors are visible to a compiler: the per-turn one decides which tools get
