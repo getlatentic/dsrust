@@ -45,6 +45,15 @@ pub fn content_of(parts: &[LmPart]) -> Result<Content> {
     {
         return Ok(Content::Text(text.to_owned()));
     }
+    blocks_content(parts)
+}
+
+/// Every part as blocks, with no collapse to a bare string.
+///
+/// The collapse belongs to 3.3, which builds parts for every message including plain ones. A
+/// marker-split message is different: 3.2.1 renders one as a list however few blocks it ends up
+/// with, so collapsing a lone text block there would move the bytes.
+pub fn blocks_content(parts: &[LmPart]) -> Result<Content> {
     let mut blocks = Vec::new();
     for part in parts {
         blocks.extend(blocks_of(part)?);

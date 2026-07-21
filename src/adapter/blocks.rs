@@ -10,7 +10,8 @@
 
 use serde_json::Value;
 
-use crate::lm::{ChatTurn, Content, Role};
+use crate::lm::api::{LmPart, blocks_content, part_of_block};
+use crate::lm::{ChatTurn, Role};
 
 /// The sentinels dspy wraps a custom type's blocks in. They are reserved: a value containing
 /// one would be split at, which upstream accepts for the same reason.
@@ -28,9 +29,9 @@ pub(super) fn split_custom_types(turns: Vec<ChatTurn>) -> Vec<ChatTurn> {
         .into_iter()
         .map(|turn| match (turn.role, turn.content.text()) {
             (Role::User, Some(text)) => match split(text) {
-                Some(blocks) => ChatTurn {
+                Some(parts) => ChatTurn {
                     role: turn.role,
-                    content: Content::Blocks(blocks),
+                    content: blocks_content(&parts).unwrap_or_else(|_| turn.content.clone()),
                 },
                 None => turn,
             },
@@ -39,18 +40,18 @@ pub(super) fn split_custom_types(turns: Vec<ChatTurn>) -> Vec<ChatTurn> {
         .collect()
 }
 
-/// The blocks a message splits into, or `None` when it carries no custom type at all.
-fn split(content: &str) -> Option<Vec<Value>> {
-    let mut blocks = Vec::new();
+/// The parts a message splits into, or `None` when it carries no custom type at all.
+fn split(content: &str) -> Option<Vec<LmPart>> {
+    let mut parts = Vec::new();
     let mut rest = content;
     let mut found = false;
 
     while let Some((before, embedded, after)) = next_embedded(rest) {
         found = true;
         if !before.is_empty() {
-            blocks.push(text_block(before));
+            parts.push(LmPart::text(before));
         }
-        blocks.extend(embedded_blocks(embedded));
+        parts.extend(embedded_parts(embedded));
         rest = after;
     }
 
@@ -58,9 +59,9 @@ fn split(content: &str) -> Option<Vec<Value>> {
         return None;
     }
     if !rest.is_empty() {
-        blocks.push(text_block(rest));
+        parts.push(LmPart::text(rest));
     }
-    Some(blocks)
+    Some(parts)
 }
 
 /// The text before the next sentinel pair, what it wraps, and what follows it.
@@ -81,11 +82,11 @@ fn next_embedded(content: &str) -> Option<(&str, &str, &str)> {
 /// Anything else — text that never parsed, or an array with nothing in it — reaches the model
 /// as the text it already was, which is upstream's fallback and keeps a malformed value
 /// visible instead of dropping it.
-fn embedded_blocks(embedded: &str) -> Vec<Value> {
+fn embedded_parts(embedded: &str) -> Vec<LmPart> {
     let trimmed = embedded.trim();
     match parse_blocks(trimmed) {
-        Some(blocks) if !blocks.is_empty() => blocks,
-        _ => vec![text_block(trimmed)],
+        Some(blocks) if !blocks.is_empty() => blocks.iter().map(part_of_block).collect(),
+        _ => vec![LmPart::text(trimmed)],
     }
 }
 
@@ -103,13 +104,10 @@ fn parse_blocks(trimmed: &str) -> Option<Vec<Value>> {
     serde_json::from_str(&unescaped).ok()
 }
 
-fn text_block(text: &str) -> Value {
-    serde_json::json!({ "type": "text", "text": text })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lm::Content;
     use serde_json::json;
 
     fn wrap(inner: &str) -> String {
@@ -206,6 +204,18 @@ mod tests {
             blocks[0],
             json!({ "type": "text", "text": "not json at all" })
         );
+    }
+
+    /// Measured against dspy 3.2.1: a marker-split message renders as a list however few blocks
+    /// it holds. 3.3 collapses a lone text part to a bare string, and borrowing that rule here
+    /// silently changed what every such message sent.
+    #[test]
+    fn a_message_that_splits_to_one_text_block_stays_a_list() {
+        let turns = split_custom_types(user(&wrap(r#"[{"type": "text", "text": "only"}]"#)));
+        let Content::Blocks(blocks) = &turns[0].content else {
+            panic!("a split message is blocks, got {:?}", turns[0].content)
+        };
+        assert_eq!(blocks, &[json!({ "type": "text", "text": "only" })]);
     }
 
     #[test]
