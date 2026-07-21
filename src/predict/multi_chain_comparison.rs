@@ -338,23 +338,18 @@ mod tests {
     /// The whole message a model would receive, which is the only claim worth making: a field
     /// list that matches while the prompt does not is the failure mode this crate keeps hitting.
     ///
-    /// The values are put in signature order before rendering, matching `tests/conformance.rs`.
-    /// dspy's `format_user_message_content` walks `signature.input_fields` and skips what it was
-    /// not given, so the order a caller passes is unobservable there; `chat_user` walks what it
-    /// was given instead, and this module is the first caller whose natural order — every attempt
-    /// before the request they answer — is not the signature's. That divergence belongs to the
-    /// adapter, so it is not worked around here and this test does not claim it.
+    /// Rendered from the Example the module builds, whose order — every attempt before the
+    /// request they answer — is not the signature's. Passing that order through is what makes
+    /// the prompt's signature ordering a claim about the adapter rather than something this
+    /// test arranged.
     #[test]
     fn renders_the_prompt_dspy_renders() {
         for case in cases() {
             let module = module(&case);
             let inputs = asking(&case);
-            let values: Vec<(&str, Value)> = module
-                .predict
-                .signature
-                .inputs
-                .iter()
-                .filter_map(|field| Some((field.name.as_str(), inputs.get(&field.name)?.clone())))
+            let values: Vec<(&str, Value)> = inputs
+                .fields()
+                .map(|(name, value)| (name, value.clone()))
                 .collect();
             let (system, turns) = ChatAdapter::default()
                 .format(&module.predict.signature, &[], &values)
