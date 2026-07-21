@@ -233,7 +233,7 @@ impl<S> Predict<S> {
         // the JSON adapter; `use_json_adapter_fallback` turns that off. The adapter states the
         // policy, this module carries it out, because only the module can call the model.
         let answered = self.ask(http, lm, inputs, None).await?;
-        let usage = answered.usage;
+        let usage = answered.spend();
         let raw = answered.into_text();
         // An adapter that answers in prose has a second model read the fields out of it. The
         // adapter says what to ask and who to ask; only this module can do the asking.
@@ -260,7 +260,7 @@ impl<S> Predict<S> {
                         .ask_through(fallback.as_ref(), http, lm, inputs, None)
                         .await?;
                     let value = fallback.parse(&self.signature, answered.text_ref())?;
-                    let merged = Usage::merge(usage, answered.usage);
+                    let merged = Usage::merge(usage, answered.spend());
                     (answered.into_text(), value, merged)
                 }
             },
@@ -328,7 +328,7 @@ impl<S> Predict<S> {
         self.signature.coerce(&mut value)?;
         self.signature.ensure(&value)?;
         Ok(Validated {
-            usage: Usage::merge(asking, extracted.usage),
+            usage: Usage::merge(asking, extracted.spend()),
             raw: extracted.into_text(),
             value,
         })
@@ -347,7 +347,7 @@ impl<S> Predict<S> {
         let mut value = self.adapter.parse(&self.signature, answered.text_ref())?;
         self.signature.coerce(&mut value)?;
         self.signature.ensure(&value)?;
-        let usage = answered.usage;
+        let usage = answered.spend();
         Ok((answered.into_text(), value, usage))
     }
 }

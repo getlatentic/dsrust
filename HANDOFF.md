@@ -138,9 +138,18 @@ which leaves nowhere for a `Usage` to go — `typed_pairs` drops it explicitly. 
 means either a wrapper type around the caller's struct or an out-parameter, and both are worse than
 the gap until something actually needs the number on that path.
 
-**The cache is in memory only.** dspy writes a disk layer as well, which buys a warm cache across
-processes at the cost of a serialisation format to keep compatible. `Cached` is opt-in by wrapping,
-where dspy's is on by default; nothing here runs long enough to want either yet.
+**The cache is in memory only.** `LM` caches by default onto a process-wide bounded LRU, which is
+upstream's shape. What upstream also has and this does not is the *disk* layer — a warm cache
+across processes, at the cost of a serialisation format to keep compatible. Nothing here runs long
+enough to want it yet.
+
+Two things about it are worth knowing before writing a test against a stub. The store is shared and
+keyed on the request, and `base_url` is deliberately **not** in the key (upstream's
+`ignored_args_for_cache_key`), so two tests asking the same model the same question collide however
+different their stub servers are — and because a stub blocks waiting to be connected to, the second
+one *hangs* rather than failing. Any test that inspects what reached the wire wants
+`LM::without_cache`. `DummyLM` and the other scripted models are unaffected: they are not `LM`, and
+upstream draws the same line by extending `BaseLM`.
 
 **BAML record provenance.** dspy branches on `isinstance(value, BaseModel)`; we branch on the
 field's declared type. They agree whenever a value matches its declaration. Closing the gap means

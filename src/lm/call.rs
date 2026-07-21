@@ -76,15 +76,21 @@ impl<'a> LmRequest<'a> {
     /// What two identical calls share, and what [`Sampling::rollout_id`] exists to break.
     ///
     /// Everything the provider is sent is in here, because anything left out would let one call
-    /// be answered with another's reply. `rollout_id` is in here and is *not* sent, which is the
-    /// whole of what it does: it changes this string and nothing else.
-    pub fn cache_key(&self) -> String {
+    /// be answered with another's reply — `model` included, since the store is shared across
+    /// every model in the process. `rollout_id` is in here and is *not* sent, which is the whole
+    /// of what it does: it changes this string and nothing else.
+    ///
+    /// Credentials are deliberately absent, matching upstream's `ignored_args_for_cache_key`:
+    /// rotating a key does not change what a model answers, and a key has no business in a
+    /// map that outlives the call.
+    pub fn cache_key(&self, model: &str) -> String {
         let turns: Vec<Value> = self
             .turns
             .iter()
             .map(|turn| json!({ "role": turn.role.as_str(), "content": turn.content }))
             .collect();
         json!({
+            "model": model,
             "system": self.system,
             "turns": turns,
             "schema": match self.mode {
@@ -181,6 +187,15 @@ impl LmResponse {
     /// The first completion, taken by value.
     pub fn into_text(self) -> String {
         self.outputs.into_iter().next().unwrap_or_default()
+    }
+
+    /// What this call actually cost, which is nothing when it was replayed.
+    ///
+    /// [`usage`](Self::usage) stays readable on a hit — it is what the answer was worth — but a
+    /// replay is not billed, so anything totalling spend reads this instead. dspy draws the same
+    /// line by skipping its usage tracker when `cache_hit` is set.
+    pub fn spend(&self) -> Option<Usage> {
+        self.usage.filter(|_| !self.cache_hit)
     }
 
     pub fn with_usage(mut self, usage: Option<Usage>) -> Self {

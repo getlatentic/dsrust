@@ -1,5 +1,5 @@
 mod anthropic;
-mod cache;
+pub mod cache;
 mod call;
 pub mod dummy;
 pub mod global;
@@ -12,7 +12,7 @@ use std::time::Duration;
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
-pub use cache::Cached;
+pub use cache::{Cached, ResponseCache};
 pub use call::{LmRequest, LmResponse, Sampling, Usage};
 pub use global::{configure, configure_with_client};
 pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig};
@@ -193,6 +193,12 @@ pub struct LM {
     pub openrouter_api_key: Option<String>,
     pub ollama_host: String,
     pub openai: OpenAiConfig,
+    /// Whether a repeated request is replayed from [`cache::shared`] rather than paid for again.
+    ///
+    /// dspy's `LM(cache=True)`, on for the same reason: a program asked the same thing twice
+    /// almost never means to buy the answer twice, and every retry-shaped module depends on
+    /// `rollout_id` having a cache to miss. [`Self::without_cache`] turns it off.
+    pub cache: bool,
 }
 
 impl LM {
@@ -206,7 +212,14 @@ impl LM {
             openrouter_api_key: env_nonempty("OPENROUTER_API_KEY"),
             ollama_host: env_nonempty("OLLAMA_HOST").unwrap_or_else(|| DEFAULT_OLLAMA_HOST.into()),
             openai: OpenAiConfig::from_env(),
+            cache: true,
         })
+    }
+
+    /// Reach the provider every time, replaying nothing. dspy's `LM(cache=False)`.
+    pub fn without_cache(mut self) -> Self {
+        self.cache = false;
+        self
     }
 
     pub fn with_anthropic_key(mut self, key: impl Into<String>) -> Self {
@@ -268,6 +281,26 @@ fn env_nonempty(key: &str) -> Option<String> {
 
 impl ChatModel for LM {
     async fn chat(&self, http: &reqwest::Client, request: &LmRequest<'_>) -> Result<LmResponse> {
+        if !self.cache {
+            return self.ask_provider(http, request).await;
+        }
+        let key = request.cache_key(&self.model.id);
+        if let Some(replayed) = cache::shared().replay(&key) {
+            return Ok(replayed);
+        }
+        let answered = self.ask_provider(http, request).await?;
+        cache::shared().keep(key, answered.clone());
+        Ok(answered)
+    }
+}
+
+impl LM {
+    /// The call itself, on whichever wire format this model's provider speaks.
+    async fn ask_provider(
+        &self,
+        http: &reqwest::Client,
+        request: &LmRequest<'_>,
+    ) -> Result<LmResponse> {
         match self.model.provider {
             Provider::Anthropic => {
                 anthropic::chat(

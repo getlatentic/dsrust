@@ -126,7 +126,19 @@ fn write_response(stream: &mut TcpStream, status: u16, body: &str) {
     stream.flush().expect("the reply is flushed");
 }
 
+/// A probe that always reaches its stub.
+///
+/// Caching is off for every test that inspects the wire, and it has to be: the cache is shared
+/// across the process and keyed on the request, and upstream deliberately leaves `base_url` out
+/// of that key — so two tests asking the same model the same thing collide however different
+/// their stubs are. The second would be replayed, its stub would wait forever for a connection,
+/// and the test would hang rather than fail.
 fn probe_lm_for(stub: &Stub, model: &str) -> LM {
+    caching_lm_for(stub, model).without_cache()
+}
+
+/// The same probe with the cache left on, for the one test that is about the cache.
+fn caching_lm_for(stub: &Stub, model: &str) -> LM {
     LM::new(model)
         .expect("valid model ref")
         .with_openai_key("sk-test")
@@ -179,7 +191,8 @@ async fn a_base_url_with_a_trailing_slash_reaches_the_same_route() {
     let lm = LM::new("openai/gpt-4o-mini")
         .expect("valid model ref")
         .with_openai_key("sk-test")
-        .with_openai_base_url(format!("{}/", stub.base_url));
+        .with_openai_base_url(format!("{}/", stub.base_url))
+        .without_cache();
     ask(&lm, &OutputMode::Text).await.expect("the stub answers");
     assert_eq!(stub.received().path, "/v1/chat/completions");
 }
@@ -298,4 +311,21 @@ async fn a_missing_key_names_the_variable_the_endpoint_was_told_to_read() {
             .contains("DSRS_TEST_KEY_THAT_IS_NOT_SET is not set"),
         "got: {error}"
     );
+}
+
+/// dspy's `LM(cache=True)`: a repeated request is replayed rather than bought again. The stub
+/// answers exactly one connection, so a second call that reached the wire would hang here.
+#[tokio::test]
+async fn an_identical_request_is_replayed_rather_than_sent_again() {
+    let stub = Stub::answering(200, REPLY);
+    // A model name no other test uses, so this owns its entry in the shared cache.
+    let lm = caching_lm_for(&stub, "openai/cache-probe-model");
+
+    let first = ask(&lm, &OutputMode::Text).await.expect("the stub answers");
+    assert!(!first.cache_hit, "the first call is a real one");
+
+    let second = ask(&lm, &OutputMode::Text).await.expect("replayed");
+    assert!(second.cache_hit, "the second never reached the provider");
+    assert_eq!(second.text_ref(), "the reply");
+    assert_eq!(stub.received().path, "/v1/chat/completions");
 }

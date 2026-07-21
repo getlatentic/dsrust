@@ -30,7 +30,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-21"
 
 [status]
-rust_tests = 422
+rust_tests = 425
 upstream_tests_passing = 380
 upstream_tests_crossing = 180
 upstream_tests_deciding_signatures = 260
@@ -294,7 +294,11 @@ upstream's and every one does its job: all three providers send the sampling on 
 format names and read their own usage counters back onto one `Usage`; the OpenAI-shaped path sends
 `n` and reads every choice into `outputs`; `Cached` keys entries on the whole request so
 `rollout_id` breaks the key exactly as upstream's does, and `cache_hit` reports whether a reply was
-replayed. A `Prediction` reports what every call behind it cost, a fallback and a feedback retry
+replayed. The cache is on by default and process-wide, matching `LM(cache=True)` and dspy's
+module-level `DSPY_CACHE`; it is a bounded LRU for the same reason upstream's is, and only `LM`
+consults it, because upstream's `DummyLM` extends `BaseLM` and so is never cached either.
+`LmResponse::spend` reports nothing for a replay, which is how upstream's usage tracker treats a
+`cache_hit`. A `Prediction` reports what every call behind it cost, a fallback and a feedback retry
 included, since a `forward` bills up to four.
 
 b2 closed by widening the predictor walk: `NamedPredictor` lends its predictor's `Sampling`, and
