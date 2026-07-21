@@ -1,0 +1,305 @@
+{
+  "source": "generated from dspy==3.2.1 via scripts/generate_aggregation_fixture.py",
+  "dspy_version": "3.2.1",
+  "normalize_text": [
+    {
+      "text": "The,  Eiffel  Tower!",
+      "normalized": "eiffel tower"
+    },
+    {
+      "text": "Paris",
+      "normalized": "paris"
+    },
+    {
+      "text": "  paris  ",
+      "normalized": "paris"
+    },
+    {
+      "text": "THE PARIS",
+      "normalized": "paris"
+    },
+    {
+      "text": "a paris",
+      "normalized": "paris"
+    },
+    {
+      "text": "an apple",
+      "normalized": "apple"
+    },
+    {
+      "text": "the",
+      "normalized": ""
+    },
+    {
+      "text": "a",
+      "normalized": ""
+    },
+    {
+      "text": "",
+      "normalized": ""
+    },
+    {
+      "text": "   ",
+      "normalized": ""
+    },
+    {
+      "text": "...",
+      "normalized": ""
+    },
+    {
+      "text": "don't",
+      "normalized": "dont"
+    },
+    {
+      "text": "Paris, France.",
+      "normalized": "paris france"
+    },
+    {
+      "text": "hello   world",
+      "normalized": "hello world"
+    },
+    {
+      "text": "another",
+      "normalized": "another"
+    },
+    {
+      "text": "banana",
+      "normalized": "banana"
+    },
+    {
+      "text": "café",
+      "normalized": "café"
+    },
+    {
+      "text": "CAFÉ",
+      "normalized": "café"
+    },
+    {
+      "text": "naïve",
+      "normalized": "naïve"
+    },
+    {
+      "text": "Ω",
+      "normalized": "ω"
+    }
+  ],
+  "majority": [
+    {
+      "completions": [
+        {
+          "answer": "2"
+        },
+        {
+          "answer": "2"
+        },
+        {
+          "answer": "3"
+        }
+      ],
+      "field": null,
+      "normalize": "default",
+      "winner": {
+        "answer": "2"
+      }
+    },
+    {
+      "completions": [
+        {
+          "answer": "2"
+        },
+        {
+          "answer": "3"
+        },
+        {
+          "answer": "4"
+        }
+      ],
+      "field": null,
+      "normalize": "default",
+      "winner": {
+        "answer": "2"
+      }
+    },
+    {
+      "completions": [
+        {
+          "answer": "2"
+        },
+        {
+          "answer": " 2"
+        },
+        {
+          "answer": "3"
+        }
+      ],
+      "field": null,
+      "normalize": "text",
+      "winner": {
+        "answer": "2"
+      }
+    },
+    {
+      "completions": [
+        {
+          "answer": "a"
+        },
+        {
+          "answer": "b"
+        },
+        {
+          "answer": "b"
+        },
+        {
+          "answer": "a"
+        }
+      ],
+      "field": null,
+      "normalize": "identity",
+      "winner": {
+        "answer": "a"
+      }
+    },
+    {
+      "completions": [
+        {
+          "answer": "a"
+        },
+        {
+          "answer": "b"
+        },
+        {
+          "answer": "b"
+        },
+        {
+          "answer": "a"
+        }
+      ],
+      "field": null,
+      "normalize": "default",
+      "winner": {
+        "answer": "b"
+      }
+    },
+    {
+      "completions": [
+        {
+          "answer": "x"
+        },
+        {
+          "answer": "y"
+        },
+        {
+          "answer": "y"
+        },
+        {
+          "answer": "x"
+        }
+      ],
+      "field": null,
+      "normalize": "identity",
+      "winner": {
+        "answer": "x"
+      }
+    },
+    {
+      "completions": [
+        {
+          "question": "q",
+          "answer": "1"
+        },
+        {
+          "question": "q",
+          "answer": "2"
+        }
+      ],
+      "field": null,
+      "normalize": "default",
+      "winner": {
+        "question": "q",
+        "answer": "1"
+      }
+    },
+    {
+      "completions": [
+        {
+          "answer": "x",
+          "other": "1"
+        },
+        {
+          "answer": "y",
+          "other": "1"
+        }
+      ],
+      "field": "other",
+      "normalize": "default",
+      "winner": {
+        "answer": "x",
+        "other": "1"
+      }
+    },
+    {
+      "completions": [
+        {
+          "first": "p",
+          "last": "q"
+        },
+        {
+          "first": "p",
+          "last": "r"
+        },
+        {
+          "first": "z",
+          "last": "r"
+        }
+      ],
+      "field": null,
+      "normalize": "default",
+      "winner": {
+        "first": "p",
+        "last": "r"
+      }
+    },
+    {
+      "completions": [
+        {
+          "answer": "The Eiffel Tower"
+        },
+        {
+          "answer": "the  eiffel  tower"
+        }
+      ],
+      "field": null,
+      "normalize": "text",
+      "winner": {
+        "answer": "The Eiffel Tower"
+      }
+    },
+    {
+      "completions": [
+        {
+          "answer": ""
+        },
+        {
+          "answer": "  "
+        }
+      ],
+      "field": null,
+      "normalize": "default",
+      "winner": {
+        "answer": ""
+      }
+    },
+    {
+      "completions": [
+        {
+          "answer": "only"
+        }
+      ],
+      "field": null,
+      "normalize": "default",
+      "winner": {
+        "answer": "only"
+      }
+    }
+  ]
+}

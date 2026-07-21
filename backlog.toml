@@ -30,7 +30,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-21"
 
 [status]
-rust_tests = 372
+rust_tests = 374
 upstream_tests_passing = 373
 upstream_tests_crossing = 179
 upstream_tests_deciding_signatures = 254
@@ -236,17 +236,51 @@ The modules a program is built out of rather than the one it ends at: retrying, 
 than once, and running branches side by side.
 """
 suites = [
-  "predict/test_refine.py", "predict/test_best_of_n.py", "predict/test_parallel.py",
   "predict/test_aggregation.py", "predict/test_multi_chain_comparison.py",
-  "predict/test_retry.py",
+  "predict/test_parallel.py",
 ]
 rationale = """
-dspy ships thirteen modules and three are ported. These six are the ones that need no runtime
-this crate does not already have: each wraps a module it was handed and decides how often to
-call it, or how to reconcile several answers. Parallel is the one with a design question, since
-it needs concurrency where Evaluate is still sequential.
+dspy ships thirteen modules and three are ported. These three need nothing this crate lacks:
+majority reconciles several answers, MultiChainComparison shows a model its own prior attempts,
+and Parallel runs branches at once.
 
-Ahead of the code-executing three because nothing here waits on a sandbox.
+Scoped down from six by reading upstream rather than by its file list. Retry is a dead file —
+zero non-comment lines, and `dspy.Retry` does not exist in 3.2.1 — so porting it would mean
+porting a comment. BestOfN and Refine moved to s11 because both vary attempts with
+`lm.copy(rollout_id=..., temperature=1.0)`, which is b2: a per-call LM override this crate has
+no seam for. That is the same limit that leaves max_rounds unable to force a different answer.
+"""
+constraint = """
+tokio is a dev-dependency, not a dependency: this crate is async but runtime-agnostic, and
+nothing in src/ spawns or joins anything today. Parallel therefore cannot reach for
+tokio::spawn or a JoinSet without forcing a runtime on every caller, which is a promise the
+crate has so far declined to make.
+
+What fits instead is concurrency without parallelism — polling many futures on one task, the
+way join_all does — which suits network-bound model calls and keeps the crate runtime-free.
+dspy's Parallel is thread-based because Python's calls are blocking; that reason does not carry
+over. The open question is whether to take a futures dependency for the join or write it, and
+Evaluate wants the same answer, so whichever lands first decides for both.
+"""
+
+[[sprint]]
+id = "s11"
+name = "Trying more than once"
+state = "planned"
+outcome = "A program can attempt something several times and keep the best attempt."
+suites = ["predict/test_best_of_n.py", "predict/test_refine.py"]
+rationale = """
+BestOfN and Refine are one module with a feedback step added, so they arrive together. Both need
+b2 first — a per-call LM override, since every attempt is `lm.copy(rollout_id=idx,
+temperature=1.0)` and without it a second attempt re-asks identically. Closing b2 also makes
+max_rounds assertable in BootstrapFewShot, so this sprint pays a debt as well as adding modules.
+
+Refine carries a real portability problem beyond that, and upstream gives no oracle for it: its
+feedback step reads the Python source of the wrapped module and of the reward function with
+inspect.getsource and puts that text in a prompt. Rust has no runtime source introspection. The
+feedback half is also entirely untested upstream, so whatever is built there needs its own tests
+rather than a suite to answer to. Decide between a caller-supplied description and a macro that
+captures source at compile time.
 """
 
 [[sprint]]

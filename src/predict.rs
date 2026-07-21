@@ -11,8 +11,10 @@ use crate::lm::{DynChatModel, global};
 use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::{Signature, SignatureSpec};
 
+mod aggregation;
 mod chain_of_thought;
 mod derived;
+pub use aggregation::{Normalize, majority, normalize_text};
 pub use chain_of_thought::{ChainOfThought, TypedChainOfThought};
 pub use derived::TypedPredict;
 use derived::typed;
