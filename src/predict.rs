@@ -7,7 +7,7 @@ use serde_json::Value;
 use crate::adapter::parse::FieldMismatch;
 use crate::adapter::{Adapter, ChatAdapter, Extraction, Feedback, Input, turns_for};
 use crate::example::{Example, Prediction};
-use crate::lm::{DynChatModel, LmRequest, LmResponse, Sampling, Usage, global};
+use crate::lm::{DynChatModel, LmConfig, LmRequest, LmResponse, Usage, global};
 use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::{Signature, SignatureSpec};
 
@@ -45,16 +45,16 @@ pub struct Predict<S = Dynamic> {
     /// The model this module asks, when it is not the configured one.
     ///
     /// dspy's `set_lm`, and the seam an optimizer needs: `BestOfN` runs a module several times
-    /// against models that differ only in their sampling, and `BootstrapFewShot` gives each
+    /// against models that differ only in their config, and `BootstrapFewShot` gives each
     /// round after the first a model that will not answer from a cache. Neither can reach a
     /// process-wide default to do it.
     lm: Option<std::sync::Arc<dyn DynChatModel>>,
     /// How this module asks for its reply to be sampled.
     ///
     /// The other half of the same seam: `BestOfN` and a bootstrap round after the first vary
-    /// this rather than the model, since what they need to differ is one call's sampling and
+    /// this rather than the model, since what they need to differ is one call's config and
     /// not which provider answers.
-    sampling: Sampling,
+    config: LmConfig,
     /// What an earlier attempt was told to do differently. See [`NamedPredictor::hint`].
     hint: Option<String>,
     spec: PhantomData<S>,
@@ -88,7 +88,7 @@ impl<S> Predict<S> {
             adapter: self.adapter,
             demos: self.demos,
             lm: self.lm,
-            sampling: self.sampling,
+            config: self.config,
             hint: self.hint,
         }
     }
@@ -104,15 +104,15 @@ impl<S> Predict<S> {
     /// dspy reaches the same setting through `lm.copy(temperature=...)`, which needs a model to
     /// copy; this is per call, so a module that defers to the configured model can still vary
     /// how it is asked.
-    pub fn with_sampling(mut self, sampling: Sampling) -> Self {
-        self.sampling = sampling;
+    pub fn with_config(mut self, config: LmConfig) -> Self {
+        self.config = config;
         self
     }
 
-    /// The sampling this module asks for. An optimizer reads it to vary one field and leave
+    /// The config this module asks for. An optimizer reads it to vary one field and leave
     /// the rest alone.
-    pub fn sampling(&self) -> &Sampling {
-        &self.sampling
+    pub fn config(&self) -> &LmConfig {
+        &self.config
     }
 
     /// dspy's `get_lm`: the model this module asks, or nothing if it defers to the configured
@@ -148,7 +148,7 @@ impl Predict<Dynamic> {
         Self {
             spec: PhantomData,
             lm: None,
-            sampling: Sampling::default(),
+            config: LmConfig::default(),
             hint: None,
             signature,
             adapter: Box::new(ChatAdapter::default()),
@@ -222,7 +222,7 @@ impl<S> Predict<S> {
         lm.chat_dyn(
             http,
             &LmRequest::new(&system, &turns_for(opening, feedback), mode)
-                .sampled(self.sampling.clone()),
+                .sampled(self.config.clone()),
         )
         .await
     }
@@ -323,7 +323,7 @@ impl<S> Predict<S> {
             .format(&extraction.signature, &[], &text)?;
         let schema = extraction.signature.schema();
         let mode = extraction.adapter.output_mode(&schema);
-        // Left at the provider's defaults rather than given the module's sampling: this call
+        // Left at the provider's defaults rather than given the module's config: this call
         // rewrites prose the model already produced into fields, so a temperature chosen to
         // vary the *answer* would only vary the transcription of one.
         let extracted = extraction
@@ -801,7 +801,7 @@ mod tests {
             let predict = Predict {
                 spec: PhantomData,
                 lm: None,
-                sampling: Sampling::default(),
+                config: LmConfig::default(),
                 hint: None,
                 signature: typed_signature(),
                 adapter: Box::new(JsonAdapter),
@@ -872,7 +872,7 @@ impl<S: Send + Sync> Module for Predict<S> {
             name: "self".to_owned(),
             signature: &mut self.signature,
             demos: &mut self.demos,
-            sampling: &mut self.sampling,
+            config: &mut self.config,
             hint: &mut self.hint,
         }]
     }
@@ -957,7 +957,7 @@ mod per_call_model {
     /// A module asks its own model when it has one, and the configured one otherwise.
     ///
     /// This is the seam an optimizer needs: `BestOfN` runs a module several times against models
-    /// that differ only in their sampling, and a bootstrap round after the first needs one that
+    /// that differ only in their config, and a bootstrap round after the first needs one that
     /// will not answer from a cache. Neither can reach a process-wide default to arrange it.
     #[tokio::test]
     async fn a_module_asks_its_own_model_over_the_configured_one() {
@@ -990,7 +990,7 @@ mod per_call_model {
         assert!(carried.into_task::<()>().lm().is_some());
     }
 
-    /// The gap this closes: sampling chosen on a module had no way through `forward` to the
+    /// The gap this closes: config chosen on a module had no way through `forward` to the
     /// request the model is handed, so `max_rounds` could re-ask but nothing could make the
     /// answer differ. Asserting it arrives is the whole point — a module that quietly dropped
     /// it would still return a reply and still look like it worked.
@@ -1009,10 +1009,10 @@ mod per_call_model {
 
         let varied = predict!("question -> answer")
             .with_lm(lm.clone())
-            .with_sampling(Sampling {
+            .with_config(LmConfig {
                 temperature: Some(1.0),
                 max_tokens: Some(64),
-                ..Sampling::default()
+                ..LmConfig::default()
             });
         varied
             .forward(input! { question: "q" })
@@ -1020,19 +1020,19 @@ mod per_call_model {
             .expect("asks");
 
         let asked = lm.asked();
-        assert_eq!(asked[0].sampling, Sampling::default());
-        assert_eq!(asked[1].sampling.temperature, Some(1.0));
-        assert_eq!(asked[1].sampling.max_tokens, Some(64));
+        assert_eq!(asked[0].config, LmConfig::default());
+        assert_eq!(asked[1].config.temperature, Some(1.0));
+        assert_eq!(asked[1].config.max_tokens, Some(64));
     }
 
-    /// Sampling travels with the module the same way the model override does.
+    /// LmConfig travels with the module the same way the model override does.
     #[test]
     fn the_sampling_survives_being_given_a_task() {
         let carried =
-            Predict::from_signature("q -> a".parse().expect("parses")).with_sampling(Sampling {
+            Predict::from_signature("q -> a".parse().expect("parses")).with_config(LmConfig {
                 temperature: Some(0.5),
-                ..Sampling::default()
+                ..LmConfig::default()
             });
-        assert_eq!(carried.into_task::<()>().sampling().temperature, Some(0.5));
+        assert_eq!(carried.into_task::<()>().config().temperature, Some(0.5));
     }
 }

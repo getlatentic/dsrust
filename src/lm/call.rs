@@ -16,7 +16,7 @@ use super::{ChatTurn, OutputMode};
 /// round after the first not repeat itself.
 ///
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct Sampling {
+pub struct LmConfig {
     /// Unset leaves each provider on the default it is already sent.
     pub temperature: Option<f64>,
     pub max_tokens: Option<u32>,
@@ -33,7 +33,7 @@ pub struct Sampling {
     pub rollout_id: Option<u64>,
 }
 
-impl Sampling {
+impl LmConfig {
     /// A fresh rollout at the temperature upstream re-asks with. dspy's
     /// `lm.copy(rollout_id=n, temperature=1.0)`, which is how every one of its retry-shaped
     /// modules makes attempt two differ from attempt one.
@@ -54,7 +54,7 @@ pub struct LmRequest<'a> {
     pub system: &'a str,
     pub turns: &'a [ChatTurn],
     pub mode: OutputMode<'a>,
-    pub sampling: Sampling,
+    pub config: LmConfig,
 }
 
 impl<'a> LmRequest<'a> {
@@ -64,16 +64,16 @@ impl<'a> LmRequest<'a> {
             system,
             turns,
             mode,
-            sampling: Sampling::default(),
+            config: LmConfig::default(),
         }
     }
 
-    pub fn sampled(mut self, sampling: Sampling) -> Self {
-        self.sampling = sampling;
+    pub fn sampled(mut self, config: LmConfig) -> Self {
+        self.config = config;
         self
     }
 
-    /// What two identical calls share, and what [`Sampling::rollout_id`] exists to break.
+    /// What two identical calls share, and what [`LmConfig::rollout_id`] exists to break.
     ///
     /// Everything the provider is sent is in here, because anything left out would let one call
     /// be answered with another's reply — `model` included, since the store is shared across
@@ -107,10 +107,10 @@ impl<'a> LmRequest<'a> {
                 OutputMode::Text => Value::Null,
                 OutputMode::Json { schema } => schema.clone(),
             },
-            "temperature": self.sampling.temperature,
-            "max_tokens": self.sampling.max_tokens,
-            "n": self.sampling.completions,
-            "rollout_id": self.sampling.rollout_id,
+            "temperature": self.config.temperature,
+            "max_tokens": self.config.max_tokens,
+            "n": self.config.completions,
+            "rollout_id": self.config.rollout_id,
         })
         .to_string()
     }
@@ -153,7 +153,7 @@ impl Usage {
 /// What a model answered with. dspy's `LMResponse`.
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LmResponse {
-    /// Every completion the provider returned — as many as [`Sampling::completions`] asked for,
+    /// Every completion the provider returned — as many as [`LmConfig::completions`] asked for,
     /// and one when it asked for nothing.
     ///
     /// `BestOfN` reads this rather than re-asking, since one request for several is one round

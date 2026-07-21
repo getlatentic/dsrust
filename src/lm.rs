@@ -14,7 +14,7 @@ use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
 pub use cache::{Cached, ResponseCache};
-pub use call::{LmRequest, LmResponse, Sampling, Usage};
+pub use call::{LmConfig, LmRequest, LmResponse, Usage};
 pub use global::{configure, configure_with_client};
 pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig};
 pub use token_limit::{TokenLimitField, TokenLimitRule};

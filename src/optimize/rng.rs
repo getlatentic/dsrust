@@ -1,7 +1,7 @@
 //! `random.Random`, ported so a compile draws the examples dspy's compile draws.
 //!
 //! Which examples an optimizer keeps *is* its output, and here that output is whatever these
-//! draws select — so the generator and both sampling algorithms are reproduced exactly, and held
+//! draws select — so the generator and both config algorithms are reproduced exactly, and held
 //! to `tests/conformance/rng/cpython_random.json`. dspy reuses one generator across a walk, so
 //! the advancing between draws is as load-bearing as the seed.
 
@@ -256,7 +256,7 @@ mod tests {
         assert_eq!(drawn, expected);
     }
 
-    /// The threshold decides which sampling algorithm runs, and the two draw differently. A
+    /// The threshold decides which config algorithm runs, and the two draw differently. A
     /// fixture either side of it is what makes that visible, so guard the pair.
     #[test]
     fn covers_both_sampling_branches() {

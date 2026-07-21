@@ -42,11 +42,11 @@ pub(super) async fn chat(
 fn request(model: &str, call: &LmRequest<'_>) -> Value {
     let mut request = json!({
         "model": model,
-        "max_tokens": call.sampling.max_tokens.unwrap_or(MAX_OUTPUT_TOKENS),
+        "max_tokens": call.config.max_tokens.unwrap_or(MAX_OUTPUT_TOKENS),
         "system": call.system,
         "messages": call.turns.iter().map(turn_json).collect::<Vec<_>>(),
     });
-    if let Some(temperature) = call.sampling.temperature {
+    if let Some(temperature) = call.config.temperature {
         request["temperature"] = json!(temperature);
     }
     if let OutputMode::Json { schema } = call.mode {
@@ -99,26 +99,26 @@ fn provider_data(body: &Value) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lm::Sampling;
+    use crate::lm::LmConfig;
 
-    fn sampled(sampling: Sampling) -> LmRequest<'static> {
-        LmRequest::new("be helpful", &[], OutputMode::Text).sampled(sampling)
+    fn sampled(config: LmConfig) -> LmRequest<'static> {
+        LmRequest::new("be helpful", &[], OutputMode::Text).sampled(config)
     }
 
     /// Anthropic rejects a request with no cap, so the default has to survive an otherwise
-    /// empty `Sampling` rather than be left off along with the rest.
+    /// empty `LmConfig` rather than be left off along with the rest.
     #[test]
     fn every_call_is_capped_and_a_temperature_is_named_only_when_asked() {
-        let default = request("claude-opus-4-8", &sampled(Sampling::default()));
+        let default = request("claude-opus-4-8", &sampled(LmConfig::default()));
         assert_eq!(default["max_tokens"], MAX_OUTPUT_TOKENS);
         assert_eq!(default.get("temperature"), None);
 
         let named = request(
             "claude-opus-4-8",
-            &sampled(Sampling {
+            &sampled(LmConfig {
                 temperature: Some(1.0),
                 max_tokens: Some(64),
-                ..Sampling::default()
+                ..LmConfig::default()
             }),
         );
         assert_eq!(named["max_tokens"], 64);
@@ -128,7 +128,7 @@ mod tests {
     /// The system prompt is a field of its own here, not the leading message.
     #[test]
     fn the_system_prompt_stays_out_of_the_message_list() {
-        let body = request("claude-opus-4-8", &sampled(Sampling::default()));
+        let body = request("claude-opus-4-8", &sampled(LmConfig::default()));
         assert_eq!(body["system"], "be helpful");
         assert_eq!(body["messages"].as_array().expect("a list").len(), 0);
     }

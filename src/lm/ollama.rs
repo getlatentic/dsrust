@@ -1,6 +1,6 @@
 //! A local ollama server.
 //!
-//! It takes the OpenAI-shaped message list but keeps sampling under an `options` object, and
+//! It takes the OpenAI-shaped message list but keeps config under an `options` object, and
 //! names the generation cap `num_predict` rather than `max_tokens`.
 
 use anyhow::{Context, Result, anyhow};
@@ -63,14 +63,14 @@ fn provider_data(body: &Value) -> Option<Value> {
 }
 
 fn request(model: &str, call: &LmRequest<'_>) -> Value {
-    let temperature = call.sampling.temperature.unwrap_or(TEMPERATURE);
+    let temperature = call.config.temperature.unwrap_or(TEMPERATURE);
     let mut request = json!({
         "model": model,
         "stream": false,
         "options": { "temperature": temperature },
         "messages": wire_messages(call.system, call.turns),
     });
-    if let Some(max_tokens) = call.sampling.max_tokens {
+    if let Some(max_tokens) = call.config.max_tokens {
         request["options"]["num_predict"] = json!(max_tokens);
     }
     if matches!(call.mode, OutputMode::Json { .. }) {
@@ -82,26 +82,26 @@ fn request(model: &str, call: &LmRequest<'_>) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lm::Sampling;
+    use crate::lm::LmConfig;
 
-    fn sampled(sampling: Sampling) -> LmRequest<'static> {
-        LmRequest::new("be helpful", &[], OutputMode::Text).sampled(sampling)
+    fn sampled(config: LmConfig) -> LmRequest<'static> {
+        LmRequest::new("be helpful", &[], OutputMode::Text).sampled(config)
     }
 
     /// ollama's own default samples loosely, so an unnamed temperature keeps the tighter one
     /// this crate has always sent rather than falling through to the server's.
     #[test]
     fn sampling_travels_under_options_with_the_cap_renamed() {
-        let default = request("qwen2.5:7b-instruct", &sampled(Sampling::default()));
+        let default = request("qwen2.5:7b-instruct", &sampled(LmConfig::default()));
         assert_eq!(default["options"]["temperature"], TEMPERATURE);
         assert_eq!(default["options"].get("num_predict"), None);
 
         let named = request(
             "qwen2.5:7b-instruct",
-            &sampled(Sampling {
+            &sampled(LmConfig {
                 temperature: Some(0.1),
                 max_tokens: Some(64),
-                ..Sampling::default()
+                ..LmConfig::default()
             }),
         );
         assert_eq!(named["options"]["temperature"], 0.1);
@@ -114,9 +114,9 @@ mod tests {
     fn the_cap_never_lands_at_the_top_level() {
         let body = request(
             "qwen2.5:7b-instruct",
-            &sampled(Sampling {
+            &sampled(LmConfig {
                 max_tokens: Some(64),
-                ..Sampling::default()
+                ..LmConfig::default()
             }),
         );
         assert_eq!(body.get("num_predict"), None);

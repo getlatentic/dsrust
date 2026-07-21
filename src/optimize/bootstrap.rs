@@ -4,7 +4,7 @@
 use anyhow::{Result, anyhow};
 
 use crate::example::{Example, Prediction};
-use crate::lm::Sampling;
+use crate::lm::LmConfig;
 use crate::module::Module;
 
 use super::Optimizer;
@@ -147,13 +147,13 @@ where
             }
             // What the teacher asks for when left alone, put back once this example is done so
             // one example's rollout cannot leak into the next one's first round.
-            let resting = resting_sampling(teacher);
+            let resting = resting_config(teacher);
             for round in 0..self.max_rounds {
                 // dspy makes every round after the first a fresh rollout at temperature 1.0. The
                 // rollout id is what misses the cache, and the temperature is what makes the
                 // answer differ once it does; without both, a re-ask is the same ask.
                 if round > 0 {
-                    teacher.set_sampling(Sampling::rollout(round as u64));
+                    teacher.set_config(LmConfig::rollout(round as u64));
                 }
                 match self.attempt(teacher, example).await {
                     Ok(Some(demo)) => {
@@ -167,14 +167,14 @@ where
                     Err(error) => {
                         errors += 1;
                         if errors >= self.max_errors {
-                            restore_sampling(teacher, &resting);
+                            restore_config(teacher, &resting);
                             return Err(error);
                         }
                         tracing::error!(%error, "failed to run or to evaluate an example");
                     }
                 }
             }
-            restore_sampling(teacher, &resting);
+            restore_config(teacher, &resting);
         }
 
         let mut validation: Vec<Example> = trainset
@@ -275,22 +275,22 @@ where
 }
 
 /// What each predictor asks for before a round overrides it, in `named_predictors` order.
-fn resting_sampling<T: Module + ?Sized>(teacher: &mut T) -> Vec<Sampling> {
+fn resting_config<T: Module + ?Sized>(teacher: &mut T) -> Vec<LmConfig> {
     teacher
         .named_predictors()
         .iter()
-        .map(|predictor| predictor.sampling.clone())
+        .map(|predictor| predictor.config.clone())
         .collect()
 }
 
-/// Put back what [`resting_sampling`] read.
+/// Put back what [`resting_config`] read.
 ///
 /// A teacher outlives the compile that borrowed it, so leaving a rollout on it would silently
 /// change how it answers everything afterwards — and at `temperature = 1.0`, which is nobody's
 /// idea of a default.
-fn restore_sampling<T: Module + ?Sized>(teacher: &mut T, resting: &[Sampling]) {
+fn restore_config<T: Module + ?Sized>(teacher: &mut T, resting: &[LmConfig]) {
     for (predictor, was) in teacher.named_predictors().into_iter().zip(resting) {
-        *predictor.sampling = was.clone();
+        *predictor.config = was.clone();
     }
 }
 
@@ -540,19 +540,19 @@ mod tests {
         .await
         .expect("compile succeeds");
 
-        let asks: Vec<Sampling> = student
+        let asks: Vec<LmConfig> = student
             .calls()
             .into_iter()
             .take(3)
-            .map(|call| call.sampling)
+            .map(|call| call.config)
             .collect();
         assert_eq!(
             asks[0],
-            Sampling::default(),
+            LmConfig::default(),
             "the first round is asked however the teacher already asks"
         );
-        assert_eq!(asks[1], Sampling::rollout(1));
-        assert_eq!(asks[2], Sampling::rollout(2));
+        assert_eq!(asks[1], LmConfig::rollout(1));
+        assert_eq!(asks[2], LmConfig::rollout(2));
         assert_ne!(asks[1], asks[2], "two rounds are two different asks");
     }
 
@@ -561,11 +561,11 @@ mod tests {
     #[tokio::test]
     async fn the_teacher_is_left_asking_the_way_it_was_found() {
         let mut student = Solver::new(Answers::Wrongly);
-        let resting = Sampling {
+        let resting = LmConfig {
             temperature: Some(0.2),
-            ..Sampling::default()
+            ..LmConfig::default()
         };
-        student.set_sampling(resting.clone());
+        student.set_config(resting.clone());
 
         BootstrapFewShot {
             max_rounds: 3,
@@ -576,9 +576,9 @@ mod tests {
         .expect("compile succeeds");
 
         assert_eq!(
-            student.named_predictors()[0].sampling.clone(),
+            student.named_predictors()[0].config.clone(),
             resting,
-            "the rounds borrowed the teacher's sampling and gave it back"
+            "the rounds borrowed the teacher's config and gave it back"
         );
     }
 

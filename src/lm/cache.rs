@@ -200,11 +200,11 @@ mod tests {
     use super::*;
     use crate::example;
     use crate::lm::dummy::DummyLM;
-    use crate::lm::{ChatTurn, OutputMode, Sampling, Usage};
+    use crate::lm::{ChatTurn, LmConfig, OutputMode, Usage};
 
-    fn ask(lm: &Cached<DummyLM>, sampling: Sampling) -> LmResponse {
+    fn ask(lm: &Cached<DummyLM>, config: LmConfig) -> LmResponse {
         let turns = [ChatTurn::user("what colour?")];
-        let request = LmRequest::new("be helpful", &turns, OutputMode::Text).sampled(sampling);
+        let request = LmRequest::new("be helpful", &turns, OutputMode::Text).sampled(config);
         futures_lite_block_on(lm.chat(&reqwest::Client::new(), &request)).expect("an answer")
     }
 
@@ -232,11 +232,11 @@ mod tests {
             example! { answer: "blue" },
         ]));
 
-        let first = ask(&lm, Sampling::default());
+        let first = ask(&lm, LmConfig::default());
         assert!(!first.cache_hit);
         assert!(first.text_ref().contains("red"));
 
-        let second = ask(&lm, Sampling::default());
+        let second = ask(&lm, LmConfig::default());
         assert!(second.cache_hit, "the second ask was replayed");
         assert!(
             second.text_ref().contains("red"),
@@ -253,8 +253,8 @@ mod tests {
             example! { answer: "blue" },
         ]));
 
-        let first = ask(&lm, Sampling::rollout(0));
-        let second = ask(&lm, Sampling::rollout(1));
+        let first = ask(&lm, LmConfig::rollout(0));
+        let second = ask(&lm, LmConfig::rollout(1));
 
         assert!(!first.cache_hit);
         assert!(!second.cache_hit, "a new rollout is a new key");
@@ -270,12 +270,12 @@ mod tests {
     #[test]
     fn a_different_temperature_is_a_different_entry() {
         let lm = Cached::new(DummyLM::new([]).with_fallback(example! { answer: "any" }));
-        ask(&lm, Sampling::default());
+        ask(&lm, LmConfig::default());
         ask(
             &lm,
-            Sampling {
+            LmConfig {
                 temperature: Some(1.0),
-                ..Sampling::default()
+                ..LmConfig::default()
             },
         );
         assert_eq!(lm.len(), 2);
@@ -287,11 +287,11 @@ mod tests {
             example! { answer: "red" },
             example! { answer: "blue" },
         ]));
-        ask(&lm, Sampling::default());
+        ask(&lm, LmConfig::default());
         lm.clear();
         assert!(lm.is_empty());
 
-        let after = ask(&lm, Sampling::default());
+        let after = ask(&lm, LmConfig::default());
         assert!(!after.cache_hit);
         assert!(after.text_ref().contains("blue"));
     }
@@ -304,7 +304,7 @@ mod tests {
             NonZeroUsize::new(2).expect("two"),
         );
         for id in 0..3 {
-            ask(&lm, Sampling::rollout(id));
+            ask(&lm, LmConfig::rollout(id));
         }
         assert_eq!(lm.len(), 2, "three distinct requests, room for two");
     }

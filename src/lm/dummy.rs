@@ -14,7 +14,7 @@ use serde_json::Value;
 
 use crate::adapter::python_json::format_value;
 use crate::example::Example;
-use crate::lm::{ChatModel, ChatTurn, LmRequest, LmResponse, OutputMode, Sampling};
+use crate::lm::{ChatModel, ChatTurn, LmConfig, LmRequest, LmResponse, OutputMode};
 
 /// What the model was asked, kept so a test can assert on the prompt it produced.
 #[derive(Debug, Clone)]
@@ -24,7 +24,7 @@ pub struct Asked {
     pub json_mode: bool,
     /// How the caller asked for the reply to be sampled. A scripted model answers from its
     /// script regardless; recording it is what lets a test assert that a re-ask differed.
-    pub sampling: Sampling,
+    pub config: LmConfig,
 }
 
 impl Asked {
@@ -145,7 +145,7 @@ impl ChatModel for DummyLM {
             system: system.to_owned(),
             turns: turns.to_vec(),
             json_mode,
-            sampling: request.sampling.clone(),
+            config: request.config.clone(),
         };
         let request = asked.last_message().to_owned();
         self.asked.lock().expect("not poisoned").push(asked);

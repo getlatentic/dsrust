@@ -12,7 +12,7 @@
 use anyhow::Result;
 
 use crate::example::{Example, Prediction};
-use crate::lm::Sampling;
+use crate::lm::LmConfig;
 use crate::signature::Signature;
 
 /// One predictor inside a program: its signature and its demos, borrowed for inspection or
@@ -27,7 +27,7 @@ pub struct NamedPredictor<'a> {
     /// duration of a round and then set back. It rides the same walk because reaching every
     /// predictor is the same problem, and dspy solves it the same way: `set_lm` on a program
     /// assigns to all of them.
-    pub sampling: &'a mut Sampling,
+    pub config: &'a mut LmConfig,
     /// Advice for this predictor from an earlier attempt, shown to it on the next one.
     ///
     /// `Refine` writes it and `Predict` renders it as one more input field. Per predictor rather
@@ -97,13 +97,13 @@ pub trait Module: Send + Sync {
     /// Ask every predictor in this program for its reply to be sampled this way.
     ///
     /// dspy's `set_lm`, which assigns one model to a whole program so `lm.copy(rollout_id=n,
-    /// temperature=1.0)` reaches every call an attempt makes. Sampling travels on a request here
-    /// rather than on a model, so this sets sampling instead — the effect is the one upstream
+    /// temperature=1.0)` reaches every call an attempt makes. LmConfig travels on a request here
+    /// rather than on a model, so this sets config instead — the effect is the one upstream
     /// relies on: a second attempt at a program differs from the first everywhere, not only at
     /// whichever predictor a caller remembered.
-    fn set_sampling(&mut self, sampling: Sampling) {
+    fn set_config(&mut self, config: LmConfig) {
         for predictor in self.named_predictors() {
-            *predictor.sampling = sampling.clone();
+            *predictor.config = config.clone();
         }
     }
 
@@ -169,7 +169,7 @@ mod tests {
     struct Echo {
         signature: Signature,
         demos: Vec<Example>,
-        sampling: Sampling,
+        config: LmConfig,
         hint: Option<String>,
     }
 
@@ -192,7 +192,7 @@ mod tests {
                 name: "self".to_owned(),
                 signature: &mut self.signature,
                 demos: &mut self.demos,
-                sampling: &mut self.sampling,
+                config: &mut self.config,
                 hint: &mut self.hint,
             }]
         }
@@ -202,7 +202,7 @@ mod tests {
         Echo {
             signature: Signature::single_input("Echo the request.", Vec::new()),
             demos: Vec::new(),
-            sampling: Sampling::default(),
+            config: LmConfig::default(),
             hint: None,
         }
     }

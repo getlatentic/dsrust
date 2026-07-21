@@ -181,12 +181,12 @@ fn request(
         "model": model,
         "messages": wire_messages(call.system, call.turns),
     });
-    let cap = call.sampling.max_tokens.unwrap_or(MAX_OUTPUT_TOKENS);
+    let cap = call.config.max_tokens.unwrap_or(MAX_OUTPUT_TOKENS);
     request[token_limit_rule.field_for(model).wire_name()] = json!(cap);
-    if let Some(temperature) = call.sampling.temperature {
+    if let Some(temperature) = call.config.temperature {
         request["temperature"] = json!(temperature);
     }
-    if let Some(completions) = call.sampling.completions {
+    if let Some(completions) = call.config.completions {
         request["n"] = json!(completions);
     }
     if let OutputMode::Json { schema } = call.mode {
@@ -253,7 +253,7 @@ fn provider_data(body: &Value) -> Option<Value> {
 mod tests {
     use super::super::token_limit::TokenLimitField;
     use super::*;
-    use crate::lm::{ChatTurn, Sampling};
+    use crate::lm::{ChatTurn, LmConfig};
 
     fn schema() -> Value {
         json!({
@@ -277,15 +277,15 @@ mod tests {
 
     /// The body a text-mode call to `model` produces on OpenAI's own endpoint.
     fn text_request(model: &str, token_limit_rule: TokenLimitRule) -> Value {
-        sampled_request(model, token_limit_rule, Sampling::default())
+        sampled_request(model, token_limit_rule, LmConfig::default())
     }
 
     /// The same body, with the caller naming how the reply should be sampled.
-    fn sampled_request(model: &str, token_limit_rule: TokenLimitRule, sampling: Sampling) -> Value {
+    fn sampled_request(model: &str, token_limit_rule: TokenLimitRule, config: LmConfig) -> Value {
         let turns = [ChatTurn::user("hi")];
         request(
             model,
-            &LmRequest::new("be helpful", &turns, OutputMode::Text).sampled(sampling),
+            &LmRequest::new("be helpful", &turns, OutputMode::Text).sampled(config),
             JsonFormat::Object,
             token_limit_rule,
         )
@@ -393,9 +393,9 @@ mod tests {
     /// so the override has to follow the same rule the default does rather than pick a key.
     #[test]
     fn a_named_cap_replaces_the_default_on_whichever_key_carries_it() {
-        let capped = Sampling {
+        let capped = LmConfig {
             max_tokens: Some(64),
-            ..Sampling::default()
+            ..LmConfig::default()
         };
         let rule = TokenLimitRule::ByOpenAiModelFamily;
 
@@ -419,9 +419,9 @@ mod tests {
         let warmed = sampled_request(
             "gpt-4o-mini",
             rule,
-            Sampling {
+            LmConfig {
                 temperature: Some(1.0),
-                ..Sampling::default()
+                ..LmConfig::default()
             },
         );
         assert_eq!(warmed["temperature"], 1.0);
@@ -503,9 +503,9 @@ mod tests {
         let asked = sampled_request(
             "gpt-4o-mini",
             TokenLimitRule::ByOpenAiModelFamily,
-            Sampling {
+            LmConfig {
                 completions: Some(3),
-                ..Sampling::default()
+                ..LmConfig::default()
             },
         );
         assert_eq!(asked["n"], 3);

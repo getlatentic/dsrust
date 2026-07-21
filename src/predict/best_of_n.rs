@@ -2,7 +2,7 @@
 //!
 //! Each attempt is a fresh rollout at `temperature = 1.0`, which is the whole mechanism — upstream
 //! runs `lm.copy(rollout_id=start+i, temperature=1.0)` so the second ask is a different ask rather
-//! than a replay of the first. [`Sampling::rollout`] is that copy, and the response cache is what
+//! than a replay of the first. [`LmConfig::rollout`] is that copy, and the response cache is what
 //! makes the rollout id matter.
 //!
 //! Stops early on an attempt that clears the threshold, because the point is a good answer rather
@@ -12,7 +12,7 @@ use anyhow::{Result, anyhow};
 use futures_util::lock::Mutex;
 
 use crate::example::{Example, Prediction};
-use crate::lm::Sampling;
+use crate::lm::LmConfig;
 use crate::module::{Ask, Module, NamedPredictor, TraceStep};
 
 /// Ask up to `n` times and answer with the best attempt.
@@ -36,8 +36,8 @@ use crate::module::{Ask, Module, NamedPredictor, TraceStep};
 /// compiled like anything else.
 ///
 /// The module it wraps sits behind an async lock rather than being owned outright, because
-/// `forward` takes `&self` while varying an attempt's sampling needs `&mut`. dspy sidesteps that
-/// by deep-copying per attempt; a `dyn Module` cannot be cloned, so the sampling is set on the one
+/// `forward` takes `&self` while varying an attempt's config needs `&mut`. dspy sidesteps that
+/// by deep-copying per attempt; a `dyn Module` cannot be cloned, so the config is set on the one
 /// module and put back when the call ends. The lock also makes concurrent `forward` calls queue
 /// rather than interleave their rollouts, which is what sharing one module requires.
 pub struct BestOfN<M, R> {
@@ -100,16 +100,16 @@ where
 
     /// Ask up to `n` times and answer with the best attempt.
     ///
-    /// The module is left sampling the way it was found, so a caller's own setting survives a
+    /// The module is left config the way it was found, so a caller's own setting survives a
     /// call — the same care [`BootstrapFewShot`](crate::BootstrapFewShot) takes with a teacher.
     pub async fn run(&self, inputs: Example) -> Result<Prediction> {
         if self.n == 0 {
             return Err(anyhow!("BestOfN needs at least one attempt"));
         }
         let mut module = self.module.lock().await;
-        let resting = resting_sampling(&mut *module);
+        let resting = resting_config(&mut *module);
         let attempted = self.attempts(&mut *module, inputs).await;
-        restore_sampling(&mut *module, &resting);
+        restore_config(&mut *module, &resting);
         attempted
     }
 
@@ -124,7 +124,7 @@ where
         for attempt in 0..self.n {
             // dspy counts rollouts from whatever the module already carried, so a caller who set
             // one is continued rather than overwritten.
-            module.set_sampling(Sampling::rollout(attempt as u64));
+            module.set_config(LmConfig::rollout(attempt as u64));
             let answered = match module.forward(inputs.clone()).await {
                 Ok(prediction) => prediction,
                 Err(error) => {
@@ -189,11 +189,11 @@ where
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
             let mut module = self.module.lock().await;
-            let resting = resting_sampling(&mut *module);
+            let resting = resting_config(&mut *module);
             let mut best: Option<(f64, Prediction, Vec<TraceStep>)> = None;
 
             for attempt in 0..self.n {
-                module.set_sampling(Sampling::rollout(attempt as u64));
+                module.set_config(LmConfig::rollout(attempt as u64));
                 let mut attempted = Vec::new();
                 let Ok(answered) = module.forward_traced(inputs.clone(), &mut attempted).await
                 else {
@@ -208,7 +208,7 @@ where
                 }
             }
 
-            restore_sampling(&mut *module, &resting);
+            restore_config(&mut *module, &resting);
             match best {
                 Some((_, prediction, attempted)) => {
                     trace.extend(attempted);
@@ -273,17 +273,17 @@ macro_rules! best_of_n {
 }
 
 /// What each predictor asks for before an attempt overrides it.
-fn resting_sampling<M: Module + ?Sized>(module: &mut M) -> Vec<Sampling> {
+fn resting_config<M: Module + ?Sized>(module: &mut M) -> Vec<LmConfig> {
     module
         .named_predictors()
         .iter()
-        .map(|predictor| predictor.sampling.clone())
+        .map(|predictor| predictor.config.clone())
         .collect()
 }
 
-fn restore_sampling<M: Module + ?Sized>(module: &mut M, resting: &[Sampling]) {
+fn restore_config<M: Module + ?Sized>(module: &mut M, resting: &[LmConfig]) {
     for (predictor, was) in module.named_predictors().into_iter().zip(resting) {
-        *predictor.sampling = was.clone();
+        *predictor.config = was.clone();
     }
 }
 
@@ -332,18 +332,18 @@ mod tests {
             .await
             .expect("an answer");
 
-        let sampling: Vec<Sampling> = best
+        let config: Vec<LmConfig> = best
             .into_inner()
             .calls()
             .into_iter()
-            .map(|call| call.sampling)
+            .map(|call| call.config)
             .collect();
         assert_eq!(
-            sampling,
+            config,
             [
-                Sampling::rollout(0),
-                Sampling::rollout(1),
-                Sampling::rollout(2)
+                LmConfig::rollout(0),
+                LmConfig::rollout(1),
+                LmConfig::rollout(2)
             ]
         );
     }
@@ -379,11 +379,11 @@ mod tests {
     #[tokio::test]
     async fn the_module_is_left_sampling_the_way_it_was_found() {
         let mut solver = Solver::new(Answers::Correctly);
-        let resting = Sampling {
+        let resting = LmConfig {
             temperature: Some(0.2),
-            ..Sampling::default()
+            ..LmConfig::default()
         };
-        solver.set_sampling(resting.clone());
+        solver.set_config(resting.clone());
 
         let best = BestOfN::new(solver, 2, correctness, 1.0);
         best.run(asked("capital of France?"))
@@ -391,7 +391,7 @@ mod tests {
             .expect("an answer");
 
         let mut returned = best.into_inner();
-        assert_eq!(returned.named_predictors()[0].sampling.clone(), resting);
+        assert_eq!(returned.named_predictors()[0].config.clone(), resting);
     }
 
     /// A module whose answers differ but score the same, which is the only way to see which of
