@@ -11,7 +11,8 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           }
@@ -20,6 +21,7 @@
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -31,25 +33,29 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_1",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #1:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_2",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #2:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_3",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #3:",
             "annotation": "str"
           }
@@ -58,12 +64,14 @@
           {
             "name": "rationale",
             "desc": "${corrected reasoning}",
+            "rendered_desc": "${corrected reasoning}",
             "prefix": "Accurate Reasoning: Thank you everyone. Let's now holistically",
             "annotation": "str"
           },
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -104,7 +112,7 @@
           "What is the color of the sky?"
         ]
       ],
-      "system": "Your input fields are:\n1. `question` (str): None\n2. `reasoning_attempt_1` (str): ${reasoning attempt}\n3. `reasoning_attempt_2` (str): ${reasoning attempt}\n4. `reasoning_attempt_3` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## reasoning_attempt_2 ## ]]\n{reasoning_attempt_2}\n\n[[ ## reasoning_attempt_3 ## ]]\n{reasoning_attempt_3}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
+      "system": "Your input fields are:\n1. `question` (str): \n2. `reasoning_attempt_1` (str): ${reasoning attempt}\n3. `reasoning_attempt_2` (str): ${reasoning attempt}\n4. `reasoning_attempt_3` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## reasoning_attempt_2 ## ]]\n{reasoning_attempt_2}\n\n[[ ## reasoning_attempt_3 ## ]]\n{reasoning_attempt_3}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
       "user": "[[ ## question ## ]]\nWhat is the color of the sky?\n\n[[ ## reasoning_attempt_1 ## ]]\n«I'm trying to I recall that during clear days, the sky often appears this color. I'm not sure but my prediction is blue»\n\n[[ ## reasoning_attempt_2 ## ]]\n«I'm trying to Based on common knowledge, I believe the sky is typically seen as this color. I'm not sure but my prediction is green»\n\n[[ ## reasoning_attempt_3 ## ]]\n«I'm trying to From images and depictions in media, the sky is frequently represented with this hue. I'm not sure but my prediction is blue»\n\nRespond with the corresponding output fields, starting with the field `[[ ## rationale ## ]]`, then `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
     },
     {
@@ -115,7 +123,8 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           }
@@ -124,6 +133,7 @@
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -135,19 +145,22 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_1",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #1:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_2",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #2:",
             "annotation": "str"
           }
@@ -156,12 +169,14 @@
           {
             "name": "rationale",
             "desc": "${corrected reasoning}",
+            "rendered_desc": "${corrected reasoning}",
             "prefix": "Accurate Reasoning: Thank you everyone. Let's now holistically",
             "annotation": "str"
           },
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -195,7 +210,7 @@
           "Why is the sky blue?"
         ]
       ],
-      "system": "Your input fields are:\n1. `question` (str): None\n2. `reasoning_attempt_1` (str): ${reasoning attempt}\n3. `reasoning_attempt_2` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## reasoning_attempt_2 ## ]]\n{reasoning_attempt_2}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
+      "system": "Your input fields are:\n1. `question` (str): \n2. `reasoning_attempt_1` (str): ${reasoning attempt}\n3. `reasoning_attempt_2` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## reasoning_attempt_2 ## ]]\n{reasoning_attempt_2}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
       "user": "[[ ## question ## ]]\nWhy is the sky blue?\n\n[[ ## reasoning_attempt_1 ## ]]\n«I'm trying to the sky scatters short wavelengths I'm not sure but my prediction is blue»\n\n[[ ## reasoning_attempt_2 ## ]]\n«I'm trying to rationale wins I'm not sure but my prediction is azure»\n\nRespond with the corresponding output fields, starting with the field `[[ ## rationale ## ]]`, then `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
     },
     {
@@ -206,7 +221,8 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           }
@@ -215,6 +231,7 @@
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -226,25 +243,29 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_1",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #1:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_2",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #2:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_3",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #3:",
             "annotation": "str"
           }
@@ -253,12 +274,14 @@
           {
             "name": "rationale",
             "desc": "${corrected reasoning}",
+            "rendered_desc": "${corrected reasoning}",
             "prefix": "Accurate Reasoning: Thank you everyone. Let's now holistically",
             "annotation": "str"
           },
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -299,7 +322,7 @@
           "What is the color of the sky?"
         ]
       ],
-      "system": "Your input fields are:\n1. `question` (str): None\n2. `reasoning_attempt_1` (str): ${reasoning attempt}\n3. `reasoning_attempt_2` (str): ${reasoning attempt}\n4. `reasoning_attempt_3` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## reasoning_attempt_2 ## ]]\n{reasoning_attempt_2}\n\n[[ ## reasoning_attempt_3 ## ]]\n{reasoning_attempt_3}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
+      "system": "Your input fields are:\n1. `question` (str): \n2. `reasoning_attempt_1` (str): ${reasoning attempt}\n3. `reasoning_attempt_2` (str): ${reasoning attempt}\n4. `reasoning_attempt_3` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## reasoning_attempt_2 ## ]]\n{reasoning_attempt_2}\n\n[[ ## reasoning_attempt_3 ## ]]\n{reasoning_attempt_3}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
       "user": "[[ ## question ## ]]\nWhat is the color of the sky?\n\n[[ ## reasoning_attempt_1 ## ]]\n«I'm trying to first line I'm not sure but my prediction is blue»\n\n[[ ## reasoning_attempt_2 ## ]]\n«I'm trying to padded by separators I'm not sure but my prediction is green»\n\n[[ ## reasoning_attempt_3 ## ]]\n«I'm trying to non-breaking I'm not sure but my prediction is ideographic»\n\nRespond with the corresponding output fields, starting with the field `[[ ## rationale ## ]]`, then `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
     },
     {
@@ -310,7 +333,8 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           }
@@ -319,6 +343,7 @@
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -330,31 +355,36 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_1",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #1:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_2",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #2:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_3",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #3:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_4",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #4:",
             "annotation": "str"
           }
@@ -363,12 +393,14 @@
           {
             "name": "rationale",
             "desc": "${corrected reasoning}",
+            "rendered_desc": "${corrected reasoning}",
             "prefix": "Accurate Reasoning: Thank you everyone. Let's now holistically",
             "annotation": "str"
           },
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -417,7 +449,7 @@
           "How many?"
         ]
       ],
-      "system": "Your input fields are:\n1. `question` (str): None\n2. `reasoning_attempt_1` (str): ${reasoning attempt}\n3. `reasoning_attempt_2` (str): ${reasoning attempt}\n4. `reasoning_attempt_3` (str): ${reasoning attempt}\n5. `reasoning_attempt_4` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## reasoning_attempt_2 ## ]]\n{reasoning_attempt_2}\n\n[[ ## reasoning_attempt_3 ## ]]\n{reasoning_attempt_3}\n\n[[ ## reasoning_attempt_4 ## ]]\n{reasoning_attempt_4}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
+      "system": "Your input fields are:\n1. `question` (str): \n2. `reasoning_attempt_1` (str): ${reasoning attempt}\n3. `reasoning_attempt_2` (str): ${reasoning attempt}\n4. `reasoning_attempt_3` (str): ${reasoning attempt}\n5. `reasoning_attempt_4` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## reasoning_attempt_2 ## ]]\n{reasoning_attempt_2}\n\n[[ ## reasoning_attempt_3 ## ]]\n{reasoning_attempt_3}\n\n[[ ## reasoning_attempt_4 ## ]]\n{reasoning_attempt_4}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
       "user": "[[ ## question ## ]]\nHow many?\n\n[[ ## reasoning_attempt_1 ## ]]\n«I'm trying to counted them I'm not sure but my prediction is 5»\n\n[[ ## reasoning_attempt_2 ## ]]\n«I'm trying to measured it I'm not sure but my prediction is 1.5»\n\n[[ ## reasoning_attempt_3 ## ]]\n«I'm trying to checked the box I'm not sure but my prediction is True»\n\n[[ ## reasoning_attempt_4 ## ]]\n«I'm trying to found nothing I'm not sure but my prediction is None»\n\nRespond with the corresponding output fields, starting with the field `[[ ## rationale ## ]]`, then `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
     },
     {
@@ -428,13 +460,15 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           },
           {
             "name": "context",
             "desc": "what was retrieved",
+            "rendered_desc": "what was retrieved",
             "prefix": "Context:",
             "annotation": "str"
           }
@@ -443,12 +477,14 @@
           {
             "name": "citation",
             "desc": "where it came from",
+            "rendered_desc": "where it came from",
             "prefix": "Citation:",
             "annotation": "str"
           },
           {
             "name": "answer",
             "desc": "the answer itself",
+            "rendered_desc": "the answer itself",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -460,25 +496,29 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           },
           {
             "name": "context",
             "desc": "what was retrieved",
+            "rendered_desc": "what was retrieved",
             "prefix": "Context:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_1",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #1:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_2",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #2:",
             "annotation": "str"
           }
@@ -487,18 +527,21 @@
           {
             "name": "rationale",
             "desc": "${corrected reasoning}",
+            "rendered_desc": "${corrected reasoning}",
             "prefix": "Accurate Reasoning: Thank you everyone. Let's now holistically",
             "annotation": "str"
           },
           {
             "name": "citation",
             "desc": "where it came from",
+            "rendered_desc": "where it came from",
             "prefix": "Citation:",
             "annotation": "str"
           },
           {
             "name": "answer",
             "desc": "the answer itself",
+            "rendered_desc": "the answer itself",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -538,7 +581,7 @@
           "a pile of papers"
         ]
       ],
-      "system": "Your input fields are:\n1. `question` (str): None\n2. `context` (str): what was retrieved\n3. `reasoning_attempt_1` (str): ${reasoning attempt}\n4. `reasoning_attempt_2` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `citation` (str): where it came from\n3. `answer` (str): the answer itself\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## context ## ]]\n{context}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## reasoning_attempt_2 ## ]]\n{reasoning_attempt_2}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## citation ## ]]\n{citation}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer with a citation.",
+      "system": "Your input fields are:\n1. `question` (str): \n2. `context` (str): what was retrieved\n3. `reasoning_attempt_1` (str): ${reasoning attempt}\n4. `reasoning_attempt_2` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `citation` (str): where it came from\n3. `answer` (str): the answer itself\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## context ## ]]\n{context}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## reasoning_attempt_2 ## ]]\n{reasoning_attempt_2}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## citation ## ]]\n{citation}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer with a citation.",
       "user": "[[ ## question ## ]]\nHow many?\n\n[[ ## context ## ]]\na pile of papers\n\n[[ ## reasoning_attempt_1 ## ]]\n«I'm trying to the paper says so I'm not sure but my prediction is 42»\n\n[[ ## reasoning_attempt_2 ## ]]\n«I'm trying to the table says so I'm not sure but my prediction is 43»\n\nRespond with the corresponding output fields, starting with the field `[[ ## rationale ## ]]`, then `[[ ## citation ## ]]`, then `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
     },
     {
@@ -549,7 +592,8 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           }
@@ -558,6 +602,7 @@
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -569,13 +614,15 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_1",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #1:",
             "annotation": "str"
           }
@@ -584,12 +631,14 @@
           {
             "name": "rationale",
             "desc": "${corrected reasoning}",
+            "rendered_desc": "${corrected reasoning}",
             "prefix": "Accurate Reasoning: Thank you everyone. Let's now holistically",
             "annotation": "str"
           },
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -614,7 +663,7 @@
           "What is the color of the sky?"
         ]
       ],
-      "system": "Your input fields are:\n1. `question` (str): None\n2. `reasoning_attempt_1` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
+      "system": "Your input fields are:\n1. `question` (str): \n2. `reasoning_attempt_1` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
       "user": "[[ ## question ## ]]\nWhat is the color of the sky?\n\n[[ ## reasoning_attempt_1 ## ]]\n«I'm trying to only one student answered I'm not sure but my prediction is blue»\n\nRespond with the corresponding output fields, starting with the field `[[ ## rationale ## ]]`, then `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
     },
     {
@@ -625,7 +674,8 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           }
@@ -634,6 +684,7 @@
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -645,7 +696,8 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           }
@@ -654,12 +706,14 @@
           {
             "name": "rationale",
             "desc": "${corrected reasoning}",
+            "rendered_desc": "${corrected reasoning}",
             "prefix": "Accurate Reasoning: Thank you everyone. Let's now holistically",
             "annotation": "str"
           },
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -675,7 +729,7 @@
           "What is the color of the sky?"
         ]
       ],
-      "system": "Your input fields are:\n1. `question` (str): None\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
+      "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
       "user": "[[ ## question ## ]]\nWhat is the color of the sky?\n\nRespond with the corresponding output fields, starting with the field `[[ ## rationale ## ]]`, then `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
     },
     {
@@ -686,7 +740,8 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           }
@@ -695,6 +750,7 @@
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -706,25 +762,29 @@
         "inputs": [
           {
             "name": "question",
-            "desc": null,
+            "desc": "${question}",
+            "rendered_desc": "",
             "prefix": "Question:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_1",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #1:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_2",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #2:",
             "annotation": "str"
           },
           {
             "name": "reasoning_attempt_3",
             "desc": "${reasoning attempt}",
+            "rendered_desc": "${reasoning attempt}",
             "prefix": "Student Attempt #3:",
             "annotation": "str"
           }
@@ -733,12 +793,14 @@
           {
             "name": "rationale",
             "desc": "${corrected reasoning}",
+            "rendered_desc": "${corrected reasoning}",
             "prefix": "Accurate Reasoning: Thank you everyone. Let's now holistically",
             "annotation": "str"
           },
           {
             "name": "answer",
             "desc": "often between 1 and 5 words",
+            "rendered_desc": "often between 1 and 5 words",
             "prefix": "Answer:",
             "annotation": "str"
           }
@@ -780,7 +842,7 @@
           "Which letter?"
         ]
       ],
-      "system": "Your input fields are:\n1. `question` (str): None\n2. `reasoning_attempt_1` (str): ${reasoning attempt}\n3. `reasoning_attempt_2` (str): ${reasoning attempt}\n4. `reasoning_attempt_3` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## reasoning_attempt_2 ## ]]\n{reasoning_attempt_2}\n\n[[ ## reasoning_attempt_3 ## ]]\n{reasoning_attempt_3}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
+      "system": "Your input fields are:\n1. `question` (str): \n2. `reasoning_attempt_1` (str): ${reasoning attempt}\n3. `reasoning_attempt_2` (str): ${reasoning attempt}\n4. `reasoning_attempt_3` (str): ${reasoning attempt}\nYour output fields are:\n1. `rationale` (str): ${corrected reasoning}\n2. `answer` (str): often between 1 and 5 words\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning_attempt_1 ## ]]\n{reasoning_attempt_1}\n\n[[ ## reasoning_attempt_2 ## ]]\n{reasoning_attempt_2}\n\n[[ ## reasoning_attempt_3 ## ]]\n{reasoning_attempt_3}\n\n[[ ## rationale ## ]]\n{rationale}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer questions with short factoid answers.",
       "user": "[[ ## question ## ]]\nWhich letter?\n\n[[ ## reasoning_attempt_1 ## ]]\n«I'm trying to one I'm not sure but my prediction is a»\n\n[[ ## reasoning_attempt_2 ## ]]\nthe caller's own text\n\n[[ ## reasoning_attempt_3 ## ]]\n«I'm trying to three I'm not sure but my prediction is c»\n\nRespond with the corresponding output fields, starting with the field `[[ ## rationale ## ]]`, then `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
     }
   ],

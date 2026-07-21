@@ -30,12 +30,12 @@ upstream_version = "3.2.1"
 updated = "2026-07-21"
 
 [status]
-rust_tests = 375
-upstream_tests_passing = 373
-upstream_tests_crossing = 179
-upstream_tests_deciding_signatures = 254
+rust_tests = 376
+upstream_tests_passing = 380
+upstream_tests_crossing = 180
+upstream_tests_deciding_signatures = 260
 xfail_backlog = 0
-suites_run = 22
+suites_run = 24
 
 # ---------------------------------------------------------------------------
 # Shipped
@@ -239,6 +239,7 @@ suites = [
   "predict/test_aggregation.py", "predict/test_multi_chain_comparison.py",
   "predict/test_parallel.py",
 ]
+shipped_so_far = "majority and MultiChainComparison; Parallel remains"
 rationale = """
 dspy ships thirteen modules and three are ported. These three need nothing this crate lacks:
 majority reconciles several answers, MultiChainComparison shows a model its own prior attempts,

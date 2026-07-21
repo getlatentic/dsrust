@@ -14,10 +14,12 @@ use crate::signature::{Signature, SignatureSpec};
 mod aggregation;
 mod chain_of_thought;
 mod derived;
+mod multi_chain_comparison;
 pub use aggregation::{Normalize, majority, normalize_text};
 pub use chain_of_thought::{ChainOfThought, TypedChainOfThought};
 pub use derived::TypedPredict;
 use derived::typed;
+pub use multi_chain_comparison::MultiChainComparison;
 
 #[cfg(test)]
 mod scripted;

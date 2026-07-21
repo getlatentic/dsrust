@@ -35,6 +35,7 @@ SUITES=(
   signatures/test_signature.py signatures/test_custom_types.py
   signatures/test_adapter_file.py signatures/test_adapter_image.py
   primitives/test_example.py
+  predict/test_multi_chain_comparison.py predict/test_aggregation.py
 )
 
 # SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against

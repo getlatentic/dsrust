@@ -214,6 +214,7 @@ DOES_NOT_EXERCISE_RUST = {
 SIGNATURE_CONFORMANCE = {
     "upstream_test_signature.py": "how a signature is built, named and described",
     "upstream_test_example.py": "how a record splits into what was asked and what was expected",
+    "upstream_test_aggregation.py": "which of several answers a vote elects",
 }
 
 # Whole files whose subject is beneath the wire: a signature's own construction, naming and
@@ -373,6 +374,8 @@ def _signature_layer_is_rust(monkeypatch):
     # `Example.inputs`/`labels` are the record's one decision, so they answer from the crate too.
     monkeypatch.setattr(dspy.Example, "inputs", rust_signature.inputs)
     monkeypatch.setattr(dspy.Example, "labels", rust_signature.labels)
+    monkeypatch.setattr("dspy.predict.aggregation.majority", rust_signature.majority)
+    monkeypatch.setattr(dspy, "majority", rust_signature.majority, raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -390,6 +393,8 @@ def _rebind_in_the_test_module(monkeypatch, request):
             monkeypatch.setattr(module, name, backed)
     if hasattr(module, "infer_prefix"):
         monkeypatch.setattr(module, "infer_prefix", rust_signature.infer_prefix)
+    if hasattr(module, "majority"):
+        monkeypatch.setattr(module, "majority", rust_signature.majority)
 
 
 def pytest_configure(config):

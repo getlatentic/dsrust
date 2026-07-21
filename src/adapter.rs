@@ -144,10 +144,16 @@ fn conversation(
 
 /// The inputs the request renders: everything the asked-for signature still declares, which
 /// drops the history field once its exchanges have been replayed.
+///
+/// Walked in the signature's order rather than the caller's, because dspy renders from
+/// `signature.input_fields` and the order a caller happened to name its values in never reaches
+/// a prompt. Filtering the caller's list instead keeps that order, which agrees only while every
+/// caller passes values as the signature declares them.
 fn live_inputs<'a>(asked: &Signature, inputs: &[(&'a str, Value)]) -> Vec<(&'a str, Value)> {
-    inputs
+    asked
+        .inputs
         .iter()
-        .filter(|(field, _)| asked.inputs.iter().any(|input| input.name == *field))
+        .filter_map(|declared| inputs.iter().find(|(field, _)| *field == declared.name))
         .cloned()
         .collect()
 }
@@ -187,5 +193,44 @@ mod tests {
                 .contains("color must be one of red, blue")
         );
         assert!(turns_for(vec![ChatTurn::user("draft it")], None).len() == 1);
+    }
+}
+
+#[cfg(test)]
+mod live_input_order {
+    use super::*;
+    use crate::signature::{InField, OutField};
+    use serde_json::json;
+
+    fn two_inputs() -> Signature {
+        Signature {
+            instructions: "T.".to_owned(),
+            inputs: vec![
+                InField {
+                    name: "alpha".to_owned(),
+                    ..Default::default()
+                },
+                InField {
+                    name: "beta".to_owned(),
+                    ..Default::default()
+                },
+            ],
+            outputs: vec![OutField {
+                name: "answer".to_owned(),
+                ..Default::default()
+            }],
+        }
+    }
+
+    /// dspy walks the signature's own input list to render the live request, so the order a
+    /// caller happened to pass values in never reaches a prompt. Every adapter shares this, and
+    /// no existing caller passed them out of order, so nothing caught it.
+    #[test]
+    fn the_request_renders_in_signature_order_not_call_order() {
+        let signature = two_inputs();
+        let asked_backwards = [("beta", json!("B")), ("alpha", json!("A"))];
+        let rendered = live_inputs(&signature, &asked_backwards);
+        let names: Vec<&str> = rendered.iter().map(|(name, _)| *name).collect();
+        assert_eq!(names, ["alpha", "beta"]);
     }
 }

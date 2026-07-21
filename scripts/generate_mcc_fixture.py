@@ -33,10 +33,16 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 def base(instructions: str, inputs: list[tuple[str, str]], outputs: list[tuple[str, str]]):
-    """A signature declared field by field, so the fixture can carry it to Rust as data."""
+    """A signature declared field by field, so the fixture can carry it to Rust as data.
+
+    A described field passes `desc=`; an undescribed one passes nothing at all. `desc=None` is a
+    third thing: it survives the default that would have made it `${name}`, so the suppression
+    in `get_field_description_string` misses and the prompt reads `(str): None`.
+    """
+    described = lambda field, desc: field() if desc is None else field(desc=desc)  # noqa: E731
     fields = {
-        **{name: (str, dspy.InputField(desc=desc)) for name, desc in inputs},
-        **{name: (str, dspy.OutputField(desc=desc)) for name, desc in outputs},
+        **{name: (str, described(dspy.InputField, desc)) for name, desc in inputs},
+        **{name: (str, described(dspy.OutputField, desc)) for name, desc in outputs},
     }
     return dspy.Signature(fields, instructions)
 
@@ -166,6 +172,10 @@ def field_record(name: str, info) -> dict:
     return {
         "name": name,
         "desc": extra["desc"],
+        # What `get_field_description_string` puts after the colon: a description that merely
+        # repeats the field's own name is dropped. This crate keeps only the rendered form, so
+        # recording dspy's own answer here saves the Rust loader from re-deriving the rule.
+        "rendered_desc": "" if extra["desc"] == f"${{{name}}}" else extra["desc"],
         "prefix": extra["prefix"],
         "annotation": info.annotation.__name__,
     }

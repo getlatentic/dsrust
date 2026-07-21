@@ -241,6 +241,37 @@ fn infer_prefix(name: &str) -> String {
     dsrs::signature::infer_prefix(name)
 }
 
+/// dspy `majority`: which of several answers wins, as an index into them.
+///
+/// The vote is the decision and it crosses; Python keeps the completions and returns the one at
+/// the index, because which object comes back is its container's business rather than the vote's.
+#[pyfunction]
+fn majority_index(values: Vec<String>, mode: &str) -> PyResult<usize> {
+    let normalize = match mode {
+        "default" => dsrs::predict::Normalize::Default,
+        "identity" => dsrs::predict::Normalize::AsWritten,
+        "text" => dsrs::predict::Normalize::Text,
+        other => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "unknown normalize mode {other:?}"
+            )));
+        }
+    };
+    let completions: Vec<dsrs::Example> = values
+        .iter()
+        .map(|value| dsrs::Example::new([("value", Value::String(value.clone()))]))
+        .collect();
+    let winner = dsrs::predict::majority(&completions, &normalize, None).map_err(to_value_error)?;
+    let won = winner
+        .get("value")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    completions
+        .iter()
+        .position(|c| c.get("value").and_then(Value::as_str) == Some(won))
+        .ok_or_else(|| pyo3::exceptions::PyValueError::new_err("the winner is not among the votes"))
+}
+
 /// dspy `Example.inputs()` / `Example.labels()`: which of a record's fields are which.
 ///
 /// The split is the decision — a field is an input because it was declared one, and a label
@@ -418,5 +449,6 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(field_description, module)?)?;
     module.add_function(wrap_pyfunction!(infer_prefix, module)?)?;
     module.add_function(wrap_pyfunction!(split_example, module)?)?;
+    module.add_function(wrap_pyfunction!(majority_index, module)?)?;
     Ok(())
 }
