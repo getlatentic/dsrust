@@ -8,7 +8,7 @@
 
 use dsrs::adapter::Input;
 use dsrs::signature::{FieldKind, InField, JsonType, OutField, Signature};
-use dsrs::{Adapter, ChainOfThought, ChatAdapter, Example};
+use dsrs::{Adapter, ChainOfThought, ChatAdapter, Example, ReAct};
 use serde_json::Value;
 
 struct Fixture {
@@ -123,6 +123,7 @@ fn load(path: &std::path::Path) -> Fixture {
             Some("chain_of_thought") => {
                 ChainOfThought::from_signature(declared).signature().clone()
             }
+            Some("react") => ReAct::new(declared, Vec::new()).turn_signature().clone(),
             _ => declared,
         },
         demos,

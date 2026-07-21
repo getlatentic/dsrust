@@ -36,6 +36,15 @@ pub struct ReAct {
 }
 
 impl ReAct {
+    /// The signature one turn of the loop is asked with — the task's inputs plus `trajectory`,
+    /// answering with a thought, a tool name and its arguments.
+    ///
+    /// dspy reaches the same thing as `react.react.signature`. It is not the signature handed in:
+    /// this module rewrites it before asking, which is most of what it does.
+    pub fn turn_signature(&self) -> &Signature {
+        &self.react.signature
+    }
+
     pub fn new(signature: Signature, tools: Vec<Box<dyn Tool>>) -> Self {
         let finish = Finish::new(&backticked(
             signature.outputs.iter().map(|field| field.name.as_str()),

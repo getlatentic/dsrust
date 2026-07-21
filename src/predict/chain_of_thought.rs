@@ -30,16 +30,25 @@ impl ChainOfThought {
 
     /// A module for a signature held as field names, matching
     /// [`Predict::from_signature`](super::Predict::from_signature).
-    pub fn from_signature(mut signature: Signature) -> Self {
-        // No description, which is upstream's. dspy sets the `${reasoning}` sentinel and then
-        // suppresses it when rendering, so the field reaches a prompt as its name alone — the
-        // "Let's think step by step" prefix it used to carry was removed upstream in PR #8822.
-        // Prose here is a line dspy never sends.
+    pub fn from_signature(signature: Signature) -> Self {
+        Self::with_rationale(signature, OutField::default())
+    }
+
+    /// dspy's `ChainOfThought(signature, rationale_field=…)`: reason through a field of the
+    /// caller's own rather than the plain one.
+    ///
+    /// The *name* is always `reasoning` however the field is spelled, because upstream prepends
+    /// under that name and only takes the description, kind and closed set from what it is given.
+    /// A default field is the plain case, and carries no description: dspy sets the
+    /// `${reasoning}` sentinel and suppresses it when rendering, so the field reaches a prompt as
+    /// its name alone. The "Let's think step by step" prefix it once had was removed upstream in
+    /// PR #8822, and prose here would be a line dspy never sends.
+    pub fn with_rationale(mut signature: Signature, rationale: OutField) -> Self {
         signature.outputs.insert(
             0,
             OutField {
                 name: "reasoning".into(),
-                ..Default::default()
+                ..rationale
             },
         );
         Self {
@@ -184,6 +193,36 @@ impl<S: SignatureSpec + Send + Sync> Module for TypedChainOfThought<S> {
 
 #[cfg(test)]
 mod tests {
+    /// dspy's `rationale_field`: a caller reasons through a field of their own. Its description
+    /// and kind are taken; its name is not, because upstream prepends under `reasoning` whatever
+    /// it is handed.
+    #[test]
+    fn a_caller_can_supply_the_rationale_field() {
+        let cot = ChainOfThought::with_rationale(
+            "question -> answer".parse().expect("a signature"),
+            OutField {
+                name: "ignored".into(),
+                desc: "work through it aloud".into(),
+                ..Default::default()
+            },
+        );
+
+        let reasoning = &cot.signature().outputs[0];
+        assert_eq!(
+            reasoning.name, "reasoning",
+            "the name is upstream's, not the caller's"
+        );
+        assert_eq!(reasoning.desc, "work through it aloud");
+    }
+
+    /// And the plain case says nothing, which is what dspy's suppressed sentinel amounts to.
+    #[test]
+    fn the_plain_rationale_carries_no_description() {
+        let cot =
+            ChainOfThought::from_signature("question -> answer".parse().expect("a signature"));
+        assert_eq!(cot.signature().outputs[0].desc, "");
+    }
+
     use super::*;
     use crate::predict::scripted::{Pick, RoomTask, Scripted, room_inputs, signature};
     use serde_json::json;

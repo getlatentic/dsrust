@@ -40,6 +40,16 @@ CASES = [
         "values": {"question": "What is the capital of France?"},
     },
     {
+        # ReAct rewrites the signature far more than ChainOfThought does — a trajectory input,
+        # three outputs, and instructions naming every tool. None of it was compared before.
+        "name": "react_trajectory",
+        "module": "react",
+        "instructions": "Answer the question.",
+        "inputs": [{"name": "question", "type": str, "kind": "str", "desc": None}],
+        "outputs": [{"name": "answer", "type": str, "kind": "str", "desc": None}],
+        "values": {"question": "What is the capital of France?"},
+    },
+    {
         "name": "simple_signature",
         "instructions": "Answer the question.",
         "inputs": [{"name": "question", "type": str, "kind": "str", "desc": None}],
@@ -166,6 +176,8 @@ def main() -> None:
         # the only way a fixture sees the field it adds and the description it does *not* add.
         if case.get("module") == "chain_of_thought":
             signature = dspy.ChainOfThought(signature).predict.signature
+        elif case.get("module") == "react":
+            signature = dspy.ReAct(signature, tools=[]).react.signature
         system, turns = render(signature, demos, case["values"])
         fixture = {
             "source": f"generated from dspy=={PINNED} via scripts/generate_fixtures.py",

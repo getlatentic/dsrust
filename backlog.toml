@@ -442,7 +442,24 @@ here at all; size it before promising it.
 id = "b12"
 title = "The predict/ suites test dspy's modules over our adapter, not our modules"
 kind = "blind-spot"
-state = "next"
+state = "done"
+closed = "2026-07-21"
+fixed = '''
+Closed by fixtures rendered *through* each module, which is the cheaper of the two options and
+catches signature construction — where b11 lived.
+
+`generate_fixtures.py` takes a `module` key; `chain_of_thought_reasoning.json` and
+`react_trajectory.json` are generated from dspy 3.2.1 and compared byte for byte. Both were
+confirmed to bite by mutation: renaming ReAct's `trajectory` field fails its fixture at the
+byte. ReAct had never been compared before, and it rewrites the signature far more than
+ChainOfThought does — a trajectory input and three outputs.
+
+`Predict` needs no such fixture: it does not rewrite the signature, so the existing cases already
+render exactly what it would ask with.
+
+The suites themselves are unchanged and still worth what they were worth — they prove the
+adapters render what dspy renders. The trap was reading their names as module coverage.
+'''
 detail = '''
 `b11` sat in every ChainOfThought prompt this crate produced, with 478 tests green and
 `predict/test_chain_of_thought.py` passing and crossing on every test. The reason generalises,
