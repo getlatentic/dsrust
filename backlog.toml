@@ -439,6 +439,40 @@ here at all; size it before promising it.
 # ---------------------------------------------------------------------------
 
 [[backlog]]
+id = "b13"
+title = "Predict's **config is broader than Sampling, and carries a rule we do not implement"
+kind = "known-divergence"
+state = "next"
+detail = '''
+Claimed during the constructor audit that dspy's `**config` is covered by `with_sampling`. It is
+not, on three counts. `predict.py` stores it as `self.config`, merges a per-call `config={...}`
+over it, and hands the result to the adapter as `lm_kwargs` — so it is LM kwargs, but wider than
+four fields.
+
+1. **A behaviour we do not have at all.** predict.py:163
+
+       # If temperature is unset or <=0.15, and n > 1, set temperature to 0.7 to keep randomness.
+       if (temperature is None or temperature <= 0.15) and num_generations > 1:
+           config["temperature"] = 0.7
+
+   Ask for three completions at temperature 0 and dspy sends 0.7; we send what the caller set.
+   Different request, different reply. This lands squarely on `Sampling::completions`, added for
+   `BestOfN`, so it is reachable today.
+
+2. **No escape hatch.** dspy forwards anything the provider takes — `top_p`, `stop`, `seed`,
+   `logit_bias`, and OpenAI predicted outputs via `prediction`, which predict.py handles by name.
+   `Sampling` is four fixed fields.
+
+3. **No per-call override.** dspy's documented spelling is
+   `predict(q="What is 1 + 52?", config={"rollout_id": 2, "temperature": 1.0})`. Ours is set on
+   the module by `with_sampling` and cannot be varied for one call.
+
+Item 1 is a byte divergence and should go first; it is small. Items 2 and 3 are API shape and
+want deciding together, since an escape hatch and a per-call override are the same field arriving
+by two routes.
+'''
+
+[[backlog]]
 id = "b12"
 title = "The predict/ suites test dspy's modules over our adapter, not our modules"
 kind = "blind-spot"
