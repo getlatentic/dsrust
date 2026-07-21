@@ -47,11 +47,20 @@ impl Bootstrapped {
     /// File one solved example's demos under the predictors that earned them.
     ///
     /// dspy collapses a predictor that traced more than once for a single example down to one
-    /// demo, choosing evenly between its last trace and a random earlier one. The choice is
-    /// seeded with `xxhash64(pickle.dumps(demos))`, and reproducing Python pickle bytes is not
-    /// something this port can do, so the last trace is taken instead. That agrees with upstream
-    /// whenever upstream's coin lands on the last trace, and a predictor called once per example
-    /// never reaches the branch at all.
+    /// demo, choosing evenly between its last trace and a random earlier one. This takes the last
+    /// trace, which agrees with upstream whenever its coin lands there — and a predictor called
+    /// once per example never reaches the branch at all.
+    ///
+    /// Not for want of the generator: [`rng`](super::rng) already reproduces the one upstream
+    /// draws with. The choice is seeded with `xxhash64(pickle.dumps(demos))`, and those bytes
+    /// embed the iteration order of `_input_keys`, a Python `set` — fixed within a process and
+    /// different between them, since CPython seeds string hashing per interpreter. Upstream's own
+    /// seed is therefore not reproducible, so there is no single answer to match.
+    ///
+    /// Taking the last trace is also the best available answer rather than a concession. Deriving
+    /// a seed here would flip a coin independent of upstream's, and two independent coins agree
+    /// less often than one fixed choice matching a coin: measured, 0.500 at any number of traces
+    /// against 0.376 at three and 0.287 at eight.
     pub(super) fn file(&mut self, solved: Solved) {
         if solved.per_predictor.is_empty() {
             self.program.push(solved.program);

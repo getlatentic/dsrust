@@ -620,10 +620,9 @@ unreachable. A module of a caller's own opts in with asks_with_a_prediction!.
 id = "b5"
 title = "A predictor traced twice for one example takes its last trace"
 kind = "known-divergence"
-# Not a trade-off we chose. Upstream's own choice is not reproducible across processes, so there
-# is no stable behaviour to match — see the detail. Nothing here is pending.
-decision = "unreachable"
-state = "closed"
+# Skipped, not deferred. Nothing here is pending and nothing should reopen it without new facts.
+decision = "skipped"
+state = "skipped"
 closed = "2026-07-21"
 detail = """
 When one predictor produces several traces for a single example, dspy collapses them to one demo,
@@ -639,8 +638,23 @@ per-process randomized string hashing: with two or more input keys the digest ch
 Measured on unmodified dspy — five processes, same code and data, and the fifth disagreed with
 the other four.
 
-So there is no stable choice to match, and matching it is impossible in principle rather than
-expensive. Taking the last trace is at least deterministic. This is the one place in the port
+Two things settle it beyond "it is hard".
+
+**The RNG is not the gap.** `src/optimize/rng.rs` already reproduces this exact generator —
+CPython's Mersenne Twister, held to `tests/conformance/rng/cpython_random.json`. Pickle sits
+*outside* it: object → bytes → xxhash64 → hex digest → seed → two draws. Even the seeding path
+is well defined; measured, `random.Random("a6311e…")` equals `random.Random(int.from_bytes(s +
+sha512(s)))`, a 639-bit key through `init_by_array`. All of that is portable. The one input that
+is not is the pickled order of `_input_keys`, a Python `set` — deterministic *within* a process
+(1000 hashes in one run gave one value) and different between processes, because CPython seeds
+string hashing per interpreter.
+
+**Porting it anyway would make agreement worse.** A Rust pickle would yield a deterministic seed,
+but our own rather than upstream's, so it is an independent coin. Two independent coins agree less
+often than one fixed choice matching a coin — measured over 400k trials: always-last holds 0.500
+at any size, while an own coin gives 0.501 at two traces, 0.376 at three, 0.314 at five, 0.287 at
+eight. Taking the last trace is the *optimal* strategy once the seed is unreachable, not a
+shortfall. Taking the last trace is at least deterministic. This is the one place in the port
 where byte-faithfulness is unreachable, and it is upstream's nondeterminism rather than a gap
 here. Revisit only if upstream reseeds on something stable.
 
