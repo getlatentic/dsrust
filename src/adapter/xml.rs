@@ -12,6 +12,7 @@ use crate::example::Example;
 use crate::lm::ChatTurn;
 use crate::signature::Signature;
 
+use super::Input;
 use super::exchange::{Style, plain};
 use super::{blocks, conversation, live_inputs, output_slot, python_json::format_field_value};
 
@@ -73,7 +74,7 @@ impl super::Adapter for XmlAdapter {
         &self,
         signature: &Signature,
         demos: &[Example],
-        inputs: &[(&str, Value)],
+        inputs: &[Input<'_>],
     ) -> Result<(String, Vec<ChatTurn>)> {
         let (asked, mut turns) = conversation(signature, demos, inputs, STYLE);
         turns.push(ChatTurn::user(user_message(
@@ -92,10 +93,10 @@ impl super::Adapter for XmlAdapter {
 }
 
 /// The request: each input in tags, closed by the reminder naming the tags to answer in.
-fn user_message(signature: &Signature, inputs: &[(&str, Value)]) -> String {
+fn user_message(signature: &Signature, inputs: &[Input<'_>]) -> String {
     let mut parts: Vec<String> = inputs
         .iter()
-        .map(|(name, value)| wrap(name, &plain(signature, name, value)))
+        .map(|input| wrap(input.name, &plain(signature, input.name, &input.value)))
         .collect();
     parts.push(output_requirements(signature));
     parts.join("\n\n").trim().to_owned()
@@ -161,7 +162,7 @@ mod tests {
     #[test]
     fn the_request_wraps_each_input_then_names_the_tags_to_answer_in() {
         let (_, turns) = XmlAdapter
-            .format(&signature(), &[], &[("room", json!("the study"))])
+            .format(&signature(), &[], &[Input::new("room", json!("the study"))])
             .expect("renders");
         assert_eq!(
             turns[0].content.text().unwrap(),
@@ -190,7 +191,7 @@ mod tests {
         // No closing marker: an XML reply ends where its last tag closes.
         let demo = crate::example! { room: "the den", color: "green", why: "It rests." };
         let (_, turns) = XmlAdapter
-            .format(&signature(), &[demo], &[("room", json!("study"))])
+            .format(&signature(), &[demo], &[Input::new("room", json!("study"))])
             .expect("renders");
         assert_eq!(turns[0].content.text().unwrap(), "<room>\nthe den\n</room>");
         assert_eq!(

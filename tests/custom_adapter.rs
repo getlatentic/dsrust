@@ -6,6 +6,7 @@
 
 use anyhow::{Result, anyhow};
 use dsrs::Example;
+use dsrs::adapter::Input;
 use dsrs::adapter::python_json::format_value;
 use dsrs::lm::ChatTurn;
 use dsrs::signature::{OutField, Signature};
@@ -20,11 +21,14 @@ impl Adapter for XmlAdapter {
         &self,
         signature: &Signature,
         _demos: &[Example],
-        inputs: &[(&str, Value)],
+        inputs: &[Input<'_>],
     ) -> anyhow::Result<(String, Vec<ChatTurn>)> {
         let user = inputs
             .iter()
-            .map(|(name, value)| format!("<{name}>{}</{name}>", format_value(value)))
+            .map(|input| {
+                let (name, value) = (input.name, &input.value);
+                format!("<{name}>{}</{name}>", format_value(value))
+            })
             .collect::<Vec<_>>()
             .join("\n");
         Ok((self.system_message(signature)?, vec![ChatTurn::user(user)]))
@@ -73,7 +77,7 @@ fn signature() -> Signature {
 
 #[test]
 fn an_adapter_defined_outside_the_crate_formats_and_parses() {
-    let inputs = [("request", json!("something calm"))];
+    let inputs = [Input::new("request", json!("something calm"))];
     let (system, turns) = XmlAdapter
         .format(&signature(), &[], &inputs)
         .expect("renders");
@@ -94,7 +98,7 @@ fn an_adapter_defined_outside_the_crate_formats_and_parses() {
 fn a_custom_adapter_is_interchangeable_with_the_shipped_ones() {
     let adapters: Vec<Box<dyn Adapter>> =
         vec![Box::new(ChatAdapter::default()), Box::new(XmlAdapter)];
-    let inputs = [("request", json!("something calm"))];
+    let inputs = [Input::new("request", json!("something calm"))];
     for adapter in &adapters {
         let (system, _) = adapter.format(&signature(), &[], &inputs).expect("renders");
         assert!(

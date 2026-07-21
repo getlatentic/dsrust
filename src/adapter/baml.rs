@@ -22,14 +22,14 @@ use crate::signature::Signature;
 
 use super::exchange::{Style, json_answer};
 use super::python_json::format_value;
-use super::{Adapter, JsonAdapter, blocks, conversation, live_inputs, marker, section};
+use super::{Adapter, Input, JsonAdapter, blocks, conversation, live_inputs, marker, section};
 
 /// Marker sections and a JSON reply, as the JSON adapter has it, laying a record out over
 /// several lines wherever one appears — in a demo and a replayed conversation as much as in the
 /// live request, since upstream renders all three through the one method.
 const STYLE: Style = Style {
     wrap: section,
-    value: input_value,
+    value: demo_value,
     answer: json_answer,
 };
 
@@ -80,7 +80,7 @@ impl Adapter for BamlAdapter {
         &self,
         signature: &Signature,
         demos: &[Example],
-        inputs: &[(&str, Value)],
+        inputs: &[Input<'_>],
     ) -> Result<(String, Vec<ChatTurn>)> {
         let (asked, mut turns) = conversation(signature, demos, inputs, STYLE);
         turns.push(ChatTurn::user(user_message(
@@ -106,10 +106,10 @@ impl Adapter for BamlAdapter {
 
 /// The request: each input in its own marker section, closed by the JSON adapter's reminder that
 /// the reply is one object.
-fn user_message(signature: &Signature, inputs: &[(&str, Value)]) -> String {
+fn user_message(signature: &Signature, inputs: &[Input<'_>]) -> String {
     let mut parts: Vec<String> = inputs
         .iter()
-        .map(|(name, value)| section(name, &input_value(signature, name, value)))
+        .map(|input| section(input.name, &input_value(input)))
         .collect();
     parts.push(super::json_output_requirements(signature));
     parts.join("\n\n").trim().to_owned()
@@ -121,26 +121,28 @@ fn user_message(signature: &Signature, inputs: &[(&str, Value)]) -> String {
 /// input side: a nested value crammed onto one line is what the models upstream targets read
 /// worst. Everything else takes the ordinary formatter.
 ///
-/// dspy asks whether the value is a pydantic instance. The crate has no pydantic instance to
-/// ask about, so it asks the declaration instead — a field whose type is a model, carrying an
-/// object — which picks out the same values except where an input does not match what it was
-/// declared as.
+/// dspy asks whether the value *is* a pydantic instance — `isinstance(value, BaseModel)` — and
+/// this asks the same question of the same thing. It cannot be asked of the JSON, where a
+/// serialized struct and a hand-written map are one and the same; it is answered where the
+/// answer still exists and carried here on [`Input::record`]. Asking the field's declared type
+/// instead would lay out a loose mapping handed to a record-declared field over several lines,
+/// where upstream writes it inline.
+
+/// A demo's or a replayed turn's value.
 ///
-/// Carrying the distinction would mean putting the provenance of each value into
-/// [`Adapter::format`], since it varies per call rather than per signature. That is a worse
-/// trade than the divergence it would close: through the derive every record-typed field holds
-/// a value serialized from that very type, so the two rules cannot disagree, and the case they
-/// disagree on — a loose mapping handed to a field declared as a record — is a caller passing
-/// something other than what it promised.
-fn input_value(signature: &Signature, name: &str, value: &Value) -> String {
-    let declared_record = signature
-        .inputs
-        .iter()
-        .find(|field| field.name == name)
-        .is_some_and(|field| notation::is_record(&field.kind));
-    match declared_record && value.is_object() {
-        true => serde_json::to_string_pretty(value).unwrap_or_else(|_| format_value(value)),
-        false => format_value(value),
+/// These come from an [`Example`], which holds JSON a caller put there rather than a record
+/// instance, so they take the ordinary formatter — the same answer upstream reaches for a demo
+/// built from a plain mapping. Only a live input can carry the provenance that earns the
+/// multi-line layout, and it no longer travels through here to get it.
+fn demo_value(_signature: &Signature, _name: &str, value: &Value) -> String {
+    format_value(value)
+}
+
+fn input_value(input: &Input<'_>) -> String {
+    match input.is_record_object() {
+        true => serde_json::to_string_pretty(&input.value)
+            .unwrap_or_else(|_| format_value(&input.value)),
+        false => format_value(&input.value),
     }
 }
 
@@ -270,7 +272,7 @@ mod tests {
         // something the model is then asked to produce.
         assert!(BamlAdapter.field_structure(&signature).is_err());
         assert!(BamlAdapter.system_message(&signature).is_err());
-        let asked = BamlAdapter.format(&signature, &[], &[("question", json!("x"))]);
+        let asked = BamlAdapter.format(&signature, &[], &[Input::new("question", json!("x"))]);
         assert!(
             format!(
                 "{:#}",
@@ -283,8 +285,8 @@ mod tests {
     #[test]
     fn a_record_input_is_laid_out_over_lines_and_everything_else_is_not() {
         let inputs = vec![
-            ("patient", patient()),
-            ("question", json!("What is the diagnosis?")),
+            Input::record("patient", patient()),
+            Input::new("question", json!("What is the diagnosis?")),
         ];
         let (_, turns) = BamlAdapter
             .format(&signature(), &[], &inputs)
@@ -299,13 +301,14 @@ mod tests {
         );
     }
 
-    /// The record test alone would pass if every object were laid out, so a field declared as
-    /// something other than a model has to stay on one line beside it.
+    /// The record test alone would pass if every object were laid out, so an object that did
+    /// *not* arrive as a record has to stay on one line beside it. This is upstream's `dict`,
+    /// which `isinstance(value, BaseModel)` answers no for however model-shaped it looks.
     #[test]
-    fn an_object_under_a_non_record_declaration_stays_on_one_line() {
+    fn an_object_that_is_not_a_record_stays_on_one_line() {
         let mut signature = signature();
         signature.inputs[0].kind = FieldKind::Json(JsonType::plain("dict[str, str]"));
-        let inputs = vec![("patient", patient())];
+        let inputs = vec![Input::new("patient", patient())];
         let (_, turns) = BamlAdapter
             .format(&signature, &[], &inputs)
             .expect("renders");
@@ -330,7 +333,7 @@ mod tests {
                        <<CUSTOM-TYPE-END-IDENTIFIER>>"],
         });
         let (_, turns) = BamlAdapter
-            .format(&signature(), &[], &[("patient", embedded)])
+            .format(&signature(), &[], &[Input::new("patient", embedded)])
             .expect("renders");
         let crate::lm::Content::Blocks(blocks) = &turns[0].content else {
             panic!("got: {:?}", turns[0].content)
@@ -341,23 +344,31 @@ mod tests {
         })));
     }
 
-    /// dspy renders a demo through the same method as the live request, so a record in one is
-    /// laid out too, and answers it the JSON adapter's way — an object rather than the marker
-    /// sections the chat adapter reads back.
+    /// A demo is rendered by the same rule as a live request — what the *value* is — and an
+    /// [`Example`] holds JSON rather than a record instance, so a demo takes the one-line form
+    /// even where the live request beside it does not.
+    ///
+    /// That asymmetry is upstream's own. Measured against dspy 3.2.1: a demo built from a dict
+    /// renders `{"name": "Jane", "age": 30}` while the same call passing a `BaseModel` renders
+    /// it over four lines. A trainset of mappings and a typed call is exactly that pairing.
     #[test]
-    fn a_demo_is_laid_out_the_way_the_request_it_stands_for_would_be() {
+    fn a_demo_holds_json_so_it_takes_the_one_line_form() {
         let demo = crate::example! {
             patient: json!({ "name": "Jane Doe", "age": 30 }),
             question: "Who?",
             answer: "Jane Doe",
         };
         let (_, turns) = BamlAdapter
-            .format(&signature(), &[demo], &[("patient", patient())])
+            .format(
+                &signature(),
+                &[demo],
+                &[Input::record("patient", patient())],
+            )
             .expect("renders");
         assert_eq!(
             turns[0].content.text().expect("a rendered demo"),
             "[[ ## patient ## ]]\n\
-             {\n  \"name\": \"Jane Doe\",\n  \"age\": 30\n}\n\n\
+             {\"name\": \"Jane Doe\", \"age\": 30}\n\n\
              [[ ## question ## ]]\nWho?"
         );
         assert_eq!(

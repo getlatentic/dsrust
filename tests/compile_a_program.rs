@@ -4,6 +4,7 @@
 //! reach for, and checks the thing that matters: after compiling, the demos an optimizer chose
 //! appear in the prompt the model receives. If they do not, the compile changed nothing.
 
+use dsrs::adapter::Input;
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
@@ -110,7 +111,7 @@ fn a_compiled_program_and_an_uncompiled_one_render_differently() {
     let mut compiled = dsrs::predict::Predict::from_signature(signature());
     LabeledFewShot::new(2).compile(&mut compiled, &trainset());
 
-    let inputs = [("request", json!("capital of Spain?"))];
+    let inputs = [Input::new("request", json!("capital of Spain?"))];
     let (_, bare_turns) = ChatAdapter::default()
         .format(&signature(), &bare.demos, &inputs)
         .expect("renders");

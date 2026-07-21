@@ -121,18 +121,6 @@ pub(super) fn output_type(field: &OutField) -> Result<String> {
     }
 }
 
-/// Whether a field's declared type is a record — a model with members of its own — rather than a
-/// container, a scalar, or a type nothing reflected.
-pub(super) fn is_record(kind: &FieldKind) -> bool {
-    let FieldKind::Json(json) = kind else {
-        return false;
-    };
-    json.reflection
-        .as_ref()
-        .and_then(|reflection| reflected(reflection).ok())
-        .is_some_and(|reflection| matches!(reflection.declared, Node::Model { .. }))
-}
-
 fn reflected(reflection: &Value) -> Result<Reflection> {
     Reflection::deserialize(reflection).map_err(|error| anyhow!("bad type reflection: {error}"))
 }
@@ -606,23 +594,5 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(output_type(&opaque).expect("renders"), "list[Idea]");
-        assert!(!is_record(&opaque.kind));
-    }
-
-    #[test]
-    fn only_a_model_counts_as_a_record() {
-        let kind = |reflection: Value| {
-            FieldKind::Json(JsonType {
-                annotation: "Reflected".into(),
-                descriptions: Vec::new(),
-                reflection: Some(reflection),
-            })
-        };
-        assert!(is_record(&kind(patient_details())));
-        assert!(!is_record(&kind(json!({
-            "type": { "kind": "list", "of": { "kind": "model", "model": 0 } },
-            "models": [address()],
-        }))));
-        assert!(!is_record(&FieldKind::Str));
     }
 }

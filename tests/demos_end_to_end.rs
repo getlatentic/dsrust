@@ -4,6 +4,7 @@
 //! caller actually does — build labelled examples, hand them to a module, and have the model
 //! see them as solved turns before the real request.
 
+use dsrs::adapter::Input;
 use dsrs::lm::Role;
 use dsrs::signature::{FieldKind, InField, OutField, Signature};
 use dsrs::{Adapter, ChatAdapter, Example};
@@ -30,7 +31,7 @@ fn demos_become_solved_turns_before_the_request() {
         demo("something calm", "blue"),
         demo("something warm", "amber"),
     ];
-    let inputs = [("request", json!("something bold"))];
+    let inputs = [Input::new("request", json!("something bold"))];
     let (_, turns) = ChatAdapter::default()
         .format(&signature(), &demos, &inputs)
         .expect("renders");
@@ -141,7 +142,7 @@ fn a_demo_renders_every_value_shape_the_way_python_prints_it() {
 #[test]
 fn a_demo_with_no_answer_is_dropped_rather_than_half_shown() {
     let unanswered = Example::new([("request", json!("something calm"))]);
-    let inputs = [("request", json!("something bold"))];
+    let inputs = [Input::new("request", json!("something bold"))];
     let (_, turns) = ChatAdapter::default()
         .format(&signature(), &[unanswered], &inputs)
         .expect("renders");
@@ -164,7 +165,7 @@ fn a_partial_demo_is_flagged_and_leads_the_whole_ones() {
         ("request", json!("something calm")),
         ("colour", json!(null)),
     ]);
-    let inputs = [("request", json!("something bold"))];
+    let inputs = [Input::new("request", json!("something bold"))];
     let demos = [demo("something warm", "amber"), partial];
     let (_, turns) = ChatAdapter::default()
         .format(&signature(), &demos, &inputs)

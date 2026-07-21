@@ -247,6 +247,54 @@ fn field_kind(field: &syn::Field) -> Kind {
     Kind::Json
 }
 
+/// Whether a field holds a *record* — one of the caller's own structs — as opposed to a
+/// collection, a map, or a scalar.
+///
+/// dspy asks the value: `isinstance(value, BaseModel)`. Nothing at run time can answer that here,
+/// because a struct serialized by serde and a `HashMap` with the same keys are the same
+/// `serde_json::Value`. The declared type is where the answer still exists, so it is read here
+/// and travels with the value.
+///
+/// A bare path that names no scalar is a struct: `Vec<T>`, `HashMap<K, V>` and friends all carry
+/// generic arguments, so they are excluded by the same `arguments.is_none()` test that classifies
+/// the scalars. `Option<T>` is unwrapped first — dspy sees whatever is inside, and a `None`
+/// serializes to `null`, which is not an object and so is laid out inline regardless.
+pub fn is_record(ty: &syn::Type) -> bool {
+    let syn::Type::Path(path) = unwrap_option(ty) else {
+        return false;
+    };
+    let Some(last) = path.path.segments.last() else {
+        return false;
+    };
+    if last.arguments.is_none() {
+        let name = last.ident.to_string();
+        return name != "String"
+            && name != "bool"
+            && !INT_TYPES.contains(&name.as_str())
+            && name != "f32"
+            && name != "f64";
+    }
+    false
+}
+
+/// `Option<T>` seen through to its `T`, and anything else unchanged.
+fn unwrap_option(ty: &syn::Type) -> &syn::Type {
+    let syn::Type::Path(path) = ty else { return ty };
+    let Some(last) = path.path.segments.last() else {
+        return ty;
+    };
+    if last.ident != "Option" {
+        return ty;
+    }
+    let syn::PathArguments::AngleBracketed(args) = &last.arguments else {
+        return ty;
+    };
+    match args.args.first() {
+        Some(syn::GenericArgument::Type(inner)) => inner,
+        _ => ty,
+    }
+}
+
 /// The derive's error paths surface as compile errors, so they are probed here at the
 /// parse level; `cargo test -p dsrs-derive` runs them.
 #[cfg(test)]

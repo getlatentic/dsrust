@@ -5,6 +5,57 @@ use crate::example::Example;
 use crate::lm::{ChatTurn, DynChatModel, OutputMode};
 use crate::signature::Signature;
 
+/// One input on its way to an adapter: what it is called, what it holds, and where it came from.
+///
+/// The provenance is here rather than read off the signature because dspy reads it off the
+/// *value*: `isinstance(value, BaseModel)`. A signature only knows what a field was **declared**
+/// as, and the two part company exactly when a caller hands a loose mapping to a field declared
+/// as a record — at which point [`baml::BamlAdapter`] would lay out bytes upstream never sends.
+///
+/// A serialized struct and a hand-written map are the same `Value`, so this cannot be recovered
+/// later. It is set where it is still known: the derive marks a struct-typed field, the bridge
+/// asks Python, and anything built from loose JSON is not a record because it is not one.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Input<'a> {
+    pub name: &'a str,
+    pub value: Value,
+    /// Whether this value arrived as a record instance — a Rust struct, or a pydantic model
+    /// across the bridge — rather than as JSON a caller wrote by hand.
+    pub record: bool,
+}
+
+impl<'a> Input<'a> {
+    /// Loose JSON: whatever a caller put in an [`Example`], and dspy's plain `dict`.
+    pub fn new(name: &'a str, value: Value) -> Self {
+        Self {
+            name,
+            value,
+            record: false,
+        }
+    }
+
+    /// A value that came from a declared record, which is dspy's `BaseModel` instance.
+    pub fn record(name: &'a str, value: Value) -> Self {
+        Self {
+            name,
+            value,
+            record: true,
+        }
+    }
+
+    /// Whether this is a record whose value is actually an object, which is the pair of
+    /// conditions BAML lays out over several lines rather than one.
+    pub fn is_record_object(&self) -> bool {
+        self.record && self.value.is_object()
+    }
+}
+
+impl<'a> From<(&'a str, Value)> for Input<'a> {
+    fn from((name, value): (&'a str, Value)) -> Self {
+        Self::new(name, value)
+    }
+}
+
 pub mod baml;
 mod blocks;
 mod chat;
@@ -53,7 +104,7 @@ pub trait Adapter: Send + Sync {
         &self,
         signature: &Signature,
         demos: &[Example],
-        inputs: &[(&str, Value)],
+        inputs: &[Input<'_>],
     ) -> Result<(String, Vec<ChatTurn>)>;
 
     /// Extract the signature's fields from a raw reply. A reply that does not speak this
@@ -125,7 +176,7 @@ pub struct Feedback {
 fn conversation(
     signature: &Signature,
     demos: &[Example],
-    inputs: &[(&str, Value)],
+    inputs: &[Input<'_>],
     style: exchange::Style,
 ) -> (Signature, Vec<ChatTurn>) {
     let mut turns = demo_turns(signature, demos, style);
@@ -133,8 +184,8 @@ fn conversation(
         None => signature.clone(),
         Some(name) => {
             let stripped = history::without_field(signature, name);
-            if let Some((_, value)) = inputs.iter().find(|(field, _)| *field == name) {
-                turns.extend(history::turns(&stripped, value, style));
+            if let Some(found) = inputs.iter().find(|input| input.name == name) {
+                turns.extend(history::turns(&stripped, &found.value, style));
             }
             stripped
         }
@@ -149,11 +200,11 @@ fn conversation(
 /// `signature.input_fields` and the order a caller happened to name its values in never reaches
 /// a prompt. Filtering the caller's list instead keeps that order, which agrees only while every
 /// caller passes values as the signature declares them.
-fn live_inputs<'a>(asked: &Signature, inputs: &[(&'a str, Value)]) -> Vec<(&'a str, Value)> {
+fn live_inputs<'a>(asked: &Signature, inputs: &[Input<'a>]) -> Vec<Input<'a>> {
     asked
         .inputs
         .iter()
-        .filter_map(|declared| inputs.iter().find(|(field, _)| *field == declared.name))
+        .filter_map(|declared| inputs.iter().find(|input| input.name == declared.name))
         .cloned()
         .collect()
 }
@@ -230,12 +281,12 @@ mod live_input_order {
     fn a_field_named_twice_renders_once() {
         let signature = two_inputs();
         let repeated = [
-            ("alpha", json!("first")),
-            ("beta", json!("B")),
-            ("alpha", json!("second")),
+            Input::new("alpha", json!("first")),
+            Input::new("beta", json!("B")),
+            Input::new("alpha", json!("second")),
         ];
         let rendered = live_inputs(&signature, &repeated);
-        let names: Vec<&str> = rendered.iter().map(|(name, _)| *name).collect();
+        let names: Vec<&str> = rendered.iter().map(|input| input.name).collect();
         assert_eq!(names, ["alpha", "beta"]);
     }
 
@@ -245,9 +296,12 @@ mod live_input_order {
     #[test]
     fn the_request_renders_in_signature_order_not_call_order() {
         let signature = two_inputs();
-        let asked_backwards = [("beta", json!("B")), ("alpha", json!("A"))];
+        let asked_backwards = [
+            Input::new("beta", json!("B")),
+            Input::new("alpha", json!("A")),
+        ];
         let rendered = live_inputs(&signature, &asked_backwards);
-        let names: Vec<&str> = rendered.iter().map(|(name, _)| *name).collect();
+        let names: Vec<&str> = rendered.iter().map(|input| input.name).collect();
         assert_eq!(names, ["alpha", "beta"]);
     }
 }

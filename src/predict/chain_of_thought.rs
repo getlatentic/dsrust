@@ -1,6 +1,8 @@
 use std::marker::PhantomData;
 
 use anyhow::Result;
+
+use crate::adapter::Input;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
@@ -223,9 +225,9 @@ where
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
         Box::pin(async move {
             let (http, lm) = global::current()?;
-            let pairs: Vec<(&str, Value)> = inputs
+            let pairs: Vec<Input<'_>> = inputs
                 .fields()
-                .map(|(name, value)| (name, value.clone()))
+                .map(|(name, value)| Input::new(name, value.clone()))
                 .collect();
             super::derived::typed_pairs::<S, _>(
                 &self.cot.predict,

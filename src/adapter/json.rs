@@ -15,7 +15,7 @@ use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::{FieldKind, Signature};
 
 use super::exchange::{Style, json_answer, plain};
-use super::{Adapter, blocks, conversation, live_inputs, output_slot, section};
+use super::{Adapter, Input, blocks, conversation, live_inputs, output_slot, section};
 
 /// The provider's native structured output, carrying the signature's JSON schema.
 #[derive(Debug, Clone, Copy, Default)]
@@ -26,7 +26,7 @@ impl Adapter for JsonAdapter {
         &self,
         signature: &Signature,
         demos: &[Example],
-        inputs: &[(&str, Value)],
+        inputs: &[Input<'_>],
     ) -> Result<(String, Vec<ChatTurn>)> {
         let (asked, mut turns) = conversation(signature, demos, inputs, JSON_STYLE);
         turns.push(ChatTurn::user(json_user(
@@ -111,10 +111,10 @@ pub(super) fn json_output_requirements(signature: &Signature) -> String {
 
 /// The JSON adapter's user message: the same input sections the chat adapter renders, closed
 /// by the reminder that the reply is one JSON object rather than marker blocks.
-fn json_user(signature: &Signature, inputs: &[(&str, Value)]) -> String {
+fn json_user(signature: &Signature, inputs: &[Input<'_>]) -> String {
     let mut parts: Vec<String> = inputs
         .iter()
-        .map(|(name, value)| section(name, &plain(signature, name, value)))
+        .map(|input| section(input.name, &plain(signature, input.name, &input.value)))
         .collect();
     parts.push(json_output_requirements(signature));
     parts.join("\n\n").trim().to_owned()
@@ -166,7 +166,10 @@ mod tests {
     fn json_user_renders_input_sections_then_the_json_reminder() {
         // dspy sends inputs as the same marker sections the chat adapter uses; only the
         // closing reminder differs, because only the reply's shape differs.
-        let inputs = vec![("room", json!("the study")), ("mood", json!("calm focus"))];
+        let inputs = vec![
+            Input::new("room", json!("the study")),
+            Input::new("mood", json!("calm focus")),
+        ];
         assert_eq!(
             json_user(&multi_signature(), &inputs),
             "[[ ## room ## ]]\nthe study\n\n[[ ## mood ## ]]\ncalm focus\n\n\

@@ -88,8 +88,11 @@ class _RustBacked:
             ]
             for demo in demos
         ]
+        # The third element is what dspy branches on when it lays a value out:
+        # `isinstance(value, BaseModel)`. It cannot survive as JSON — a dumped model and a
+        # hand-written mapping are the same text — so it crosses beside the value.
         values = [
-            (name, self.crossing_value(value))
+            (name, self.crossing_value(value), isinstance(value, pydantic.BaseModel))
             for name, value in inputs.items()
             if name in signature.input_fields
         ]

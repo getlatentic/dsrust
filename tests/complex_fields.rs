@@ -2,6 +2,7 @@
 //! and a `Vec<Struct>` output declared on one derived signature, driven through a scripted
 //! model — prompt rendering, JSON coercion, both retry layers, and the call macros.
 
+use dsrs::adapter::Input;
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
@@ -136,15 +137,28 @@ fn input_pairs_hand_complex_inputs_over_with_their_structure_intact() {
     let pairs = IdeasTask::input_pairs(&inputs());
     assert_eq!(
         pairs[0],
-        (
+        Input::record(
             "recipient",
             json!({ "name": "Dad", "age": 61, "hobbies": ["fishing", "grilling"] })
         )
     );
-    assert_eq!(pairs[1], ("themes", json!(["surprise"])));
+    assert_eq!(pairs[1], Input::new("themes", json!(["surprise"])));
     assert_eq!(
         pairs[2],
-        ("past", json!([{ "title": "Socks", "why": "Warm" }]))
+        Input::new("past", json!([{ "title": "Socks", "why": "Warm" }]))
+    );
+}
+
+/// dspy renders a value differently depending on whether it *is* a model instance, so the derive
+/// has to say which fields are. A struct is one; a `Vec` of them is not, and neither is a `Vec`
+/// of strings — the same distinction `isinstance(value, BaseModel)` draws upstream.
+#[test]
+fn the_derive_marks_a_struct_field_as_a_record_and_a_collection_as_not() {
+    let pairs = IdeasTask::input_pairs(&inputs());
+    let marked: Vec<(&str, bool)> = pairs.iter().map(|i| (i.name, i.record)).collect();
+    assert_eq!(
+        marked,
+        [("recipient", true), ("themes", false), ("past", false)]
     );
 }
 

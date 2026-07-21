@@ -21,6 +21,7 @@ use crate::example::Example;
 use crate::lm::{ChatTurn, DynChatModel};
 use crate::signature::{InField, Signature};
 
+use super::Input;
 use super::prompt::{numbered_input_lines, numbered_output_lines};
 
 /// The field the extraction is handed, holding whatever the first model wrote.
@@ -78,13 +79,13 @@ fn task_description(signature: &Signature) -> String {
 }
 
 /// dspy `format_user_message_content`: one `name: value` line per input, a blank line apart.
-fn user_message(signature: &Signature, inputs: &[(&str, Value)]) -> String {
+fn user_message(signature: &Signature, inputs: &[Input<'_>]) -> String {
     signature
         .inputs
         .iter()
         .filter_map(|field| {
-            let (_, value) = inputs.iter().find(|(name, _)| *name == field.name)?;
-            Some(format!("{}: {}", field.name, format_value(value)))
+            let found = inputs.iter().find(|input| input.name == field.name)?;
+            Some(format!("{}: {}", field.name, format_value(&found.value)))
         })
         .collect::<Vec<_>>()
         .join("\n\n")
@@ -111,10 +112,15 @@ fn demo_answer(signature: &Signature, example: &Example, missing: Option<&str>) 
 /// The user half of a demo. dspy reuses `format_user_message_content`, so a demo's request reads
 /// exactly like the live one.
 fn demo_ask(signature: &Signature, example: &Example, prefix: Option<&str>) -> ChatTurn {
-    let values: Vec<(&str, Value)> = signature
+    let values: Vec<Input<'_>> = signature
         .inputs
         .iter()
-        .filter_map(|field| Some((field.name.as_str(), example.get(&field.name)?.clone())))
+        .filter_map(|field| {
+            Some(Input::new(
+                field.name.as_str(),
+                example.get(&field.name)?.clone(),
+            ))
+        })
         .collect();
     let body = user_message(signature, &values);
     let parts: Vec<String> = prefix
@@ -157,7 +163,7 @@ impl Adapter for TwoStepAdapter {
         &self,
         signature: &Signature,
         demos: &[Example],
-        inputs: &[(&str, Value)],
+        inputs: &[Input<'_>],
     ) -> Result<(String, Vec<ChatTurn>)> {
         let mut turns: Vec<ChatTurn> = demos
             .iter()
@@ -247,7 +253,7 @@ mod tests {
 
     #[test]
     fn the_request_is_named_values_rather_than_sections() {
-        let inputs = vec![("question", json!("Why?"))];
+        let inputs = vec![Input::new("question", json!("Why?"))];
         assert_eq!(user_message(&signature(), &inputs), "question: Why?");
     }
 
@@ -283,7 +289,11 @@ mod tests {
     fn a_demo_reads_in_the_same_prose_the_request_uses() {
         let demo = example! { question: "Where?", answer: "Paris" };
         let (_, turns) = adapter()
-            .format(&signature(), &[demo], &[("question", json!("Why?"))])
+            .format(
+                &signature(),
+                &[demo],
+                &[Input::new("question", json!("Why?"))],
+            )
             .expect("renders");
         assert_eq!(turns[0].content.text(), Some("question: Where?"));
         assert_eq!(turns[1].content.text(), Some("answer: Paris"));

@@ -8,6 +8,7 @@
 //! instructions, ordered fields, and the already-formatted input values — because those are
 //! the only things the renderer needs.
 
+use dsrs::adapter::Input;
 use dsrs::adapter::parse::FieldMismatch;
 use dsrs::adapter::xml::XmlAdapter;
 use dsrs::lm::{DynChatModel, LmRequest, LmResponse};
@@ -318,17 +319,22 @@ fn format_messages(
     instructions: &str,
     inputs: Vec<PyInField>,
     outputs: Vec<PyOutField>,
-    values: Vec<(String, String)>,
+    values: Vec<(String, String, bool)>,
     demos: Option<Vec<Vec<(String, String)>>>,
 ) -> PyResult<(String, Vec<(String, String)>)> {
     let signature = build_signature(instructions, inputs, outputs)?;
     // Python sends each value as JSON text so its structure survives the crossing; the
-    // adapter renders it, which is where dspy renders too.
-    let pairs: Vec<(&str, Value)> = values
+    // adapter renders it, which is where dspy renders too. The flag beside it is Python's own
+    // `isinstance(value, BaseModel)` — the question dspy asks and the one JSON cannot answer,
+    // since a dumped model and a mapping written by hand are the same text.
+    let pairs: Vec<Input<'_>> = values
         .iter()
-        .map(|(name, json)| {
+        .map(|(name, json, record)| {
             serde_json::from_str(json)
-                .map(|value| (name.as_str(), value))
+                .map(|value| match record {
+                    true => Input::record(name.as_str(), value),
+                    false => Input::new(name.as_str(), value),
+                })
                 .map_err(|error| PyValueError::new_err(format!("input `{name}`: {error}")))
         })
         .collect::<PyResult<_>>()?;

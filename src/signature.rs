@@ -135,7 +135,7 @@ pub trait SignatureSpec {
     type Outputs: serde::de::DeserializeOwned;
     fn signature() -> Signature;
     /// The input values in signature order, ready for the adapters to render.
-    fn input_pairs(inputs: &Self::Inputs) -> Vec<(&'static str, Value)>;
+    fn input_pairs(inputs: &Self::Inputs) -> Vec<crate::adapter::Input<'static>>;
 }
 
 /// dspy's string signature: `"email -> sentiment".parse()`.
@@ -679,7 +679,11 @@ mod tests {
         });
         assert_eq!(
             pairs,
-            vec![("topic", json!("rain")), ("mood", json!("wistful"))]
+            vec![
+                crate::adapter::Input::new("topic", json!("rain")),
+                crate::adapter::Input::new("mood", json!("wistful")),
+            ],
+            "two String fields are loose values, not records"
         );
     }
 
@@ -723,9 +727,9 @@ mod tests {
         assert_eq!(
             pairs,
             vec![
-                ("pitch", json!("a bakery")),
-                ("price", json!(0.04)),
-                ("urgent", json!(true)),
+                crate::adapter::Input::new("pitch", json!("a bakery")),
+                crate::adapter::Input::new("price", json!(0.04)),
+                crate::adapter::Input::new("urgent", json!(true)),
             ]
         );
     }

@@ -317,6 +317,26 @@ async fn a_missing_key_names_the_variable_the_endpoint_was_told_to_read() {
 /// answers exactly one connection, so a second call that reached the wire would hang here.
 #[tokio::test]
 async fn an_identical_request_is_replayed_rather_than_sent_again() {
+    // The shared cache is backed by a directory that outlives the process, so without this the
+    // entry written by the *last* `cargo test` replays and the first call here is already a hit.
+    // Pointing it at a scratch path also keeps a test run from writing into the developer's own
+    // cache, which is a 30 GB directory nobody asked us to fill.
+    //
+    // Every other test in this binary asks through `without_cache`, so nothing has initialised
+    // the shared cache yet and this is the value it takes.
+    let scratch = std::env::temp_dir().join("dsrs-openai-compatible-cache");
+    let _ = std::fs::remove_dir_all(&scratch);
+    // SAFETY: set before this binary's first use of the cache, and read only through it.
+    unsafe { std::env::set_var("DSRS_CACHEDIR", &scratch) };
+    assert_eq!(
+        dsrs::lm::cache::shared()
+            .disk()
+            .expect("a disk layer")
+            .root(),
+        scratch,
+        "the shared cache was initialised before this test could redirect it"
+    );
+
     let stub = Stub::answering(200, REPLY);
     // A model name no other test uses, so this owns its entry in the shared cache.
     let lm = caching_lm_for(&stub, "openai/cache-probe-model");

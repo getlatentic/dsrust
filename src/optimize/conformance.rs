@@ -282,7 +282,7 @@ async fn a_derived_signature_can_be_compiled() {
             }
         }
 
-        fn input_pairs(_: &Self::Inputs) -> Vec<(&'static str, Value)> {
+        fn input_pairs(_: &Self::Inputs) -> Vec<crate::adapter::Input<'static>> {
             Vec::new()
         }
     }

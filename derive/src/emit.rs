@@ -70,8 +70,7 @@ fn spec_impl(model: &Model) -> TokenStream {
     let instructions = &model.instructions;
     let in_fields = model.inputs.iter().map(in_field);
     let out_fields = model.outputs.iter().map(out_field);
-    let pair_names = model.inputs.iter().map(|f| f.ident.to_string());
-    let pair_values = model.inputs.iter().map(pair_value);
+    let pair_inputs = model.inputs.iter().map(pair_input);
     quote! {
         impl ::dsrs::signature::SignatureSpec for #name {
             type Inputs = #inputs_name;
@@ -87,8 +86,8 @@ fn spec_impl(model: &Model) -> TokenStream {
 
             fn input_pairs(
                 inputs: &Self::Inputs,
-            ) -> ::std::vec::Vec<(&'static str, ::serde_json::Value)> {
-                ::std::vec![ #( (#pair_names, #pair_values) ),* ]
+            ) -> ::std::vec::Vec<::dsrs::adapter::Input<'static>> {
+                ::std::vec![ #( #pair_inputs ),* ]
             }
         }
     }
@@ -103,6 +102,18 @@ fn pair_value(field: &Field) -> TokenStream {
     let ident = &field.ident;
     let message = format!("input `{ident}` must serialize to JSON");
     quote! { ::serde_json::to_value(&inputs.#ident).expect(#message) }
+}
+
+/// One input as the adapters receive it, carrying whether it came from one of the caller's own
+/// structs. That is what dspy reads off a value with `isinstance(value, BaseModel)`, and it is
+/// gone by the time the value is JSON — so it is answered here, from the declared type.
+fn pair_input(field: &Field) -> TokenStream {
+    let name = field.ident.to_string();
+    let value = pair_value(field);
+    match crate::parse::is_record(&field.ty) {
+        true => quote! { ::dsrs::adapter::Input::record(#name, #value) },
+        false => quote! { ::dsrs::adapter::Input::new(#name, #value) },
+    }
 }
 
 /// The host crate's `FieldKind` for this field. Every non-scalar becomes the opaque `Json`

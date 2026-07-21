@@ -9,6 +9,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use super::{Dynamic, Feedback, Predict, Validated};
+use crate::adapter::Input;
 use crate::example::Example;
 use crate::lm::DynChatModel;
 use crate::module::Ask;
@@ -65,7 +66,7 @@ pub(crate) async fn typed_pairs<S: SignatureSpec, P>(
     predict: &Predict<P>,
     http: &reqwest::Client,
     lm: &dyn DynChatModel,
-    pairs: Vec<(&str, Value)>,
+    pairs: Vec<Input<'_>>,
     shape: fn(Value) -> Value,
 ) -> Result<S::Outputs> {
     // A typed call answers with the caller's own struct, so there is nowhere here for what it
@@ -105,9 +106,9 @@ where
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
         Box::pin(async move {
             let (http, lm) = self.asking()?;
-            let pairs: Vec<(&str, Value)> = inputs
+            let pairs: Vec<Input<'_>> = inputs
                 .fields()
-                .map(|(name, value)| (name, value.clone()))
+                .map(|(name, value)| Input::new(name, value.clone()))
                 .collect();
             typed_pairs::<S, _>(self, &http, lm.as_ref(), pairs, std::convert::identity).await
         })

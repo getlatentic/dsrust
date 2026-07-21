@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::adapter::parse::FieldMismatch;
-use crate::adapter::{Adapter, ChatAdapter, Extraction, Feedback, turns_for};
+use crate::adapter::{Adapter, ChatAdapter, Extraction, Feedback, Input, turns_for};
 use crate::example::{Example, Prediction};
 use crate::lm::{DynChatModel, LmRequest, LmResponse, Sampling, Usage, global};
 use crate::module::{Module, NamedPredictor, TraceStep};
@@ -183,7 +183,11 @@ impl Predict<Dynamic> {
             .first()
             .map_or("request", |f| f.name.as_str());
         Ok(self
-            .call_with_inputs(http, lm, &[(name, Value::String(input.to_owned()))])
+            .call_with_inputs(
+                http,
+                lm,
+                &[Input::new(name, Value::String(input.to_owned()))],
+            )
             .await?
             .value)
     }
@@ -198,7 +202,7 @@ impl<S> Predict<S> {
         adapter: &dyn Adapter,
         http: &reqwest::Client,
         lm: &dyn DynChatModel,
-        inputs: &[(&str, Value)],
+        inputs: &[Input<'_>],
         feedback: Option<&Feedback>,
     ) -> Result<LmResponse> {
         let schema = self.signature.schema();
@@ -216,7 +220,7 @@ impl<S> Predict<S> {
         &self,
         http: &reqwest::Client,
         lm: &dyn DynChatModel,
-        inputs: &[(&str, Value)],
+        inputs: &[Input<'_>],
         feedback: Option<&Feedback>,
     ) -> Result<LmResponse> {
         self.ask_through(self.adapter.as_ref(), http, lm, inputs, feedback)
@@ -227,7 +231,7 @@ impl<S> Predict<S> {
         &self,
         http: &reqwest::Client,
         lm: &dyn DynChatModel,
-        inputs: &[(&str, Value)],
+        inputs: &[Input<'_>],
     ) -> Result<Validated> {
         // dspy's ChatAdapter catches a parse failure and re-asks the whole exchange through
         // the JSON adapter; `use_json_adapter_fallback` turns that off. The adapter states the
@@ -302,7 +306,7 @@ impl<S> Predict<S> {
         raw: String,
         asking: Option<Usage>,
     ) -> Result<Validated> {
-        let text = [("text", Value::String(raw.clone()))];
+        let text = [Input::new("text", Value::String(raw.clone()))];
         let (system, turns) = extraction
             .adapter
             .format(&extraction.signature, &[], &text)?;
@@ -340,7 +344,7 @@ impl<S> Predict<S> {
         &self,
         http: &reqwest::Client,
         lm: &dyn DynChatModel,
-        inputs: &[(&str, Value)],
+        inputs: &[Input<'_>],
         feedback: &Feedback,
     ) -> Result<(String, Value, Option<Usage>)> {
         let answered = self.ask(http, lm, inputs, Some(feedback)).await?;
@@ -797,9 +801,9 @@ impl<S: Send + Sync> Module for Predict<S> {
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
             let (http, lm) = self.asking()?;
-            let pairs: Vec<(&str, Value)> = inputs
+            let pairs: Vec<Input<'_>> = inputs
                 .fields()
-                .map(|(name, value)| (name, value.clone()))
+                .map(|(name, value)| Input::new(name, value.clone()))
                 .collect();
             let validated = self.call_with_inputs(&http, lm.as_ref(), &pairs).await?;
             Ok(

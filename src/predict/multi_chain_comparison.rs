@@ -201,6 +201,7 @@ impl Module for MultiChainComparison {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::adapter::Input;
 
     use crate::adapter::{Adapter, ChatAdapter};
     use serde_json::json;
@@ -347,9 +348,9 @@ mod tests {
         for case in cases() {
             let module = module(&case);
             let inputs = asking(&case);
-            let values: Vec<(&str, Value)> = inputs
+            let values: Vec<Input<'_>> = inputs
                 .fields()
-                .map(|(name, value)| (name, value.clone()))
+                .map(|(name, value)| Input::new(name, value.clone()))
                 .collect();
             let (system, turns) = ChatAdapter::default()
                 .format(&module.predict.signature, &[], &values)
