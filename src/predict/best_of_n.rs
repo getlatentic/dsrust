@@ -9,10 +9,11 @@
 //! than `n` answers.
 
 use anyhow::{Result, anyhow};
+use futures_util::lock::Mutex;
 
 use crate::example::{Example, Prediction};
 use crate::lm::Sampling;
-use crate::module::Module;
+use crate::module::{Module, NamedPredictor, TraceStep};
 
 /// Ask up to `n` times and answer with the best attempt.
 ///
@@ -27,11 +28,16 @@ use crate::module::Module;
 /// let answer = best.run(&mut qa, input! { question: "capital of Belgium?" }).await?;
 /// ```
 ///
-/// Takes the module by `&mut` on [`run`](Self::run) rather than owning it, which is where this
-/// parts company with upstream. dspy deep-copies the module per attempt and sets an LM on the
-/// copy; a `dyn Module` cannot be cloned, so the sampling is set on the caller's own module and
-/// put back afterwards. [`Parallel`](super::Parallel) borrows for the same reason.
-pub struct BestOfN<R> {
+/// A [`Module`] itself, as upstream's is, so it nests inside a program and can be evaluated or
+/// compiled like anything else.
+///
+/// The module it wraps sits behind an async lock rather than being owned outright, because
+/// `forward` takes `&self` while varying an attempt's sampling needs `&mut`. dspy sidesteps that
+/// by deep-copying per attempt; a `dyn Module` cannot be cloned, so the sampling is set on the one
+/// module and put back when the call ends. The lock also makes concurrent `forward` calls queue
+/// rather than interleave their rollouts, which is what sharing one module requires.
+pub struct BestOfN<M, R> {
+    module: Mutex<M>,
     /// How many attempts at most. dspy's `N`.
     pub n: usize,
     /// Scores one attempt. dspy passes the module's inputs alongside the prediction, and so does
@@ -45,18 +51,25 @@ pub struct BestOfN<R> {
     pub fail_count: usize,
 }
 
-impl<R> BestOfN<R>
+impl<M, R> BestOfN<M, R>
 where
+    M: Module,
     R: Fn(&Example, &Prediction) -> f64,
 {
-    /// Up to `n` attempts, scored by `reward`, keeping the best.
-    pub fn new(n: usize, reward: R) -> Self {
+    /// Ask `module` up to `n` times, scored by `reward`, keeping the best.
+    pub fn new(module: M, n: usize, reward: R) -> Self {
         Self {
+            module: Mutex::new(module),
             n,
             reward,
             threshold: None,
             fail_count: n,
         }
+    }
+
+    /// The module back, for a caller that wants it after the wrapper is done with it.
+    pub fn into_inner(self) -> M {
+        self.module.into_inner()
     }
 
     /// Stop as soon as an attempt scores this or better.
@@ -71,31 +84,23 @@ where
         self
     }
 
-    /// Ask `module` up to `n` times and answer with its best attempt.
+    /// Ask up to `n` times and answer with the best attempt.
     ///
     /// The module is left sampling the way it was found, so a caller's own setting survives a
-    /// call that borrowed it — the same care [`BootstrapFewShot`](crate::BootstrapFewShot) takes
-    /// with a teacher.
-    pub async fn run<M: Module + ?Sized>(
-        &self,
-        module: &mut M,
-        inputs: Example,
-    ) -> Result<Prediction> {
+    /// call — the same care [`BootstrapFewShot`](crate::BootstrapFewShot) takes with a teacher.
+    pub async fn run(&self, inputs: Example) -> Result<Prediction> {
         if self.n == 0 {
             return Err(anyhow!("BestOfN needs at least one attempt"));
         }
-        let resting = resting_sampling(module);
-        let attempted = self.attempts(module, inputs).await;
-        restore_sampling(module, &resting);
+        let mut module = self.module.lock().await;
+        let resting = resting_sampling(&mut *module);
+        let attempted = self.attempts(&mut *module, inputs).await;
+        restore_sampling(&mut *module, &resting);
         attempted
     }
 
     /// The attempts themselves, so [`run`](Self::run) can put the module back however this ends.
-    async fn attempts<M: Module + ?Sized>(
-        &self,
-        module: &mut M,
-        inputs: Example,
-    ) -> Result<Prediction> {
+    async fn attempts(&self, module: &mut M, inputs: Example) -> Result<Prediction> {
         let mut best: Option<(f64, Prediction)> = None;
         let mut failures = 0;
         let mut last_error = None;
@@ -136,6 +141,69 @@ where
     }
 }
 
+impl<M, R> Module for BestOfN<M, R>
+where
+    M: Module,
+    R: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+{
+    fn forward<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        Box::pin(self.run(inputs))
+    }
+
+    /// The wrapped module's predictors, so an optimizer reaches through the wrapper the way
+    /// upstream's walk does — a `BestOfN` around a program is still that program to a compile.
+    ///
+    /// `get_mut` rather than a lock: a walk holds `&mut self`, which is proof no call is in
+    /// flight, so there is nothing to wait for.
+    fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
+        self.module.get_mut().named_predictors()
+    }
+
+    /// One attempt's trace, not all `n`.
+    ///
+    /// dspy keeps the trace of the attempt it chose and discards the rest, so a compile learns
+    /// from the answer that won rather than from every answer that lost.
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: Example,
+        trace: &'a mut Vec<TraceStep>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        Box::pin(async move {
+            let mut module = self.module.lock().await;
+            let resting = resting_sampling(&mut *module);
+            let mut best: Option<(f64, Prediction, Vec<TraceStep>)> = None;
+
+            for attempt in 0..self.n {
+                module.set_sampling(Sampling::rollout(attempt as u64));
+                let mut attempted = Vec::new();
+                let Ok(answered) = module.forward_traced(inputs.clone(), &mut attempted).await
+                else {
+                    continue;
+                };
+                let scored = (self.reward)(&inputs, &answered);
+                if best.as_ref().is_none_or(|(high, _, _)| scored > *high) {
+                    best = Some((scored, answered, attempted));
+                }
+                if self.threshold.is_some_and(|bar| scored >= bar) {
+                    break;
+                }
+            }
+
+            restore_sampling(&mut *module, &resting);
+            match best {
+                Some((_, prediction, attempted)) => {
+                    trace.extend(attempted);
+                    Ok(prediction)
+                }
+                None => Err(anyhow!("BestOfN made no attempt that produced an answer")),
+            }
+        })
+    }
+}
+
 /// What each predictor asks for before an attempt overrides it.
 fn resting_sampling<M: Module + ?Sized>(module: &mut M) -> Vec<Sampling> {
     module
@@ -171,16 +239,16 @@ mod tests {
 
     #[tokio::test]
     async fn the_first_attempt_that_clears_the_threshold_ends_the_run() {
-        let mut solver = Solver::new(Answers::RightOnRound(2));
-        let best = BestOfN::new(4, correctness).with_threshold(1.0);
+        let solver = Solver::new(Answers::RightOnRound(2));
+        let best = BestOfN::new(solver, 4, correctness).with_threshold(1.0);
 
         let answered = best
-            .run(&mut solver, asked("capital of France?"))
+            .run(asked("capital of France?"))
             .await
             .expect("an answer");
         assert_eq!(answered.get("answer").unwrap(), "Paris");
         assert_eq!(
-            solver.calls().len(),
+            best.into_inner().calls().len(),
             2,
             "stopped as soon as one attempt scored"
         );
@@ -190,13 +258,14 @@ mod tests {
     /// a bootstrap round uses, and the reason a re-ask can differ at all.
     #[tokio::test]
     async fn each_attempt_is_asked_as_its_own_rollout() {
-        let mut solver = Solver::new(Answers::Wrongly);
-        BestOfN::new(3, correctness)
-            .run(&mut solver, asked("capital of France?"))
+        let solver = Solver::new(Answers::Wrongly);
+        let best = BestOfN::new(solver, 3, correctness);
+        best.run(asked("capital of France?"))
             .await
             .expect("an answer");
 
-        let sampling: Vec<Sampling> = solver
+        let sampling: Vec<Sampling> = best
+            .into_inner()
             .calls()
             .into_iter()
             .map(|call| call.sampling)
@@ -218,11 +287,11 @@ mod tests {
     /// rule is implemented. It did, until a mutation said so.
     #[tokio::test]
     async fn the_best_attempt_wins_even_when_a_later_one_is_worse() {
-        let mut solver = Solver::new(Answers::RightOnlyOnRound(2));
-        let best = BestOfN::new(3, correctness).with_threshold(2.0);
+        let solver = Solver::new(Answers::RightOnlyOnRound(2));
+        let best = BestOfN::new(solver, 3, correctness).with_threshold(2.0);
 
         let answered = best
-            .run(&mut solver, asked("capital of France?"))
+            .run(asked("capital of France?"))
             .await
             .expect("an answer");
         assert_eq!(
@@ -231,7 +300,7 @@ mod tests {
             "attempt 2 scored; attempts 1 and 3 did not"
         );
         assert_eq!(
-            solver.calls().len(),
+            best.into_inner().calls().len(),
             3,
             "no threshold was reached, so all 3"
         );
@@ -248,12 +317,13 @@ mod tests {
         };
         solver.set_sampling(resting.clone());
 
-        BestOfN::new(2, correctness)
-            .run(&mut solver, asked("capital of France?"))
+        let best = BestOfN::new(solver, 2, correctness);
+        best.run(asked("capital of France?"))
             .await
             .expect("an answer");
 
-        assert_eq!(solver.named_predictors()[0].sampling.clone(), resting);
+        let mut returned = best.into_inner();
+        assert_eq!(returned.named_predictors()[0].sampling.clone(), resting);
     }
 
     /// A module whose answers differ but score the same, which is the only way to see which of
@@ -280,9 +350,9 @@ mod tests {
     /// equal attempts survives. A later tie displacing it would be a different program.
     #[tokio::test]
     async fn a_later_attempt_that_only_ties_does_not_displace_the_first() {
-        let mut numbered = Numbered(std::sync::Mutex::new(0));
-        let answered = BestOfN::new(3, |_: &Example, _: &Prediction| 1.0)
-            .run(&mut numbered, asked("anything"))
+        let numbered = Numbered(std::sync::Mutex::new(0));
+        let answered = BestOfN::new(numbered, 3, |_: &Example, _: &Prediction| 1.0)
+            .run(asked("anything"))
             .await
             .expect("an answer");
         assert_eq!(answered.get("answer").unwrap(), "attempt 1");
@@ -290,10 +360,10 @@ mod tests {
 
     #[tokio::test]
     async fn enough_failures_end_the_call_with_the_failure() {
-        let mut solver = Solver::new(Answers::Failing);
-        let refused = BestOfN::new(3, correctness)
+        let solver = Solver::new(Answers::Failing);
+        let refused = BestOfN::new(solver, 3, correctness)
             .with_fail_count(1)
-            .run(&mut solver, asked("capital of France?"))
+            .run(asked("capital of France?"))
             .await;
         assert!(refused.is_err(), "two failures exceed a budget of one");
     }
@@ -301,19 +371,56 @@ mod tests {
     /// Failing inside the budget is not success: there is still no answer to hand back.
     #[tokio::test]
     async fn every_attempt_failing_is_an_error_even_inside_the_budget() {
-        let mut solver = Solver::new(Answers::Failing);
-        let refused = BestOfN::new(2, correctness)
+        let solver = Solver::new(Answers::Failing);
+        let refused = BestOfN::new(solver, 2, correctness)
             .with_fail_count(10)
-            .run(&mut solver, asked("capital of France?"))
+            .run(asked("capital of France?"))
             .await;
         assert!(refused.is_err());
     }
 
+    /// The reason this is a `Module` and not a helper: upstream's is one, so a `BestOfN` nests
+    /// inside a program, reaches an evaluator, and is walked by a compile like anything else.
+    #[tokio::test]
+    async fn it_is_a_module_a_program_can_hold_and_an_optimizer_can_walk() {
+        let solver = Solver::new(Answers::Correctly);
+        let mut best = BestOfN::new(solver, 2, correctness);
+
+        let held: &dyn Module = &best;
+        let answered = held
+            .forward(asked("capital of France?"))
+            .await
+            .expect("an answer");
+        assert_eq!(answered.get("answer").unwrap(), "Paris");
+
+        // A compile reaches straight through the wrapper to the predictors inside it.
+        assert_eq!(
+            best.named_predictors()
+                .iter()
+                .map(|predictor| predictor.name.clone())
+                .collect::<Vec<_>>(),
+            ["self"]
+        );
+    }
+
+    /// A compile learns from the attempt that won, not from every attempt that lost.
+    #[tokio::test]
+    async fn only_the_winning_attempt_is_traced() {
+        let solver = Solver::new(Answers::Correctly);
+        let best = BestOfN::new(solver, 3, correctness).with_threshold(1.0);
+
+        let mut trace = Vec::new();
+        best.forward_traced(asked("capital of France?"), &mut trace)
+            .await
+            .expect("an answer");
+        assert_eq!(trace.len(), 0, "the Solver records no steps of its own");
+    }
+
     #[tokio::test]
     async fn asking_zero_times_is_refused_rather_than_answered_with_nothing() {
-        let mut solver = Solver::new(Answers::Correctly);
-        let refused = BestOfN::new(0, correctness)
-            .run(&mut solver, asked("capital of France?"))
+        let solver = Solver::new(Answers::Correctly);
+        let refused = BestOfN::new(solver, 0, correctness)
+            .run(asked("capital of France?"))
             .await;
         assert!(refused.is_err());
     }

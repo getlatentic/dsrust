@@ -15,7 +15,10 @@ default-members = [".", "derive"]
 [dependencies]
 anyhow = "1"
 dsrs-derive = { version = "0.1.0", path = "derive" }
-futures-util = { version = "0.3.33", default-features = false, features = ["alloc"] }
+# `std` is for `lock::Mutex`, whose guard is `Send` and so may be held across an await. `BestOfN`
+# needs it to be a real `Module`: `forward` takes `&self`, and varying an attempt's sampling means
+# reaching the module mutably from inside it.
+futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
 # The response cache is a bounded LRU, which is what dspy's is (`cachetools.LRUCache`). Default
 # features off leaves it on std's hashmap rather than pulling hashbrown in for one map.
 lru = { version = "0.18.1", default-features = false }
