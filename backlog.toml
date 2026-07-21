@@ -230,7 +230,8 @@ with those modules rather than here. See b7.
 [[sprint]]
 id = "s8"
 name = "The modules that compose others"
-state = "next"
+state = "done"
+shipped = "2026-07-21"
 outcome = """
 The modules a program is built out of rather than the one it ends at: retrying, sampling more
 than once, and running branches side by side.
@@ -272,6 +273,37 @@ against a thread pool, and it doubles a model call to buy it.
 """
 
 [[sprint]]
+id = "s12"
+name = "A request, and a model that answers it"
+state = "next"
+outcome = """
+What a module asks for and what comes back are values, so an attempt can differ from the one
+before it and a caller can say what a single call should do.
+"""
+rationale = """
+b2 is half built: a module can be given its own model, and nothing can make two models disagree.
+Closing it means ChatModel::chat carrying what to disagree about, which every implementation and
+the bridge see — an API decision rather than an addition.
+
+dspy has already made that decision, so this follows rather than invents. It is normalising to
+forward(request: LMRequest) -> LMResponse: model, messages, temperature, max_tokens, n and
+rollout_id in the request; text, outputs, usage, cache_hit and provider_data in the response.
+Opt-in at 3.3, default at 3.5, legacy gone by 3.6/4.0. Porting the current untyped **kwargs
+shape would be porting something with a removal date.
+
+Pinned at 3.2.1, this crate would be building ahead of its own pin — the first time that has
+happened, and worth stating rather than doing quietly. The conformance suite still answers to
+3.2.1, so the request type is ours to design until upstream's arrives, and the goldens keep
+measuring the bytes either way.
+
+It also gives Rust somewhere to put what dspy.context does. Upstream scopes a temporary model
+with a context manager over a ContextVar; a request that travels as a value needs no ambient
+state to be overridden, which is the same trade forward_traced already made against
+settings.trace.
+"""
+suites = []
+
+[[sprint]]
 id = "s11"
 name = "Trying more than once"
 state = "planned"
@@ -279,7 +311,7 @@ outcome = "A program can attempt something several times and keep the best attem
 suites = ["predict/test_best_of_n.py", "predict/test_refine.py"]
 rationale = """
 BestOfN and Refine are one module with a feedback step added, so they arrive together. Both need
-b2 first — a per-call LM override, since every attempt is `lm.copy(rollout_id=idx,
+s12 first — a per-call LM override, since every attempt is `lm.copy(rollout_id=idx,
 temperature=1.0)` and without it a second attempt re-asks identically. Closing b2 also makes
 max_rounds assertable in BootstrapFewShot, so this sprint pays a debt as well as adding modules.
 
@@ -401,8 +433,15 @@ can hand each attempt a different one instead of every call reaching a process-w
 Not built: anything to differ. ChatModel::chat carries no sampling parameters at all, and
 temperature is a hardcoded 0.7 on the ollama path only, so two models cannot yet be made to
 disagree. rollout_id has no equivalent either; upstream uses it purely to miss a provider cache.
-Closing that means widening the trait, which every implementation and the bridge see, so it is
-an API decision rather than an addition. s11 needs it before BestOfN means anything.
+
+The shape is settled and not by us. dspy is normalising its LM API: forward(request: LMRequest)
+-> LMResponse, with model, messages, temperature, max_tokens, n and rollout_id inside the
+request, and text, outputs, usage, cache_hit and provider_data inside the response. Opt-in at
+3.3, default at 3.5, legacy removed by 3.6/4.0.
+
+So sampling belongs to a request rather than to a model, and the option of hanging temperature
+off an LM value is the one upstream is moving away from — building it would be porting a shape
+with a removal date. See s12.
 """
 
 [[backlog]]
