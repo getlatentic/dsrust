@@ -541,6 +541,43 @@ Item 1 is a byte divergence and should go first; it is small. Items 2 and 3 are 
 want deciding together, since an escape hatch and a per-call override are the same field arriving
 by two routes.
 
+**Settled by reading 3.3.0b1 rather than reasoning.** `dspy/core/types.py` defines exactly the
+split this entry had proposed, so adopt its shape rather than invent one:
+
+    class LMConfig(BaseModel):
+        temperature: float | None
+        max_tokens: int | None
+        top_p: float | None
+        stop: list[str] | None
+        n: int | None
+        logprobs: bool | int | None
+        response_format: Any | None
+        reasoning: LMReasoningConfig | None
+        tool_choice: LMToolChoice | None
+        cache: LMCacheConfig | None
+        prompt_cache: LMPromptCacheConfig | None
+        extensions: dict[str, Any]          # everything else
+        model_config = ConfigDict(extra="forbid")
+
+Eleven typed fields and one overflow map, with `extra="forbid"` so an unknown key is routed into
+`extensions` by `from_kwargs` rather than landing on the model. `Sampling` is that type with four
+of the eleven and no `extensions`.
+
+And the request around it:
+
+    class LMRequest(BaseModel):
+        model: str
+        messages: list[LMMessage]
+        tools: list[LMToolSpec]
+        config: LMConfig
+        metadata: dict[str, Any]
+
+which differs structurally from ours: `LmRequest` carries `system`/`turns`/`mode`/`sampling` and
+no model, where upstream carries the model, splits tools out as their own field, and expresses
+what our `OutputMode` says through `config.response_format`. Note also that `rollout_id` is *not*
+an `LMConfig` field at 3.3 — it would arrive through `extensions`, which is worth confirming
+before assuming our typed field still matches.
+
 **The shape, and why it is not a straight port.** Upstream's config is untyped end to end —
 `**config` unannotated on `Predict`, `**kwargs` on `LM.__call__`, `{**self.kwargs, **kwargs}`
 into litellm. A bag reaching the provider unchecked.
