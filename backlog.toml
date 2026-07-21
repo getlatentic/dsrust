@@ -620,7 +620,11 @@ unreachable. A module of a caller's own opts in with asks_with_a_prediction!.
 id = "b5"
 title = "A predictor traced twice for one example takes its last trace"
 kind = "known-divergence"
-decision = "accepted"
+# Not a trade-off we chose. Upstream's own choice is not reproducible across processes, so there
+# is no stable behaviour to match — see the detail. Nothing here is pending.
+decision = "unreachable"
+state = "closed"
+closed = "2026-07-21"
 detail = """
 When one predictor produces several traces for a single example, dspy collapses them to one demo,
 choosing evenly between the last trace and a random earlier one. The choice is seeded with
