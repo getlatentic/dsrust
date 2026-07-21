@@ -18,7 +18,9 @@ pub struct ChainOfThought {
 }
 
 impl ChainOfThought {
-    pub fn new(mut signature: Signature) -> Self {
+    /// A module for a signature held as field names, matching
+    /// [`Predict::from_signature`](super::Predict::from_signature).
+    pub fn from_signature(mut signature: Signature) -> Self {
         signature.outputs.insert(
             0,
             OutField {
@@ -35,7 +37,7 @@ impl ChainOfThought {
     /// The module for a derived signature; its caller speaks the signature's own types.
     pub fn task<S: SignatureSpec>() -> TypedChainOfThought<S> {
         TypedChainOfThought {
-            cot: ChainOfThought::new(S::signature()),
+            cot: ChainOfThought::from_signature(S::signature()),
             spec: PhantomData,
         }
     }
@@ -162,7 +164,7 @@ mod tests {
 
     #[test]
     fn chain_of_thought_leads_with_reasoning_and_strips_it() {
-        let cot = ChainOfThought::new(signature());
+        let cot = ChainOfThought::from_signature(signature());
         let sig = &cot.predict.signature;
         assert_eq!(sig.outputs[0].name, "reasoning");
         assert_eq!(sig.schema()["required"][0], json!("reasoning"));
@@ -178,7 +180,7 @@ mod tests {
     async fn chain_of_thought_strips_reasoning_from_the_typed_path() {
         let reply = "[[ ## reasoning ## ]]\nthinking\n\n[[ ## color ## ]]\nred\n\n[[ ## why ## ]]\ncalm\n\n[[ ## completed ## ]]";
         let lm = Scripted::new(&[reply]);
-        let cot = ChainOfThought::new(signature());
+        let cot = ChainOfThought::from_signature(signature());
         let value = cot
             .call_with(&reqwest::Client::new(), &lm, "draft it")
             .await
