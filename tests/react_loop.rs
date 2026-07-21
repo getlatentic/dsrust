@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use dsrs::lm::{ChatModel, ChatTurn, OutputMode, global};
+use dsrs::lm::{ChatModel, LmRequest, global};
 use dsrs::signature::{OutField, Signature};
 use dsrs::{FnTool, Module, ReAct, Tool, example, react::arg_str};
 use serde_json::Value;
@@ -31,15 +31,10 @@ impl Scripted {
 }
 
 impl ChatModel for Scripted {
-    async fn chat(
-        &self,
-        _http: &reqwest::Client,
-        _system: &str,
-        turns: &[ChatTurn],
-        _mode: &OutputMode<'_>,
-    ) -> Result<String> {
+    async fn chat(&self, _http: &reqwest::Client, request: &LmRequest<'_>) -> Result<String> {
         self.seen.lock().expect("not poisoned").push(
-            turns
+            request
+                .turns
                 .last()
                 .and_then(|t| t.content.text())
                 .unwrap_or_default()

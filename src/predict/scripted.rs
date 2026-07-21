@@ -6,7 +6,7 @@ use std::sync::Mutex;
 
 use anyhow::{Result, anyhow};
 
-use crate::lm::{ChatModel, ChatTurn, OutputMode};
+use crate::lm::{ChatModel, ChatTurn, LmRequest, OutputMode};
 use crate::signature::{OutField, Signature};
 
 pub(super) fn signature() -> Signature {
@@ -56,17 +56,11 @@ impl Scripted {
 }
 
 impl ChatModel for Scripted {
-    async fn chat(
-        &self,
-        _http: &reqwest::Client,
-        system: &str,
-        turns: &[ChatTurn],
-        mode: &OutputMode<'_>,
-    ) -> Result<String> {
+    async fn chat(&self, _http: &reqwest::Client, request: &LmRequest<'_>) -> Result<String> {
         self.calls.lock().expect("not poisoned").push(Call {
-            system: system.to_owned(),
-            turns: turns.to_vec(),
-            json_mode: matches!(mode, OutputMode::Json { .. }),
+            system: request.system.to_owned(),
+            turns: request.turns.to_vec(),
+            json_mode: matches!(request.mode, OutputMode::Json { .. }),
         });
         self.replies
             .lock()

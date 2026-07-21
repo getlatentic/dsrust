@@ -7,7 +7,7 @@ use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
 use super::token_limit::TokenLimitRule;
-use super::{ChatTurn, OutputMode, PROVIDER_TIMEOUT, env_nonempty, wire_messages};
+use super::{LmRequest, OutputMode, PROVIDER_TIMEOUT, env_nonempty, wire_messages};
 
 /// OpenAI's own endpoint, and the value every other service replaces.
 pub const DEFAULT_OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
@@ -136,9 +136,7 @@ impl<'a> Endpoint<'a> {
         &self,
         http: &reqwest::Client,
         model: &str,
-        system: &str,
-        turns: &[ChatTurn],
-        mode: &OutputMode<'_>,
+        call: &LmRequest<'_>,
     ) -> Result<String> {
         let key = self
             .api_key
@@ -149,9 +147,7 @@ impl<'a> Endpoint<'a> {
             .timeout(PROVIDER_TIMEOUT)
             .json(&request(
                 model,
-                system,
-                turns,
-                mode,
+                call,
                 self.json_format,
                 self.token_limit_rule,
             ))
@@ -175,18 +171,20 @@ fn chat_completions_url(base_url: &str) -> String {
 
 fn request(
     model: &str,
-    system: &str,
-    turns: &[ChatTurn],
-    mode: &OutputMode<'_>,
+    call: &LmRequest<'_>,
     json_format: JsonFormat,
     token_limit_rule: TokenLimitRule,
 ) -> Value {
     let mut request = json!({
         "model": model,
-        "messages": wire_messages(system, turns),
+        "messages": wire_messages(call.system, call.turns),
     });
-    request[token_limit_rule.field_for(model).wire_name()] = json!(MAX_OUTPUT_TOKENS);
-    if let OutputMode::Json { schema } = mode {
+    let cap = call.sampling.max_tokens.unwrap_or(MAX_OUTPUT_TOKENS);
+    request[token_limit_rule.field_for(model).wire_name()] = json!(cap);
+    if let Some(temperature) = call.sampling.temperature {
+        request["temperature"] = json!(temperature);
+    }
+    if let OutputMode::Json { schema } = call.mode {
         request["response_format"] = response_format(schema, json_format);
     }
     request
@@ -219,6 +217,7 @@ fn reply(label: &str, status: reqwest::StatusCode, body: &Value) -> Result<Strin
 mod tests {
     use super::super::token_limit::TokenLimitField;
     use super::*;
+    use crate::lm::{ChatTurn, Sampling};
 
     fn schema() -> Value {
         json!({
@@ -231,11 +230,10 @@ mod tests {
 
     fn json_request(json_format: JsonFormat) -> Value {
         let schema = schema();
+        let turns = [ChatTurn::user("hi")];
         request(
             "gpt-4o-mini",
-            "be helpful",
-            &[ChatTurn::user("hi")],
-            &OutputMode::Json { schema: &schema },
+            &LmRequest::new("be helpful", &turns, OutputMode::Json { schema: &schema }),
             json_format,
             TokenLimitRule::ByOpenAiModelFamily,
         )
@@ -243,11 +241,15 @@ mod tests {
 
     /// The body a text-mode call to `model` produces on OpenAI's own endpoint.
     fn text_request(model: &str, token_limit_rule: TokenLimitRule) -> Value {
+        sampled_request(model, token_limit_rule, Sampling::default())
+    }
+
+    /// The same body, with the caller naming how the reply should be sampled.
+    fn sampled_request(model: &str, token_limit_rule: TokenLimitRule, sampling: Sampling) -> Value {
+        let turns = [ChatTurn::user("hi")];
         request(
             model,
-            "be helpful",
-            &[ChatTurn::user("hi")],
-            &OutputMode::Text,
+            &LmRequest::new("be helpful", &turns, OutputMode::Text).sampled(sampling),
             JsonFormat::Object,
             token_limit_rule,
         )
@@ -351,17 +353,54 @@ mod tests {
         assert_eq!(request.get("max_completion_tokens"), None);
     }
 
+    /// A caller names a cap without knowing which key this endpoint and model put it under,
+    /// so the override has to follow the same rule the default does rather than pick a key.
+    #[test]
+    fn a_named_cap_replaces_the_default_on_whichever_key_carries_it() {
+        let capped = Sampling {
+            max_tokens: Some(64),
+            ..Sampling::default()
+        };
+        let rule = TokenLimitRule::ByOpenAiModelFamily;
+
+        let chat = sampled_request("gpt-4o-mini", rule, capped.clone());
+        assert_eq!(chat["max_tokens"], 64);
+        assert_eq!(chat.get("max_completion_tokens"), None);
+
+        let reasoning = sampled_request("o3", rule, capped);
+        assert_eq!(reasoning["max_completion_tokens"], 64);
+        assert_eq!(reasoning.get("max_tokens"), None);
+    }
+
+    /// An unset temperature has to leave the key off entirely rather than send a value this
+    /// crate invented, because the provider's own default is what the caller asked for.
+    #[test]
+    fn temperature_is_sent_only_when_the_caller_names_one() {
+        let rule = TokenLimitRule::ByOpenAiModelFamily;
+        let default = text_request("gpt-4o-mini", rule);
+        assert_eq!(default.get("temperature"), None);
+
+        let warmed = sampled_request(
+            "gpt-4o-mini",
+            rule,
+            Sampling {
+                temperature: Some(1.0),
+                ..Sampling::default()
+            },
+        );
+        assert_eq!(warmed["temperature"], 1.0);
+    }
+
     /// OpenRouter's body is pinned whole. It reaches the wire through the shared builder,
     /// so a model name that OpenAI treats specially must still leave these exact bytes.
     #[test]
     fn openrouter_sends_every_model_on_the_max_tokens_envelope() {
         let endpoint = Endpoint::openrouter(Some("key"));
         for model in ["openai/gpt-5", "openai/o3", "openai/gpt-oss-120b"] {
+            let turns = [ChatTurn::user("hi")];
             let body = request(
                 model,
-                "be helpful",
-                &[ChatTurn::user("hi")],
-                &OutputMode::Text,
+                &LmRequest::new("be helpful", &turns, OutputMode::Text),
                 endpoint.json_format,
                 endpoint.token_limit_rule,
             );

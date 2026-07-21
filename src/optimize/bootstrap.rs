@@ -52,10 +52,11 @@ pub struct BootstrapFewShot<M> {
     /// is 1.
     ///
     /// dspy makes each round after the first a fresh rollout at `temperature=1.0` so the
-    /// provider cache is bypassed and the answers actually differ. There is no per-call LM
-    /// override reachable through [`Module::forward`], so a round here re-asks and nothing
-    /// forces a different answer: extra rounds only pay off for a program that is already
-    /// non-deterministic.
+    /// answers actually differ. [`Predict::with_sampling`](crate::Predict::with_sampling) now
+    /// reaches that setting, but a compile cannot yet apply it to every predictor in a program:
+    /// [`NamedPredictor`](crate::NamedPredictor) walks signatures and demos, not sampling. Until
+    /// it does, a round here re-asks and nothing forces a different answer, so extra rounds only
+    /// pay off for a program that is already non-deterministic.
     pub max_rounds: usize,
     /// How many failures the compile absorbs before giving up and returning the last one.
     ///

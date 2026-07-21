@@ -1,11 +1,13 @@
+mod anthropic;
 pub mod dummy;
 pub mod global;
+mod ollama;
 mod openai;
 mod token_limit;
 
 use std::time::Duration;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
 pub use global::{configure, configure_with_client};
@@ -139,10 +141,59 @@ impl ChatTurn {
 /// What the reply should look like on the wire. `Json` engages the provider's native
 /// structured output (Anthropic json_schema, OpenRouter/ollama JSON mode); `Text` leaves
 /// the reply free-form for marker-based adapters, which need no provider support at all.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum OutputMode<'a> {
     Text,
     Json { schema: &'a Value },
+}
+
+/// How a model should sample its reply.
+///
+/// dspy is normalising these onto a request rather than onto a model, because they belong to one
+/// call: the same model answers twice and the two attempts differ only here. That is what lets
+/// `BestOfN` mean anything and what lets a bootstrap round after the first not repeat itself.
+///
+/// Two of upstream's fields are deliberately absent, both because this seam cannot carry them.
+/// `n`: [`ChatModel::chat`] answers with one completion, so asking for several could only ever
+/// be billed and then discarded — asking for many is a change of return type, not a field.
+/// `rollout_id`: upstream varies it to miss *its own* response cache and drops it before the
+/// provider call, so it never reaches a wire. There is no cache here, which leaves nothing for
+/// it to change; what makes a re-ask differ is `temperature`. It earns a field when a cache
+/// lands and needs a key to vary.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Sampling {
+    /// Unset leaves each provider on the default it is already sent.
+    pub temperature: Option<f64>,
+    pub max_tokens: Option<u32>,
+}
+
+/// One call: what to say, what shape to say it in, and how to sample the reply.
+///
+/// dspy's `LMRequest`, which its normalised API takes in place of loose keyword arguments. A
+/// request travelling as a value is also why no ambient state is needed to override a model for
+/// one call — `dspy.context` scopes a ContextVar to do the same thing.
+pub struct LmRequest<'a> {
+    pub system: &'a str,
+    pub turns: &'a [ChatTurn],
+    pub mode: OutputMode<'a>,
+    pub sampling: Sampling,
+}
+
+impl<'a> LmRequest<'a> {
+    /// One call at the provider's own defaults.
+    pub fn new(system: &'a str, turns: &'a [ChatTurn], mode: OutputMode<'a>) -> Self {
+        Self {
+            system,
+            turns,
+            mode,
+            sampling: Sampling::default(),
+        }
+    }
+
+    pub fn sampled(mut self, sampling: Sampling) -> Self {
+        self.sampling = sampling;
+        self
+    }
 }
 
 /// The raw model call behind every adapter — the one seam unit tests script with canned
@@ -157,9 +208,7 @@ pub trait DynChatModel: Send + Sync {
     fn chat_dyn<'a>(
         &'a self,
         http: &'a reqwest::Client,
-        system: &'a str,
-        turns: &'a [ChatTurn],
-        mode: &'a OutputMode<'a>,
+        request: &'a LmRequest<'a>,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>>;
 }
 
@@ -167,11 +216,9 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
     fn chat_dyn<'a>(
         &'a self,
         http: &'a reqwest::Client,
-        system: &'a str,
-        turns: &'a [ChatTurn],
-        mode: &'a OutputMode<'a>,
+        request: &'a LmRequest<'a>,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
-        Box::pin(self.chat(http, system, turns, mode))
+        Box::pin(self.chat(http, request))
     }
 }
 
@@ -179,9 +226,7 @@ pub trait ChatModel {
     fn chat<'a>(
         &'a self,
         http: &'a reqwest::Client,
-        system: &'a str,
-        turns: &'a [ChatTurn],
-        mode: &'a OutputMode<'a>,
+        request: &'a LmRequest<'a>,
     ) -> impl Future<Output = Result<String>> + Send + 'a;
 }
 
@@ -267,26 +312,30 @@ fn env_nonempty(key: &str) -> Option<String> {
 }
 
 impl ChatModel for LM {
-    async fn chat(
-        &self,
-        http: &reqwest::Client,
-        system: &str,
-        turns: &[ChatTurn],
-        mode: &OutputMode<'_>,
-    ) -> Result<String> {
+    async fn chat(&self, http: &reqwest::Client, request: &LmRequest<'_>) -> Result<String> {
         match self.model.provider {
-            Provider::Anthropic => self.anthropic(http, system, turns, mode).await,
+            Provider::Anthropic => {
+                anthropic::chat(
+                    http,
+                    &self.model.id,
+                    self.anthropic_api_key.as_deref(),
+                    request,
+                )
+                .await
+            }
             Provider::OpenRouter => {
                 openai::Endpoint::openrouter(self.openrouter_api_key.as_deref())
-                    .chat(http, &self.model.id, system, turns, mode)
+                    .chat(http, &self.model.id, request)
                     .await
             }
             Provider::OpenAiCompatible => {
                 openai::Endpoint::configured(&self.openai)
-                    .chat(http, &self.model.id, system, turns, mode)
+                    .chat(http, &self.model.id, request)
                     .await
             }
-            Provider::Ollama => self.ollama(http, system, turns, mode).await,
+            Provider::Ollama => {
+                ollama::chat(http, &self.model.id, &self.ollama_host, request).await
+            }
         }
     }
 }
@@ -300,96 +349,6 @@ fn wire_messages(system: &str, turns: &[ChatTurn]) -> Vec<Value> {
     std::iter::once(json!({ "role": "system", "content": system }))
         .chain(turns.iter().map(turn_json))
         .collect()
-}
-
-impl LM {
-    async fn anthropic(
-        &self,
-        http: &reqwest::Client,
-        system: &str,
-        turns: &[ChatTurn],
-        mode: &OutputMode<'_>,
-    ) -> Result<String> {
-        let key = self
-            .anthropic_api_key
-            .as_deref()
-            .ok_or_else(|| anyhow!("ANTHROPIC_API_KEY is not set"))?;
-        let mut request = json!({
-            "model": self.model.id,
-            "max_tokens": 1024,
-            "system": system,
-            "messages": turns.iter().map(turn_json).collect::<Vec<_>>(),
-        });
-        if let OutputMode::Json { schema } = mode {
-            request["output_config"] =
-                json!({ "format": { "type": "json_schema", "schema": schema } });
-        }
-        let response = http
-            .post("https://api.anthropic.com/v1/messages")
-            .header("x-api-key", key)
-            .header("anthropic-version", "2023-06-01")
-            .header("content-type", "application/json")
-            .timeout(PROVIDER_TIMEOUT)
-            .json(&request)
-            .send()
-            .await
-            .context("anthropic request failed")?;
-        let status = response.status();
-        let body: Value = response
-            .json()
-            .await
-            .context("anthropic response was not JSON")?;
-        if !status.is_success() {
-            let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
-            return Err(anyhow!("anthropic {status}: {detail}"));
-        }
-        let text = body["content"]
-            .as_array()
-            .and_then(|blocks| {
-                blocks
-                    .iter()
-                    .find(|block| block["type"] == "text")
-                    .and_then(|block| block["text"].as_str())
-            })
-            .unwrap_or("{}");
-        Ok(text.to_owned())
-    }
-
-    async fn ollama(
-        &self,
-        http: &reqwest::Client,
-        system: &str,
-        turns: &[ChatTurn],
-        mode: &OutputMode<'_>,
-    ) -> Result<String> {
-        let mut request = json!({
-            "model": self.model.id,
-            "stream": false,
-            "options": { "temperature": 0.7 },
-            "messages": wire_messages(system, turns),
-        });
-        if matches!(mode, OutputMode::Json { .. }) {
-            request["format"] = json!("json");
-        }
-        let response = http
-            .post(format!("{}/api/chat", self.ollama_host))
-            .timeout(PROVIDER_TIMEOUT)
-            .json(&request)
-            .send()
-            .await
-            .context("ollama request failed")?;
-        if !response.status().is_success() {
-            return Err(anyhow!("ollama {}", response.status()));
-        }
-        let body: Value = response
-            .json()
-            .await
-            .context("ollama response was not JSON")?;
-        body["message"]["content"]
-            .as_str()
-            .map(str::to_owned)
-            .context("ollama returned no content")
-    }
 }
 
 #[cfg(test)]

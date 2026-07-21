@@ -9,7 +9,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 
-use dsrs::lm::{ChatModel, ChatTurn, JsonFormat, LM, OutputMode, TokenLimitRule};
+use dsrs::lm::{ChatModel, ChatTurn, JsonFormat, LM, LmRequest, OutputMode, TokenLimitRule};
 use serde_json::{Value, json};
 
 const REPLY: &str = r#"{"choices":[{"message":{"content":"the reply"}}]}"#;
@@ -136,11 +136,10 @@ fn probe_lm(stub: &Stub) -> LM {
 }
 
 async fn ask(lm: &LM, mode: &OutputMode<'_>) -> anyhow::Result<String> {
+    let turns = [ChatTurn::user("hi")];
     lm.chat(
         &reqwest::Client::new(),
-        "be helpful",
-        &[ChatTurn::user("hi")],
-        mode,
+        &LmRequest::new("be helpful", &turns, *mode),
     )
     .await
 }

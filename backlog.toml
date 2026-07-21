@@ -238,9 +238,12 @@ than once, and running branches side by side.
 """
 suites = [
   "predict/test_aggregation.py", "predict/test_multi_chain_comparison.py",
-  "predict/test_parallel.py",
 ]
-state_note = "all three shipped; predict/test_parallel.py not in SUITES — see remaining"
+state_note = """
+All three modules shipped. `suites` names the two this sprint is held to: predict/test_parallel.py
+is not claimed, because it does not run — the reason is under `remaining`, and claiming a file the
+gates never check is the failure check_plan.py exists to catch.
+"""
 rationale = """
 dspy ships thirteen modules and three are ported. These three need nothing this crate lacks:
 majority reconciles several answers, MultiChainComparison shows a model its own prior attempts,

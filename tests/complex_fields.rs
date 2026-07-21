@@ -7,7 +7,7 @@ use std::sync::Mutex;
 
 use anyhow::{Result, anyhow};
 use dsrs::JsonAdapter;
-use dsrs::lm::{self, ChatModel, ChatTurn, LM, OutputMode, Role};
+use dsrs::lm::{self, ChatModel, ChatTurn, LM, LmRequest, OutputMode, Role};
 use dsrs::signature::{Signature, SignatureSpec, chain_of_thought, json_field_schema, predict};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -92,17 +92,11 @@ impl Scripted {
 }
 
 impl ChatModel for Scripted {
-    async fn chat(
-        &self,
-        _http: &reqwest::Client,
-        system: &str,
-        turns: &[ChatTurn],
-        mode: &OutputMode<'_>,
-    ) -> Result<String> {
+    async fn chat(&self, _http: &reqwest::Client, request: &LmRequest<'_>) -> Result<String> {
         self.calls.lock().expect("not poisoned").push(Call {
-            system: system.to_owned(),
-            turns: turns.to_vec(),
-            json_mode: matches!(mode, OutputMode::Json { .. }),
+            system: request.system.to_owned(),
+            turns: request.turns.to_vec(),
+            json_mode: matches!(request.mode, OutputMode::Json { .. }),
         });
         self.replies
             .lock()

@@ -10,7 +10,7 @@
 
 use dsrs::adapter::parse::FieldMismatch;
 use dsrs::adapter::xml::XmlAdapter;
-use dsrs::lm::{ChatTurn, DynChatModel, OutputMode};
+use dsrs::lm::{DynChatModel, LmRequest};
 use dsrs::signature::{
     FieldKind, InField, JsonType, LiteralValue, OutField, Signature, TypeDescription,
 };
@@ -29,9 +29,7 @@ impl DynChatModel for NotOnThisSide {
     fn chat_dyn<'a>(
         &'a self,
         _http: &'a reqwest::Client,
-        _system: &'a str,
-        _turns: &'a [ChatTurn],
-        _mode: &'a OutputMode<'a>,
+        _request: &'a LmRequest<'a>,
     ) -> Pin<Box<dyn Future<Output = anyhow::Result<String>> + Send + 'a>> {
         Box::pin(async {
             Err(anyhow::anyhow!(

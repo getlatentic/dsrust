@@ -8,7 +8,7 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use anyhow::Result;
-use dsrs::lm::{ChatModel, ChatTurn, OutputMode, Role};
+use dsrs::lm::{ChatModel, ChatTurn, LmRequest, Role};
 use dsrs::signature::{OutField, Signature};
 use dsrs::{Adapter, ChatAdapter, Example, LabeledFewShot, example};
 use serde_json::json;
@@ -28,17 +28,11 @@ impl Recorder {
 }
 
 impl ChatModel for Recorder {
-    async fn chat(
-        &self,
-        _http: &reqwest::Client,
-        _system: &str,
-        turns: &[ChatTurn],
-        _mode: &OutputMode<'_>,
-    ) -> Result<String> {
+    async fn chat(&self, _http: &reqwest::Client, request: &LmRequest<'_>) -> Result<String> {
         self.turns
             .lock()
             .expect("not poisoned")
-            .push(turns.to_vec());
+            .push(request.turns.to_vec());
         self.replies
             .lock()
             .expect("not poisoned")

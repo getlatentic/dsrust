@@ -7,7 +7,7 @@ use serde_json::Value;
 use crate::adapter::parse::FieldMismatch;
 use crate::adapter::{Adapter, ChatAdapter, Extraction, Feedback, turns_for};
 use crate::example::{Example, Prediction};
-use crate::lm::{DynChatModel, global};
+use crate::lm::{DynChatModel, LmRequest, Sampling, global};
 use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::{Signature, SignatureSpec};
 
@@ -45,6 +45,12 @@ pub struct Predict<S = Dynamic> {
     /// round after the first a model that will not answer from a cache. Neither can reach a
     /// process-wide default to do it.
     lm: Option<std::sync::Arc<dyn DynChatModel>>,
+    /// How this module asks for its reply to be sampled.
+    ///
+    /// The other half of the same seam: `BestOfN` and a bootstrap round after the first vary
+    /// this rather than the model, since what they need to differ is one call's sampling and
+    /// not which provider answers.
+    sampling: Sampling,
     spec: PhantomData<S>,
 }
 
@@ -73,6 +79,7 @@ impl<S> Predict<S> {
             adapter: self.adapter,
             demos: self.demos,
             lm: self.lm,
+            sampling: self.sampling,
         }
     }
 
@@ -80,6 +87,22 @@ impl<S> Predict<S> {
     pub fn with_lm(mut self, lm: std::sync::Arc<dyn DynChatModel>) -> Self {
         self.lm = Some(lm);
         self
+    }
+
+    /// Ask for the reply to be sampled this way rather than at the provider's defaults.
+    ///
+    /// dspy reaches the same setting through `lm.copy(temperature=...)`, which needs a model to
+    /// copy; this is per call, so a module that defers to the configured model can still vary
+    /// how it is asked.
+    pub fn with_sampling(mut self, sampling: Sampling) -> Self {
+        self.sampling = sampling;
+        self
+    }
+
+    /// The sampling this module asks for. An optimizer reads it to vary one field and leave
+    /// the rest alone.
+    pub fn sampling(&self) -> &Sampling {
+        &self.sampling
     }
 
     /// dspy's `get_lm`: the model this module asks, or nothing if it defers to the configured
@@ -115,6 +138,7 @@ impl Predict<Dynamic> {
         Self {
             spec: PhantomData,
             lm: None,
+            sampling: Sampling::default(),
             signature,
             adapter: Box::new(ChatAdapter::default()),
             demos: Vec::new(),
@@ -177,8 +201,12 @@ impl<S> Predict<S> {
         let schema = self.signature.schema();
         let (system, opening) = adapter.format(&self.signature, &self.demos, inputs)?;
         let mode = adapter.output_mode(&schema);
-        lm.chat_dyn(http, &system, &turns_for(opening, feedback), &mode)
-            .await
+        lm.chat_dyn(
+            http,
+            &LmRequest::new(&system, &turns_for(opening, feedback), mode)
+                .sampled(self.sampling.clone()),
+        )
+        .await
     }
 
     async fn ask(
@@ -269,9 +297,12 @@ impl<S> Predict<S> {
             .format(&extraction.signature, &[], &text)?;
         let schema = extraction.signature.schema();
         let mode = extraction.adapter.output_mode(&schema);
+        // Left at the provider's defaults rather than given the module's sampling: this call
+        // rewrites prose the model already produced into fields, so a temperature chosen to
+        // vary the *answer* would only vary the transcription of one.
         let extracted = extraction
             .model
-            .chat_dyn(http, &system, &turns, &mode)
+            .chat_dyn(http, &LmRequest::new(&system, &turns, mode))
             .await
             .context("the extraction model did not answer")?;
         let mut value = extraction
@@ -669,6 +700,7 @@ mod tests {
             let predict = Predict {
                 spec: PhantomData,
                 lm: None,
+                sampling: Sampling::default(),
                 signature: typed_signature(),
                 adapter: Box::new(JsonAdapter),
                 demos: Vec::new(),
@@ -853,5 +885,50 @@ mod per_call_model {
         let carried = Predict::from_signature("q -> a".parse().expect("parses"))
             .with_lm(Arc::new(DummyLM::new([])));
         assert!(carried.into_task::<()>().lm().is_some());
+    }
+
+    /// The gap this closes: sampling chosen on a module had no way through `forward` to the
+    /// request the model is handed, so `max_rounds` could re-ask but nothing could make the
+    /// answer differ. Asserting it arrives is the whole point — a module that quietly dropped
+    /// it would still return a reply and still look like it worked.
+    #[tokio::test]
+    async fn the_sampling_a_module_carries_reaches_the_request_the_model_is_handed() {
+        let lm = Arc::new(DummyLM::new([
+            example! { answer: "first" },
+            example! { answer: "second" },
+        ]));
+
+        let defaults = predict!("question -> answer").with_lm(lm.clone());
+        defaults
+            .forward(input! { question: "q" })
+            .await
+            .expect("asks");
+
+        let varied = predict!("question -> answer")
+            .with_lm(lm.clone())
+            .with_sampling(Sampling {
+                temperature: Some(1.0),
+                max_tokens: Some(64),
+            });
+        varied
+            .forward(input! { question: "q" })
+            .await
+            .expect("asks");
+
+        let asked = lm.asked();
+        assert_eq!(asked[0].sampling, Sampling::default());
+        assert_eq!(asked[1].sampling.temperature, Some(1.0));
+        assert_eq!(asked[1].sampling.max_tokens, Some(64));
+    }
+
+    /// Sampling travels with the module the same way the model override does.
+    #[test]
+    fn the_sampling_survives_being_given_a_task() {
+        let carried =
+            Predict::from_signature("q -> a".parse().expect("parses")).with_sampling(Sampling {
+                temperature: Some(0.5),
+                ..Sampling::default()
+            });
+        assert_eq!(carried.into_task::<()>().sampling().temperature, Some(0.5));
     }
 }

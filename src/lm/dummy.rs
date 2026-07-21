@@ -14,7 +14,7 @@ use serde_json::Value;
 
 use crate::adapter::python_json::format_value;
 use crate::example::Example;
-use crate::lm::{ChatModel, ChatTurn, OutputMode};
+use crate::lm::{ChatModel, ChatTurn, LmRequest, OutputMode, Sampling};
 
 /// What the model was asked, kept so a test can assert on the prompt it produced.
 #[derive(Debug, Clone)]
@@ -22,6 +22,9 @@ pub struct Asked {
     pub system: String,
     pub turns: Vec<ChatTurn>,
     pub json_mode: bool,
+    /// How the caller asked for the reply to be sampled. A scripted model answers from its
+    /// script regardless; recording it is what lets a test assert that a re-ask differed.
+    pub sampling: Sampling,
 }
 
 impl Asked {
@@ -134,15 +137,15 @@ impl ChatModel for DummyLM {
     fn chat<'a>(
         &'a self,
         _http: &'a reqwest::Client,
-        system: &'a str,
-        turns: &'a [ChatTurn],
-        mode: &'a OutputMode<'a>,
+        request: &'a LmRequest<'a>,
     ) -> impl Future<Output = Result<String>> + Send + 'a {
+        let (system, turns, mode) = (request.system, request.turns, &request.mode);
         let json_mode = matches!(mode, OutputMode::Json { .. });
         let asked = Asked {
             system: system.to_owned(),
             turns: turns.to_vec(),
             json_mode,
+            sampling: request.sampling.clone(),
         };
         let request = asked.last_message().to_owned();
         self.asked.lock().expect("not poisoned").push(asked);
@@ -164,9 +167,7 @@ mod tests {
     fn ask(lm: &DummyLM, message: &str) -> Result<String> {
         futures_lite_block_on(lm.chat(
             &reqwest::Client::new(),
-            "system",
-            &[ChatTurn::user(message)],
-            &OutputMode::Text,
+            &LmRequest::new("system", &[ChatTurn::user(message)], OutputMode::Text),
         ))
     }
 
@@ -235,13 +236,14 @@ mod tests {
     #[test]
     fn json_mode_returns_an_object_the_way_a_provider_would() {
         let lm = DummyLM::new([example! { answer: "red" }]);
+        let schema = serde_json::json!({});
         let reply = futures_lite_block_on(lm.chat(
             &reqwest::Client::new(),
-            "system",
-            &[ChatTurn::user("ask")],
-            &OutputMode::Json {
-                schema: &serde_json::json!({}),
-            },
+            &LmRequest::new(
+                "system",
+                &[ChatTurn::user("ask")],
+                OutputMode::Json { schema: &schema },
+            ),
         ))
         .unwrap();
         assert_eq!(reply, r#"{"answer":"red"}"#);

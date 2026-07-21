@@ -9,7 +9,7 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use anyhow::Result;
-use dsrs::lm::{ChatModel, ChatTurn, OutputMode};
+use dsrs::lm::{ChatModel, LmRequest};
 use dsrs::signature::{OutField, Signature};
 use dsrs::{Evaluate, Example, Prediction, exact_match, example};
 use serde_json::json;
@@ -28,13 +28,7 @@ impl Scripted {
 }
 
 impl ChatModel for Scripted {
-    async fn chat(
-        &self,
-        _http: &reqwest::Client,
-        _system: &str,
-        _turns: &[ChatTurn],
-        _mode: &OutputMode<'_>,
-    ) -> Result<String> {
+    async fn chat(&self, _http: &reqwest::Client, _request: &LmRequest<'_>) -> Result<String> {
         self.replies
             .lock()
             .expect("not poisoned")

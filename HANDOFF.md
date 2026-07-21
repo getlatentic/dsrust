@@ -132,10 +132,19 @@ JSON schema, and why coercion splits between parse time and `Predict`.
 
 ## Open decisions
 
-**Per-call LM overrides.** `max_rounds` re-asks, but nothing forces a different answer, because
-upstream's `lm.copy(rollout_id=..., temperature=1.0)` has no equivalent reachable through
-`Module::forward`. Backlog `b2`. Closing it needs a per-call override seam, which is also what a
-deterministic model would need before the forcing could be asserted at all.
+**Applying sampling across a program.** The per-call seam `b2` asked for exists: `LmRequest`
+carries a `Sampling` to `ChatModel::chat`, all three providers send it, and
+`Predict::with_sampling` sets it on one module. What is still missing is a compile's way to set
+it on *every* predictor in a program — `NamedPredictor` walks signatures and demos only, so
+`BootstrapFewShot::max_rounds` still cannot make round two differ from round one.
+
+The decision is what that walk should be, and it is an API promise: widening `NamedPredictor`
+puts sampling next to the things an optimizer *learns and writes back*, when sampling is instead
+set transiently for a round — so a separate walk (`Module::set_sampling`, say) may be the honest
+shape. `NamedPredictor` is re-exported from the crate root and every caller-written `Module` and
+every `#[derive(Module)]` expansion satisfies it, so the choice is not free to revisit.
+
+Upstream's `rollout_id` is deliberately absent from `Sampling`; the reasoning is on the struct.
 
 **BAML record provenance.** dspy branches on `isinstance(value, BaseModel)`; we branch on the
 field's declared type. They agree whenever a value matches its declaration. Closing the gap means
