@@ -30,7 +30,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-21"
 
 [status]
-rust_tests = 439
+rust_tests = 441
 upstream_tests_passing = 380
 upstream_tests_crossing = 180
 upstream_tests_deciding_signatures = 260
@@ -440,8 +440,26 @@ here at all; size it before promising it.
 
 [[backlog]]
 id = "b1"
-state = "next"
-plan = """
+state = "done"
+closed = "2026-07-21"
+done = """
+Closed. `Adapter::format` takes `Input { name, value, record }`, the derive marks struct-typed
+fields, the bridge crosses Python's own `isinstance(value, BaseModel)`, and BAML branches on the
+value rather than the declaration. `is_record` on `FieldKind` is gone.
+
+One finding worth keeping, because it decides how this is verified. **Upstream's own suite cannot
+catch a regression here.** `test_baml_adapter_formats_pydantic_input_as_clean_json` passes a real
+`PatientDetails` model and then asserts only `'"name": "John Doe"' in user_message` — a substring
+true of the inline form as well as the laid-out one. Measured: inverting the bridge flag so every
+value crosses as non-record leaves all 380 upstream tests passing. What pins the rule is the byte
+literal in `baml.rs::a_record_input_is_laid_out_over_lines_and_everything_else_is_not`, whose
+expected value was read off dspy 3.2.1 directly.
+
+A golden fixture would be the usual answer and does not fit: a BAML signature with a model-typed
+field needs the Python reflection tree for its *schema* block, which no Rust-declared signature
+has, so the fixture would fail on the system message for reasons unrelated to this rule.
+"""
+history = """
 Confirmed a prompt-byte divergence, not a theoretical one. Measured against dspy 3.2.1: the same
 record-declared field renders
 

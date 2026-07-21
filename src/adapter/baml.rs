@@ -282,6 +282,14 @@ mod tests {
         );
     }
 
+    /// The byte rule this adapter exists for, and the one `Input::record` decides.
+    ///
+    /// Both forms below were taken from dspy 3.2.1 rather than reasoned about: rendering the same
+    /// field through `BAMLAdapter` with a `BaseModel` gives `{\n  "name": ...\n}` and with an
+    /// equivalent `dict` gives `{"name": ..., "age": ...}` on one line. Upstream's own test for
+    /// this (`test_baml_adapter_formats_pydantic_input_as_clean_json`) asserts only that
+    /// `\'"name": "John Doe"\'` appears somewhere in the message, which is true of both forms — so
+    /// a green upstream suite does not pin this and these literals are what does.
     #[test]
     fn a_record_input_is_laid_out_over_lines_and_everything_else_is_not() {
         let inputs = vec![
