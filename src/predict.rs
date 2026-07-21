@@ -7,7 +7,7 @@ use serde_json::Value;
 use crate::adapter::parse::FieldMismatch;
 use crate::adapter::{Adapter, ChatAdapter, Extraction, Feedback, Input, turns_for};
 use crate::example::{Example, Prediction};
-use crate::lm::{DynChatModel, LmConfig, LmRequest, LmResponse, Usage, global};
+use crate::lm::{DynChatModel, LmConfig, LmRequest, LmResponse, LmUsage, global};
 use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::{Signature, SignatureSpec};
 
@@ -75,7 +75,7 @@ struct Validated {
     value: Value,
     /// What every call behind this one cost together — a fallback and a feedback retry each add
     /// their own, so the accepted reply carries the whole exchange rather than its last ask.
-    usage: Option<Usage>,
+    usage: Option<LmUsage>,
 }
 
 impl<S> Predict<S> {
@@ -275,7 +275,7 @@ impl<S> Predict<S> {
                         .ask_through(fallback.as_ref(), http, lm, inputs, None)
                         .await?;
                     let value = fallback.parse(&self.signature, answered.text_ref())?;
-                    let merged = Usage::merge(usage, answered.spend());
+                    let merged = LmUsage::merge(usage, answered.spend());
                     (answered.into_text(), value, merged)
                 }
             },
@@ -299,7 +299,7 @@ impl<S> Predict<S> {
                 Ok(Validated {
                     raw,
                     value,
-                    usage: Usage::merge(usage, retried),
+                    usage: LmUsage::merge(usage, retried),
                 })
             }
         }
@@ -315,7 +315,7 @@ impl<S> Predict<S> {
         http: &reqwest::Client,
         extraction: Extraction<'_>,
         raw: String,
-        asking: Option<Usage>,
+        asking: Option<LmUsage>,
     ) -> Result<Validated> {
         let text = [Input::new("text", Value::String(raw.clone()))];
         let (system, turns) = extraction
@@ -343,7 +343,7 @@ impl<S> Predict<S> {
         self.signature.coerce(&mut value)?;
         self.signature.ensure(&value)?;
         Ok(Validated {
-            usage: Usage::merge(asking, extracted.spend()),
+            usage: LmUsage::merge(asking, extracted.spend()),
             raw: extracted.into_text(),
             value,
         })
@@ -357,7 +357,7 @@ impl<S> Predict<S> {
         lm: &dyn DynChatModel,
         inputs: &[Input<'_>],
         feedback: &Feedback,
-    ) -> Result<(String, Value, Option<Usage>)> {
+    ) -> Result<(String, Value, Option<LmUsage>)> {
         let answered = self.ask(http, lm, inputs, Some(feedback)).await?;
         let mut value = self.adapter.parse(&self.signature, answered.text_ref())?;
         self.signature.coerce(&mut value)?;

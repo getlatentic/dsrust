@@ -200,7 +200,7 @@ mod tests {
     use super::*;
     use crate::example;
     use crate::lm::dummy::DummyLM;
-    use crate::lm::{ChatTurn, LmConfig, OutputMode, Usage};
+    use crate::lm::{ChatTurn, LmConfig, LmUsage, OutputMode};
 
     fn ask(lm: &Cached<DummyLM>, config: LmConfig) -> LmResponse {
         let turns = [ChatTurn::user("what colour?")];
@@ -347,7 +347,7 @@ mod tests {
     #[test]
     fn a_replay_reports_what_it_was_worth_but_no_new_spend() {
         let cache = ResponseCache::default();
-        let usage = Usage {
+        let usage = LmUsage {
             input_tokens: 10,
             output_tokens: 4,
         };

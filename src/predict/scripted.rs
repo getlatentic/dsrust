@@ -6,7 +6,7 @@ use std::sync::Mutex;
 
 use anyhow::{Result, anyhow};
 
-use crate::lm::{ChatModel, ChatTurn, LmRequest, LmResponse, OutputMode, Usage};
+use crate::lm::{ChatModel, ChatTurn, LmRequest, LmResponse, LmUsage, OutputMode};
 use crate::signature::{OutField, Signature};
 
 pub(super) fn signature() -> Signature {
@@ -34,7 +34,7 @@ pub(super) struct Scripted {
     replies: Mutex<VecDeque<&'static str>>,
     calls: Mutex<Vec<Call>>,
     /// Reported on every reply, so a test forcing several calls can assert on their sum.
-    usage: Option<Usage>,
+    usage: Option<LmUsage>,
 }
 
 #[derive(Clone)]
@@ -56,7 +56,7 @@ impl Scripted {
     /// Report this cost on every reply. A provider charges each call, so a module that asks
     /// twice should answer with twice this.
     pub(super) fn costing(mut self, input_tokens: u32, output_tokens: u32) -> Self {
-        self.usage = Some(Usage {
+        self.usage = Some(LmUsage {
             input_tokens,
             output_tokens,
         });

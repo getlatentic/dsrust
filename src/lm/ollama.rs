@@ -6,7 +6,7 @@
 use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
-use super::{LmRequest, LmResponse, OutputMode, PROVIDER_TIMEOUT, Usage, wire_messages};
+use super::{LmRequest, LmResponse, LmUsage, OutputMode, PROVIDER_TIMEOUT, wire_messages};
 
 /// ollama samples at 0.8 when told nothing, which is loose for a program parsing the reply
 /// back into fields.
@@ -46,10 +46,10 @@ fn reply(body: &Value) -> Result<LmResponse> {
 
 /// ollama counts at the top level rather than under a usage object, and names the two counts
 /// after the passes that produce them.
-fn usage(body: &Value) -> Option<Usage> {
+fn usage(body: &Value) -> Option<LmUsage> {
     let input = body["prompt_eval_count"].as_u64();
     let output = body["eval_count"].as_u64();
-    (input.is_some() || output.is_some()).then(|| Usage {
+    (input.is_some() || output.is_some()).then(|| LmUsage {
         input_tokens: input.unwrap_or(0) as u32,
         output_tokens: output.unwrap_or(0) as u32,
     })

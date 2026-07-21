@@ -7,7 +7,7 @@
 use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
-use super::{LmRequest, LmResponse, OutputMode, PROVIDER_TIMEOUT, Usage, turn_json};
+use super::{LmRequest, LmResponse, LmUsage, OutputMode, PROVIDER_TIMEOUT, turn_json};
 
 const MESSAGES_URL: &str = "https://api.anthropic.com/v1/messages";
 
@@ -79,11 +79,11 @@ fn reply(status: reqwest::StatusCode, body: &Value) -> Result<LmResponse> {
 
 /// Anthropic's cache counters are charged separately from `input_tokens`, so a cached call whose
 /// prompt tokens were all read from cache reports zero input without being free.
-fn usage(usage: &Value) -> Option<Usage> {
+fn usage(usage: &Value) -> Option<LmUsage> {
     let count = |key: &str| usage[key].as_u64().unwrap_or(0) as u32;
     let input = count("input_tokens") + count("cache_creation_input_tokens");
     let output = count("output_tokens");
-    (usage.is_object() && (input > 0 || output > 0)).then_some(Usage {
+    (usage.is_object() && (input > 0 || output > 0)).then_some(LmUsage {
         input_tokens: input + count("cache_read_input_tokens"),
         output_tokens: output,
     })

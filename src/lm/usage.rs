@@ -5,7 +5,7 @@
 //! report usage from *anywhere*, including calls whose return value has no room for it.
 //!
 //! Which is the case that matters here. [`Prediction`](crate::Prediction) carries a
-//! [`Usage`] and the value-level paths read it off there, but `Predict::call_typed` and the
+//! [`LmUsage`] and the value-level paths read it off there, but `Predict::call_typed` and the
 //! derived-task paths answer with the caller's own struct — there is nowhere in a `T` for a token
 //! count to live. A scoped tracker reaches those calls because it does not travel on the answer.
 //!
@@ -16,7 +16,7 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
-use super::Usage;
+use super::LmUsage;
 
 /// Tokens spent, per model.
 ///
@@ -24,12 +24,12 @@ use super::Usage;
 /// has two numbers worth knowing apart, and dspy keys its tracker the same way.
 #[derive(Debug, Default)]
 pub struct UsageTracker {
-    by_model: Mutex<BTreeMap<String, Usage>>,
+    by_model: Mutex<BTreeMap<String, LmUsage>>,
 }
 
 impl UsageTracker {
     /// Charge one call to a model.
-    pub fn add(&self, model: &str, usage: Usage) {
+    pub fn add(&self, model: &str, usage: LmUsage) {
         let mut totals = self.by_model.lock().expect("not poisoned");
         let running = totals.entry(model.to_owned()).or_default();
         running.input_tokens += usage.input_tokens;
@@ -37,15 +37,15 @@ impl UsageTracker {
     }
 
     /// What each model was asked for, dspy's `get_total_tokens`.
-    pub fn by_model(&self) -> BTreeMap<String, Usage> {
+    pub fn by_model(&self) -> BTreeMap<String, LmUsage> {
         self.by_model.lock().expect("not poisoned").clone()
     }
 
     /// What the whole run cost, across every model.
-    pub fn total(&self) -> Usage {
+    pub fn total(&self) -> LmUsage {
         self.by_model.lock().expect("not poisoned").values().fold(
-            Usage::default(),
-            |running, usage| Usage {
+            LmUsage::default(),
+            |running, usage| LmUsage {
                 input_tokens: running.input_tokens + usage.input_tokens,
                 output_tokens: running.output_tokens + usage.output_tokens,
             },
@@ -105,7 +105,7 @@ impl Tracking {
     }
 
     /// What has been spent so far in this scope.
-    pub fn total(&self) -> Usage {
+    pub fn total(&self) -> LmUsage {
         self.tracker.total()
     }
 }
@@ -120,7 +120,7 @@ impl Drop for Tracking {
 ///
 /// A replay is not charged: the caller reads [`LmResponse::spend`](super::LmResponse::spend),
 /// which is nothing on a cache hit, so a cached run totals what it actually bought.
-pub(super) fn record(model: &str, spend: Option<Usage>) {
+pub(super) fn record(model: &str, spend: Option<LmUsage>) {
     let Some(usage) = spend else { return };
     if let Some(tracker) = installed().lock().expect("not poisoned").as_ref() {
         tracker.add(model, usage);
@@ -131,8 +131,8 @@ pub(super) fn record(model: &str, spend: Option<Usage>) {
 mod tests {
     use super::*;
 
-    fn usage(input_tokens: u32, output_tokens: u32) -> Usage {
-        Usage {
+    fn usage(input_tokens: u32, output_tokens: u32) -> LmUsage {
+        LmUsage {
             input_tokens,
             output_tokens,
         }

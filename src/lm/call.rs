@@ -123,12 +123,12 @@ impl<'a> LmRequest<'a> {
 /// `eval_count` — so normalising them here is the whole reason a caller can compare the cost of
 /// two adapters without knowing who answered.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct Usage {
+pub struct LmUsage {
     pub input_tokens: u32,
     pub output_tokens: u32,
 }
 
-impl Usage {
+impl LmUsage {
     pub fn total(self) -> u32 {
         self.input_tokens + self.output_tokens
     }
@@ -160,7 +160,7 @@ pub struct LmResponse {
     /// trip where several requests are several.
     pub outputs: Vec<String>,
     /// Absent when a provider reported none, which a caller must not read as free.
-    pub usage: Option<Usage>,
+    pub usage: Option<LmUsage>,
     /// Whether this was replayed from the cache rather than generated. A replay is not billed,
     /// so a hit carries the usage the original call reported and costs nothing again.
     pub cache_hit: bool,
@@ -204,11 +204,11 @@ impl LmResponse {
     /// [`usage`](Self::usage) stays readable on a hit — it is what the answer was worth — but a
     /// replay is not billed, so anything totalling spend reads this instead. dspy draws the same
     /// line by skipping its usage tracker when `cache_hit` is set.
-    pub fn spend(&self) -> Option<Usage> {
+    pub fn spend(&self) -> Option<LmUsage> {
         self.usage.filter(|_| !self.cache_hit)
     }
 
-    pub fn with_usage(mut self, usage: Option<Usage>) -> Self {
+    pub fn with_usage(mut self, usage: Option<LmUsage>) -> Self {
         self.usage = usage;
         self
     }
@@ -233,15 +233,15 @@ mod tests {
 
     #[test]
     fn usage_totals_the_two_counts() {
-        let usage = Usage {
+        let usage = LmUsage {
             input_tokens: 12,
             output_tokens: 30,
         };
         assert_eq!(usage.total(), 42);
     }
 
-    fn usage(input_tokens: u32, output_tokens: u32) -> Option<Usage> {
-        Some(Usage {
+    fn usage(input_tokens: u32, output_tokens: u32) -> Option<LmUsage> {
+        Some(LmUsage {
             input_tokens,
             output_tokens,
         })
@@ -250,7 +250,7 @@ mod tests {
     #[test]
     fn merging_adds_both_counts() {
         assert_eq!(
-            Usage::merge(usage(1, 2), usage(10, 20)),
+            LmUsage::merge(usage(1, 2), usage(10, 20)),
             usage(11, 22),
             "a fallback ask costs what both asks cost"
         );
@@ -260,8 +260,8 @@ mod tests {
     /// looks complete, and treating it as unknown would throw the real count away.
     #[test]
     fn merging_with_a_silent_model_keeps_what_is_known() {
-        assert_eq!(Usage::merge(None, usage(3, 4)), usage(3, 4));
-        assert_eq!(Usage::merge(usage(3, 4), None), usage(3, 4));
-        assert_eq!(Usage::merge(None, None), None);
+        assert_eq!(LmUsage::merge(None, usage(3, 4)), usage(3, 4));
+        assert_eq!(LmUsage::merge(usage(3, 4), None), usage(3, 4));
+        assert_eq!(LmUsage::merge(None, None), None);
     }
 }

@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 use anyhow::{Result, anyhow};
 use serde_json::Value;
 
-use crate::lm::Usage;
+use crate::lm::LmUsage;
 
 use crate::adapter::python_json::format_value;
 
@@ -178,7 +178,7 @@ pub struct Prediction {
     /// dspy reaches the same number through `Prediction.get_lm_usage()`, filled only while
     /// `track_usage` is set. It is unconditional here because it arrives on the response either
     /// way, so there is no setting for it to be switched off by and no ambient state to read.
-    pub usage: Option<Usage>,
+    pub usage: Option<LmUsage>,
 }
 
 impl Prediction {
@@ -191,7 +191,7 @@ impl Prediction {
     }
 
     /// What the calls behind this answer cost.
-    pub fn with_usage(mut self, usage: Option<Usage>) -> Self {
+    pub fn with_usage(mut self, usage: Option<LmUsage>) -> Self {
         self.usage = usage;
         self
     }

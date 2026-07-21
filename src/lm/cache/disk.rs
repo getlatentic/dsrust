@@ -174,7 +174,7 @@ impl DiskCache {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lm::Usage;
+    use crate::lm::LmUsage;
 
     /// A directory of this test's own, removed when the test ends however it ends.
     struct Scratch(PathBuf);
@@ -194,7 +194,7 @@ mod tests {
     }
 
     fn reply(text: &str) -> LmResponse {
-        LmResponse::text(text).with_usage(Some(Usage {
+        LmResponse::text(text).with_usage(Some(LmUsage {
             input_tokens: 3,
             output_tokens: 4,
         }))

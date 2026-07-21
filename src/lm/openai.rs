@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use super::token_limit::TokenLimitRule;
 use super::{
-    LmRequest, LmResponse, OutputMode, PROVIDER_TIMEOUT, Usage, env_nonempty, wire_messages,
+    LmRequest, LmResponse, LmUsage, OutputMode, PROVIDER_TIMEOUT, env_nonempty, wire_messages,
 };
 
 /// OpenAI's own endpoint, and the value every other service replaces.
@@ -232,10 +232,10 @@ fn reply(label: &str, status: reqwest::StatusCode, body: &Value) -> Result<LmRes
 
 /// `prompt_tokens` already includes whatever was read from cache here, unlike Anthropic's split
 /// counters, so the two fields are the whole of it.
-fn usage(usage: &Value) -> Option<Usage> {
+fn usage(usage: &Value) -> Option<LmUsage> {
     let input = usage["prompt_tokens"].as_u64();
     let output = usage["completion_tokens"].as_u64();
-    (input.is_some() || output.is_some()).then(|| Usage {
+    (input.is_some() || output.is_some()).then(|| LmUsage {
         input_tokens: input.unwrap_or(0) as u32,
         output_tokens: output.unwrap_or(0) as u32,
     })
