@@ -21,7 +21,7 @@ pub use adapter::{Adapter, ChatAdapter, Extraction, JsonAdapter, TwoStepAdapter}
 pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
 pub use example::{Example, Prediction};
 pub use module::{Module, NamedPredictor};
-pub use optimize::{BootstrapFewShot, LabeledFewShot};
+pub use optimize::{BootstrapFewShot, DynOptimizer, LabeledFewShot, Optimizer};
 pub use react::{FnTool, ReAct, Tool, Trajectory};
 
 /// Re-exports the macros need so a caller does not have to depend on them directly.

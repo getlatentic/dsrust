@@ -6,6 +6,7 @@ use anyhow::{Result, anyhow};
 use crate::example::{Example, Prediction};
 use crate::module::Module;
 
+use super::Optimizer;
 use super::labeled::LabeledFewShot;
 use super::rng::Rng;
 
@@ -244,6 +245,29 @@ where
             *predictor.demos = augmented.iter().chain(&raw).cloned().collect();
         }
         augmented.len()
+    }
+}
+
+impl<M> Optimizer for BootstrapFewShot<M>
+where
+    M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+{
+    fn compile<'a>(
+        &'a self,
+        student: &'a mut dyn Module,
+        teacher: Option<&'a mut dyn Module>,
+        trainset: &'a [Example],
+    ) -> impl Future<Output = Result<()>> + Send + 'a {
+        async move {
+            match teacher {
+                Some(teacher) => {
+                    self.compile_with_teacher(student, teacher, trainset)
+                        .await?
+                }
+                None => BootstrapFewShot::compile(self, student, trainset).await?,
+            };
+            Ok(())
+        }
     }
 }
 

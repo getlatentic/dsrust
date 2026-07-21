@@ -5,19 +5,15 @@
 //! stand-in gives a reproducible compile that is not dspy's compile, and the two cannot then be
 //! compared demo for demo.
 
-/// Words of state the recurrence carries.
 const N: usize = 624;
-/// How far ahead the recurrence reaches when it twists one word.
 const M: usize = 397;
-/// The polynomial the twist folds in for an odd word.
 const MATRIX_A: u32 = 0x9908_b0df;
-/// The one bit taken from a word, and the thirty-one taken from its neighbour.
 const UPPER_MASK: u32 = 0x8000_0000;
 const LOWER_MASK: u32 = 0x7fff_ffff;
 
 pub(super) struct Mersenne {
     state: [u32; N],
-    /// How far into `state` the next draw reads. At `N` the state is spent and must twist.
+    /// At `N` the state is spent and must twist.
     next: usize,
 }
 
@@ -57,7 +53,6 @@ impl Mersenne {
         this
     }
 
-    /// Advance the seeding walk, wrapping past the end by carrying the last word to the front.
     fn step(state: &mut [u32; N], at: usize) -> usize {
         if at + 1 >= N {
             state[0] = state[N - 1];
@@ -89,7 +84,6 @@ impl Mersenne {
         temper(drawn)
     }
 
-    /// Refill the state, one word at a time, in place.
     fn twist(&mut self) {
         for at in 0..N {
             let joined = (self.state[at] & UPPER_MASK) | (self.state[(at + 1) % N] & LOWER_MASK);
@@ -125,8 +119,6 @@ impl Mersenne {
     }
 }
 
-/// Scramble one word of raw state. The recurrence on its own leaves structure a test can see;
-/// these shifts are what make the output equidistributed.
 fn temper(mut word: u32) -> u32 {
     word ^= word >> 11;
     word ^= (word << 7) & 0x9d2c_5680;

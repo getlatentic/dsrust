@@ -16,7 +16,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-20"
 
 [status]
-rust_tests = 338
+rust_tests = 342
 upstream_tests_passing = 256
 upstream_tests_crossing = 156
 xfail_backlog = 0
@@ -169,8 +169,17 @@ outcome = "The optimizers a real dspy user reaches for, ported on the seam s3 es
 rationale = """
 Deliberately after s3. Porting more optimizers before their conformance story exists would
 repeat the blind spot five more times.
+
+The Optimizer trait these are written against already exists, for the same reason: five
+implementations against no shared shape would have grown five bespoke ones. DynOptimizer is
+what BetterTogether needs, since upstream's holds other optimizers and runs them in sequence.
 """
 candidates = ["COPRO", "MIPROv2", "GEPA", "BetterTogether", "KNNFewShot"]
+notes = """
+The trait carries student, teacher and trainset. Upstream's Teleprompter.compile also takes
+valset, which MIPROv2 uses and nothing here does yet; widening the trait is a breaking change,
+so it wants doing when MIPROv2 lands and before b4 publishes an API that promises otherwise.
+"""
 
 # ---------------------------------------------------------------------------
 # Backlog — triaged at sprint planning, not scheduled

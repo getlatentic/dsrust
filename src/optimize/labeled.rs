@@ -4,6 +4,7 @@
 use crate::example::Example;
 use crate::module::Module;
 
+use super::Optimizer;
 use super::rng::Rng;
 
 /// Fill every predictor's demos straight from the trainset.
@@ -57,6 +58,25 @@ impl LabeledFewShot {
                 (false, true) => rng.sample(trainset, k),
                 (false, false) => trainset[..k].to_vec(),
             };
+        }
+    }
+}
+
+impl Optimizer for LabeledFewShot {
+    fn compile<'a>(
+        &'a self,
+        student: &'a mut dyn Module,
+        teacher: Option<&'a mut dyn Module>,
+        trainset: &'a [Example],
+    ) -> impl Future<Output = anyhow::Result<()>> + Send + 'a {
+        async move {
+            if teacher.is_some() {
+                return Err(anyhow::anyhow!(
+                    "LabeledFewShot draws demos from the trainset and has no teacher to learn from"
+                ));
+            }
+            LabeledFewShot::compile(self, student, trainset);
+            Ok(())
         }
     }
 }
