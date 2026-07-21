@@ -383,3 +383,37 @@ mod ergonomics {
         assert_eq!(result["haiku"], "silicon dreaming");
     }
 }
+
+#[cfg(test)]
+mod many_inputs {
+    use std::sync::Arc;
+
+    use crate::lm::global::configure_model;
+    use crate::{DummyLM, Module, call, example, input, predict};
+
+    /// Both spellings, on a signature with more than one input.
+    #[tokio::test]
+    async fn several_inputs_are_named_in_either_spelling() {
+        configure_model(
+            reqwest::Client::new(),
+            Arc::new(DummyLM::keyed([(
+                "computer science",
+                example! { haiku: "silicon dreaming", mood: "wry" },
+            )])),
+        );
+
+        let haiku = predict!("subject, tone -> haiku, mood");
+
+        let first = haiku
+            .forward(input! { subject: "computer science", tone: "wry" })
+            .await
+            .expect("asks");
+        let second = call!(haiku, subject = "computer science", tone = "wry")
+            .await
+            .expect("asks");
+
+        assert_eq!(first.get("haiku").unwrap(), "silicon dreaming");
+        assert_eq!(first.get("mood").unwrap(), "wry");
+        assert_eq!(first.example, second.example);
+    }
+}
