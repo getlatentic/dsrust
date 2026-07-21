@@ -7,7 +7,8 @@
 use std::sync::Arc;
 
 use dsrs::{
-    Ask, DummyLM, Module, Predict, Signature, call, chain_of_thought, example, input, predict,
+    Ask, DummyLM, Forward, Module, Predict, Signature, call, chain_of_thought, example, input,
+    predict,
 };
 
 /// One in, one out.
@@ -214,8 +215,9 @@ async fn both_forms_are_one_type_and_one_module() {
 
 /// Two steps composed into one program, the way a caller writes theirs.
 ///
-/// `forward` runs it. `named_predictors` is what lets an optimizer reach inside and rewrite the
-/// prompts of both steps. `forward_traced` is what lets it tell which step earned which demo.
+/// The derive supplies what Python inherits: the walk an optimizer works through, and being
+/// callable through `call!`. What is left is the part only the author knows.
+#[derive(dsrs::Module)]
 struct Outline {
     plan: Predict,
     write: Predict,
@@ -230,50 +232,13 @@ impl Outline {
     }
 }
 
-impl Module for Outline {
-    fn forward<'a>(
-        &'a self,
-        inputs: dsrs::Example,
-    ) -> std::pin::Pin<Box<dyn Future<Output = anyhow::Result<dsrs::Prediction>> + Send + 'a>> {
-        Box::pin(async move {
-            let angle = self.plan.forward(inputs).await?;
-            let handed = input! { angle: angle.get("angle").cloned().unwrap_or_default() };
-            self.write.forward(handed).await
-        })
-    }
-
-    fn named_predictors(&mut self) -> Vec<dsrs::NamedPredictor<'_>> {
-        let mut found = Vec::new();
-        for (name, step) in [("plan", &mut self.plan), ("write", &mut self.write)] {
-            for mut inner in step.named_predictors() {
-                inner.name = name.to_owned();
-                found.push(inner);
-            }
-        }
-        found
-    }
-
-    fn forward_traced<'a>(
-        &'a self,
-        inputs: dsrs::Example,
-        trace: &'a mut Vec<dsrs::TraceStep>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = anyhow::Result<dsrs::Prediction>> + Send + 'a>> {
-        Box::pin(async move {
-            let mark = trace.len();
-            let angle = self.plan.forward_traced(inputs, trace).await?;
-            dsrs::module::relabel(trace, mark, "plan");
-
-            let handed = input! { angle: angle.get("angle").cloned().unwrap_or_default() };
-            let mark = trace.len();
-            let written = self.write.forward_traced(handed, trace).await?;
-            dsrs::module::relabel(trace, mark, "write");
-            Ok(written)
-        })
+impl Forward for Outline {
+    async fn forward(&self, inputs: dsrs::Example) -> anyhow::Result<dsrs::Prediction> {
+        let angle = self.plan.forward(inputs).await?;
+        let handed = input! { angle: angle.get("angle").cloned().unwrap_or_default() };
+        self.write.forward(handed).await
     }
 }
-
-// One line, and `call!` reaches a module of your own as it reaches the built-in ones.
-dsrs::asks_with_a_prediction!(Outline);
 
 #[tokio::test]
 async fn a_module_of_your_own_composes_and_is_optimizable() {

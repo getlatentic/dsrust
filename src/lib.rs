@@ -18,9 +18,10 @@ pub mod signature;
 
 pub use adapter::baml::BamlAdapter;
 pub use adapter::{Adapter, ChatAdapter, Extraction, JsonAdapter, TwoStepAdapter};
+pub use dsrs_derive::Module;
 pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
 pub use example::{Example, Prediction};
-pub use module::{Ask, Module, NamedPredictor, TraceStep};
+pub use module::{Ask, Forward, Module, NamedPredictor, TraceStep};
 pub use optimize::{BootstrapFewShot, DynOptimizer, LabeledFewShot, Optimizer};
 pub use react::{FnTool, ReAct, Tool, Trajectory};
 

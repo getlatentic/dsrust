@@ -185,38 +185,19 @@ class Outline(dspy.Module):
 ```
 
 ```rust
+#[derive(Module)]
 struct Outline {
     plan: Predict,
     write: Predict,
 }
 
-impl Module for Outline {
-    fn forward<'a>(
-        &'a self,
-        inputs: Example,
-    ) -> Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
-        Box::pin(async move {
-            let angle = self.plan.forward(inputs).await?;
-            let handed = input! { angle: angle.get("angle").cloned().unwrap_or_default() };
-            self.write.forward(handed).await
-        })
-    }
-
-    /// What lets an optimizer reach inside and rewrite both steps.
-    fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
-        let mut found = Vec::new();
-        for (name, step) in [("plan", &mut self.plan), ("write", &mut self.write)] {
-            for mut inner in step.named_predictors() {
-                inner.name = name.to_owned();
-                found.push(inner);
-            }
-        }
-        found
+impl Forward for Outline {
+    async fn forward(&self, inputs: Example) -> Result<Prediction> {
+        let angle = self.plan.forward(inputs).await?;
+        let handed = input! { angle: angle.get("angle").cloned().unwrap_or_default() };
+        self.write.forward(handed).await
     }
 }
-
-// One line, and `call!` reaches your module as it reaches the built-in ones.
-dsrs::asks_with_a_prediction!(Outline);
 ```
 
 ```rust
@@ -224,17 +205,16 @@ let mut mine = Outline::new();
 let out = call!(mine, subject = "winter mornings").await?;
 ```
 
-Two methods carry weight beyond running the program, and Python gets both for free by
-inheriting:
+You write how it runs; the derive writes what Python inherits.
 
-- **`named_predictors`** is the seam an optimizer works through. Implement it and
-  `BootstrapFewShot` can compile your module; leave it off and your program runs but cannot be
-  improved. Renaming each child's predictors — `plan`, `write` — is what makes the demos say
-  which step earned them.
-- **`forward_traced`** is optional and reports which step made which call, so a compile can give
-  each step demos from its own successes rather than the program's. Without it the program still
-  compiles, and every step receives the same demo. The full version is in
-  [`tests/every_spelling.rs`](../tests/every_spelling.rs).
+Every named field is a step, so `named_predictors` — the seam an optimizer works through — comes
+from the field list, and each child's predictors are renamed after the field holding them, so a
+demo says which step earned it. A field that is not a step carries `#[not_a_step]`. The derive
+also makes the module callable through `call!`.
+
+`Forward` exists so an author is not writing `Pin<Box<dyn Future>>` by hand. `Module` keeps that
+shape because it must be object-safe for a composed program to hold `Box<dyn Module>`; the derive
+does the boxing in between.
 
 ## Against dspy
 

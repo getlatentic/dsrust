@@ -12,6 +12,7 @@ use proc_macro::TokenStream;
 
 mod call;
 mod emit;
+mod module;
 mod parse;
 mod signature_str;
 
@@ -48,6 +49,18 @@ pub fn predict(input: TokenStream) -> TokenStream {
         return quote::quote! { ::dsrs::Predict::task::<#task>() }.into();
     }
     call::expand(input, call::Module::Predict)
+}
+
+/// `#[derive(Module)]` — a program of your own, given everything Python inherits: the walk an
+/// optimizer works through, and being callable through `call!`. Write `dsrs::Forward` for how it
+/// runs; every named field is treated as a step unless marked `#[not_a_step]`.
+#[proc_macro_derive(Module, attributes(not_a_step))]
+pub fn derive_module(input: TokenStream) -> TokenStream {
+    let item = syn::parse_macro_input!(input as syn::DeriveInput);
+    match module::expand(&item) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.into_compile_error().into(),
+    }
 }
 
 /// `signature!("subject -> haiku")` — dspy's string spelling, refused while this crate compiles

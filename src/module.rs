@@ -34,6 +34,34 @@ pub struct TraceStep {
     pub outputs: Example,
 }
 
+/// What a program of your own has to say: how to run it.
+///
+/// [`Module`] is what everything else takes, and it is boxed and object-safe so a composed
+/// program can hold `Box<dyn Module>`. That shape is right for a caller and wrong for an author,
+/// who would be writing `Pin<Box<dyn Future>>` by hand for no reason. Implement this instead and
+/// `#[derive(Module)]` writes the rest: the walk an optimizer needs, the trace a compile needs,
+/// and the boxing.
+///
+/// ```ignore
+/// #[derive(Module)]
+/// struct Outline {
+///     plan: Predict,
+///     write: Predict,
+/// }
+///
+/// impl Forward for Outline {
+///     async fn forward(&self, inputs: Example) -> Result<Prediction> {
+///         let angle = self.plan.forward(inputs).await?;
+///         self.write
+///             .forward(dsrs::input! { angle: angle.get("angle").cloned().unwrap_or_default() })
+///             .await
+///     }
+/// }
+/// ```
+pub trait Forward: Send + Sync {
+    fn forward(&self, inputs: Example) -> impl Future<Output = Result<Prediction>> + Send;
+}
+
 /// A callable program. Implement it to add a module of your own.
 pub trait Module: Send + Sync {
     /// Run the program over one example's inputs.
