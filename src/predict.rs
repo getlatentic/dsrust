@@ -26,7 +26,7 @@ pub use refine::Refine;
 pub use derived::TypedPredict;
 use derived::typed;
 pub use multi_chain_comparison::MultiChainComparison;
-pub use parallel::Parallel;
+pub use parallel::{Answered, Parallel};
 
 #[cfg(test)]
 mod scripted;

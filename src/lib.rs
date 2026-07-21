@@ -36,8 +36,8 @@ pub use lm::{
     ChatModel, ChatTurn, LM, ModelRef, OutputMode, Provider, Role, configure, configure_with_client,
 };
 pub use predict::{
-    BestOfN, ChainOfThought, MultiChainComparison, Parallel, Predict, Refine, TypedChainOfThought,
-    TypedPredict,
+    Answered, BestOfN, ChainOfThought, MultiChainComparison, Parallel, Predict, Refine,
+    TypedChainOfThought, TypedPredict,
 };
 pub use signature::{
     FieldKind, InField, LiteralValue, OutField, Signature, SignatureSpec, chain_of_thought,

@@ -397,7 +397,12 @@ name = "Trying more than once"
 state = "done"
 closed = "2026-07-22"
 outcome = "A program can attempt something several times and keep the best attempt."
-suites = ["predict/test_best_of_n.py", "predict/test_refine.py"]
+# Empty, like s12, and deliberately: running predict/test_best_of_n.py or test_refine.py through
+# the bridge would exercise dspy's BestOfN/Refine over our adapter, not ours — a misleading green,
+# the optimizer-conformance-gap trap. Ours are verified by their own mutation-checked Rust tests,
+# and Refine's OfferFeedback signature by the offer_feedback conformance golden against dspy's
+# bytes. The suites the plan first named could never have been honest evidence here.
+suites = []
 rationale = """
 BestOfN and Refine are one module with a feedback step added, so they arrive together. Both need
 s12 first — a per-call LM override, since every attempt is `lm.copy(rollout_id=idx,
