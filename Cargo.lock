@@ -140,6 +140,7 @@ name = "dsrs"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "dsrs-derive",
  "futures-util",
  "lru",

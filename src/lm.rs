@@ -5,6 +5,7 @@ pub mod dummy;
 pub mod global;
 mod ollama;
 mod openai;
+pub mod part;
 mod token_limit;
 pub mod usage;
 
@@ -17,6 +18,7 @@ pub use cache::{Cached, ResponseCache};
 pub use call::{LmConfig, LmRequest, LmResponse, LmUsage};
 pub use global::{configure, configure_with_client};
 pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig};
+pub use part::{Content, Detail, LmPart, LmSource};
 pub use token_limit::{TokenLimitField, TokenLimitRule};
 pub use usage::{UsageTracker, track as track_usage};
 
@@ -85,38 +87,6 @@ impl Role {
             Role::User => "user",
             Role::Assistant => "assistant",
         }
-    }
-}
-
-/// What a turn says: prose, or the content blocks a multimodal field turns it into.
-///
-/// dspy types a message's content as `str | list[dict]` for the same reason. A field carrying an
-/// image cannot reach the provider inside a string — the image travels as its own block, with
-/// the prose around it split into blocks either side.
-/// Serializes as what it is — a bare string or an array of blocks — which is the shape every
-/// OpenAI-compatible provider expects in a message's `content`.
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
-#[serde(untagged)]
-pub enum Content {
-    /// One string, which is every message a text-only signature produces.
-    Text(String),
-    /// Blocks in the order the provider reads them, each an OpenAI-shaped content part.
-    Blocks(Vec<Value>),
-}
-
-impl Content {
-    /// The prose of a text-only message, or `None` once it has been split into blocks.
-    pub fn text(&self) -> Option<&str> {
-        match self {
-            Content::Text(text) => Some(text),
-            Content::Blocks(_) => None,
-        }
-    }
-}
-
-impl<S: Into<String>> From<S> for Content {
-    fn from(text: S) -> Self {
-        Content::Text(text.into())
     }
 }
 

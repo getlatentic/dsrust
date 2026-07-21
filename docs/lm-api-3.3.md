@@ -115,9 +115,52 @@ class LMMessage:   role: str; parts: list[LMPart]; name: str|None; metadata: dic
 class LMToolSpec:  type: "function"; name: str; description: str|None; parameters: dict; metadata; provider_data
 ```
 
-`LMPart` is a hierarchy, not a string: `LMBasePart(type, metadata)` → `LMTextPart(text)`,
-`LMImagePart`, `LMAudioPart`, `LMVideoPart`, `LMDocumentPart`. The media parts extend
-`LMSourcePart(media_type, data|url|file_id|path)`, which validates that exactly one source is set.
+`LMPart` is a hierarchy, not a string, and it has **eleven** members — read off
+`dspy/core/types.py` at 3.3.0b1, not summarised:
+
+```python
+LMBasePart(type: str, metadata: dict)                       # extra="forbid"
+├─ LMTextPart(text)                                          type="text"
+├─ LMSourcePart(media_type, data|url|file_id|path)           @validate_one_source
+│  ├─ LMImagePart(detail: low|high|auto|None)                type="image",  media_type="image/png"
+│  ├─ LMAudioPart                                            type="audio",  media_type="audio/wav"
+│  ├─ LMVideoPart                                            type="video",  media_type="video/mp4"
+│  └─ LMBinaryPart(filename)                                 type="binary", media_type="application/octet-stream"
+├─ LMDocumentPart(data|url|file_id|path|source, citations,   type="document", media_type="application/pdf"
+│                 title, context)                            @validate_source — source XOR a media source
+├─ LMToolCallPart(id, name, args, provider_data)             type="tool_call"
+├─ LMToolResultPart(call_id, name, content: list[LMPart],    type="tool_result" — recursive
+│                   is_error, provider_data)
+├─ LMThinkingPart(text, redacted)                            type="thinking"
+├─ LMCitationPart(text|title|url)                            type="citation" — @validate_has_content
+└─ LMRefusalPart(text)                                       type="refusal"
+
+LMPart = Annotated[<the eleven>, Field(discriminator="type")]
+```
+
+`LMDocumentPart` notably does **not** extend `LMSourcePart` — it carries the same four source
+fields plus a `source` dict, and its validator is the stricter `source` XOR media-source rule.
+Modelling it as an image sibling would be wrong.
+
+### The two mechanisms that keep the bytes still
+
+A typed part tree does not itself reach a provider. `dspy/clients/openai_format.py` converts it
+back to the OpenAI content blocks 3.2.1 already sent, and two rules do all the work:
+
+- **`parts_to_openai_content`** returns a *bare string* when the message is exactly one
+  `LMTextPart` with no `legacy_content_block`, and a block list otherwise. That is precisely this
+  crate's `Content::Text` vs `Content::Blocks` split, restated as a function of the parts — so the
+  split stops being a type and becomes a rendering rule.
+- **`metadata["legacy_content_block"]`** holds a provider-shaped block verbatim, and
+  `part_to_openai_blocks` returns it untouched ahead of every other branch.
+  `adapters/_legacy_type_markers.py` — the 3.3 successor to this crate's `adapter/blocks.rs` —
+  parks any block it cannot classify on `LMTextPart(text="", metadata={...})`. That is upstream's
+  own answer to "a custom type wrote JSON we do not model", and it is what makes the port
+  lossless rather than best-effort.
+
+Measured, not argued — 3.2.1's rendered blocks through 3.3's
+`_legacy_content_block_to_lm_part` → `parts_to_openai_content` come back identical, including for
+an unmodelled `{"type": "wildcard_v9", …}` block.
 
 ## Where this crate stands against it
 

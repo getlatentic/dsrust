@@ -1,5 +1,6 @@
 /target/
 derive/target/
 .dspy-venv/
+.dspy-venv-3.3/
 target/upstream-tests/
 __pycache__/
