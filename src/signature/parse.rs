@@ -327,3 +327,18 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod macro_tests {
+    use crate::signature;
+
+    /// The spelling a caller writes, checked while this crate compiles.
+    #[test]
+    fn the_macro_reads_the_same_signature_the_parser_reads() {
+        let built = signature!("subject -> haiku");
+        assert_eq!(built.inputs[0].name, "subject");
+        assert_eq!(built.outputs[0].name, "haiku");
+        let parsed: crate::Signature = "subject -> haiku".parse().expect("parses");
+        assert!(built == parsed, "the macro and the parser should agree");
+    }
+}

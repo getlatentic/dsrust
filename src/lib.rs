@@ -36,5 +36,5 @@ pub use lm::{
 pub use predict::{ChainOfThought, Predict, TypedChainOfThought, TypedPredict};
 pub use signature::{
     FieldKind, InField, LiteralValue, OutField, Signature, SignatureSpec, chain_of_thought,
-    json_field_schema, predict,
+    json_field_schema, predict, signature,
 };

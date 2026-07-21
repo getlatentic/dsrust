@@ -13,7 +13,7 @@ pub use prefix::infer_prefix;
 
 /// The derive plus its call-site macros: `predict!(Task { field: value, ... })` and the
 /// `chain_of_thought!` twin evaluate to one typed module call awaiting the caller's `?`.
-pub use dsrs_derive::{Signature, chain_of_thought, predict};
+pub use dsrs_derive::{Signature, chain_of_thought, predict, signature};
 
 /// One input field of a signature: a name, a one-line description, a wire type, an optional
 /// closed set the prompt spells as the field's type in place of that wire type, and the prose

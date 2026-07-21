@@ -11,3 +11,6 @@ proc-macro2 = "1"
 quote = "1"
 # full: the call macros parse arbitrary expressions as field values.
 syn = { version = "2", features = ["full"] }
+
+[dev-dependencies]
+serde_json = "1"

@@ -13,6 +13,7 @@ use proc_macro::TokenStream;
 mod call;
 mod emit;
 mod parse;
+mod signature_str;
 
 /// `String`, `bool`, fixed-width integers, and floats travel as scalar wire fields; any
 /// other field type — `Vec<String>`, your own structs, `Vec<Struct>` — travels as JSON.
@@ -38,6 +39,14 @@ pub fn derive_signature(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn predict(input: TokenStream) -> TokenStream {
     call::expand(input, call::Module::Predict)
+}
+
+/// `signature!("subject -> haiku")` — dspy's string spelling, refused while this crate compiles
+/// rather than when the program runs. Evaluates to a `Signature`, so it drops straight into
+/// `Predict::new` with no `?` to write and no failure left to handle.
+#[proc_macro]
+pub fn signature(input: TokenStream) -> TokenStream {
+    signature_str::expand(input)
 }
 
 /// `chain_of_thought!(Task { field: value, ... })` — the [`predict!`] grammar driving the
