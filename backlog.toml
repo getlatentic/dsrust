@@ -470,6 +470,21 @@ four fields.
 Item 1 is a byte divergence and should go first; it is small. Items 2 and 3 are API shape and
 want deciding together, since an escape hatch and a per-call override are the same field arriving
 by two routes.
+
+**The shape, and why it is not a straight port.** Upstream's config is untyped end to end —
+`**config` unannotated on `Predict`, `**kwargs` on `LM.__call__`, `{**self.kwargs, **kwargs}`
+into litellm. A bag reaching the provider unchecked.
+
+Mirroring that as `Map<String, Value>` would throw away the four fields we know and get nothing
+back: the keys are provider-defined and open-ended, so no enum can close the set, but the four we
+model are the ones every provider path already reads. So: keep `Sampling` typed and add an
+overflow map merged into the request JSON. Typed for what we model, byte-identical for whatever
+else a caller passes, and no key silently dropped — which is the failure the current fixed struct
+has.
+
+This is the one place the "use Rust properly where bytes do not force otherwise" rule points both
+ways at once. The extras *do* reach bytes, so they cannot be dropped; the set cannot be
+enumerated, so it cannot be fully typed. The split is the answer rather than a compromise.
 '''
 
 [[backlog]]
