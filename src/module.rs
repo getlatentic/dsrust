@@ -79,6 +79,27 @@ pub fn relabel(trace: &mut [TraceStep], from: usize, name: &str) {
     }
 }
 
+/// Ask a module, naming each input where its value goes.
+///
+/// ```
+/// # async fn wrapper(haiku: impl dsrs::Module) -> anyhow::Result<()> {
+/// let result = dsrs::call!(haiku, subject = "computer science", tone = "wry").await?;
+/// # Ok(()) }
+/// ```
+///
+/// Rust has neither named arguments nor a mapping literal, so the two are written here instead:
+/// the field name sits where the value does, which is what `subject=` does in Python. Evaluates
+/// to the call's future, so the caller writes `.await?` and sees where the model is reached.
+#[macro_export]
+macro_rules! call {
+    ($module:expr, $($field:ident = $value:expr),* $(,)?) => {
+        $crate::Module::forward(
+            &$module,
+            $crate::example! { $($field: $value),* },
+        )
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
