@@ -10,7 +10,7 @@ VERSION="$(cat "$ROOT/scripts/DSPY_VERSION")"
 WORK="$ROOT/target/upstream-tests"
 VENV="$ROOT/.dspy-venv"
 
-[ -x "$VENV/bin/python" ] || { echo "run: uv venv .dspy-venv --python 3.12 && uv pip install --python $VENV/bin/python dspy==$VERSION pytest pytest-asyncio maturin" >&2; exit 1; }
+[ -x "$VENV/bin/python" ] || { echo "run: uv venv .dspy-venv --python 3.12 && uv pip install --python $VENV/bin/python dspy==$VERSION pytest pytest-asyncio maturin pillow" >&2; exit 1; }
 
 echo "==> Building and installing the Rust bridge"
 # maturin supplies the platform's extension-module link arguments; build.rs keeps them scoped
@@ -32,7 +32,8 @@ SUITES=(
   adapters/test_xml_adapter.py adapters/test_baml_adapter.py adapters/test_two_step_adapter.py
   predict/test_predict.py predict/test_chain_of_thought.py predict/test_react.py
   teleprompt/test_bootstrap.py
-  signatures/test_signature.py
+  signatures/test_signature.py signatures/test_custom_types.py
+  signatures/test_adapter_file.py signatures/test_adapter_image.py
 )
 
 # SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against

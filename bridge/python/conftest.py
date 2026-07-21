@@ -45,6 +45,9 @@ RUST_BACKED = {
 
 # Upstream tests whose features this crate has not written yet, with the reason. Delete a line
 # once Rust renders that case; the strict xfail will fail the run if you forget.
+#
+# A run may report xfails this list is empty of: dspy marks two of its own image cases xfail
+# inside the test body, for a gap upstream has rather than one this port has.
 NOT_YET_IMPLEMENTED = {
 }
 
@@ -103,7 +106,6 @@ DOES_NOT_EXERCISE_RUST = {
     # can cross by the tests' own design.
     "test_trajectory_truncation": "ReAct's loop with its predictors mocked out",
     "test_context_window_exceeded_after_retries": "ReAct's loop with its predictors mocked out",
-    "test_tool_observation_preserves_custom_type": "a test-local adapter, watching ReAct's input",
     # Calls dspy's private `_call_postprocess` with outputs already parsed, so it exercises
     # dspy's own plumbing around an adapter rather than anything the adapter renders.
     "test_tool_call_with_null_content_does_not_raise": "dspy-internal postprocessing",
@@ -121,6 +123,56 @@ DOES_NOT_EXERCISE_RUST = {
     "test_reasoning_concatenation": "dspy.Reasoning behaving as a string",
     "test_reasoning_error_message": "dspy.Reasoning's attribute error",
     "test_reasoning_string_methods": "dspy.Reasoning behaving as a string",
+    # `dspy.File` constructing, validating and describing itself: from bytes, from a path, from
+    # an id, from a dict, and what each refuses. The adapter is not reached — these build the
+    # value that an adapter would later render, and four tests in the file do render one.
+    "test_encode_file_to_dict_from_bytes": "dspy.File encoding itself",
+    "test_encode_file_to_dict_from_path": "dspy.File encoding itself",
+    "test_file_custom_mime_type": "dspy.File's own mime detection",
+    "test_file_data_uri_in_format": "dspy.File's own data URI",
+    "test_file_from_bytes": "dspy.File construction",
+    "test_file_from_bytes_custom_mime": "dspy.File construction",
+    "test_file_from_bytes_with_filename": "dspy.File construction",
+    "test_file_from_dict_with_file_data": "dspy.File construction",
+    "test_file_from_dict_with_file_id": "dspy.File construction",
+    "test_file_from_file_id": "dspy.File construction",
+    "test_file_from_file_id_with_filename": "dspy.File construction",
+    "test_file_from_local_path": "dspy.File construction",
+    "test_file_from_path_method": "dspy.File construction",
+    "test_file_from_path_with_custom_filename": "dspy.File construction",
+    "test_file_frozen": "dspy.File refusing mutation",
+    "test_file_path_not_found": "dspy.File rejecting a missing path",
+    "test_file_repr_with_file_data": "dspy.File's own string form",
+    "test_file_repr_with_file_id": "dspy.File's own string form",
+    "test_file_str": "dspy.File's own string form",
+    "test_file_with_all_fields": "dspy.File construction",
+    "test_invalid_dict": "dspy.File rejecting a malformed dict",
+    "test_invalid_file_string": "dspy.File rejecting a malformed string",
+    # `dspy.Image` doing the same, plus the PIL and download paths that never reach a prompt.
+    "test_different_mime_types": "dspy.Image's own mime detection",
+    "test_from_methods_warn": "dspy.Image's deprecation warning",
+    "test_image_repr": "dspy.Image's own string form",
+    "test_invalid_string_format": "dspy.Image rejecting a malformed string",
+    "test_mime_type_from_response_headers": "dspy.Image reading a response header",
+    "test_pil_image_with_download_parameter": "dspy.Image's download flag",
+    # Resolving a custom annotation to a type, which is Python's type system answering about
+    # itself. `reflect.py` is where this crate depends on that answer rather than making it.
+    "test_basic_custom_type_resolution": "dspy resolving an annotation to a type",
+    "test_expected_failure": "dspy refusing an annotation it cannot resolve",
+    "test_module_level_type_resolution": "dspy resolving an annotation to a type",
+    "test_module_type_resolution": "dspy resolving an annotation to a type",
+    "test_recommended_patterns": "dspy resolving an annotation to a type",
+    "test_type_alias_for_nested_types": "dspy resolving an annotation to a type",
+    # `dspy.File.format` and `dspy.Image.format` are the type's own serialisation, not an
+    # adapter's: they answer what the value becomes, and an adapter later decides where it goes.
+    "test_file_format_with_file_data": "dspy.File serialising itself",
+    "test_file_format_with_file_id": "dspy.File serialising itself",
+    # One case each of a parametrized test whose other cases do render. A PIL object is decoded
+    # by dspy before any prompt exists, where a URL or a path travels into one.
+    "test_image_input_formats[pil_image-PIL Image]": "dspy.Image decoding a PIL object",
+    "test_image_input_formats[encoded_pil_image-encoded PIL image string]": (
+        "dspy.Image decoding a PIL object"
+    ),
     # A signature declaration this crate has not been given a say in yet. Each raises while the
     # declaration is still being validated, before any field exists to name, so nothing reaches
     # the crate. The structural half of that validation — one arrow, and no name claimed by both
@@ -179,13 +231,17 @@ def _require_a_crossing(request):
     if crossings.SIGNATURE > before_signature:
         _REACHED_SIGNATURE.add(request.node.nodeid)
     module = request.node.module.__name__ + ".py"
-    name = request.node.name.split("[")[0]
+    case = request.node.name
+    name = case.split("[")[0]
     # A name can repeat across files — `test_initialization_with_string_signature` is in both
     # the predict and chain-of-thought suites, and only one of them stays in Python — so a
-    # declaration may name its file to say which it means.
+    # declaration may name its file to say which it means. It may also name one case of a
+    # parametrized test, because whether a case reaches the crate can differ per case: an image
+    # given as a URL renders, and the same test given a PIL object does not.
     declared = any(
         key in DOES_NOT_EXERCISE_RUST
-        for key in (f"{module}::{name}", f"{module}::{name.removesuffix('_async')}",
+        for key in (f"{module}::{case}", case,
+                    f"{module}::{name}", f"{module}::{name.removesuffix('_async')}",
                     name, name.removesuffix("_async"))
     )
     if module in SIGNATURE_CONFORMANCE:

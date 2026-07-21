@@ -22,11 +22,11 @@ updated = "2026-07-21"
 
 [status]
 rust_tests = 372
-upstream_tests_passing = 300
-upstream_tests_crossing = 160
-upstream_tests_deciding_signatures = 229
+upstream_tests_passing = 355
+upstream_tests_crossing = 179
+upstream_tests_deciding_signatures = 253
 xfail_backlog = 0
-suites_run = 18
+suites_run = 21
 
 # ---------------------------------------------------------------------------
 # Shipped
@@ -172,7 +172,10 @@ id = "s4"
 name = "Signatures and primitives"
 state = "in-progress"
 outcome = "The declaration layer is held to upstream directly, not only through adapters."
-suites = ["signatures/test_signature.py"]
+suites = [
+  "signatures/test_signature.py", "signatures/test_custom_types.py",
+  "signatures/test_adapter_file.py", "signatures/test_adapter_image.py",
+]
 rationale = """
 Signature behaviour was proven only where an adapter happened to render it. These suites test
 it head-on.
@@ -192,11 +195,15 @@ another, and it moves during almost any signature construction, so folding them 
 have reported coverage no assertion backs. Both are printed.
 """
 remaining = """
-Five tests in test_signature.py raise while a declaration is still being validated, so nothing
-reaches the crate. Two of the five are structural and portable: exactly one arrow, and no name
-claimed by both sides. The other three are pydantic field validation. primitives/ is untouched:
-test_python_interpreter.py needs a deno sandbox, and test_base_module.py with test_module.py are
-the state layer the handoff lists as not started.
+signatures/ is complete: all four files run. What they leave declared rather than crossing is
+dspy.File, dspy.Image and custom-annotation resolution — a value building and describing itself,
+which is Python answering about its own type system rather than anything this crate renders.
+Four tests in test_signature.py raise while a declaration is still being validated; two of those
+are structural and portable (exactly one arrow, no name claimed by both sides).
+
+primitives/ is the rest of the sprint. test_python_interpreter.py needs a deno sandbox, and
+test_base_module.py with test_module.py are the state layer the handoff lists as not started, so
+test_example.py is the one plainly in scope.
 """
 
 [[sprint]]
