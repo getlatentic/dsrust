@@ -347,13 +347,10 @@ mod tests {
     #[test]
     fn a_replay_reports_what_it_was_worth_but_no_new_spend() {
         let cache = ResponseCache::default();
-        let usage = LmUsage {
-            input_tokens: 10,
-            output_tokens: 4,
-        };
+        let usage = LmUsage::counted(10, 4);
         cache.keep(
             "key".to_owned(),
-            LmResponse::text("the reply").with_usage(Some(usage)),
+            LmResponse::text("the reply").with_usage(Some(usage.clone())),
         );
 
         let replayed = cache.replay("key").expect("a hit");

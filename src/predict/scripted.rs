@@ -56,10 +56,7 @@ impl Scripted {
     /// Report this cost on every reply. A provider charges each call, so a module that asks
     /// twice should answer with twice this.
     pub(super) fn costing(mut self, input_tokens: u32, output_tokens: u32) -> Self {
-        self.usage = Some(LmUsage {
-            input_tokens,
-            output_tokens,
-        });
+        self.usage = Some(LmUsage::counted(input_tokens, output_tokens));
         self
     }
 
@@ -79,7 +76,7 @@ impl ChatModel for Scripted {
             .lock()
             .expect("not poisoned")
             .pop_front()
-            .map(|reply| LmResponse::text(reply).with_usage(self.usage))
+            .map(|reply| LmResponse::text(reply).with_usage(self.usage.clone()))
             .ok_or_else(|| anyhow!("script exhausted"))
     }
 }

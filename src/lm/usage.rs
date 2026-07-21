@@ -32,8 +32,9 @@ impl UsageTracker {
     pub fn add(&self, model: &str, usage: LmUsage) {
         let mut totals = self.by_model.lock().expect("not poisoned");
         let running = totals.entry(model.to_owned()).or_default();
-        running.input_tokens += usage.input_tokens;
-        running.output_tokens += usage.output_tokens;
+        // Through `merge` rather than by hand, so every counter is carried — a run that spent
+        // reasoning tokens totals them, where adding two fields would quietly drop eight.
+        *running = LmUsage::merge(Some(running.clone()), Some(usage)).unwrap_or_default();
     }
 
     /// What each model was asked for, dspy's `get_total_tokens`.
@@ -43,13 +44,14 @@ impl UsageTracker {
 
     /// What the whole run cost, across every model.
     pub fn total(&self) -> LmUsage {
-        self.by_model.lock().expect("not poisoned").values().fold(
-            LmUsage::default(),
-            |running, usage| LmUsage {
-                input_tokens: running.input_tokens + usage.input_tokens,
-                output_tokens: running.output_tokens + usage.output_tokens,
-            },
-        )
+        self.by_model
+            .lock()
+            .expect("not poisoned")
+            .values()
+            .fold(None, |running, usage| {
+                LmUsage::merge(running, Some(usage.clone()))
+            })
+            .unwrap_or_default()
     }
 
     /// Whether anything has been charged yet.
@@ -76,7 +78,7 @@ fn scope() -> &'static Mutex<()> {
 /// # async fn wrapper(program: dsrs::Predict) -> anyhow::Result<()> {
 /// let counting = dsrs::lm::usage::track();
 /// program.call("a question").await?;
-/// println!("{} tokens", counting.tracker().total().total());
+/// println!("{:?} tokens", counting.tracker().total().total());
 /// # Ok(()) }
 /// ```
 pub fn track() -> Tracking {
@@ -132,10 +134,7 @@ mod tests {
     use super::*;
 
     fn usage(input_tokens: u32, output_tokens: u32) -> LmUsage {
-        LmUsage {
-            input_tokens,
-            output_tokens,
-        }
+        LmUsage::counted(input_tokens, output_tokens)
     }
 
     #[test]
@@ -145,7 +144,7 @@ mod tests {
         record("anthropic/claude", Some(usage(6, 2)));
 
         assert_eq!(counting.total(), usage(16, 6));
-        assert_eq!(counting.total().total(), 22);
+        assert_eq!(counting.total().total(), Some(22));
     }
 
     /// A drafting model and a judging model are two numbers worth knowing apart.

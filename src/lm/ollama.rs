@@ -49,9 +49,15 @@ fn reply(body: &Value) -> Result<LmResponse> {
 fn usage(body: &Value) -> Option<LmUsage> {
     let input = body["prompt_eval_count"].as_u64();
     let output = body["eval_count"].as_u64();
-    (input.is_some() || output.is_some()).then(|| LmUsage {
-        input_tokens: input.unwrap_or(0) as u32,
-        output_tokens: output.unwrap_or(0) as u32,
+    // A count the provider omitted stays unknown rather than becoming zero, which is what
+    // optional counters buy: reporting one of the two is now sayable.
+    (input.is_some() || output.is_some()).then(|| {
+        LmUsage {
+            input_tokens: input.map(|count| count as u32),
+            output_tokens: output.map(|count| count as u32),
+            ..LmUsage::default()
+        }
+        .filled()
     })
 }
 
@@ -136,8 +142,8 @@ mod tests {
         let answered = reply(&body).expect("a reply");
         assert_eq!(answered.text_ref(), "the reply");
         let usage = answered.usage.expect("counts");
-        assert_eq!(usage.input_tokens, 26);
-        assert_eq!(usage.output_tokens, 298);
+        assert_eq!(usage.input_tokens, Some(26));
+        assert_eq!(usage.output_tokens, Some(298));
         assert_eq!(
             answered.provider_data.expect("a done reason")["done_reason"],
             "length"

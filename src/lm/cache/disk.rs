@@ -194,10 +194,7 @@ mod tests {
     }
 
     fn reply(text: &str) -> LmResponse {
-        LmResponse::text(text).with_usage(Some(LmUsage {
-            input_tokens: 3,
-            output_tokens: 4,
-        }))
+        LmResponse::text(text).with_usage(Some(LmUsage::counted(3, 4)))
     }
 
     #[test]
@@ -208,7 +205,7 @@ mod tests {
 
         let found = cache.get("abcdef").expect("the entry is there");
         assert_eq!(found.text_ref(), "the reply");
-        assert_eq!(found.usage.expect("usage survived").input_tokens, 3);
+        assert_eq!(found.usage.expect("usage survived").input_tokens, Some(3));
     }
 
     #[test]
@@ -248,8 +245,16 @@ mod tests {
     #[test]
     fn the_oldest_entries_are_pruned_once_the_budget_is_gone() {
         let scratch = Scratch::new("prune");
-        // Small enough that a couple of entries exceed it, so the prune has to actually run.
-        let cache = DiskCache::new(&scratch.0, 200);
+
+        // A budget of two entries, measured rather than guessed. A magic byte count would be
+        // tuned to whatever `LmResponse` happened to serialize to that week, and would fail the
+        // day a field was added to it — which is exactly what happened when `LmUsage` grew.
+        let measuring = Scratch::new("prune-measure");
+        let sizer = DiskCache::new(&measuring.0, DEFAULT_SIZE_LIMIT);
+        sizer.put("aa0000", &reply("first"));
+        let budget = sizer.size() * 2;
+
+        let cache = DiskCache::new(&scratch.0, budget);
 
         cache.put("aa0000", &reply("first"));
         // mtime has whole-second resolution on some filesystems, so without this the sort has
@@ -258,7 +263,7 @@ mod tests {
         cache.put("bb1111", &reply("second"));
         cache.put("cc2222", &reply("third"));
 
-        assert!(cache.size() <= 200, "pruned back inside the budget");
+        assert!(cache.size() <= budget, "pruned back inside the budget");
         assert_eq!(cache.get("aa0000"), None, "the oldest entry went first");
         assert!(cache.get("cc2222").is_some(), "the newest survived");
     }

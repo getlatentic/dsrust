@@ -351,8 +351,12 @@ behaviour change. A commit that greens by regenerating a fixture has failed.
 
 Order, leaves first, so nothing is half-typed at any point:
 
-  s13-1  LmUsage — ten counters where there are two. Touches every provider's usage reader and
-         `Usage::merge`. Smallest real slice, and `spend()`/the tracker depend on it.
+  s13-1  DONE. LmUsage carries upstream's eleven fields, all optional, plus `details`. `filled()`
+         is `fill_aliases`: both naming conventions populated from whichever arrived, and the
+         total derived. `counted(input, output)` is the constructor providers use, since a Rust
+         literal runs no validator. Anthropic's cache work now has real homes in
+         `cache_read_tokens`/`cache_write_tokens`, and ollama and openai stopped reporting an
+         omitted count as zero — optional counters made "one of the two is unknown" sayable.
   s13-2  The part hierarchy — LmPart with text/image/audio/video/document, over LmSourcePart with
          its one-source validation. This replaces `Content{Text, Blocks}`, which is the single
          widest change: every adapter renders a turn.

@@ -83,10 +83,24 @@ fn usage(usage: &Value) -> Option<LmUsage> {
     let count = |key: &str| usage[key].as_u64().unwrap_or(0) as u32;
     let input = count("input_tokens") + count("cache_creation_input_tokens");
     let output = count("output_tokens");
-    (usage.is_object() && (input > 0 || output > 0)).then_some(LmUsage {
-        input_tokens: input + count("cache_read_input_tokens"),
-        output_tokens: output,
+    (usage.is_object() && (input > 0 || output > 0)).then(|| {
+        LmUsage {
+            input_tokens: Some(input + count("cache_read_input_tokens")),
+            output_tokens: Some(output),
+            // Anthropic states its cache work separately, and upstream has counters for it.
+            // They are additional detail rather than a different total: a cache read is already
+            // inside `input_tokens` above, which is what this crate has always reported.
+            cache_read_tokens: reported(count("cache_read_input_tokens")),
+            cache_write_tokens: reported(count("cache_creation_input_tokens")),
+            ..LmUsage::default()
+        }
+        .filled()
     })
+}
+
+/// A counter a provider did not mention reads as unknown rather than as zero.
+fn reported(count: u32) -> Option<u32> {
+    (count > 0).then_some(count)
 }
 
 /// Why generation stopped, which is the one thing here a caller acts on: `max_tokens` means the
@@ -174,8 +188,8 @@ mod tests {
             .expect("a reply")
             .usage
             .expect("a usage block");
-        assert_eq!(usage.input_tokens, 114);
-        assert_eq!(usage.output_tokens, 7);
+        assert_eq!(usage.input_tokens, Some(114));
+        assert_eq!(usage.output_tokens, Some(7));
     }
 
     /// A provider that reported nothing must not read as a call that cost nothing.

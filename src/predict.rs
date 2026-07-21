@@ -511,8 +511,8 @@ mod tests {
             .expect("the retry is valid");
 
         let usage = answered.usage.expect("both calls reported a cost");
-        assert_eq!(usage.input_tokens, 60, "the first ask and the retry");
-        assert_eq!(usage.output_tokens, 24);
+        assert_eq!(usage.input_tokens, Some(60), "the first ask and the retry");
+        assert_eq!(usage.output_tokens, Some(24));
     }
 
     /// A model reporting nothing must not report zero: a caller adding a scripted run to a real
