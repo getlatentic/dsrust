@@ -25,8 +25,8 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 346 passing |
-| Upstream dspy tests | 256 passing, 156 crossing into Rust |
+| Rust tests | 347 passing |
+| Upstream dspy tests | 300 passing, 160 rendering and 229 deciding a signature |
 | Known-gap backlog | empty |
 
 Ported: five adapters (chat, JSON, XML, BAML, TwoStep), `Predict`, `ChainOfThought`, `ReAct`,
@@ -98,7 +98,7 @@ running pytest there directly uses a stale list. Always go through the script.
 
 `bridge/` is a PyO3 extension letting dspy's Python tests drive Rust. The division is deliberate:
 
-> **Python reflects. Rust renders.**
+> **Python reflects. Rust decides.**
 
 Python does what only Python can — walk a pydantic annotation, ask whether a type subclasses
 `dspy.Code`, produce a JSON schema. Rust decides every byte the model reads. When a shim starts

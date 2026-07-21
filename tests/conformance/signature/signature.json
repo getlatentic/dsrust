@@ -1,0 +1,186 @@
+{
+  "source": "generated from dspy==3.2.1 via scripts/generate_signature_fixture.py",
+  "dspy_version": "3.2.1",
+  "infer_prefix": [
+    {
+      "name": "camelCaseText",
+      "prefix": "Camel Case Text"
+    },
+    {
+      "name": "snake_case_text",
+      "prefix": "Snake Case Text"
+    },
+    {
+      "name": "text2number",
+      "prefix": "Text 2 Number"
+    },
+    {
+      "name": "HTMLParser",
+      "prefix": "HTML Parser"
+    },
+    {
+      "name": "",
+      "prefix": ""
+    },
+    {
+      "name": "a",
+      "prefix": "A"
+    },
+    {
+      "name": "A",
+      "prefix": "A"
+    },
+    {
+      "name": "question",
+      "prefix": "Question"
+    },
+    {
+      "name": "Question",
+      "prefix": "Question"
+    },
+    {
+      "name": "HTML",
+      "prefix": "HTML"
+    },
+    {
+      "name": "HTMLParserError",
+      "prefix": "HTML Parser Error"
+    },
+    {
+      "name": "parseHTML",
+      "prefix": "Parse HTML"
+    },
+    {
+      "name": "parseHTMLNow",
+      "prefix": "Parse HTML Now"
+    },
+    {
+      "name": "AParser",
+      "prefix": "A Parser"
+    },
+    {
+      "name": "ABCdef",
+      "prefix": "AB Cdef"
+    },
+    {
+      "name": "aB",
+      "prefix": "A B"
+    },
+    {
+      "name": "aBc",
+      "prefix": "A Bc"
+    },
+    {
+      "name": "aBcDe",
+      "prefix": "A Bc De"
+    },
+    {
+      "name": "2text",
+      "prefix": "2 Text"
+    },
+    {
+      "name": "text2",
+      "prefix": "Text 2"
+    },
+    {
+      "name": "text2number3more",
+      "prefix": "Text 2 Number 3 More"
+    },
+    {
+      "name": "x2y",
+      "prefix": "X 2 Y"
+    },
+    {
+      "name": "abc123",
+      "prefix": "Abc 123"
+    },
+    {
+      "name": "123abc",
+      "prefix": "123 Abc"
+    },
+    {
+      "name": "123",
+      "prefix": "123"
+    },
+    {
+      "name": "v2Model",
+      "prefix": "V 2 Model"
+    },
+    {
+      "name": "modelV2",
+      "prefix": "Model V 2"
+    },
+    {
+      "name": "_leading",
+      "prefix": " Leading"
+    },
+    {
+      "name": "trailing_",
+      "prefix": "Trailing "
+    },
+    {
+      "name": "double__underscore",
+      "prefix": "Double  Underscore"
+    },
+    {
+      "name": "_",
+      "prefix": " "
+    },
+    {
+      "name": "__",
+      "prefix": "  "
+    },
+    {
+      "name": "snake_case_HTML",
+      "prefix": "Snake Case HTML"
+    },
+    {
+      "name": "MixedCase_with_snake",
+      "prefix": "Mixed Case With Snake"
+    },
+    {
+      "name": "café_au_lait",
+      "prefix": "Café Au Lait"
+    },
+    {
+      "name": "naïveParser",
+      "prefix": "Naïve Parser"
+    },
+    {
+      "name": "ΑΒΓdelta",
+      "prefix": "Αβγdelta"
+    },
+    {
+      "name": "ПриветМир",
+      "prefix": "Приветмир"
+    },
+    {
+      "name": "text٢number",
+      "prefix": "Text ٢ Number"
+    },
+    {
+      "name": "٢text",
+      "prefix": "٢ Text"
+    },
+    {
+      "name": "Ⅻtext",
+      "prefix": "Ⅻtext"
+    },
+    {
+      "name": "text½number",
+      "prefix": "Text½number"
+    },
+    {
+      "name": "ABécole",
+      "prefix": "Abécole"
+    },
+    {
+      "name": "café2",
+      "prefix": "Café2"
+    },
+    {
+      "name": "2école",
+      "prefix": "2école"
+    }
+  ]
+}

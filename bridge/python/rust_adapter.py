@@ -35,11 +35,9 @@ from dspy.utils.exceptions import AdapterParseError
 from litellm import ContextWindowExceededError
 
 import dsrs_bridge
+import crossings
 from reflect import Unsupported, describe, described_outputs
 
-#: How many times the crate rendered or parsed. A test that passes without moving this never
-#: exercised Rust, whatever its name says, so `conftest.py` refuses to count it as conformance.
-CROSSINGS = 0
 
 
 class _RustBacked:
@@ -63,8 +61,7 @@ class _RustBacked:
 
     def format_system_message(self, signature) -> str:
         """dspy exposes this on its own, and a caller reading it should read the crate's."""
-        global CROSSINGS
-        CROSSINGS += 1
+        crossings.record_render()
         return dsrs_bridge.format_system_message(
             self.WIRE,
             signature.instructions,
@@ -74,8 +71,7 @@ class _RustBacked:
 
     def format_field_description(self, signature) -> str:
         """Upstream's tests read this section on its own, so it has to be the crate's."""
-        global CROSSINGS
-        CROSSINGS += 1
+        crossings.record_render()
         return dsrs_bridge.field_description(
             signature.instructions,
             describe(signature.input_fields),
@@ -83,8 +79,7 @@ class _RustBacked:
         )
 
     def format(self, signature, demos, inputs) -> list[dict[str, typing.Any]]:
-        global CROSSINGS
-        CROSSINGS += 1
+        crossings.record_render()
         rendered_demos = [
             [
                 (name, format_field_value(field_info=field, value=demo[name]))
@@ -111,8 +106,7 @@ class _RustBacked:
         ]
 
     def parse(self, signature, completion):
-        global CROSSINGS
-        CROSSINGS += 1
+        crossings.record_render()
         # Rust reports a parse failure as an error; dspy's contract is that a ChatAdapter
         # raises AdapterParseError, and callers — including its own fallback path — branch on
         # that type. Translating at the boundary is this shim's job, the same as field kinds.
@@ -225,8 +219,7 @@ class RustBAMLAdapter(_RustBacked, BAMLAdapter):
         It is the only section any adapter states alone, and the only one that can refuse a
         signature — the crate raises on a model that reaches itself, exactly where dspy does.
         """
-        global CROSSINGS
-        CROSSINGS += 1
+        crossings.record_render()
         return dsrs_bridge.baml_field_structure(
             signature.instructions,
             describe(signature.input_fields),

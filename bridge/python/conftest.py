@@ -23,7 +23,8 @@ except ImportError as error:  # pragma: no cover - environment dependent
         allow_module_level=True,
     )
 
-import rust_adapter  # noqa: E402
+import crossings  # noqa: E402
+import rust_signature  # noqa: E402
 from rust_adapter import (  # noqa: E402
     RustBAMLAdapter,
     RustChatAdapter,
@@ -120,6 +121,15 @@ DOES_NOT_EXERCISE_RUST = {
     "test_reasoning_concatenation": "dspy.Reasoning behaving as a string",
     "test_reasoning_error_message": "dspy.Reasoning's attribute error",
     "test_reasoning_string_methods": "dspy.Reasoning behaving as a string",
+    # A signature declaration this crate has not been given a say in yet. Each raises while the
+    # declaration is still being validated, before any field exists to name, so nothing reaches
+    # the crate. The structural half of that validation — one arrow, and no name claimed by both
+    # sides — is portable and would make the last two cross.
+    "test_no_input_output": "dspy rejecting a field that is neither input nor output",
+    "test_no_input_output2": "dspy rejecting a bare pydantic field",
+    "test_instructions_signature": "dspy rejecting empty instructions",
+    "test_empty_signature": "dspy rejecting a signature string with no arrow",
+    "test_duplicate_input_output_field_names_raise": "dspy rejecting a name used on both sides",
 }
 
 # Whole files that test dspy's own Python rather than anything an adapter renders: a type's
@@ -127,6 +137,13 @@ DOES_NOT_EXERCISE_RUST = {
 # of these was measured as never reaching the crate. The check runs both ways — a test here
 # that *does* cross fails the run, because that means the file has started covering this port
 # and each of its tests deserves triaging rather than a blanket pass.
+SIGNATURE_CONFORMANCE = {
+    "upstream_test_signature.py": "how a signature is built, named and described",
+}
+
+# Whole files whose subject is beneath the wire: a signature's own construction, naming and
+# description. Their tests are held to reaching the signature layer rather than to rendering,
+# because nothing they assert on is a message a model would read.
 NOT_ADAPTER_CONFORMANCE = {
     "upstream_test_adapter_utils.py": "dspy's own field-formatting helpers, called directly",
     "upstream_test_base_type.py": "dspy.Type's annotation walking, in Python",
@@ -141,6 +158,9 @@ NOT_ADAPTER_CONFORMANCE = {
 #: as coverage this suite does not claim, since most of the type files never cross.
 _CROSSED: set[str] = set()
 
+#: Names of tests that reached the signature layer, counted apart for the reason above.
+_REACHED_SIGNATURE: set[str] = set()
+
 
 @pytest.fixture(autouse=True)
 def _require_a_crossing(request):
@@ -150,19 +170,15 @@ def _require_a_crossing(request):
     reach Rust. It then passes for reasons this crate has no part in, which is the one way a
     conformance suite can lie about its coverage.
     """
-    before = rust_adapter.CROSSINGS
+    before = crossings.RENDERED
+    before_signature = crossings.SIGNATURE
     yield
-    crossed = rust_adapter.CROSSINGS > before
+    crossed = crossings.RENDERED > before
     if crossed:
         _CROSSED.add(request.node.nodeid)
+    if crossings.SIGNATURE > before_signature:
+        _REACHED_SIGNATURE.add(request.node.nodeid)
     module = request.node.module.__name__ + ".py"
-    if module in NOT_ADAPTER_CONFORMANCE:
-        if crossed:
-            pytest.fail(
-                f"{module} is declared as not covering this port, but this test reached the "
-                "crate; drop the file's line and triage its tests individually"
-            )
-        return
     name = request.node.name.split("[")[0]
     # A name can repeat across files — `test_initialization_with_string_signature` is in both
     # the predict and chain-of-thought suites, and only one of them stays in Python — so a
@@ -172,6 +188,29 @@ def _require_a_crossing(request):
         for key in (f"{module}::{name}", f"{module}::{name.removesuffix('_async')}",
                     name, name.removesuffix("_async"))
     )
+    if module in SIGNATURE_CONFORMANCE:
+        reached = crossings.SIGNATURE > before_signature
+        # Both ways, as everywhere else here: a declaration that has started reaching the crate
+        # is a claim that is no longer true.
+        if reached and declared:
+            pytest.fail(
+                "this test is declared as not exercising the crate, but it decided a signature "
+                "through it; drop its line from DOES_NOT_EXERCISE_RUST"
+            )
+        if not reached and not declared:
+            pytest.fail(
+                "this test passed without the crate deciding anything about the signature, so "
+                "it says nothing about conformance; give it a line in DOES_NOT_EXERCISE_RUST "
+                "if that is expected"
+            )
+        return
+    if module in NOT_ADAPTER_CONFORMANCE:
+        if crossed:
+            pytest.fail(
+                f"{module} is declared as not covering this port, but this test reached the "
+                "crate; drop the file's line and triage its tests individually"
+            )
+        return
     # Both ways, as for the whole-file list above: a declared test that starts crossing means
     # the port grew to cover it, and its line is now a claim that is no longer true.
     if crossed:
@@ -241,18 +280,34 @@ def _use_rust_adapter(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _signature_layer_is_rust(monkeypatch):
+    """Route the signature decisions this crate owns through it.
+
+    `infer_prefix` runs where a signature class is built, so patching the name the defining
+    module reads is what puts the crate on that path rather than only where a test calls it
+    directly.
+    """
+    monkeypatch.setattr(
+        "dspy.signatures.signature.infer_prefix", rust_signature.infer_prefix
+    )
+    monkeypatch.setattr("dspy.signatures.infer_prefix", rust_signature.infer_prefix, raising=False)
+
+
+@pytest.fixture(autouse=True)
 def _rebind_in_the_test_module(monkeypatch, request):
-    """Point a test file's own imported adapter name at the Rust-backed class.
+    """Point a test file's own imported name at the Rust-backed one.
 
     `from dspy.adapters.xml_adapter import XMLAdapter` binds the class into the test module when
     pytest imports it, before any fixture runs. Patching dspy's module afterwards leaves that
     reference untouched, so the test would construct dspy's own adapter and pass without this
-    crate doing anything.
+    crate doing anything. The same applies to a function imported by name.
     """
     module = request.node.module
     for name, backed in RUST_BACKED.items():
         if hasattr(module, name):
             monkeypatch.setattr(module, name, backed)
+    if hasattr(module, "infer_prefix"):
+        monkeypatch.setattr(module, "infer_prefix", rust_signature.infer_prefix)
 
 
 def pytest_configure(config):
@@ -273,11 +328,16 @@ def pytest_collection_modifyitems(items):
 def pytest_terminal_summary(terminalreporter):
     """State how much of the run actually exercised the crate.
 
-    A pass count alone would overstate it: the type files are carried here to catch one of
-    them starting to cross, not because they test this port.
+    A pass count alone would overstate it: the type files are carried here to catch one of them
+    starting to cross, not because they test this port. The two lines stay apart for the same
+    reason — almost any signature construction reaches the layer beneath the wire, so folding
+    that into the first number would report coverage no assertion backs.
     """
     outcomes = ("passed", "failed", "error", "xfailed", "xpassed")
     total = sum(len(terminalreporter.stats.get(key, [])) for key in outcomes)
     terminalreporter.write_sep(
         "-", f"{len(_CROSSED)} of {total} tests rendered or parsed through the crate"
+    )
+    terminalreporter.write_sep(
+        "-", f"{len(_REACHED_SIGNATURE)} of {total} tests decided a signature through the crate"
     )

@@ -21,7 +21,7 @@ WHEEL=$(ls -t "$ROOT"/target/wheels/dsrs_bridge-*.whl | head -1)
   || uv pip install --python "$VENV/bin/python" --force-reinstall -q --no-deps "$WHEEL"
 
 mkdir -p "$WORK"
-cp "$ROOT"/bridge/python/{rust_adapter,reflect,conftest}.py "$WORK/"
+cp "$ROOT"/bridge/python/{rust_adapter,rust_signature,crossings,reflect,conftest}.py "$WORK/"
 
 # The upstream files this crate is held to. Adding one here is how coverage grows: it will
 # arrive with failures, and each becomes a named entry in conftest.py's to-do list or a fix.
@@ -32,6 +32,7 @@ SUITES=(
   adapters/test_xml_adapter.py adapters/test_baml_adapter.py adapters/test_two_step_adapter.py
   predict/test_predict.py predict/test_chain_of_thought.py predict/test_react.py
   teleprompt/test_bootstrap.py
+  signatures/test_signature.py
 )
 
 echo "==> Fetching upstream tests at dspy $VERSION (unmodified)"

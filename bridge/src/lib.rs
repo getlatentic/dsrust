@@ -232,6 +232,15 @@ fn field_description(
     Ok(dsrs::adapter::field_description(&signature))
 }
 
+/// dspy's `infer_prefix`: the label an adapter prints in front of a field, from its name.
+///
+/// Pure string work with no annotation to walk, so the whole decision belongs on this side of
+/// the boundary rather than only the rendering of its result.
+#[pyfunction]
+fn infer_prefix(name: &str) -> String {
+    dsrs::signature::infer_prefix(name)
+}
+
 /// The instruction dspy's `_create_extractor_signature` writes for the second ask.
 ///
 /// The extractor's *fields* stay Python's: their annotations are Python types this side cannot
@@ -380,5 +389,6 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(has_json_fallback, module)?)?;
     module.add_function(wrap_pyfunction!(extractor_instructions, module)?)?;
     module.add_function(wrap_pyfunction!(field_description, module)?)?;
+    module.add_function(wrap_pyfunction!(infer_prefix, module)?)?;
     Ok(())
 }

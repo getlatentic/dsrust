@@ -13,14 +13,15 @@
 name = "dsrs"
 upstream = "dspy"
 upstream_version = "3.2.1"
-updated = "2026-07-20"
+updated = "2026-07-21"
 
 [status]
-rust_tests = 346
-upstream_tests_passing = 256
-upstream_tests_crossing = 156
+rust_tests = 347
+upstream_tests_passing = 300
+upstream_tests_crossing = 160
+upstream_tests_deciding_signatures = 229
 xfail_backlog = 0
-suites_run = 17
+suites_run = 18
 
 # ---------------------------------------------------------------------------
 # Shipped
@@ -163,12 +164,33 @@ acceptance = [
 [[sprint]]
 id = "s4"
 name = "Signatures and primitives"
-state = "planned"
+state = "in-progress"
 outcome = "The declaration layer is held to upstream directly, not only through adapters."
-suites = ["signatures/* (4 files)", "primitives/* (4 files)"]
+suites = ["signatures/test_signature.py"]
 rationale = """
-Signature behaviour is currently proven only where an adapter happens to render it. These
-suites test it head-on, and they are small — the cheapest real coverage left.
+Signature behaviour was proven only where an adapter happened to render it. These suites test
+it head-on.
+
+Not the cheap win it was filed as. The bridge substituted adapters and nothing else, so these
+files ran dspy's Python against itself; a suite added without more would have grown the pass
+count and left the crossing count flat, which is the lie the counter exists to catch. Earning
+them means giving the crate decisions to make below the wire.
+"""
+done = """
+infer_prefix is the crate's, held to a 45-name golden covering the boundaries upstream's four
+expressions disagree about: its letter classes are ASCII while its digit class is not, so
+text٢number splits where ПриветМир does not. Mutation testing drove three of those names.
+
+The crossing counter split in two. Rendering and parsing is one fact; deciding a signature is
+another, and it moves during almost any signature construction, so folding them together would
+have reported coverage no assertion backs. Both are printed.
+"""
+remaining = """
+Five tests in test_signature.py raise while a declaration is still being validated, so nothing
+reaches the crate. Two of the five are structural and portable: exactly one arrow, and no name
+claimed by both sides. The other three are pydantic field validation. primitives/ is untouched:
+test_python_interpreter.py needs a deno sandbox, and test_base_module.py with test_module.py are
+the state layer the handoff lists as not started.
 """
 
 [[sprint]]
