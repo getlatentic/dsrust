@@ -64,6 +64,13 @@ fn install() {
                     "a calm colour?",
                     example! { reasoning: "cold colours read calm", answer: "blue" },
                 ),
+                // The two steps of the caller-defined module below, each keyed by what it is
+                // handed rather than by what the program was originally asked.
+                ("winter mornings", example! { angle: "stillness before the day" }),
+                (
+                    "stillness before the day",
+                    example! { haiku: "frost holds the window" },
+                ),
                 (
                     "machine learning",
                     example! { reasoning: "gradients descend", haiku: "weights settle down", mood: "patient" },
@@ -199,4 +206,90 @@ async fn both_forms_are_one_type_and_one_module() {
     is_a_module(&thinking);
     is_askable(&declared);
     is_askable(&derived);
+}
+
+// ---------------------------------------------------------------------------
+// A module of your own
+// ---------------------------------------------------------------------------
+
+/// Two steps composed into one program, the way a caller writes theirs.
+///
+/// `forward` runs it. `named_predictors` is what lets an optimizer reach inside and rewrite the
+/// prompts of both steps. `forward_traced` is what lets it tell which step earned which demo.
+struct Outline {
+    plan: Predict,
+    write: Predict,
+}
+
+impl Outline {
+    fn new() -> Self {
+        Self {
+            plan: predict!("subject -> angle"),
+            write: predict!("angle -> haiku"),
+        }
+    }
+}
+
+impl Module for Outline {
+    fn forward<'a>(
+        &'a self,
+        inputs: dsrs::Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = anyhow::Result<dsrs::Prediction>> + Send + 'a>> {
+        Box::pin(async move {
+            let angle = self.plan.forward(inputs).await?;
+            let handed = input! { angle: angle.get("angle").cloned().unwrap_or_default() };
+            self.write.forward(handed).await
+        })
+    }
+
+    fn named_predictors(&mut self) -> Vec<dsrs::NamedPredictor<'_>> {
+        let mut found = Vec::new();
+        for (name, step) in [("plan", &mut self.plan), ("write", &mut self.write)] {
+            for mut inner in step.named_predictors() {
+                inner.name = name.to_owned();
+                found.push(inner);
+            }
+        }
+        found
+    }
+
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: dsrs::Example,
+        trace: &'a mut Vec<dsrs::TraceStep>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = anyhow::Result<dsrs::Prediction>> + Send + 'a>> {
+        Box::pin(async move {
+            let mark = trace.len();
+            let angle = self.plan.forward_traced(inputs, trace).await?;
+            dsrs::module::relabel(trace, mark, "plan");
+
+            let handed = input! { angle: angle.get("angle").cloned().unwrap_or_default() };
+            let mark = trace.len();
+            let written = self.write.forward_traced(handed, trace).await?;
+            dsrs::module::relabel(trace, mark, "write");
+            Ok(written)
+        })
+    }
+}
+
+// One line, and `call!` reaches a module of your own as it reaches the built-in ones.
+dsrs::asks_with_a_prediction!(Outline);
+
+#[tokio::test]
+async fn a_module_of_your_own_composes_and_is_optimizable() {
+    install();
+
+    let mut mine = Outline::new();
+    let out = call!(mine, subject = "winter mornings")
+        .await
+        .expect("asks");
+    assert_eq!(out.get("haiku").unwrap(), "frost holds the window");
+
+    // The seam that matters: an optimizer can see both steps and write to each.
+    let named: Vec<String> = mine
+        .named_predictors()
+        .into_iter()
+        .map(|predictor| predictor.name)
+        .collect();
+    assert_eq!(named, ["plan", "write"]);
 }
