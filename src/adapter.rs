@@ -68,7 +68,7 @@ mod demos;
 mod exchange;
 mod history;
 pub mod parse;
-mod prompt;
+pub(crate) mod prompt;
 pub use prompt::field_description;
 pub mod python_json;
 pub mod xml;

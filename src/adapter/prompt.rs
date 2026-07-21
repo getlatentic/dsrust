@@ -111,13 +111,13 @@ fn numbered_block<'a>(fields: impl Iterator<Item = Described<'a>>) -> String {
         .to_owned()
 }
 
-pub(super) fn numbered_input_lines(signature: &Signature) -> String {
+pub(crate) fn numbered_input_lines(signature: &Signature) -> String {
     numbered_block(signature.inputs.iter().map(Described::from))
 }
 
 /// A `Json` field's schema does not appear here: upstream states it once, in the field's own
 /// slot in the interaction template, which [`output_slot`] renders.
-pub(super) fn numbered_output_lines(signature: &Signature) -> String {
+pub(crate) fn numbered_output_lines(signature: &Signature) -> String {
     numbered_block(signature.outputs.iter().map(Described::from))
 }
 

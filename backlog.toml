@@ -439,6 +439,33 @@ here at all; size it before promising it.
 # ---------------------------------------------------------------------------
 
 [[backlog]]
+id = "b11"
+title = "ChainOfThought puts prose where dspy puts nothing"
+kind = "known-divergence"
+state = "next"
+detail = '''
+Every ChainOfThought prompt this crate sends differs from dspy's on one line.
+
+  ours   1. `reasoning` (str): think step by step about the request before the other fields
+  dspy   1. `reasoning` (str):
+
+`src/predict/chain_of_thought.rs` sets that desc as prose. Upstream sets the sentinel
+`${reasoning}`, which `get_field_description_string` compares against and replaces with "" — the
+same suppression that b9 was about, one field along. So the text never reaches a prompt there.
+
+Invisible to every gate, and worth understanding why: no conformance fixture covers a
+ChainOfThought signature's field lines, so the one adapter path that would have compared these
+byte for byte was never generated. Fixing the desc without adding that fixture would leave the
+next such drift equally invisible.
+
+Found by byte-comparing `inspect_modules` output for Refine, not by any test.
+
+Second divergence in the same place: dspy names ChainOfThought's inner predictor `predict`, this
+crate names it `self`. That name reaches a prompt through `inspect_modules`, and keys demos
+during a compile, so the two disagree on both.
+'''
+
+[[backlog]]
 id = "b10"
 title = "Refine: the feedback half of s11"
 kind = "scoped"
