@@ -514,9 +514,21 @@ decision = "accepted"
 detail = """
 When one predictor produces several traces for a single example, dspy collapses them to one demo,
 choosing evenly between the last trace and a random earlier one. The choice is seeded with
-Hasher.hash(tuple(demos)), which is xxhash64 over pickle.dumps — reproducing CPython pickle bytes
-for dspy Example objects is not something this port can do, so src/optimize/bootstrap.rs::file
-takes the last trace. That agrees with upstream whenever upstream's coin lands on the last trace.
+Hasher.hash(tuple(demos)), xxhash64 over pickle.dumps, and src/optimize/bootstrap.rs::file takes
+the last trace instead. That agrees with upstream whenever upstream's coin lands on the last one.
+
+The reason is NOT that the pickle bytes are unportable — they are a fixed template (protocol 4,
+STACK_GLOBAL on dspy.primitives.example/Example, NEWOBJ, then a _store/_demos/_input_keys state
+dict with memo refs) and xxhash64 has a Rust crate. It is that **upstream's own seed is not
+reproducible across processes**. `_input_keys` is a Python set, so its pickled order follows
+per-process randomized string hashing: with two or more input keys the digest changes run to run.
+Measured on unmodified dspy — five processes, same code and data, and the fifth disagreed with
+the other four.
+
+So there is no stable choice to match, and matching it is impossible in principle rather than
+expensive. Taking the last trace is at least deterministic. This is the one place in the port
+where byte-faithfulness is unreachable, and it is upstream's nondeterminism rather than a gap
+here. Revisit only if upstream reseeds on something stable.
 
 Only reachable when a predictor is called more than once per example, which means a loop: ReAct's
 per-turn predictor is the case in this crate. A pipeline whose predictors each run once never
