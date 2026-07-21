@@ -34,6 +34,12 @@ let out = call!(qa, question = "capital of France?").await?;
 println!("{}", out.answer);   // typed, checked when this compiles
 ```
 
+Run the whole loop — declare, ask, score, compile — with no provider and no API key:
+
+```bash
+cargo run --example quickstart
+```
+
 Every spelling, against the Python it mirrors: **[docs/usage.md](docs/usage.md)**.
 
 ```bash
