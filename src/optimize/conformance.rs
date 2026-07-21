@@ -10,10 +10,12 @@
 //! trainset, the metric and the configuration. Given the same three, the demos that survive here
 //! must be the demos that survived there — same examples, same order, same count.
 
+use std::collections::BTreeMap;
+
 use serde_json::Value;
 
 use super::BootstrapFewShot;
-use super::scripted::{Answers, Solver, trainset};
+use super::scripted::{Answers, Pair, Solver, trainset};
 use crate::evaluate::exact_match;
 use crate::example::{Example, Prediction};
 
@@ -134,6 +136,69 @@ async fn keeps_the_demos_dspy_keeps() {
 
         let ours: Vec<(String, String)> = student.demos.iter().map(turn).collect();
         assert_eq!(ours, expected_turns(&case), "at {}", label(&case));
+    }
+}
+
+/// Every field a demo carries. Which fields those are is the evidence once a program has more
+/// than one predictor, because a demo the drafting half earned names a draft and one the
+/// answering half earned names no question.
+fn fields(demo: &Example) -> BTreeMap<String, String> {
+    demo.fields()
+        .map(|(name, value)| {
+            let text = value.as_str().unwrap_or_default().to_owned();
+            (name.to_owned(), text)
+        })
+        .collect()
+}
+
+fn expected_fields(demo: &Value) -> BTreeMap<String, String> {
+    demo.as_object()
+        .expect("a demo")
+        .iter()
+        .filter(|(name, _)| name.as_str() != "augmented")
+        .map(|(name, value)| (name.clone(), value.as_str().unwrap_or_default().to_owned()))
+        .collect()
+}
+
+/// A pipeline's demos, per predictor, against dspy's.
+///
+/// This is what the single-predictor comparison cannot reach. Two decisions only exist once a
+/// program has a second predictor: each is taught by its own calls, and `_train` rebinds
+/// `raw_demos` to the sample it just drew, so the second draws from the first's sample rather
+/// than from the validation set. Upstream's own answer shows the second's labelled tail in a
+/// different order from the first's, which is the rebinding made visible.
+#[tokio::test]
+async fn a_pipeline_keeps_the_demos_dspy_keeps_for_each_predictor() {
+    let recorded = golden();
+    let cases = recorded["pair_cases"].as_array().expect("pair cases");
+    assert!(!cases.is_empty(), "the fixture records no pipeline case");
+
+    for case in cases {
+        let mut student = Pair::new();
+        optimizer(case)
+            .compile(&mut student, &trainset())
+            .await
+            .expect("compile succeeds");
+
+        let ours = [
+            ("first", &student.first_demos),
+            ("second", &student.second_demos),
+        ];
+        for (name, demos) in ours {
+            let expected: Vec<BTreeMap<String, String>> = case["predictors"]
+                .as_array()
+                .expect("predictors")
+                .iter()
+                .find(|entry| field(entry, "predictor") == name)
+                .unwrap_or_else(|| panic!("the fixture records no predictor {name:?}"))["demos"]
+                .as_array()
+                .expect("demos")
+                .iter()
+                .map(expected_fields)
+                .collect();
+            let actual: Vec<BTreeMap<String, String>> = demos.iter().map(fields).collect();
+            assert_eq!(actual, expected, "predictor {name} at {}", label(case));
+        }
     }
 }
 

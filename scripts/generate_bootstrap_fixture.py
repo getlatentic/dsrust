@@ -82,6 +82,62 @@ class Answer(dspy.Signature):
     answer: str = dspy.OutputField()
 
 
+class Draft(dspy.Signature):
+    """Answer."""
+
+    question: str = dspy.InputField()
+    draft: str = dspy.OutputField()
+
+
+class Settle(dspy.Signature):
+    """Answer."""
+
+    draft: str = dspy.InputField()
+    answer: str = dspy.OutputField()
+
+
+class Pair(dspy.Module):
+    """Two predictors, mirroring `scripted::Pair`.
+
+    The halves are deliberately not interchangeable: the first reads a question and writes a
+    draft, the second reads that draft and writes an answer. A demo one earned is therefore a
+    demo the other could not have, so misattribution shows up as the wrong fields rather than as
+    a different ordering.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.first = dspy.Predict(Draft)
+        self.second = dspy.Predict(Settle)
+
+    def forward(self, question):
+        return self.second(draft=self.first(question=question).draft)
+
+
+def drafted(answer: str) -> str:
+    """`scripted::drafted`: the intermediate the first half hands the second."""
+    return f"draft: {answer}"
+
+
+# Keyed for both halves at once: a question answers with a draft, and that draft answers with the
+# settled answer. `DummyLM` matches on the final message only, so the two never collide.
+PAIR_ANSWERS = {}
+for _question, _ in TRAINSET:
+    _settled = "Paris" if "France" in _question else "Berlin"
+    PAIR_ANSWERS[_question] = {"draft": drafted(_settled)}
+    PAIR_ANSWERS[drafted(_settled)] = {"answer": _settled}
+
+# The rebinding only shows where the labelled budget leaves something to shrink, so every case
+# here keeps one.
+PAIR_CONFIGS = [
+    (4, 16, 1, "exact", None),
+    (1, 6, 1, "exact", None),
+    (2, 3, 1, "exact", None),
+    (4, 4, 1, "exact", None),
+    (0, 5, 1, "exact", None),
+]
+
+
 def exact_match(example, prediction, trace=None) -> float:
     """Upstream reads the return value for Python truth when no threshold is set, so a float is
     what a metric owes it. The trace argument is upstream's optimizing-versus-evaluating
@@ -134,16 +190,16 @@ def trainset() -> list[dspy.Example]:
 
 
 def demo_report(predictor) -> list[dict]:
-    """The demos a predictor ended up holding, in order.
+    """The demos a predictor ended up holding, in order, with every field they carry.
 
-    `augmented` marks a demo the teacher earned rather than one drawn from the trainset. It is
-    the boundary between the two halves of the list, so it is recorded even though the Rust port
-    deliberately does not carry the marker onto its demos.
+    Which fields those are is itself the evidence once a program has more than one predictor: a
+    demo the drafting half earned names a draft, and one the answering half earned does not name
+    a question. `augmented` marks a demo the teacher earned rather than one drawn from the
+    trainset, so it is recorded even though the Rust port deliberately drops the marker.
     """
     return [
         {
-            "question": demo.get("question"),
-            "answer": demo.get("answer"),
+            **{name: value for name, value in demo.toDict().items() if name != "augmented"},
             "augmented": bool(demo.get("augmented", False)),
         }
         for demo in predictor.demos
@@ -196,6 +252,25 @@ def compile_once(
     return predictors, [call_report(messages) for messages in CALLS]
 
 
+def compile_pair_once(
+    max_bootstrapped: int, max_labeled: int, max_rounds: int, metric: str, threshold: float | None
+) -> list[dict]:
+    CALLS.clear()
+    dspy.configure(lm=RecordingLM(PAIR_ANSWERS))
+    optimizer = dspy.BootstrapFewShot(
+        metric=METRICS[metric],
+        metric_threshold=threshold,
+        max_bootstrapped_demos=max_bootstrapped,
+        max_labeled_demos=max_labeled,
+        max_rounds=max_rounds,
+    )
+    compiled = optimizer.compile(Pair(), trainset=trainset())
+    return [
+        {"predictor": name, "demos": demo_report(predictor)}
+        for name, predictor in compiled.named_predictors()
+    ]
+
+
 def main() -> None:
     if dspy.__version__ != PINNED:
         raise SystemExit(f"expected dspy {PINNED}, found {dspy.__version__}")
@@ -217,12 +292,28 @@ def main() -> None:
             }
         )
 
+    pair_cases = []
+    for max_bootstrapped, max_labeled, max_rounds, metric, threshold in PAIR_CONFIGS:
+        pair_cases.append(
+            {
+                "max_bootstrapped_demos": max_bootstrapped,
+                "max_labeled_demos": max_labeled,
+                "max_rounds": max_rounds,
+                "metric": metric,
+                "metric_threshold": threshold,
+                "predictors": compile_pair_once(
+                    max_bootstrapped, max_labeled, max_rounds, metric, threshold
+                ),
+            }
+        )
+
     fixture = {
         "source": f"generated from dspy=={PINNED} via scripts/generate_bootstrap_fixture.py",
         "dspy_version": PINNED,
         "trainset": [{"question": question, "answer": answer} for question, answer in TRAINSET],
         "answers": ANSWERS,
         "cases": cases,
+        "pair_cases": pair_cases,
     }
 
     OUT.mkdir(parents=True, exist_ok=True)

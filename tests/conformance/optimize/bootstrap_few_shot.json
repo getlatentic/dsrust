@@ -1395,5 +1395,342 @@
         }
       ]
     }
+  ],
+  "pair_cases": [
+    {
+      "max_bootstrapped_demos": 4,
+      "max_labeled_demos": 16,
+      "max_rounds": 1,
+      "metric": "exact",
+      "metric_threshold": null,
+      "predictors": [
+        {
+          "predictor": "first",
+          "demos": [
+            {
+              "question": "capital of France?",
+              "draft": "draft: Paris",
+              "augmented": true
+            },
+            {
+              "question": "capital of Germany?",
+              "draft": "draft: Berlin",
+              "augmented": true
+            },
+            {
+              "question": "riddle 3?",
+              "answer": "riddle 3!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 0?",
+              "answer": "riddle 0!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 2?",
+              "answer": "riddle 2!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 1?",
+              "answer": "riddle 1!",
+              "augmented": false
+            }
+          ]
+        },
+        {
+          "predictor": "second",
+          "demos": [
+            {
+              "draft": "draft: Paris",
+              "answer": "Paris",
+              "augmented": true
+            },
+            {
+              "draft": "draft: Berlin",
+              "answer": "Berlin",
+              "augmented": true
+            },
+            {
+              "question": "riddle 1?",
+              "answer": "riddle 1!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 0?",
+              "answer": "riddle 0!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 2?",
+              "answer": "riddle 2!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 3?",
+              "answer": "riddle 3!",
+              "augmented": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "max_bootstrapped_demos": 1,
+      "max_labeled_demos": 6,
+      "max_rounds": 1,
+      "metric": "exact",
+      "metric_threshold": null,
+      "predictors": [
+        {
+          "predictor": "first",
+          "demos": [
+            {
+              "question": "capital of France?",
+              "draft": "draft: Paris",
+              "augmented": true
+            },
+            {
+              "question": "riddle 3?",
+              "answer": "riddle 3!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 2?",
+              "answer": "riddle 2!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 1?",
+              "answer": "riddle 1!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 0?",
+              "answer": "riddle 0!",
+              "augmented": false
+            },
+            {
+              "question": "capital of Germany?",
+              "answer": "Berlin",
+              "augmented": false
+            }
+          ]
+        },
+        {
+          "predictor": "second",
+          "demos": [
+            {
+              "draft": "draft: Paris",
+              "answer": "Paris",
+              "augmented": true
+            },
+            {
+              "question": "riddle 0?",
+              "answer": "riddle 0!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 1?",
+              "answer": "riddle 1!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 2?",
+              "answer": "riddle 2!",
+              "augmented": false
+            },
+            {
+              "question": "capital of Germany?",
+              "answer": "Berlin",
+              "augmented": false
+            },
+            {
+              "question": "riddle 3?",
+              "answer": "riddle 3!",
+              "augmented": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "max_bootstrapped_demos": 2,
+      "max_labeled_demos": 3,
+      "max_rounds": 1,
+      "metric": "exact",
+      "metric_threshold": null,
+      "predictors": [
+        {
+          "predictor": "first",
+          "demos": [
+            {
+              "question": "capital of France?",
+              "draft": "draft: Paris",
+              "augmented": true
+            },
+            {
+              "question": "capital of Germany?",
+              "draft": "draft: Berlin",
+              "augmented": true
+            },
+            {
+              "question": "riddle 3?",
+              "answer": "riddle 3!",
+              "augmented": false
+            }
+          ]
+        },
+        {
+          "predictor": "second",
+          "demos": [
+            {
+              "draft": "draft: Paris",
+              "answer": "Paris",
+              "augmented": true
+            },
+            {
+              "draft": "draft: Berlin",
+              "answer": "Berlin",
+              "augmented": true
+            },
+            {
+              "question": "riddle 3?",
+              "answer": "riddle 3!",
+              "augmented": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "max_bootstrapped_demos": 4,
+      "max_labeled_demos": 4,
+      "max_rounds": 1,
+      "metric": "exact",
+      "metric_threshold": null,
+      "predictors": [
+        {
+          "predictor": "first",
+          "demos": [
+            {
+              "question": "capital of France?",
+              "draft": "draft: Paris",
+              "augmented": true
+            },
+            {
+              "question": "capital of Germany?",
+              "draft": "draft: Berlin",
+              "augmented": true
+            },
+            {
+              "question": "riddle 3?",
+              "answer": "riddle 3!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 0?",
+              "answer": "riddle 0!",
+              "augmented": false
+            }
+          ]
+        },
+        {
+          "predictor": "second",
+          "demos": [
+            {
+              "draft": "draft: Paris",
+              "answer": "Paris",
+              "augmented": true
+            },
+            {
+              "draft": "draft: Berlin",
+              "answer": "Berlin",
+              "augmented": true
+            },
+            {
+              "question": "riddle 3?",
+              "answer": "riddle 3!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 0?",
+              "answer": "riddle 0!",
+              "augmented": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 5,
+      "max_rounds": 1,
+      "metric": "exact",
+      "metric_threshold": null,
+      "predictors": [
+        {
+          "predictor": "first",
+          "demos": [
+            {
+              "question": "capital of France?",
+              "answer": "Paris",
+              "augmented": false
+            },
+            {
+              "question": "riddle 1?",
+              "answer": "riddle 1!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 2?",
+              "answer": "riddle 2!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 0?",
+              "answer": "riddle 0!",
+              "augmented": false
+            },
+            {
+              "question": "capital of Germany?",
+              "answer": "Berlin",
+              "augmented": false
+            }
+          ]
+        },
+        {
+          "predictor": "second",
+          "demos": [
+            {
+              "question": "riddle 0?",
+              "answer": "riddle 0!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 2?",
+              "answer": "riddle 2!",
+              "augmented": false
+            },
+            {
+              "question": "riddle 1?",
+              "answer": "riddle 1!",
+              "augmented": false
+            },
+            {
+              "question": "capital of Germany?",
+              "answer": "Berlin",
+              "augmented": false
+            },
+            {
+              "question": "capital of France?",
+              "answer": "Paris",
+              "augmented": false
+            }
+          ]
+        }
+      ]
+    }
   ]
 }

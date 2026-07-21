@@ -16,7 +16,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-20"
 
 [status]
-rust_tests = 345
+rust_tests = 346
 upstream_tests_passing = 256
 upstream_tests_crossing = 156
 xfail_backlog = 0
@@ -56,33 +56,36 @@ suites = ["predict/test_predict.py", "predict/test_chain_of_thought.py", "predic
 [[sprint]]
 id = "s3"
 name = "Optimizer conformance"
-state = "next"
+state = "done"
+shipped = "2026-07-21"
 outcome = """
 The crate's own optimizer is held to upstream's behaviour, not just to its own tests.
-This is the sprint that closes the project's one known blind spot.
+This is the sprint that closed the project's one known blind spot.
 """
 
 [[story]]
 id = "s3-1"
 sprint = "s3"
 title = "Prove the crate's BootstrapFewShot makes upstream's decisions"
-state = "in-progress"
+state = "done"
 size = "L"
 done = """
 Trace replay, chosen over routing compile into Rust and recorded in src/optimize/conformance.rs.
 scripts/generate_bootstrap_fixture.py runs upstream's optimizer against a DummyLM answering from
-a fixed table, so a compile is a pure function of trainset, metric and configuration; 19 cases
-compare demo for demo, and a second check compares what every attempt was *shown*, which is
-where withholding and teacher priming live. Both survive mutation testing: of eleven deliberate
-wrong decisions, ten are caught by a named check and the eleventh is equivalent under
-program-level attribution and documented as such at src/optimize/bootstrap.rs::train.
+a fixed table, so a compile is a pure function of trainset, metric and configuration. Nineteen
+single-predictor cases compare demo for demo; a second check compares what every attempt was
+*shown*, which is where withholding and teacher priming live; and five two-predictor cases
+compare each predictor's demos, which is what makes the raw_demos rebinding visible — upstream's
+own answer hands the second predictor the first's sample in a different order.
+
+Mutation testing drove the shape of all three. Of the deliberate wrong decisions tried, every one
+that changes behaviour is caught by a named check; the survivors were equivalent rather than
+missed, and one of them turned out to mark a branch that could never fire, which was then removed.
 """
 remaining = """
-The raw_demos rebinding is implemented but not asserted against upstream: it only shows with two
-predictors, and a faithful two-predictor comparison needs the per-predictor trace attribution
-that s3-2 exists to add. Also unasserted: max_rounds forcing a *different* answer (b2) — a
+Unasserted, and not assertable here: max_rounds forcing a *different* answer (b2). A
 deterministic model cannot distinguish a re-ask that was forced from one that was not, so the
-attempt count matches upstream while the forcing does not exist here.
+attempt count matches upstream while the forcing does not exist. b5 records the other limit.
 """
 narrative = """
 As someone trusting dsrs to compile a program, I want the crate's optimizer held to dspy's
