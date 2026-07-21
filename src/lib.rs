@@ -35,7 +35,10 @@ pub use lm::global::configure_model;
 pub use lm::{
     ChatModel, ChatTurn, LM, ModelRef, OutputMode, Provider, Role, configure, configure_with_client,
 };
-pub use predict::{ChainOfThought, Predict, TypedChainOfThought, TypedPredict};
+pub use predict::{
+    BestOfN, ChainOfThought, MultiChainComparison, Parallel, Predict, TypedChainOfThought,
+    TypedPredict,
+};
 pub use signature::{
     FieldKind, InField, LiteralValue, OutField, Signature, SignatureSpec, chain_of_thought,
     json_field_schema, predict, signature,

@@ -72,6 +72,7 @@ fn install() {
                     "stillness before the day",
                     example! { haiku: "frost holds the window" },
                 ),
+                ("one word please", example! { answer: "Paris" }),
                 (
                     "machine learning",
                     example! { reasoning: "gradients descend", haiku: "weights settle down", mood: "patient" },
@@ -257,4 +258,49 @@ async fn a_module_of_your_own_composes_and_is_optimizable() {
         .map(|predictor| predictor.name)
         .collect();
     assert_eq!(named, ["plan", "write"]);
+}
+
+// ---------------------------------------------------------------------------
+// Wrapping a module in another module
+// ---------------------------------------------------------------------------
+
+/// `BestOfN` takes a *module*, not a signature — upstream's is
+/// `BestOfN(module=qa, N=…, reward_fn=…, threshold=…)`. There is no signature to hand it; the
+/// signature lives in whatever it wraps.
+#[tokio::test]
+async fn best_of_n_wraps_a_module_and_is_called_like_one() {
+    install();
+
+    let best = dsrs::BestOfN::new(
+        predict!("question -> answer"),
+        3,
+        |_inputs: &dsrs::Example, prediction: &dsrs::Prediction| match prediction
+            .get("answer")
+            .and_then(|answer| answer.as_str())
+        {
+            Some(answer) if answer.split_whitespace().count() == 1 => 1.0,
+            _ => 0.0,
+        },
+        1.0,
+    );
+
+    let out = call!(best, question = "one word please")
+        .await
+        .expect("asks");
+    assert_eq!(out.get("answer").unwrap(), "Paris");
+}
+
+/// And being a `Module` is the point: it nests, and an optimizer's walk reaches the predictor
+/// inside it rather than stopping at the wrapper.
+#[tokio::test]
+async fn best_of_n_is_a_module_an_optimizer_can_walk() {
+    use dsrs::Module;
+
+    let mut best = dsrs::BestOfN::new(
+        predict!("question -> answer"),
+        2,
+        |_: &dsrs::Example, _: &dsrs::Prediction| 1.0,
+        1.0,
+    );
+    assert_eq!(best.named_predictors().len(), 1);
 }

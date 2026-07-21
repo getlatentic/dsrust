@@ -216,6 +216,78 @@ also makes the module callable through `call!`.
 shape because it must be object-safe for a composed program to hold `Box<dyn Module>`; the derive
 does the boxing in between.
 
+## Every module, and what it takes
+
+dspy's modules split into two families, and the split decides how you build one.
+
+**A module that takes a signature** is declared like `Predict` — a field-name string or a task
+type — and each has a macro of the same name.
+
+**A wrapper takes another module.** There is no signature to hand it; the signature lives in
+whatever it wraps, so it is built with `::new` and has no macro.
+
+| module | takes | dspy | dsrs |
+|---|---|---|---|
+| `Predict` | a signature | `dspy.Predict("q -> a")` | `predict!("q -> a")` |
+| `ChainOfThought` | a signature | `dspy.ChainOfThought("q -> a")` | `chain_of_thought!("q -> a")` |
+| `ReAct` | a signature + tools | `dspy.ReAct("q -> a", tools=[…])` | `ReAct::new(signature!("q -> a"), tools)` |
+| `MultiChainComparison` | a signature | `dspy.MultiChainComparison("q -> a")` | `MultiChainComparison::new(…)` |
+| `BestOfN` | **a module** | `dspy.BestOfN(module=qa, N=3, reward_fn=f, threshold=1.0)` | `BestOfN::new(qa, 3, f, 1.0)` |
+| `Parallel` | branches per call | `dspy.Parallel(num_threads=8)` | `Parallel::new(8)` |
+
+`Refine`, `ProgramOfThought`, `CodeAct` and `RLM` are not built yet. The first is a wrapper like
+`BestOfN`; the other three take a signature and will get macros.
+
+### Asking one, side by side
+
+```python
+# dspy
+qa = dspy.ChainOfThought("question -> answer")
+out = qa(question="capital of France?")
+out.answer
+```
+
+```rust
+// dsrs
+let qa = chain_of_thought!("question -> answer");
+let out = call!(qa, question = "capital of France?").await?;
+out.get("answer").unwrap()
+```
+
+### Wrapping one
+
+`BestOfN` runs a module up to `n` times, each at a fresh rollout and `temperature = 1.0`, and
+keeps the highest-scoring attempt — stopping early at the first to reach `threshold`.
+
+```python
+# dspy
+qa = dspy.ChainOfThought("question -> answer")
+best = dspy.BestOfN(module=qa, N=3, reward_fn=one_word, threshold=1.0)
+out = best(question="capital of Belgium?")
+```
+
+```rust
+// dsrs
+let best = BestOfN::new(
+    predict!("question -> answer"),
+    3,
+    |_inputs: &Example, out: &Prediction| match out.get("answer").and_then(|a| a.as_str()) {
+        Some(answer) if answer.split_whitespace().count() == 1 => 1.0,
+        _ => 0.0,
+    },
+    1.0,
+);
+let out = call!(best, question = "capital of Belgium?").await?;
+```
+
+All four arguments are upstream's, in its order. Two details are upstream's too and easy to read
+as bugs: `threshold` is **required**, because `BestOfN.forward` compares against it with no
+guard; and `with_fail_count(0)` means *n*, not *none allowed*, because dspy reads
+`fail_count or N` and Python treats zero as unset.
+
+A wrapper is still a module — it nests, `call!` reaches it, and an optimizer's walk goes straight
+through to the predictors inside it.
+
 ## Against dspy
 
 | | dspy | dsrs |
