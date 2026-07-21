@@ -144,6 +144,13 @@ pub struct LmUsage {
     /// rejecting them, so a count this crate does not model still arrives.
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
     pub details: serde_json::Map<String, Value>,
+    /// Any counter this crate does not model, kept rather than dropped.
+    ///
+    /// Upstream's `extra="allow"`, and deliberately the opposite of [`LmConfig`], which forbids
+    /// unknowns so they are routed into `extensions` instead. A provider that starts reporting a
+    /// counter nobody has modelled yet still hands it to a caller through here.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, Value>,
 }
 
 impl LmUsage {
@@ -208,6 +215,7 @@ impl LmUsage {
                     input_audio_tokens: added(left.input_audio_tokens, right.input_audio_tokens),
                     output_audio_tokens: added(left.output_audio_tokens, right.output_audio_tokens),
                     details: left.details.into_iter().chain(right.details).collect(),
+                    extra: left.extra.into_iter().chain(right.extra).collect(),
                 }
                 .filled(),
             ),
@@ -324,6 +332,33 @@ mod tests {
         assert_eq!(
             from_provider_names, from_dspy_names,
             "either way in, the same out"
+        );
+    }
+
+    /// Upstream allows unknown counters rather than rejecting them, so one this crate has never
+    /// heard of still reaches a caller. That is `extra="allow"` — and the opposite of
+    /// [`LmConfig`], which forbids unknowns so they route into `extensions` instead.
+    #[test]
+    fn a_counter_nobody_modelled_survives_the_round_trip() {
+        let raw = serde_json::json!({
+            "input_tokens": 10,
+            "output_tokens": 4,
+            "speculation_tokens": 3,
+        });
+        let usage: LmUsage = serde_json::from_value(raw).expect("unknown counters are allowed");
+
+        assert_eq!(usage.input_tokens, Some(10));
+        assert_eq!(
+            usage.extra.get("speculation_tokens"),
+            Some(&serde_json::json!(3)),
+            "kept rather than dropped"
+        );
+
+        let written = serde_json::to_value(&usage).expect("serializes");
+        assert_eq!(
+            written["speculation_tokens"],
+            serde_json::json!(3),
+            "and goes back out at the top level, not nested"
         );
     }
 
