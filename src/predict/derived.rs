@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use super::{Dynamic, Feedback, Predict, Validated};
 use crate::example::Example;
-use crate::lm::{DynChatModel, global};
+use crate::lm::DynChatModel;
 use crate::module::Ask;
 use crate::signature::SignatureSpec;
 
@@ -29,7 +29,7 @@ impl<S: SignatureSpec + Send + Sync> Predict<S> {
 
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
     pub async fn call_inputs(&self, inputs: &S::Inputs) -> Result<S::Outputs> {
-        let (http, lm) = global::current()?;
+        let (http, lm) = self.asking()?;
         self.call_inputs_with(&http, lm.as_ref(), inputs).await
     }
 
@@ -98,7 +98,7 @@ where
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
         Box::pin(async move {
-            let (http, lm) = global::current()?;
+            let (http, lm) = self.asking()?;
             let pairs: Vec<(&str, Value)> = inputs
                 .fields()
                 .map(|(name, value)| (name, value.clone()))

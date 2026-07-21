@@ -30,7 +30,7 @@ upstream_version = "3.2.1"
 updated = "2026-07-21"
 
 [status]
-rust_tests = 388
+rust_tests = 390
 upstream_tests_passing = 380
 upstream_tests_crossing = 180
 upstream_tests_deciding_signatures = 260
@@ -392,9 +392,17 @@ id = "b2"
 title = "max_rounds re-asks but nothing forces a different answer"
 kind = "known-limit"
 detail = """
-Upstream forces divergence with lm.copy(rollout_id=round_idx, temperature=1.0). No per-call LM
-override is reachable through Module::forward, so a second round re-asks identically. The loop
-and its break-on-success are ported; the forcing is not. Needs a per-call LM override seam.
+Upstream forces divergence with lm.copy(rollout_id=round_idx, temperature=1.0), which is two
+things and only one is now built.
+
+Built: a module can be given its own model — Predict::with_lm, dspy's set_lm — so an optimizer
+can hand each attempt a different one instead of every call reaching a process-wide default.
+
+Not built: anything to differ. ChatModel::chat carries no sampling parameters at all, and
+temperature is a hardcoded 0.7 on the ollama path only, so two models cannot yet be made to
+disagree. rollout_id has no equivalent either; upstream uses it purely to miss a provider cache.
+Closing that means widening the trait, which every implementation and the bridge see, so it is
+an API decision rather than an addition. s11 needs it before BestOfN means anything.
 """
 
 [[backlog]]

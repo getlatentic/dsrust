@@ -38,6 +38,13 @@ pub struct Predict<S = Dynamic> {
     /// Solved examples shown before the request. An optimizer's output is a chosen set of
     /// these, so a compiled program is this field plus the signature's instructions.
     pub demos: Vec<Example>,
+    /// The model this module asks, when it is not the configured one.
+    ///
+    /// dspy's `set_lm`, and the seam an optimizer needs: `BestOfN` runs a module several times
+    /// against models that differ only in their sampling, and `BootstrapFewShot` gives each
+    /// round after the first a model that will not answer from a cache. Neither can reach a
+    /// process-wide default to do it.
+    lm: Option<std::sync::Arc<dyn DynChatModel>>,
     spec: PhantomData<S>,
 }
 
@@ -65,7 +72,26 @@ impl<S> Predict<S> {
             signature: self.signature,
             adapter: self.adapter,
             demos: self.demos,
+            lm: self.lm,
         }
+    }
+
+    /// Ask this model rather than the configured one. dspy's `set_lm`.
+    pub fn with_lm(mut self, lm: std::sync::Arc<dyn DynChatModel>) -> Self {
+        self.lm = Some(lm);
+        self
+    }
+
+    /// dspy's `get_lm`: the model this module asks, or nothing if it defers to the configured
+    /// one. An optimizer reads it to copy the settings it is about to vary.
+    pub fn lm(&self) -> Option<&std::sync::Arc<dyn DynChatModel>> {
+        self.lm.as_ref()
+    }
+
+    /// The model and client one call should use: this module's own, or the configured default.
+    fn asking(&self) -> Result<(reqwest::Client, std::sync::Arc<dyn DynChatModel>)> {
+        let (http, configured) = global::current()?;
+        Ok((http, self.lm.clone().unwrap_or(configured)))
     }
 
     /// Show the model these solved examples before the request.
@@ -88,6 +114,7 @@ impl Predict<Dynamic> {
     pub fn from_signature(signature: Signature) -> Self {
         Self {
             spec: PhantomData,
+            lm: None,
             signature,
             adapter: Box::new(ChatAdapter::default()),
             demos: Vec::new(),
@@ -111,7 +138,7 @@ impl Predict<Dynamic> {
 
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
     pub async fn call(&self, input: &str) -> Result<Value> {
-        let (http, lm) = global::current()?;
+        let (http, lm) = self.asking()?;
         self.call_with(&http, lm.as_ref(), input).await
     }
 
@@ -641,6 +668,7 @@ mod tests {
             let lm = Scripted::new(&[reply]);
             let predict = Predict {
                 spec: PhantomData,
+                lm: None,
                 signature: typed_signature(),
                 adapter: Box::new(JsonAdapter),
                 demos: Vec::new(),
@@ -692,7 +720,7 @@ impl<S: Send + Sync> Module for Predict<S> {
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
-            let (http, lm) = global::current()?;
+            let (http, lm) = self.asking()?;
             let pairs: Vec<(&str, Value)> = inputs
                 .fields()
                 .map(|(name, value)| (name, value.clone()))
@@ -776,5 +804,54 @@ mod one_api {
 
         assert_eq!(from_declared.get("color").unwrap(), "red");
         assert_eq!(from_derived.color, "red");
+    }
+}
+
+#[cfg(test)]
+mod per_call_model {
+    use std::sync::Arc;
+
+    use super::*;
+    use crate::example;
+    use crate::lm::dummy::DummyLM;
+    use crate::module::Module;
+    use crate::predict::scripted::Scripted;
+    use crate::{input, predict};
+
+    /// A module asks its own model when it has one, and the configured one otherwise.
+    ///
+    /// This is the seam an optimizer needs: `BestOfN` runs a module several times against models
+    /// that differ only in their sampling, and a bootstrap round after the first needs one that
+    /// will not answer from a cache. Neither can reach a process-wide default to arrange it.
+    #[tokio::test]
+    async fn a_module_asks_its_own_model_over_the_configured_one() {
+        crate::lm::global::configure_model(
+            reqwest::Client::new(),
+            Arc::new(DummyLM::new([example! { answer: "from the default" }])),
+        );
+
+        let asking = predict!("question -> answer");
+        assert!(asking.lm().is_none(), "it defers until given one");
+        let default = asking
+            .forward(input! { question: "q" })
+            .await
+            .expect("asks");
+        assert_eq!(default.get("answer").unwrap(), "from the default");
+
+        let mine = predict!("question -> answer").with_lm(Arc::new(DummyLM::new([
+            example! { answer: "from its own" },
+        ])));
+        assert!(mine.lm().is_some());
+        let own = mine.forward(input! { question: "q" }).await.expect("asks");
+        assert_eq!(own.get("answer").unwrap(), "from its own");
+    }
+
+    /// The override survives being told which task it asks, so a typed module can carry one too.
+    #[test]
+    fn the_override_survives_being_given_a_task() {
+        let _ = Scripted::new(&[]);
+        let carried = Predict::from_signature("q -> a".parse().expect("parses"))
+            .with_lm(Arc::new(DummyLM::new([])));
+        assert!(carried.into_task::<()>().lm().is_some());
     }
 }
