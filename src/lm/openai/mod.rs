@@ -330,23 +330,65 @@ fn reply(
         let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
         return Err(anyhow!("{label} {status}: {detail}"));
     }
-    let outputs: Vec<String> = body["choices"]
+    let outputs: Vec<api::LmOutput> = body["choices"]
         .as_array()
-        .map(|choices| {
-            choices
-                .iter()
-                .filter_map(|choice| choice["message"]["content"].as_str())
-                .map(str::to_owned)
-                .collect()
-        })
+        .map(|choices| choices.iter().map(output_of).collect())
         .unwrap_or_default();
-    if outputs.is_empty() {
+    if outputs.iter().all(|output| output.parts.is_empty()) {
+        // A reply with neither text nor a tool call is nothing to parse — every caller here reads
+        // it as an empty answer rather than a panic, so it is surfaced as the error it is.
         return Err(anyhow!("{label} returned no content"));
     }
-    Ok(api::LmResponse::completions(outputs)
-        .with_usage(usage(&body["usage"]))
-        .with_provider_response(provider_data(body))
-        .with_model(model))
+    Ok(api::LmResponse {
+        outputs,
+        ..api::LmResponse::default()
+    }
+    .with_usage(usage(&body["usage"]))
+    .with_provider_response(provider_data(body))
+    .with_model(model))
+}
+
+/// One choice as a typed output: its text, any tool calls it asked for, and why it stopped.
+fn output_of(choice: &Value) -> api::LmOutput {
+    let mut parts = Vec::new();
+    if let Some(content) = choice["message"]["content"].as_str()
+        && !content.is_empty()
+    {
+        parts.push(api::LmPart::text(content));
+    }
+    for call in choice["message"]["tool_calls"]
+        .as_array()
+        .into_iter()
+        .flatten()
+    {
+        parts.push(tool_call(call));
+    }
+    let reason = choice["finish_reason"].as_str();
+    api::LmOutput {
+        parts,
+        truncated: reason == Some("length"),
+        finish_reason: reason.map(str::to_owned),
+        ..api::LmOutput::default()
+    }
+}
+
+/// One OpenAI tool call as an [`LmPart::ToolCall`](api::LmPart), its arguments parsed from the JSON
+/// string OpenAI hands them in.
+fn tool_call(call: &Value) -> api::LmPart {
+    let arguments = call["function"]["arguments"].as_str().unwrap_or("{}");
+    api::LmPart::ToolCall {
+        id: call["id"].as_str().map(str::to_owned),
+        name: call["function"]["name"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned(),
+        args: match serde_json::from_str(arguments) {
+            Ok(Value::Object(map)) => map,
+            _ => api::Metadata::new(),
+        },
+        provider_data: api::Metadata::new(),
+        metadata: api::Metadata::new(),
+    }
 }
 
 /// `prompt_tokens` already includes whatever was read from cache here, unlike Anthropic's split
@@ -636,6 +678,36 @@ mod tests {
                 .first_text(),
             "hello"
         );
+    }
+
+    /// A function-calling reply carries its calls as `ToolCall` parts, not lost text — the
+    /// arguments parsed out of the JSON string OpenAI hands them in, and the stop reason kept.
+    #[test]
+    fn a_reply_with_tool_calls_parses_them_into_parts() {
+        let body = json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": null,
+                    "tool_calls": [{
+                        "id": "call_1",
+                        "type": "function",
+                        "function": { "name": "get_weather", "arguments": "{\"city\": \"Paris\"}" },
+                    }],
+                },
+                "finish_reason": "tool_calls",
+            }]
+        });
+        let response =
+            reply("openai", "gpt-4o", reqwest::StatusCode::OK, &body).expect("parses");
+        let output = &response.outputs[0];
+        assert_eq!(output.finish_reason.as_deref(), Some("tool_calls"));
+        let api::LmPart::ToolCall { id, name, args, .. } = &output.parts[0] else {
+            panic!("expected a tool call, got {:?}", output.parts)
+        };
+        assert_eq!(id.as_deref(), Some("call_1"));
+        assert_eq!(name, "get_weather");
+        assert_eq!(args["city"], json!("Paris"));
     }
 
     /// This format names its counts for the two halves of the call rather than for the tokens,
