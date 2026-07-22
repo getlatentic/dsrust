@@ -216,6 +216,64 @@ also makes the module callable through `call!`.
 shape because it must be object-safe for a composed program to hold `Box<dyn Module>`; the derive
 does the boxing in between.
 
+## Reaching a provider, and adding your own
+
+A model is an `LM`, named `provider/model-id`. The prefix picks a **wire format**, not a brand:
+`openai/…` is the OpenAI `/v1/chat/completions` shape, which OpenAI, Groq, Together, Fireworks,
+DeepSeek, vLLM and LM Studio all speak — you reach any of them by pointing the base URL, not by a
+new prefix. `anthropic/…` and `ollama/…` are their own shapes.
+
+```rust
+// OpenAI itself, from OPENAI_API_KEY in the environment.
+let lm = LM::new("openai/gpt-4o-mini")?;
+
+// Groq, on the same wire, a different host and key.
+let lm = LM::new("openai/llama-3.3-70b")?
+    .with_openai_base_url("https://api.groq.com/openai/v1")
+    .with_openai_key(std::env::var("GROQ_API_KEY")?);
+
+dsrs::lm::configure(lm); // the process-wide default every module reaches
+```
+
+This is where dsrs and dspy part on purpose. dspy routes every provider through **litellm**, whose
+prefix is the brand (`groq/…`, `bedrock/…`) with the host known for you; dsrs is litellm-free, so
+the prefix is the wire format and a non-OpenAI host is named by its URL. The four built-in shapes
+are a closed `match`, because *something* must map a model string to a wire — dspy has the same map
+in litellm, just hidden.
+
+**A provider of your own is the `ChatModel` trait**, the one seam every built-in already implements:
+
+```rust
+struct MyProvider {
+    key: String,
+}
+
+impl ChatModel for MyProvider {
+    fn forward<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+        request: &'a dsrs::lm::api::LmRequest,
+    ) -> impl Future<Output = Result<dsrs::lm::api::LmResponse>> + Send + 'a {
+        async move {
+            // request.wire_messages(), request.config.temperature, request.output_schema() —
+            // translate the typed request to your API, and its reply back to an LmResponse.
+            todo!()
+        }
+    }
+}
+```
+
+This is dspy 3.3's `forward_contract = "typed_lm"` shape exactly: `forward(LmRequest) -> LmResponse`.
+A model built this way is indistinguishable from the built-ins — it nests behind `Cached`, reaches
+every module, and (with `forward_stream`, optional) streams.
+
+Rust has no class inheritance, so "extend OpenAI and change one thing" is **composition**: the
+built-in OpenAI provider is `Endpoint`, parameterised by base URL, key, JSON envelope and
+token-cap rule, so a variant that differs only in configuration is a different `Endpoint`, not a
+subclass. A provider that shares the OpenAI wire but changes a header or the reply parsing wraps
+the OpenAI request/reply pieces in its own `ChatModel` — it holds what it reuses rather than
+inheriting it.
+
 ## Every module, and what it takes
 
 dspy's modules split into two families, and the split decides how you build one.
