@@ -3,17 +3,15 @@
 //! There is no dspy reference for this mapping — dspy 3.3 streams through litellm's
 //! `ModelResponseStream` — so it is faithful to OpenAI's SSE wire (one `data:` frame per chunk,
 //! `[DONE]` to close) and the typed streaming vocabulary rather than to a shipped implementation.
-//!
-//! Production is buffered for now: the whole body is read before its events are handed out. The
-//! incremental read is a later refinement, and no stub test can tell the two apart, since a stub
-//! sends the body whole.
+//! The reading, framing and assembly are shared; this is only the OpenAI frame's meaning.
 
-use anyhow::{Context, Result, anyhow};
-use futures_util::{Stream, StreamExt, stream};
+use anyhow::Result;
+use futures_util::Stream;
 use serde_json::Value;
 
 use crate::lm::PROVIDER_TIMEOUT;
 use crate::lm::api::{LmDelta, LmStreamEvent};
+use crate::lm::streaming::{Framed, Framing};
 
 /// One streaming chunk as the events it implies: a content delta per choice, and an
 /// [`LmStreamEvent::OutputEnd`] where a choice named why it stopped.
@@ -41,45 +39,30 @@ fn events_from_chunk(chunk: &Value) -> Vec<LmStreamEvent> {
     events
 }
 
-/// A whole SSE body as the events it carries: [`Start`](LmStreamEvent::Start) first, each chunk's
-/// deltas and output-ends in order, then [`End`](LmStreamEvent::End) with whatever usage the final
-/// chunk reported — OpenAI sends it when the request asked for `stream_options.include_usage`.
-pub(super) fn parse_sse(body: &str, model: &str) -> Vec<Result<LmStreamEvent>> {
-    let mut events = vec![Ok(LmStreamEvent::Start {
-        model: Some(model.to_owned()),
-    })];
-    let mut usage = None;
-    for frame in body.split("\n\n") {
-        let Some(data) = frame.trim().strip_prefix("data:") else {
-            continue; // comments, keep-alives, the trailing blank
-        };
-        let data = data.trim();
-        if data == "[DONE]" {
-            break;
-        }
-        match serde_json::from_str::<Value>(data) {
-            Ok(chunk) => {
-                if let Some(reported) = super::usage(&chunk["usage"]) {
-                    usage = Some(reported);
-                }
-                events.extend(events_from_chunk(&chunk).into_iter().map(Ok));
-            }
-            Err(error) => {
-                events.push(Err(anyhow!("openai stream chunk was not JSON: {error}")));
-            }
-        }
+/// One SSE frame — a `data:` line, `data: [DONE]`, or a keep-alive — as its events. The usage the
+/// final chunk carries is accumulated for the stream's [`End`](LmStreamEvent::End); OpenAI sends it
+/// when the request asked for `stream_options.include_usage`.
+fn frame(frame: &str, usage: &mut Option<crate::lm::LmUsage>) -> Framed {
+    let Some(data) = frame.trim().strip_prefix("data:") else {
+        return Framed::of(Vec::new()); // a comment or keep-alive carries nothing
+    };
+    let data = data.trim();
+    if data == "[DONE]" {
+        return Framed::closing(Vec::new());
     }
-    events.push(Ok(LmStreamEvent::End {
-        usage,
-        cost: None,
-        response: None,
-    }));
-    events
+    let Ok(chunk) = serde_json::from_str::<Value>(data) else {
+        // A chunk that will not parse is skipped rather than failing the stream mid-flight, which
+        // is how a keep-alive or a partial line is tolerated.
+        return Framed::of(Vec::new());
+    };
+    if let Some(reported) = super::usage(&chunk["usage"]) {
+        *usage = Some(reported);
+    }
+    Framed::of(events_from_chunk(&chunk))
 }
 
-/// The events of one streaming call. Borrows only the client — the owned url, key, model and body
-/// are lifted out of the endpoint before the stream is built, so it outlives the temporary that
-/// built it.
+/// The typed events of one streaming call. The owned url, key, model and body are lifted out of
+/// the endpoint before the stream is built, so it borrows only the client.
 pub(super) fn events<'h>(
     http: &'h reqwest::Client,
     url: String,
@@ -88,56 +71,43 @@ pub(super) fn events<'h>(
     model: String,
     body: Value,
 ) -> impl Stream<Item = Result<LmStreamEvent>> + Send + 'h {
-    stream::once(fetch(http, url, key, label, model, body)).flat_map(stream::iter)
-}
-
-async fn fetch(
-    http: &reqwest::Client,
-    url: String,
-    key: Option<String>,
-    label: String,
-    model: String,
-    body: Value,
-) -> Vec<Result<LmStreamEvent>> {
-    match send(http, url, key, label, &body).await {
-        Ok(text) => parse_sse(&text, &model),
-        Err(error) => vec![Err(error)],
+    let mut request = http.post(url).timeout(PROVIDER_TIMEOUT).json(&body);
+    if let Some(key) = key {
+        request = request.bearer_auth(key);
     }
-}
-
-async fn send(
-    http: &reqwest::Client,
-    url: String,
-    key: Option<String>,
-    label: String,
-    body: &Value,
-) -> Result<String> {
-    let key = key.ok_or_else(|| anyhow!("{label} streaming needs an API key"))?;
-    let response = http
-        .post(url)
-        .bearer_auth(key)
-        .timeout(PROVIDER_TIMEOUT)
-        .json(body)
-        .send()
-        .await
-        .with_context(|| format!("{label} streaming request failed"))?;
-    let status = response.status();
-    let text = response
-        .text()
-        .await
-        .with_context(|| format!("{label} streaming response was unreadable"))?;
-    if !status.is_success() {
-        return Err(anyhow!("{label} {status}: {text}"));
-    }
-    Ok(text)
+    crate::lm::streaming::events(
+        request.send(),
+        label,
+        model,
+        Framing {
+            separator: b"\n\n",
+            frame,
+        },
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// A representative OpenAI stream: a role-only opener, two content deltas, a stop, then the
-    /// usage chunk and `[DONE]`.
+    fn events_of(body: &str) -> Vec<LmStreamEvent> {
+        let mut usage = None;
+        let mut events = Vec::new();
+        for line in body.split("\n\n") {
+            let framed = frame(line, &mut usage);
+            events.extend(framed.events);
+            if framed.done {
+                events.push(LmStreamEvent::End {
+                    usage: usage.take(),
+                    cost: None,
+                    response: None,
+                });
+                break;
+            }
+        }
+        events
+    }
+
     const SSE: &str = "data: {\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"\"}}]}\n\n\
         data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Par\"}}]}\n\n\
         data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"is\"}}]}\n\n\
@@ -146,40 +116,35 @@ mod tests {
         data: [DONE]\n\n";
 
     #[test]
-    fn a_body_of_frames_parses_into_start_deltas_end() {
-        let events: Vec<LmStreamEvent> = parse_sse(SSE, "openai/gpt-4o")
-            .into_iter()
-            .map(|event| event.expect("every frame parsed"))
-            .collect();
-
-        assert!(matches!(&events[0], LmStreamEvent::Start { model } if model.as_deref() == Some("openai/gpt-4o")));
-        // The role-only opener carries no content, so it contributes no delta.
+    fn a_role_only_opener_carries_no_delta_and_content_deltas_do() {
+        let events = events_of(SSE);
         assert_eq!(
-            events[1],
+            events[0],
             LmStreamEvent::delta(0, LmDelta::text("Par")),
-            "first content delta"
+            "the empty opener contributed nothing; the first delta is content"
         );
-        assert_eq!(events[2], LmStreamEvent::delta(0, LmDelta::text("is")));
+        assert_eq!(events[1], LmStreamEvent::delta(0, LmDelta::text("is")));
         assert!(matches!(
-            &events[3],
+            &events[2],
             LmStreamEvent::OutputEnd { finish_reason, truncated, .. }
                 if finish_reason.as_deref() == Some("stop") && !truncated
         ));
-        let LmStreamEvent::End { usage, .. } = events.last().expect("an end") else {
-            panic!("the last event is the end, got {:?}", events.last());
-        };
-        assert_eq!(usage.as_ref().and_then(|u| u.total()), Some(14));
     }
 
-    /// The whole point of the typed vocabulary: the events reassemble into the reply, via the same
-    /// [`LmOutputBuilder`](crate::lm::api::LmOutputBuilder) a live stream would drive.
+    /// The whole point of the typed vocabulary: the frames' events reassemble into the reply, via
+    /// the same [`LmOutputBuilder`](crate::lm::api::LmOutputBuilder) the live stream drives.
     #[test]
     fn the_events_reassemble_into_the_reply() {
         use crate::lm::api::LmOutputBuilder;
         let mut builder = LmOutputBuilder::new();
+        builder
+            .apply(LmStreamEvent::Start {
+                model: Some("openai/gpt-4o".to_owned()),
+            })
+            .expect("start applies");
         let mut response = None;
-        for event in parse_sse(SSE, "openai/gpt-4o") {
-            if let Some(assembled) = builder.apply(event.expect("valid event")).expect("applies") {
+        for event in events_of(SSE) {
+            if let Some(assembled) = builder.apply(event).expect("applies") {
                 response = Some(assembled);
             }
         }
@@ -190,11 +155,11 @@ mod tests {
 
     #[test]
     fn a_finish_reason_of_length_marks_the_output_truncated() {
-        let body = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"x\"},\"finish_reason\":\"length\"}]}\n\ndata: [DONE]\n\n";
-        let events = parse_sse(body, "m");
+        let events =
+            events_of("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"x\"},\"finish_reason\":\"length\"}]}\n\ndata: [DONE]\n\n");
         assert!(events.iter().any(|event| matches!(
-            event.as_ref().ok(),
-            Some(LmStreamEvent::OutputEnd { truncated: true, .. })
+            event,
+            LmStreamEvent::OutputEnd { truncated: true, .. }
         )));
     }
 }
