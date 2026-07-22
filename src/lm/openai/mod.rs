@@ -11,6 +11,8 @@ use serde_json::{Value, json};
 use super::token_limit::TokenLimitRule;
 use super::{ChatModel, LmUsage, PROVIDER_TIMEOUT, api, env_nonempty};
 
+mod stream;
+
 /// OpenAI's own endpoint, and the value every other service replaces.
 pub const DEFAULT_OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
 
@@ -132,6 +134,39 @@ impl<'a> Endpoint<'a> {
             token_limit_rule: config.token_limit_rule,
         }
     }
+
+    /// The streaming form of [`forward`](ChatModel::forward): the same body with the stream flags,
+    /// read back as typed [`LmStreamEvent`](api::LmStreamEvent)s. Its owned inputs are lifted out
+    /// of the endpoint here, so — `use<'h>` — it captures only the client and outlives this
+    /// temporary endpoint the way a returned stream must.
+    pub(crate) fn stream<'h>(
+        &self,
+        http: &'h reqwest::Client,
+        call: &api::LmRequest,
+    ) -> impl futures_util::Stream<Item = Result<api::LmStreamEvent>> + Send + use<'h> {
+        stream::events(
+            http,
+            chat_completions_url(self.base_url),
+            self.api_key.map(str::to_owned),
+            self.label.to_owned(),
+            self.model.to_owned(),
+            streaming_body(self.model, call, self.json_format, self.token_limit_rule),
+        )
+    }
+}
+
+/// The request body with the streaming flags OpenAI reads: emit chunks, and put the usage in the
+/// final one rather than omitting it as a streamed call otherwise would.
+fn streaming_body(
+    model: &str,
+    call: &api::LmRequest,
+    json_format: JsonFormat,
+    token_limit_rule: TokenLimitRule,
+) -> Value {
+    let mut body = request(model, call, json_format, token_limit_rule);
+    body["stream"] = json!(true);
+    body["stream_options"] = json!({ "include_usage": true });
+    body
 }
 
 impl ChatModel for Endpoint<'_> {

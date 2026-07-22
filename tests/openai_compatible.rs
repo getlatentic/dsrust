@@ -243,6 +243,54 @@ async fn the_schema_envelope_is_opt_in_and_carries_the_schema() {
     assert_eq!(format["json_schema"]["schema"], schema);
 }
 
+/// Streaming: a `stream:true` request, the Server-Sent Events read back as the typed vocabulary.
+/// The stub sends the whole SSE body at once, which is all a socket test can do; what this pins
+/// is the request flag and the chunk→event→text mapping.
+#[tokio::test]
+async fn forward_stream_reads_sse_into_typed_events() {
+    use futures_util::StreamExt;
+    use dsrs::lm::api::{LmDelta, LmStreamEvent};
+
+    let sse = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Par\"}}]}\n\n\
+               data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"is\"}}]}\n\n\
+               data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n\
+               data: [DONE]\n\n";
+    let stub = Stub::answering(200, sse);
+    let lm = probe_lm(&stub);
+    let request = probe_request(&OutputMode::Text);
+
+    let events: Vec<LmStreamEvent> = lm
+        .forward_stream(&reqwest::Client::new(), &request)
+        .map(|event| event.expect("a valid event"))
+        .collect()
+        .await;
+
+    assert_eq!(
+        stub.received().body["stream"],
+        json!(true),
+        "the request asked to stream"
+    );
+    assert!(
+        matches!(events.first(), Some(LmStreamEvent::Start { .. })),
+        "the stream opens with Start"
+    );
+    let streamed: String = events
+        .iter()
+        .filter_map(|event| match event {
+            LmStreamEvent::Delta {
+                delta: LmDelta::TextDelta { text },
+                ..
+            } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(streamed, "Paris", "the deltas reassemble into the reply");
+    assert!(
+        matches!(events.last(), Some(LmStreamEvent::End { .. })),
+        "and closes with End"
+    );
+}
+
 /// dspy 3.3 sends no `max_tokens` when the caller named none — a bare chat call carries a cap
 /// under neither key, where this crate once defaulted 1024.
 #[tokio::test]
