@@ -28,6 +28,24 @@ fn events_from_chunk(chunk: &Value) -> Vec<LmStreamEvent> {
                 delta: LmDelta::text(content),
             });
         }
+        // A tool call arrives in fragments across chunks — its id and name once, its arguments a
+        // slice at a time — under an index of its own. `LmOutputBuilder` reassembles them.
+        for call in choice["delta"]["tool_calls"]
+            .as_array()
+            .into_iter()
+            .flatten()
+        {
+            let slot = call["index"].as_u64().unwrap_or(0) as usize;
+            events.push(LmStreamEvent::Delta {
+                output_index: index,
+                part_index: slot,
+                delta: LmDelta::ToolCallDelta {
+                    id: call["id"].as_str().map(str::to_owned),
+                    name: call["function"]["name"].as_str().map(str::to_owned),
+                    args_delta: call["function"]["arguments"].as_str().map(str::to_owned),
+                },
+            });
+        }
         if let Some(reason) = choice["finish_reason"].as_str() {
             events.push(LmStreamEvent::OutputEnd {
                 output_index: index,
@@ -151,6 +169,36 @@ mod tests {
         let response = response.expect("the end event produced a reply");
         assert_eq!(response.first_text(), "Paris");
         assert_eq!(response.usage.and_then(|u| u.total()), Some(14));
+    }
+
+    /// A streamed tool call arrives in fragments — id and name first, arguments a slice at a time
+    /// — and reassembles through the builder into one `ToolCall` part with its arguments whole.
+    #[test]
+    fn a_streamed_tool_call_reassembles_through_the_builder() {
+        use crate::lm::api::{LmOutputBuilder, LmPart};
+        let sse = "data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"\"}}]}}]}\n\n\
+            data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"city\\\":\"}}]}}]}\n\n\
+            data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"\\\"Paris\\\"}\"}}]}}]}\n\n\
+            data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\n\
+            data: [DONE]\n\n";
+
+        let mut builder = LmOutputBuilder::new();
+        builder
+            .apply(LmStreamEvent::Start { model: None })
+            .expect("start");
+        let mut response = None;
+        for event in events_of(sse) {
+            if let Some(assembled) = builder.apply(event).expect("applies") {
+                response = Some(assembled);
+            }
+        }
+        let output = &response.expect("assembled").outputs[0];
+        assert_eq!(output.finish_reason.as_deref(), Some("tool_calls"));
+        let LmPart::ToolCall { name, args, .. } = &output.parts[0] else {
+            panic!("expected a tool call, got {:?}", output.parts)
+        };
+        assert_eq!(name, "get_weather");
+        assert_eq!(args["city"], serde_json::json!("Paris"), "arguments reassembled whole");
     }
 
     #[test]
