@@ -13,7 +13,7 @@ pub mod usage;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
-use futures_util::{Stream, StreamExt, stream};
+use futures_util::Stream;
 use serde_json::Value;
 
 pub use cache::{Cached, ResponseCache};
@@ -258,29 +258,6 @@ fn env_nonempty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|value| !value.is_empty())
 }
 
-/// A complete reply as the typed events it would have streamed as: the model named, its text as
-/// one delta, then the output-end and the end carrying what it cost.
-fn events_of(response: api::LmResponse) -> Vec<Result<api::LmStreamEvent>> {
-    let mut events = vec![Ok(api::LmStreamEvent::Start {
-        model: response.model.clone(),
-    })];
-    let text = response.first_text();
-    if !text.is_empty() {
-        events.push(Ok(api::LmStreamEvent::delta(0, api::LmDelta::text(text))));
-    }
-    events.push(Ok(api::LmStreamEvent::OutputEnd {
-        output_index: 0,
-        finish_reason: None,
-        truncated: false,
-    }));
-    events.push(Ok(api::LmStreamEvent::End {
-        usage: response.usage,
-        cost: response.cost,
-        response: None,
-    }));
-    events
-}
-
 impl ChatModel for LM {
     async fn forward(
         &self,
@@ -319,32 +296,23 @@ impl LM {
         request: &'a api::LmRequest,
     ) -> std::pin::Pin<Box<dyn Stream<Item = Result<api::LmStreamEvent>> + Send + 'a>> {
         match self.model.provider {
-            Provider::OpenAiCompatible => {
-                Box::pin(openai::Endpoint::configured(&self.model.id, &self.openai).stream(http, request))
-            }
+            Provider::OpenAiCompatible => Box::pin(
+                openai::Endpoint::configured(&self.model.id, &self.openai).stream(http, request),
+            ),
             Provider::OpenRouter => Box::pin(
                 openai::Endpoint::openrouter(&self.model.id, self.openrouter_api_key.as_deref())
                     .stream(http, request),
             ),
-            // Anthropic and ollama answer once; their reply arrives as the events it implies.
-            _ => Box::pin(self.replayed_stream(http, request)),
-        }
-    }
-
-    /// A complete reply as the event sequence it would have streamed as, for a provider this crate
-    /// does not yet read incrementally.
-    fn replayed_stream<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-        request: &'a api::LmRequest,
-    ) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + 'a {
-        stream::once(async move {
-            match self.forward(http, request).await {
-                Ok(response) => events_of(response),
-                Err(error) => vec![Err(error)],
+            Provider::Anthropic => Box::pin(anthropic::stream(
+                http,
+                &self.model.id,
+                self.anthropic_api_key.as_deref(),
+                request,
+            )),
+            Provider::Ollama => {
+                Box::pin(ollama::stream(http, &self.model.id, &self.ollama_host, request))
             }
-        })
-        .flat_map(stream::iter)
+        }
     }
 
     /// The call itself, on whichever wire format this model's provider speaks.
