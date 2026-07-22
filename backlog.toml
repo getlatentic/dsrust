@@ -1090,10 +1090,45 @@ The options, and why the default is the default:
 [[backlog]]
 id = "b3"
 title = "Streaming, callbacks, clients"
-kind = "unscoped"
+kind = "scoped"
+state = "next"
 detail = """
-tests/streaming, tests/callback, tests/clients are untouched and unsized. Streaming in
-particular may not fit the current ChatModel trait. Size before scheduling.
+Sized against dspy 3.3.0b1 (2026-07-22). Key finding: dspy 3.3's LIVE streaming is litellm-based —
+streaming/streaming_listener.py imports litellm's ModelResponseStream and reads
+chunk.choices[0].delta.content. The TYPED streaming vocabulary (LMStreamEvent, LMDelta, LMStream,
+LMOutputBuilder) is STAGED and unwired: grep for its importers outside core/types.py returns
+nothing. So it is the same situation as LMRequest/LMResponse were — dspy defines the typed
+streaming design but does not ship an implementation. Wiring it puts us ahead of 3.3 again.
+
+We already ported the typed vocabulary (commit d76b9c9): LmStreamEvent (Start/Delta/OutputEnd/End/
+Error), LmDelta (six), LmOutputBuilder (assembly, mutation-tested), LmStream (over an Iterator).
+None is wired to a live call. There is NO dspy reference for provider-SSE -> LmStreamEvent (dspy
+uses litellm), so that mapping is ours to design faithfully to OpenAI's SSE + the typed events.
+
+Two layers, slice in this order:
+
+1. LM-level typed streaming. A streaming method on ChatModel — forward_stream returning an async
+   Stream<Item = Result<LmStreamEvent>> + a DynChatModel boxed form (the object-safety pattern,
+   same as forward/forward_dyn). Each provider does a stream:true request over reqwest
+   bytes_stream, buffers SSE frames (split on blank line, `data: {json}` / `data: [DONE]`), maps
+   each chunk to events: content delta -> LmDelta::text under choice.index; finish_reason ->
+   OutputEnd (truncated = finish_reason=="length"); the stream frames Start{model} first and
+   End{usage} last (usage from the include_usage final chunk). LmOutputBuilder assembles the
+   final LmResponse. Anthropic/ollama each have their own SSE shape. NOTE the dead-code wall: the
+   streaming method must land WITH a public entry (LM::forward_stream) or its first caller, or it
+   trips the 0-warning gate — so slice 1 ships the trait method + OpenAI impl + a public LM entry
+   together, tested against a stub emitting a canned SSE body.
+
+2. streamify (program-level field streaming). dspy's StreamListener watches a signature field by
+   its marker — `[[ ## field ## ]]` for ChatAdapter, `"field":` for JSONAdapter — and yields that
+   field's tokens as they arrive (streaming/streaming_listener.py). Port StreamListener +
+   streamify over the layer-1 stream: a stateful watcher scanning the assembled text for the
+   field's start/end markers, emitting the field's delta tokens. This is adapter-aware and builds
+   on layer 1.
+
+Async note: dspy has sync forward + async aforward; Rust needs only the one async forward (a sync
+caller uses block_on), so there is nothing to unify — the single async ChatModel::forward already
+is both. callbacks and tests/clients remain unsized; size separately.
 """
 
 [[backlog]]
