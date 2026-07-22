@@ -1105,7 +1105,13 @@ Error), LmDelta (six), LmOutputBuilder (assembly, mutation-tested), LmStream (ov
 None is wired to a live call. There is NO dspy reference for provider-SSE -> LmStreamEvent (dspy
 uses litellm), so that mapping is ours to design faithfully to OpenAI's SSE + the typed events.
 
-Two layers, slice in this order:
+LAYER 1 SHIPPED (commit 903576d): LM::forward_stream — OpenAI SSE read back as typed events, with
+LmOutputBuilder assembly, a socket end-to-end test, and mutation coverage. Remaining under layer
+1: incremental read (production is buffered — body read whole before events handed out; no stub
+test can tell), and native SSE for Anthropic/ollama (they use the synthesised-from-forward
+fallback today). Layer 2 (streamify) is untouched.
+
+Original sizing, for the rest:
 
 1. LM-level typed streaming. A streaming method on ChatModel — forward_stream returning an async
    Stream<Item = Result<LmStreamEvent>> + a DynChatModel boxed form (the object-safety pattern,
