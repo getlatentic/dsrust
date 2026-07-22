@@ -1,0 +1,419 @@
+{
+  "source": "dspy==3.3.0b1 clients/openai_format.to_openai_chat_request",
+  "dspy_version": "3.3.0b1",
+  "cases": [
+    {
+      "name": "minimal",
+      "lm_request": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "system",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "be helpful"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "system",
+            "content": "be helpful"
+          },
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ]
+      }
+    },
+    {
+      "name": "temperature_and_n",
+      "lm_request": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": 0.7,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": 2,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ],
+        "temperature": 0.7,
+        "n": 2
+      }
+    },
+    {
+      "name": "max_tokens_set",
+      "lm_request": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": 256,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ],
+        "max_tokens": 256
+      }
+    },
+    {
+      "name": "reasoning_max_completion_tokens",
+      "lm_request": {
+        "model": "openai/o3-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": 16000,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/o3-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ],
+        "max_completion_tokens": 16000
+      }
+    },
+    {
+      "name": "top_p_and_stop",
+      "lm_request": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": 0.9,
+          "stop": [
+            "\n\n"
+          ],
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ],
+        "top_p": 0.9,
+        "stop": [
+          "\n\n"
+        ]
+      }
+    },
+    {
+      "name": "logprobs",
+      "lm_request": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": true,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ],
+        "logprobs": true
+      }
+    },
+    {
+      "name": "extensions_passthrough",
+      "lm_request": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {
+            "seed": 42,
+            "user": "acct-1"
+          }
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ],
+        "seed": 42,
+        "user": "acct-1"
+      }
+    },
+    {
+      "name": "multimodal_image",
+      "lm_request": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "describe"
+              },
+              {
+                "type": "image",
+                "metadata": {},
+                "media_type": "image/png",
+                "data": null,
+                "url": "https://example.com/a.jpg",
+                "file_id": null,
+                "path": null,
+                "detail": null
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "describe"
+              },
+              {
+                "type": "image_url",
+                "image_url": {
+                  "url": "https://example.com/a.jpg"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

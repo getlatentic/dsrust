@@ -160,30 +160,56 @@ mod tests {
         assert_eq!(counting.total(), usage(110, 44), "and summed across both");
     }
 
+    /// Hold the tracking scope with nothing installed, so a test of the *out-of-scope* behaviour
+    /// serialises against the tests that do install a tracker rather than racing one. Without
+    /// this these tests' unscoped `record` calls leaked into a concurrent scope's tracker — a
+    /// stray 70 tokens once landing in [`each_model_is_totalled_on_its_own`].
+    fn exclusive() -> MutexGuard<'static, ()> {
+        let held = scope().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        *installed().lock().expect("not poisoned") = None;
+        held
+    }
+
+    fn install(tracker: &Arc<UsageTracker>) {
+        *installed().lock().expect("not poisoned") = Some(Arc::clone(tracker));
+    }
+
+    fn uninstall() {
+        *installed().lock().expect("not poisoned") = None;
+    }
+
     /// Nothing is counted outside a scope, so a long-lived process does not accumulate a total
     /// nobody asked for.
     #[test]
     fn a_call_outside_every_scope_is_charged_to_nothing() {
+        let _held = exclusive();
         record("anthropic/claude", Some(usage(999, 999)));
-        let counting = track();
-        assert!(counting.tracker().is_empty());
+
+        let tracker = Arc::new(UsageTracker::default());
+        install(&tracker);
+        assert!(tracker.is_empty(), "the out-of-scope call charged nothing");
         record("anthropic/claude", Some(usage(1, 1)));
-        assert_eq!(counting.total(), usage(1, 1));
+        assert_eq!(tracker.total(), usage(1, 1));
+        uninstall();
     }
 
     /// The scope ends where the guard does, which is what makes this one run's number rather
     /// than the process's.
     #[test]
     fn a_dropped_scope_stops_counting() {
-        let first = track();
+        let _held = exclusive();
+        let first = Arc::new(UsageTracker::default());
+        install(&first);
         record("anthropic/claude", Some(usage(5, 5)));
         assert_eq!(first.total(), usage(5, 5));
-        drop(first);
+        uninstall();
 
         record("anthropic/claude", Some(usage(70, 70)));
 
-        let second = track();
-        assert!(second.tracker().is_empty(), "a new scope starts at nothing");
+        let second = Arc::new(UsageTracker::default());
+        install(&second);
+        assert!(second.is_empty(), "a new scope starts at nothing");
+        uninstall();
     }
 
     /// A replay was already paid for once, and `spend` is how that arrives here as nothing.

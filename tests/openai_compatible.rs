@@ -149,7 +149,7 @@ fn probe_lm(stub: &Stub) -> LM {
 
 /// The typed request a `be helpful` / `hi` exchange builds — the same messages an adapter would
 /// render, so what the provider serializes is what the wire has always carried.
-async fn ask(lm: &LM, mode: &OutputMode<'_>) -> anyhow::Result<api::LmResponse> {
+fn probe_request(mode: &OutputMode<'_>) -> api::LmRequest {
     let mut request = api::LmRequest::new(
         "",
         vec![
@@ -160,6 +160,18 @@ async fn ask(lm: &LM, mode: &OutputMode<'_>) -> anyhow::Result<api::LmResponse> 
     if let OutputMode::Json { schema } = mode {
         request.config.response_format = Some((*schema).clone());
     }
+    request
+}
+
+async fn ask(lm: &LM, mode: &OutputMode<'_>) -> anyhow::Result<api::LmResponse> {
+    lm.forward(&reqwest::Client::new(), &probe_request(mode)).await
+}
+
+/// The same, naming a token cap — what the key-routing tests need, now that a bare call sends
+/// none.
+async fn ask_capped(lm: &LM, mode: &OutputMode<'_>, cap: u32) -> anyhow::Result<api::LmResponse> {
+    let mut request = probe_request(mode);
+    request.config.max_tokens = Some(cap);
     lm.forward(&reqwest::Client::new(), &request).await
 }
 
@@ -231,12 +243,26 @@ async fn the_schema_envelope_is_opt_in_and_carries_the_schema() {
     assert_eq!(format["json_schema"]["schema"], schema);
 }
 
-/// OpenAI's reasoning models reject `max_tokens` outright, so what leaves the process for
-/// one of them has to carry the cap under the other key and nothing under the old one.
+/// dspy 3.3 sends no `max_tokens` when the caller named none — a bare chat call carries a cap
+/// under neither key, where this crate once defaulted 1024.
+#[tokio::test]
+async fn a_bare_call_sends_no_token_cap_on_the_wire() {
+    let stub = Stub::answering(200, REPLY);
+    ask(&probe_lm(&stub), &OutputMode::Text)
+        .await
+        .expect("the stub answers");
+
+    let request = stub.received();
+    assert_eq!(request.body.get("max_tokens"), None);
+    assert_eq!(request.body.get("max_completion_tokens"), None);
+}
+
+/// OpenAI's reasoning models reject `max_tokens` outright, so a cap for one of them has to carry
+/// under the other key and nothing under the old one.
 #[tokio::test]
 async fn a_reasoning_model_caps_completion_tokens_on_the_wire() {
     let stub = Stub::answering(200, REPLY);
-    ask(&probe_lm_for(&stub, "openai/o3"), &OutputMode::Text)
+    ask_capped(&probe_lm_for(&stub, "openai/o3"), &OutputMode::Text, 1024)
         .await
         .expect("the stub answers");
 
@@ -248,7 +274,7 @@ async fn a_reasoning_model_caps_completion_tokens_on_the_wire() {
 #[tokio::test]
 async fn a_chat_model_caps_max_tokens_on_the_wire() {
     let stub = Stub::answering(200, REPLY);
-    ask(&probe_lm(&stub), &OutputMode::Text)
+    ask_capped(&probe_lm(&stub), &OutputMode::Text, 1024)
         .await
         .expect("the stub answers");
 
@@ -261,9 +287,10 @@ async fn a_chat_model_caps_max_tokens_on_the_wire() {
 #[tokio::test]
 async fn the_gpt_5_chat_line_keeps_max_tokens_on_the_wire() {
     let stub = Stub::answering(200, REPLY);
-    ask(
+    ask_capped(
         &probe_lm_for(&stub, "openai/gpt-5-chat-latest"),
         &OutputMode::Text,
+        1024,
     )
     .await
     .expect("the stub answers");
@@ -280,7 +307,9 @@ async fn a_host_pinned_to_max_tokens_sends_it_for_a_reasoning_model_too() {
     let stub = Stub::answering(200, REPLY);
     let lm = probe_lm_for(&stub, "openai/o3")
         .with_openai_token_limit_rule(TokenLimitRule::AlwaysMaxTokens);
-    ask(&lm, &OutputMode::Text).await.expect("the stub answers");
+    ask_capped(&lm, &OutputMode::Text, 1024)
+        .await
+        .expect("the stub answers");
 
     let request = stub.received();
     assert_eq!(request.body["max_tokens"], 1024);
