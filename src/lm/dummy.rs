@@ -14,7 +14,8 @@ use serde_json::Value;
 
 use crate::adapter::python_json::format_value;
 use crate::example::Example;
-use crate::lm::{ChatModel, ChatTurn, LmConfig, LmRequest, LmResponse, OutputMode};
+use crate::lm::api::{self, RolloutId, content_of};
+use crate::lm::{ChatModel, ChatTurn, Content, LmConfig, Role};
 
 /// What the model was asked, kept so a test can assert on the prompt it produced.
 #[derive(Debug, Clone)]
@@ -134,26 +135,25 @@ fn as_json_reply(answer: &Example) -> String {
 }
 
 impl ChatModel for DummyLM {
-    fn chat<'a>(
+    fn forward<'a>(
         &'a self,
         _http: &'a reqwest::Client,
-        request: &'a LmRequest<'a>,
-    ) -> impl Future<Output = Result<LmResponse>> + Send + 'a {
-        let (system, turns, mode) = (request.system, request.turns, &request.mode);
-        let json_mode = matches!(mode, OutputMode::Json { .. });
+        request: &'a api::LmRequest,
+    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
+        let json_mode = request.output_schema().is_some();
         let asked = Asked {
-            system: system.to_owned(),
-            turns: turns.to_vec(),
+            system: request.system().to_owned(),
+            turns: recorded_turns(request),
             json_mode,
-            config: request.config.clone(),
+            config: recorded_config(&request.config),
         };
-        let request = asked.last_message().to_owned();
+        let message = asked.last_message().to_owned();
         self.asked.lock().expect("not poisoned").push(asked);
         async move {
-            let answer = self.choose(&request)?;
+            let answer = self.choose(&message)?;
             // No usage: a scripted answer had no cost, and reporting zero would let a test
             // assert a total that no provider produced.
-            Ok(LmResponse::text(match json_mode {
+            Ok(api::LmResponse::text(match json_mode {
                 true => as_json_reply(&answer),
                 false => as_marker_reply(&answer),
             }))
@@ -161,17 +161,57 @@ impl ChatModel for DummyLM {
     }
 }
 
+/// The non-system messages as the turns a test asserts on, each part collapsed to the prose it
+/// carried — the inverse of what an adapter rendered into the request.
+fn recorded_turns(request: &api::LmRequest) -> Vec<ChatTurn> {
+    request
+        .messages
+        .iter()
+        .filter(|message| message.role != "system")
+        .map(|message| ChatTurn {
+            role: match message.role.as_str() {
+                "assistant" => Role::Assistant,
+                _ => Role::User,
+            },
+            content: content_of(&message.parts).unwrap_or_else(|_| Content::Text(String::new())),
+        })
+        .collect()
+}
+
+/// The four sampling fields a scripted model records for inspection, read back from the typed
+/// config the module handed it.
+fn recorded_config(config: &api::LmConfig) -> LmConfig {
+    LmConfig {
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        completions: config.n,
+        rollout_id: config
+            .cache
+            .as_ref()
+            .and_then(|cache| cache.rollout_id.as_ref())
+            .and_then(|rollout| match rollout {
+                RolloutId::Number(id) => u64::try_from(*id).ok(),
+                RolloutId::Text(_) => None,
+            }),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::example;
+    use crate::lm::OutputMode;
+    use crate::lm::api::interop::raise_request;
 
     fn ask(lm: &DummyLM, message: &str) -> Result<String> {
-        futures_lite_block_on(lm.chat(
-            &reqwest::Client::new(),
-            &LmRequest::new("system", &[ChatTurn::user(message)], OutputMode::Text),
-        ))
-        .map(|answered| answered.into_text())
+        let request = raise_request(
+            "system",
+            &[ChatTurn::user(message)],
+            OutputMode::Text,
+            &LmConfig::default(),
+        );
+        futures_lite_block_on(lm.forward(&reqwest::Client::new(), &request))
+            .map(|answered| answered.first_text())
     }
 
     /// The dummy never awaits anything real, so a trivial executor keeps these tests
@@ -222,10 +262,10 @@ mod tests {
         assert!(ask(&lm, "capital of France?").unwrap().contains("Paris"));
     }
 
-    /// The typed 3.3 boundary reaches the same model through the default `forward`, and lands the
-    /// same request the model would have seen natively — proof the lowering is a passthrough.
+    /// The typed request the module hands the model is recorded as the system prompt and turns a
+    /// test asserts on, the multi-part messages collapsed back to prose.
     #[test]
-    fn the_typed_forward_lands_the_same_request_as_chat() {
+    fn the_typed_forward_records_the_system_prompt_and_turns() {
         use crate::lm::api::{LmMessage, LmPart, LmRequest as ApiRequest};
 
         let lm = DummyLM::new([example! { answer: "Paris" }]);
@@ -241,8 +281,6 @@ mod tests {
             .expect("the dummy answers a typed request");
         assert_eq!(answered.first_text(), "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]");
 
-        // The dummy recorded exactly what a native `chat` would have carried: the system prompt
-        // and the one user turn, the multi-part message collapsed back to prose.
         let seen = lm.asked();
         let seen = seen.last().expect("one call was recorded");
         assert_eq!(seen.system, "Be concise.");
@@ -268,16 +306,14 @@ mod tests {
     fn json_mode_returns_an_object_the_way_a_provider_would() {
         let lm = DummyLM::new([example! { answer: "red" }]);
         let schema = serde_json::json!({});
-        let reply = futures_lite_block_on(lm.chat(
-            &reqwest::Client::new(),
-            &LmRequest::new(
-                "system",
-                &[ChatTurn::user("ask")],
-                OutputMode::Json { schema: &schema },
-            ),
-        ))
-        .unwrap();
-        assert_eq!(reply.text_ref(), r#"{"answer":"red"}"#);
+        let request = raise_request(
+            "system",
+            &[ChatTurn::user("ask")],
+            OutputMode::Json { schema: &schema },
+            &LmConfig::default(),
+        );
+        let reply = futures_lite_block_on(lm.forward(&reqwest::Client::new(), &request)).unwrap();
+        assert_eq!(reply.first_text(), r#"{"answer":"red"}"#);
         assert_eq!(reply.usage, None, "a scripted answer cost nothing to make");
     }
 

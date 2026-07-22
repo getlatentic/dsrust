@@ -6,7 +6,8 @@ use std::sync::Mutex;
 
 use anyhow::{Result, anyhow};
 
-use crate::lm::{ChatModel, ChatTurn, LmRequest, LmResponse, LmUsage, OutputMode};
+use crate::lm::api::{self, content_of};
+use crate::lm::{ChatModel, ChatTurn, Content, LmUsage, Role};
 use crate::signature::{OutField, Signature};
 
 pub(super) fn signature() -> Signature {
@@ -66,19 +67,39 @@ impl Scripted {
 }
 
 impl ChatModel for Scripted {
-    async fn chat(&self, _http: &reqwest::Client, request: &LmRequest<'_>) -> Result<LmResponse> {
+    async fn forward(
+        &self,
+        _http: &reqwest::Client,
+        request: &api::LmRequest,
+    ) -> Result<api::LmResponse> {
         self.calls.lock().expect("not poisoned").push(Call {
-            system: request.system.to_owned(),
-            turns: request.turns.to_vec(),
-            json_mode: matches!(request.mode, OutputMode::Json { .. }),
+            system: request.system().to_owned(),
+            turns: recorded_turns(request),
+            json_mode: request.output_schema().is_some(),
         });
         self.replies
             .lock()
             .expect("not poisoned")
             .pop_front()
-            .map(|reply| LmResponse::text(reply).with_usage(self.usage.clone()))
+            .map(|reply| api::LmResponse::text(reply).with_usage(self.usage.clone()))
             .ok_or_else(|| anyhow!("script exhausted"))
     }
+}
+
+/// The non-system messages as the turns a test asserts on, each part collapsed to its prose.
+fn recorded_turns(request: &api::LmRequest) -> Vec<ChatTurn> {
+    request
+        .messages
+        .iter()
+        .filter(|message| message.role != "system")
+        .map(|message| ChatTurn {
+            role: match message.role.as_str() {
+                "assistant" => Role::Assistant,
+                _ => Role::User,
+            },
+            content: content_of(&message.parts).unwrap_or_else(|_| Content::Text(String::new())),
+        })
+        .collect()
 }
 
 #[derive(Debug, serde::Deserialize)]

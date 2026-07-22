@@ -7,9 +7,7 @@ use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
 use super::token_limit::TokenLimitRule;
-use super::{
-    LmRequest, LmResponse, LmUsage, OutputMode, PROVIDER_TIMEOUT, env_nonempty, wire_messages,
-};
+use super::{LmUsage, PROVIDER_TIMEOUT, api, env_nonempty};
 
 /// OpenAI's own endpoint, and the value every other service replaces.
 pub const DEFAULT_OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
@@ -138,8 +136,8 @@ impl<'a> Endpoint<'a> {
         &self,
         http: &reqwest::Client,
         model: &str,
-        call: &LmRequest<'_>,
-    ) -> Result<LmResponse> {
+        call: &api::LmRequest,
+    ) -> Result<api::LmResponse> {
         let key = self
             .api_key
             .ok_or_else(|| anyhow!("{} is not set", self.key_var))?;
@@ -161,7 +159,7 @@ impl<'a> Endpoint<'a> {
             .json()
             .await
             .with_context(|| format!("{} response was not JSON", self.label))?;
-        reply(self.label, status, &body)
+        reply(self.label, model, status, &body)
     }
 }
 
@@ -173,23 +171,23 @@ fn chat_completions_url(base_url: &str) -> String {
 
 fn request(
     model: &str,
-    call: &LmRequest<'_>,
+    call: &api::LmRequest,
     json_format: JsonFormat,
     token_limit_rule: TokenLimitRule,
 ) -> Value {
     let mut request = json!({
         "model": model,
-        "messages": wire_messages(call.system, call.turns),
+        "messages": call.wire_messages(),
     });
     let cap = call.config.max_tokens.unwrap_or(MAX_OUTPUT_TOKENS);
     request[token_limit_rule.field_for(model).wire_name()] = json!(cap);
     if let Some(temperature) = call.config.temperature {
         request["temperature"] = json!(temperature);
     }
-    if let Some(completions) = call.config.completions {
-        request["n"] = json!(completions);
+    if let Some(n) = call.config.n {
+        request["n"] = json!(n);
     }
-    if let OutputMode::Json { schema } = call.mode {
+    if let Some(schema) = call.output_schema() {
         request["response_format"] = response_format(schema, json_format);
     }
     request
@@ -207,7 +205,12 @@ fn response_format(schema: &Value, json_format: JsonFormat) -> Value {
 }
 
 /// The reply text, or the message the service itself gave for refusing the call.
-fn reply(label: &str, status: reqwest::StatusCode, body: &Value) -> Result<LmResponse> {
+fn reply(
+    label: &str,
+    model: &str,
+    status: reqwest::StatusCode,
+    body: &Value,
+) -> Result<api::LmResponse> {
     if !status.is_success() {
         let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
         return Err(anyhow!("{label} {status}: {detail}"));
@@ -225,9 +228,10 @@ fn reply(label: &str, status: reqwest::StatusCode, body: &Value) -> Result<LmRes
     if outputs.is_empty() {
         return Err(anyhow!("{label} returned no content"));
     }
-    Ok(LmResponse::completions(outputs)
+    Ok(api::LmResponse::completions(outputs)
         .with_usage(usage(&body["usage"]))
-        .with_provider_data(provider_data(body)))
+        .with_provider_response(provider_data(body))
+        .with_model(model))
 }
 
 /// `prompt_tokens` already includes whatever was read from cache here, unlike Anthropic's split
@@ -259,7 +263,8 @@ fn provider_data(body: &Value) -> Option<Value> {
 mod tests {
     use super::super::token_limit::TokenLimitField;
     use super::*;
-    use crate::lm::{ChatTurn, LmConfig};
+    use crate::lm::api::interop::raise_request;
+    use crate::lm::{ChatTurn, LmConfig, OutputMode};
 
     fn schema() -> Value {
         json!({
@@ -272,10 +277,15 @@ mod tests {
 
     fn json_request(json_format: JsonFormat) -> Value {
         let schema = schema();
-        let turns = [ChatTurn::user("hi")];
+        let call = raise_request(
+            "be helpful",
+            &[ChatTurn::user("hi")],
+            OutputMode::Json { schema: &schema },
+            &LmConfig::default(),
+        );
         request(
             "gpt-4o-mini",
-            &LmRequest::new("be helpful", &turns, OutputMode::Json { schema: &schema }),
+            &call,
             json_format,
             TokenLimitRule::ByOpenAiModelFamily,
         )
@@ -288,13 +298,8 @@ mod tests {
 
     /// The same body, with the caller naming how the reply should be sampled.
     fn sampled_request(model: &str, token_limit_rule: TokenLimitRule, config: LmConfig) -> Value {
-        let turns = [ChatTurn::user("hi")];
-        request(
-            model,
-            &LmRequest::new("be helpful", &turns, OutputMode::Text).sampled(config),
-            JsonFormat::Object,
-            token_limit_rule,
-        )
+        let call = raise_request("be helpful", &[ChatTurn::user("hi")], OutputMode::Text, &config);
+        request(model, &call, JsonFormat::Object, token_limit_rule)
     }
 
     #[test]
@@ -439,10 +444,15 @@ mod tests {
     fn openrouter_sends_every_model_on_the_max_tokens_envelope() {
         let endpoint = Endpoint::openrouter(Some("key"));
         for model in ["openai/gpt-5", "openai/o3", "openai/gpt-oss-120b"] {
-            let turns = [ChatTurn::user("hi")];
+            let call = raise_request(
+                "be helpful",
+                &[ChatTurn::user("hi")],
+                OutputMode::Text,
+                &LmConfig::default(),
+            );
             let body = request(
                 model,
-                &LmRequest::new("be helpful", &turns, OutputMode::Text),
+                &call,
                 endpoint.json_format,
                 endpoint.token_limit_rule,
             );
@@ -476,9 +486,9 @@ mod tests {
     fn a_reply_is_read_from_the_first_choice() {
         let body = json!({ "choices": [{ "message": { "content": "hello" } }] });
         assert_eq!(
-            reply("openai", reqwest::StatusCode::OK, &body)
+            reply("openai", "gpt-4o-mini", reqwest::StatusCode::OK, &body)
                 .expect("a reply")
-                .text_ref(),
+                .first_text(),
             "hello"
         );
     }
@@ -491,13 +501,16 @@ mod tests {
             "choices": [{ "message": { "content": "hello" }, "finish_reason": "length" }],
             "usage": { "prompt_tokens": 26, "completion_tokens": 298, "total_tokens": 324 },
         });
-        let answered = reply("openai", reqwest::StatusCode::OK, &body).expect("a reply");
+        let answered =
+            reply("openai", "gpt-4o-mini", reqwest::StatusCode::OK, &body).expect("a reply");
         let usage = answered.usage.expect("counts");
         assert_eq!(usage.input_tokens, Some(26));
         assert_eq!(usage.output_tokens, Some(298));
         assert_eq!(usage.total(), Some(324), "the service's own total agrees");
         assert_eq!(
-            answered.provider_data.expect("a finish reason")["finish_reason"],
+            answered
+                .provider_response
+                .expect("a finish reason")["finish_reason"],
             "length"
         );
     }
@@ -521,10 +534,12 @@ mod tests {
             { "message": { "content": "second" } },
             { "message": { "content": "third" } },
         ]});
-        let answered = reply("openai", reqwest::StatusCode::OK, &body).expect("a reply");
-        assert_eq!(answered.outputs, ["first", "second", "third"]);
+        let answered =
+            reply("openai", "gpt-4o-mini", reqwest::StatusCode::OK, &body).expect("a reply");
+        let texts: Vec<String> = answered.outputs.iter().map(api::LmOutput::as_text).collect();
+        assert_eq!(texts, ["first", "second", "third"]);
         assert_eq!(
-            answered.text_ref(),
+            answered.first_text(),
             "first",
             "an adapter parses the first and the rest stay available"
         );
@@ -542,7 +557,7 @@ mod tests {
     fn a_reply_reporting_no_counts_reports_no_usage() {
         let body = json!({ "choices": [{ "message": { "content": "hello" } }] });
         assert_eq!(
-            reply("openai", reqwest::StatusCode::OK, &body)
+            reply("openai", "gpt-4o-mini", reqwest::StatusCode::OK, &body)
                 .expect("a reply")
                 .usage,
             None
@@ -552,7 +567,7 @@ mod tests {
     #[test]
     fn a_refused_call_carries_the_status_and_the_services_own_message() {
         let body = json!({ "error": { "message": "Incorrect API key provided" } });
-        let error = reply("openai", reqwest::StatusCode::UNAUTHORIZED, &body)
+        let error = reply("openai", "gpt-4o-mini", reqwest::StatusCode::UNAUTHORIZED, &body)
             .expect_err("401 is a failure");
         assert!(error.to_string().contains("openai 401"), "got: {error}");
         assert!(
@@ -563,8 +578,13 @@ mod tests {
 
     #[test]
     fn a_success_carrying_no_content_is_an_error_rather_than_an_empty_reply() {
-        let error = reply("openai", reqwest::StatusCode::OK, &json!({ "choices": [] }))
-            .expect_err("nothing to read");
+        let error = reply(
+            "openai",
+            "gpt-4o-mini",
+            reqwest::StatusCode::OK,
+            &json!({ "choices": [] }),
+        )
+        .expect_err("nothing to read");
         assert!(
             error.to_string().contains("openai returned no content"),
             "got: {error}"

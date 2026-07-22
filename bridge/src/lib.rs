@@ -11,7 +11,7 @@
 use dsrs::adapter::Input;
 use dsrs::adapter::parse::FieldMismatch;
 use dsrs::adapter::xml::XmlAdapter;
-use dsrs::lm::{DynChatModel, LmRequest, LmResponse};
+use dsrs::lm::DynChatModel;
 use dsrs::signature::{
     FieldKind, InField, JsonType, LiteralValue, OutField, Signature, TypeDescription,
 };
@@ -27,18 +27,6 @@ use std::sync::Arc;
 struct NotOnThisSide;
 
 impl DynChatModel for NotOnThisSide {
-    fn chat_dyn<'a>(
-        &'a self,
-        _http: &'a reqwest::Client,
-        _request: &'a LmRequest<'a>,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<LmResponse>> + Send + 'a>> {
-        Box::pin(async {
-            Err(anyhow::anyhow!(
-                "the bridge does not call models; Python runs the extraction"
-            ))
-        })
-    }
-
     fn forward_dyn<'a>(
         &'a self,
         _http: &'a reqwest::Client,

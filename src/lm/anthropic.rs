@@ -7,7 +7,7 @@
 use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
-use super::{LmRequest, LmResponse, LmUsage, OutputMode, PROVIDER_TIMEOUT, turn_json};
+use super::{LmUsage, PROVIDER_TIMEOUT, api};
 
 const MESSAGES_URL: &str = "https://api.anthropic.com/v1/messages";
 
@@ -18,8 +18,8 @@ pub(super) async fn chat(
     http: &reqwest::Client,
     model: &str,
     api_key: Option<&str>,
-    call: &LmRequest<'_>,
-) -> Result<LmResponse> {
+    call: &api::LmRequest,
+) -> Result<api::LmResponse> {
     let key = api_key.ok_or_else(|| anyhow!("ANTHROPIC_API_KEY is not set"))?;
     let response = http
         .post(MESSAGES_URL)
@@ -36,20 +36,20 @@ pub(super) async fn chat(
         .json()
         .await
         .context("anthropic response was not JSON")?;
-    reply(status, &body)
+    reply(model, status, &body)
 }
 
-fn request(model: &str, call: &LmRequest<'_>) -> Value {
+fn request(model: &str, call: &api::LmRequest) -> Value {
     let mut request = json!({
         "model": model,
         "max_tokens": call.config.max_tokens.unwrap_or(MAX_OUTPUT_TOKENS),
-        "system": call.system,
-        "messages": call.turns.iter().map(turn_json).collect::<Vec<_>>(),
+        "system": call.system(),
+        "messages": call.user_messages(),
     });
     if let Some(temperature) = call.config.temperature {
         request["temperature"] = json!(temperature);
     }
-    if let OutputMode::Json { schema } = call.mode {
+    if let Some(schema) = call.output_schema() {
         request["output_config"] = json!({ "format": { "type": "json_schema", "schema": schema } });
     }
     request
@@ -58,7 +58,7 @@ fn request(model: &str, call: &LmRequest<'_>) -> Value {
 /// The first text block, or the message Anthropic itself gave for refusing the call. A reply
 /// carrying only non-text blocks stands in as an empty object, which the JSON adapters parse
 /// into a missing-field error rather than a panic.
-fn reply(status: reqwest::StatusCode, body: &Value) -> Result<LmResponse> {
+fn reply(model: &str, status: reqwest::StatusCode, body: &Value) -> Result<api::LmResponse> {
     if !status.is_success() {
         let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
         return Err(anyhow!("anthropic {status}: {detail}"));
@@ -72,9 +72,10 @@ fn reply(status: reqwest::StatusCode, body: &Value) -> Result<LmResponse> {
                 .and_then(|block| block["text"].as_str())
         })
         .unwrap_or("{}");
-    Ok(LmResponse::text(text)
+    Ok(api::LmResponse::completions([text.to_owned()])
         .with_usage(usage(&body["usage"]))
-        .with_provider_data(provider_data(body)))
+        .with_provider_response(provider_data(body))
+        .with_model(model))
 }
 
 /// Anthropic's cache counters are charged separately from `input_tokens`, so a cached call whose
@@ -113,10 +114,11 @@ fn provider_data(body: &Value) -> Option<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lm::LmConfig;
+    use crate::lm::api::interop::raise_request;
+    use crate::lm::{LmConfig, OutputMode};
 
-    fn sampled(config: LmConfig) -> LmRequest<'static> {
-        LmRequest::new("be helpful", &[], OutputMode::Text).sampled(config)
+    fn sampled(config: LmConfig) -> api::LmRequest {
+        raise_request("be helpful", &[], OutputMode::Text, &config)
     }
 
     /// Anthropic rejects a request with no cap, so the default has to survive an otherwise
@@ -150,6 +152,7 @@ mod tests {
     #[test]
     fn a_refusal_carries_the_reason_anthropic_gave() {
         let error = reply(
+            "claude-opus-4-8",
             reqwest::StatusCode::BAD_REQUEST,
             &json!({ "error": { "message": "credit balance is too low" } }),
         )
@@ -164,9 +167,9 @@ mod tests {
             { "type": "text", "text": "the reply" },
         ]});
         assert_eq!(
-            reply(reqwest::StatusCode::OK, &body)
+            reply("claude-opus-4-8", reqwest::StatusCode::OK, &body)
                 .expect("a text block")
-                .text_ref(),
+                .first_text(),
             "the reply"
         );
     }
@@ -184,7 +187,7 @@ mod tests {
                 "output_tokens": 7,
             },
         });
-        let usage = reply(reqwest::StatusCode::OK, &body)
+        let usage = reply("claude-opus-4-8", reqwest::StatusCode::OK, &body)
             .expect("a reply")
             .usage
             .expect("a usage block");
@@ -197,7 +200,7 @@ mod tests {
     fn a_reply_with_no_usage_block_reports_none() {
         let body = json!({ "content": [{ "type": "text", "text": "hi" }] });
         assert_eq!(
-            reply(reqwest::StatusCode::OK, &body)
+            reply("claude-opus-4-8", reqwest::StatusCode::OK, &body)
                 .expect("a reply")
                 .usage,
             None
@@ -212,9 +215,9 @@ mod tests {
             "content": [{ "type": "text", "text": "hi" }],
             "stop_reason": "max_tokens",
         });
-        let data = reply(reqwest::StatusCode::OK, &body)
+        let data = reply("claude-opus-4-8", reqwest::StatusCode::OK, &body)
             .expect("a reply")
-            .provider_data
+            .provider_response
             .expect("a stop reason");
         assert_eq!(data["stop_reason"], "max_tokens");
     }

@@ -27,7 +27,8 @@ pub mod disk;
 
 pub use disk::DiskCache;
 
-use super::{ChatModel, LmRequest, LmResponse};
+use super::ChatModel;
+use super::api::{self, LmResponse};
 
 /// dspy's `memory_max_entries`, which is effectively "grow until something is clearly wrong"
 /// rather than a tuned figure.
@@ -182,14 +183,18 @@ impl<M> Cached<M> {
 }
 
 impl<M: ChatModel + Send + Sync> ChatModel for Cached<M> {
-    async fn chat(&self, http: &reqwest::Client, request: &LmRequest<'_>) -> Result<LmResponse> {
+    async fn forward(
+        &self,
+        http: &reqwest::Client,
+        request: &api::LmRequest,
+    ) -> Result<LmResponse> {
         // The store belongs to this wrapper and holds one model's replies, so there is no other
         // model's entries for a name to keep these apart from.
         let key = request.cache_key("");
         if let Some(replayed) = self.cache.replay(&key) {
             return Ok(replayed);
         }
-        let answered = self.inner.chat(http, request).await?;
+        let answered = self.inner.forward(http, request).await?;
         self.cache.keep(key, answered.clone());
         Ok(answered)
     }
@@ -199,13 +204,18 @@ impl<M: ChatModel + Send + Sync> ChatModel for Cached<M> {
 mod tests {
     use super::*;
     use crate::example;
+    use crate::lm::api::interop::raise_request;
     use crate::lm::dummy::DummyLM;
     use crate::lm::{ChatTurn, LmConfig, LmUsage, OutputMode};
 
     fn ask(lm: &Cached<DummyLM>, config: LmConfig) -> LmResponse {
-        let turns = [ChatTurn::user("what colour?")];
-        let request = LmRequest::new("be helpful", &turns, OutputMode::Text).sampled(config);
-        futures_lite_block_on(lm.chat(&reqwest::Client::new(), &request)).expect("an answer")
+        let request = raise_request(
+            "be helpful",
+            &[ChatTurn::user("what colour?")],
+            OutputMode::Text,
+            &config,
+        );
+        futures_lite_block_on(lm.forward(&reqwest::Client::new(), &request)).expect("an answer")
     }
 
     /// The dummy never awaits anything real, so a trivial executor keeps these synchronous.
@@ -234,12 +244,12 @@ mod tests {
 
         let first = ask(&lm, LmConfig::default());
         assert!(!first.cache_hit);
-        assert!(first.text_ref().contains("red"));
+        assert!(first.first_text().contains("red"));
 
         let second = ask(&lm, LmConfig::default());
         assert!(second.cache_hit, "the second ask was replayed");
         assert!(
-            second.text_ref().contains("red"),
+            second.first_text().contains("red"),
             "and replayed the first answer, not the next scripted one"
         );
     }
@@ -258,9 +268,9 @@ mod tests {
 
         assert!(!first.cache_hit);
         assert!(!second.cache_hit, "a new rollout is a new key");
-        assert!(first.text_ref().contains("red"));
+        assert!(first.first_text().contains("red"));
         assert!(
-            second.text_ref().contains("blue"),
+            second.first_text().contains("blue"),
             "the model was asked a second time and gave its next answer"
         );
         assert_eq!(lm.len(), 2, "two rollouts are two entries");
@@ -293,7 +303,7 @@ mod tests {
 
         let after = ask(&lm, LmConfig::default());
         assert!(!after.cache_hit);
-        assert!(after.text_ref().contains("blue"));
+        assert!(after.first_text().contains("blue"));
     }
 
     /// An unbounded cache is a leak in anything long-lived, so the bound has to actually evict.
@@ -328,7 +338,7 @@ mod tests {
 
         let replayed = restarted.replay("key").expect("recovered from disk");
         assert!(replayed.cache_hit);
-        assert_eq!(replayed.text_ref(), "bought once");
+        assert_eq!(replayed.first_text(), "bought once");
         assert_eq!(restarted.len(), 1, "and is promoted into memory once read");
 
         restarted.clear();

@@ -9,7 +9,8 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use anyhow::Result;
-use dsrs::lm::{ChatModel, ChatTurn, LmRequest, LmResponse, Role};
+use dsrs::lm::api::{self, Content, content_of};
+use dsrs::lm::{ChatModel, ChatTurn, Role};
 use dsrs::signature::{OutField, Signature};
 use dsrs::{Adapter, ChatAdapter, Example, LabeledFewShot, example};
 use serde_json::json;
@@ -29,18 +30,38 @@ impl Recorder {
 }
 
 impl ChatModel for Recorder {
-    async fn chat(&self, _http: &reqwest::Client, request: &LmRequest<'_>) -> Result<LmResponse> {
+    async fn forward(
+        &self,
+        _http: &reqwest::Client,
+        request: &api::LmRequest,
+    ) -> Result<api::LmResponse> {
         self.turns
             .lock()
             .expect("not poisoned")
-            .push(request.turns.to_vec());
+            .push(recorded_turns(request));
         self.replies
             .lock()
             .expect("not poisoned")
             .pop_front()
-            .map(LmResponse::text)
+            .map(api::LmResponse::text)
             .ok_or_else(|| anyhow::anyhow!("script exhausted"))
     }
+}
+
+/// The non-system messages as the turns this test asserts on, each part collapsed to its prose.
+fn recorded_turns(request: &api::LmRequest) -> Vec<ChatTurn> {
+    request
+        .messages
+        .iter()
+        .filter(|message| message.role != "system")
+        .map(|message| ChatTurn {
+            role: match message.role.as_str() {
+                "assistant" => Role::Assistant,
+                _ => Role::User,
+            },
+            content: content_of(&message.parts).unwrap_or_else(|_| Content::Text(String::new())),
+        })
+        .collect()
 }
 
 fn signature() -> Signature {

@@ -1,28 +1,24 @@
-//! One call to a model: what was asked, and what came back.
+//! How a call is sampled, and what it cost.
 //!
-//! dspy is normalising its LM API onto a request and a response value in place of loose keyword
-//! arguments and a bare string — opt-in at 3.3, default at 3.5, the legacy shape gone by 4.0.
-//! Following that rather than the shape it is removing is what lets one call differ from the one
-//! before it, and it is what gives a caller somewhere to read a reply's cost from.
+//! The request and response themselves are the typed 3.3 values in [`api`](super::api); what
+//! stays here is the sampling config a module varies per attempt and the usage every provider
+//! reports, both of which predate that boundary and are read throughout the crate.
 
-use serde_json::{Value, json};
-
-use super::{ChatTurn, OutputMode};
+use serde_json::Value;
 
 /// How a model should sample its reply.
 ///
 /// These belong to one call rather than to a model: the same model answers twice and the two
 /// attempts differ only here. That is what lets `BestOfN` mean anything and what lets a bootstrap
 /// round after the first not repeat itself.
-///
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LmConfig {
     /// Unset leaves each provider on the default it is already sent.
     pub temperature: Option<f64>,
     pub max_tokens: Option<u32>,
-    /// How many completions to ask for, upstream's `n`. They arrive in
-    /// [`LmResponse::outputs`]; only the OpenAI-shaped services take the field, so the others
-    /// answer once however many are asked for.
+    /// How many completions to ask for, upstream's `n`. They arrive as the response's outputs;
+    /// only the OpenAI-shaped services take the field, so the others answer once however many are
+    /// asked for.
     pub completions: Option<u32>,
     /// Varied to miss the response cache, so a second attempt is answered rather than replayed.
     ///
@@ -43,76 +39,6 @@ impl LmConfig {
             rollout_id: Some(id),
             ..Self::default()
         }
-    }
-}
-
-/// One call: what to say, what shape to say it in, and how to sample the reply.
-///
-/// dspy's `LMRequest`. A request travelling as a value is also why no ambient state is needed to
-/// override a model for one call — `dspy.context` scopes a ContextVar to do the same thing.
-pub struct LmRequest<'a> {
-    pub system: &'a str,
-    pub turns: &'a [ChatTurn],
-    pub mode: OutputMode<'a>,
-    pub config: LmConfig,
-}
-
-impl<'a> LmRequest<'a> {
-    /// One call at the provider's own defaults.
-    pub fn new(system: &'a str, turns: &'a [ChatTurn], mode: OutputMode<'a>) -> Self {
-        Self {
-            system,
-            turns,
-            mode,
-            config: LmConfig::default(),
-        }
-    }
-
-    pub fn sampled(mut self, config: LmConfig) -> Self {
-        self.config = config;
-        self
-    }
-
-    /// What two identical calls share, and what [`LmConfig::rollout_id`] exists to break.
-    ///
-    /// Everything the provider is sent is in here, because anything left out would let one call
-    /// be answered with another's reply — `model` included, since the store is shared across
-    /// every model in the process. `rollout_id` is in here and is *not* sent, which is the whole
-    /// of what it does: it changes this string and nothing else.
-    ///
-    /// Credentials are deliberately absent, matching upstream's `ignored_args_for_cache_key`:
-    /// rotating a key does not change what a model answers, and a key has no business in a
-    /// map that outlives the call.
-    /// Hashed rather than kept whole, which is what makes an entry nameable as a file and keeps
-    /// a long conversation from being held twice — once as a reply and once as its own key.
-    /// Upstream hashes the same way, `sha256(orjson.dumps(params, sort_keys))`.
-    pub fn cache_key(&self, model: &str) -> String {
-        use sha2::Digest;
-        let digest = sha2::Sha256::digest(self.cache_identity(model).as_bytes());
-        digest.iter().map(|byte| format!("{byte:02x}")).collect()
-    }
-
-    /// Everything two calls must share to be the same call, as JSON.
-    fn cache_identity(&self, model: &str) -> String {
-        let turns: Vec<Value> = self
-            .turns
-            .iter()
-            .map(|turn| json!({ "role": turn.role.as_str(), "content": turn.content }))
-            .collect();
-        json!({
-            "model": model,
-            "system": self.system,
-            "turns": turns,
-            "schema": match self.mode {
-                OutputMode::Text => Value::Null,
-                OutputMode::Json { schema } => schema.clone(),
-            },
-            "temperature": self.config.temperature,
-            "max_tokens": self.config.max_tokens,
-            "n": self.config.completions,
-            "rollout_id": self.config.rollout_id,
-        })
-        .to_string()
     }
 }
 
@@ -230,86 +156,9 @@ fn added(left: Option<u32>, right: Option<u32>) -> Option<u32> {
     }
 }
 
-/// What a model answered with. dspy's `LMResponse`.
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct LmResponse {
-    /// Every completion the provider returned — as many as [`LmConfig::completions`] asked for,
-    /// and one when it asked for nothing.
-    ///
-    /// `BestOfN` reads this rather than re-asking, since one request for several is one round
-    /// trip where several requests are several.
-    pub outputs: Vec<String>,
-    /// Absent when a provider reported none, which a caller must not read as free.
-    pub usage: Option<LmUsage>,
-    /// Whether this was replayed from the cache rather than generated. A replay is not billed,
-    /// so a hit carries the usage the original call reported and costs nothing again.
-    pub cache_hit: bool,
-    /// What the provider said that this crate does not model — a stop reason, a fingerprint, a
-    /// filter verdict. Kept whole rather than picked over, so reading a new one needs no release.
-    pub provider_data: Option<Value>,
-}
-
-impl LmResponse {
-    /// A reply carrying nothing but its text, for a model that reports no cost: the scripted ones
-    /// tests install, and any provider that omits a usage block.
-    pub fn text(text: impl Into<String>) -> Self {
-        Self {
-            outputs: vec![text.into()],
-            ..Self::default()
-        }
-    }
-
-    /// Several completions from one request, in the order the provider returned them.
-    pub fn completions(outputs: impl IntoIterator<Item = String>) -> Self {
-        Self {
-            outputs: outputs.into_iter().collect(),
-            ..Self::default()
-        }
-    }
-
-    /// The completion an adapter parses: the first, which is the only one unless several were
-    /// asked for. Empty when a provider answered with no choices at all, which every caller here
-    /// treats as an unparseable reply rather than a panic.
-    pub fn text_ref(&self) -> &str {
-        self.outputs.first().map_or("", String::as_str)
-    }
-
-    /// The first completion, taken by value.
-    pub fn into_text(self) -> String {
-        self.outputs.into_iter().next().unwrap_or_default()
-    }
-
-    /// What this call actually cost, which is nothing when it was replayed.
-    ///
-    /// [`usage`](Self::usage) stays readable on a hit — it is what the answer was worth — but a
-    /// replay is not billed, so anything totalling spend reads this instead. dspy draws the same
-    /// line by skipping its usage tracker when `cache_hit` is set.
-    pub fn spend(&self) -> Option<LmUsage> {
-        self.usage.clone().filter(|_| !self.cache_hit)
-    }
-
-    pub fn with_usage(mut self, usage: Option<LmUsage>) -> Self {
-        self.usage = usage;
-        self
-    }
-
-    pub fn with_provider_data(mut self, provider_data: Option<Value>) -> Self {
-        self.provider_data = provider_data;
-        self
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_reply_with_no_reported_cost_is_absent_rather_than_zero() {
-        let scripted = LmResponse::text("the reply");
-        assert_eq!(scripted.text_ref(), "the reply");
-        assert_eq!(scripted.usage, None, "nothing is not the same as free");
-        assert!(!scripted.cache_hit);
-    }
 
     /// dspy populates *both* naming conventions rather than choosing one, because "both are
     /// existing user-visible interfaces". A caller reading `prompt_tokens` finds what a caller

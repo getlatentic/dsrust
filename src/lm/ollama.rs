@@ -6,7 +6,7 @@
 use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
-use super::{LmRequest, LmResponse, LmUsage, OutputMode, PROVIDER_TIMEOUT, wire_messages};
+use super::{LmUsage, PROVIDER_TIMEOUT, api};
 
 /// ollama samples at 0.8 when told nothing, which is loose for a program parsing the reply
 /// back into fields.
@@ -16,8 +16,8 @@ pub(super) async fn chat(
     http: &reqwest::Client,
     model: &str,
     host: &str,
-    call: &LmRequest<'_>,
-) -> Result<LmResponse> {
+    call: &api::LmRequest,
+) -> Result<api::LmResponse> {
     let response = http
         .post(format!("{host}/api/chat"))
         .timeout(PROVIDER_TIMEOUT)
@@ -32,16 +32,17 @@ pub(super) async fn chat(
         .json()
         .await
         .context("ollama response was not JSON")?;
-    reply(&body)
+    reply(model, &body)
 }
 
-fn reply(body: &Value) -> Result<LmResponse> {
+fn reply(model: &str, body: &Value) -> Result<api::LmResponse> {
     let text = body["message"]["content"]
         .as_str()
         .context("ollama returned no content")?;
-    Ok(LmResponse::text(text)
+    Ok(api::LmResponse::completions([text.to_owned()])
         .with_usage(usage(body))
-        .with_provider_data(provider_data(body)))
+        .with_provider_response(provider_data(body))
+        .with_model(model))
 }
 
 /// ollama counts at the top level rather than under a usage object, and names the two counts
@@ -68,18 +69,18 @@ fn provider_data(body: &Value) -> Option<Value> {
     Some(json!({ "done_reason": done_reason }))
 }
 
-fn request(model: &str, call: &LmRequest<'_>) -> Value {
+fn request(model: &str, call: &api::LmRequest) -> Value {
     let temperature = call.config.temperature.unwrap_or(TEMPERATURE);
     let mut request = json!({
         "model": model,
         "stream": false,
         "options": { "temperature": temperature },
-        "messages": wire_messages(call.system, call.turns),
+        "messages": call.wire_messages(),
     });
     if let Some(max_tokens) = call.config.max_tokens {
         request["options"]["num_predict"] = json!(max_tokens);
     }
-    if matches!(call.mode, OutputMode::Json { .. }) {
+    if call.output_schema().is_some() {
         request["format"] = json!("json");
     }
     request
@@ -88,10 +89,11 @@ fn request(model: &str, call: &LmRequest<'_>) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lm::LmConfig;
+    use crate::lm::api::interop::raise_request;
+    use crate::lm::{LmConfig, OutputMode};
 
-    fn sampled(config: LmConfig) -> LmRequest<'static> {
-        LmRequest::new("be helpful", &[], OutputMode::Text).sampled(config)
+    fn sampled(config: LmConfig) -> api::LmRequest {
+        raise_request("be helpful", &[], OutputMode::Text, &config)
     }
 
     /// ollama's own default samples loosely, so an unnamed temperature keeps the tighter one
@@ -139,13 +141,15 @@ mod tests {
             "eval_count": 298,
             "done_reason": "length",
         });
-        let answered = reply(&body).expect("a reply");
-        assert_eq!(answered.text_ref(), "the reply");
+        let answered = reply("qwen2.5:7b-instruct", &body).expect("a reply");
+        assert_eq!(answered.first_text(), "the reply");
         let usage = answered.usage.expect("counts");
         assert_eq!(usage.input_tokens, Some(26));
         assert_eq!(usage.output_tokens, Some(298));
         assert_eq!(
-            answered.provider_data.expect("a done reason")["done_reason"],
+            answered
+                .provider_response
+                .expect("a done reason")["done_reason"],
             "length"
         );
     }
@@ -153,12 +157,16 @@ mod tests {
     #[test]
     fn a_reply_reporting_no_counts_reports_no_usage() {
         let body = json!({ "message": { "content": "the reply" } });
-        assert_eq!(reply(&body).expect("a reply").usage, None);
+        assert_eq!(
+            reply("qwen2.5:7b-instruct", &body).expect("a reply").usage,
+            None
+        );
     }
 
     #[test]
     fn a_reply_carrying_no_content_is_an_error() {
-        let error = reply(&json!({ "message": {} })).expect_err("no content");
+        let error =
+            reply("qwen2.5:7b-instruct", &json!({ "message": {} })).expect_err("no content");
         assert!(error.to_string().contains("no content"));
     }
 }

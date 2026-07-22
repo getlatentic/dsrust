@@ -12,10 +12,10 @@ pub mod usage;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 pub use cache::{Cached, ResponseCache};
-pub use call::{LmConfig, LmRequest, LmResponse, LmUsage};
+pub use call::{LmConfig, LmUsage};
 pub use global::{configure, configure_with_client};
 pub use api::{Content, Detail, LmPart, LmSource};
 pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig};
@@ -123,8 +123,6 @@ pub enum OutputMode<'a> {
     Json { schema: &'a Value },
 }
 
-/// The raw model call behind every adapter — the one seam unit tests script with canned
-/// replies while production speaks to real providers through [`LM`].
 /// The object-safe form of [`ChatModel`], so a model can be stored behind a pointer.
 ///
 /// `ChatModel` returns `impl Future`, which is ergonomic to implement and impossible to make
@@ -132,12 +130,6 @@ pub enum OutputMode<'a> {
 /// and the global configuration stores this form — which is what lets a test install a
 /// scripted model the way dspy installs a `DummyLM`.
 pub trait DynChatModel: Send + Sync {
-    fn chat_dyn<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-        request: &'a LmRequest<'a>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>>;
-
     /// The object-safe form of [`ChatModel::forward`] — the typed 3.3 boundary behind a pointer,
     /// which is how a module reaching its model through `dyn DynChatModel` asks it.
     fn forward_dyn<'a>(
@@ -148,14 +140,6 @@ pub trait DynChatModel: Send + Sync {
 }
 
 impl<T: ChatModel + Send + Sync> DynChatModel for T {
-    fn chat_dyn<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-        request: &'a LmRequest<'a>,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>> {
-        Box::pin(self.chat(http, request))
-    }
-
     fn forward_dyn<'a>(
         &'a self,
         http: &'a reqwest::Client,
@@ -165,35 +149,17 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
     }
 }
 
+/// The typed 3.3 model boundary: dspy's `forward(request: LMRequest) -> LMResponse`.
+///
+/// The one seam every model implements — a provider-backed [`LM`], a [`Cached`] wrapper, the
+/// scripted doubles a test installs — and the one method a module calls to reach its model. Unit
+/// tests script it with canned replies while production speaks to real providers through [`LM`].
 pub trait ChatModel {
-    fn chat<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-        request: &'a LmRequest<'a>,
-    ) -> impl Future<Output = Result<LmResponse>> + Send + 'a;
-
-    /// The typed 3.3 boundary: dspy's `forward(request: LMRequest) -> LMResponse`.
-    ///
-    /// Defaulted so every model already speaks it — the request is lowered to the legacy shape
-    /// [`chat`](Self::chat) takes, sent, and the reply lifted back, which is dspy's own
-    /// `forward_contract="legacy"` bridge. A model backed natively by a provider that speaks the
-    /// typed vocabulary overrides this to skip the round trip, exactly as a `"typed_lm"` custom
-    /// LM does upstream. Nothing here moves a byte: the lowering renders each turn through the
-    /// same path a native call would.
     fn forward<'a>(
         &'a self,
         http: &'a reqwest::Client,
         request: &'a api::LmRequest,
-    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a
-    where
-        Self: Sync,
-    {
-        async move {
-            let lowered = api::interop::lower_request(request);
-            let response = self.chat(http, &lowered.as_call()).await?;
-            Ok(api::interop::lift_response(response))
-        }
-    }
+    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a;
 }
 
 /// One configured language model: a model reference plus the credentials and hosts its
@@ -291,7 +257,11 @@ fn env_nonempty(key: &str) -> Option<String> {
 }
 
 impl ChatModel for LM {
-    async fn chat(&self, http: &reqwest::Client, request: &LmRequest<'_>) -> Result<LmResponse> {
+    async fn forward(
+        &self,
+        http: &reqwest::Client,
+        request: &api::LmRequest,
+    ) -> Result<api::LmResponse> {
         if !self.cache {
             let answered = self.ask_provider(http, request).await?;
             usage::record(&self.model.id, answered.spend());
@@ -313,8 +283,8 @@ impl LM {
     async fn ask_provider(
         &self,
         http: &reqwest::Client,
-        request: &LmRequest<'_>,
-    ) -> Result<LmResponse> {
+        request: &api::LmRequest,
+    ) -> Result<api::LmResponse> {
         match self.model.provider {
             Provider::Anthropic => {
                 anthropic::chat(
@@ -340,17 +310,6 @@ impl LM {
             }
         }
     }
-}
-
-fn turn_json(turn: &ChatTurn) -> Value {
-    json!({ "role": turn.role.as_str(), "content": turn.content })
-}
-
-/// OpenAI-style message list: the system prompt leads, then the conversation turns.
-fn wire_messages(system: &str, turns: &[ChatTurn]) -> Vec<Value> {
-    std::iter::once(json!({ "role": "system", "content": system }))
-        .chain(turns.iter().map(turn_json))
-        .collect()
 }
 
 #[cfg(test)]
@@ -440,21 +399,5 @@ mod tests {
             .with_openai_key_env("DSRS_KEY_VAR_THAT_IS_NOT_SET");
         assert_eq!(missing.openai.key_var, "DSRS_KEY_VAR_THAT_IS_NOT_SET");
         assert_eq!(missing.openai.api_key, None);
-    }
-
-    #[test]
-    fn wire_messages_lead_with_system_then_keep_turn_order() {
-        let turns = [
-            ChatTurn::user("draft it"),
-            ChatTurn::assistant("first try"),
-            ChatTurn::user("fix it"),
-        ];
-        let messages = wire_messages("be helpful", &turns);
-        let roles: Vec<&str> = messages
-            .iter()
-            .map(|m| m["role"].as_str().unwrap_or_default())
-            .collect();
-        assert_eq!(roles, ["system", "user", "assistant", "user"]);
-        assert_eq!(messages[2]["content"], "first try");
     }
 }

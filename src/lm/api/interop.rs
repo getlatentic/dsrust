@@ -1,91 +1,29 @@
-//! Converting a typed 3.3 request and response to and from the legacy call shape.
+//! Raising the crate's legacy `(system, turns, mode, config)` render into a typed 3.3 request.
 //!
-//! dspy's `BaseLM.__call__` is the compatibility boundary during the typed-LM migration: it
-//! builds an `LMRequest`, lowers it to the OpenAI/LiteLLM kwargs the current provider path still
-//! speaks, calls that path, then lifts the result back into an `LMResponse`
-//! (`clients/base_lm.py`). This is that boundary — the one seam where the byte-faithful 3.3 types
-//! meet the providers this crate already proves byte-exact, so the providers need not move first.
+//! The adapters still render the `(system, turns)` shape dspy 3.2.1 built, and
+//! [`Predict`](crate::predict::Predict) hands the model an [`LMRequest`](ApiRequest). This is the
+//! one seam between the two: `raise_request` builds the typed request from the rendered shape, its
+//! messages collapsed to the exact blocks a provider reads, so the typed boundary sits in front of
+//! the byte-exact providers without a rendered byte moving.
 
-use serde_json::Value;
+use super::{LmCacheConfig, LmConfig as ApiConfig, LmMessage, LmPart};
+use super::{LmRequest as ApiRequest, RolloutId, part_of_block};
+use crate::lm::{ChatTurn, Content, LmConfig as CallConfig, OutputMode};
 
-use super::wire::content_of;
-use super::{LmCacheConfig, LmConfig as ApiConfig, LmMessage, LmOutput, LmPart};
-use super::{LmRequest as ApiRequest, LmResponse as ApiResponse, Metadata, RolloutId, part_of_block};
-use crate::lm::{
-    ChatTurn, Content, LmConfig as CallConfig, LmRequest as CallRequest, LmResponse as CallResponse,
-    OutputMode, Role,
-};
-
-/// A typed request lowered to the owned pieces the borrowing [`CallRequest`] needs.
+/// A rendered `(system, turns, mode, config)` raised to the typed request — what an adapter that
+/// renders the old shape hands the typed boundary, dspy's adapter building an `LMRequest`.
 ///
-/// The legacy request borrows its `system` and `turns`, so the conversion cannot hand one back
-/// directly — it hands back this holder, and [`as_call`](Self::as_call) borrows it.
-pub(crate) struct Lowered {
-    system: String,
-    turns: Vec<ChatTurn>,
-    schema: Option<Value>,
-    config: CallConfig,
-}
-
-impl Lowered {
-    /// The legacy request, valid as long as this holder lives.
-    pub(crate) fn as_call(&self) -> CallRequest<'_> {
-        let mode = match &self.schema {
-            Some(schema) => OutputMode::Json { schema },
-            None => OutputMode::Text,
-        };
-        CallRequest::new(&self.system, &self.turns, mode).sampled(self.config.clone())
-    }
-}
-
-/// A typed request as the `(system, turns, mode, config)` the providers already know how to send.
-///
-/// The first `system`-role message becomes the top-level system prompt; every other message
-/// becomes a turn, its parts collapsed to [`Content`] by the same [`content_of`] the multimodal
-/// path is golden-tested through, so a turn built here renders byte-identically to one built
-/// natively.
-pub(crate) fn lower_request(request: &ApiRequest) -> Lowered {
-    let mut system = String::new();
-    let mut turns = Vec::new();
-    for message in &request.messages {
-        let content = content_of(&message.parts).unwrap_or_else(|_| Content::Text(String::new()));
-        match message.role.as_str() {
-            "system" => system = content.text().unwrap_or_default().to_owned(),
-            "assistant" => turns.push(ChatTurn {
-                role: Role::Assistant,
-                content,
-            }),
-            // user, and anything unrecognised, is sent as a user turn rather than dropped.
-            _ => turns.push(ChatTurn {
-                role: Role::User,
-                content,
-            }),
-        }
-    }
-    Lowered {
-        system,
-        turns,
-        schema: request.config.response_format.clone(),
-        config: lower_config(&request.config),
-    }
-}
-
-/// A legacy request raised to the typed one — what an adapter that still renders the old
-/// `(system, turns)` shape hands the typed boundary, dspy's adapter building an `LMRequest`.
-///
-/// The inverse of [`lower_request`], and a byte-exact round trip with it: raising then lowering
-/// leaves the cache key untouched, which is what lets the typed boundary sit in front of the
-/// legacy providers without moving a wire byte. The model is left blank, because this crate keeps
-/// it on the [`LM`](crate::lm::LM) rather than in the request — the provider fills it, and the
-/// cache key is taken against it separately.
+/// The first `system`-role message carries the system prompt, even when empty, because the legacy
+/// wire always carries one; every turn becomes a message under the role it declared, its content
+/// split back into the parts it was collapsed from. The model is left blank — this crate keeps it
+/// on the [`LM`](crate::lm::LM) rather than in the request, so the provider fills it and the cache
+/// key is taken against it separately.
 pub(crate) fn raise_request(
     system: &str,
     turns: &[ChatTurn],
     mode: OutputMode,
     config: &CallConfig,
 ) -> ApiRequest {
-    // Always a system message, even empty, because the legacy wire always carries one — so the
-    // raised request renders the same system turn a native call would.
     let mut messages = vec![LmMessage::system(vec![LmPart::text(system)])];
     for turn in turns {
         messages.push(LmMessage::new(turn.role.as_str(), parts_of(&turn.content)));
@@ -93,8 +31,9 @@ pub(crate) fn raise_request(
     ApiRequest::new("", messages).configured(raise_config(mode, config))
 }
 
-/// A turn's content as the parts it was collapsed from — the inverse of [`content_of`], reading
-/// a block back to a part the same way [`part_of_block`] does the multimodal path.
+/// A turn's content as the parts it was collapsed from — the inverse of
+/// [`content_of`](super::content_of), reading a block back to a part the same way
+/// [`part_of_block`] does the multimodal path.
 fn parts_of(content: &Content) -> Vec<LmPart> {
     match content {
         Content::Text(text) => vec![LmPart::text(text)],
@@ -122,242 +61,81 @@ fn raise_config(mode: OutputMode, config: &CallConfig) -> ApiConfig {
     }
 }
 
-/// The four fields of the legacy config the providers read, drawn from the twelve of the typed
-/// one. The rest — `top_p`, `stop`, `reasoning`, and the nested caches beyond the rollout — have
-/// no legacy slot yet and wait for the trait itself to take the typed config.
-fn lower_config(config: &ApiConfig) -> CallConfig {
-    CallConfig {
-        temperature: config.temperature,
-        max_tokens: config.max_tokens,
-        completions: config.n,
-        rollout_id: config
-            .cache
-            .as_ref()
-            .and_then(|cache| cache.rollout_id.as_ref())
-            .and_then(|rollout| match rollout {
-                RolloutId::Number(id) => u64::try_from(*id).ok(),
-                // The legacy cache key numbers its rollouts; a textual one has no place in it yet.
-                RolloutId::Text(_) => None,
-            }),
-    }
-}
-
-/// A legacy response lifted into the typed one — dspy's `_process_lm_response`.
-///
-/// Each completion string becomes a one-part text [`LmOutput`]; the usage carries across
-/// unchanged, since both families already share [`LmUsage`](crate::lm::LmUsage). The provider's
-/// own extra data, kept whole as one JSON value on the legacy side, becomes the typed side's
-/// `provider_data` map when it is an object.
-pub(crate) fn lift_response(response: CallResponse) -> ApiResponse {
-    ApiResponse {
-        outputs: response.outputs.into_iter().map(LmOutput::text).collect(),
-        usage: response.usage,
-        cache_hit: response.cache_hit,
-        provider_data: match response.provider_data {
-            Some(Value::Object(map)) => map,
-            _ => Metadata::new(),
-        },
-        ..ApiResponse::default()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lm::LmUsage;
-    use crate::lm::api::LmMessage;
-    use crate::lm::api::part::LmPart;
+    use crate::lm::Role;
     use serde_json::json;
 
-    fn request(messages: Vec<LmMessage>, config: ApiConfig) -> ApiRequest {
-        ApiRequest::new("openai/gpt-4o", messages).configured(config)
-    }
-
-    /// A system message becomes the top-level system prompt; the rest become turns under the
-    /// roles they declared.
+    /// The system prompt leads as its own message; every turn follows under the role it declared.
     #[test]
-    fn messages_lower_to_a_system_prompt_and_turns() {
-        let lowered = lower_request(&request(
-            vec![
-                LmMessage::system(vec![LmPart::text("Be concise.")]),
-                LmMessage::user(vec![LmPart::text("Why?")]),
-                LmMessage::assistant(vec![LmPart::text("Because.")]),
-            ],
-            ApiConfig::default(),
-        ));
-        let call = lowered.as_call();
-
-        assert_eq!(call.system, "Be concise.");
-        assert_eq!(call.turns.len(), 2);
-        assert_eq!(call.turns[0].role, Role::User);
-        assert_eq!(call.turns[0].content.text(), Some("Why?"));
-        assert_eq!(call.turns[1].role, Role::Assistant);
-        assert_eq!(call.turns[1].content.text(), Some("Because."));
-    }
-
-    /// The load-bearing property: a lowered request hashes identically to a natively-built one.
-    ///
-    /// The cache key is `sha256` over model, system, every turn, the schema and the sampling
-    /// fields, so two requests with the same key are the same bytes to every provider. If this
-    /// holds, wiring the typed boundary in front of `chat` cannot move a byte — which is the
-    /// whole safety claim of the shim.
-    #[test]
-    fn a_lowered_request_hashes_identically_to_a_native_one() {
+    fn a_render_raises_to_a_system_message_then_turns() {
         let turns = [ChatTurn::user("Why?"), ChatTurn::assistant("Because.")];
-        let native = CallRequest::new("Be concise.", &turns, OutputMode::Text);
+        let raised = raise_request("Be concise.", &turns, OutputMode::Text, &CallConfig::default());
 
-        let typed = request(
-            vec![
-                LmMessage::system(vec![LmPart::text("Be concise.")]),
-                LmMessage::user(vec![LmPart::text("Why?")]),
-                LmMessage::assistant(vec![LmPart::text("Because.")]),
-            ],
-            ApiConfig::default(),
-        );
-        let lowered = lower_request(&typed);
-
-        assert_eq!(
-            lowered.as_call().cache_key("openai/gpt-4o"),
-            native.cache_key("openai/gpt-4o"),
-            "the lowered request is byte-identical on the wire to the native one"
-        );
+        assert_eq!(raised.messages.len(), 3);
+        assert_eq!(raised.messages[0].role, "system");
+        assert_eq!(raised.system(), "Be concise.");
+        assert_eq!(raised.messages[1].role, "user");
+        assert_eq!(raised.messages[2].role, "assistant");
     }
 
-    /// The same, with sampling and a schema set, since those feed the key too.
+    /// The system message is always present, even empty, because the legacy wire always carries
+    /// one — so a provider lifting it into its own field reads an empty string, not a missing key.
     #[test]
-    fn a_lowered_request_hashes_identically_with_sampling_and_a_schema() {
-        let schema = json!({ "type": "object" });
-        let turns = [ChatTurn::user("Why?")];
-        let native = CallRequest::new("", &turns, OutputMode::Json { schema: &schema }).sampled(
-            CallConfig {
-                temperature: Some(0.7),
-                max_tokens: Some(256),
-                completions: Some(2),
-                rollout_id: Some(5),
-            },
-        );
-
-        let config = ApiConfig::from_kwargs([
-            ("temperature".to_owned(), json!(0.7)),
-            ("max_tokens".to_owned(), json!(256)),
-            ("n".to_owned(), json!(2)),
-            ("rollout_id".to_owned(), json!(5)),
-            ("response_format".to_owned(), schema.clone()),
-        ])
-        .expect("valid config");
-        let lowered = lower_request(&request(
-            vec![LmMessage::user(vec![LmPart::text("Why?")])],
-            config,
-        ));
-
-        assert_eq!(
-            lowered.as_call().cache_key("m"),
-            native.cache_key("m"),
-            "sampling and schema lower without moving the key"
-        );
+    fn an_empty_system_still_raises_to_a_system_message() {
+        let raised = raise_request("", &[], OutputMode::Text, &CallConfig::default());
+        assert_eq!(raised.messages.len(), 1);
+        assert_eq!(raised.messages[0].role, "system");
+        assert_eq!(raised.system(), "");
     }
 
-    /// Raising a legacy request then lowering it leaves the cache key untouched — the property
-    /// that lets predict build a typed request the legacy providers still answer byte-for-byte.
+    /// The mode and the four sampling fields cross into the typed config, a numeric rollout folded
+    /// under the nested cache where the key reads it.
     #[test]
-    fn raising_then_lowering_a_request_preserves_the_cache_key() {
+    fn the_mode_and_sampling_fields_cross_into_the_typed_config() {
         let schema = json!({ "type": "object" });
-        let turns = [
-            ChatTurn::user("capital of France?"),
-            ChatTurn::assistant("Paris"),
-        ];
         let config = CallConfig {
             temperature: Some(0.7),
             max_tokens: Some(256),
-            completions: Some(2),
+            completions: Some(3),
             rollout_id: Some(5),
         };
-        let native = CallRequest::new("Be concise.", &turns, OutputMode::Json { schema: &schema })
-            .sampled(config.clone());
-
-        let raised = raise_request("Be concise.", &turns, OutputMode::Json { schema: &schema }, &config);
-        let lowered = lower_request(&raised);
-
-        assert_eq!(
-            lowered.as_call().cache_key("openai/gpt-4o"),
-            native.cache_key("openai/gpt-4o"),
-            "raise then lower is the identity the wire sees"
+        let raised = raise_request(
+            "",
+            &[ChatTurn::user("Why?")],
+            OutputMode::Json { schema: &schema },
+            &config,
         );
+
+        assert_eq!(raised.config.temperature, Some(0.7));
+        assert_eq!(raised.config.max_tokens, Some(256));
+        assert_eq!(raised.config.n, Some(3));
+        assert_eq!(raised.output_schema(), Some(&schema));
+        assert_eq!(raised.config.rollout_id(), Some(&RolloutId::Number(5)));
     }
 
-    /// A plain request has no response format, so it lowers to text mode — not an empty JSON
-    /// schema, which would change what every ordinary call asks for.
+    /// A plain render carries no response format, so it raises to text mode — not an empty schema,
+    /// which would change what every ordinary call asks for.
     #[test]
-    fn a_request_with_no_response_format_is_text_mode() {
-        let lowered = lower_request(&request(
-            vec![LmMessage::user(vec![LmPart::text("Why?")])],
-            ApiConfig::default(),
-        ));
-        assert!(matches!(lowered.as_call().mode, OutputMode::Text));
+    fn a_render_with_no_schema_raises_to_no_response_format() {
+        let raised = raise_request("", &[], OutputMode::Text, &CallConfig::default());
+        assert_eq!(raised.output_schema(), None);
     }
 
+    /// A multimodal turn's blocks are read back to parts, so the raised request renders the same
+    /// blocks it was built from.
     #[test]
-    fn a_response_format_lowers_to_json_mode_carrying_the_schema() {
-        let schema = json!({ "type": "object" });
-        let config = ApiConfig {
-            response_format: Some(schema.clone()),
-            ..ApiConfig::default()
-        };
-        let lowered = lower_request(&request(
-            vec![LmMessage::user(vec![LmPart::text("Why?")])],
-            config,
-        ));
-        match lowered.as_call().mode {
-            OutputMode::Json { schema: got } => assert_eq!(*got, schema),
-            OutputMode::Text => panic!("expected json mode"),
-        }
-    }
-
-    /// The four config fields the providers read cross over; a numeric rollout becomes the legacy
-    /// key's number.
-    #[test]
-    fn the_sampling_fields_and_rollout_cross_over() {
-        let config = ApiConfig::from_kwargs([
-            ("temperature".to_owned(), json!(0.7)),
-            ("max_tokens".to_owned(), json!(256)),
-            ("n".to_owned(), json!(3)),
-            ("rollout_id".to_owned(), json!(5)),
-        ])
-        .expect("valid config");
-        let lowered = lower_request(&request(
-            vec![LmMessage::user(vec![LmPart::text("Why?")])],
-            config,
-        ));
-        let call = lowered.as_call();
-
-        assert_eq!(call.config.temperature, Some(0.7));
-        assert_eq!(call.config.max_tokens, Some(256));
-        assert_eq!(call.config.completions, Some(3));
-        assert_eq!(call.config.rollout_id, Some(5), "cache.rollout_id → rollout_id");
-    }
-
-    /// Each completion string becomes a text output, and the usage rides across untouched.
-    #[test]
-    fn a_legacy_response_lifts_to_text_outputs_keeping_usage() {
-        let legacy = CallResponse::completions(["Paris".to_owned(), "Lyon".to_owned()])
-            .with_usage(Some(LmUsage::counted(10, 4)));
-        let lifted = lift_response(legacy);
-
-        assert_eq!(lifted.outputs.len(), 2);
-        assert_eq!(lifted.first_text(), "Paris");
-        assert_eq!(lifted.outputs[1].as_text(), "Lyon");
-        assert_eq!(lifted.usage.expect("usage carried").total(), Some(14));
-        assert!(!lifted.cache_hit);
-    }
-
-    /// A cache replay stays a replay across the lift, so spend still reads as nothing.
-    #[test]
-    fn a_replayed_response_keeps_its_cache_hit() {
-        let mut legacy = CallResponse::text("Paris").with_usage(Some(LmUsage::counted(10, 4)));
-        legacy.cache_hit = true;
-        let lifted = lift_response(legacy);
-
-        assert!(lifted.cache_hit);
-        assert_eq!(lifted.spend(), None, "a replay is not billed");
+    fn a_multimodal_turn_raises_its_blocks_back_to_parts() {
+        let blocks = Content::Blocks(vec![
+            json!({ "type": "text", "text": "look:" }),
+            json!({ "type": "image_url", "image_url": { "url": "u" } }),
+        ]);
+        let turns = [ChatTurn {
+            role: Role::User,
+            content: blocks,
+        }];
+        let raised = raise_request("", &turns, OutputMode::Text, &CallConfig::default());
+        assert_eq!(raised.messages[1].parts.len(), 2);
     }
 }

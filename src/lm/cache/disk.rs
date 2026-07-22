@@ -14,7 +14,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::lm::LmResponse;
+use crate::lm::api::LmResponse;
 
 /// dspy's `DISK_CACHE_LIMIT`, 30 GB.
 const DEFAULT_SIZE_LIMIT: u64 = 30_000_000_000;
@@ -204,7 +204,7 @@ mod tests {
         cache.put("abcdef", &reply("the reply"));
 
         let found = cache.get("abcdef").expect("the entry is there");
-        assert_eq!(found.text_ref(), "the reply");
+        assert_eq!(found.first_text(), "the reply");
         assert_eq!(found.usage.expect("usage survived").input_tokens, Some(3));
     }
 

@@ -9,7 +9,8 @@ use std::sync::Mutex;
 
 use anyhow::{Result, anyhow};
 use dsrs::JsonAdapter;
-use dsrs::lm::{self, ChatModel, ChatTurn, LM, LmRequest, LmResponse, OutputMode, Role};
+use dsrs::lm::api::{self, Content, content_of};
+use dsrs::lm::{self, ChatModel, ChatTurn, LM, Role};
 use dsrs::signature::{Signature, SignatureSpec, chain_of_thought, json_field_schema, predict};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -94,19 +95,39 @@ impl Scripted {
 }
 
 impl ChatModel for Scripted {
-    async fn chat(&self, _http: &reqwest::Client, request: &LmRequest<'_>) -> Result<LmResponse> {
+    async fn forward(
+        &self,
+        _http: &reqwest::Client,
+        request: &api::LmRequest,
+    ) -> Result<api::LmResponse> {
         self.calls.lock().expect("not poisoned").push(Call {
-            system: request.system.to_owned(),
-            turns: request.turns.to_vec(),
-            json_mode: matches!(request.mode, OutputMode::Json { .. }),
+            system: request.system().to_owned(),
+            turns: recorded_turns(request),
+            json_mode: request.output_schema().is_some(),
         });
         self.replies
             .lock()
             .expect("not poisoned")
             .pop_front()
-            .map(LmResponse::text)
+            .map(api::LmResponse::text)
             .ok_or_else(|| anyhow!("script exhausted"))
     }
+}
+
+/// The non-system messages as the turns this test asserts on, each part collapsed to its prose.
+fn recorded_turns(request: &api::LmRequest) -> Vec<ChatTurn> {
+    request
+        .messages
+        .iter()
+        .filter(|message| message.role != "system")
+        .map(|message| ChatTurn {
+            role: match message.role.as_str() {
+                "assistant" => Role::Assistant,
+                _ => Role::User,
+            },
+            content: content_of(&message.parts).unwrap_or_else(|_| Content::Text(String::new())),
+        })
+        .collect()
 }
 
 #[test]

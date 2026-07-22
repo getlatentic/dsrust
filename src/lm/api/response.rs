@@ -75,6 +75,32 @@ impl LmResponse {
         }
     }
 
+    /// Several completions from one request, each a one-part text candidate, in the order the
+    /// provider returned them. `BestOfN` reads them rather than re-asking.
+    pub fn completions(outputs: impl IntoIterator<Item = String>) -> Self {
+        Self {
+            outputs: outputs.into_iter().map(LmOutput::text).collect(),
+            ..Self::default()
+        }
+    }
+
+    pub fn with_usage(mut self, usage: Option<LmUsage>) -> Self {
+        self.usage = usage;
+        self
+    }
+
+    /// The provider's own reply kept whole — a stop reason, a fingerprint, a filter verdict — so
+    /// reading a new one needs no release. dspy's `LMResponse.provider_response`.
+    pub fn with_provider_response(mut self, provider_response: Option<Value>) -> Self {
+        self.provider_response = provider_response;
+        self
+    }
+
+    pub fn with_model(mut self, model: &str) -> Self {
+        self.model = Some(model.to_owned());
+        self
+    }
+
     /// The candidate an adapter parses, which is the only one unless several were asked for.
     pub fn first_text(&self) -> String {
         self.outputs.first().map(LmOutput::as_text).unwrap_or_default()

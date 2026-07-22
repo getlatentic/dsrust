@@ -9,9 +9,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 
-use dsrs::lm::{
-    ChatModel, ChatTurn, JsonFormat, LM, LmRequest, LmResponse, OutputMode, TokenLimitRule,
-};
+use dsrs::lm::{ChatModel, JsonFormat, LM, OutputMode, TokenLimitRule, api};
 use serde_json::{Value, json};
 
 const REPLY: &str = r#"{"choices":[{"message":{"content":"the reply"}}]}"#;
@@ -149,13 +147,20 @@ fn probe_lm(stub: &Stub) -> LM {
     probe_lm_for(stub, "openai/gpt-4o-mini")
 }
 
-async fn ask(lm: &LM, mode: &OutputMode<'_>) -> anyhow::Result<LmResponse> {
-    let turns = [ChatTurn::user("hi")];
-    lm.chat(
-        &reqwest::Client::new(),
-        &LmRequest::new("be helpful", &turns, *mode),
-    )
-    .await
+/// The typed request a `be helpful` / `hi` exchange builds — the same messages an adapter would
+/// render, so what the provider serializes is what the wire has always carried.
+async fn ask(lm: &LM, mode: &OutputMode<'_>) -> anyhow::Result<api::LmResponse> {
+    let mut request = api::LmRequest::new(
+        "",
+        vec![
+            api::LmMessage::system(vec![api::LmPart::text("be helpful")]),
+            api::LmMessage::user(vec![api::LmPart::text("hi")]),
+        ],
+    );
+    if let OutputMode::Json { schema } = mode {
+        request.config.response_format = Some((*schema).clone());
+    }
+    lm.forward(&reqwest::Client::new(), &request).await
 }
 
 fn probe_schema() -> Value {
@@ -173,7 +178,7 @@ async fn a_call_reaches_chat_completions_under_the_configured_base_url() {
     let reply = ask(&probe_lm(&stub), &OutputMode::Text)
         .await
         .expect("the stub answers");
-    assert_eq!(reply.text_ref(), "the reply");
+    assert_eq!(reply.first_text(), "the reply");
 
     let request = stub.received();
     assert_eq!(request.path, "/v1/chat/completions");
@@ -350,6 +355,6 @@ async fn an_identical_request_is_replayed_rather_than_sent_again() {
 
     let second = ask(&lm, &OutputMode::Text).await.expect("replayed");
     assert!(second.cache_hit, "the second never reached the provider");
-    assert_eq!(second.text_ref(), "the reply");
+    assert_eq!(second.first_text(), "the reply");
     assert_eq!(stub.received().path, "/v1/chat/completions");
 }
