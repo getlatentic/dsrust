@@ -28,8 +28,13 @@ def text(value: str) -> t.LMTextPart:
     return t.LMTextPart(text=value)
 
 
-def case(name: str, model: str, messages: list, **cfg) -> dict:
-    request = t.LMRequest(model=model, messages=messages, config=t.LMConfig.from_kwargs(**cfg))
+def case(name: str, model: str, messages: list, tools=None, config=None, **cfg) -> dict:
+    request = t.LMRequest(
+        model=model,
+        messages=messages,
+        tools=tools or [],
+        config=config if config is not None else t.LMConfig.from_kwargs(**cfg),
+    )
     return {
         "name": name,
         "lm_request": request.model_dump(mode="json"),
@@ -59,6 +64,24 @@ CASES = [
     case("multimodal_image", "openai/gpt-4o-mini",
          [t.LMMessage(role="user", parts=[text("describe"),
                                           t.LMImagePart(url="https://example.com/a.jpg")])]),
+    case("tools", "openai/gpt-4o",
+         [t.LMMessage(role="user", parts=[text("weather in Paris?")])],
+         tools=[t.LMToolSpec(name="get_weather", description="look up the weather",
+                             parameters={"type": "object", "properties": {"city": {"type": "string"}}})]),
+    case("tool_choice_required_single", "openai/gpt-4o",
+         [t.LMMessage(role="user", parts=[text("weather?")])],
+         tools=[t.LMToolSpec(name="get_weather", parameters={"type": "object"})],
+         config=t.LMConfig(tool_choice=t.LMToolChoice(mode="required", allowed=["get_weather"]))),
+    case("tool_choice_auto_parallel", "openai/gpt-4o",
+         [t.LMMessage(role="user", parts=[text("weather?")])],
+         tools=[t.LMToolSpec(name="get_weather", parameters={"type": "object"})],
+         config=t.LMConfig(tool_choice=t.LMToolChoice(mode="auto", parallel=False))),
+    case("reasoning_effort", "openai/o3-mini",
+         [t.LMMessage(role="user", parts=[text("hi")])],
+         config=t.LMConfig.from_kwargs(reasoning_effort="high")),
+    case("prompt_cache_key", "openai/gpt-4o-mini",
+         [t.LMMessage(role="user", parts=[text("hi")])],
+         config=t.LMConfig.from_kwargs(prompt_cache_key="k1")),
 ]
 
 

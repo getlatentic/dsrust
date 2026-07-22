@@ -250,7 +250,62 @@ fn request(
     if let Some(schema) = call.output_schema() {
         request["response_format"] = response_format(schema, json_format);
     }
+    // dspy's `reasoning_to_chat_kwargs` and `prompt_cache_to_kwargs` — only the effort and the
+    // cache key/off reach the chat wire, the rest of those configs being for other endpoints.
+    if let Some(effort) = config.reasoning.as_ref().and_then(|r| r.effort.as_ref()) {
+        request["reasoning_effort"] = json!(effort);
+    }
+    if let Some(cache) = &config.prompt_cache {
+        if let Some(key) = &cache.key {
+            request["prompt_cache_key"] = json!(key);
+        }
+        if cache.enabled == Some(false) {
+            request["prompt_cache"] = json!(false);
+        }
+    }
+    // dspy adds these in `to_openai_chat_request`, after the shared config.
+    if let Some(choice) = &config.tool_choice {
+        apply_tool_choice(&mut request, choice);
+    }
+    if !call.tools.is_empty() {
+        request["tools"] = Value::Array(call.tools.iter().map(tool_json).collect());
+    }
     request
+}
+
+/// dspy's `tool_to_openai`: a function tool, its provider data merged onto the tool object.
+fn tool_json(tool: &api::LmToolSpec) -> Value {
+    let mut data = json!({
+        "type": tool.r#type,
+        "function": { "name": tool.name, "parameters": tool.parameters },
+    });
+    if let Some(description) = &tool.description {
+        data["function"]["description"] = json!(description);
+    }
+    for (key, value) in &tool.provider_data {
+        data[key] = value.clone();
+    }
+    data
+}
+
+/// dspy's `tool_choice_to_openai`: one named tool when exactly one is allowed under `auto`/
+/// `required`, otherwise the bare mode. A wider constraint OpenAI cannot express falls back to the
+/// mode rather than raising, since the request builder has no way to report an error.
+fn apply_tool_choice(request: &mut Value, choice: &api::LmToolChoice) {
+    let single = choice.allowed.as_ref().filter(|allowed| {
+        allowed.len() == 1
+            && matches!(
+                choice.mode,
+                api::ToolChoiceMode::Auto | api::ToolChoiceMode::Required
+            )
+    });
+    request["tool_choice"] = match single {
+        Some(allowed) => json!({ "type": "function", "function": { "name": allowed[0] } }),
+        None => serde_json::to_value(choice.mode).unwrap_or(Value::Null),
+    };
+    if let Some(parallel) = choice.parallel {
+        request["parallel_tool_calls"] = json!(parallel);
+    }
 }
 
 /// See [`JsonFormat`] for why the weaker envelope is the default.
