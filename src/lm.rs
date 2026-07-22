@@ -137,6 +137,14 @@ pub trait DynChatModel: Send + Sync {
         http: &'a reqwest::Client,
         request: &'a LmRequest<'a>,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>>;
+
+    /// The object-safe form of [`ChatModel::forward`] — the typed 3.3 boundary behind a pointer,
+    /// which is how a module reaching its model through `dyn DynChatModel` asks it.
+    fn forward_dyn<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+        request: &'a api::LmRequest,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>>;
 }
 
 impl<T: ChatModel + Send + Sync> DynChatModel for T {
@@ -146,6 +154,14 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
         request: &'a LmRequest<'a>,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>> {
         Box::pin(self.chat(http, request))
+    }
+
+    fn forward_dyn<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+        request: &'a api::LmRequest,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>> {
+        Box::pin(self.forward(http, request))
     }
 }
 

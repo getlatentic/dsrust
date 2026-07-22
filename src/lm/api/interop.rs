@@ -9,8 +9,8 @@
 use serde_json::Value;
 
 use super::wire::content_of;
-use super::{LmConfig as ApiConfig, LmOutput, LmRequest as ApiRequest, LmResponse as ApiResponse};
-use super::{Metadata, RolloutId};
+use super::{LmCacheConfig, LmConfig as ApiConfig, LmMessage, LmOutput, LmPart};
+use super::{LmRequest as ApiRequest, LmResponse as ApiResponse, Metadata, RolloutId, part_of_block};
 use crate::lm::{
     ChatTurn, Content, LmConfig as CallConfig, LmRequest as CallRequest, LmResponse as CallResponse,
     OutputMode, Role,
@@ -67,6 +67,58 @@ pub(crate) fn lower_request(request: &ApiRequest) -> Lowered {
         turns,
         schema: request.config.response_format.clone(),
         config: lower_config(&request.config),
+    }
+}
+
+/// A legacy request raised to the typed one — what an adapter that still renders the old
+/// `(system, turns)` shape hands the typed boundary, dspy's adapter building an `LMRequest`.
+///
+/// The inverse of [`lower_request`], and a byte-exact round trip with it: raising then lowering
+/// leaves the cache key untouched, which is what lets the typed boundary sit in front of the
+/// legacy providers without moving a wire byte. The model is left blank, because this crate keeps
+/// it on the [`LM`](crate::lm::LM) rather than in the request — the provider fills it, and the
+/// cache key is taken against it separately.
+pub(crate) fn raise_request(
+    system: &str,
+    turns: &[ChatTurn],
+    mode: OutputMode,
+    config: &CallConfig,
+) -> ApiRequest {
+    // Always a system message, even empty, because the legacy wire always carries one — so the
+    // raised request renders the same system turn a native call would.
+    let mut messages = vec![LmMessage::system(vec![LmPart::text(system)])];
+    for turn in turns {
+        messages.push(LmMessage::new(turn.role.as_str(), parts_of(&turn.content)));
+    }
+    ApiRequest::new("", messages).configured(raise_config(mode, config))
+}
+
+/// A turn's content as the parts it was collapsed from — the inverse of [`content_of`], reading
+/// a block back to a part the same way [`part_of_block`] does the multimodal path.
+fn parts_of(content: &Content) -> Vec<LmPart> {
+    match content {
+        Content::Text(text) => vec![LmPart::text(text)],
+        Content::Blocks(blocks) => blocks.iter().map(part_of_block).collect(),
+    }
+}
+
+/// The legacy config's four fields raised into the typed one, the rollout back under its nested
+/// cache. The mode becomes the response format, the one place `OutputMode` lives in the typed
+/// config rather than beside it.
+fn raise_config(mode: OutputMode, config: &CallConfig) -> ApiConfig {
+    ApiConfig {
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        n: config.completions,
+        response_format: match mode {
+            OutputMode::Json { schema } => Some(schema.clone()),
+            OutputMode::Text => None,
+        },
+        cache: config.rollout_id.map(|id| LmCacheConfig {
+            rollout_id: Some(RolloutId::Number(id as i64)),
+            ..LmCacheConfig::default()
+        }),
+        ..ApiConfig::default()
     }
 }
 
@@ -202,6 +254,34 @@ mod tests {
             lowered.as_call().cache_key("m"),
             native.cache_key("m"),
             "sampling and schema lower without moving the key"
+        );
+    }
+
+    /// Raising a legacy request then lowering it leaves the cache key untouched — the property
+    /// that lets predict build a typed request the legacy providers still answer byte-for-byte.
+    #[test]
+    fn raising_then_lowering_a_request_preserves_the_cache_key() {
+        let schema = json!({ "type": "object" });
+        let turns = [
+            ChatTurn::user("capital of France?"),
+            ChatTurn::assistant("Paris"),
+        ];
+        let config = CallConfig {
+            temperature: Some(0.7),
+            max_tokens: Some(256),
+            completions: Some(2),
+            rollout_id: Some(5),
+        };
+        let native = CallRequest::new("Be concise.", &turns, OutputMode::Json { schema: &schema })
+            .sampled(config.clone());
+
+        let raised = raise_request("Be concise.", &turns, OutputMode::Json { schema: &schema }, &config);
+        let lowered = lower_request(&raised);
+
+        assert_eq!(
+            lowered.as_call().cache_key("openai/gpt-4o"),
+            native.cache_key("openai/gpt-4o"),
+            "raise then lower is the identity the wire sees"
         );
     }
 

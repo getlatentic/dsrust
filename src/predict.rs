@@ -7,7 +7,7 @@ use serde_json::Value;
 use crate::adapter::parse::FieldMismatch;
 use crate::adapter::{Adapter, ChatAdapter, Extraction, Feedback, Input, turns_for};
 use crate::example::{Example, Prediction};
-use crate::lm::{DynChatModel, LmConfig, LmRequest, LmResponse, LmUsage, global};
+use crate::lm::{DynChatModel, LmConfig, LmUsage, api, global};
 use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::{Signature, SignatureSpec};
 
@@ -219,19 +219,18 @@ impl<S> Predict<S> {
         lm: &dyn DynChatModel,
         inputs: &[Input<'_>],
         feedback: Option<&Feedback>,
-    ) -> Result<LmResponse> {
+    ) -> Result<api::LmResponse> {
         let hint = self.hint.as_deref();
         let asked = hint::signature_with(&self.signature, hint);
         let hinted = hint::inputs_with(inputs, hint);
         let schema = asked.schema();
         let (system, opening) = adapter.format(&asked, &self.demos, &hinted)?;
         let mode = adapter.output_mode(&schema);
-        lm.chat_dyn(
-            http,
-            &LmRequest::new(&system, &turns_for(opening, feedback), mode)
-                .sampled(self.config.clone()),
-        )
-        .await
+        let turns = turns_for(opening, feedback);
+        // The typed 3.3 boundary: predict hands the model an `LMRequest`. Behind it the request
+        // is lowered to the shape the providers still speak, so no wire byte moves.
+        let request = api::interop::raise_request(&system, &turns, mode, &self.config);
+        lm.forward_dyn(http, &request).await
     }
 
     async fn ask(
@@ -240,7 +239,7 @@ impl<S> Predict<S> {
         lm: &dyn DynChatModel,
         inputs: &[Input<'_>],
         feedback: Option<&Feedback>,
-    ) -> Result<LmResponse> {
+    ) -> Result<api::LmResponse> {
         self.ask_through(self.adapter.as_ref(), http, lm, inputs, feedback)
             .await
     }
@@ -256,7 +255,7 @@ impl<S> Predict<S> {
         // policy, this module carries it out, because only the module can call the model.
         let answered = self.ask(http, lm, inputs, None).await?;
         let usage = answered.spend();
-        let raw = answered.into_text();
+        let raw = answered.first_text();
         // An adapter that answers in prose has a second model read the fields out of it. The
         // adapter says what to ask and who to ask; only this module can do the asking.
         if let Some(extraction) = self.adapter.extraction(&self.signature) {
@@ -281,9 +280,10 @@ impl<S> Predict<S> {
                     let answered = self
                         .ask_through(fallback.as_ref(), http, lm, inputs, None)
                         .await?;
-                    let value = fallback.parse(&self.signature, answered.text_ref())?;
+                    let answered_text = answered.first_text();
+                    let value = fallback.parse(&self.signature, &answered_text)?;
                     let merged = LmUsage::merge(usage, answered.spend());
-                    (answered.into_text(), value, merged)
+                    (answered_text, value, merged)
                 }
             },
         };
@@ -333,14 +333,16 @@ impl<S> Predict<S> {
         // Left at the provider's defaults rather than given the module's config: this call
         // rewrites prose the model already produced into fields, so a temperature chosen to
         // vary the *answer* would only vary the transcription of one.
+        let request = api::interop::raise_request(&system, &turns, mode, &LmConfig::default());
         let extracted = extraction
             .model
-            .chat_dyn(http, &LmRequest::new(&system, &turns, mode))
+            .forward_dyn(http, &request)
             .await
             .context("the extraction model did not answer")?;
+        let extracted_text = extracted.first_text();
         let mut value = extraction
             .adapter
-            .parse(&extraction.signature, extracted.text_ref())
+            .parse(&extraction.signature, &extracted_text)
             // dspy names the *first* reply here, not the extraction's. That is the one a
             // caller can act on: the extraction failing usually means the prose never carried
             // the fields, and the prose is what they would go and look at.
@@ -351,7 +353,7 @@ impl<S> Predict<S> {
         self.signature.ensure(&value)?;
         Ok(Validated {
             usage: LmUsage::merge(asking, extracted.spend()),
-            raw: extracted.into_text(),
+            raw: extracted_text,
             value,
         })
     }
@@ -366,11 +368,12 @@ impl<S> Predict<S> {
         feedback: &Feedback,
     ) -> Result<(String, Value, Option<LmUsage>)> {
         let answered = self.ask(http, lm, inputs, Some(feedback)).await?;
-        let mut value = self.adapter.parse(&self.signature, answered.text_ref())?;
+        let answered_text = answered.first_text();
+        let mut value = self.adapter.parse(&self.signature, &answered_text)?;
         self.signature.coerce(&mut value)?;
         self.signature.ensure(&value)?;
         let usage = answered.spend();
-        Ok((answered.into_text(), value, usage))
+        Ok((answered_text, value, usage))
     }
 }
 

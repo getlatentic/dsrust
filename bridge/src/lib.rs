@@ -38,6 +38,18 @@ impl DynChatModel for NotOnThisSide {
             ))
         })
     }
+
+    fn forward_dyn<'a>(
+        &'a self,
+        _http: &'a reqwest::Client,
+        _request: &'a dsrs::lm::api::LmRequest,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<dsrs::lm::api::LmResponse>> + Send + 'a>> {
+        Box::pin(async {
+            Err(anyhow::anyhow!(
+                "the bridge does not call models; Python runs the extraction"
+            ))
+        })
+    }
 }
 
 /// One input field as Python describes it: name, kind, description, any closed set, the prose
