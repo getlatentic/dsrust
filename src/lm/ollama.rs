@@ -3,36 +3,47 @@
 //! It takes the OpenAI-shaped message list but keeps config under an `options` object, and
 //! names the generation cap `num_predict` rather than `max_tokens`.
 
+use std::future::Future;
+
 use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
-use super::{LmUsage, PROVIDER_TIMEOUT, api};
+use super::{ChatModel, LmUsage, PROVIDER_TIMEOUT, api};
 
 /// ollama samples at 0.8 when told nothing, which is loose for a program parsing the reply
 /// back into fields.
 const TEMPERATURE: f64 = 0.7;
 
-pub(super) async fn chat(
-    http: &reqwest::Client,
-    model: &str,
-    host: &str,
-    call: &api::LmRequest,
-) -> Result<api::LmResponse> {
-    let response = http
-        .post(format!("{host}/api/chat"))
-        .timeout(PROVIDER_TIMEOUT)
-        .json(&request(model, call))
-        .send()
-        .await
-        .context("ollama request failed")?;
-    if !response.status().is_success() {
-        return Err(anyhow!("ollama {}", response.status()));
+/// A local ollama server as a [`ChatModel`], the model and host it needs held beside it.
+pub(crate) struct Ollama<'a> {
+    pub model: &'a str,
+    pub host: &'a str,
+}
+
+impl ChatModel for Ollama<'_> {
+    fn forward<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+        call: &'a api::LmRequest,
+    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
+        async move {
+            let response = http
+                .post(format!("{}/api/chat", self.host))
+                .timeout(PROVIDER_TIMEOUT)
+                .json(&request(self.model, call))
+                .send()
+                .await
+                .context("ollama request failed")?;
+            if !response.status().is_success() {
+                return Err(anyhow!("ollama {}", response.status()));
+            }
+            let body: Value = response
+                .json()
+                .await
+                .context("ollama response was not JSON")?;
+            reply(self.model, &body)
+        }
     }
-    let body: Value = response
-        .json()
-        .await
-        .context("ollama response was not JSON")?;
-    reply(model, &body)
 }
 
 fn reply(model: &str, body: &Value) -> Result<api::LmResponse> {

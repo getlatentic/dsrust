@@ -4,39 +4,52 @@
 //! prompt is its own top-level field rather than the first message, a generation cap is
 //! mandatory rather than optional, and structured output travels under `output_config`.
 
+use std::future::Future;
+
 use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
-use super::{LmUsage, PROVIDER_TIMEOUT, api};
+use super::{ChatModel, LmUsage, PROVIDER_TIMEOUT, api};
 
 const MESSAGES_URL: &str = "https://api.anthropic.com/v1/messages";
 
 /// Anthropic rejects a request that names no cap, so one is always sent.
 const MAX_OUTPUT_TOKENS: u32 = 1024;
 
-pub(super) async fn chat(
-    http: &reqwest::Client,
-    model: &str,
-    api_key: Option<&str>,
-    call: &api::LmRequest,
-) -> Result<api::LmResponse> {
-    let key = api_key.ok_or_else(|| anyhow!("ANTHROPIC_API_KEY is not set"))?;
-    let response = http
-        .post(MESSAGES_URL)
-        .header("x-api-key", key)
-        .header("anthropic-version", "2023-06-01")
-        .header("content-type", "application/json")
-        .timeout(PROVIDER_TIMEOUT)
-        .json(&request(model, call))
-        .send()
-        .await
-        .context("anthropic request failed")?;
-    let status = response.status();
-    let body: Value = response
-        .json()
-        .await
-        .context("anthropic response was not JSON")?;
-    reply(model, status, &body)
+/// Anthropic's messages API as a [`ChatModel`], the model and credential it needs held beside it.
+pub(crate) struct Anthropic<'a> {
+    pub model: &'a str,
+    pub api_key: Option<&'a str>,
+}
+
+impl ChatModel for Anthropic<'_> {
+    fn forward<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+        call: &'a api::LmRequest,
+    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
+        async move {
+            let key = self
+                .api_key
+                .ok_or_else(|| anyhow!("ANTHROPIC_API_KEY is not set"))?;
+            let response = http
+                .post(MESSAGES_URL)
+                .header("x-api-key", key)
+                .header("anthropic-version", "2023-06-01")
+                .header("content-type", "application/json")
+                .timeout(PROVIDER_TIMEOUT)
+                .json(&request(self.model, call))
+                .send()
+                .await
+                .context("anthropic request failed")?;
+            let status = response.status();
+            let body: Value = response
+                .json()
+                .await
+                .context("anthropic response was not JSON")?;
+            reply(self.model, status, &body)
+        }
+    }
 }
 
 fn request(model: &str, call: &api::LmRequest) -> Value {

@@ -3,11 +3,13 @@
 //! `response_format` they accept, so one request builder, one reply reader and one error
 //! shape serve all of them rather than a copy per service.
 
+use std::future::Future;
+
 use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
 use super::token_limit::TokenLimitRule;
-use super::{LmUsage, PROVIDER_TIMEOUT, api, env_nonempty};
+use super::{ChatModel, LmUsage, PROVIDER_TIMEOUT, api, env_nonempty};
 
 /// OpenAI's own endpoint, and the value every other service replaces.
 pub const DEFAULT_OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
@@ -90,7 +92,8 @@ impl OpenAiConfig {
 }
 
 /// One OpenAI-shaped service, resolved for a single call.
-pub(super) struct Endpoint<'a> {
+pub(crate) struct Endpoint<'a> {
+    model: &'a str,
     /// Leads every error with the provider prefix the model was named with.
     label: &'a str,
     base_url: &'a str,
@@ -104,8 +107,9 @@ impl<'a> Endpoint<'a> {
     /// OpenRouter: its own host and credential, on the envelope it has always been sent.
     /// It accepts `max_tokens` for every model it hosts, OpenAI's reasoning models included,
     /// so the model name never moves the cap to another field here.
-    pub(super) fn openrouter(api_key: Option<&'a str>) -> Self {
+    pub(crate) fn openrouter(model: &'a str, api_key: Option<&'a str>) -> Self {
         Self {
+            model,
             label: "openrouter",
             base_url: OPENROUTER_BASE_URL,
             api_key,
@@ -117,8 +121,9 @@ impl<'a> Endpoint<'a> {
 
     /// Whatever the configuration names: OpenAI itself by default, or any other service
     /// exposing the same route.
-    pub(super) fn configured(config: &'a OpenAiConfig) -> Self {
+    pub(crate) fn configured(model: &'a str, config: &'a OpenAiConfig) -> Self {
         Self {
+            model,
             label: "openai",
             base_url: &config.base_url,
             api_key: config.api_key.as_deref(),
@@ -127,35 +132,38 @@ impl<'a> Endpoint<'a> {
             token_limit_rule: config.token_limit_rule,
         }
     }
+}
 
-    pub(super) async fn chat(
-        &self,
-        http: &reqwest::Client,
-        model: &str,
-        call: &api::LmRequest,
-    ) -> Result<api::LmResponse> {
-        let key = self
-            .api_key
-            .ok_or_else(|| anyhow!("{} is not set", self.key_var))?;
-        let response = http
-            .post(chat_completions_url(self.base_url))
-            .bearer_auth(key)
-            .timeout(PROVIDER_TIMEOUT)
-            .json(&request(
-                model,
-                call,
-                self.json_format,
-                self.token_limit_rule,
-            ))
-            .send()
-            .await
-            .with_context(|| format!("{} request failed", self.label))?;
-        let status = response.status();
-        let body: Value = response
-            .json()
-            .await
-            .with_context(|| format!("{} response was not JSON", self.label))?;
-        reply(self.label, model, status, &body)
+impl ChatModel for Endpoint<'_> {
+    fn forward<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+        call: &'a api::LmRequest,
+    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
+        async move {
+            let key = self
+                .api_key
+                .ok_or_else(|| anyhow!("{} is not set", self.key_var))?;
+            let response = http
+                .post(chat_completions_url(self.base_url))
+                .bearer_auth(key)
+                .timeout(PROVIDER_TIMEOUT)
+                .json(&request(
+                    self.model,
+                    call,
+                    self.json_format,
+                    self.token_limit_rule,
+                ))
+                .send()
+                .await
+                .with_context(|| format!("{} request failed", self.label))?;
+            let status = response.status();
+            let body: Value = response
+                .json()
+                .await
+                .with_context(|| format!("{} response was not JSON", self.label))?;
+            reply(self.label, self.model, status, &body)
+        }
     }
 }
 
@@ -374,7 +382,7 @@ mod tests {
     /// envelope are pinned here.
     #[test]
     fn openrouter_keeps_its_own_host_and_credential() {
-        let endpoint = Endpoint::openrouter(Some("key"));
+        let endpoint = Endpoint::openrouter("probe", Some("key"));
         assert_eq!(
             chat_completions_url(endpoint.base_url),
             "https://openrouter.ai/api/v1/chat/completions"
@@ -392,7 +400,7 @@ mod tests {
             json_format: JsonFormat::Object,
             token_limit_rule: TokenLimitRule::AlwaysMaxTokens,
         };
-        let endpoint = Endpoint::configured(&config);
+        let endpoint = Endpoint::configured("probe", &config);
         assert_eq!(endpoint.key_var, "GROQ_API_KEY");
         assert_eq!(
             chat_completions_url(endpoint.base_url),
@@ -488,7 +496,7 @@ mod tests {
     /// so a model name that OpenAI treats specially must still leave these exact bytes.
     #[test]
     fn openrouter_sends_every_model_on_the_max_tokens_envelope() {
-        let endpoint = Endpoint::openrouter(Some("key"));
+        let endpoint = Endpoint::openrouter("probe", Some("key"));
         // A named cap, so the routing this test is about has something to place; OpenRouter's
         // rule keeps every model on `max_tokens`, its reasoning-named ones included.
         let capped = LmConfig {
@@ -517,12 +525,12 @@ mod tests {
     #[test]
     fn each_endpoint_reports_the_token_limit_rule_it_follows() {
         assert_eq!(
-            Endpoint::openrouter(Some("key")).token_limit_rule,
+            Endpoint::openrouter("probe", Some("key")).token_limit_rule,
             TokenLimitRule::AlwaysMaxTokens
         );
         let config = OpenAiConfig::default();
         assert_eq!(
-            Endpoint::configured(&config)
+            Endpoint::configured("probe", &config)
                 .token_limit_rule
                 .field_for("o3"),
             TokenLimitField::MaxCompletionTokens

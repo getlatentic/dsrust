@@ -285,28 +285,37 @@ impl LM {
         http: &reqwest::Client,
         request: &api::LmRequest,
     ) -> Result<api::LmResponse> {
+        // Every arm resolves the model reference and this LM's credentials into a provider — each
+        // its own [`ChatModel`] — then makes the one uniform call. The match is the factory that
+        // maps a model string to its provider, which is inherent: dspy does the same in
+        // `infer_provider`, and litellm does it inside its own dispatch. The trait is what makes
+        // the four interchangeable, and a caller's own provider indistinguishable from these.
         match self.model.provider {
             Provider::Anthropic => {
-                anthropic::chat(
-                    http,
-                    &self.model.id,
-                    self.anthropic_api_key.as_deref(),
-                    request,
-                )
+                anthropic::Anthropic {
+                    model: &self.model.id,
+                    api_key: self.anthropic_api_key.as_deref(),
+                }
+                .forward(http, request)
                 .await
             }
             Provider::OpenRouter => {
-                openai::Endpoint::openrouter(self.openrouter_api_key.as_deref())
-                    .chat(http, &self.model.id, request)
+                openai::Endpoint::openrouter(&self.model.id, self.openrouter_api_key.as_deref())
+                    .forward(http, request)
                     .await
             }
             Provider::OpenAiCompatible => {
-                openai::Endpoint::configured(&self.openai)
-                    .chat(http, &self.model.id, request)
+                openai::Endpoint::configured(&self.model.id, &self.openai)
+                    .forward(http, request)
                     .await
             }
             Provider::Ollama => {
-                ollama::chat(http, &self.model.id, &self.ollama_host, request).await
+                ollama::Ollama {
+                    model: &self.model.id,
+                    host: &self.ollama_host,
+                }
+                .forward(http, request)
+                .await
             }
         }
     }
