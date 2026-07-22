@@ -1105,8 +1105,21 @@ Error), LmDelta (six), LmOutputBuilder (assembly, mutation-tested), LmStream (ov
 None is wired to a live call. There is NO dspy reference for provider-SSE -> LmStreamEvent (dspy
 uses litellm), so that mapping is ours to design faithfully to OpenAI's SSE + the typed events.
 
-LAYER 1 SHIPPED (commit 903576d): LM::forward_stream — OpenAI SSE read back as typed events, with
-LmOutputBuilder assembly, a socket end-to-end test, and mutation coverage. Remaining under layer
+STREAMING SHIPPED — layers 1 and 2, both providers and streamify:
+- 903576d: LM::forward_stream, OpenAI SSE -> typed events, LmOutputBuilder assembly, socket test.
+- d0013fb: incremental (reqwest bytes_stream), over a shared byte-framing core (src/lm/streaming.rs)
+  a provider drives with only its Framing (separator + frame->events map). Buffered read gone.
+- 95f160e: native Anthropic (SSE, usage split across message_start/message_delta) and ollama
+  (line-delimited JSON), each frame-mapper unit-tested; the synthesised fallback is gone.
+- faabebe: layer 2 — adapter::stream_field (dspy's StreamListener): watch a field's
+  [[ ## name ## ]] marker in the delta stream and yield that field's tokens (marker-split-across-
+  deltas handled, partial-marker held back). Runs over an LM event stream.
+
+REMAINING (streaming): the program-level streamify wrapping — thread forward_stream through
+Predict and across sub-predicts so a whole program streams, plus the JSONAdapter `"field":` marker
+(stream_field is ChatAdapter-only). callbacks and tests/clients still unsized.
+
+(historical sizing below.) Remaining under layer
 1: incremental read (production is buffered — body read whole before events handed out; no stub
 test can tell), and native SSE for Anthropic/ollama (they use the synthesised-from-forward
 fallback today). Layer 2 (streamify) is untouched.
