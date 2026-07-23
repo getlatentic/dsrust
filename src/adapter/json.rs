@@ -18,8 +18,17 @@ use super::exchange::{Style, json_answer, plain};
 use super::{Adapter, Input, blocks, conversation, live_inputs, output_slot, section};
 
 /// The provider's native structured output, carrying the signature's JSON schema.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct JsonAdapter;
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct JsonAdapter {
+    /// dspy `use_native_function_calling`: let the provider call tools itself when the model
+    /// supports it, rather than asking for the calls as a rendered field. Off by default, as
+    /// upstream has it.
+    pub use_native_function_calling: bool,
+    /// dspy `parallel_tool_calls`: whether to ask the provider for parallel tool calls while
+    /// native function calling is active. `None` leaves the provider option unset, which is
+    /// upstream's default and not the same as `Some(false)`.
+    pub parallel_tool_calls: Option<bool>,
+}
 
 impl Adapter for JsonAdapter {
     fn format(

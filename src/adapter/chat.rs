@@ -25,12 +25,20 @@ pub struct ChatAdapter {
     /// Re-ask through [`JsonAdapter`] when a reply does not speak the marker format. On by
     /// default, matching dspy's `use_json_adapter_fallback`.
     pub use_json_adapter_fallback: bool,
+    /// dspy `use_native_function_calling`: let the provider call tools itself when the model
+    /// supports it. Off by default, as upstream has it.
+    pub use_native_function_calling: bool,
+    /// dspy `parallel_tool_calls`: `None` leaves the provider option unset, which is upstream's
+    /// default and not the same as `Some(false)`.
+    pub parallel_tool_calls: Option<bool>,
 }
 
 impl Default for ChatAdapter {
     fn default() -> Self {
         Self {
             use_json_adapter_fallback: true,
+            use_native_function_calling: false,
+            parallel_tool_calls: None,
         }
     }
 }
@@ -44,7 +52,32 @@ impl ChatAdapter {
     pub fn without_json_fallback() -> Self {
         Self {
             use_json_adapter_fallback: false,
+            ..Self::default()
         }
+    }
+
+    /// Let the provider call tools itself where the model supports it — dspy's
+    /// `use_native_function_calling`.
+    pub fn with_native_function_calling(mut self, native: bool) -> Self {
+        self.use_native_function_calling = native;
+        self
+    }
+
+    /// Ask the provider for parallel tool calls while native function calling is active. Leaving
+    /// this unset is not the same as setting it false: dspy only sends the option when it is set.
+    pub fn with_parallel_tool_calls(mut self, parallel: Option<bool>) -> Self {
+        self.parallel_tool_calls = parallel;
+        self
+    }
+
+    /// dspy `_make_json_adapter_fallback`: the JSON adapter a failed parse re-asks through, or
+    /// none where the fallback is off. It carries this adapter's native-function-calling settings,
+    /// so the second attempt asks the provider exactly as the first did.
+    pub fn json_fallback_adapter(&self) -> Option<JsonAdapter> {
+        self.use_json_adapter_fallback.then_some(JsonAdapter {
+            use_native_function_calling: self.use_native_function_calling,
+            parallel_tool_calls: self.parallel_tool_calls,
+        })
     }
 }
 
@@ -75,8 +108,8 @@ impl Adapter for ChatAdapter {
     }
 
     fn json_fallback(&self) -> Option<Box<dyn Adapter>> {
-        self.use_json_adapter_fallback
-            .then(|| Box::new(JsonAdapter) as Box<dyn Adapter>)
+        self.json_fallback_adapter()
+            .map(|adapter| Box::new(adapter) as Box<dyn Adapter>)
     }
 }
 

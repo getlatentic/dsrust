@@ -212,7 +212,7 @@ fn build_signature(
 fn adapter_named(adapter: &str) -> PyResult<Box<dyn Adapter>> {
     match adapter {
         "chat" => Ok(Box::new(ChatAdapter::default())),
-        "json" => Ok(Box::new(JsonAdapter)),
+        "json" => Ok(Box::new(JsonAdapter::default())),
         "xml" => Ok(Box::new(XmlAdapter)),
         "baml" => Ok(Box::new(BamlAdapter)),
         // Rendering a two-step exchange never reaches the extraction model — Python holds the
@@ -431,18 +431,34 @@ fn parse_reply(
         })
 }
 
-/// Whether the named adapter, configured this way, offers a fallback when a reply fails to
-/// parse. The decision lives in Rust so the Python side cannot quietly answer it instead.
+/// The settings the crate's fallback carries, or `None` where it re-asks through nothing.
+///
+/// dspy's ChatAdapter builds its fallback as `JSONAdapter(use_native_function_calling=...,
+/// parallel_tool_calls=...)`; both the decision and what it propagates are the crate's, so the
+/// shim reads them back rather than reconstructing the rule on the Python side.
 #[pyfunction]
-#[pyo3(signature = (adapter, use_json_adapter_fallback))]
-fn has_json_fallback(adapter: &str, use_json_adapter_fallback: bool) -> PyResult<bool> {
-    let adapter: Box<dyn Adapter> = match adapter {
-        "chat" => Box::new(ChatAdapter {
+#[pyo3(signature = (adapter, use_json_adapter_fallback, use_native_function_calling, parallel_tool_calls))]
+fn json_fallback_settings(
+    adapter: &str,
+    use_json_adapter_fallback: bool,
+    use_native_function_calling: bool,
+    parallel_tool_calls: Option<bool>,
+) -> PyResult<Option<(bool, Option<bool>)>> {
+    if adapter == "chat" {
+        let chat = ChatAdapter {
             use_json_adapter_fallback,
-        }),
-        other => adapter_named(other)?,
-    };
-    Ok(adapter.json_fallback().is_some())
+            use_native_function_calling,
+            parallel_tool_calls,
+        };
+        return Ok(chat
+            .json_fallback_adapter()
+            .map(|fallback| (fallback.use_native_function_calling, fallback.parallel_tool_calls)));
+    }
+    // Every other wire format states only whether it re-asks; none carries these settings.
+    Ok(adapter_named(adapter)?
+        .json_fallback()
+        .is_some()
+        .then_some((false, None)))
 }
 
 #[pymodule]
@@ -451,7 +467,7 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(format_system_message, module)?)?;
     module.add_function(wrap_pyfunction!(baml_field_structure, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;
-    module.add_function(wrap_pyfunction!(has_json_fallback, module)?)?;
+    module.add_function(wrap_pyfunction!(json_fallback_settings, module)?)?;
     module.add_function(wrap_pyfunction!(extractor_instructions, module)?)?;
     module.add_function(wrap_pyfunction!(field_description, module)?)?;
     module.add_function(wrap_pyfunction!(infer_prefix, module)?)?;

@@ -96,11 +96,11 @@ impl Adapter for BamlAdapter {
     /// A reply is one JSON object, read exactly as the adapter this one is built on reads it.
     /// Upstream inherits the method outright, errors and error name included.
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
-        JsonAdapter.parse(signature, raw)
+        JsonAdapter::default().parse(signature, raw)
     }
 
     fn output_mode<'a>(&self, schema: &'a Value) -> OutputMode<'a> {
-        JsonAdapter.output_mode(schema)
+        JsonAdapter::default().output_mode(schema)
     }
 }
 
@@ -393,7 +393,7 @@ mod tests {
         let raw = r#"{"answer": "a fever"}"#;
         assert_eq!(
             BamlAdapter.parse(&signature, raw).expect("parses"),
-            JsonAdapter.parse(&signature, raw).expect("parses")
+            JsonAdapter::default().parse(&signature, raw).expect("parses")
         );
         assert!(BamlAdapter.parse(&signature, r#"{"other": 1}"#).is_err());
     }

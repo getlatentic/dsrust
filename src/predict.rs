@@ -856,7 +856,7 @@ mod tests {
                 config: LmConfig::default(),
                 hint: None,
                 signature: typed_signature(),
-                adapter: Box::new(JsonAdapter),
+                adapter: Box::new(JsonAdapter::default()),
                 demos: Vec::new(),
             };
             let value = predict

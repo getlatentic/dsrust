@@ -163,13 +163,21 @@ class RustChatAdapter(_RustBacked, dspy.ChatAdapter):
         """
         if isinstance(error, ContextWindowExceededError):
             return None
-        if not dsrs_bridge.has_json_fallback("chat", self.use_json_adapter_fallback):
+        # Both the decision and what it propagates are the crate's: dspy carries the
+        # native-function-calling settings into the fallback so a re-ask asks the provider the
+        # same way the first attempt did, and the crate's ChatAdapter is what states that.
+        settings = dsrs_bridge.json_fallback_settings(
+            "chat",
+            self.use_json_adapter_fallback,
+            self.use_native_function_calling,
+            self.parallel_tool_calls,
+        )
+        if settings is None:
             return None
-        # dspy 3.3 carries the native-function-calling settings into the fallback, so a re-ask
-        # keeps asking the provider the same way the first attempt did.
+        use_native_function_calling, parallel_tool_calls = settings
         return JSONAdapter(
-            use_native_function_calling=self.use_native_function_calling,
-            parallel_tool_calls=self.parallel_tool_calls,
+            use_native_function_calling=use_native_function_calling,
+            parallel_tool_calls=parallel_tool_calls,
         )
 
     def __call__(self, lm, lm_kwargs, signature, demos, inputs):
