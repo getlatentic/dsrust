@@ -43,6 +43,16 @@ RUST_BACKED = {
     "XMLAdapter": RustXMLAdapter,
 }
 
+# Bound on dspy itself as this conftest is imported, which is before pytest imports any test
+# module. A test that builds an adapter while *collecting* — `@parametrize("adapter",
+# [dspy.ChatAdapter(...)])` — would otherwise hold a real dspy instance, since the fixture below
+# runs per test and cannot reach an object made before it. Such a test passes either way, so the
+# crossing counter is the only thing that notices; without this it reports a pass for rendering
+# this crate never did.
+for _name, _rust in RUST_BACKED.items():
+    setattr(dspy, _name, _rust)
+    setattr(dspy.adapters, _name, _rust)
+
 # Upstream tests whose features this crate has not written yet, with the reason. Delete a line
 # once Rust renders that case; the strict xfail will fail the run if you forget.
 #
