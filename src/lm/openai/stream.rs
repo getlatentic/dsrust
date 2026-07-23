@@ -73,7 +73,7 @@ fn frame(frame: &str, usage: &mut Option<crate::lm::LmUsage>) -> Framed {
         // is how a keep-alive or a partial line is tolerated.
         return Framed::of(Vec::new());
     };
-    if let Some(reported) = super::usage(&chunk["usage"]) {
+    if let Some(reported) = super::response::usage(&chunk["usage"]) {
         *usage = Some(reported);
     }
     Framed::of(events_from_chunk(&chunk))

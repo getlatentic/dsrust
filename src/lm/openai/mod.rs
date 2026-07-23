@@ -11,6 +11,7 @@ use serde_json::{Value, json};
 use super::token_limit::TokenLimitRule;
 use super::{ChatModel, LmUsage, PROVIDER_TIMEOUT, api, env_nonempty};
 
+mod response;
 mod stream;
 
 /// OpenAI's own endpoint, and the value every other service replaces.
@@ -197,7 +198,7 @@ impl ChatModel for Endpoint<'_> {
                 .json()
                 .await
                 .with_context(|| format!("{} response was not JSON", self.label))?;
-            reply(self.label, self.model, status, &body)
+            response::reply(self.label, self.model, status, &body)
         }
     }
 }
@@ -317,103 +318,6 @@ fn response_format(schema: &Value, json_format: JsonFormat) -> Value {
             "json_schema": { "name": "response", "strict": true, "schema": schema },
         }),
     }
-}
-
-/// The reply text, or the message the service itself gave for refusing the call.
-fn reply(
-    label: &str,
-    model: &str,
-    status: reqwest::StatusCode,
-    body: &Value,
-) -> Result<api::LmResponse> {
-    if !status.is_success() {
-        let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
-        return Err(anyhow!("{label} {status}: {detail}"));
-    }
-    let outputs: Vec<api::LmOutput> = body["choices"]
-        .as_array()
-        .map(|choices| choices.iter().map(output_of).collect())
-        .unwrap_or_default();
-    if outputs.iter().all(|output| output.parts.is_empty()) {
-        // A reply with neither text nor a tool call is nothing to parse — every caller here reads
-        // it as an empty answer rather than a panic, so it is surfaced as the error it is.
-        return Err(anyhow!("{label} returned no content"));
-    }
-    Ok(api::LmResponse {
-        outputs,
-        ..api::LmResponse::default()
-    }
-    .with_usage(usage(&body["usage"]))
-    .with_provider_response(provider_data(body))
-    .with_model(model))
-}
-
-/// One choice as a typed output: its text, any tool calls it asked for, and why it stopped.
-fn output_of(choice: &Value) -> api::LmOutput {
-    let mut parts = Vec::new();
-    if let Some(content) = choice["message"]["content"].as_str()
-        && !content.is_empty()
-    {
-        parts.push(api::LmPart::text(content));
-    }
-    for call in choice["message"]["tool_calls"]
-        .as_array()
-        .into_iter()
-        .flatten()
-    {
-        parts.push(tool_call(call));
-    }
-    let reason = choice["finish_reason"].as_str();
-    api::LmOutput {
-        parts,
-        truncated: reason == Some("length"),
-        finish_reason: reason.map(str::to_owned),
-        ..api::LmOutput::default()
-    }
-}
-
-/// One OpenAI tool call as an [`LmPart::ToolCall`](api::LmPart), its arguments parsed from the JSON
-/// string OpenAI hands them in.
-fn tool_call(call: &Value) -> api::LmPart {
-    let arguments = call["function"]["arguments"].as_str().unwrap_or("{}");
-    api::LmPart::ToolCall {
-        id: call["id"].as_str().map(str::to_owned),
-        name: call["function"]["name"]
-            .as_str()
-            .unwrap_or_default()
-            .to_owned(),
-        args: match serde_json::from_str(arguments) {
-            Ok(Value::Object(map)) => map,
-            _ => api::Metadata::new(),
-        },
-        provider_data: api::Metadata::new(),
-        metadata: api::Metadata::new(),
-    }
-}
-
-/// `prompt_tokens` already includes whatever was read from cache here, unlike Anthropic's split
-/// counters, so the two fields are the whole of it.
-fn usage(usage: &Value) -> Option<LmUsage> {
-    let input = usage["prompt_tokens"].as_u64();
-    let output = usage["completion_tokens"].as_u64();
-    // A count the provider omitted stays unknown rather than becoming zero, which is what
-    // optional counters buy: reporting one of the two is now sayable.
-    (input.is_some() || output.is_some()).then(|| {
-        LmUsage {
-            input_tokens: input.map(|count| count as u32),
-            output_tokens: output.map(|count| count as u32),
-            ..LmUsage::default()
-        }
-        .fill_aliases()
-    })
-}
-
-/// `finish_reason` is this format's name for why generation stopped — `length` where Anthropic
-/// says `max_tokens`. It is left under the name the service used rather than translated, because
-/// a caller reading it is already reading one provider's vocabulary.
-fn provider_data(body: &Value) -> Option<Value> {
-    let finish_reason = body["choices"][0]["finish_reason"].as_str()?;
-    Some(json!({ "finish_reason": finish_reason }))
 }
 
 #[cfg(test)]
@@ -669,73 +573,10 @@ mod tests {
         );
     }
 
+    /// Asking for several completions is one round trip where re-asking would be several, so `n`
+    /// has to reach the wire. Reading every choice back is [`response`]'s job, verified there.
     #[test]
-    fn a_reply_is_read_from_the_first_choice() {
-        let body = json!({ "choices": [{ "message": { "content": "hello" } }] });
-        assert_eq!(
-            reply("openai", "gpt-4o-mini", reqwest::StatusCode::OK, &body)
-                .expect("a reply")
-                .first_text(),
-            "hello"
-        );
-    }
-
-    /// A function-calling reply carries its calls as `ToolCall` parts, not lost text — the
-    /// arguments parsed out of the JSON string OpenAI hands them in, and the stop reason kept.
-    #[test]
-    fn a_reply_with_tool_calls_parses_them_into_parts() {
-        let body = json!({
-            "choices": [{
-                "message": {
-                    "role": "assistant",
-                    "content": null,
-                    "tool_calls": [{
-                        "id": "call_1",
-                        "type": "function",
-                        "function": { "name": "get_weather", "arguments": "{\"city\": \"Paris\"}" },
-                    }],
-                },
-                "finish_reason": "tool_calls",
-            }]
-        });
-        let response =
-            reply("openai", "gpt-4o", reqwest::StatusCode::OK, &body).expect("parses");
-        let output = &response.outputs[0];
-        assert_eq!(output.finish_reason.as_deref(), Some("tool_calls"));
-        let api::LmPart::ToolCall { id, name, args, .. } = &output.parts[0] else {
-            panic!("expected a tool call, got {:?}", output.parts)
-        };
-        assert_eq!(id.as_deref(), Some("call_1"));
-        assert_eq!(name, "get_weather");
-        assert_eq!(args["city"], json!("Paris"));
-    }
-
-    /// This format names its counts for the two halves of the call rather than for the tokens,
-    /// and `prompt_tokens` is already the whole input — unlike Anthropic's split counters.
-    #[test]
-    fn the_prompt_and_completion_counts_become_the_shared_usage() {
-        let body = json!({
-            "choices": [{ "message": { "content": "hello" }, "finish_reason": "length" }],
-            "usage": { "prompt_tokens": 26, "completion_tokens": 298, "total_tokens": 324 },
-        });
-        let answered =
-            reply("openai", "gpt-4o-mini", reqwest::StatusCode::OK, &body).expect("a reply");
-        let usage = answered.usage.expect("counts");
-        assert_eq!(usage.input_tokens, Some(26));
-        assert_eq!(usage.output_tokens, Some(298));
-        assert_eq!(usage.total(), Some(324), "the service's own total agrees");
-        assert_eq!(
-            answered
-                .provider_response
-                .expect("a finish reason")["finish_reason"],
-            "length"
-        );
-    }
-
-    /// Asking for several is one round trip where re-asking would be several, so `n` has to
-    /// reach the wire and every choice has to be read back rather than only the first.
-    #[test]
-    fn asking_for_several_completions_sends_n_and_reads_every_choice() {
+    fn asking_for_several_completions_sends_n() {
         let asked = sampled_request(
             "gpt-4o-mini",
             TokenLimitRule::ByOpenAiModelFamily,
@@ -745,21 +586,6 @@ mod tests {
             },
         );
         assert_eq!(asked["n"], 3);
-
-        let body = json!({ "choices": [
-            { "message": { "content": "first" } },
-            { "message": { "content": "second" } },
-            { "message": { "content": "third" } },
-        ]});
-        let answered =
-            reply("openai", "gpt-4o-mini", reqwest::StatusCode::OK, &body).expect("a reply");
-        let texts: Vec<String> = answered.outputs.iter().map(api::LmOutput::as_text).collect();
-        assert_eq!(texts, ["first", "second", "third"]);
-        assert_eq!(
-            answered.first_text(),
-            "first",
-            "an adapter parses the first and the rest stay available"
-        );
     }
 
     /// Unset means the field is left off, so a service that rejects `n` is untouched by a
@@ -768,43 +594,5 @@ mod tests {
     fn no_n_is_sent_when_none_was_asked_for() {
         let asked = text_request("gpt-4o-mini", TokenLimitRule::ByOpenAiModelFamily);
         assert_eq!(asked.get("n"), None);
-    }
-
-    #[test]
-    fn a_reply_reporting_no_counts_reports_no_usage() {
-        let body = json!({ "choices": [{ "message": { "content": "hello" } }] });
-        assert_eq!(
-            reply("openai", "gpt-4o-mini", reqwest::StatusCode::OK, &body)
-                .expect("a reply")
-                .usage,
-            None
-        );
-    }
-
-    #[test]
-    fn a_refused_call_carries_the_status_and_the_services_own_message() {
-        let body = json!({ "error": { "message": "Incorrect API key provided" } });
-        let error = reply("openai", "gpt-4o-mini", reqwest::StatusCode::UNAUTHORIZED, &body)
-            .expect_err("401 is a failure");
-        assert!(error.to_string().contains("openai 401"), "got: {error}");
-        assert!(
-            error.to_string().contains("Incorrect API key provided"),
-            "got: {error}"
-        );
-    }
-
-    #[test]
-    fn a_success_carrying_no_content_is_an_error_rather_than_an_empty_reply() {
-        let error = reply(
-            "openai",
-            "gpt-4o-mini",
-            reqwest::StatusCode::OK,
-            &json!({ "choices": [] }),
-        )
-        .expect_err("nothing to read");
-        assert!(
-            error.to_string().contains("openai returned no content"),
-            "got: {error}"
-        );
     }
 }

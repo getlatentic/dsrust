@@ -17,7 +17,10 @@ pub struct LmOutput {
     pub truncated: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub logprobs: Option<Value>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The provider's own choice object, kept whole for a caller that needs a field this crate does
+    /// not model. Runtime-only: dspy excludes it from `model_dump`, so it never reaches the wire, a
+    /// cache entry, or a comparison against upstream's serialized form.
+    #[serde(skip)]
     pub provider_output: Option<Value>,
     #[serde(default, skip_serializing_if = "Metadata::is_empty")]
     pub provider_data: Metadata,
@@ -59,7 +62,10 @@ pub struct LmResponse {
     pub cache_hit: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub response_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// The provider's own reply kept whole — every field it sent, modelled or not. Runtime-only:
+    /// dspy holds this but excludes it from `model_dump`, so this crate does too, keeping the
+    /// serialized `LmResponse` byte-identical to upstream's while the raw stays reachable in memory.
+    #[serde(skip)]
     pub provider_response: Option<Value>,
     #[serde(default, skip_serializing_if = "Metadata::is_empty")]
     pub provider_data: Metadata,
