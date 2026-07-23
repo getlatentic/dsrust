@@ -65,11 +65,15 @@ fn reply(model: &str, body: &Value) -> Result<api::LmResponse> {
     .with_model(model))
 }
 
-/// The message as a typed output: its content as text, each `tool_calls` entry as a tool call, and
-/// why generation stopped — `length` being ollama's name for a reply cut off at the cap.
+/// The message as a typed output: a reasoning model's `thinking` as a thinking part first, its
+/// content as text, each `tool_calls` entry as a tool call, and why generation stopped — `length`
+/// being ollama's name for a reply cut off at the cap.
 fn output_of(body: &Value) -> api::LmOutput {
     let message = &body["message"];
     let mut parts = Vec::new();
+    if let Some(thinking) = message["thinking"].as_str().filter(|text| !text.is_empty()) {
+        parts.push(api::LmPart::thinking(thinking, false));
+    }
     if let Some(content) = message["content"].as_str().filter(|text| !text.is_empty()) {
         parts.push(api::LmPart::text(content));
     }
@@ -152,6 +156,22 @@ mod tests {
                 .expect("a done reason")["done_reason"],
             "length"
         );
+    }
+
+    /// A reasoning model on ollama returns its reasoning in a `thinking` field beside the content;
+    /// it becomes a thinking part before the text, as it does on the other providers.
+    #[test]
+    fn a_thinking_field_becomes_a_thinking_part_before_the_text() {
+        let body = json!({
+            "message": { "role": "assistant", "thinking": "2 + 2 = 4", "content": "The answer is 4." },
+            "done_reason": "stop",
+        });
+        let output = &reply("qwen3:4b", &body).expect("a reply").outputs[0];
+        assert!(
+            matches!(&output.parts[0], api::LmPart::Thinking { text, .. } if text == "2 + 2 = 4"),
+            "thinking is first, got {:?}", output.parts,
+        );
+        assert!(matches!(&output.parts[1], api::LmPart::Text { text, .. } if text == "The answer is 4."));
     }
 
     /// A tool-calling reply carries its calls as `ToolCall` parts — the arguments read straight from

@@ -54,11 +54,7 @@ fn choice_to_lm_output(choice: &Value) -> api::LmOutput {
     let message = &choice["message"];
     let mut parts = Vec::new();
     if let Some(reasoning) = message["reasoning_content"].as_str().filter(|text| !text.is_empty()) {
-        parts.push(api::LmPart::Thinking {
-            text: reasoning.to_owned(),
-            redacted: false,
-            metadata: Metadata::new(),
-        });
+        parts.push(api::LmPart::thinking(reasoning, false));
     }
     if let Some(content) = message["content"].as_str().filter(|text| !text.is_empty()) {
         parts.push(api::LmPart::text(content));
@@ -120,38 +116,11 @@ fn citations(choice: &Value) -> Vec<api::LmPart> {
     let mut parts = Vec::new();
     for item in list {
         match item.as_array() {
-            Some(inner) => parts.extend(inner.iter().map(citation_part)),
-            None => parts.push(citation_part(item)),
+            Some(inner) => parts.extend(inner.iter().map(api::LmPart::citation)),
+            None => parts.push(api::LmPart::citation(item)),
         }
     }
     parts
-}
-
-/// dspy's `citation_to_part`: the quote, title and link read from whichever spelling a provider used,
-/// every other field kept as metadata.
-fn citation_part(citation: &Value) -> api::LmPart {
-    const KNOWN: [&str; 6] = ["cited_text", "text", "supported_text", "document_title", "title", "url"];
-    let first = |keys: &[&str]| {
-        keys.iter()
-            .find_map(|key| citation[*key].as_str())
-            .map(str::to_owned)
-    };
-    let metadata = citation
-        .as_object()
-        .map(|object| {
-            object
-                .iter()
-                .filter(|(key, _)| !KNOWN.contains(&key.as_str()))
-                .map(|(key, value)| (key.clone(), value.clone()))
-                .collect()
-        })
-        .unwrap_or_default();
-    api::LmPart::Citation {
-        text: first(&["cited_text", "text", "supported_text"]),
-        title: first(&["document_title", "title"]),
-        url: first(&["url"]),
-        metadata,
-    }
 }
 
 /// dspy's `usage_from_response`: every counter the provider sent, deserialized whole (unknown ones

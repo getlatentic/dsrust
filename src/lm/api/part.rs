@@ -305,6 +305,44 @@ impl LmPart {
         }
     }
 
+    /// A model's reasoning, redacted when the provider returned it encrypted rather than in the clear.
+    pub fn thinking(text: impl Into<String>, redacted: bool) -> Self {
+        Self::Thinking {
+            text: text.into(),
+            redacted,
+            metadata: Metadata::new(),
+        }
+    }
+
+    /// dspy's `citation_to_part`: the quote, title and link read from whichever spelling a provider
+    /// used — OpenAI's litellm channel and Anthropic's own blocks disagree — every other field kept
+    /// as metadata.
+    pub fn citation(value: &Value) -> Self {
+        const KNOWN: [&str; 6] =
+            ["cited_text", "text", "supported_text", "document_title", "title", "url"];
+        let first = |keys: &[&str]| {
+            keys.iter()
+                .find_map(|key| value[*key].as_str())
+                .map(str::to_owned)
+        };
+        let metadata = value
+            .as_object()
+            .map(|object| {
+                object
+                    .iter()
+                    .filter(|(key, _)| !KNOWN.contains(&key.as_str()))
+                    .map(|(key, value)| (key.clone(), value.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
+        Self::Citation {
+            text: first(&["cited_text", "text", "supported_text"]),
+            title: first(&["document_title", "title"]),
+            url: first(&["url"]),
+            metadata,
+        }
+    }
+
     /// A part carrying a block is spelled as text with an empty string, which is not prose.
     pub fn as_text(&self) -> Option<&str> {
         match self {

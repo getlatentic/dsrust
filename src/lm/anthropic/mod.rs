@@ -76,21 +76,37 @@ fn reply(model: &str, status: reqwest::StatusCode, body: &Value) -> Result<api::
     .with_model(model))
 }
 
-/// The message's content blocks as a typed output: text as text, each `tool_use` as a tool call,
-/// and why generation stopped.
+/// The message's content blocks as a typed output, in dspy's part vocabulary: reasoning as a
+/// thinking part, text as text, each `tool_use` as a tool call, a text block's own `citations` as
+/// citation parts after the content, and why generation stopped. (The reasoning/citation shapes are
+/// Anthropic's own; dspy reaches Anthropic through litellm, whose response carries a random id and
+/// re-counted tokens, so there is no byte fixture for the reply the way there is for OpenAI's.)
 fn output_of(body: &Value) -> api::LmOutput {
     let mut parts = Vec::new();
+    let mut citations = Vec::new();
     for block in body["content"].as_array().into_iter().flatten() {
         match block["type"].as_str() {
+            Some("thinking") => {
+                if let Some(text) = block["thinking"].as_str().filter(|text| !text.is_empty()) {
+                    parts.push(api::LmPart::thinking(text, false));
+                }
+            }
+            Some("redacted_thinking") => {
+                parts.push(api::LmPart::thinking(block["data"].as_str().unwrap_or_default(), true));
+            }
             Some("text") => {
                 if let Some(text) = block["text"].as_str().filter(|text| !text.is_empty()) {
                     parts.push(api::LmPart::text(text));
+                }
+                for citation in block["citations"].as_array().into_iter().flatten() {
+                    citations.push(api::LmPart::citation(citation));
                 }
             }
             Some("tool_use") => parts.push(tool_use(block)),
             _ => {}
         }
     }
+    parts.extend(citations);
     let reason = body["stop_reason"].as_str();
     api::LmOutput {
         parts,
@@ -200,6 +216,33 @@ mod tests {
         assert_eq!(id.as_deref(), Some("toolu_1"));
         assert_eq!(name, "get_weather");
         assert_eq!(args["city"], json!("Paris"));
+    }
+
+    /// Anthropic's extended thinking and its citations join dspy's part vocabulary: a `thinking`
+    /// block becomes a thinking part before the text, and a text block's own citations become
+    /// citation parts after the content.
+    #[test]
+    fn thinking_and_citations_become_their_own_parts() {
+        let body = json!({
+            "content": [
+                { "type": "thinking", "thinking": "Let me consider the sources.", "signature": "s" },
+                { "type": "text", "text": "Paris is the capital.", "citations": [
+                    { "type": "char_location", "cited_text": "Paris is the capital of France.", "document_title": "France" },
+                ]},
+            ],
+            "stop_reason": "end_turn",
+        });
+        let output = &reply("claude-3-5-sonnet", reqwest::StatusCode::OK, &body).expect("parses").outputs[0];
+        assert!(
+            matches!(&output.parts[0], api::LmPart::Thinking { text, redacted: false, .. } if text == "Let me consider the sources."),
+            "thinking is first, got {:?}", output.parts,
+        );
+        assert!(matches!(&output.parts[1], api::LmPart::Text { text, .. } if text == "Paris is the capital."));
+        let api::LmPart::Citation { text, title, .. } = &output.parts[2] else {
+            panic!("expected a citation last, got {:?}", output.parts)
+        };
+        assert_eq!(text.as_deref(), Some("Paris is the capital of France."));
+        assert_eq!(title.as_deref(), Some("France"));
     }
 
     /// The other half of the forced `json_tool_call`: Anthropic answers a schema by calling that
