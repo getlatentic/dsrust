@@ -9,8 +9,8 @@ path = "src/lib.rs"
 
 [workspace]
 # The bridge is a conformance tool, not part of a normal build.
-members = ["derive", "bridge"]
-default-members = [".", "derive"]
+members = ["derive", "bridge", "tpe"]
+default-members = [".", "derive", "tpe"]
 
 [dependencies]
 anyhow = "1"
