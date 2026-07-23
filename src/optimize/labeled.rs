@@ -157,4 +157,57 @@ mod tests {
         LabeledFewShot::new(trainset().len()).compile(&mut student, &trainset());
         assert_ne!(answers(&student.demos), answers(&trainset()));
     }
+
+    /// The answers of a demo list, which identify the trainset examples drawn since every answer is
+    /// distinct — the order is the draw order, which is what a sample has and a take does not.
+    fn drawn(demos: &[Example]) -> Vec<String> {
+        demos
+            .iter()
+            .map(|demo| demo.get("answer").and_then(|value| value.as_str()).unwrap_or_default().to_owned())
+            .collect()
+    }
+
+    fn expected(case: &serde_json::Value, predictor: usize) -> Vec<String> {
+        case["demos"][predictor]
+            .as_array()
+            .expect("a predictor's demos")
+            .iter()
+            .map(|demo| demo["answer"].as_str().expect("an answer").to_owned())
+            .collect()
+    }
+
+    /// LabeledFewShot draws the demos dspy draws — the whole point of holding `random.sample` to
+    /// CPython, seen end to end. From `tests/conformance/optimize/labeled_few_shot.json`, generated
+    /// by running dspy's own `LabeledFewShot`. A two-predictor case pins that the second predictor
+    /// draws from the advanced generator, not a copy of the first's sample.
+    #[test]
+    fn draws_the_demos_dspy_draws() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/conformance/optimize/labeled_few_shot.json");
+        let text = std::fs::read_to_string(&path).expect("the labeled golden is committed");
+        let fixture: serde_json::Value = serde_json::from_str(&text).expect("the golden parses");
+        let cases = fixture["cases"].as_array().expect("cases");
+        assert!(!cases.is_empty(), "the golden records no cases");
+
+        for case in cases {
+            let labeled = LabeledFewShot {
+                k: case["k"].as_u64().expect("k") as usize,
+                sample: case["sample"].as_bool().expect("sample"),
+                seed: 0,
+            };
+            match case["predictors"].as_u64().expect("predictors") {
+                1 => {
+                    let mut student = Solver::new(Answers::Correctly);
+                    labeled.compile(&mut student, &trainset());
+                    assert_eq!(drawn(&student.demos), expected(case, 0), "case {case}");
+                }
+                _ => {
+                    let mut student = Pair::new();
+                    labeled.compile(&mut student, &trainset());
+                    assert_eq!(drawn(&student.first_demos), expected(case, 0), "first, case {case}");
+                    assert_eq!(drawn(&student.second_demos), expected(case, 1), "second, case {case}");
+                }
+            }
+        }
+    }
 }
