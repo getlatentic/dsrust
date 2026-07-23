@@ -18,8 +18,10 @@ import sys
 
 from gepa.gepa_utils import select_program_candidate_from_pareto_front
 
+from pins import require
+
 OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
-PINNED = "0.1.1"
+PINNED = require("gepa")
 
 # (fronts as {testcase: [program indices]}, weighted aggregate scores per program).
 CASES = [
@@ -43,11 +45,6 @@ def build_once(fronts: list[list[int]], scores: list[float]) -> dict:
 
 
 def main() -> None:
-    import gepa
-
-    version = getattr(gepa, "__version__", None)
-    if version is not None and version != PINNED:
-        print(f"warning: expected gepa {PINNED}, found {version}", file=sys.stderr)
     fixture = {
         "source": f"generated from gepa=={PINNED} via scripts/generate_gepa_pareto_fixture.py",
         "gepa_version": PINNED,

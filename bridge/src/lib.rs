@@ -442,6 +442,31 @@ fn parse_reply(
         })
 }
 
+/// dspy `_provider_tool_call_to_tool_call_dict`: one tool call a provider sent, read back into the
+/// `{id, name, args}` this crate's `ToolCalls` is built from.
+///
+/// Reading an arbitrary provider object is reflection and stays on the Python side; deciding what
+/// the written call *means* — which spelling holds the name, whether the arguments repair — is the
+/// crate's, so the plain mapping crosses and this answers.
+#[pyfunction]
+#[pyo3(signature = (tool_call))]
+fn normalize_tool_call(tool_call: &str) -> PyResult<String> {
+    let written: Value = serde_json::from_str(tool_call)
+        .map_err(|error| PyValueError::new_err(format!("bad tool call: {error}")))?;
+    let calls = dsrs::adapter::ToolCalls::from_dict_list(std::slice::from_ref(&written))
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+    let call = calls
+        .tool_calls
+        .first()
+        .ok_or_else(|| PyValueError::new_err("no tool call"))?;
+    serde_json::to_string(&serde_json::json!({
+        "id": call.id,
+        "name": call.name,
+        "args": Value::Object(call.args.clone()),
+    }))
+    .map_err(|error| PyValueError::new_err(format!("bad tool call: {error}")))
+}
+
 /// The settings the crate's fallback carries, or `None` where it re-asks through nothing.
 ///
 /// dspy's ChatAdapter builds its fallback as `JSONAdapter(use_native_function_calling=...,
@@ -479,6 +504,7 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(baml_field_structure, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;
     module.add_function(wrap_pyfunction!(json_fallback_settings, module)?)?;
+    module.add_function(wrap_pyfunction!(normalize_tool_call, module)?)?;
     module.add_function(wrap_pyfunction!(extractor_instructions, module)?)?;
     module.add_function(wrap_pyfunction!(field_description, module)?)?;
     module.add_function(wrap_pyfunction!(infer_prefix, module)?)?;

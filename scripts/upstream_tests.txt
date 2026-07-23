@@ -1,4 +1,4 @@
-# dspy 3.2.1: every test file upstream ships.
+# dspy 3.3.0b1: every test file upstream ships.
 tests/adapters/test_adapter_utils.py
 tests/adapters/test_audio.py
 tests/adapters/test_baml_adapter.py
@@ -18,8 +18,10 @@ tests/clients/test_databricks.py
 tests/clients/test_disk_serialization.py
 tests/clients/test_embedding.py
 tests/clients/test_inspect_global_history.py
+tests/clients/test_lazy_litellm_import.py
 tests/clients/test_lm.py
 tests/clients/test_lm_local.py
+tests/core/test_types.py
 tests/datasets/test_dataset.py
 tests/docs/test_mkdocs_links.py
 tests/evaluate/test_auto_evaluation.py
@@ -37,6 +39,7 @@ tests/predict/test_parallel.py
 tests/predict/test_predict.py
 tests/predict/test_program_of_thought.py
 tests/predict/test_react.py
+tests/predict/test_react_v2.py
 tests/predict/test_refine.py
 tests/predict/test_retry.py
 tests/predict/test_rlm.py
@@ -44,6 +47,7 @@ tests/primitives/test_base_module.py
 tests/primitives/test_example.py
 tests/primitives/test_module.py
 tests/primitives/test_python_interpreter.py
+tests/primitives/test_sandbox_serializable.py
 tests/propose/test_grounded_proposer.py
 tests/reliability/test_generated.py
 tests/reliability/test_pydantic_models.py
@@ -72,6 +76,7 @@ tests/utils/test_annotation.py
 tests/utils/test_asyncify.py
 tests/utils/test_exceptions.py
 tests/utils/test_langchain_tool.py
+tests/utils/test_lazy_import.py
 tests/utils/test_magicattr.py
 tests/utils/test_mcp.py
 tests/utils/test_parallelizer.py

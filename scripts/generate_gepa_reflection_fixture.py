@@ -21,8 +21,10 @@ import sys
 
 from gepa.strategies.instruction_proposal import InstructionProposalSignature
 
+from pins import require
+
 OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
-PINNED = "0.1.1"
+PINNED = require("gepa")
 
 
 def encode(value):

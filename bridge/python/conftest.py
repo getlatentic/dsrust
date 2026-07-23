@@ -9,6 +9,8 @@ the to-do list, it cannot drift out of date, and a green run means every case no
 genuinely runs on Rust.
 """
 
+import json
+
 import dspy
 import pytest
 
@@ -49,9 +51,35 @@ RUST_BACKED = {
 # runs per test and cannot reach an object made before it. Such a test passes either way, so the
 # crossing counter is the only thing that notices; without this it reports a pass for rendering
 # this crate never did.
+def _rust_provider_tool_call(tool_call):
+    """dspy's `_provider_tool_call_to_tool_call_dict`, answered by the crate.
+
+    Reading fields off an arbitrary provider object is reflection, and only Python can do it, so
+    the value is flattened to a plain mapping here. What the written call *means* — which spelling
+    holds the name, whether the id came as `id` or `call_id`, whether malformed arguments repair —
+    is the crate's decision and is made there.
+    """
+    from dspy.adapters.base import _provider_value
+
+    function = _provider_value(tool_call, "function", {}) or {}
+    written = {
+        "id": _provider_value(tool_call, "id"),
+        "call_id": _provider_value(tool_call, "call_id"),
+        "function": {
+            "name": _provider_value(function, "name"),
+            "arguments": _provider_value(function, "arguments", {}),
+        },
+        "name": _provider_value(tool_call, "name"),
+    }
+    crossings.record_render()
+    return json.loads(dsrs_bridge.normalize_tool_call(json.dumps(written)))
+
+
 for _name, _rust in RUST_BACKED.items():
     setattr(dspy, _name, _rust)
     setattr(dspy.adapters, _name, _rust)
+
+dspy.adapters.base._provider_tool_call_to_tool_call_dict = _rust_provider_tool_call
 
 # Upstream tests whose features this crate has not written yet, with the reason. Delete a line
 # once Rust renders that case; the strict xfail will fail the run if you forget.
@@ -116,9 +144,13 @@ DOES_NOT_EXERCISE_RUST = {
     # can cross by the tests' own design.
     "test_trajectory_truncation": "ReAct's loop with its predictors mocked out",
     "test_context_window_exceeded_after_retries": "ReAct's loop with its predictors mocked out",
-    # Calls dspy's private `_call_postprocess` with outputs already parsed, so it exercises
-    # dspy's own plumbing around an adapter rather than anything the adapter renders.
-    "test_tool_call_with_null_content_does_not_raise": "dspy-internal postprocessing",
+    # Which Python class a serialized LM state names, and whether loading it is trusted enough to
+    # import. Resolving a dotted class path at run time is Python reflection with no Rust reading,
+    # and the trust decision sits above the wire either way.
+    "test_base_lm_dump_state_ignores_internal_class_marker_kwarg": "dspy's LM state bookkeeping",
+    "test_legacy_lm_state_without_class_marker_loads_as_lm": "dspy's LM class-path resolution",
+    "test_custom_lm_load_state_requires_trusted_opt_in": "dspy's LM class-path trust boundary",
+    "test_nested_custom_lm_class_path_loads_for_trusted_state": "dspy's LM class-path resolution",
     # `dspy.Citations` and `dspy.Reasoning` validating, formatting and concatenating
     # themselves. Their files are not blanket-declared because each has one test that does
     # reach an adapter.

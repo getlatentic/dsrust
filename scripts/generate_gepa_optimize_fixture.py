@@ -25,8 +25,12 @@ from dspy.clients.base_lm import BaseLM
 from dspy.dsp.utils.utils import dotdict
 from dspy.teleprompt.gepa.gepa import GEPA
 
+from pins import require
+
 OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "optimize"
-PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
+# Both libraries produce these bytes: dspy's teleprompter drives the engine that gepa ships.
+PINNED = require("dspy")
+GEPA_PINNED = require("gepa")
 
 TABLE = {"capital of France?": "Paris", "capital of Germany?": "Berlin", "capital of Spain?": "Madrid"}
 PROPOSAL = "Answer with GOOD precision."
@@ -119,8 +123,12 @@ def compile_once(seed_instruction: str, minibatch_size: int, max_metric_calls: i
 
 def main() -> None:
     fixture = {
-        "source": f"generated from dspy=={PINNED} + gepa==0.0.27 via scripts/generate_gepa_optimize_fixture.py",
+        "source": (
+            f"generated from dspy=={PINNED} + gepa=={GEPA_PINNED} "
+            "via scripts/generate_gepa_optimize_fixture.py"
+        ),
         "dspy_version": PINNED,
+        "gepa_version": GEPA_PINNED,
         "cases": [compile_once(*case) for case in CASES],
     }
     OUT.mkdir(parents=True, exist_ok=True)

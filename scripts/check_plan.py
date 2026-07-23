@@ -18,6 +18,7 @@ ROOT = pathlib.Path(__file__).parent.parent
 BACKLOG = ROOT / "backlog.toml"
 RUNNER = ROOT / "scripts" / "run_upstream_tests.sh"
 MANIFEST = ROOT / "scripts" / "upstream_tests.txt"
+VERSION = (ROOT / "scripts" / "DSPY_VERSION").read_text().strip()
 
 
 def running() -> set[str]:
@@ -38,6 +39,23 @@ def shipped() -> dict[str, list[str]]:
     }
 
 
+def stale_manifest() -> str | None:
+    """Whether the manifest still lists the version it was generated at.
+
+    The manifest is the denominator of every coverage number the runner prints, and it is a
+    snapshot of another repository — so a version bump silently invalidates it. Re-listing the
+    tree here would put the network on every run; the header says which version was listed, and
+    holding that to the pin is enough to catch the bump that stranded it.
+    """
+    header = MANIFEST.read_text().splitlines()[0]
+    if header.startswith(f"# dspy {VERSION}:"):
+        return None
+    return (
+        f"the manifest lists {header.removeprefix('# ').split(':')[0]} but the pin is dspy "
+        f"{VERSION}; run scripts/refresh_upstream_manifest.py"
+    )
+
+
 def complaints() -> list[str]:
     suites, found = running(), []
     manifest = {
@@ -45,6 +63,8 @@ def complaints() -> list[str]:
         for line in MANIFEST.read_text().splitlines()
         if not line.startswith("#")
     }
+    if (stale := stale_manifest()) is not None:
+        found.append(stale)
 
     for sprint, claimed in shipped().items():
         for suite in claimed:

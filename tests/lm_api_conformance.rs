@@ -1,9 +1,14 @@
 //! The normalized LM types, against what dspy 3.3 itself serializes.
 //!
-//! Every entry in `tests/conformance/lm_api/dspy_3_3.json` is one instance dumped by pydantic. The
-//! types this crate declares `deny_unknown_fields`, so a field upstream emits that we do not
-//! model is a parse failure here rather than a quiet omission — which is the only way a port
-//! read off a source file stays honest as that file moves.
+//! Every entry in `tests/conformance/lm_api/dspy_3_3.json` is one instance dumped by pydantic, and
+//! what must hold is that nothing upstream said is lost. Parsing alone does not show that: serde
+//! ignores a field it does not know, so a type that dropped one would still round-trip cleanly
+//! against itself. So the re-serialized value is checked back against upstream's own JSON, which
+//! is the only way a port read off a source file stays honest as that file moves.
+//!
+//! `deny_unknown_fields` covers the same ground where it can, but it cannot be declared on the
+//! variants that `flatten` their payload — `LmPart` among them — and those are exactly the types
+//! most likely to grow a field.
 
 use dsrs::lm::LmUsage;
 use dsrs::lm::api::{
@@ -12,11 +17,8 @@ use dsrs::lm::api::{
 };
 use serde_json::Value;
 
-/// Parse into `T`, then prove the value survives its own serialization.
-///
-/// The re-serialized JSON is not compared against upstream's: pydantic writes `"metadata": {}`
-/// where this crate omits an empty map, and that is a serde convention rather than a divergence.
-/// What must hold is that nothing is lost on the way in.
+/// Parse into `T`, prove the value survives its own serialization, and prove it still says
+/// everything upstream said.
 fn round_trip<T>(raw: &Value, label: &str)
 where
     T: serde::de::DeserializeOwned + serde::Serialize + PartialEq + std::fmt::Debug,
@@ -27,6 +29,49 @@ where
     let again: T = serde_json::from_value(written.clone())
         .unwrap_or_else(|error| panic!("{label} does not survive its own serialization: {error}"));
     assert_eq!(parsed, again, "{label} changed on the way through");
+    if let Some(lost) = dropped(raw, &written, String::new()) {
+        panic!("{label} drops what upstream sent at `{lost}`\n  upstream: {raw}\n  ours: {written}");
+    }
+}
+
+/// Where the re-serialized value stops saying what upstream's JSON said, if anywhere.
+///
+/// pydantic writes a field it holds no value for — `"metadata": {}`, `"logprobs": null` — where
+/// serde omits it, and that is a spelling convention rather than something lost. Anything the
+/// fixture states, though, has to come back out.
+fn dropped(upstream: &Value, ours: &Value, at: String) -> Option<String> {
+    match (upstream, ours) {
+        (Value::Object(theirs), Value::Object(mine)) => theirs.iter().find_map(|(key, value)| {
+            let at = match at.is_empty() {
+                true => key.clone(),
+                false => format!("{at}.{key}"),
+            };
+            match mine.get(key) {
+                Some(mine) => dropped(value, mine, at),
+                None => says_nothing(value).then_some(()).map_or(Some(at), |()| None),
+            }
+        }),
+        (Value::Array(theirs), Value::Array(mine)) if theirs.len() == mine.len() => theirs
+            .iter()
+            .zip(mine)
+            .enumerate()
+            .find_map(|(index, (value, mine))| dropped(value, mine, format!("{at}[{index}]"))),
+        _ => None,
+    }
+}
+
+/// Whether a value is the default its field would hold anyway, and so may go unwritten.
+///
+/// These types omit a field holding its default throughout — `Option::is_none`, `Map::is_empty`,
+/// `Vec::is_empty`, `is_false` — where pydantic writes every field it declares. What that leaves
+/// unsaid is recoverable; a field stating anything else is not.
+fn says_nothing(value: &Value) -> bool {
+    match value {
+        Value::Null | Value::Bool(false) => true,
+        Value::Object(fields) => fields.is_empty(),
+        Value::Array(items) => items.is_empty(),
+        _ => false,
+    }
 }
 
 #[test]

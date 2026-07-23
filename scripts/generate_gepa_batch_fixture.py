@@ -17,8 +17,10 @@ import sys
 
 from gepa.strategies.batch_sampler import EpochShuffledBatchSampler
 
+from pins import require
+
 OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
-PINNED = "0.1.1"
+PINNED = require("gepa")
 
 
 class Loader:

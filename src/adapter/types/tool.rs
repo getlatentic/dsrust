@@ -142,17 +142,18 @@ fn normalized_call(data: &Value) -> Result<ToolCall> {
                     return Err(anyhow!("Received invalid function value for `ToolCalls`: {other}"));
                 }
             };
-            let name = function.and_then(|f| f.get("name")).or_else(|| fields.get("name"));
+            let name = written(function.and_then(|f| f.get("name")))
+                .or_else(|| written(fields.get("name")));
             (function.and_then(|f| f.get("arguments")), name)
         }
         None => (
             fields.get("args").or_else(|| fields.get("arguments")),
-            fields.get("name"),
+            written(fields.get("name")),
         ),
     };
     Ok(ToolCall {
-        id: text_of(fields.get("id").or_else(|| fields.get("call_id"))),
-        name: text_of(name).unwrap_or_default(),
+        id: written(fields.get("id")).or_else(|| written(fields.get("call_id"))),
+        name: name.unwrap_or_default(),
         args: arguments.map(structured_args).unwrap_or_default(),
     })
 }
@@ -172,10 +173,14 @@ fn structured_args(arguments: &Value) -> Map<String, Value> {
     }
 }
 
-/// A JSON string's text, for the fields dspy reads with `or` — an absent one and a null one are
-/// the same absence.
-fn text_of(value: Option<&Value>) -> Option<String> {
-    value.and_then(Value::as_str).map(str::to_owned)
+/// What a field actually says, for the ones dspy reads with `or` — `data.get("id") or
+/// data.get("call_id")`, `function.get("name") or data.get("name")`.
+///
+/// Python's `or` falls through everything falsy, so a key that is absent, null, or an empty string
+/// all reach the next spelling; `Option::or_else` alone only falls through the absent one, which
+/// would keep a provider's `"id": null` and lose the `call_id` beside it.
+fn written(value: Option<&Value>) -> Option<String> {
+    value.and_then(Value::as_str).filter(|text| !text.is_empty()).map(str::to_owned)
 }
 
 /// dspy `ToolCallResults.ToolCallResult`: what one call returned.
@@ -325,6 +330,27 @@ mod tests {
         assert_eq!(calls.tool_calls[0].name, "search");
         assert_eq!(calls.tool_calls[0].id.as_deref(), Some("call_from_responses"));
         assert_eq!(calls.tool_calls[0].args, *json!({ "query": "cats" }).as_object().unwrap());
+    }
+
+    /// The spelling dspy did not use is often *written* rather than absent — a provider object
+    /// read field by field gives up `"id": null` beside the `call_id` that holds the value. Python's
+    /// `or` falls through it; an `Option` chain that only falls through an absent key would keep the
+    /// null and lose the id, and with it the pairing between a call and its result.
+    #[test]
+    fn a_spelling_written_as_null_falls_through_to_the_next() {
+        let calls = ToolCalls::from_dict_list(&[json!({
+            "id": null,
+            "call_id": "call_from_responses",
+            "function": { "name": null, "arguments": "{\"query\": \"cats\"}" },
+            "name": "search",
+        })])
+        .expect("reads back");
+        assert_eq!(calls.tool_calls[0].id.as_deref(), Some("call_from_responses"));
+        assert_eq!(calls.tool_calls[0].name, "search");
+        // Empty is falsy to Python too, so it falls through the same way.
+        let calls = ToolCalls::from_dict_list(&[json!({ "id": "", "call_id": "call_1" })])
+            .expect("reads back");
+        assert_eq!(calls.tool_calls[0].id.as_deref(), Some("call_1"));
     }
 
     /// dspy reads a provider's arguments through json-repair, so text a strict reader rejects still
