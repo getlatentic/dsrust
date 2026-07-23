@@ -23,11 +23,18 @@ use crate::lm::DynChatModel;
 use crate::module::Module;
 use crate::signature::Signature;
 
+mod demos;
 mod proposer;
 mod signatures;
 
 use proposer::GenerateModuleInstruction;
 use signatures::InstructionInputs;
+
+/// dspy `BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT` / `LABELED_FEWSHOT_EXAMPLES_IN_CONTEXT`: the demo
+/// budgets Step 1 uses in the zero-shot case, where the sets ground the proposer rather than being
+/// searched.
+const ZEROSHOT_BOOTSTRAPPED: usize = 3;
+const ZEROSHOT_LABELED: usize = 0;
 
 /// dspy GroundedProposer's tips, in declaration order — the order `random.choice` indexes into. The
 /// empty `none` tip is a real member: choosing it turns the tip field off for that candidate.
@@ -184,6 +191,21 @@ where
         }
 
         let mut rng = Rng::seeded(self.seed);
+
+        // Step 1: bootstrap demo sets. Zero-shot searches instructions only, but dspy still runs this
+        // — the sets ground the proposer, and it advances the shared RNG that Step 2's proposal reads.
+        demos::create_demo_sets(
+            student,
+            self.num_candidates,
+            trainset,
+            ZEROSHOT_LABELED,
+            ZEROSHOT_BOOTSTRAPPED,
+            &self.metric,
+            &mut rng,
+        )
+        .await?;
+
+        // Step 2: propose instruction candidates, off the RNG Step 1 advanced.
         let proposer = GroundedProposer {
             program_code: self.program_code.clone(),
             tip_aware: self.tip_aware,
@@ -191,6 +213,7 @@ where
         };
         let candidates = proposer.propose(&predictors, self.num_candidates, &mut rng).await?;
 
+        // Step 3: search the instruction combinations.
         self.search(student, &candidates, trainset).await;
         Ok(())
     }
