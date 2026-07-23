@@ -11,20 +11,32 @@ use serde_json::Value;
 
 use crate::lm::PROVIDER_TIMEOUT;
 use crate::lm::api::{LmDelta, LmStreamEvent};
-use crate::lm::streaming::{Framed, Framing};
+use crate::lm::streaming::{Framed, Framing, StreamState};
 
-/// One streaming chunk as the events it implies: a content delta per choice, and an
-/// [`LmStreamEvent::OutputEnd`] where a choice named why it stopped.
-fn events_from_chunk(chunk: &Value) -> Vec<LmStreamEvent> {
+/// One streaming chunk as the events it implies: a reasoning or content delta per choice, tool-call
+/// fragments, and an [`LmStreamEvent::OutputEnd`] where a choice named why it stopped.
+fn events_from_chunk(chunk: &Value, state: &mut StreamState) -> Vec<LmStreamEvent> {
     let mut events = Vec::new();
     for choice in chunk["choices"].as_array().into_iter().flatten() {
         let index = choice["index"].as_u64().unwrap_or(0) as usize;
+        // A reasoning model streams its reasoning ahead of the answer; it takes part 0 and pushes the
+        // content that follows to the next slot, the thinking-then-text order the reply is read in.
+        if let Some(reasoning) = choice["delta"]["reasoning_content"].as_str()
+            && !reasoning.is_empty()
+        {
+            state.content_offset = 1;
+            events.push(LmStreamEvent::Delta {
+                output_index: index,
+                part_index: 0,
+                delta: LmDelta::thinking(reasoning),
+            });
+        }
         if let Some(content) = choice["delta"]["content"].as_str()
             && !content.is_empty()
         {
             events.push(LmStreamEvent::Delta {
                 output_index: index,
-                part_index: 0,
+                part_index: state.content_offset,
                 delta: LmDelta::text(content),
             });
         }
@@ -38,7 +50,7 @@ fn events_from_chunk(chunk: &Value) -> Vec<LmStreamEvent> {
             let slot = call["index"].as_u64().unwrap_or(0) as usize;
             events.push(LmStreamEvent::Delta {
                 output_index: index,
-                part_index: slot,
+                part_index: state.content_offset + slot,
                 delta: LmDelta::ToolCallDelta {
                     id: call["id"].as_str().map(str::to_owned),
                     name: call["function"]["name"].as_str().map(str::to_owned),
@@ -60,7 +72,7 @@ fn events_from_chunk(chunk: &Value) -> Vec<LmStreamEvent> {
 /// One SSE frame — a `data:` line, `data: [DONE]`, or a keep-alive — as its events. The usage the
 /// final chunk carries is accumulated for the stream's [`End`](LmStreamEvent::End); OpenAI sends it
 /// when the request asked for `stream_options.include_usage`.
-fn frame(frame: &str, usage: &mut Option<crate::lm::LmUsage>) -> Framed {
+fn frame(frame: &str, state: &mut StreamState) -> Framed {
     let Some(data) = frame.trim().strip_prefix("data:") else {
         return Framed::of(Vec::new()); // a comment or keep-alive carries nothing
     };
@@ -74,9 +86,9 @@ fn frame(frame: &str, usage: &mut Option<crate::lm::LmUsage>) -> Framed {
         return Framed::of(Vec::new());
     };
     if let Some(reported) = super::response::usage(&chunk["usage"]) {
-        *usage = Some(reported);
+        state.usage = Some(reported);
     }
-    Framed::of(events_from_chunk(&chunk))
+    Framed::of(events_from_chunk(&chunk, state))
 }
 
 /// The typed events of one streaming call. The owned url, key, model and body are lifted out of
@@ -109,14 +121,14 @@ mod tests {
     use super::*;
 
     fn events_of(body: &str) -> Vec<LmStreamEvent> {
-        let mut usage = None;
+        let mut state = StreamState::default();
         let mut events = Vec::new();
         for line in body.split("\n\n") {
-            let framed = frame(line, &mut usage);
+            let framed = frame(line, &mut state);
             events.extend(framed.events);
             if framed.done {
                 events.push(LmStreamEvent::End {
-                    usage: usage.take(),
+                    usage: state.usage.take(),
                     cost: None,
                     response: None,
                 });
@@ -169,6 +181,34 @@ mod tests {
         let response = response.expect("the end event produced a reply");
         assert_eq!(response.first_text(), "Paris");
         assert_eq!(response.usage.and_then(|u| u.total()), Some(14));
+    }
+
+    /// A reasoning model streams its reasoning ahead of the answer: the `reasoning_content` deltas
+    /// build a thinking part at index 0, and the content that follows takes index 1 — the
+    /// thinking-then-text order the non-streamed reply has.
+    #[test]
+    fn reasoning_content_streams_as_a_thinking_part_before_the_text() {
+        use crate::lm::api::{LmOutputBuilder, LmPart};
+        let sse = "data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\"2+2\"}}]}\n\n\
+            data: {\"choices\":[{\"index\":0,\"delta\":{\"reasoning_content\":\" = 4\"}}]}\n\n\
+            data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"The answer is 4.\"}}]}\n\n\
+            data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n\
+            data: [DONE]\n\n";
+
+        let mut builder = LmOutputBuilder::new();
+        builder.apply(LmStreamEvent::Start { model: None }).expect("start");
+        let mut response = None;
+        for event in events_of(sse) {
+            if let Some(assembled) = builder.apply(event).expect("applies") {
+                response = Some(assembled);
+            }
+        }
+        let output = &response.expect("assembled").outputs[0];
+        assert!(
+            matches!(&output.parts[0], LmPart::Thinking { text, .. } if text == "2+2 = 4"),
+            "thinking is first, got {:?}", output.parts,
+        );
+        assert!(matches!(&output.parts[1], LmPart::Text { text, .. } if text == "The answer is 4."));
     }
 
     /// A streamed tool call arrives in fragments — id and name first, arguments a slice at a time

@@ -11,8 +11,8 @@ use serde_json::{Value, json};
 
 use super::request::request;
 use crate::lm::api::{self, LmDelta, LmStreamEvent};
-use crate::lm::streaming::{Framed, Framing};
-use crate::lm::{LmUsage, PROVIDER_TIMEOUT};
+use crate::lm::streaming::{Framed, Framing, StreamState};
+use crate::lm::PROVIDER_TIMEOUT;
 
 /// The streaming form: the request with `stream` set true, ollama's line-delimited JSON read back as
 /// the typed vocabulary. Each line is a reply chunk; the last carries `done` and the counts.
@@ -42,21 +42,35 @@ pub(crate) fn stream<'h>(
 
 /// One ollama line as its events. A `done` line closes the stream with the counts and the reason
 /// generation stopped.
-fn frame(line: &str, totals: &mut Option<LmUsage>) -> Framed {
+fn frame(line: &str, state: &mut StreamState) -> Framed {
     let Ok(chunk) = serde_json::from_str::<Value>(line.trim()) else {
         return Framed::of(Vec::new()); // a blank line between objects
     };
     let mut events = Vec::new();
+    if let Some(thinking) = chunk["message"]["thinking"].as_str()
+        && !thinking.is_empty()
+    {
+        state.content_offset = 1;
+        events.push(LmStreamEvent::Delta {
+            output_index: 0,
+            part_index: 0,
+            delta: LmDelta::thinking(thinking),
+        });
+    }
     if let Some(content) = chunk["message"]["content"].as_str()
         && !content.is_empty()
     {
-        events.push(LmStreamEvent::delta(0, LmDelta::text(content)));
+        events.push(LmStreamEvent::Delta {
+            output_index: 0,
+            part_index: state.content_offset,
+            delta: LmDelta::text(content),
+        });
     }
     if chunk["done"].as_bool() != Some(true) {
         return Framed::of(events);
     }
     if let Some(reported) = super::usage(&chunk) {
-        *totals = Some(reported);
+        state.usage = Some(reported);
     }
     if let Some(reason) = chunk["done_reason"].as_str() {
         events.push(LmStreamEvent::OutputEnd {
@@ -80,11 +94,11 @@ mod tests {
             {\"message\":{\"content\":\"is\"},\"done\":false}\n\
             {\"message\":{\"content\":\"\"},\"done\":true,\"done_reason\":\"stop\",\"prompt_eval_count\":10,\"eval_count\":4}\n";
 
-        let mut usage = None;
+        let mut state = StreamState::default();
         let mut text = String::new();
         let mut closed = false;
         for line in ndjson.split('\n') {
-            let framed = frame(line, &mut usage);
+            let framed = frame(line, &mut state);
             for event in framed.events {
                 if let LmStreamEvent::Delta {
                     delta: LmDelta::TextDelta { text: piece },
@@ -98,6 +112,6 @@ mod tests {
         }
         assert_eq!(text, "Paris");
         assert!(closed, "the done line closed the stream");
-        assert_eq!(usage.and_then(|u| u.total()), Some(14));
+        assert_eq!(state.usage.and_then(|u| u.total()), Some(14));
     }
 }

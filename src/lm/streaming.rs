@@ -57,11 +57,20 @@ impl Framed {
     }
 }
 
+/// The state a frame threads across the stream: the usage it accumulates for the final
+/// [`End`](LmStreamEvent::End), and the part index the main content sits at — pushed forward by a
+/// reasoning part that streams ahead of the text, so the two do not collide at index zero.
+#[derive(Default)]
+pub(super) struct StreamState {
+    pub usage: Option<LmUsage>,
+    pub content_offset: usize,
+}
+
 /// How a provider frames its stream: the frame separator, and the map from one frame's text to
-/// the events it carries (accumulating usage as it goes, for the final [`End`](LmStreamEvent::End)).
+/// the events it carries (threading [`StreamState`] as it goes).
 pub(super) struct Framing {
     pub separator: &'static [u8],
-    pub frame: fn(&str, &mut Option<LmUsage>) -> Framed,
+    pub frame: fn(&str, &mut StreamState) -> Framed,
 }
 
 type Connect<'h> = Pin<Box<dyn Future<Output = reqwest::Result<reqwest::Response>> + Send + 'h>>;
@@ -81,7 +90,7 @@ struct Live<'h> {
     framing: Framing,
     buffer: Vec<u8>,
     pending: VecDeque<Result<LmStreamEvent>>,
-    usage: Option<LmUsage>,
+    state: StreamState,
     response: Option<Box<LmResponse>>,
 }
 
@@ -103,7 +112,7 @@ pub(super) fn events<'h>(
         framing,
         buffer: Vec::new(),
         pending: VecDeque::new(),
-        usage: None,
+        state: StreamState::default(),
         response: None,
     };
     stream::unfold(live, |mut live| async move {
@@ -149,7 +158,7 @@ fn connected(live: &mut Live, response: reqwest::Result<reqwest::Response>) {
 /// Turn every complete frame the buffer now holds into events. Answers whether the stream closed.
 fn drain(live: &mut Live) -> bool {
     while let Some(frame) = next_frame(&mut live.buffer, live.framing.separator) {
-        let framed = (live.framing.frame)(&frame, &mut live.usage);
+        let framed = (live.framing.frame)(&frame, &mut live.state);
         live.pending.extend(framed.events.into_iter().map(Ok));
         if let Some(response) = framed.response {
             live.response = Some(response);
@@ -176,7 +185,7 @@ impl Live<'_> {
     /// End the stream with the usage it reported, and the whole reply if a frame carried one.
     fn close(&mut self) {
         self.pending.push_back(Ok(LmStreamEvent::End {
-            usage: self.usage.take(),
+            usage: self.state.usage.take(),
             cost: None,
             response: self.response.take(),
         }));
@@ -207,11 +216,11 @@ mod tests {
     /// The mapping and the closing frame drive an end with the accumulated usage.
     #[test]
     fn a_closing_frame_ends_the_stream_with_its_usage() {
-        fn frame(text: &str, usage: &mut Option<LmUsage>) -> Framed {
+        fn frame(text: &str, state: &mut StreamState) -> Framed {
             match text {
                 "done" => Framed::closing(Vec::new()),
                 "usage" => {
-                    *usage = Some(LmUsage::counted(3, 4));
+                    state.usage = Some(LmUsage::counted(3, 4));
                     Framed::of(Vec::new())
                 }
                 other => Framed::of(vec![LmStreamEvent::delta(0, LmDelta::text(other))]),
@@ -227,7 +236,7 @@ mod tests {
             },
             buffer: b"hi\nusage\ndone\n".to_vec(),
             pending: VecDeque::new(),
-            usage: None,
+            state: StreamState::default(),
             response: None,
         };
         assert!(drain(&mut live), "the done frame closed it");

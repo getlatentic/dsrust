@@ -14,7 +14,7 @@ use serde_json::{Value, json};
 use super::{apply_tool_choice, response, tool_json};
 use crate::lm::PROVIDER_TIMEOUT;
 use crate::lm::api::{self, LmDelta, LmStreamEvent, Metadata};
-use crate::lm::streaming::{Framed, Framing};
+use crate::lm::streaming::{Framed, Framing, StreamState};
 
 // -------- request: LmRequest -> Responses body --------
 
@@ -209,7 +209,7 @@ pub(super) fn stream<'h>(
 
 /// One Responses SSE frame as the events it carries. The reply's items each stream their own delta;
 /// `response.completed` closes with the whole reply, `response.failed`/`incomplete` with an error.
-fn frame(frame: &str, _usage: &mut Option<crate::lm::LmUsage>) -> Framed {
+fn frame(frame: &str, _state: &mut StreamState) -> Framed {
     let Some(data) = frame.lines().find_map(|line| line.trim().strip_prefix("data:")) else {
         return Framed::of(Vec::new());
     };
@@ -417,7 +417,7 @@ mod tests {
     }
 
     fn framed(event: Value) -> Framed {
-        frame(&format!("data: {event}"), &mut None)
+        frame(&format!("data: {event}"), &mut StreamState::default())
     }
 
     /// The reply's items each stream their own delta — reasoning and text under their own part
