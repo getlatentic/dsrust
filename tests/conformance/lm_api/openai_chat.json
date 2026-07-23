@@ -416,6 +416,345 @@
       }
     },
     {
+      "name": "multimodal_audio",
+      "lm_request": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "transcribe"
+              },
+              {
+                "type": "audio",
+                "metadata": {},
+                "media_type": "audio/wav",
+                "data": "YQ==",
+                "url": null,
+                "file_id": null,
+                "path": null
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "transcribe"
+              },
+              {
+                "type": "input_audio",
+                "input_audio": {
+                  "data": "YQ==",
+                  "format": "wav"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "multimodal_video",
+      "lm_request": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "describe"
+              },
+              {
+                "type": "video",
+                "metadata": {},
+                "media_type": "video/mp4",
+                "data": null,
+                "url": "https://example.com/a.mp4",
+                "file_id": null,
+                "path": null
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "describe"
+              },
+              {
+                "type": "file",
+                "file": {
+                  "file_data": "https://example.com/a.mp4"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "multimodal_binary_file_id",
+      "lm_request": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "summarize"
+              },
+              {
+                "type": "binary",
+                "metadata": {},
+                "media_type": "application/octet-stream",
+                "data": null,
+                "url": null,
+                "file_id": "file_1",
+                "path": null,
+                "filename": "a.pdf"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "summarize"
+              },
+              {
+                "type": "file",
+                "file": {
+                  "file_id": "file_1",
+                  "filename": "a.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "multimodal_binary_data",
+      "lm_request": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "read"
+              },
+              {
+                "type": "binary",
+                "metadata": {},
+                "media_type": "application/pdf",
+                "data": "JVBERi0=",
+                "url": null,
+                "file_id": null,
+                "path": null,
+                "filename": "doc.pdf"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "read"
+              },
+              {
+                "type": "file",
+                "file": {
+                  "file_data": "data:application/pdf;base64,JVBERi0=",
+                  "filename": "doc.pdf"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "multimodal_document",
+      "lm_request": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "analyze"
+              },
+              {
+                "type": "document",
+                "metadata": {},
+                "media_type": "application/pdf",
+                "data": null,
+                "url": null,
+                "file_id": null,
+                "path": null,
+                "source": {
+                  "type": "text",
+                  "data": "the contract"
+                },
+                "citations": {},
+                "title": "Contract",
+                "context": null
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "analyze"
+              },
+              {
+                "type": "document",
+                "source": {
+                  "type": "text",
+                  "data": "the contract"
+                },
+                "title": "Contract"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "name": "tools",
       "lm_request": {
         "model": "openai/gpt-4o",

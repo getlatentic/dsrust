@@ -78,9 +78,11 @@ pub fn blocks_of(part: &LmPart) -> Result<Vec<Value>> {
         LmPart::Audio {
             source, media_type, ..
         } => vec![audio_block(source, media_type)?],
+        // dspy renders a video as a file block, not a video block: `video_to_openai` delegates to
+        // `binary_to_openai`, taking the filename from a local path when there is one.
         LmPart::Video {
             source, media_type, ..
-        } => vec![json!({ "type": "video", "video": { "url": media_source(source, media_type)? } })],
+        } => vec![binary_block(source, media_type, video_filename(source).as_deref())?],
         LmPart::Binary {
             source,
             media_type,
@@ -129,6 +131,15 @@ fn audio_block(source: &LmSource, media_type: &str) -> Result<Value> {
         "type": "input_audio",
         "input_audio": { "data": data, "format": media_format(&media_type) },
     }))
+}
+
+/// A video carries no filename of its own, so dspy takes one from a local path and otherwise sends
+/// none — a url or base64 video is a file block without a filename.
+fn video_filename(source: &LmSource) -> Option<String> {
+    match source {
+        LmSource::Path(path) => path.file_name().and_then(|name| name.to_str()).map(str::to_owned),
+        _ => None,
+    }
 }
 
 fn binary_block(source: &LmSource, media_type: &str, filename: Option<&str>) -> Result<Value> {
