@@ -5,5 +5,7 @@
 //! same split lives here, so a type ported from upstream lands in the file that names it.
 
 pub mod reasoning;
+pub mod tool;
 
 pub use reasoning::Reasoning;
+pub use tool::{ToolCall, ToolCallResult, ToolCallResults, ToolCalls};

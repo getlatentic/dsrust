@@ -67,7 +67,7 @@ pub use two_step::{TwoStepAdapter, extractor_signature};
 mod demos;
 mod exchange;
 pub mod types;
-pub use types::Reasoning;
+pub use types::{Reasoning, ToolCall, ToolCallResult, ToolCallResults, ToolCalls};
 pub mod stream;
 pub use stream::{FieldListener, stream_field};
 mod history;
