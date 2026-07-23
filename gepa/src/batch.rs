@@ -9,10 +9,10 @@ use std::collections::BTreeMap;
 
 use pyrng::Random;
 
-/// dspy `EpochShuffledBatchSampler`.
+/// dspy `EpochShuffledBatchSampler`. The generator is not owned: in a real run it is shared with
+/// candidate selection, so the caller threads one [`Random`] through both.
 pub struct BatchSampler {
     minibatch_size: usize,
-    rng: Random,
     shuffled_ids: Vec<usize>,
     /// dspy starts the epoch at `-1` so the first call always refreshes.
     epoch: i64,
@@ -20,19 +20,13 @@ pub struct BatchSampler {
 }
 
 impl BatchSampler {
-    pub fn new(minibatch_size: usize, seed: u64) -> Self {
-        Self {
-            minibatch_size,
-            rng: Random::seeded(seed),
-            shuffled_ids: Vec::new(),
-            epoch: -1,
-            last_trainset_size: 0,
-        }
+    pub fn new(minibatch_size: usize) -> Self {
+        Self { minibatch_size, shuffled_ids: Vec::new(), epoch: -1, last_trainset_size: 0 }
     }
 
     /// dspy `next_minibatch_ids`: the ids for `iteration`'s minibatch. The trainset ids are `0..n`,
-    /// as an in-memory loader yields them. Reshuffles when the epoch rolls over.
-    pub fn next_minibatch_ids(&mut self, trainset_size: usize, iteration: usize) -> Vec<usize> {
+    /// as an in-memory loader yields them. Reshuffles from `rng` when the epoch rolls over.
+    pub fn next_minibatch_ids(&mut self, trainset_size: usize, iteration: usize, rng: &mut Random) -> Vec<usize> {
         assert!(trainset_size > 0, "cannot sample a minibatch from an empty trainset");
         let base = iteration * self.minibatch_size;
         let current_epoch = if self.epoch == -1 {
@@ -45,7 +39,7 @@ impl BatchSampler {
             || current_epoch > self.epoch;
         if needs_refresh {
             self.epoch = current_epoch;
-            self.update_shuffled(trainset_size);
+            self.update_shuffled(trainset_size, rng);
         }
 
         let base = base % self.shuffled_ids.len();
@@ -54,10 +48,10 @@ impl BatchSampler {
 
     /// dspy `_update_shuffled`: a fresh shuffle of `0..n`, padded up to a multiple of the minibatch
     /// size with least-frequent ids.
-    fn update_shuffled(&mut self, trainset_size: usize) {
+    fn update_shuffled(&mut self, trainset_size: usize, rng: &mut Random) {
         self.last_trainset_size = trainset_size;
         self.shuffled_ids = (0..trainset_size).collect();
-        self.rng.shuffle(&mut self.shuffled_ids);
+        rng.shuffle(&mut self.shuffled_ids);
 
         // Counter over the shuffle: ids in first-appearance order, each once to start.
         let mut order: Vec<usize> = Vec::new();
@@ -108,12 +102,14 @@ mod tests {
             let n = case["trainset_size"].as_u64().expect("n") as usize;
             let mb = case["minibatch_size"].as_u64().expect("mb") as usize;
             let seed = case["seed"].as_u64().expect("seed");
-            let mut sampler = BatchSampler::new(mb, seed);
+            let mut sampler = BatchSampler::new(mb);
+            // In isolation the sampler owns the whole generator; in the engine it is shared.
+            let mut rng = Random::seeded(seed);
             let expected = case["batches"].as_array().expect("batches");
             for (iteration, want) in expected.iter().enumerate() {
                 let want: Vec<usize> = want.as_array().unwrap().iter().map(|v| v.as_u64().unwrap() as usize).collect();
                 assert_eq!(
-                    sampler.next_minibatch_ids(n, iteration),
+                    sampler.next_minibatch_ids(n, iteration, &mut rng),
                     want,
                     "n={n} mb={mb} seed={seed} iteration={iteration}"
                 );
