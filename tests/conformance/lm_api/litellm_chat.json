@@ -369,6 +369,84 @@
       }
     },
     {
+      "name": "document",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "summarize"
+              },
+              {
+                "type": "document",
+                "metadata": {},
+                "media_type": "application/pdf",
+                "data": null,
+                "url": null,
+                "file_id": null,
+                "path": null,
+                "source": {
+                  "type": "base64",
+                  "media_type": "application/pdf",
+                  "data": "JVBERi0="
+                },
+                "citations": {},
+                "title": "Contract",
+                "context": null
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "summarize"
+              },
+              {
+                "type": "document",
+                "source": {
+                  "type": "base64",
+                  "media_type": "application/pdf",
+                  "data": "JVBERi0="
+                },
+                "title": "Contract"
+              }
+            ]
+          }
+        ],
+        "max_tokens": 4096
+      }
+    },
+    {
       "name": "tools",
       "provider": "anthropic",
       "lm_request": {

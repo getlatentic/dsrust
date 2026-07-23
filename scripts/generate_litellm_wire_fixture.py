@@ -133,6 +133,8 @@ def anthropic_cases() -> list:
             text("describe"), t.LMImagePart(url="https://example.com/a.jpg")])]),
         case("image_base64", p, m, [t.LMMessage(role="user", parts=[
             t.LMImagePart(url="data:image/png;base64,iVBORw0KGgo=")])]),
+        case("document", p, m, [t.LMMessage(role="user", parts=[text("summarize"),
+            t.LMDocumentPart(source={"type": "base64", "media_type": "application/pdf", "data": "JVBERi0="}, title="Contract")])]),
         case("tools", p, m, [ASK], tools=[WEATHER]),
         case("tool_choice_required", p, m, [ASK], tools=[WEATHER],
              config=t.LMConfig(tool_choice=t.LMToolChoice(mode="required"))),
