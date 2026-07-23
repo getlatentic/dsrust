@@ -165,7 +165,12 @@ class RustChatAdapter(_RustBacked, dspy.ChatAdapter):
             return None
         if not dsrs_bridge.has_json_fallback("chat", self.use_json_adapter_fallback):
             return None
-        return JSONAdapter()
+        # dspy 3.3 carries the native-function-calling settings into the fallback, so a re-ask
+        # keeps asking the provider the same way the first attempt did.
+        return JSONAdapter(
+            use_native_function_calling=self.use_native_function_calling,
+            parallel_tool_calls=self.parallel_tool_calls,
+        )
 
     def __call__(self, lm, lm_kwargs, signature, demos, inputs):
         try:
