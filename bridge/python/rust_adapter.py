@@ -31,7 +31,7 @@ from dspy.adapters.utils import (
     parse_value,
     serialize_for_json,
 )
-from dspy.utils.exceptions import AdapterParseError
+from dspy.utils.exceptions import AdapterParseError, LMError
 from litellm import ContextWindowExceededError
 
 import dsrs_bridge
@@ -266,7 +266,13 @@ class RustTwoStepAdapter(_RustBacked, TwoStepAdapter):
             return extracted[0]
         except Unsupported:
             raise
+        except LMError:
+            # dspy 3.3 lets an LM failure through rather than reporting it as a parse failure.
+            raise
         except Exception as error:
-            raise ValueError(
-                f"Failed to parse response from the original completion: {completion}"
+            raise AdapterParseError(
+                adapter_name="TwoStepAdapter",
+                signature=signature,
+                lm_response=completion,
+                message=f"Failed to parse response from the original completion: {error}",
             ) from error

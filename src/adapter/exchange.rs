@@ -122,11 +122,23 @@ pub(super) fn json_answer(
         .iter()
         .filter_map(|field| {
             let value = match example.get(&field.name) {
-                Some(value) => value.clone(),
+                Some(value) => typed_demo_value(field, value.clone()),
                 None => Value::String(missing?.to_owned()),
             };
             Some((field.name.clone(), value))
         })
         .collect();
     ChatTurn::assistant(serde_json::to_string_pretty(&Value::Object(fields)).unwrap_or_default())
+}
+
+/// dspy dumps a demo's outputs into the JSON object as the types they were declared, so a float
+/// reads `0.9` and not `"0.9"`. A value that reached this crate as text is read back to its
+/// field's type; one that does not fit stays exactly as it arrived, which is what dspy would
+/// print for it rather than an error a demo has no way to report.
+fn typed_demo_value(field: &crate::signature::OutField, value: Value) -> Value {
+    let mut typed = value.clone();
+    match crate::signature::coerce_value(&field.kind, &field.name, &mut typed) {
+        Ok(()) => typed,
+        Err(_) => value,
+    }
 }

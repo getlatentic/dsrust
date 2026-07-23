@@ -8,7 +8,8 @@ mod reflect;
 
 pub(crate) use field_type::wire_forms;
 pub use field_type::{FieldKind, JsonType, LiteralValue, TypeDescription};
-use field_type::{annotation_of, coerce_value};
+pub(crate) use field_type::coerce_value;
+use field_type::annotation_of;
 pub use parse::parse;
 pub use prefix::infer_prefix;
 pub use reflect::json_field_reflection;

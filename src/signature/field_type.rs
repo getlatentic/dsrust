@@ -251,7 +251,7 @@ fn quoted_member(value: &str) -> String {
     }
 }
 
-pub(super) fn coerce_value(kind: &FieldKind, name: &str, value: &mut Value) -> Result<()> {
+pub(crate) fn coerce_value(kind: &FieldKind, name: &str, value: &mut Value) -> Result<()> {
     match kind {
         // `Reasoning` carries its content as text, exactly as a `Str` does.
         FieldKind::Str | FieldKind::Reasoning => Ok(()),
