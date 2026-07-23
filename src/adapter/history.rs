@@ -13,6 +13,8 @@ use crate::lm::ChatTurn;
 use crate::signature::Signature;
 
 use super::exchange::{Style, ask};
+use super::python_json::json_dumps;
+use super::types::ToolCalls;
 
 /// The annotation dspy prints for a history field, and so the name this crate recognises it by.
 const ANNOTATION: &str = "History";
@@ -20,6 +22,10 @@ const ANNOTATION: &str = "History";
 /// dspy's `missing_field_message` for history, standing in for a field an exchange never had.
 /// The trailing space is upstream's, and survives because the block is stripped as a whole.
 const NOT_SUPPLIED: &str = "Not supplied for this conversation history message. ";
+
+/// dspy renders a round of tool results through a one-field signature named for them, so the
+/// section a replayed conversation carries is this.
+const TOOL_CALL_RESULTS: &str = "tool_call_results";
 
 /// The name of the signature's history input, if it declares one.
 ///
@@ -72,13 +78,59 @@ fn exchanges(value: &Value) -> Vec<Example> {
 pub(super) fn turns(stripped: &Signature, value: &Value, style: Style) -> Vec<ChatTurn> {
     exchanges(value)
         .iter()
-        .flat_map(|exchange| {
-            [
-                ask(stripped, exchange, None, style),
-                (style.answer)(stripped, exchange, Some(NOT_SUPPLIED)),
-            ]
-        })
+        .flat_map(|exchange| replay(stripped, exchange, style))
         .collect()
+}
+
+/// dspy `format_conversation_history` for one exchange, without native function calling.
+///
+/// An exchange that called tools splits into three: what was asked, the calls the model made, and
+/// what those calls returned. The assistant turn states the calls *without* their results — the
+/// model produced the calls, not the answers — and the results follow as their own user turn, the
+/// way a tool's output arrives in a conversation. A turn whose content comes out empty is left
+/// out entirely rather than sent blank.
+fn replay(stripped: &Signature, exchange: &Example, style: Style) -> Vec<ChatTurn> {
+    let mut turns = Vec::new();
+    push_non_empty(&mut turns, ask(stripped, exchange, None, style));
+
+    let called = tool_calls_of(exchange);
+    let answered = called.as_ref().and_then(|(name, calls)| {
+        calls.tool_call_results.as_ref().map(|results| (name.as_str(), results.clone()))
+    });
+    // The calls replay without their results, so the assistant turn reads as the model wrote it.
+    let mut stated = exchange.clone();
+    if let (Some((name, calls)), Some(_)) = (&called, &answered)
+        && let Ok(without) = serde_json::to_value(calls.without_results())
+    {
+        stated.set(name.clone(), without);
+    }
+    push_non_empty(&mut turns, (style.answer)(stripped, &stated, Some(NOT_SUPPLIED)));
+
+    if let Some((_, results)) = answered {
+        let rendered = json_dumps(&serde_json::to_value(&results).unwrap_or(Value::Null));
+        turns.push(ChatTurn::user((style.wrap)(TOOL_CALL_RESULTS, &rendered)));
+    }
+    turns
+}
+
+/// dspy appends a replayed turn only when it has content: an exchange that recorded no inputs, or
+/// whose outputs were all tool calls, would otherwise send a blank message.
+fn push_non_empty(turns: &mut Vec<ChatTurn>, turn: ChatTurn) {
+    if !turn.content.text().unwrap_or_default().trim().is_empty() {
+        turns.push(turn);
+    }
+}
+
+/// dspy `_tool_calls_from_message`: the first field of the exchange whose value carries tool
+/// calls. Upstream asks the *value*, not the signature — a mapping with a `tool_calls` key is one
+/// — so a replayed exchange is read the same way whether it came from a typed field or a plain
+/// dict, and a value that does not parse contributes nothing rather than failing the request.
+fn tool_calls_of(exchange: &Example) -> Option<(String, ToolCalls)> {
+    exchange.fields().find_map(|(name, value)| {
+        let carries_calls = value.get("tool_calls").is_some();
+        let calls = carries_calls.then(|| serde_json::from_value(value.clone()).ok())??;
+        Some((name.to_owned(), calls))
+    })
 }
 
 #[cfg(test)]

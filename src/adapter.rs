@@ -79,7 +79,7 @@ pub mod xml;
 
 use demos::demo_turns;
 use json::json_output_requirements;
-use prompt::{marker, output_slot, section, system_message};
+use prompt::{marker, output_hint, output_slot, section, system_message};
 
 /// How a signature travels over the wire.
 ///

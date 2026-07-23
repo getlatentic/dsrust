@@ -9,6 +9,7 @@
 //! template, in a request, and in an already-answered exchange.
 
 use super::python_json::json_dumps;
+use super::types::ToolCalls;
 use crate::signature::{FieldKind, InField, JsonType, OutField, Signature, wire_forms};
 
 pub(super) fn marker(name: &str) -> String {
@@ -139,6 +140,23 @@ fn states_its_own_contract(json: &JsonType) -> bool {
     json.descriptions
         .iter()
         .any(|described| described.replaces_schema && !described.text.is_empty())
+}
+
+/// dspy's `type_info`: the parenthetical after an output field in the closing reminder.
+///
+/// `ToolCalls` states the shape it must take instead of naming the type, because a model told to
+/// produce "a valid Python ToolCalls" has nothing to go on; every other non-`str` annotation names
+/// itself. dspy asks `annotation is not str`, so a closed set and a str-like custom type both still
+/// earn a hint, and a plain `str` says nothing.
+pub(super) fn output_hint(field: &OutField) -> String {
+    if field.kind.annotation() == ToolCalls::ANNOTATION {
+        return r#" (must be a JSON object like {"tool_calls": [{"name": "...", "args": {...}}]})"#
+            .to_owned();
+    }
+    match field.kind.is_plain_str() && field.values.is_none() {
+        true => String::new(),
+        false => format!(" (must be formatted as a valid Python {})", field.annotation()),
+    }
 }
 
 /// dspy `translate_field_type`: an output slot carries a note telling the model what shape the

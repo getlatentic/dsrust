@@ -104,13 +104,7 @@ pub(super) fn json_output_requirements(signature: &Signature) -> String {
         .outputs
         .iter()
         .map(|field| {
-            let annotation = field.annotation();
-            // dspy asks `annotation is not str`; see the same test in the chat adapter.
-            let hint = match field.kind.is_plain_str() && field.values.is_none() {
-                true => String::new(),
-                false => format!(" (must be formatted as a valid Python {annotation})"),
-            };
-            format!("`{}`{hint}", field.name)
+            format!("`{}`{}", field.name, super::output_hint(field))
         })
         .collect();
     format!(
