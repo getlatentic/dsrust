@@ -26,6 +26,27 @@ from dspy.teleprompt.copro_optimizer import (
     BasicGenerateInstruction,
     GenerateInstructionGivenAttempts,
 )
+from dspy.propose.grounded_proposer import (
+    DescribeModule,
+    DescribeProgram,
+    generate_instruction_class,
+)
+from dspy.propose.dataset_summary_generator import (
+    DatasetDescriptor,
+    DatasetDescriptorWithPriorObservations,
+    ObservationSummarizer,
+)
+
+# GroundedProposer's instruction signature is built by a factory with every flag on — MIPROv2's
+# default. Every reduced variant is a field-subset of this one, so verifying the full signature
+# verifies each field's rendering.
+GENERATE_MODULE_INSTRUCTION = generate_instruction_class(
+    use_dataset_summary=True,
+    program_aware=True,
+    use_task_demos=True,
+    use_instruct_history=True,
+    use_tip=True,
+).signature
 
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
 OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance"
@@ -194,6 +215,64 @@ CASES = [
                 "Resulting Score #1: 0.5",
             ]
         },
+    },
+    {
+        # MIPROv2/GroundedProposer's program-aware summariser: describe the whole program.
+        "name": "describe_program",
+        "dspy_signature": DescribeProgram,
+        "values": {
+            "program_code": "class Program:\n    def forward(self, question):\n        return self.predict(question=question)",
+            "program_example": "No task demos provided.",
+        },
+    },
+    {
+        # GroundedProposer's per-module summariser.
+        "name": "describe_module",
+        "dspy_signature": DescribeModule,
+        "values": {
+            "program_code": "class Program:\n    def forward(self, question):\n        return self.predict(question=question)",
+            "program_example": "No task demos provided.",
+            "program_description": "A question-answering pipeline.",
+            "module": "Predict(question) -> answer",
+        },
+    },
+    {
+        # GroundedProposer's instruction generator, every flag on (MIPROv2's default). Nine inputs
+        # whose descriptions all reach the prompt.
+        "name": "generate_module_instruction",
+        "dspy_signature": GENERATE_MODULE_INSTRUCTION,
+        "values": {
+            "dataset_description": "Short factual questions with one-word answers.",
+            "program_code": "class Program:\n    def forward(self, question):\n        return self.predict(question=question)",
+            "program_description": "A question-answering pipeline.",
+            "module": "Predict(question) -> answer",
+            "module_description": "Answers the question.",
+            "task_demos": "No task demos provided.",
+            "previous_instructions": "Instruction #1: Answer the question.",
+            "basic_instruction": "Answer the question.",
+            "tip": "Keep the instruction clear and concise.",
+        },
+    },
+    {
+        # The dataset-summary bootstrap: first batch of observations.
+        "name": "dataset_descriptor",
+        "dspy_signature": DatasetDescriptor,
+        "values": {"examples": "Question: What is the capital of France? Answer: Paris"},
+    },
+    {
+        # The dataset-summary continuation, folding in prior observations.
+        "name": "dataset_descriptor_with_prior_observations",
+        "dspy_signature": DatasetDescriptorWithPriorObservations,
+        "values": {
+            "examples": "Question: What is the capital of Spain? Answer: Madrid",
+            "prior_observations": "The data is factual geography questions.",
+        },
+    },
+    {
+        # The final summariser that condenses observations into the dataset description.
+        "name": "observation_summarizer",
+        "dspy_signature": ObservationSummarizer,
+        "values": {"observations": "The data is factual geography questions with one-word answers."},
     },
 ]
 

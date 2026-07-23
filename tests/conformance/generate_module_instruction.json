@@ -1,0 +1,79 @@
+{
+  "source": "generated from dspy==3.2.1 via scripts/generate_fixtures.py",
+  "dspy_version": "3.2.1",
+  "instructions": "Use the information below to learn about a task that we are trying to solve using calls to an LM, then generate a new instruction that will be used to prompt a Language Model to better solve the task.",
+  "inputs": [
+    {
+      "name": "dataset_description",
+      "kind": "str",
+      "desc": "A description of the dataset that we are using."
+    },
+    {
+      "name": "program_code",
+      "kind": "str",
+      "desc": "Language model program designed to solve a particular task."
+    },
+    {
+      "name": "program_description",
+      "kind": "str",
+      "desc": "Summary of the task the program is designed to solve, and how it goes about solving it."
+    },
+    {
+      "name": "module",
+      "kind": "str",
+      "desc": "The module to create an instruction for."
+    },
+    {
+      "name": "module_description",
+      "kind": "str",
+      "desc": "Description of the module to create an instruction for."
+    },
+    {
+      "name": "task_demos",
+      "kind": "str",
+      "desc": "Example inputs/outputs of our module."
+    },
+    {
+      "name": "previous_instructions",
+      "kind": "str",
+      "desc": "Previous instructions we've attempted, along with their associated scores."
+    },
+    {
+      "name": "basic_instruction",
+      "kind": "str",
+      "desc": "Basic instruction."
+    },
+    {
+      "name": "tip",
+      "kind": "str",
+      "desc": "A suggestion for how to go about generating the new instruction."
+    }
+  ],
+  "outputs": [
+    {
+      "name": "proposed_instruction",
+      "kind": "str",
+      "desc": "Propose an instruction that will be used to prompt a Language Model to perform this task."
+    }
+  ],
+  "module": "predict",
+  "demos": [],
+  "values": {
+    "dataset_description": "Short factual questions with one-word answers.",
+    "program_code": "class Program:\n    def forward(self, question):\n        return self.predict(question=question)",
+    "program_description": "A question-answering pipeline.",
+    "module": "Predict(question) -> answer",
+    "module_description": "Answers the question.",
+    "task_demos": "No task demos provided.",
+    "previous_instructions": "Instruction #1: Answer the question.",
+    "basic_instruction": "Answer the question.",
+    "tip": "Keep the instruction clear and concise."
+  },
+  "expected_system": "Your input fields are:\n1. `dataset_description` (str): A description of the dataset that we are using.\n2. `program_code` (str): Language model program designed to solve a particular task.\n3. `program_description` (str): Summary of the task the program is designed to solve, and how it goes about solving it.\n4. `module` (str): The module to create an instruction for.\n5. `module_description` (str): Description of the module to create an instruction for.\n6. `task_demos` (str): Example inputs/outputs of our module.\n7. `previous_instructions` (str): Previous instructions we've attempted, along with their associated scores.\n8. `basic_instruction` (str): Basic instruction.\n9. `tip` (str): A suggestion for how to go about generating the new instruction.\nYour output fields are:\n1. `proposed_instruction` (str): Propose an instruction that will be used to prompt a Language Model to perform this task.\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## dataset_description ## ]]\n{dataset_description}\n\n[[ ## program_code ## ]]\n{program_code}\n\n[[ ## program_description ## ]]\n{program_description}\n\n[[ ## module ## ]]\n{module}\n\n[[ ## module_description ## ]]\n{module_description}\n\n[[ ## task_demos ## ]]\n{task_demos}\n\n[[ ## previous_instructions ## ]]\n{previous_instructions}\n\n[[ ## basic_instruction ## ]]\n{basic_instruction}\n\n[[ ## tip ## ]]\n{tip}\n\n[[ ## proposed_instruction ## ]]\n{proposed_instruction}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Use the information below to learn about a task that we are trying to solve using calls to an LM, then generate a new instruction that will be used to prompt a Language Model to better solve the task.",
+  "expected_turns": [
+    {
+      "role": "user",
+      "content": "[[ ## dataset_description ## ]]\nShort factual questions with one-word answers.\n\n[[ ## program_code ## ]]\nclass Program:\n    def forward(self, question):\n        return self.predict(question=question)\n\n[[ ## program_description ## ]]\nA question-answering pipeline.\n\n[[ ## module ## ]]\nPredict(question) -> answer\n\n[[ ## module_description ## ]]\nAnswers the question.\n\n[[ ## task_demos ## ]]\nNo task demos provided.\n\n[[ ## previous_instructions ## ]]\nInstruction #1: Answer the question.\n\n[[ ## basic_instruction ## ]]\nAnswer the question.\n\n[[ ## tip ## ]]\nKeep the instruction clear and concise.\n\nRespond with the corresponding output fields, starting with the field `[[ ## proposed_instruction ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+    }
+  ]
+}
