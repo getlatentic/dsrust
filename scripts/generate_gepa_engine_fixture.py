@@ -35,7 +35,7 @@ from gepa import optimize
 from gepa.core.adapter import EvaluationBatch
 
 OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
-PINNED = "0.0.27"
+PINNED = "0.1.1"
 
 WEIGHT = 0.125
 

@@ -19,7 +19,7 @@ import sys
 from gepa.gepa_utils import select_program_candidate_from_pareto_front
 
 OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
-PINNED = "0.0.27"
+PINNED = "0.1.1"
 
 # (fronts as {testcase: [program indices]}, weighted aggregate scores per program).
 CASES = [

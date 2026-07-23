@@ -18,7 +18,7 @@ import sys
 from gepa.strategies.batch_sampler import EpochShuffledBatchSampler
 
 OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
-PINNED = "0.0.27"
+PINNED = "0.1.1"
 
 
 class Loader:

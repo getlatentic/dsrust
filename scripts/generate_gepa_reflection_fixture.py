@@ -22,7 +22,7 @@ import sys
 from gepa.strategies.instruction_proposal import InstructionProposalSignature
 
 OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
-PINNED = "0.0.27"
+PINNED = "0.1.1"
 
 
 def encode(value):

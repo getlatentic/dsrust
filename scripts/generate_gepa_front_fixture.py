@@ -17,7 +17,7 @@ import sys
 from gepa.core.state import GEPAState, ValsetEvaluation
 
 OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
-PINNED = "0.0.27"
+PINNED = "0.1.1"
 
 # Each case: the seed program's per-testcase scores, then the scores of programs added in turn.
 CASES = [

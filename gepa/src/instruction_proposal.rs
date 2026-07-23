@@ -4,17 +4,20 @@
 //! feedback) into one prompt string, and extracts the new instruction from the reflection LM's reply.
 //!
 //! The rendering is byte-sensitive — an adapter feeds the reflection LM this exact text — so this is a
-//! faithful reproduction held to the gepa package.
+//! faithful reproduction held to the gepa package (pin `gepa==0.1.1`). Reflective values are text
+//! here; gepa 0.1.1's additive `Image` path (a value rendered as `[IMAGE-N …]`, turning the prompt
+//! into a message list) is a multimodal boundary not yet built — dsrs reflects text instructions.
 
 /// dspy's GEPA adapter and gepa's default proposer both call this with `prompt_template=None`.
+/// gepa 0.1.1 renamed the placeholders from `<curr_instructions>`/`<inputs_outputs_feedback>`.
 pub const DEFAULT_PROMPT_TEMPLATE: &str = r#"I provided an assistant with the following instructions to perform a task for me:
 ```
-<curr_instructions>
+<curr_param>
 ```
 
 The following are examples of different task inputs provided to the assistant along with the assistant's response for each of them, and some feedback on how the assistant's response could be better:
 ```
-<inputs_outputs_feedback>
+<side_info>
 ```
 
 Your task is to write a new instruction for the assistant.
@@ -43,8 +46,8 @@ pub type ReflectiveSample = Vec<(String, Reflective)>;
 /// occur, current-instruction first (matching Python's two sequential `str.replace` calls).
 pub fn render_prompt(current_instruction: &str, dataset: &[ReflectiveSample], template: Option<&str>) -> String {
     let template = template.unwrap_or(DEFAULT_PROMPT_TEMPLATE);
-    let prompt = template.replace("<curr_instructions>", current_instruction);
-    prompt.replace("<inputs_outputs_feedback>", &format_samples(dataset))
+    let prompt = template.replace("<curr_param>", current_instruction);
+    prompt.replace("<side_info>", &format_samples(dataset))
 }
 
 /// dspy `format_samples`: each example as a `# Example N` markdown block, joined by blank lines.
