@@ -59,9 +59,32 @@ fn frame(frame: &str, state: &mut StreamState) -> Framed {
             state.usage = super::usage(&event["message"]["usage"]);
             Framed::of(Vec::new())
         }
-        Some("content_block_delta") if event["delta"]["type"] == "text_delta" => {
-            let text = event["delta"]["text"].as_str().unwrap_or_default();
-            Framed::of(vec![LmStreamEvent::delta(0, LmDelta::text(text))])
+        // A tool-use block opens with its id and name, its arguments arriving as later deltas.
+        Some("content_block_start") if event["content_block"]["type"] == "tool_use" => {
+            let block = &event["content_block"];
+            Framed::of(vec![block_delta(&event, LmDelta::ToolCallDelta {
+                id: block["id"].as_str().map(str::to_owned),
+                name: block["name"].as_str().map(str::to_owned),
+                args_delta: None,
+            })])
+        }
+        // A block's increment, under its own index: text, extended-thinking text, or a slice of a
+        // tool call's json arguments. A signature delta carries nothing to reassemble.
+        Some("content_block_delta") => {
+            let delta = &event["delta"];
+            let mapped = match delta["type"].as_str() {
+                Some("text_delta") => Some(LmDelta::text(delta["text"].as_str().unwrap_or_default())),
+                Some("thinking_delta") => {
+                    Some(LmDelta::thinking(delta["thinking"].as_str().unwrap_or_default()))
+                }
+                Some("input_json_delta") => Some(LmDelta::ToolCallDelta {
+                    id: None,
+                    name: None,
+                    args_delta: delta["partial_json"].as_str().map(str::to_owned),
+                }),
+                _ => None,
+            };
+            Framed::of(mapped.into_iter().map(|delta| block_delta(&event, delta)).collect())
         }
         // The final output count, and why generation stopped.
         Some("message_delta") => {
@@ -87,9 +110,71 @@ fn frame(frame: &str, state: &mut StreamState) -> Framed {
     }
 }
 
+/// A block's delta under its own index, which is the part it accumulates into — Anthropic numbers
+/// its content blocks, so thinking, text and a tool call each land in their own part in order.
+fn block_delta(event: &Value, delta: LmDelta) -> LmStreamEvent {
+    LmStreamEvent::Delta {
+        output_index: 0,
+        part_index: event["index"].as_u64().unwrap_or(0) as usize,
+        delta,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Extended thinking and a tool call stream under their own block indices: a thinking_delta
+    /// builds a thinking part at 0, content_block_start opens the tool call at 1, and input_json_delta
+    /// fills its arguments — reassembling into a thinking part then a tool call.
+    #[test]
+    fn thinking_and_tool_use_stream_into_their_own_parts() {
+        use crate::lm::api::{LmOutputBuilder, LmPart};
+        let sse = "event: message_start\n\
+            data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":10,\"output_tokens\":1}}}\n\n\
+            event: content_block_delta\n\
+            data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"Paris is in France.\"}}\n\n\
+            event: content_block_start\n\
+            data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"get_weather\",\"input\":{}}}\n\n\
+            event: content_block_delta\n\
+            data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"city\\\":\"}}\n\n\
+            event: content_block_delta\n\
+            data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"\\\"Paris\\\"}\"}}\n\n\
+            event: message_delta\n\
+            data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"tool_use\"},\"usage\":{\"output_tokens\":8}}\n\n\
+            event: message_stop\n\
+            data: {\"type\":\"message_stop\"}\n\n";
+
+        let mut builder = LmOutputBuilder::new();
+        builder.apply(LmStreamEvent::Start { model: None }).expect("start");
+        let mut state = StreamState::default();
+        let mut response = None;
+        for block in sse.split("\n\n") {
+            let framed = frame(block, &mut state);
+            for event in framed.events {
+                if let Some(assembled) = builder.apply(event).expect("applies") {
+                    response = Some(assembled);
+                }
+            }
+            if framed.done {
+                let end = LmStreamEvent::End { usage: state.usage.take(), cost: None, response: None };
+                if let Some(assembled) = builder.apply(end).expect("end") {
+                    response = Some(assembled);
+                }
+            }
+        }
+        let output = &response.expect("assembled").outputs[0];
+        assert!(
+            matches!(&output.parts[0], LmPart::Thinking { text, .. } if text == "Paris is in France."),
+            "thinking at index 0, got {:?}", output.parts,
+        );
+        let LmPart::ToolCall { id, name, args, .. } = &output.parts[1] else {
+            panic!("expected a tool call at index 1, got {:?}", output.parts)
+        };
+        assert_eq!(id.as_deref(), Some("toolu_1"));
+        assert_eq!(name, "get_weather");
+        assert_eq!(args["city"], serde_json::json!("Paris"));
+    }
 
     /// Anthropic's SSE: usage split across message_start (input) and message_delta (output), the
     /// text arriving as content_block_delta, message_stop closing.
