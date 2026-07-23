@@ -27,6 +27,9 @@ mod demos;
 mod proposer;
 mod signatures;
 
+#[cfg(test)]
+mod conformance;
+
 use proposer::GenerateModuleInstruction;
 use signatures::InstructionInputs;
 
