@@ -361,6 +361,36 @@ impl LM {
 mod tests {
     use super::*;
 
+    /// Drive every `litellm_chat.json` case for one provider through its request builder and hold
+    /// the body to litellm's own captured output. Shared by the Anthropic and ollama request
+    /// modules so each provider proves parity the same way, against the same fixture.
+    pub(crate) fn each_case(provider: &str, build: fn(&str, &api::LmRequest) -> serde_json::Value) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/conformance/lm_api/litellm_chat.json");
+        let fixture: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(path).expect("fixture is readable"))
+                .expect("fixture is valid json");
+        let mut checked = 0;
+        for case in fixture["cases"].as_array().expect("cases array") {
+            if case["provider"] != provider {
+                continue;
+            }
+            let name = case["name"].as_str().expect("a case name");
+            let call: api::LmRequest = serde_json::from_value(case["lm_request"].clone())
+                .unwrap_or_else(|error| panic!("{name}: the typed request did not parse: {error}"));
+            // The prefix before the first `/` is the wire format, which litellm strips off the
+            // model before sending — `ModelRef` does the same, so the builder is given the bare id.
+            let model = call.model.split_once('/').map_or(call.model.as_str(), |(_, id)| id);
+            assert_eq!(
+                build(model, &call),
+                case["expected"],
+                "{name}: our {provider} body diverges from litellm's"
+            );
+            checked += 1;
+        }
+        assert!(checked > 0, "no {provider} cases in the fixture");
+    }
+
     #[test]
     fn parses_each_provider_prefix() {
         let anthropic = ModelRef::parse("anthropic/claude-opus-4-8").expect("anthropic");

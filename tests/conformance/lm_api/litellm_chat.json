@@ -1,0 +1,1197 @@
+{
+  "source": "dspy==3.3.0b1 to_openai_chat_request -> litellm.completion (HTTP body captured)",
+  "dspy_version": "3.3.0b1",
+  "litellm_version": "1.93.0",
+  "cases": [
+    {
+      "name": "minimal",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "system",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "be helpful"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "weather in Paris?"
+              }
+            ]
+          }
+        ],
+        "system": [
+          {
+            "type": "text",
+            "text": "be helpful"
+          }
+        ],
+        "max_tokens": 4096
+      }
+    },
+    {
+      "name": "temperature",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": 0.7,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "hi"
+              }
+            ]
+          }
+        ],
+        "temperature": 0.7,
+        "max_tokens": 4096
+      }
+    },
+    {
+      "name": "top_p_and_stop",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": 0.9,
+          "stop": [
+            "\n\n",
+            "END"
+          ],
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "hi"
+              }
+            ]
+          }
+        ],
+        "top_p": 0.9,
+        "stop_sequences": [
+          "\n\n",
+          "END"
+        ],
+        "max_tokens": 4096
+      }
+    },
+    {
+      "name": "max_tokens_overrides_the_default",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": 256,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "hi"
+              }
+            ]
+          }
+        ],
+        "max_tokens": 256
+      }
+    },
+    {
+      "name": "image_url",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "describe"
+              },
+              {
+                "type": "image",
+                "metadata": {},
+                "media_type": "image/png",
+                "data": null,
+                "url": "https://example.com/a.jpg",
+                "file_id": null,
+                "path": null,
+                "detail": null
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "describe"
+              },
+              {
+                "type": "image",
+                "source": {
+                  "type": "url",
+                  "url": "https://example.com/a.jpg"
+                }
+              }
+            ]
+          }
+        ],
+        "max_tokens": 4096
+      }
+    },
+    {
+      "name": "image_base64",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "image",
+                "metadata": {},
+                "media_type": "image/png",
+                "data": null,
+                "url": "data:image/png;base64,iVBORw0KGgo=",
+                "file_id": null,
+                "path": null,
+                "detail": null
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "image",
+                "source": {
+                  "type": "base64",
+                  "media_type": "image/png",
+                  "data": "iVBORw0KGgo="
+                }
+              }
+            ]
+          }
+        ],
+        "max_tokens": 4096
+      }
+    },
+    {
+      "name": "tools",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": "look up the weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "weather in Paris?"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "get_weather",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "type": "custom",
+            "description": "look up the weather"
+          }
+        ],
+        "max_tokens": 4096
+      }
+    },
+    {
+      "name": "tool_choice_required",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": "look up the weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": {
+            "mode": "required",
+            "allowed": null,
+            "parallel": null
+          },
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "weather in Paris?"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "get_weather",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "type": "custom",
+            "description": "look up the weather"
+          }
+        ],
+        "tool_choice": {
+          "type": "any"
+        },
+        "max_tokens": 4096
+      }
+    },
+    {
+      "name": "tool_choice_auto",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": "look up the weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": {
+            "mode": "auto",
+            "allowed": null,
+            "parallel": null
+          },
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "weather in Paris?"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "get_weather",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "type": "custom",
+            "description": "look up the weather"
+          }
+        ],
+        "tool_choice": {
+          "type": "auto"
+        },
+        "max_tokens": 4096
+      }
+    },
+    {
+      "name": "tool_choice_single_named",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": "look up the weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": {
+            "mode": "required",
+            "allowed": [
+              "get_weather"
+            ],
+            "parallel": null
+          },
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "weather in Paris?"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "get_weather",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "type": "custom",
+            "description": "look up the weather"
+          }
+        ],
+        "tool_choice": {
+          "type": "tool",
+          "name": "get_weather"
+        },
+        "max_tokens": 4096
+      }
+    },
+    {
+      "name": "structured_output",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "answer"
+            ]
+          },
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "hi"
+              }
+            ]
+          }
+        ],
+        "tool_choice": {
+          "name": "json_tool_call",
+          "type": "tool"
+        },
+        "tools": [
+          {
+            "name": "json_tool_call",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "answer": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "answer"
+              ]
+            }
+          }
+        ],
+        "max_tokens": 4096
+      }
+    },
+    {
+      "name": "minimal",
+      "provider": "ollama",
+      "lm_request": {
+        "model": "ollama_chat/llama3.2",
+        "messages": [
+          {
+            "role": "system",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "be helpful"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "messages": [
+          {
+            "role": "system",
+            "content": "be helpful",
+            "images": []
+          },
+          {
+            "role": "user",
+            "content": "weather in Paris?",
+            "images": []
+          }
+        ],
+        "options": {},
+        "stream": false
+      }
+    },
+    {
+      "name": "temperature",
+      "provider": "ollama",
+      "lm_request": {
+        "model": "ollama_chat/llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": 0.7,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi",
+            "images": []
+          }
+        ],
+        "options": {
+          "temperature": 0.7
+        },
+        "stream": false
+      }
+    },
+    {
+      "name": "stop_and_max_tokens",
+      "provider": "ollama",
+      "lm_request": {
+        "model": "ollama_chat/llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": 0.1,
+          "max_tokens": 64,
+          "top_p": null,
+          "stop": [
+            "\n\n"
+          ],
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi",
+            "images": []
+          }
+        ],
+        "options": {
+          "temperature": 0.1,
+          "stop": [
+            "\n\n"
+          ],
+          "num_predict": 64
+        },
+        "stream": false
+      }
+    },
+    {
+      "name": "image_base64",
+      "provider": "ollama",
+      "lm_request": {
+        "model": "ollama_chat/llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "describe"
+              },
+              {
+                "type": "image",
+                "metadata": {},
+                "media_type": "image/png",
+                "data": null,
+                "url": "data:image/png;base64,iVBORw0KGgo=",
+                "file_id": null,
+                "path": null,
+                "detail": null
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "content": "describe",
+            "images": [
+              "iVBORw0KGgo="
+            ]
+          }
+        ],
+        "options": {},
+        "stream": false
+      }
+    },
+    {
+      "name": "tools",
+      "provider": "ollama",
+      "lm_request": {
+        "model": "ollama_chat/llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": "look up the weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "content": "weather in Paris?",
+            "images": []
+          }
+        ],
+        "options": {},
+        "stream": false,
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "look up the weather"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "structured_output",
+      "provider": "ollama",
+      "lm_request": {
+        "model": "ollama_chat/llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "answer"
+            ]
+          },
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi",
+            "images": []
+          }
+        ],
+        "options": {},
+        "stream": false,
+        "format": {
+          "type": "object",
+          "properties": {
+            "answer": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "answer"
+          ]
+        }
+      }
+    }
+  ]
+}
