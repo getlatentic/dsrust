@@ -49,6 +49,7 @@ fn to_json(text: &str) -> Option<String> {
     // A reply cut short leaves its containers open; closing them reads the value the writer
     // was part-way through rather than discarding everything it did say.
     while let Some(opener) = open.pop() {
+        drop_dangling_comma(&mut out);
         out.push(closer(opener));
     }
     Some(out)
@@ -68,11 +69,25 @@ fn close_through(open: &mut Vec<char>, found: char, out: &mut String) -> Option<
     let depth = open.iter().rposition(|opener| *opener == wanted)?;
     while open.len() > depth + 1 {
         let inner = open.pop()?;
+        drop_dangling_comma(out);
         out.push(closer(inner));
     }
     open.pop();
+    drop_dangling_comma(out);
     out.push(found);
     Some(())
+}
+
+/// Drop a comma left hanging before a container closes.
+///
+/// A model that writes `{"query": "cats",}` separated a member it then did not write. JSON has no
+/// reading for that and serde_json refuses the whole value; upstream's repairer takes the members
+/// that are there, which is the only reading that keeps any of them.
+fn drop_dangling_comma(out: &mut String) {
+    let kept = out.trim_end();
+    if let Some(without) = kept.strip_suffix(',') {
+        out.truncate(without.len());
+    }
 }
 
 fn closer(opener: char) -> char {
@@ -145,6 +160,20 @@ fn copy_word(chars: &mut Peekable<Chars>, out: &mut String) -> Option<()> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// A comma separating a member the writer never wrote. serde_json refuses the whole value;
+    /// upstream's repairer keeps the members that are there. The expected values are json-repair's
+    /// own, for the same inputs.
+    #[test]
+    fn a_comma_left_hanging_before_a_closer_is_dropped() {
+        for (written, meant) in [
+            (r#"{"query": "cats",}"#, json!({ "query": "cats" })),
+            ("[1, 2,]", json!([1, 2])),
+            (r#"{"a": [1,2,],}"#, json!({ "a": [1, 2] })),
+        ] {
+            assert_eq!(python_literal(written), Some(meant), "{written}");
+        }
+    }
 
     #[test]
     fn digit_group_underscores_read_as_the_number_they_hide() {

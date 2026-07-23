@@ -78,6 +78,13 @@ impl ToolCalls {
         json!({ "tool_calls": self.tool_calls.iter().map(ToolCall::format).collect::<Vec<_>>() })
     }
 
+    /// dspy `ToolCalls.from_dict_list`: read back a list of calls a provider (or a caller) wrote.
+    /// Each entry may be shaped as the provider sends one — a `function` holding the name and the
+    /// arguments as text — or as this type writes one, with `args` already structured.
+    pub fn from_dict_list(values: &[Value]) -> Result<Self> {
+        Ok(Self::new(values.iter().map(normalized_call).collect::<Result<_>>()?))
+    }
+
     /// The calls with their results dropped, which is how dspy renders the assistant turn of a
     /// replayed conversation — the turn states what was asked for, and the results follow it.
     pub fn without_results(&self) -> Self {
@@ -113,6 +120,62 @@ impl Serialize for ToolCalls {
         }
         data.serialize(serializer)
     }
+}
+
+/// dspy `_normalize_tool_call_dict`: one written call read back into a [`ToolCall`].
+///
+/// A provider states the call under `function`, with its arguments as JSON *text*; this type
+/// states them under `args`, already structured. Both are accepted, and the id may arrive under
+/// either `id` or `call_id`.
+fn normalized_call(data: &Value) -> Result<ToolCall> {
+    let Some(fields) = data.as_object() else {
+        return Err(anyhow!("Received invalid tool call value for `ToolCalls`: {data}"));
+    };
+    let (arguments, name) = match fields.get("function") {
+        // dspy's `data.get("function") or {}`: a null function states nothing rather than
+        // failing, but one that is present and not a mapping is an error.
+        Some(function) => {
+            let function = match function {
+                Value::Object(function) => Some(function),
+                Value::Null => None,
+                other => {
+                    return Err(anyhow!("Received invalid function value for `ToolCalls`: {other}"));
+                }
+            };
+            let name = function.and_then(|f| f.get("name")).or_else(|| fields.get("name"));
+            (function.and_then(|f| f.get("arguments")), name)
+        }
+        None => (
+            fields.get("args").or_else(|| fields.get("arguments")),
+            fields.get("name"),
+        ),
+    };
+    Ok(ToolCall {
+        id: text_of(fields.get("id").or_else(|| fields.get("call_id"))),
+        name: text_of(name).unwrap_or_default(),
+        args: arguments.map(structured_args).unwrap_or_default(),
+    })
+}
+
+/// dspy hands a provider's arguments through json-repair before reading them, because a model
+/// writing JSON by hand produces text a strict reader rejects — a trailing comma, a single quote.
+/// Anything that is neither text nor a mapping states no arguments at all.
+fn structured_args(arguments: &Value) -> Map<String, Value> {
+    match arguments {
+        Value::Object(args) => args.clone(),
+        Value::String(text) => serde_json::from_str::<Value>(text)
+            .ok()
+            .or_else(|| crate::adapter::parse::repair::python_literal(text))
+            .and_then(|value| value.as_object().cloned())
+            .unwrap_or_default(),
+        _ => Map::new(),
+    }
+}
+
+/// A JSON string's text, for the fields dspy reads with `or` — an absent one and a null one are
+/// the same absence.
+fn text_of(value: Option<&Value>) -> Option<String> {
+    value.and_then(Value::as_str).map(str::to_owned)
 }
 
 /// dspy `ToolCallResults.ToolCallResult`: what one call returned.
@@ -246,6 +309,52 @@ mod tests {
             ToolCallResults::from_tool_calls_and_values(&calls, vec![json!("cat")], Some(vec![]))
                 .is_err()
         );
+    }
+
+    /// A provider states the call under `function` with its arguments as text, and may name the id
+    /// `call_id`. Both spellings read back the same way, and the id survives — it is what pairs a
+    /// result to its call.
+    #[test]
+    fn a_provider_written_call_reads_back_with_its_id() {
+        let calls = ToolCalls::from_dict_list(&[json!({
+            "function": { "name": "search", "arguments": "{\"query\": \"cats\"}" },
+            "call_id": "call_from_responses",
+            "type": "function",
+        })])
+        .expect("reads back");
+        assert_eq!(calls.tool_calls[0].name, "search");
+        assert_eq!(calls.tool_calls[0].id.as_deref(), Some("call_from_responses"));
+        assert_eq!(calls.tool_calls[0].args, *json!({ "query": "cats" }).as_object().unwrap());
+    }
+
+    /// dspy reads a provider's arguments through json-repair, so text a strict reader rejects still
+    /// yields the call. The trailing comma is upstream's own case.
+    #[test]
+    fn malformed_arguments_are_repaired_rather_than_dropped() {
+        let calls = ToolCalls::from_dict_list(&[json!({
+            "function": { "name": "search", "arguments": "{\"query\": \"cats\",}" },
+            "id": "call_1",
+        })])
+        .expect("reads back");
+        assert_eq!(calls.tool_calls[0].args, *json!({ "query": "cats" }).as_object().unwrap());
+    }
+
+    /// Arguments that are neither text nor a mapping state nothing, and this type's own spelling
+    /// (`args`, already structured) reads back too.
+    #[test]
+    fn arguments_that_say_nothing_leave_the_call_bare() {
+        let calls = ToolCalls::from_dict_list(&[
+            json!({ "name": "search", "args": { "query": "cats" } }),
+            json!({ "function": { "name": "noop", "arguments": 3 } }),
+            json!({ "function": null, "name": "bare" }),
+        ])
+        .expect("reads back");
+        assert_eq!(calls.tool_calls[0].args, *json!({ "query": "cats" }).as_object().unwrap());
+        assert!(calls.tool_calls[1].args.is_empty());
+        assert_eq!(calls.tool_calls[2].name, "bare");
+        // A call that is not a mapping at all is refused rather than guessed at.
+        assert!(ToolCalls::from_dict_list(&[json!("search")]).is_err());
+        assert!(ToolCalls::from_dict_list(&[json!({ "function": "search" })]).is_err());
     }
 
     /// dspy drops the results when they do not answer exactly the calls that were made, because a

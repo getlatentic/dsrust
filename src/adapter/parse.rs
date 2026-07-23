@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 
 use crate::signature::{FieldKind, OutField, Signature};
 
-mod repair;
+pub(crate) mod repair;
 
 /// DSPy ChatAdapter's parser: split the reply into sections at `[[ ## name ## ]]` headers,
 /// keep the first section seen for each declared output field, ignore prose outside any
