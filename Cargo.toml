@@ -16,6 +16,8 @@ default-members = [".", "derive", "tpe", "pyrng", "gepa"]
 anyhow = "1"
 base64 = "0.22.1"
 dsrs-derive = { version = "0.1.0", path = "derive" }
+# GEPA's reflective prompt-evolution engine (the gepa package dspy wraps), reproduced as its own crate.
+gepa = { version = "0.1.0", path = "gepa" }
 pyrng = { version = "0.1.0", path = "pyrng" }
 # `std` is for `lock::Mutex`, whose guard is `Send` and so may be held across an await. `BestOfN`
 # needs it to be a real `Module`: `forward` takes `&self`, and varying an attempt's sampling means

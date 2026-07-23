@@ -14,6 +14,7 @@
 //! teacher.
 
 mod bootstrap;
+mod gepa;
 mod mipro;
 mod copro;
 mod earned;
@@ -27,6 +28,7 @@ pub(crate) mod scripted;
 
 pub use bootstrap::BootstrapFewShot;
 pub use copro::COPRO;
+pub use gepa::{Feedback, GEPA, GepaOutcome};
 pub use mipro::MIPROv2;
 pub use labeled::LabeledFewShot;
 
