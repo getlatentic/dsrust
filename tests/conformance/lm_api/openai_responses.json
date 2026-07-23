@@ -1455,6 +1455,450 @@
       }
     },
     {
+      "name": "output_image_b64",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "image",
+            "b64_json": "iVBORw0KGgo=",
+            "media_type": "image/png"
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "image",
+                "metadata": {},
+                "media_type": "image/png",
+                "data": "iVBORw0KGgo=",
+                "url": null,
+                "file_id": null,
+                "path": null,
+                "detail": null
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "output_image_url",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "image",
+            "image_url": {
+              "url": "https://example.com/gen.png"
+            }
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "image",
+                "metadata": {},
+                "media_type": "image/png",
+                "data": null,
+                "url": "https://example.com/gen.png",
+                "file_id": null,
+                "path": null,
+                "detail": null
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "output_image_file_id",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "image_generation_call",
+            "file_id": "file_img_1"
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "image",
+                "metadata": {},
+                "media_type": "image/png",
+                "data": null,
+                "url": null,
+                "file_id": "file_img_1",
+                "path": null,
+                "detail": null
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "output_audio",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "output_audio",
+            "data": "YQ==",
+            "media_type": "audio/wav"
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "audio",
+                "metadata": {},
+                "media_type": "audio/wav",
+                "data": "YQ==",
+                "url": null,
+                "file_id": null,
+                "path": null
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "output_file_data_uri",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "file",
+            "file_data": "data:application/pdf;base64,JVBERi0=",
+            "filename": "o.pdf"
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "binary",
+                "metadata": {},
+                "media_type": "application/pdf",
+                "data": "JVBERi0=",
+                "url": null,
+                "file_id": null,
+                "path": null,
+                "filename": "o.pdf"
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "output_file_url",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "file",
+            "file": {
+              "url": "https://example.com/o.pdf",
+              "media_type": "application/pdf"
+            }
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "binary",
+                "metadata": {},
+                "media_type": "application/pdf",
+                "data": null,
+                "url": "https://example.com/o.pdf",
+                "file_id": null,
+                "path": null,
+                "filename": null
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "message_with_generated_image",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "here it is",
+                "annotations": []
+              },
+              {
+                "type": "output_image",
+                "b64_json": "iVBORw0=",
+                "media_type": "image/png"
+              }
+            ]
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "here it is"
+              },
+              {
+                "type": "image",
+                "metadata": {},
+                "media_type": "image/png",
+                "data": "iVBORw0=",
+                "url": null,
+                "file_id": null,
+                "path": null,
+                "detail": null
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
       "name": "cache_hit",
       "response": {
         "id": "resp_1",

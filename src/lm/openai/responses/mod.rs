@@ -16,6 +16,8 @@ use crate::lm::PROVIDER_TIMEOUT;
 use crate::lm::api::{self, LmDelta, LmStreamEvent, Metadata};
 use crate::lm::streaming::{Framed, Framing, StreamState};
 
+mod media;
+
 // -------- request: LmRequest -> Responses body --------
 
 /// The Responses request body for one call. A requested schema rides under `text.format`, built from
@@ -322,7 +324,9 @@ fn responses_to_lm_response(body: &Value, fallback_model: &str) -> api::LmRespon
                     }
                 }
             }
-            _ => {}
+            // A generated image, audio or file output item; anything else contributes nothing.
+            Some(other) => parts.extend(media::part(other, item)),
+            None => {}
         }
     }
     let output = api::LmOutput {
@@ -354,7 +358,8 @@ fn content_item_parts(item: &Value) -> Vec<api::LmPart> {
     match item_type {
         Some("refusal" | "output_refusal") => vec![refusal(item)],
         Some("tool_call" | "function_call") => vec![function_call_part(item)],
-        _ => Vec::new(),
+        Some(other) => media::part(other, item).into_iter().collect(),
+        None => Vec::new(),
     }
 }
 
