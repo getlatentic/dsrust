@@ -105,7 +105,10 @@ REPLY_CASES = [
               "annotations": [{"type": "url_citation", "url": "https://example.com/fr", "title": "France"}]})], usage=USAGE),
     reply_case("output_image_b64", [{"type": "image", "b64_json": "iVBORw0KGgo=", "media_type": "image/png"}], usage=USAGE),
     reply_case("output_image_url", [{"type": "image", "image_url": {"url": "https://example.com/gen.png"}}], usage=USAGE),
-    reply_case("output_image_file_id", [{"type": "image_generation_call", "file_id": "file_img_1"}], usage=USAGE),
+    # A generic image item carrying a file id — a shape dspy's parser handles. The *real* OpenAI
+    # image_generation_call (base64 under `result`) is grounded on litellm in responses/media.rs,
+    # since dspy 3.3's parser cannot read it and so cannot be the oracle for it.
+    reply_case("output_image_file_id", [{"type": "image", "file_id": "file_img_1"}], usage=USAGE),
     reply_case("output_audio", [{"type": "output_audio", "data": "YQ==", "media_type": "audio/wav"}], usage=USAGE),
     reply_case("output_file_data_uri", [{"type": "file", "file_data": "data:application/pdf;base64,JVBERi0=", "filename": "o.pdf"}], usage=USAGE),
     reply_case("output_file_url", [{"type": "file", "file": {"url": "https://example.com/o.pdf", "media_type": "application/pdf"}}], usage=USAGE),

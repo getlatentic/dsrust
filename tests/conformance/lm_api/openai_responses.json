@@ -1584,7 +1584,7 @@
         "model": "gpt-5",
         "output": [
           {
-            "type": "image_generation_call",
+            "type": "image",
             "file_id": "file_img_1"
           }
         ],
