@@ -5,6 +5,7 @@ edition = "2024"
 description = "A faithful Rust reproduction of optuna's TPESampler over categorical distributions, as dspy's MIPROv2 uses it."
 
 [dependencies]
+pyrng = { version = "0.1.0", path = "../pyrng" }
 
 [dev-dependencies]
 serde_json = "1"

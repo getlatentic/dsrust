@@ -1,0 +1,10 @@
+[package]
+name = "pyrng"
+version = "0.1.0"
+edition = "2024"
+description = "Byte-faithful Rust reproductions of Python's Mersenne-Twister RNGs: CPython's random.Random and numpy's legacy RandomState, over one shared MT19937 core."
+
+[dependencies]
+
+[dev-dependencies]
+serde_json = "1"

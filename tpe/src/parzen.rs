@@ -7,7 +7,7 @@
 //! ([`Parzen::sample`]) and scores them ([`Parzen::pdf`]); the sampler above ranks candidates by the
 //! ratio of the "below" density to the "above" one.
 
-use crate::mt19937::Mt19937;
+use pyrng::RandomState;
 
 pub(crate) struct Parzen {
     /// Mixture weight per kernel, normalised. Length is `observations + 1` (the trailing prior).
@@ -35,7 +35,7 @@ impl Parzen {
     /// chosen per candidate (`choice`), then each parameter's category is drawn from that kernel by
     /// placing a uniform into the kernel's cumulative weights. The draw order — the `choice`, then a
     /// `rand` per parameter — is the order optuna consumes the generator in.
-    pub fn sample(&self, rng: &mut Mt19937, n: usize, parameters: usize) -> Vec<Vec<usize>> {
+    pub fn sample(&self, rng: &mut RandomState, n: usize, parameters: usize) -> Vec<Vec<usize>> {
         let active = rng.choice(&self.mixture, n);
         let mut candidates = vec![vec![0usize; parameters]; n];
         for (param, kernels) in self.categorical.iter().enumerate() {

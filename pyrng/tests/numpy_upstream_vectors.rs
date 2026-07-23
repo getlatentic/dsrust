@@ -9,7 +9,7 @@
 //! — seed the *modern* `MT19937` bit generator through a `SeedSequence`, a different initialisation
 //! that optuna does not take, so they are deliberately not reproduced here.
 
-use tpe::Mt19937;
+use pyrng::RandomState;
 
 /// numpy `assert_array_almost_equal(actual, desired, decimal=15)`: `|actual - desired| < 1.5e-15`.
 fn almost_equal(actual: f64, desired: f64) -> bool {
@@ -42,7 +42,7 @@ fn matches_numpys_own_random_sample_vector() {
         0x3fdd48c91ec20188,
         0x3fe8e6eab0adb15a,
     ];
-    let mut generator = Mt19937::new(1234567890);
+    let mut generator = RandomState::new(1234567890);
     for (index, (&expected, &exact)) in desired.iter().zip(&bits).enumerate() {
         let actual = generator.random_sample();
         assert!(
@@ -62,7 +62,7 @@ fn matches_numpys_own_random_sample_vector() {
 /// the given probabilities, which is the overload the sampler uses.
 #[test]
 fn matches_numpys_own_choice_vector() {
-    let mut generator = Mt19937::new(1234567890);
+    let mut generator = RandomState::new(1234567890);
     let drawn = generator.choice(&[0.4, 0.4, 0.1, 0.1], 4);
     assert_eq!(drawn, vec![1, 1, 2, 2], "numpy expects choice -> [1, 1, 2, 2]");
 }

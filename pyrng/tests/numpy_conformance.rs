@@ -4,7 +4,7 @@
 //! generator note in the fixture's `source`). Matching them means this crate's generator is the one
 //! optuna draws from — the precondition for the sampler above it reproducing optuna's trials.
 
-use tpe::Mt19937;
+use pyrng::RandomState;
 
 fn fixture() -> serde_json::Value {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -18,7 +18,7 @@ fn seeding_matches_numpys_init_genrand() {
     let fixture = fixture();
     for (seed, key) in fixture["seed_key"].as_object().expect("seed_key") {
         let seed: u32 = seed.parse().expect("a seed");
-        let generator = Mt19937::new(seed);
+        let generator = RandomState::new(seed);
         let expected = key.as_array().expect("key words");
         for (index, word) in expected.iter().enumerate() {
             assert_eq!(
@@ -37,7 +37,7 @@ fn random_sample_matches_numpy() {
     let fixture = fixture();
     for (seed, values) in fixture["random_sample_bits"].as_object().expect("random_sample_bits") {
         let seed: u32 = seed.parse().expect("a seed");
-        let mut generator = Mt19937::new(seed);
+        let mut generator = RandomState::new(seed);
         for (index, value) in values.as_array().expect("values").iter().enumerate() {
             let drawn = generator.random_sample().to_bits();
             assert_eq!(
@@ -68,7 +68,7 @@ fn choice_matches_numpy() {
             .map(|value| value.as_u64().expect("an index") as usize)
             .collect();
 
-        let mut generator = Mt19937::new(seed);
+        let mut generator = RandomState::new(seed);
         assert_eq!(
             generator.choice(&probabilities, size),
             expected,

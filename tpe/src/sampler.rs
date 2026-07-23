@@ -14,7 +14,7 @@
 //! scores the whole trial sequence reproduces. It is the one place exact reproduction meets the
 //! limit of cross-language floating point.
 
-use crate::mt19937::Mt19937;
+use pyrng::RandomState;
 use crate::parzen::Parzen;
 
 const N_STARTUP_TRIALS: usize = 10;
@@ -30,8 +30,8 @@ struct Trial {
 /// Maximises the told scores, as MIPROv2's study does.
 pub struct TpeSampler {
     cardinalities: Vec<usize>,
-    startup_rng: Mt19937,
-    tpe_rng: Mt19937,
+    startup_rng: RandomState,
+    tpe_rng: RandomState,
     trials: Vec<Trial>,
 }
 
@@ -40,8 +40,8 @@ impl TpeSampler {
     pub fn new(seed: u32, cardinalities: Vec<usize>) -> Self {
         Self {
             cardinalities,
-            startup_rng: Mt19937::new(seed),
-            tpe_rng: Mt19937::new(seed),
+            startup_rng: RandomState::new(seed),
+            tpe_rng: RandomState::new(seed),
             trials: Vec::new(),
         }
     }
