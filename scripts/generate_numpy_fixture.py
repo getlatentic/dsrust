@@ -20,7 +20,7 @@ import sys
 
 import numpy as np
 
-OUT = pathlib.Path(__file__).parent.parent / "tpe" / "tests" / "conformance" / "numpy_mt19937.json"
+OUT = pathlib.Path(__file__).parent.parent / "pyrng" / "tests" / "conformance" / "numpy_mt19937.json"
 
 SEEDS = [0, 1, 42, 12345]
 # (seed, n, p, size) for numpy `RandomState(seed).choice(n, p=p, size=size)`.

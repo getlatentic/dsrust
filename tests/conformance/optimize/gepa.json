@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.2.1 + gepa==0.0.27 via scripts/generate_gepa_optimize_fixture.py",
-  "dspy_version": "3.2.1",
+  "source": "generated from dspy==3.3.0b1 + gepa==0.0.27 via scripts/generate_gepa_optimize_fixture.py",
+  "dspy_version": "3.3.0b1",
   "cases": [
     {
       "seed_instruction": "Answer the question.",

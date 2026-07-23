@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.2.1 via scripts/generate_fixtures.py",
-  "dspy_version": "3.2.1",
+  "source": "generated from dspy==3.3.0b1 via scripts/generate_fixtures.py",
+  "dspy_version": "3.3.0b1",
   "instructions": "Use the information below to learn about a task that we are trying to solve using calls to an LM, then generate a new instruction that will be used to prompt a Language Model to better solve the task.",
   "inputs": [
     {

@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.2.1 via scripts/generate_fixtures.py",
-  "dspy_version": "3.2.1",
+  "source": "generated from dspy==3.3.0b1 via scripts/generate_fixtures.py",
+  "dspy_version": "3.3.0b1",
   "instructions": "Below is some pseudo-code for a pipeline that solves tasks with calls to language models. Please describe the purpose of one of the specified module in this pipeline.",
   "inputs": [
     {

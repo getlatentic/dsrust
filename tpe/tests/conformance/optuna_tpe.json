@@ -1,6 +1,6 @@
 {
-  "source": "optuna 4.5.0 via scripts/generate_tpe_fixture.py",
-  "optuna_version": "4.5.0",
+  "source": "optuna 4.9.0 via scripts/generate_tpe_fixture.py",
+  "optuna_version": "4.9.0",
   "cases": [
     {
       "cards": [
