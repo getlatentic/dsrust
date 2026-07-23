@@ -303,13 +303,15 @@ impl LM {
         request: &'a api::LmRequest,
     ) -> std::pin::Pin<Box<dyn Stream<Item = Result<api::LmStreamEvent>> + Send + 'a>> {
         match self.model.provider {
-            Provider::OpenAiCompatible => Box::pin(
-                openai::Endpoint::configured(&self.model.id, &self.openai).stream(http, request),
-            ),
-            Provider::OpenRouter => Box::pin(
+            // `Endpoint::stream` already boxes — it picks the chat or Responses wire, whose stream
+            // types differ — so these arms hand its stream straight back rather than box it again.
+            Provider::OpenAiCompatible => {
+                openai::Endpoint::configured(&self.model.id, &self.openai).stream(http, request)
+            }
+            Provider::OpenRouter => {
                 openai::Endpoint::openrouter(&self.model.id, self.openrouter_api_key.as_deref())
-                    .stream(http, request),
-            ),
+                    .stream(http, request)
+            }
             Provider::Anthropic => Box::pin(anthropic::stream(
                 http,
                 &self.model.id,

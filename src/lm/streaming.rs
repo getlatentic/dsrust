@@ -16,7 +16,7 @@ use bytes::Bytes;
 use futures_util::{Stream, StreamExt, stream};
 
 use crate::lm::LmUsage;
-use crate::lm::api::LmStreamEvent;
+use crate::lm::api::{LmResponse, LmStreamEvent};
 
 /// What one frame of the wire contributes.
 pub(super) struct Framed {
@@ -24,6 +24,10 @@ pub(super) struct Framed {
     /// This frame closes the stream — OpenAI's `[DONE]`, ollama's `"done": true`, Anthropic's
     /// `message_stop`. The [`End`](LmStreamEvent::End) is emitted after it, carrying the usage.
     pub done: bool,
+    /// The whole reply, when the closing frame carried one rather than leaving it to be reassembled
+    /// from the deltas — the Responses API's `response.completed`. It rides the [`End`] as the
+    /// authoritative answer, which is what makes a streamed reply match a non-streamed one exactly.
+    pub response: Option<Box<LmResponse>>,
 }
 
 impl Framed {
@@ -31,11 +35,25 @@ impl Framed {
         Self {
             events,
             done: false,
+            response: None,
         }
     }
 
     pub(super) fn closing(events: Vec<LmStreamEvent>) -> Self {
-        Self { events, done: true }
+        Self {
+            events,
+            done: true,
+            response: None,
+        }
+    }
+
+    /// A closing frame that carries the whole reply, used as-is rather than reassembled.
+    pub(super) fn complete(events: Vec<LmStreamEvent>, response: LmResponse) -> Self {
+        Self {
+            events,
+            done: true,
+            response: Some(Box::new(response)),
+        }
     }
 }
 
@@ -64,6 +82,7 @@ struct Live<'h> {
     buffer: Vec<u8>,
     pending: VecDeque<Result<LmStreamEvent>>,
     usage: Option<LmUsage>,
+    response: Option<Box<LmResponse>>,
 }
 
 /// The typed events of one streaming call: [`Start`](LmStreamEvent::Start) once the response
@@ -85,6 +104,7 @@ pub(super) fn events<'h>(
         buffer: Vec::new(),
         pending: VecDeque::new(),
         usage: None,
+        response: None,
     };
     stream::unfold(live, |mut live| async move {
         loop {
@@ -131,6 +151,9 @@ fn drain(live: &mut Live) -> bool {
     while let Some(frame) = next_frame(&mut live.buffer, live.framing.separator) {
         let framed = (live.framing.frame)(&frame, &mut live.usage);
         live.pending.extend(framed.events.into_iter().map(Ok));
+        if let Some(response) = framed.response {
+            live.response = Some(response);
+        }
         if framed.done {
             live.close();
             return true;
@@ -150,12 +173,12 @@ fn next_frame(buffer: &mut Vec<u8>, separator: &[u8]) -> Option<String> {
 }
 
 impl Live<'_> {
-    /// End the stream with the usage it reported.
+    /// End the stream with the usage it reported, and the whole reply if a frame carried one.
     fn close(&mut self) {
         self.pending.push_back(Ok(LmStreamEvent::End {
             usage: self.usage.take(),
             cost: None,
-            response: None,
+            response: self.response.take(),
         }));
         self.phase = Phase::Ended;
     }
@@ -205,6 +228,7 @@ mod tests {
             buffer: b"hi\nusage\ndone\n".to_vec(),
             pending: VecDeque::new(),
             usage: None,
+            response: None,
         };
         assert!(drain(&mut live), "the done frame closed it");
 

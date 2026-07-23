@@ -161,15 +161,26 @@ impl<'a> Endpoint<'a> {
         &self,
         http: &'h reqwest::Client,
         call: &api::LmRequest,
-    ) -> impl futures_util::Stream<Item = Result<api::LmStreamEvent>> + Send + use<'h> {
-        stream::events(
-            http,
-            chat_completions_url(self.base_url),
-            self.api_key.map(str::to_owned),
-            self.label.to_owned(),
-            self.model.to_owned(),
-            streaming_body(self.model, call, self.json_format, self.token_limit_rule),
-        )
+    ) -> std::pin::Pin<Box<dyn futures_util::Stream<Item = Result<api::LmStreamEvent>> + Send + 'h>>
+    {
+        match self.wire {
+            OpenAiWire::Chat => Box::pin(stream::events(
+                http,
+                chat_completions_url(self.base_url),
+                self.api_key.map(str::to_owned),
+                self.label.to_owned(),
+                self.model.to_owned(),
+                streaming_body(self.model, call, self.json_format, self.token_limit_rule),
+            )),
+            OpenAiWire::Responses => Box::pin(responses::stream(
+                http,
+                responses_url(self.base_url),
+                self.api_key.map(str::to_owned),
+                self.label.to_owned(),
+                self.model.to_owned(),
+                responses::streaming_body(self.model, call),
+            )),
+        }
     }
 }
 

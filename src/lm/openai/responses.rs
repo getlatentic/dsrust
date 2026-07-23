@@ -8,10 +8,13 @@
 //! OpenAI-shaped pieces the chat wire uses, and `tests/lm_api_conformance.rs` holds them to dspy's.
 
 use anyhow::{Result, anyhow};
+use futures_util::Stream;
 use serde_json::{Value, json};
 
 use super::{apply_tool_choice, response, tool_json};
-use crate::lm::api::{self, Metadata};
+use crate::lm::PROVIDER_TIMEOUT;
+use crate::lm::api::{self, LmDelta, LmStreamEvent, Metadata};
+use crate::lm::streaming::{Framed, Framing};
 
 // -------- request: LmRequest -> Responses body --------
 
@@ -169,6 +172,96 @@ fn reasoning(call: &api::LmRequest) -> Option<Value> {
     (!data.is_empty()).then(|| Value::Object(data))
 }
 
+// -------- streaming: Responses SSE -> typed events --------
+
+/// The request body with the streaming flag set.
+pub(super) fn streaming_body(model: &str, call: &api::LmRequest) -> Value {
+    let mut body = request(model, call);
+    body["stream"] = json!(true);
+    body
+}
+
+/// The typed events of one streaming Responses call. Text and reasoning arrive as deltas for live
+/// display; `response.completed` carries the whole reply, parsed by [`responses_to_lm_response`] and
+/// handed back as the authoritative answer — so a streamed reply equals a non-streamed one exactly.
+pub(super) fn stream<'h>(
+    http: &'h reqwest::Client,
+    url: String,
+    key: Option<String>,
+    label: String,
+    model: String,
+    body: Value,
+) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + 'h {
+    let mut request = http.post(url).timeout(PROVIDER_TIMEOUT).json(&body);
+    if let Some(key) = key {
+        request = request.bearer_auth(key);
+    }
+    crate::lm::streaming::events(
+        request.send(),
+        label,
+        model,
+        Framing {
+            separator: b"\n\n",
+            frame,
+        },
+    )
+}
+
+/// One Responses SSE frame as the events it carries. The reply's items each stream their own delta;
+/// `response.completed` closes with the whole reply, `response.failed`/`incomplete` with an error.
+fn frame(frame: &str, _usage: &mut Option<crate::lm::LmUsage>) -> Framed {
+    let Some(data) = frame.lines().find_map(|line| line.trim().strip_prefix("data:")) else {
+        return Framed::of(Vec::new());
+    };
+    let Ok(event) = serde_json::from_str::<Value>(data.trim()) else {
+        return Framed::of(Vec::new());
+    };
+    let delta = |delta| Framed::of(vec![at(&event, delta)]);
+    match event["type"].as_str() {
+        Some("response.output_text.delta") => delta(LmDelta::text(event_delta(&event))),
+        Some("response.reasoning_summary_text.delta" | "response.reasoning_text.delta") => {
+            delta(LmDelta::thinking(event_delta(&event)))
+        }
+        Some("response.function_call_arguments.delta") => delta(LmDelta::ToolCallDelta {
+            id: None,
+            name: None,
+            args_delta: event["delta"].as_str().map(str::to_owned),
+        }),
+        Some("response.output_item.added") if event["item"]["type"] == "function_call" => {
+            let item = &event["item"];
+            delta(LmDelta::ToolCallDelta {
+                id: item["call_id"].as_str().or_else(|| item["id"].as_str()).map(str::to_owned),
+                name: item["name"].as_str().map(str::to_owned),
+                args_delta: None,
+            })
+        }
+        Some("response.completed") => {
+            Framed::complete(Vec::new(), responses_to_lm_response(&event["response"], ""))
+        }
+        Some("response.failed" | "response.incomplete") => {
+            let detail = event["response"]["error"]["message"]
+                .as_str()
+                .unwrap_or("the responses stream did not complete");
+            Framed::closing(vec![LmStreamEvent::Error { error: detail.to_owned() }])
+        }
+        _ => Framed::of(Vec::new()),
+    }
+}
+
+/// One output item's delta, under its own part index so reasoning, text and a tool call accumulate
+/// separately. There is a single candidate, so the output index is always zero.
+fn at(event: &Value, delta: LmDelta) -> LmStreamEvent {
+    LmStreamEvent::Delta {
+        output_index: 0,
+        part_index: event["output_index"].as_u64().unwrap_or(0) as usize,
+        delta,
+    }
+}
+
+fn event_delta(event: &Value) -> &str {
+    event["delta"].as_str().unwrap_or_default()
+}
+
 // -------- reply: Responses body -> LmResponse --------
 
 /// The reply as a typed response, or the message the service itself gave for refusing the call.
@@ -321,5 +414,55 @@ mod tests {
             .join("tests/conformance/lm_api/openai_responses.json");
         serde_json::from_str(&std::fs::read_to_string(path).expect("fixture is readable"))
             .expect("fixture is valid json")
+    }
+
+    fn framed(event: Value) -> Framed {
+        frame(&format!("data: {event}"), &mut None)
+    }
+
+    /// The reply's items each stream their own delta — reasoning and text under their own part
+    /// index, a tool call's arguments as a tool-call delta — for live display.
+    #[test]
+    fn each_output_item_streams_its_own_delta() {
+        assert_eq!(
+            framed(json!({ "type": "response.reasoning_summary_text.delta", "output_index": 0, "delta": "hmm" })).events,
+            vec![LmStreamEvent::Delta { output_index: 0, part_index: 0, delta: LmDelta::thinking("hmm") }]
+        );
+        assert_eq!(
+            framed(json!({ "type": "response.output_text.delta", "output_index": 1, "delta": "Sunny." })).events,
+            vec![LmStreamEvent::Delta { output_index: 0, part_index: 1, delta: LmDelta::text("Sunny.") }]
+        );
+        assert_eq!(
+            framed(json!({ "type": "response.function_call_arguments.delta", "output_index": 2, "delta": "{\"city\"" })).events,
+            vec![LmStreamEvent::Delta {
+                output_index: 0,
+                part_index: 2,
+                delta: LmDelta::ToolCallDelta { id: None, name: None, args_delta: Some("{\"city\"".to_owned()) },
+            }]
+        );
+    }
+
+    /// `response.completed` closes the stream with the whole reply, and it is exactly the reply the
+    /// non-streamed parser builds from the same object — so a streamed answer matches a non-streamed.
+    #[test]
+    fn the_completed_frame_carries_the_authoritative_reply() {
+        let completed = json!({
+            "id": "resp_1", "model": "gpt-5",
+            "output": [
+                { "type": "reasoning", "summary": [{ "type": "summary_text", "text": "Let me think." }] },
+                { "type": "message", "role": "assistant", "content": [{ "type": "output_text", "text": "It is sunny.", "annotations": [] }] },
+            ],
+            "usage": { "input_tokens": 10, "output_tokens": 5, "total_tokens": 15 },
+        });
+        let done = framed(json!({ "type": "response.completed", "response": completed }));
+        assert!(done.done, "the completed frame closes the stream");
+
+        let mut carried = *done.response.expect("the completed reply");
+        let mut expected = responses_to_lm_response(&completed, "");
+        for response in [&mut carried, &mut expected] {
+            response.provider_response = None;
+            response.outputs.iter_mut().for_each(|output| output.provider_output = None);
+        }
+        assert_eq!(carried, expected, "the streamed reply equals the non-streamed one");
     }
 }
