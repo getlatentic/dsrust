@@ -1,0 +1,11 @@
+[package]
+name = "gepa"
+version = "0.1.0"
+edition = "2024"
+description = "A Rust reproduction of GEPA's reflective prompt-evolution engine (the gepa package dspy wraps): Pareto-front candidate selection, the evolution loop, behind an adapter trait."
+
+[dependencies]
+pyrng = { version = "0.1.0", path = "../pyrng" }
+
+[dev-dependencies]
+serde_json = "1"
