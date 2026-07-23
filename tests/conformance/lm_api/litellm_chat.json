@@ -632,6 +632,96 @@
       }
     },
     {
+      "name": "tool_choice_none",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": "look up the weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": {
+            "mode": "none",
+            "allowed": null,
+            "parallel": null
+          },
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "weather in Paris?"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "get_weather",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "type": "custom",
+            "description": "look up the weather"
+          }
+        ],
+        "tool_choice": {
+          "type": "none"
+        },
+        "max_tokens": 4096
+      }
+    },
+    {
       "name": "tool_choice_single_named",
       "provider": "anthropic",
       "lm_request": {
@@ -721,6 +811,151 @@
           "type": "tool",
           "name": "get_weather"
         },
+        "max_tokens": 4096
+      }
+    },
+    {
+      "name": "tool_conversation",
+      "provider": "anthropic",
+      "lm_request": {
+        "model": "anthropic/claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "tool_call",
+                "metadata": {},
+                "id": "call_1",
+                "name": "get_weather",
+                "args": {
+                  "city": "Paris"
+                },
+                "provider_data": {}
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "tool",
+            "parts": [
+              {
+                "type": "tool_result",
+                "metadata": {},
+                "call_id": "call_1",
+                "name": "get_weather",
+                "content": [
+                  {
+                    "type": "text",
+                    "metadata": {},
+                    "text": "sunny, 22C"
+                  }
+                ],
+                "is_error": false,
+                "provider_data": {}
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": "look up the weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "claude-3-5-sonnet-20241022",
+        "messages": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "text",
+                "text": "weather in Paris?"
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "tool_use",
+                "id": "call_1",
+                "name": "get_weather",
+                "input": {
+                  "city": "Paris"
+                }
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "tool_use_id": "call_1",
+                "content": "sunny, 22C"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "name": "get_weather",
+            "input_schema": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "type": "custom",
+            "description": "look up the weather"
+          }
+        ],
         "max_tokens": 4096
       }
     },
@@ -1100,6 +1335,148 @@
             "role": "user",
             "content": "weather in Paris?",
             "images": []
+          }
+        ],
+        "options": {},
+        "stream": false,
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                }
+              },
+              "description": "look up the weather"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_conversation",
+      "provider": "ollama",
+      "lm_request": {
+        "model": "ollama_chat/llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "tool_call",
+                "metadata": {},
+                "id": "call_1",
+                "name": "get_weather",
+                "args": {
+                  "city": "Paris"
+                },
+                "provider_data": {}
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "tool",
+            "parts": [
+              {
+                "type": "tool_result",
+                "metadata": {},
+                "call_id": "call_1",
+                "name": "get_weather",
+                "content": [
+                  {
+                    "type": "text",
+                    "metadata": {},
+                    "text": "sunny, 22C"
+                  }
+                ],
+                "is_error": false,
+                "provider_data": {}
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": "look up the weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "content": "weather in Paris?",
+            "images": []
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "images": [],
+            "tool_calls": [
+              {
+                "function": {
+                  "name": "get_weather",
+                  "arguments": {
+                    "city": "Paris"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "sunny, 22C",
+            "images": [],
+            "tool_call_id": "call_1"
           }
         ],
         "options": {},

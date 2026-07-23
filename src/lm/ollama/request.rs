@@ -9,7 +9,7 @@
 
 use serde_json::{Value, json};
 
-use crate::lm::api::{self, Content, LmConfig, LmToolSpec, content_of};
+use crate::lm::api::{self, LmConfig, LmToolSpec};
 
 /// The ollama chat body for one call.
 pub(super) fn request(model: &str, call: &api::LmRequest) -> Value {
@@ -28,28 +28,36 @@ pub(super) fn request(model: &str, call: &api::LmRequest) -> Value {
     body
 }
 
-/// Every message as `{role, content, images}`, the system message kept in place rather than lifted
-/// out the way Anthropic lifts it.
+/// Every message in ollama's form, mirroring litellm's remap of the OpenAI-shaped messages
+/// [`wire_messages`](api::LmRequest::wire_messages) builds — its own input. The system message is
+/// kept in place rather than lifted out the way Anthropic lifts it.
 fn messages(call: &api::LmRequest) -> Vec<Value> {
-    call.messages
-        .iter()
-        .map(|message| {
-            let (content, images) = split(&message.parts);
-            json!({ "role": message.role, "content": content, "images": images })
-        })
-        .collect()
+    call.wire_messages().iter().map(ollama_message).collect()
 }
 
-/// A message's parts split into ollama's two fields: text concatenated into `content`, images pulled
-/// out as base64 into `images`. The parts render first to the OpenAI-shaped blocks [`content_of`]
-/// builds — litellm's own input — so a data URI becomes the bare base64 ollama wants.
-fn split(parts: &[api::LmPart]) -> (String, Vec<String>) {
-    match content_of(parts) {
-        Ok(Content::Text(text)) => (text, Vec::new()),
-        Ok(Content::Blocks(blocks)) => {
+/// One OpenAI-shaped message as its ollama form: a bare-string `content` beside an `images` list, an
+/// assistant turn's `tool_calls` remapped, and a tool result keeping the `tool_call_id` it answers.
+fn ollama_message(message: &Value) -> Value {
+    let (content, images) = split(&message["content"]);
+    let mut out = json!({ "role": message["role"], "content": content, "images": images });
+    if let Some(calls) = message["tool_calls"].as_array() {
+        out["tool_calls"] = Value::Array(calls.iter().map(tool_call).collect());
+    }
+    if let Some(id) = message.get("tool_call_id") {
+        out["tool_call_id"] = id.clone();
+    }
+    out
+}
+
+/// OpenAI-shaped `content` split into ollama's two fields: text concatenated into `content`, images
+/// pulled out as base64 into `images`; `null` — an assistant turn of only tool calls — is empty text.
+fn split(content: &Value) -> (String, Vec<String>) {
+    match content {
+        Value::String(text) => (text.clone(), Vec::new()),
+        Value::Array(blocks) => {
             let mut text = String::new();
             let mut images = Vec::new();
-            for block in &blocks {
+            for block in blocks {
                 match block["type"].as_str() {
                     Some("text") => text.push_str(block["text"].as_str().unwrap_or_default()),
                     Some("image_url") => images.push(image_data(&block["image_url"])),
@@ -58,8 +66,26 @@ fn split(parts: &[api::LmPart]) -> (String, Vec<String>) {
             }
             (text, images)
         }
-        Err(_) => (String::new(), Vec::new()),
+        _ => (String::new(), Vec::new()),
     }
+}
+
+/// One assistant `tool_calls` entry as ollama's form: a function with its arguments back as an
+/// object, and neither the id nor the `type` OpenAI carries.
+fn tool_call(call: &Value) -> Value {
+    json!({ "function": {
+        "name": call["function"]["name"],
+        "arguments": parsed_args(&call["function"]["arguments"]),
+    }})
+}
+
+/// A tool call's arguments — the `json.dumps` string OpenAI carries — parsed back to the object
+/// ollama's `arguments` expects.
+fn parsed_args(arguments: &Value) -> Value {
+    arguments
+        .as_str()
+        .and_then(|text| serde_json::from_str(text).ok())
+        .unwrap_or_else(|| json!({}))
 }
 
 /// The base64 ollama takes: the payload of a `data:` URI, or the reference itself when it is not one.

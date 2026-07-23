@@ -95,6 +95,13 @@ WEATHER = t.LMToolSpec(
 )
 SCHEMA = {"type": "object", "properties": {"answer": {"type": "string"}}, "required": ["answer"]}
 
+# A multi-turn tool conversation: user asks, assistant calls the tool, the tool answers.
+CONVERSATION = [
+    t.LMMessage(role="user", parts=[text("weather in Paris?")]),
+    t.LMMessage(role="assistant", parts=[t.LMToolCallPart(id="call_1", name="get_weather", args={"city": "Paris"})]),
+    t.LMMessage(role="tool", parts=[t.LMToolResultPart(call_id="call_1", name="get_weather", content=[text("sunny, 22C")])]),
+]
+
 
 def structured_case(name: str, provider: str, model_id: str) -> dict:
     """A json-mode case. dspy's `response_format` is the whole `{"type": "json_schema", ...}`
@@ -135,6 +142,7 @@ def anthropic_cases() -> list:
              config=t.LMConfig(tool_choice=t.LMToolChoice(mode="none"))),
         case("tool_choice_single_named", p, m, [ASK], tools=[WEATHER],
              config=t.LMConfig(tool_choice=t.LMToolChoice(mode="required", allowed=["get_weather"]))),
+        case("tool_conversation", p, m, list(CONVERSATION), tools=[WEATHER]),
         structured_case("structured_output", p, m),
     ]
 
@@ -149,6 +157,7 @@ def ollama_cases() -> list:
         case("image_base64", p, m, [t.LMMessage(role="user", parts=[
             text("describe"), t.LMImagePart(url="data:image/png;base64,iVBORw0KGgo=")])]),
         case("tools", p, m, [ASK], tools=[WEATHER]),
+        case("tool_conversation", p, m, list(CONVERSATION), tools=[WEATHER]),
         structured_case("structured_output", p, m),
     ]
 

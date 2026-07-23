@@ -743,6 +743,142 @@
         ],
         "prompt_cache_key": "k1"
       }
+    },
+    {
+      "name": "tool_conversation",
+      "lm_request": {
+        "model": "openai/gpt-4o",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "tool_call",
+                "metadata": {},
+                "id": "call_1",
+                "name": "get_weather",
+                "args": {
+                  "city": "Paris"
+                },
+                "provider_data": {}
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "tool",
+            "parts": [
+              {
+                "type": "tool_result",
+                "metadata": {},
+                "call_id": "call_1",
+                "name": "get_weather",
+                "content": [
+                  {
+                    "type": "text",
+                    "metadata": {},
+                    "text": "sunny, 22C"
+                  }
+                ],
+                "is_error": false,
+                "provider_data": {}
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": null,
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o",
+        "messages": [
+          {
+            "role": "user",
+            "content": "weather in Paris?"
+          },
+          {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "type": "function",
+                "function": {
+                  "name": "get_weather",
+                  "arguments": "{\"city\": \"Paris\"}"
+                },
+                "id": "call_1"
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "sunny, 22C",
+            "tool_call_id": "call_1",
+            "name": "get_weather"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
     }
   ]
 }

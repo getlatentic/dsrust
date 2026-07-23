@@ -1,15 +1,17 @@
 //! The Anthropic messages body, built the way litellm builds it.
 //!
 //! dspy 3.3 ships no native Anthropic wire — it routes the provider through litellm — so litellm's
-//! transform is the reference here. The system prompt and every message's content become block
-//! lists, tools take Anthropic's own `input_schema`/`custom` shape, a generation cap is always
-//! present (litellm defaults it to 4096), sampling stops are `stop_sequences`, and a requested
-//! schema rides as a forced `json_tool_call`. `tests/lm_api_conformance.rs` holds the body to
-//! litellm's own, captured case for case.
+//! transform is the reference here, and this mirrors its pipeline: the OpenAI-shaped messages
+//! [`wire_messages`](api::LmRequest::wire_messages) builds — litellm's own input — are remapped to
+//! Anthropic's form. The system prompt and every message's content become block lists, an assistant
+//! turn's `tool_calls` become `tool_use` blocks and a tool result a `tool_result` block, tools take
+//! Anthropic's `input_schema`/`custom` shape, a cap is always present (litellm defaults it to 4096),
+//! stops are `stop_sequences`, and a requested schema rides as a forced `json_tool_call`.
+//! `tests/lm_api_conformance.rs` holds the body to litellm's own, captured case for case.
 
 use serde_json::{Value, json};
 
-use crate::lm::api::{self, Content, LmToolChoice, LmToolSpec, ToolChoiceMode, content_of};
+use crate::lm::api::{self, LmToolChoice, LmToolSpec, ToolChoiceMode};
 
 /// litellm's default when a call names no cap, which Anthropic requires.
 const DEFAULT_MAX_TOKENS: u32 = 4096;
@@ -21,12 +23,13 @@ const JSON_TOOL: &str = "json_tool_call";
 /// The Anthropic messages body for one call.
 pub(super) fn request(model: &str, call: &api::LmRequest) -> Value {
     let config = &call.config;
+    let messages = call.wire_messages();
     let mut body = json!({
         "model": model,
-        "messages": messages(call),
+        "messages": conversation(&messages),
         "max_tokens": config.max_tokens.unwrap_or(DEFAULT_MAX_TOKENS),
     });
-    if let Some(system) = system(call) {
+    if let Some(system) = system(&messages) {
         body["system"] = system;
     }
     if let Some(temperature) = config.temperature {
@@ -56,32 +59,66 @@ pub(super) fn request(model: &str, call: &api::LmRequest) -> Value {
     body
 }
 
-/// Every non-system message as `{role, content: [blocks]}`. The system prompt is lifted into its
-/// own field, so it is dropped from the conversation here.
-fn messages(call: &api::LmRequest) -> Vec<Value> {
-    call.messages
+/// The conversation as Anthropic messages: the system prompt is lifted into its own field, so it is
+/// dropped here; every other OpenAI-shaped message is remapped by [`anthropic_message`].
+fn conversation(messages: &[Value]) -> Vec<Value> {
+    messages
         .iter()
-        .filter(|message| message.role != "system")
-        .map(|message| json!({ "role": message.role, "content": content(&message.parts) }))
+        .filter(|message| message["role"] != "system")
+        .map(anthropic_message)
         .collect()
 }
 
-/// A message's parts as Anthropic content blocks. They render first to the OpenAI-shaped blocks
-/// [`content_of`] already builds — litellm's own input — then each maps to its Anthropic form, so a
-/// text-only message becomes a one-block list rather than the bare string it stays on OpenAI.
-fn content(parts: &[api::LmPart]) -> Vec<Value> {
-    match content_of(parts) {
-        Ok(Content::Text(text)) => vec![text_block(&text)],
-        Ok(Content::Blocks(blocks)) => blocks.iter().map(block).collect(),
-        Err(_) => Vec::new(),
+/// One OpenAI-shaped message as its Anthropic form — the remap litellm performs. A tool result
+/// becomes a `user` message carrying a `tool_result` block; an assistant turn's `tool_calls` become
+/// `tool_use` blocks beside its content; anything else is its content as a block list.
+fn anthropic_message(message: &Value) -> Value {
+    if message["role"] == "tool" {
+        return json!({
+            "role": "user",
+            "content": [{
+                "type": "tool_result",
+                "tool_use_id": message["tool_call_id"],
+                "content": message["content"],
+            }],
+        });
+    }
+    let mut blocks = content(&message["content"]);
+    for call in message["tool_calls"].as_array().into_iter().flatten() {
+        blocks.push(json!({
+            "type": "tool_use",
+            "id": call["id"],
+            "name": call["function"]["name"],
+            "input": parsed_args(&call["function"]["arguments"]),
+        }));
+    }
+    json!({ "role": message["role"], "content": blocks })
+}
+
+/// OpenAI-shaped `content` as Anthropic content blocks: a bare string becomes one text block, a block
+/// list maps each block, and `null` — an assistant turn that is only tool calls — becomes no blocks.
+fn content(content: &Value) -> Vec<Value> {
+    match content {
+        Value::String(text) => vec![text_block(text)],
+        Value::Array(blocks) => blocks.iter().map(block).collect(),
+        _ => Vec::new(),
     }
 }
 
 /// The system prompt as Anthropic's top-level `system` field, a block list, or `None` when the call
 /// carries no system message.
-fn system(call: &api::LmRequest) -> Option<Value> {
-    let message = call.messages.iter().find(|message| message.role == "system")?;
-    Some(Value::Array(content(&message.parts)))
+fn system(messages: &[Value]) -> Option<Value> {
+    let message = messages.iter().find(|message| message["role"] == "system")?;
+    Some(Value::Array(content(&message["content"])))
+}
+
+/// A tool call's arguments — the `json.dumps` string OpenAI carries — parsed back to the object that
+/// Anthropic's `tool_use` `input` expects.
+fn parsed_args(arguments: &Value) -> Value {
+    arguments
+        .as_str()
+        .and_then(|text| serde_json::from_str(text).ok())
+        .unwrap_or_else(|| json!({}))
 }
 
 /// One OpenAI-shaped content block as its Anthropic form. Text stays text; an `image_url` becomes an

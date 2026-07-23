@@ -82,6 +82,13 @@ CASES = [
     case("prompt_cache_key", "openai/gpt-4o-mini",
          [t.LMMessage(role="user", parts=[text("hi")])],
          config=t.LMConfig.from_kwargs(prompt_cache_key="k1")),
+    # A multi-turn tool conversation: the assistant's tool call splits into `tool_calls` beside a
+    # null content, and the tool result is its own `{content, tool_call_id, name}` message.
+    case("tool_conversation", "openai/gpt-4o",
+         [t.LMMessage(role="user", parts=[text("weather in Paris?")]),
+          t.LMMessage(role="assistant", parts=[t.LMToolCallPart(id="call_1", name="get_weather", args={"city": "Paris"})]),
+          t.LMMessage(role="tool", parts=[t.LMToolResultPart(call_id="call_1", name="get_weather", content=[text("sunny, 22C")])])],
+         tools=[t.LMToolSpec(name="get_weather", parameters={"type": "object", "properties": {"city": {"type": "string"}}})]),
 ]
 
 

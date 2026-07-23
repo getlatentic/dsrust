@@ -4,8 +4,9 @@ use serde_json::{Value, json};
 
 use super::config::LmConfig;
 use super::message::{LmMessage, LmToolSpec};
-use super::part::Metadata;
+use super::part::{LmPart, Metadata};
 use super::wire::{Content, content_of};
+use crate::adapter::python_json::json_dumps;
 
 /// One call as a value. The model is part of it, which is what lets a request be routed and
 /// cached without ambient state deciding who answers.
@@ -108,12 +109,78 @@ impl LmRequest {
     }
 }
 
-/// One message as its `{role, content}` pair, the parts collapsed the way a provider reads them.
+/// One message as the Chat Completions message dspy's `message_to_openai_chat` builds. Most messages
+/// are a `{role, content}` pair, the parts collapsed the way a provider reads them; the two that are
+/// not are an assistant turn carrying tool calls — split into a `tool_calls` field beside a content
+/// that is `null` when the turn is only calls — and a tool result, which names the call it answers.
 fn wire_message(message: &LmMessage) -> Value {
-    json!({
-        "role": &message.role,
-        "content": content_of(&message.parts).unwrap_or_else(|_| Content::Text(String::new())),
-    })
+    let mut output = serde_json::Map::new();
+    output.insert("role".to_owned(), json!(message.role));
+    if let Some(name) = &message.name {
+        output.insert("name".to_owned(), json!(name));
+    }
+
+    if message.role == "assistant" {
+        let tool_calls: Vec<Value> = message.parts.iter().filter_map(assistant_tool_call).collect();
+        if !tool_calls.is_empty() {
+            let content_parts: Vec<LmPart> = message
+                .parts
+                .iter()
+                .filter(|part| !matches!(part, LmPart::ToolCall { .. }))
+                .cloned()
+                .collect();
+            // dspy sends `null`, not an empty block list, when the turn carries only tool calls.
+            let content = match content_parts.is_empty() {
+                true => Value::Null,
+                false => content_value(&content_parts),
+            };
+            output.insert("content".to_owned(), content);
+            output.insert("tool_calls".to_owned(), Value::Array(tool_calls));
+            return Value::Object(output);
+        }
+    }
+
+    if message.role == "tool"
+        && let [LmPart::ToolResult { call_id, name, content, .. }] = message.parts.as_slice()
+    {
+        output.insert("content".to_owned(), content_value(content));
+        if let Some(call_id) = call_id {
+            output.insert("tool_call_id".to_owned(), json!(call_id));
+        }
+        if let Some(name) = name {
+            output.insert("name".to_owned(), json!(name));
+        }
+        return Value::Object(output);
+    }
+
+    output.insert("content".to_owned(), content_value(&message.parts));
+    Value::Object(output)
+}
+
+/// A message's parts as OpenAI `content`: the bare string of a lone text part, or a block list.
+fn content_value(parts: &[LmPart]) -> Value {
+    serde_json::to_value(content_of(parts).unwrap_or_else(|_| Content::Text(String::new())))
+        .unwrap_or(Value::Null)
+}
+
+/// dspy's `assistant_tool_call_to_openai`: a function call, its arguments the `json.dumps` text of
+/// the args — spaced the way Python writes it, which [`json_dumps`] matches — the id kept when
+/// present, the provider's own data merged on. `None` for any part that is not a tool call.
+fn assistant_tool_call(part: &LmPart) -> Option<Value> {
+    let LmPart::ToolCall { id, name, args, provider_data, .. } = part else {
+        return None;
+    };
+    let mut call = json!({
+        "type": "function",
+        "function": { "name": name, "arguments": json_dumps(&Value::Object(args.clone())) },
+    });
+    if let Some(id) = id {
+        call["id"] = json!(id);
+    }
+    for (key, value) in provider_data {
+        call[key] = value.clone();
+    }
+    Some(call)
 }
 
 #[cfg(test)]
