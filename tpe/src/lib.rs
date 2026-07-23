@@ -6,8 +6,11 @@
 //! is the point: seeded the same way, over the same categorical distributions and the same observed
 //! scores, the sampler proposes the same trials optuna does — verified against optuna itself.
 //!
-//! The foundation is [`mt19937`], numpy's `RandomState`; the sampler is built on top of it.
+//! The foundation is [`mt19937`], numpy's `RandomState`; [`TpeSampler`] is built on top of it.
 
 pub mod mt19937;
+mod parzen;
+mod sampler;
 
 pub use mt19937::Mt19937;
+pub use sampler::TpeSampler;
