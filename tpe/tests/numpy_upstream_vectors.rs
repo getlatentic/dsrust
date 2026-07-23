@@ -19,6 +19,11 @@ fn almost_equal(actual: f64, desired: f64) -> bool {
 /// `numpy/random/tests/test_randomstate.py::TestRandomDist::test_random_sample` — the exact
 /// assertion, run against this crate's generator. `random_sample((3, 2))` fills row-major, so the
 /// six values are six draws in order.
+///
+/// Two bars are checked at once. `desired` is the literal numpy asserts, to its own 15-decimal
+/// tolerance; `bits` is the raw IEEE-754 of the same values read straight out of numpy's compiled
+/// C generator (`RandomState(1234567890).random_sample(6).view(uint64)`), so the equality below is
+/// this crate reproducing numpy's C output to the last bit — stronger than numpy's own test.
 #[test]
 fn matches_numpys_own_random_sample_vector() {
     let desired = [
@@ -29,12 +34,25 @@ fn matches_numpys_own_random_sample_vector() {
         0.4575674820298663,
         0.7781880808593471,
     ];
+    let bits: [u64; 6] = [
+        0x3fe3cd2ab15cae5f,
+        0x3fe2ee94ac989b90,
+        0x3fec701890ee043c,
+        0x3fec886fa5ba2cae,
+        0x3fdd48c91ec20188,
+        0x3fe8e6eab0adb15a,
+    ];
     let mut generator = Mt19937::new(1234567890);
-    for (index, &expected) in desired.iter().enumerate() {
+    for (index, (&expected, &exact)) in desired.iter().zip(&bits).enumerate() {
         let actual = generator.random_sample();
         assert!(
             almost_equal(actual, expected),
             "random_sample #{index}: numpy expects {expected:.17}, got {actual:.17}"
+        );
+        assert_eq!(
+            actual.to_bits(),
+            exact,
+            "random_sample #{index}: not bit-identical to numpy's C output"
         );
     }
 }
