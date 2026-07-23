@@ -1,0 +1,128 @@
+{
+  "source": "dspy==3.3.0b1 adapters/types/tool.convert_input_schema_to_tool_args",
+  "dspy_version": "3.3.0b1",
+  "cases": [
+    {
+      "name": "flat",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "city": {
+            "type": "string",
+            "description": "the city"
+          },
+          "days": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "city"
+        ]
+      },
+      "args": {
+        "city": {
+          "type": "string",
+          "description": "the city"
+        },
+        "days": {
+          "type": "integer"
+        }
+      }
+    },
+    {
+      "name": "no_properties",
+      "input_schema": {
+        "type": "object"
+      },
+      "args": {}
+    },
+    {
+      "name": "empty_schema",
+      "input_schema": {},
+      "args": {}
+    },
+    {
+      "name": "nested_ref",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "location": {
+            "$ref": "#/$defs/Location"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "$defs": {
+          "Location": {
+            "type": "object",
+            "properties": {
+              "lat": {
+                "type": "number"
+              },
+              "lon": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "required": [
+          "location"
+        ]
+      },
+      "args": {
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": {
+              "type": "number"
+            },
+            "lon": {
+              "type": "number"
+            }
+          }
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    {
+      "name": "ref_inside_array",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "stops": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Stop"
+            }
+          }
+        },
+        "$defs": {
+          "Stop": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "args": {
+        "stops": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

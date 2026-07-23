@@ -5,6 +5,7 @@
 //! repeats until the model calls `finish` or the iteration budget runs out. A second pass then
 //! reads the trajectory and produces the signature's real outputs.
 
+pub mod mcp;
 mod tool;
 mod trajectory;
 
@@ -17,6 +18,7 @@ use crate::predict::Predict;
 use crate::signature::{FieldKind, InField, JsonType, LiteralValue, OutField, Signature};
 use tool::describe;
 
+pub use mcp::{mcp_tool, mcp_tool_args, mcp_tool_result};
 pub use tool::{FINISH, FnTool, Tool, arg_str, tool_args};
 pub use trajectory::{Step, Trajectory};
 
