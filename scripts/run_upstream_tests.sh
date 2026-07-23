@@ -55,16 +55,28 @@ grep -v '^#' "$MANIFEST" | sed 's|tests/||;s|/.*||' | sort -u | while read -r ar
   [ "$have" -lt "$want" ] && printf '    %-14s %s of %s\n' "$area" "$have" "$want"
 done || true
 
-echo "==> Fetching upstream tests at dspy $VERSION (unmodified)"
-for file in "${SUITES[@]}" conftest.py; do
-  out="$WORK/upstream_$(basename "$file")"
-  curl -sSf --max-time 30 \
-    "https://raw.githubusercontent.com/stanfordnlp/dspy/$VERSION/tests/$file" -o "$out" || true
+echo "==> Fetching upstream tests at dspy $VERSION (full tree, unmodified)"
+# The whole tests/ tree from the release tarball, so every shared helper a suite imports
+# (tests.adapters.conftest's format_messages_and_lm_kwargs, tests.test_utils, …) is present as
+# an importable package — rather than fetching each file and discovering its imports one failure
+# at a time, which is how dspy 3.3's new shared conftest first surfaced.
+TARBALL="$WORK/dspy-$VERSION.tar.gz"
+SRC="$WORK/upstream_src"
+[ -f "$TARBALL" ] || curl -sSfL --max-time 120 \
+  "https://github.com/stanfordnlp/dspy/archive/refs/tags/$VERSION.tar.gz" -o "$TARBALL"
+rm -rf "$SRC"; mkdir -p "$SRC"
+tar xzf "$TARBALL" -C "$SRC" --strip-components=1 "dspy-$VERSION/tests"
+
+# Run flattened, prefixed copies so pytest loads OUR conftest (not upstream's tree conftests), while
+# `PYTHONPATH` still resolves `tests.*` helper imports against the full tree below.
+for file in "${SUITES[@]}"; do
+  cp "$SRC/tests/$file" "$WORK/upstream_$(basename "$file")"
 done
-# Upstream's own conftest must not shadow ours; ours imports what it needs.
-rm -f "$WORK/upstream_conftest.py"
+# Upstream's top-level conftest pulls in a litellm test server this harness does not run; neutralise
+# it so importing anything under tests/ can never drag the server in. Sub-package helpers stay intact.
+: > "$SRC/tests/conftest.py"
 
 echo "==> Running upstream's suite against Rust"
 cd "$WORK"
-PYTHONPATH="$WORK" "$VENV/bin/python" -m pytest $(for f in "${SUITES[@]}"; do echo "upstream_$(basename "$f")"; done) \
+PYTHONPATH="$WORK:$SRC" "$VENV/bin/python" -m pytest $(for f in "${SUITES[@]}"; do echo "upstream_$(basename "$f")"; done) \
   "$@"
