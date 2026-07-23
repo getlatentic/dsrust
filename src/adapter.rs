@@ -66,6 +66,8 @@ mod two_step;
 pub use two_step::{TwoStepAdapter, extractor_signature};
 mod demos;
 mod exchange;
+pub mod types;
+pub use types::Reasoning;
 pub mod stream;
 pub use stream::{FieldListener, stream_field};
 mod history;

@@ -28,6 +28,9 @@ pub enum Kind {
     Int,
     Float,
     Json,
+    /// dspy's str-like `Reasoning`: renders as a string but is not `str`, so it keeps the
+    /// output-requirement hint.
+    Reasoning,
 }
 
 pub fn model(item: &DeriveInput) -> Result<Model> {
@@ -237,6 +240,8 @@ fn field_kind(field: &syn::Field) -> Kind {
         let name = last.ident.to_string();
         match name.as_str() {
             "String" => return Kind::Str,
+            // dspy's `Reasoning` is declared as the type and rendered as a string.
+            "Reasoning" => return Kind::Reasoning,
             "bool" => return Kind::Bool,
             "f32" | "f64" => return Kind::Float,
             name if INT_TYPES.contains(&name) => return Kind::Int,

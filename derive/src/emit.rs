@@ -124,6 +124,7 @@ fn kind(field: &Field) -> TokenStream {
         Kind::Bool => quote! { Bool },
         Kind::Int => quote! { Int },
         Kind::Float => quote! { Float },
+        Kind::Reasoning => quote! { Reasoning },
         Kind::Json => {
             let annotation = crate::annotate::python_spelling(&field.ty);
             return quote! {
