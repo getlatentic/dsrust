@@ -274,6 +274,7 @@ version = "0.1.0"
 dependencies = [
  "pyrng",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

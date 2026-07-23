@@ -41,16 +41,16 @@ impl MirrorAdapter {
 }
 
 impl GepaAdapter for MirrorAdapter {
-    fn evaluate_minibatch(&mut self, ids: &[usize], candidate: &Candidate, capture_traces: bool) -> EvalBatch {
+    async fn evaluate_minibatch(&mut self, ids: &[usize], candidate: &Candidate, capture_traces: bool) -> EvalBatch {
         let scores = ids.iter().map(|&id| self.score(candidate, id)).collect();
         if capture_traces { EvalBatch::traced(scores) } else { EvalBatch::scored(scores) }
     }
 
-    fn evaluate_valset(&mut self, candidate: &Candidate) -> EvalBatch {
+    async fn evaluate_valset(&mut self, candidate: &Candidate) -> EvalBatch {
         EvalBatch::scored((0..self.valset_size).map(|id| self.score(candidate, id)).collect())
     }
 
-    fn propose_new_texts(
+    async fn propose_new_texts(
         &mut self,
         candidate: &Candidate,
         components: &[String],
@@ -80,8 +80,8 @@ fn parents_of(value: &Value) -> Vec<usize> {
     value.as_array().expect("a parent list").iter().filter_map(|p| p.as_u64().map(|n| n as usize)).collect()
 }
 
-#[test]
-fn reproduces_the_runs_gepa_produces() {
+#[tokio::test]
+async fn reproduces_the_runs_gepa_produces() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/engine.json");
     let text = std::fs::read_to_string(&path).expect("the engine golden is committed");
     let fixture: Value = serde_json::from_str(&text).expect("the golden parses");
@@ -101,7 +101,7 @@ fn reproduces_the_runs_gepa_produces() {
             skip_perfect_score: true,
             seed: case["seed"].as_u64().expect("seed"),
         };
-        let outcome = engine.optimize(candidate_of(&case["seed_candidate"]));
+        let outcome = engine.optimize(candidate_of(&case["seed_candidate"])).await;
         let result = &case["result"];
 
         let want_candidates: Vec<Candidate> =

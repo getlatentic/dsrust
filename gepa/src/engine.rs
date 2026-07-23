@@ -50,25 +50,25 @@ pub struct GepaEngine<A: GepaAdapter> {
     pub seed: u64,
 }
 
-impl<A: GepaAdapter> GepaEngine<A> {
+impl<A: GepaAdapter + Send> GepaEngine<A> {
     /// Run the loop from `seed_candidate` until the metric-call budget is spent, returning the best
     /// candidate found. dspy checks the budget only at the top of each iteration, so the iteration in
     /// flight always runs to completion even when it pushes the total past `max_metric_calls`.
-    pub fn optimize(mut self, seed_candidate: Candidate) -> GepaOutcome {
-        let base = self.adapter.evaluate_valset(&seed_candidate);
+    pub async fn optimize(mut self, seed_candidate: Candidate) -> GepaOutcome {
+        let base = self.adapter.evaluate_valset(&seed_candidate).await;
         let mut state = GepaState::new(seed_candidate, base.scores);
         let mut rng = Random::seeded(self.seed);
         let mut sampler = BatchSampler::new(self.minibatch_size);
 
         while state.total_num_evals < self.max_metric_calls {
             state.i += 1;
-            let Some(proposal) = self.propose(&mut state, &mut rng, &mut sampler) else { continue };
+            let Some(proposal) = self.propose(&mut state, &mut rng, &mut sampler).await else { continue };
             let before: f64 = proposal.scores_before.iter().sum();
             let after: f64 = proposal.scores_after.iter().sum();
             if after <= before {
                 continue;
             }
-            self.accept(&mut state, proposal);
+            self.accept(&mut state, proposal).await;
         }
         self.finish(state)
     }
@@ -77,12 +77,17 @@ impl<A: GepaAdapter> GepaEngine<A> {
     /// with traces, reflect on a round-robin component to mutate it, and evaluate the mutant on the
     /// same minibatch. Returns `None` on the skip paths (no traces, or an already-perfect minibatch),
     /// each of which still spends the parent's minibatch evaluation.
-    fn propose(&mut self, state: &mut GepaState, rng: &mut Random, sampler: &mut BatchSampler) -> Option<Proposal> {
+    async fn propose(
+        &mut self,
+        state: &mut GepaState,
+        rng: &mut Random,
+        sampler: &mut BatchSampler,
+    ) -> Option<Proposal> {
         let parent = select_candidate(state.fronts(), &state.mean_scores(), rng);
         let subsample = sampler.next_minibatch_ids(self.trainset_size, state.i as usize, rng);
         let parent_candidate = state.candidates[parent].clone();
 
-        let eval_parent = self.adapter.evaluate_minibatch(&subsample, &parent_candidate, true);
+        let eval_parent = self.adapter.evaluate_minibatch(&subsample, &parent_candidate, true).await;
         state.total_num_evals += subsample.len();
         if !eval_parent.captured_traces {
             return None;
@@ -92,11 +97,11 @@ impl<A: GepaAdapter> GepaEngine<A> {
         }
 
         let components = vec![state.select_component(parent)];
-        let new_texts = self.adapter.propose_new_texts(&parent_candidate, &components, &eval_parent);
+        let new_texts = self.adapter.propose_new_texts(&parent_candidate, &components, &eval_parent).await;
         let mut candidate = parent_candidate;
         candidate.extend(new_texts);
 
-        let eval_new = self.adapter.evaluate_minibatch(&subsample, &candidate, false);
+        let eval_new = self.adapter.evaluate_minibatch(&subsample, &candidate, false).await;
         state.total_num_evals += subsample.len();
 
         Some(Proposal { candidate, parent, scores_before: eval_parent.scores, scores_after: eval_new.scores })
@@ -104,9 +109,9 @@ impl<A: GepaAdapter> GepaEngine<A> {
 
     /// dspy `_run_full_eval_and_add`: an accepted proposal is re-scored on the whole valset (recording
     /// the eval total at discovery first) and folded into the state.
-    fn accept(&mut self, state: &mut GepaState, proposal: Proposal) {
+    async fn accept(&mut self, state: &mut GepaState, proposal: Proposal) {
         let discovered_at = state.total_num_evals;
-        let eval = self.adapter.evaluate_valset(&proposal.candidate);
+        let eval = self.adapter.evaluate_valset(&proposal.candidate).await;
         state.total_num_evals += self.valset_size;
         state.num_full_ds_evals += 1;
         state.add_program(&[proposal.parent], proposal.candidate, eval.scores, discovered_at);

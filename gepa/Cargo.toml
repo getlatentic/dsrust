@@ -9,3 +9,4 @@ pyrng = { version = "0.1.0", path = "../pyrng" }
 
 [dev-dependencies]
 serde_json = "1"
+tokio = { version = "1", features = ["macros", "rt"] }

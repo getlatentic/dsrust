@@ -4,6 +4,7 @@
 //! ever calls the two back-to-back, passing the captured evaluation between them.
 
 use std::collections::BTreeMap;
+use std::future::Future;
 
 /// A GEPA candidate: component name → component text (dspy's `dict[str, str]`). Ordered, so the seed
 /// candidate's keys give `list_of_named_predictors` and the round-robin component order.
@@ -34,13 +35,24 @@ impl EvalBatch {
 /// candidate on a trainset subsample (with traces, for reflection), `evaluate_valset` scores it on
 /// the whole validation set (dspy's `FullEvaluationPolicy`), and `propose_new_texts` reflects on a
 /// captured evaluation to rewrite the given components.
+///
+/// The methods are async with `Send` futures: a real adapter runs an LLM program and a reflection LM,
+/// which in dsrs is async and multi-threaded. The engine awaits each call before the next, so a
+/// method may borrow `&mut self` for the duration of its future.
 pub trait GepaAdapter {
-    fn evaluate_minibatch(&mut self, ids: &[usize], candidate: &Candidate, capture_traces: bool) -> EvalBatch;
-    fn evaluate_valset(&mut self, candidate: &Candidate) -> EvalBatch;
+    fn evaluate_minibatch(
+        &mut self,
+        ids: &[usize],
+        candidate: &Candidate,
+        capture_traces: bool,
+    ) -> impl Future<Output = EvalBatch> + Send;
+
+    fn evaluate_valset(&mut self, candidate: &Candidate) -> impl Future<Output = EvalBatch> + Send;
+
     fn propose_new_texts(
         &mut self,
         candidate: &Candidate,
         components: &[String],
         captured: &EvalBatch,
-    ) -> BTreeMap<String, String>;
+    ) -> impl Future<Output = BTreeMap<String, String>> + Send;
 }
