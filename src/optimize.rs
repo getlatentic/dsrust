@@ -14,6 +14,7 @@
 //! teacher.
 
 mod bootstrap;
+mod mipro;
 mod copro;
 mod earned;
 mod labeled;
@@ -26,6 +27,7 @@ pub(crate) mod scripted;
 
 pub use bootstrap::BootstrapFewShot;
 pub use copro::COPRO;
+pub use mipro::MIPROv2;
 pub use labeled::LabeledFewShot;
 
 use std::pin::Pin;

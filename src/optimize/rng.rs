@@ -34,6 +34,20 @@ impl Rng {
         }
     }
 
+    /// CPython `random.choice(seq)`: the element at `_randbelow(len)`. Returned as the index so a
+    /// caller can pick from any sequence — MIPROv2 chooses a prompting tip this way.
+    pub(super) fn choice_index(&mut self, len: usize) -> usize {
+        self.below(len)
+    }
+
+    /// CPython `random.randint(low, high)` (inclusive): `low + _randbelow(high - low + 1)`. MIPROv2
+    /// draws a rollout id with `randint(0, 10**9)` per proposal to miss the response cache; only the
+    /// draw's advancing of the generator is observable when nothing is cached, which is why it is
+    /// reproduced rather than skipped.
+    pub(super) fn randint(&mut self, low: u64, high: u64) -> u64 {
+        low + self.below((high - low + 1) as usize) as u64
+    }
+
     /// `random.shuffle`: Fisher-Yates walked from the end, the direction CPython walks it.
     pub(super) fn shuffle<T>(&mut self, items: &mut [T]) {
         for position in (1..items.len()).rev() {

@@ -33,6 +33,8 @@ serde_json = { version = "1", features = ["preserve_order"] }
 # Cache entries are named by the SHA-256 of the request, which is what upstream keys on and what
 # lets an entry be a file on disk.
 sha2 = "0.11.0"
+# MIPROv2's Step-3 search engine, reproducing optuna's categorical TPESampler as dspy wraps optuna.
+tpe = { version = "0.1.0", path = "tpe" }
 tracing = "0.1"
 unicode-general-category = "1.1.0"
 unicode-normalization = "0.1.25"
