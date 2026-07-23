@@ -102,8 +102,27 @@ class _RustBacked:
             described_outputs(signature),
         )
 
+    def _custom_history(self, signature, inputs):
+        """A subclass's own conversation history, or None where it did not override the hook.
+
+        dspy lets a caller replace just the history half of a request, and a subclass that does so
+        expects its messages used verbatim. The hook is Python's, so honouring it is this side's
+        job; deleting the history input is what upstream's own hook does, and it leaves the crate
+        rendering everything else — demos, the live request, the system message — as before.
+        """
+        history_field = self._get_history_field_name(signature)
+        if not history_field:
+            return None
+        if type(self).format_conversation_history is Adapter.format_conversation_history:
+            return None
+        return self.format_conversation_history(
+            signature.delete(history_field), history_field, inputs
+        )
+
     def format(self, signature, demos, inputs) -> list[dict[str, typing.Any]]:
         crossings.record_render()
+        inputs = dict(inputs)
+        custom_history = self._custom_history(signature, inputs)
         rendered_demos = [
             [
                 (name, format_field_value(field_info=field, value=demo[name]))
@@ -133,7 +152,12 @@ class _RustBacked:
         )
         # Each turn crosses as the whole message the crate rendered, since a tool result and an
         # assistant turn carrying tool calls have keys beside `content`.
-        return [{"role": "system", "content": system}] + [json.loads(turn) for turn in turns]
+        messages = [{"role": "system", "content": system}] + [json.loads(turn) for turn in turns]
+        if custom_history is not None:
+            # dspy orders these demos, history, then the live request, and the crate's last turn
+            # is that request.
+            messages[-1:-1] = custom_history
+        return messages
 
     def parse(self, signature, completion):
         crossings.record_render()
