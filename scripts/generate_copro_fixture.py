@@ -57,6 +57,37 @@ CASES = [
     ("Give a short answer.", 2, 1),
 ]
 
+# A two-predictor program: the first drafts, the second settles. Its keyed table answers each half
+# — a question becomes a draft, that draft becomes an answer — plus the two proposal markers. One
+# trainset row keeps the call count down; breadth 2, depth 2 is what makes the multi-predictor paths
+# fire: `all_candidates` accumulates across the two rounds, and the first predictor's chosen
+# instruction is in force while the second is scored.
+PAIR_KEYED = {
+    "basic_instruction": {
+        "proposed_instruction": "Proposed at seed",
+        "proposed_prefix_for_output_field": "Answer:",
+    },
+    "attempted_instructions": {
+        "proposed_instruction": "Refined from attempts",
+        "proposed_prefix_for_output_field": "Response:",
+    },
+    "capital of France?": {"draft": "France draft"},
+    "France draft": {"answer": "Paris"},
+}
+PAIR_TRAINSET = [("capital of France?", "Paris")]
+# (first_instruction, second_instruction, breadth, depth).
+PAIR_CASES = [("Draft the answer.", "Settle the answer.", 2, 2)]
+
+
+class Pair(dspy.Module):
+    def __init__(self, first_instruction: str, second_instruction: str):
+        super().__init__()
+        self.first = dspy.Predict(dspy.Signature("question -> draft").with_instructions(first_instruction))
+        self.second = dspy.Predict(dspy.Signature("draft -> answer").with_instructions(second_instruction))
+
+    def forward(self, question):
+        return self.second(draft=self.first(question=question).draft)
+
 
 def exact_match(example, prediction, trace=None) -> float:
     return float(example.answer == prediction.answer)
@@ -86,21 +117,41 @@ def build_student(instruction: str) -> dspy.Predict:
     return dspy.Predict(signature)
 
 
-def compile_once(instruction: str, breadth: int, depth: int) -> dict:
+def run(module: dspy.Module, keyed: dict, trainset_rows: list, breadth: int, depth: int) -> tuple[list[str], list[dict]]:
     CALLS.clear()
-    dspy.configure(lm=RecordingLM(dict(KEYED)))
+    dspy.configure(lm=RecordingLM(dict(keyed)))
     optimizer = dspy.COPRO(metric=exact_match, breadth=breadth, depth=depth, init_temperature=1.4)
     eval_kwargs = dict(num_threads=1, display_progress=False, display_table=0)
-    compiled = optimizer.compile(build_student(instruction), trainset=trainset(), eval_kwargs=eval_kwargs)
+    devset = [dspy.Example(question=q, answer=a).with_inputs("question") for q, a in trainset_rows]
+    compiled = optimizer.compile(module, trainset=devset, eval_kwargs=eval_kwargs)
     final = [predictor.signature.instructions for _, predictor in compiled.named_predictors()]
+    return final, list(CALLS)
+
+
+def compile_once(instruction: str, breadth: int, depth: int) -> dict:
+    final, calls = run(build_student(instruction), KEYED, TRAINSET, breadth, depth)
     return {
-        "instruction": instruction,
-        "signature": "question -> answer",
+        "module": "predict",
+        "instructions": [instruction],
         "breadth": breadth,
         "depth": depth,
         "trainset": [{"question": q, "answer": a} for q, a in TRAINSET],
         "keyed": [{"key": key, "fields": fields} for key, fields in KEYED.items()],
-        "calls": list(CALLS),
+        "calls": calls,
+        "final": final,
+    }
+
+
+def compile_pair_once(first: str, second: str, breadth: int, depth: int) -> dict:
+    final, calls = run(Pair(first, second), PAIR_KEYED, PAIR_TRAINSET, breadth, depth)
+    return {
+        "module": "pair",
+        "instructions": [first, second],
+        "breadth": breadth,
+        "depth": depth,
+        "trainset": [{"question": q, "answer": a} for q, a in PAIR_TRAINSET],
+        "keyed": [{"key": key, "fields": fields} for key, fields in PAIR_KEYED.items()],
+        "calls": calls,
         "final": final,
     }
 
@@ -108,10 +159,12 @@ def compile_once(instruction: str, breadth: int, depth: int) -> dict:
 def main() -> None:
     if dspy.__version__ != PINNED:
         raise SystemExit(f"expected dspy {PINNED}, found {dspy.__version__}")
+    cases = [compile_once(instruction, breadth, depth) for instruction, breadth, depth in CASES]
+    cases += [compile_pair_once(first, second, breadth, depth) for first, second, breadth, depth in PAIR_CASES]
     fixture = {
         "source": f"generated from dspy=={PINNED} via scripts/generate_copro_fixture.py",
         "dspy_version": PINNED,
-        "cases": [compile_once(instruction, breadth, depth) for instruction, breadth, depth in CASES],
+        "cases": cases,
     }
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / "copro.json"

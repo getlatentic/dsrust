@@ -3,8 +3,10 @@
   "dspy_version": "3.2.1",
   "cases": [
     {
-      "instruction": "Answer the question directly.",
-      "signature": "question -> answer",
+      "module": "predict",
+      "instructions": [
+        "Answer the question directly."
+      ],
       "breadth": 3,
       "depth": 2,
       "trainset": [
@@ -108,8 +110,10 @@
       ]
     },
     {
-      "instruction": "Give a short answer.",
-      "signature": "question -> answer",
+      "module": "predict",
+      "instructions": [
+        "Give a short answer."
+      ],
       "breadth": 2,
       "depth": 1,
       "trainset": [
@@ -174,6 +178,167 @@
       ],
       "final": [
         "Proposed at seed"
+      ]
+    },
+    {
+      "module": "pair",
+      "instructions": [
+        "Draft the answer.",
+        "Settle the answer."
+      ],
+      "breadth": 2,
+      "depth": 2,
+      "trainset": [
+        {
+          "question": "capital of France?",
+          "answer": "Paris"
+        }
+      ],
+      "keyed": [
+        {
+          "key": "basic_instruction",
+          "fields": {
+            "proposed_instruction": "Proposed at seed",
+            "proposed_prefix_for_output_field": "Answer:"
+          }
+        },
+        {
+          "key": "attempted_instructions",
+          "fields": {
+            "proposed_instruction": "Refined from attempts",
+            "proposed_prefix_for_output_field": "Response:"
+          }
+        },
+        {
+          "key": "capital of France?",
+          "fields": {
+            "draft": "France draft"
+          }
+        },
+        {
+          "key": "France draft",
+          "fields": {
+            "answer": "Paris"
+          }
+        }
+      ],
+      "calls": [
+        {
+          "system": "Your input fields are:\n1. `basic_instruction` (str): The initial instructions before optimization\nYour output fields are:\n1. `proposed_instruction` (str): The improved instructions for the language model\n2. `proposed_prefix_for_output_field` (str): The string at the end of the prompt, which will help the model start solving the task\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## basic_instruction ## ]]\n{basic_instruction}\n\n[[ ## proposed_instruction ## ]]\n{proposed_instruction}\n\n[[ ## proposed_prefix_for_output_field ## ]]\n{proposed_prefix_for_output_field}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        You are an instruction optimizer for large language models. I will give you a ``signature`` of fields (inputs and outputs) in English. Your task is to propose an instruction that will lead a good language model to perform the task well. Don't be afraid to be creative.",
+          "user": "[[ ## basic_instruction ## ]]\nDraft the answer.\n\nRespond with the corresponding output fields, starting with the field `[[ ## proposed_instruction ## ]]`, then `[[ ## proposed_prefix_for_output_field ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `basic_instruction` (str): The initial instructions before optimization\nYour output fields are:\n1. `proposed_instruction` (str): The improved instructions for the language model\n2. `proposed_prefix_for_output_field` (str): The string at the end of the prompt, which will help the model start solving the task\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## basic_instruction ## ]]\n{basic_instruction}\n\n[[ ## proposed_instruction ## ]]\n{proposed_instruction}\n\n[[ ## proposed_prefix_for_output_field ## ]]\n{proposed_prefix_for_output_field}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        You are an instruction optimizer for large language models. I will give you a ``signature`` of fields (inputs and outputs) in English. Your task is to propose an instruction that will lead a good language model to perform the task well. Don't be afraid to be creative.",
+          "user": "[[ ## basic_instruction ## ]]\nSettle the answer.\n\nRespond with the corresponding output fields, starting with the field `[[ ## proposed_instruction ## ]]`, then `[[ ## proposed_prefix_for_output_field ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `draft` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## draft ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `draft` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Settle the answer.",
+          "user": "[[ ## draft ## ]]\nFrance draft\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `draft` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Draft the answer.",
+          "user": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## draft ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `draft` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Settle the answer.",
+          "user": "[[ ## draft ## ]]\nFrance draft\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `draft` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## draft ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `draft` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## draft ## ]]\nFrance draft\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `draft` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## draft ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `draft` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Settle the answer.",
+          "user": "[[ ## draft ## ]]\nFrance draft\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `attempted_instructions` (str):\nYour output fields are:\n1. `proposed_instruction` (str): The improved instructions for the language model\n2. `proposed_prefix_for_output_field` (str): The string at the end of the prompt, which will help the model start solving the task\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## attempted_instructions ## ]]\n{attempted_instructions}\n\n[[ ## proposed_instruction ## ]]\n{proposed_instruction}\n\n[[ ## proposed_prefix_for_output_field ## ]]\n{proposed_prefix_for_output_field}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        You are an instruction optimizer for large language models. I will give some task instructions I've tried, along with their corresponding validation scores. The instructions are arranged in increasing order based on their scores, where higher scores indicate better quality.\n        \n        Your task is to propose a new instruction that will lead a good language model to perform the task even better. Don't be afraid to be creative.",
+          "user": "[[ ## attempted_instructions ## ]]\n[1] «Instruction #1: Draft the answer.»\n[2] «Prefix #1: Draft:»\n[3] «Resulting Score #1: 100.0»\n[4] «Instruction #2: Proposed at seed»\n[5] «Prefix #2: Answer:»\n[6] «Resulting Score #2: 100.0»\n\nRespond with the corresponding output fields, starting with the field `[[ ## proposed_instruction ## ]]`, then `[[ ## proposed_prefix_for_output_field ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `attempted_instructions` (str):\nYour output fields are:\n1. `proposed_instruction` (str): The improved instructions for the language model\n2. `proposed_prefix_for_output_field` (str): The string at the end of the prompt, which will help the model start solving the task\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## attempted_instructions ## ]]\n{attempted_instructions}\n\n[[ ## proposed_instruction ## ]]\n{proposed_instruction}\n\n[[ ## proposed_prefix_for_output_field ## ]]\n{proposed_prefix_for_output_field}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        You are an instruction optimizer for large language models. I will give some task instructions I've tried, along with their corresponding validation scores. The instructions are arranged in increasing order based on their scores, where higher scores indicate better quality.\n        \n        Your task is to propose a new instruction that will lead a good language model to perform the task even better. Don't be afraid to be creative.",
+          "user": "[[ ## attempted_instructions ## ]]\n[1] «Instruction #1: Settle the answer.»\n[2] «Prefix #1: Answer:»\n[3] «Resulting Score #1: 100.0»\n[4] «Instruction #2: Proposed at seed»\n[5] «Prefix #2: Answer:»\n[6] «Resulting Score #2: 100.0»\n\nRespond with the corresponding output fields, starting with the field `[[ ## proposed_instruction ## ]]`, then `[[ ## proposed_prefix_for_output_field ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `draft` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## draft ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `draft` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## draft ## ]]\nFrance draft\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `draft` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Draft the answer.",
+          "user": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## draft ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `draft` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## draft ## ]]\nFrance draft\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `draft` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Refined from attempts",
+          "user": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## draft ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `draft` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## draft ## ]]\nFrance draft\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `draft` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Refined from attempts",
+          "user": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## draft ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `draft` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## draft ## ]]\nFrance draft\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `draft` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## draft ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `draft` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## draft ## ]]\nFrance draft\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `draft` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## draft ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `draft` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Settle the answer.",
+          "user": "[[ ## draft ## ]]\nFrance draft\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `draft` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## draft ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `draft` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Refined from attempts",
+          "user": "[[ ## draft ## ]]\nFrance draft\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `draft` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Proposed at seed",
+          "user": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## draft ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        },
+        {
+          "system": "Your input fields are:\n1. `draft` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## draft ## ]]\n{draft}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Refined from attempts",
+          "user": "[[ ## draft ## ]]\nFrance draft\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+        }
+      ],
+      "final": [
+        "Proposed at seed",
+        "Settle the answer."
       ]
     }
   ]

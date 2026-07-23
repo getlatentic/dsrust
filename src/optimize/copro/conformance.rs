@@ -5,18 +5,42 @@
 //! against the same table, and every prompt it produces is compared to dspy's, in order, along with
 //! the instruction it compiles to. A divergence is a bug in this crate until dspy is shown wrong —
 //! it means the two optimizers made a different decision somewhere in the loop.
+//!
+//! The two-predictor case is the one that earns its keep: `all_candidates` accumulates across
+//! rounds only when a program has more than one predictor, and the winning program is a single
+//! snapshot, so the second predictor keeps its original instruction — the snapshot that scored
+//! highest was taken before the second was ever changed.
 
 use std::sync::Arc;
 
+use anyhow::Result;
 use serde_json::Value;
 
 use super::COPRO;
 use crate::evaluate::exact_match;
-use crate::example::Example;
+use crate::example::{Example, Prediction};
+use crate::lm::dummy::Asked;
+use crate::module::{Forward, Module};
 use crate::predict::Predict;
 use crate::signature::Signature;
-use crate::DummyLM;
-use crate::lm::dummy::Asked;
+use crate::{DummyLM, input};
+
+/// dspy's two-predictor `Pair`: the first drafts an answer, the second settles it. The composition
+/// is what makes the second predictor read a `draft`, so a demo or instruction one earns is one the
+/// other could not have.
+#[derive(dsrs::Module)]
+struct Pair {
+    first: Predict,
+    second: Predict,
+}
+
+impl Forward for Pair {
+    async fn forward(&self, inputs: Example) -> Result<Prediction> {
+        let drafted = self.first.forward(inputs).await?;
+        let draft = drafted.get("draft").cloned().unwrap_or_default();
+        self.second.forward(input! { draft: draft }).await
+    }
+}
 
 fn fixture() -> Value {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -49,10 +73,25 @@ fn model(case: &Value) -> Arc<DummyLM> {
     Arc::new(DummyLM::keyed(pairs))
 }
 
-fn student(case: &Value, model: Arc<DummyLM>) -> Predict {
-    let mut signature: Signature = case["signature"].as_str().expect("signature").parse().expect("parses");
-    signature.instructions = case["instruction"].as_str().expect("instruction").to_owned();
+fn predict(signature: &str, instruction: &str, model: Arc<DummyLM>) -> Predict {
+    let mut signature: Signature = signature.parse().expect("parses");
+    signature.instructions = instruction.to_owned();
     Predict::from_signature(signature).with_lm(model)
+}
+
+/// The student dspy compiled: a lone `Predict` for a `question -> answer` task, or the two-predictor
+/// `Pair`, each carrying the case's starting instructions and answering through the shared model.
+fn build(case: &Value, model: Arc<DummyLM>) -> Box<dyn Module> {
+    let instructions = case["instructions"].as_array().expect("instructions");
+    let text = |index: usize| instructions[index].as_str().expect("instruction");
+    match case["module"].as_str().expect("module") {
+        "predict" => Box::new(predict("question -> answer", text(0), model)),
+        "pair" => Box::new(Pair {
+            first: predict("question -> draft", text(0), model.clone()),
+            second: predict("draft -> answer", text(1), model),
+        }),
+        other => panic!("the golden names a module the harness does not know: {other}"),
+    }
 }
 
 /// Show the first difference rather than two walls of text.
@@ -82,7 +121,7 @@ fn assert_calls(case: &Value, asked: &[Asked]) {
         asked.len(),
         expected.len(),
         "case {:?} made {} calls, dspy made {}",
-        case["instruction"],
+        case["instructions"],
         asked.len(),
         expected.len()
     );
@@ -100,6 +139,14 @@ fn assert_calls(case: &Value, asked: &[Asked]) {
     }
 }
 
+fn compiled_instructions(module: &mut dyn Module) -> Vec<String> {
+    module
+        .named_predictors()
+        .iter()
+        .map(|predictor| predictor.signature.instructions.clone())
+        .collect()
+}
+
 #[tokio::test]
 async fn copro_makes_the_decisions_dspy_makes() {
     let fixture = fixture();
@@ -108,22 +155,28 @@ async fn copro_makes_the_decisions_dspy_makes() {
     for case in cases {
         let model = model(case);
         let trainset: Vec<Example> = case["trainset"].as_array().expect("trainset").iter().map(example).collect();
-        let mut student = student(case, model.clone());
+        let mut module = build(case, model.clone());
 
         COPRO::new(exact_match)
             .with_breadth(case["breadth"].as_u64().expect("breadth") as usize)
             .with_depth(case["depth"].as_u64().expect("depth") as usize)
             .with_prompt_model(model.clone())
-            .compile(&mut student, &trainset)
+            .compile(module.as_mut(), &trainset)
             .await
             .expect("compiles");
 
         assert_calls(case, &model.asked());
-        let compiled = case["final"][0].as_str().expect("a final instruction");
+        let expected: Vec<String> = case["final"]
+            .as_array()
+            .expect("final")
+            .iter()
+            .map(|value| value.as_str().expect("a final instruction").to_owned())
+            .collect();
         assert_eq!(
-            student.signature.instructions, compiled,
-            "compiled instruction for case {:?}",
-            case["instruction"]
+            compiled_instructions(module.as_mut()),
+            expected,
+            "compiled instructions for case {:?}",
+            case["instructions"]
         );
     }
 }
