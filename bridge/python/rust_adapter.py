@@ -25,6 +25,7 @@ from dspy.adapters.base import Adapter
 from dspy.adapters.baml_adapter import BAMLAdapter
 from dspy.adapters.json_adapter import JSONAdapter
 from dspy.adapters.two_step_adapter import TwoStepAdapter
+from dspy.adapters.types.tool import ToolCalls
 from dspy.adapters.xml_adapter import XMLAdapter
 from dspy.adapters.utils import (
     format_field_value,
@@ -38,6 +39,29 @@ import dsrs_bridge
 import crossings
 from reflect import Unsupported, describe, described_outputs
 
+
+
+def _serialized(value: typing.Any) -> typing.Any:
+    """A value as JSON, keeping what dspy's own serializer drops but its renderer still reads.
+
+    `ToolCalls.format` omits each call's id — the model is never shown it — and the model
+    serializer is built on `format`, so a dumped value loses it. dspy still has the id, because it
+    renders from the live object, and its native-tool replay needs it: a provider pairs a `tool`
+    message to the call it answers by that id. The crossing therefore carries it, so the crate
+    decides whether the results replay on the same information upstream decides on.
+    """
+    if isinstance(value, dspy.History):
+        return {"messages": [{k: _serialized(v) for k, v in m.items()} for m in value.messages]}
+    if isinstance(value, ToolCalls):
+        data = {
+            "tool_calls": [
+                {"id": call.id, "name": call.name, "args": call.args} for call in value.tool_calls
+            ]
+        }
+        if value.tool_call_results is not None:
+            data["tool_call_results"] = serialize_for_json(value.tool_call_results)
+        return data
+    return serialize_for_json(value)
 
 
 class _RustBacked:
@@ -57,7 +81,7 @@ class _RustBacked:
         Serializing a Python object is pydantic's job and stays here. How the text is laid out
         in a prompt is the crate's, so nothing about that is decided on this side.
         """
-        return json.dumps(serialize_for_json(value), ensure_ascii=False)
+        return json.dumps(_serialized(value), ensure_ascii=False)
 
     def format_system_message(self, signature) -> str:
         """dspy exposes this on its own, and a caller reading it should read the crate's."""
@@ -103,10 +127,13 @@ class _RustBacked:
             described_outputs(signature),
             values,
             rendered_demos,
+            # dspy's base Adapter carries this, and it decides how a tool-calling exchange
+            # replays; the crate's adapter is what acts on it.
+            getattr(self, "use_native_function_calling", False),
         )
-        return [{"role": "system", "content": system}] + [
-            {"role": role, "content": json.loads(content)} for role, content in turns
-        ]
+        # Each turn crosses as the whole message the crate rendered, since a tool result and an
+        # assistant turn carrying tool calls have keys beside `content`.
+        return [{"role": "system", "content": system}] + [json.loads(turn) for turn in turns]
 
     def parse(self, signature, completion):
         crossings.record_render()

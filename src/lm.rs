@@ -80,6 +80,9 @@ impl ModelRef {
 pub enum Role {
     User,
     Assistant,
+    /// What a tool returned. dspy sends these as their own messages once a provider has called
+    /// tools natively, each naming the call it answers.
+    Tool,
 }
 
 impl Role {
@@ -88,6 +91,7 @@ impl Role {
         match self {
             Role::User => "user",
             Role::Assistant => "assistant",
+            Role::Tool => "tool",
         }
     }
 }

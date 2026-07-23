@@ -76,7 +76,7 @@ impl super::Adapter for XmlAdapter {
         demos: &[Example],
         inputs: &[Input<'_>],
     ) -> Result<(String, Vec<ChatTurn>)> {
-        let (asked, mut turns) = conversation(signature, demos, inputs, STYLE);
+        let (asked, mut turns) = conversation(signature, demos, inputs, STYLE, false);
         turns.push(ChatTurn::user(user_message(
             &asked,
             &live_inputs(&asked, inputs),

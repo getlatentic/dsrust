@@ -9,6 +9,7 @@
 use super::{LmCacheConfig, LmConfig as ApiConfig, LmMessage, LmPart};
 use super::{LmRequest as ApiRequest, RolloutId, part_of_block};
 use crate::lm::{ChatTurn, Content, LmConfig as CallConfig, OutputMode};
+use serde_json::Value;
 
 /// A rendered `(system, turns, mode, config)` raised to the typed request — what an adapter that
 /// renders the old shape hands the typed boundary, dspy's adapter building an `LMRequest`.
@@ -31,6 +32,19 @@ pub(crate) fn raise_request(
     ApiRequest::new("", messages).configured(raise_config(mode, config))
 }
 
+/// The OpenAI-shaped messages these turns become — the list dspy's `format` returns.
+///
+/// A turn carrying tool calls or a tool result cannot be described by a role and a content alone:
+/// the calls travel beside the content and a result names the call it answers. Rendering through
+/// the request keeps that shape in one place, rather than rebuilt by every caller that needs it.
+pub fn wire_messages_of(turns: &[ChatTurn]) -> Vec<Value> {
+    let messages: Vec<LmMessage> = turns
+        .iter()
+        .map(|turn| LmMessage::new(turn.role.as_str(), parts_of(&turn.content)))
+        .collect();
+    ApiRequest::new("", messages).wire_messages()
+}
+
 /// A turn's content as the parts it was collapsed from — the inverse of
 /// [`content_of`](super::content_of), reading a block back to a part the same way
 /// [`part_of_block`] does the multimodal path.
@@ -38,6 +52,9 @@ fn parts_of(content: &Content) -> Vec<LmPart> {
     match content {
         Content::Text(text) => vec![LmPart::text(text)],
         Content::Blocks(blocks) => blocks.iter().map(part_of_block).collect(),
+        // Already parts: a turn that carries tool calls or a tool result built them directly,
+        // because no content block spells either.
+        Content::Parts(parts) => parts.clone(),
     }
 }
 

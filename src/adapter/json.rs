@@ -37,7 +37,7 @@ impl Adapter for JsonAdapter {
         demos: &[Example],
         inputs: &[Input<'_>],
     ) -> Result<(String, Vec<ChatTurn>)> {
-        let (asked, mut turns) = conversation(signature, demos, inputs, JSON_STYLE);
+        let (asked, mut turns) = conversation(signature, demos, inputs, JSON_STYLE, self.use_native_function_calling);
         turns.push(ChatTurn::user(json_user(
             &asked,
             &live_inputs(&asked, inputs),

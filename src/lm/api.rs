@@ -9,6 +9,7 @@ mod delta;
 mod event;
 mod history;
 pub(crate) mod interop;
+pub use interop::wire_messages_of;
 mod legacy;
 mod message;
 mod part;

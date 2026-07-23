@@ -210,9 +210,18 @@ fn build_signature(
 
 /// The crate's adapter for the name Python sends.
 fn adapter_named(adapter: &str) -> PyResult<Box<dyn Adapter>> {
+    configured_adapter(adapter, false)
+}
+
+/// The same, carrying dspy's `use_native_function_calling`. Only the two formats that model the
+/// setting read it; the rest render as an adapter with it off, which is upstream's default.
+fn configured_adapter(adapter: &str, native: bool) -> PyResult<Box<dyn Adapter>> {
     match adapter {
-        "chat" => Ok(Box::new(ChatAdapter::default())),
-        "json" => Ok(Box::new(JsonAdapter::default())),
+        "chat" => Ok(Box::new(ChatAdapter::default().with_native_function_calling(native))),
+        "json" => Ok(Box::new(JsonAdapter {
+            use_native_function_calling: native,
+            parallel_tool_calls: None,
+        })),
         "xml" => Ok(Box::new(XmlAdapter)),
         "baml" => Ok(Box::new(BamlAdapter)),
         // Rendering a two-step exchange never reaches the extraction model — Python holds the
@@ -316,7 +325,7 @@ fn extractor_instructions(outputs: Vec<PyOutField>) -> PyResult<String> {
 /// Each content crosses as JSON, because a message carrying a custom type is a list of blocks
 /// rather than a string and both spellings have to survive intact.
 #[pyfunction]
-#[pyo3(signature = (adapter, instructions, inputs, outputs, values, demos = None))]
+#[pyo3(signature = (adapter, instructions, inputs, outputs, values, demos = None, use_native_function_calling = false))]
 fn format_messages(
     adapter: &str,
     instructions: &str,
@@ -324,7 +333,8 @@ fn format_messages(
     outputs: Vec<PyOutField>,
     values: Vec<(String, String, bool)>,
     demos: Option<Vec<Vec<(String, String)>>>,
-) -> PyResult<(String, Vec<(String, String)>)> {
+    use_native_function_calling: bool,
+) -> PyResult<(String, Vec<String>)> {
     let signature = build_signature(instructions, inputs, outputs)?;
     // Python sends each value as JSON text so its structure survives the crossing; the
     // adapter renders it, which is where dspy renders too. The flag beside it is Python's own
@@ -341,7 +351,7 @@ fn format_messages(
                 .map_err(|error| PyValueError::new_err(format!("input `{name}`: {error}")))
         })
         .collect::<PyResult<_>>()?;
-    let adapter = adapter_named(adapter)?;
+    let adapter = configured_adapter(adapter, use_native_function_calling)?;
     let demos: Vec<Example> = demos
         .unwrap_or_default()
         .into_iter()
@@ -356,12 +366,13 @@ fn format_messages(
     let (system, turns) = adapter
         .format(&signature, &demos, &pairs)
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
-    let turns = turns
-        .into_iter()
-        .map(|turn| {
-            let content = serde_json::to_string(&turn.content)
-                .map_err(|error| PyValueError::new_err(format!("bad content: {error}")))?;
-            Ok((turn.role.as_str().to_owned(), content))
+    // The whole message, not a role and a content: a turn carrying tool calls or a tool result
+    // has keys beside `content`, and the crate is what states their shape.
+    let turns = dsrs::lm::api::wire_messages_of(&turns)
+        .iter()
+        .map(|message| {
+            serde_json::to_string(message)
+                .map_err(|error| PyValueError::new_err(format!("bad message: {error}")))
         })
         .collect::<PyResult<_>>()?;
     Ok((system, turns))

@@ -88,7 +88,7 @@ impl Adapter for ChatAdapter {
         demos: &[Example],
         inputs: &[Input<'_>],
     ) -> Result<(String, Vec<ChatTurn>)> {
-        let (asked, mut turns) = conversation(signature, demos, inputs, MARKER_STYLE);
+        let (asked, mut turns) = conversation(signature, demos, inputs, MARKER_STYLE, self.use_native_function_calling);
         turns.push(ChatTurn::user(chat_user(
             &asked,
             &live_inputs(&asked, inputs),

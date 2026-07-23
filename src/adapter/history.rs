@@ -9,7 +9,7 @@
 use serde_json::Value;
 
 use crate::example::Example;
-use crate::lm::ChatTurn;
+use crate::lm::{ChatTurn, Content, LmPart, Role};
 use crate::signature::Signature;
 
 use super::exchange::{Style, ask};
@@ -75,10 +75,15 @@ fn exchanges(value: &Value) -> Vec<Example> {
 /// The replayed turns, a user and an assistant turn per exchange.
 ///
 /// `stripped` is the signature without the history field, as [`without_field`] returns it.
-pub(super) fn turns(stripped: &Signature, value: &Value, style: Style) -> Vec<ChatTurn> {
+pub(super) fn turns(
+    stripped: &Signature,
+    value: &Value,
+    style: Style,
+    native: bool,
+) -> Vec<ChatTurn> {
     exchanges(value)
         .iter()
-        .flat_map(|exchange| replay(stripped, exchange, style))
+        .flat_map(|exchange| replay(stripped, exchange, style, native))
         .collect()
 }
 
@@ -89,11 +94,15 @@ pub(super) fn turns(stripped: &Signature, value: &Value, style: Style) -> Vec<Ch
 /// model produced the calls, not the answers — and the results follow as their own user turn, the
 /// way a tool's output arrives in a conversation. A turn whose content comes out empty is left
 /// out entirely rather than sent blank.
-fn replay(stripped: &Signature, exchange: &Example, style: Style) -> Vec<ChatTurn> {
+fn replay(stripped: &Signature, exchange: &Example, style: Style, native: bool) -> Vec<ChatTurn> {
     let mut turns = Vec::new();
     push_non_empty(&mut turns, ask(stripped, exchange, None, style));
 
     let called = tool_calls_of(exchange);
+    if native && let Some((name, calls)) = &called {
+        native_replay(&mut turns, stripped, exchange, style, name, calls);
+        return turns;
+    }
     let answered = called.as_ref().and_then(|(name, calls)| {
         calls.tool_call_results.as_ref().map(|results| (name.as_str(), results.clone()))
     });
@@ -111,6 +120,84 @@ fn replay(stripped: &Signature, exchange: &Example, style: Style) -> Vec<ChatTur
         turns.push(ChatTurn::user((style.wrap)(TOOL_CALL_RESULTS, &rendered)));
     }
     turns
+}
+
+/// dspy `format_conversation_history`'s native branch: once the provider calls tools itself, the
+/// calls travel beside the assistant's content rather than inside it, and each result comes back
+/// as its own `tool` message naming the call it answers.
+///
+/// The assistant's content is rendered from the outputs that are *not* the calls and that this
+/// exchange actually recorded, so a turn that was only a tool call carries no content at all.
+fn native_replay(
+    turns: &mut Vec<ChatTurn>,
+    stripped: &Signature,
+    exchange: &Example,
+    style: Style,
+    field: &str,
+    calls: &ToolCalls,
+) {
+    let mut spoken = stripped.clone();
+    spoken
+        .outputs
+        .retain(|output| output.name != field && exchange.get(&output.name).is_some());
+    let content = match spoken.outputs.is_empty() {
+        true => String::new(),
+        false => (style.answer)(&spoken, exchange, None)
+            .content
+            .text()
+            .unwrap_or_default()
+            .to_owned(),
+    };
+
+    // Results only replay when they answer exactly the calls made: a provider pairs each `tool`
+    // message to a call by id, so anything else would attribute a result to the wrong call.
+    let answered = calls.results_match_calls();
+    if content.is_empty() && !answered {
+        return;
+    }
+
+    let mut parts: Vec<LmPart> = Vec::new();
+    if !content.is_empty() {
+        parts.push(LmPart::text(content));
+    }
+    if answered {
+        parts.extend(calls.tool_calls.iter().map(|call| LmPart::ToolCall {
+            id: call.id.clone(),
+            name: call.name.clone(),
+            args: call.args.clone(),
+            provider_data: Default::default(),
+            metadata: Default::default(),
+        }));
+    }
+    turns.push(ChatTurn {
+        role: Role::Assistant,
+        content: Content::Parts(parts),
+    });
+
+    if !answered {
+        return;
+    }
+    for result in &calls.tool_call_results.iter().flat_map(|r| r.tool_call_results.clone()).collect::<Vec<_>>() {
+        turns.push(ChatTurn {
+            role: Role::Tool,
+            content: Content::Parts(vec![LmPart::ToolResult {
+                call_id: result.call_id.clone(),
+                name: Some(result.name.clone()),
+                content: vec![LmPart::text(tool_result_content(&result.value))],
+                is_error: result.is_error,
+                provider_data: Default::default(),
+                metadata: Default::default(),
+            }]),
+        });
+    }
+}
+
+/// dspy `_tool_result_content`: a string result is its own text; anything else is written as JSON.
+fn tool_result_content(value: &Value) -> String {
+    match value.as_str() {
+        Some(text) => text.to_owned(),
+        None => json_dumps(value),
+    }
 }
 
 /// dspy appends a replayed turn only when it has content: an exchange that recorded no inputs, or
@@ -192,7 +279,7 @@ mod tests {
     #[test]
     fn each_exchange_becomes_a_user_and_an_assistant_turn() {
         let stripped = without_field(&signature(), "history");
-        let turns = turns(&stripped, &history(), crate::adapter::chat::MARKER_STYLE);
+        let turns = turns(&stripped, &history(), crate::adapter::chat::MARKER_STYLE, false);
 
         assert_eq!(turns.len(), 4);
         assert_eq!(
@@ -218,7 +305,7 @@ mod tests {
         // Rendering it would show the model a transcript inside one request, which is the thing
         // replaying the exchanges exists to avoid.
         let stripped = without_field(&signature(), "history");
-        let turns = turns(&stripped, &history(), crate::adapter::chat::MARKER_STYLE);
+        let turns = turns(&stripped, &history(), crate::adapter::chat::MARKER_STYLE, false);
         assert!(
             !turns
                 .iter()
@@ -233,6 +320,7 @@ mod tests {
             &stripped,
             &json!({ "messages": [{ "question": "Where?" }] }),
             crate::adapter::chat::MARKER_STYLE,
+            false,
         );
         assert_eq!(
             turns[1].content.text().unwrap(),
@@ -247,10 +335,11 @@ mod tests {
             turns(
                 &stripped,
                 &json!({ "messages": [] }),
-                crate::adapter::chat::MARKER_STYLE
+                crate::adapter::chat::MARKER_STYLE,
+                false
             )
             .is_empty()
         );
-        assert!(turns(&stripped, &json!({}), crate::adapter::chat::MARKER_STYLE).is_empty());
+        assert!(turns(&stripped, &json!({}), crate::adapter::chat::MARKER_STYLE, false).is_empty());
     }
 }

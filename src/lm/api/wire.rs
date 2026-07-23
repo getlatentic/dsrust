@@ -17,6 +17,9 @@ pub enum Content {
     Text(String),
     /// Blocks in the order the provider reads them, each an OpenAI-shaped content part.
     Blocks(Vec<Value>),
+    /// Typed parts, for a turn carrying something no content block can express: an assistant's
+    /// tool calls, which travel beside the content rather than inside it, and a tool's result.
+    Parts(Vec<super::LmPart>),
 }
 
 impl Content {
@@ -24,7 +27,8 @@ impl Content {
     pub fn text(&self) -> Option<&str> {
         match self {
             Content::Text(text) => Some(text),
-            Content::Blocks(_) => None,
+            // Neither is prose: both are structured, and a caller reading text gets none.
+            Content::Blocks(_) | Content::Parts(_) => None,
         }
     }
 }

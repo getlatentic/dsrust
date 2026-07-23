@@ -182,6 +182,7 @@ fn conversation(
     demos: &[Example],
     inputs: &[Input<'_>],
     style: exchange::Style,
+    native_tools: bool,
 ) -> (Signature, Vec<ChatTurn>) {
     let mut turns = demo_turns(signature, demos, style);
     let asked = match history::field_name(signature) {
@@ -189,7 +190,7 @@ fn conversation(
         Some(name) => {
             let stripped = history::without_field(signature, name);
             if let Some(found) = inputs.iter().find(|input| input.name == name) {
-                turns.extend(history::turns(&stripped, &found.value, style));
+                turns.extend(history::turns(&stripped, &found.value, style, native_tools));
             }
             stripped
         }

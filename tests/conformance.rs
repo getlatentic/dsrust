@@ -219,6 +219,7 @@ fn assert_content(fixture: &Fixture, index: usize, expected: &Value, actual: &Co
             match actual {
                 Content::Text(_) => "prose",
                 Content::Blocks(_) => "blocks",
+                Content::Parts(_) => "parts",
             },
         ),
     }
