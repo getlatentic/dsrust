@@ -14,6 +14,7 @@ use crate::signature::{Signature, SignatureSpec};
 mod aggregation;
 mod best_of_n;
 mod chain_of_thought;
+mod completions;
 mod derived;
 mod hint;
 mod multi_chain_comparison;
@@ -425,6 +426,47 @@ mod tests {
 
     const MARKER_REPLY: &str =
         "[[ ## color ## ]]\nred\n\n[[ ## why ## ]]\ncalm\n\n[[ ## completed ## ]]";
+
+    /// A provider that answers one request with several candidates at once, which is what asking
+    /// for `n` completions returns — the shape `forward_completions` exists to read.
+    struct ManyCompletions(Vec<&'static str>);
+
+    impl crate::lm::ChatModel for ManyCompletions {
+        async fn forward(
+            &self,
+            _http: &reqwest::Client,
+            _request: &api::LmRequest,
+        ) -> Result<api::LmResponse> {
+            Ok(api::LmResponse::completions(self.0.iter().map(|reply| reply.to_string())))
+        }
+    }
+
+    /// An instruction optimizer proposes `n` candidates in one call; `forward_completions` reads
+    /// every one, not just the first, and parses each into its own prediction.
+    #[tokio::test]
+    async fn forward_completions_reads_every_candidate_not_just_the_first() {
+        let replies = vec![
+            "[[ ## color ## ]]\nred\n\n[[ ## why ## ]]\nwarm\n\n[[ ## completed ## ]]",
+            "[[ ## color ## ]]\nblue\n\n[[ ## why ## ]]\ncool\n\n[[ ## completed ## ]]",
+            "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\nfresh\n\n[[ ## completed ## ]]",
+        ];
+        let predict = Predict::parse("request -> color, why")
+            .expect("parses")
+            .with_lm(std::sync::Arc::new(ManyCompletions(replies)))
+            .with_config(LmConfig {
+                completions: Some(3),
+                ..LmConfig::default()
+            });
+
+        let candidates = predict
+            .forward_completions(input! { request: "pick a colour" })
+            .await
+            .expect("candidates");
+
+        assert_eq!(candidates.len(), 3, "every completion is read");
+        let colors: Vec<_> = candidates.iter().filter_map(|c| c.get("color").cloned()).collect();
+        assert_eq!(colors, [json!("red"), json!("blue"), json!("green")]);
+    }
 
     /// `Refine` writes advice onto a predictor between attempts, and the model has to actually
     /// see it — as one more input field, which is what upstream appends.
