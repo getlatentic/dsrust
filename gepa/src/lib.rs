@@ -5,4 +5,5 @@
 //! `gepa` package. It begins with Pareto-front candidate selection, the choice the evolution loop
 //! makes each iteration.
 
+pub mod batch;
 pub mod pareto;
