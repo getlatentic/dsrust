@@ -17,7 +17,10 @@ pub mod react;
 pub mod signature;
 
 pub use adapter::baml::BamlAdapter;
-pub use adapter::{Adapter, ChatAdapter, Extraction, JsonAdapter, Reasoning, TwoStepAdapter};
+pub use adapter::xml::XmlAdapter;
+pub use adapter::{Adapter, ChatAdapter, Extraction, JsonAdapter, NativeFunctionCalling, Reasoning, TwoStepAdapter};
+pub use adapter::{ToolCall, ToolCallResult, ToolCallResults, ToolCalls};
+pub use lm::Capabilities;
 pub use dsrs_derive::Module;
 pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
 pub use example::{Example, Prediction};

@@ -39,16 +39,6 @@ pub(super) fn field_name(signature: &Signature) -> Option<&str> {
         .map(|field| field.name.as_str())
 }
 
-/// The signature the turns are rendered against: the caller's, without the history field.
-///
-/// Every turn dspy builds for a history — the replayed exchanges and the live request alike —
-/// is rendered from this, which is why the history field appears in none of them. The system
-/// message is built from the original signature and does still announce the field.
-pub(super) fn without_field(signature: &Signature, name: &str) -> Signature {
-    let mut stripped = signature.clone();
-    stripped.inputs.retain(|field| field.name != name);
-    stripped
-}
 
 /// The exchanges a history value carries, in order.
 ///
@@ -74,7 +64,7 @@ fn exchanges(value: &Value) -> Vec<Example> {
 
 /// The replayed turns, a user and an assistant turn per exchange.
 ///
-/// `stripped` is the signature without the history field, as [`without_field`] returns it.
+/// `stripped` is the signature without the history field, as [`Signature::delete`] leaves it.
 pub(super) fn turns(
     stripped: &Signature,
     value: &Value,
@@ -271,14 +261,14 @@ mod tests {
 
     #[test]
     fn stripping_leaves_every_other_input_in_order() {
-        let stripped = without_field(&signature(), "history");
+        let stripped = signature().delete("history");
         let names: Vec<&str> = stripped.inputs.iter().map(|f| f.name.as_str()).collect();
         assert_eq!(names, ["question"]);
     }
 
     #[test]
     fn each_exchange_becomes_a_user_and_an_assistant_turn() {
-        let stripped = without_field(&signature(), "history");
+        let stripped = signature().delete("history");
         let turns = turns(&stripped, &history(), crate::adapter::chat::MARKER_STYLE, false);
 
         assert_eq!(turns.len(), 4);
@@ -304,7 +294,7 @@ mod tests {
     fn the_history_field_itself_never_reaches_a_turn() {
         // Rendering it would show the model a transcript inside one request, which is the thing
         // replaying the exchanges exists to avoid.
-        let stripped = without_field(&signature(), "history");
+        let stripped = signature().delete("history");
         let turns = turns(&stripped, &history(), crate::adapter::chat::MARKER_STYLE, false);
         assert!(
             !turns
@@ -315,7 +305,7 @@ mod tests {
 
     #[test]
     fn an_exchange_missing_an_output_says_so_rather_than_going_blank() {
-        let stripped = without_field(&signature(), "history");
+        let stripped = signature().delete("history");
         let turns = turns(
             &stripped,
             &json!({ "messages": [{ "question": "Where?" }] }),
@@ -330,7 +320,7 @@ mod tests {
 
     #[test]
     fn a_history_with_no_messages_contributes_no_turns() {
-        let stripped = without_field(&signature(), "history");
+        let stripped = signature().delete("history");
         assert!(
             turns(
                 &stripped,

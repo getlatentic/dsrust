@@ -24,7 +24,7 @@ pub use dsrs_derive::{Signature, chain_of_thought, predict, signature};
 ///
 /// [`Default`] is what keeps a field cheap to extend: every construction site names only the
 /// members it means and takes the rest from here, so a member added later costs no edits.
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq, Debug)]
 pub struct InField {
     pub name: String,
     pub desc: String,
@@ -54,7 +54,7 @@ impl InField {
 ///
 /// [`Default`] carries the same weight it does on [`InField`]: name the members that differ,
 /// take the rest from here.
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq, Debug)]
 pub struct OutField {
     pub name: String,
     pub desc: String,
@@ -124,7 +124,7 @@ pub fn json_field_schema<T: schemars::JsonSchema>() -> Value {
 /// `PartialEq` is dspy's `Signature.equals`, which an optimizer calls to refuse a teacher whose
 /// program is not the student's twin. dspy compares instructions and each field's schema notes;
 /// the same members are what these carry.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Signature {
     pub instructions: String,
     pub inputs: Vec<InField>,
@@ -165,6 +165,25 @@ impl Signature {
                 ..Default::default()
             }],
             outputs,
+        }
+    }
+
+    /// dspy `Signature.delete`: this signature without the named field, from whichever side
+    /// holds it. A name that is not there leaves the signature unchanged, as upstream has it —
+    /// deleting a field an adapter only sometimes adds should not depend on whether it did.
+    pub fn delete(&self, name: &str) -> Self {
+        let mut without = self.clone();
+        without.inputs.retain(|field| field.name != name);
+        without.outputs.retain(|field| field.name != name);
+        without
+    }
+
+    /// dspy `Signature.with_instructions`: the same fields under a different objective. What an
+    /// optimizer produces — every proposal it scores is this call.
+    pub fn with_instructions(&self, instructions: impl Into<String>) -> Self {
+        Self {
+            instructions: instructions.into(),
+            ..self.clone()
         }
     }
 

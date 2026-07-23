@@ -5,7 +5,7 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use crate::adapter::parse::FieldMismatch;
-use crate::adapter::{Adapter, ChatAdapter, Extraction, Feedback, Input, turns_for};
+use crate::adapter::{Adapter, ChatAdapter, Extraction, Feedback, Input, native_tools, turns_for};
 use crate::example::{Example, Prediction};
 use crate::lm::{DynChatModel, LmConfig, LmUsage, api, global};
 use crate::module::{Module, NamedPredictor, TraceStep};
@@ -209,6 +209,21 @@ impl Predict<Dynamic> {
     }
 }
 
+/// dspy sets `parallel_tool_calls` only when the adapter states one and the request has not
+/// already asked, so an explicit `false` from the caller is never overwritten by the default.
+///
+/// The normalized config spells it `tool_choice.parallel`, which is where upstream's own
+/// `LMToolChoice.from_value` puts a `parallel_tool_calls` kwarg.
+fn ask_for_parallel_calls(request: &mut api::LmRequest, parallel: Option<bool>) {
+    let Some(parallel) = parallel else {
+        return;
+    };
+    let choice = request.config.tool_choice.get_or_insert_with(Default::default);
+    if choice.parallel.is_none() {
+        choice.parallel = Some(parallel);
+    }
+}
+
 impl<S> Predict<S> {
     /// One attempt: render through the adapter, ask the model, hand back the raw reply.
     /// dspy's `Adapter.__call__` in the module rather than the adapter, because a Rust trait
@@ -224,13 +239,27 @@ impl<S> Predict<S> {
         let hint = self.hint.as_deref();
         let asked = hint::signature_with(&self.signature, hint);
         let hinted = hint::inputs_with(inputs, hint);
+        // dspy's `_call_preprocess`: when the provider will call the tools itself, they move onto
+        // the request and leave the signature, so what gets rendered never mentions them. An
+        // adapter that does not ask for native calls skips the whole branch, upstream's own
+        // refusal of a bad signature included.
+        let asking = adapter.native_function_calling();
+        let native = match asking.enabled {
+            true => native_tools::plan(&asked, &hinted, lm.capabilities_dyn())?,
+            false => None,
+        };
+        let asked = native.as_ref().map_or(asked, |plan| plan.signature.clone());
         let schema = asked.schema();
         let (system, opening) = adapter.format(&asked, &self.demos, &hinted)?;
         let mode = adapter.output_mode(&schema);
         let turns = turns_for(opening, feedback);
         // The typed 3.3 boundary: predict hands the model an `LMRequest`. Behind it the request
         // is lowered to the shape the providers still speak, so no wire byte moves.
-        let request = api::interop::raise_request(&system, &turns, mode, &self.config);
+        let mut request = api::interop::raise_request(&system, &turns, mode, &self.config);
+        if let Some(plan) = native {
+            request.tools = plan.tools;
+            ask_for_parallel_calls(&mut request, asking.parallel);
+        }
         lm.forward_dyn(http, &request).await
     }
 

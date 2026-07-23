@@ -38,6 +38,11 @@ impl DynChatModel for NotOnThisSide {
             ))
         })
     }
+
+    /// Nothing, which is also what a model that never answers can honour.
+    fn capabilities_dyn(&self) -> dsrs::lm::Capabilities {
+        dsrs::lm::Capabilities::default()
+    }
 }
 
 /// One input field as Python describes it: name, kind, description, any closed set, the prose

@@ -82,6 +82,13 @@ impl ChatAdapter {
 }
 
 impl Adapter for ChatAdapter {
+    fn native_function_calling(&self) -> super::NativeFunctionCalling {
+        super::NativeFunctionCalling {
+            enabled: self.use_native_function_calling,
+            parallel: self.parallel_tool_calls,
+        }
+    }
+
     fn format(
         &self,
         signature: &Signature,

@@ -1,6 +1,7 @@
 pub mod api;
 mod anthropic;
 pub mod cache;
+mod capabilities;
 mod call;
 pub mod dummy;
 pub mod global;
@@ -17,6 +18,7 @@ use futures_util::Stream;
 use serde_json::Value;
 
 pub use cache::{Cached, ResponseCache};
+pub use capabilities::Capabilities;
 pub use call::{LmConfig, LmUsage};
 pub use global::{configure, configure_with_client};
 pub use api::{Content, Detail, LmPart, LmSource};
@@ -72,6 +74,18 @@ impl ModelRef {
             provider,
             id: id.to_owned(),
         })
+    }
+
+    /// The reference as written, `provider/model-id`. What the capability registry is keyed by,
+    /// and what dspy hands litellm.
+    pub fn reference(&self) -> String {
+        let prefix = match self.provider {
+            Provider::Anthropic => "anthropic",
+            Provider::OpenRouter => "openrouter",
+            Provider::OpenAiCompatible => "openai",
+            Provider::Ollama => "ollama",
+        };
+        format!("{prefix}/{}", self.id)
     }
 }
 
@@ -143,6 +157,9 @@ pub trait DynChatModel: Send + Sync {
         http: &'a reqwest::Client,
         request: &'a api::LmRequest,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>>;
+
+    /// The object-safe form of [`ChatModel::capabilities`].
+    fn capabilities_dyn(&self) -> Capabilities;
 }
 
 impl<T: ChatModel + Send + Sync> DynChatModel for T {
@@ -153,7 +170,12 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>> {
         Box::pin(self.forward(http, request))
     }
+
+    fn capabilities_dyn(&self) -> Capabilities {
+        self.capabilities()
+    }
 }
+
 
 /// The typed 3.3 model boundary: dspy's `forward(request: LMRequest) -> LMResponse`.
 ///
@@ -166,6 +188,12 @@ pub trait ChatModel {
         http: &'a reqwest::Client,
         request: &'a api::LmRequest,
     ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a;
+
+    /// What this model can be asked for natively. Nothing, unless the implementor says otherwise
+    /// — the same default dspy's `BaseLM` carries, and for the same reason.
+    fn capabilities(&self) -> Capabilities {
+        Capabilities::default()
+    }
 }
 
 /// One configured language model: a model reference plus the credentials and hosts its
@@ -182,6 +210,9 @@ pub struct LM {
     /// almost never means to buy the answer twice, and every retry-shaped module depends on
     /// `rollout_id` having a cache to miss. [`Self::without_cache`] turns it off.
     pub cache: bool,
+    /// What this model can be asked for natively, where the caller has stated it rather than
+    /// leaving it to the registry. See [`Self::with_capabilities`].
+    capabilities: Option<Capabilities>,
 }
 
 impl LM {
@@ -196,7 +227,19 @@ impl LM {
             ollama_host: env_nonempty("OLLAMA_HOST").unwrap_or_else(|| DEFAULT_OLLAMA_HOST.into()),
             openai: OpenAiConfig::from_env(),
             cache: true,
+            capabilities: None,
         })
+    }
+
+    /// State what this model can be asked for natively, instead of taking the registry's word.
+    ///
+    /// The registry is litellm's, and it answers for a model it lists. An ollama model is the
+    /// case it cannot answer for — upstream resolves those by asking the local daemon what is
+    /// pulled — so a caller running one says here what it does, and the request path treats the
+    /// answer exactly as it treats the registry's.
+    pub fn with_capabilities(mut self, capabilities: Capabilities) -> Self {
+        self.capabilities = Some(capabilities);
+        self
     }
 
     /// Reach the provider every time, replaying nothing. dspy's `LM(cache=False)`.
@@ -288,6 +331,12 @@ impl ChatModel for LM {
         usage::record(&self.model.id, answered.spend());
         cache::shared().keep(key, answered.clone());
         Ok(answered)
+    }
+
+    /// What this model's provider will honour natively, from the same registry dspy consults —
+    /// unless the caller has said otherwise.
+    fn capabilities(&self) -> Capabilities {
+        self.capabilities.unwrap_or_else(|| Capabilities::of(&self.model.reference()))
     }
 }
 

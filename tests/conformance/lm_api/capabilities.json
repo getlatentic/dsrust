@@ -1,0 +1,131 @@
+{
+  "source": "litellm 1.93.0 via scripts/generate_lm_capabilities_fixture.py",
+  "litellm_version": "1.93.0",
+  "flags": [
+    "supports_function_calling",
+    "supports_reasoning",
+    "supports_response_schema"
+  ],
+  "cases": [
+    {
+      "model": "openai/gpt-4o",
+      "capabilities": [
+        true,
+        false,
+        true
+      ]
+    },
+    {
+      "model": "openai/gpt-4o-mini",
+      "capabilities": [
+        true,
+        false,
+        true
+      ]
+    },
+    {
+      "model": "openai/gpt-5",
+      "capabilities": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "model": "openai/gpt-3.5-turbo",
+      "capabilities": [
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "model": "openai/o1",
+      "capabilities": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "model": "openai/text-davinci-003",
+      "capabilities": [
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "model": "anthropic/claude-opus-4-1",
+      "capabilities": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "model": "anthropic/claude-sonnet-4-5",
+      "capabilities": [
+        true,
+        true,
+        true
+      ]
+    },
+    {
+      "model": "anthropic/claude-3-5-sonnet-20241022",
+      "capabilities": [
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "model": "anthropic/claude-2.1",
+      "capabilities": [
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "model": "openrouter/openai/gpt-4o",
+      "capabilities": [
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "model": "openrouter/anthropic/claude-3.5-sonnet",
+      "capabilities": [
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "model": "ollama/qwen2.5:7b-instruct",
+      "capabilities": [
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "model": "ollama/llama3.2",
+      "capabilities": [
+        false,
+        false,
+        false
+      ]
+    },
+    {
+      "model": "openai/a-model-litellm-has-never-heard-of",
+      "capabilities": [
+        false,
+        false,
+        false
+      ]
+    }
+  ]
+}

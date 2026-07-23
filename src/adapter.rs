@@ -61,6 +61,7 @@ mod blocks;
 mod chat;
 pub use chat::ChatAdapter;
 mod json;
+pub mod native_tools;
 pub use json::JsonAdapter;
 mod two_step;
 pub use two_step::{TwoStepAdapter, extractor_signature};
@@ -141,6 +142,16 @@ pub trait Adapter: Send + Sync {
         None
     }
 
+    /// Whether this adapter asks the provider to call tools itself, and what it says about
+    /// parallel calls while doing so.
+    ///
+    /// dspy keeps both on its base `Adapter` and reads them in `_call_preprocess`; here they are
+    /// one answer because they are only ever consulted together. Off by default, which is the
+    /// base class's own default — `JSONAdapter` is the one that overrides it.
+    fn native_function_calling(&self) -> NativeFunctionCalling {
+        NativeFunctionCalling::default()
+    }
+
     /// A second exchange this adapter needs before its reply carries the signature's fields.
     ///
     /// dspy's `TwoStepAdapter` lets the main model answer in prose, then asks a second model to
@@ -151,6 +162,16 @@ pub trait Adapter: Send + Sync {
     fn extraction(&self, _signature: &Signature) -> Option<Extraction<'_>> {
         None
     }
+}
+
+/// What an adapter says about letting the provider call tools itself.
+///
+/// dspy spells these as two attributes on the base `Adapter`. `parallel` is `None` where upstream
+/// leaves the provider option unset, which is not the same as asking for `false`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct NativeFunctionCalling {
+    pub enabled: bool,
+    pub parallel: Option<bool>,
 }
 
 /// The second ask an adapter cannot make for itself: what to ask, how to render it, and which
@@ -188,7 +209,10 @@ fn conversation(
     let asked = match history::field_name(signature) {
         None => signature.clone(),
         Some(name) => {
-            let stripped = history::without_field(signature, name);
+            // Every turn dspy builds for a history — the replayed exchanges and the live request
+            // alike — is rendered without the history field, which is why it appears in none of them.
+            // The system message is built from the original signature and does still announce it.
+            let stripped = signature.delete(name);
             if let Some(found) = inputs.iter().find(|input| input.name == name) {
                 turns.extend(history::turns(&stripped, &found.value, style, native_tools));
             }

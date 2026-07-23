@@ -25,6 +25,20 @@ PINS = {
 }
 
 
+def observed(name: str) -> str:
+    """The installed version of `name`, which this repo does not pin.
+
+    litellm arrives as whatever dspy asked for, so there is nothing here to hold it to — but a
+    fixture generated from it still has to say which version answered.
+    """
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        return version(name)
+    except PackageNotFoundError:
+        raise SystemExit(f"{name} is not installed") from None
+
+
 def require(name: str) -> str:
     """The installed version of `name`, having checked it against the pin.
 
