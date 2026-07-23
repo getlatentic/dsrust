@@ -20,7 +20,7 @@ pub use cache::{Cached, ResponseCache};
 pub use call::{LmConfig, LmUsage};
 pub use global::{configure, configure_with_client};
 pub use api::{Content, Detail, LmPart, LmSource};
-pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig};
+pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig, OpenAiWire};
 pub use token_limit::{TokenLimitField, TokenLimitRule};
 pub use usage::{UsageTracker, track as track_usage};
 
@@ -241,6 +241,13 @@ impl LM {
     /// See [`JsonFormat`].
     pub fn with_openai_json_format(mut self, json_format: JsonFormat) -> Self {
         self.openai.json_format = json_format;
+        self
+    }
+
+    /// Speak the Responses API rather than chat completions — OpenAI's wire for reasoning models,
+    /// dspy's `model_type="responses"`. Non-streaming only for now. See [`OpenAiWire`].
+    pub fn with_openai_responses_api(mut self) -> Self {
+        self.openai.wire = OpenAiWire::Responses;
         self
     }
 

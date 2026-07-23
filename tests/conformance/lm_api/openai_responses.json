@@ -1,0 +1,1611 @@
+{
+  "source": "dspy==3.3.0b1 clients/openai_format to_openai_responses_request + responses_to_lm_response",
+  "dspy_version": "3.3.0b1",
+  "request_cases": [
+    {
+      "name": "minimal",
+      "lm_request": {
+        "model": "openai/gpt-5",
+        "messages": [
+          {
+            "role": "system",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "be helpful"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-5",
+        "input": [
+          {
+            "role": "system",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "be helpful"
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "hi"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "temperature_and_top_p",
+      "lm_request": {
+        "model": "openai/gpt-4o",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": 0.7,
+          "max_tokens": null,
+          "top_p": 0.9,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "hi"
+              }
+            ]
+          }
+        ],
+        "temperature": 0.7,
+        "top_p": 0.9
+      }
+    },
+    {
+      "name": "max_output_tokens",
+      "lm_request": {
+        "model": "openai/gpt-4o",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": 16000,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "hi"
+              }
+            ]
+          }
+        ],
+        "max_output_tokens": 16000
+      }
+    },
+    {
+      "name": "stop_and_n_and_logprobs",
+      "lm_request": {
+        "model": "openai/gpt-4o",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": [
+            "\n\n"
+          ],
+          "n": 2,
+          "logprobs": 5,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "hi"
+              }
+            ]
+          }
+        ],
+        "n": 2,
+        "logprobs": 5,
+        "stop": [
+          "\n\n"
+        ]
+      }
+    },
+    {
+      "name": "extensions_passthrough",
+      "lm_request": {
+        "model": "openai/gpt-4o",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {
+            "seed": 42,
+            "user": "acct-1"
+          }
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "hi"
+              }
+            ]
+          }
+        ],
+        "seed": 42,
+        "user": "acct-1"
+      }
+    },
+    {
+      "name": "reasoning",
+      "lm_request": {
+        "model": "openai/o3",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": {
+            "effort": "high",
+            "max_tokens": 512,
+            "summary": "concise"
+          },
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/o3",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "hi"
+              }
+            ]
+          }
+        ],
+        "reasoning": {
+          "effort": "high",
+          "summary": "concise"
+        }
+      }
+    },
+    {
+      "name": "prompt_cache_key",
+      "lm_request": {
+        "model": "openai/gpt-4o",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": {
+            "enabled": null,
+            "key": "k1"
+          },
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-4o",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "hi"
+              }
+            ]
+          }
+        ],
+        "prompt_cache_key": "k1"
+      }
+    },
+    {
+      "name": "image",
+      "lm_request": {
+        "model": "openai/gpt-5",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "describe"
+              },
+              {
+                "type": "image",
+                "metadata": {},
+                "media_type": "image/png",
+                "data": null,
+                "url": "https://example.com/a.jpg",
+                "file_id": null,
+                "path": null,
+                "detail": "high"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-5",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "describe"
+              },
+              {
+                "type": "input_image",
+                "image_url": "https://example.com/a.jpg",
+                "detail": "high"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "tools",
+      "lm_request": {
+        "model": "openai/gpt-5",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": null,
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-5",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "weather?"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_choice_required",
+      "lm_request": {
+        "model": "openai/gpt-5",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": null,
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": {
+            "mode": "required",
+            "allowed": null,
+            "parallel": null
+          },
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-5",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "weather?"
+              }
+            ]
+          }
+        ],
+        "tool_choice": "required",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_choice_single_named",
+      "lm_request": {
+        "model": "openai/gpt-5",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": null,
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": {
+            "mode": "required",
+            "allowed": [
+              "get_weather"
+            ],
+            "parallel": null
+          },
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-5",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "weather?"
+              }
+            ]
+          }
+        ],
+        "tool_choice": {
+          "type": "function",
+          "function": {
+            "name": "get_weather"
+          }
+        },
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_choice_parallel_off",
+      "lm_request": {
+        "model": "openai/gpt-5",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": null,
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": {
+            "mode": "auto",
+            "allowed": null,
+            "parallel": false
+          },
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-5",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "weather?"
+              }
+            ]
+          }
+        ],
+        "tool_choice": "auto",
+        "parallel_tool_calls": false,
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "tool_conversation",
+      "lm_request": {
+        "model": "openai/gpt-5",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "tool_call",
+                "metadata": {},
+                "id": "call_1",
+                "name": "get_weather",
+                "args": {
+                  "city": "Paris"
+                },
+                "provider_data": {}
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "tool",
+            "parts": [
+              {
+                "type": "tool_result",
+                "metadata": {},
+                "call_id": "call_1",
+                "name": "get_weather",
+                "content": [
+                  {
+                    "type": "text",
+                    "metadata": {},
+                    "text": "sunny, 22C"
+                  }
+                ],
+                "is_error": false,
+                "provider_data": {}
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "name": "get_weather",
+            "description": null,
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {},
+            "provider_data": {}
+          }
+        ],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-5",
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "weather in Paris?"
+              }
+            ]
+          },
+          {
+            "type": "function_call",
+            "name": "get_weather",
+            "arguments": "{\"city\": \"Paris\"}",
+            "call_id": "call_1"
+          },
+          {
+            "type": "function_call_output",
+            "output": "sunny, 22C",
+            "call_id": "call_1"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "get_weather",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "reply_cases": [
+    {
+      "name": "text_message",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "It is sunny.",
+                "annotations": []
+              }
+            ]
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "It is sunny."
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "reasoning_summary_and_message",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "reasoning",
+            "summary": [
+              {
+                "type": "summary_text",
+                "text": "Let me think."
+              }
+            ]
+          },
+          {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "Sunny.",
+                "annotations": []
+              }
+            ]
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "thinking",
+                "metadata": {},
+                "text": "Let me think.",
+                "redacted": false
+              },
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "Sunny."
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "reasoning_content",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "reasoning",
+            "content": [
+              {
+                "type": "reasoning_text",
+                "text": "Working it out."
+              }
+            ]
+          },
+          {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "42.",
+                "annotations": []
+              }
+            ]
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "thinking",
+                "metadata": {},
+                "text": "Working it out.",
+                "redacted": false
+              },
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "42."
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "function_call",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "function_call",
+            "name": "get_weather",
+            "arguments": "{\"city\": \"Paris\"}",
+            "call_id": "call_1"
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "tool_call",
+                "metadata": {},
+                "id": "call_1",
+                "name": "get_weather",
+                "args": {
+                  "city": "Paris"
+                },
+                "provider_data": {
+                  "type": "function_call",
+                  "name": "get_weather",
+                  "arguments": "{\"city\": \"Paris\"}",
+                  "call_id": "call_1"
+                }
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "text_and_function_call",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "Let me check.",
+                "annotations": []
+              }
+            ]
+          },
+          {
+            "type": "function_call",
+            "name": "get_weather",
+            "arguments": "{\"city\": \"Paris\"}",
+            "call_id": "call_1"
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "Let me check."
+              },
+              {
+                "type": "tool_call",
+                "metadata": {},
+                "id": "call_1",
+                "name": "get_weather",
+                "args": {
+                  "city": "Paris"
+                },
+                "provider_data": {
+                  "type": "function_call",
+                  "name": "get_weather",
+                  "arguments": "{\"city\": \"Paris\"}",
+                  "call_id": "call_1"
+                }
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "refusal",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "refusal",
+                "refusal": "I can't help with that."
+              }
+            ]
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "refusal",
+                "metadata": {},
+                "text": "I can't help with that."
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "citations_from_annotations",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "Paris is the capital.",
+                "annotations": [
+                  {
+                    "type": "url_citation",
+                    "url": "https://example.com/fr",
+                    "title": "France"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        }
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "Paris is the capital."
+              },
+              {
+                "type": "citation",
+                "metadata": {
+                  "type": "url_citation"
+                },
+                "text": null,
+                "title": "France",
+                "url": "https://example.com/fr"
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "cache_hit",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "cached",
+                "annotations": []
+              }
+            ]
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15
+        },
+        "cache_hit": true
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "cached"
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "total_tokens": 15,
+          "prompt_tokens": 10,
+          "completion_tokens": 5,
+          "reasoning_tokens": null,
+          "cache_read_tokens": null,
+          "cache_write_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "details": {}
+        },
+        "cost": null,
+        "cache_hit": true,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "no_usage",
+      "response": {
+        "id": "resp_1",
+        "model": "gpt-5",
+        "output": [
+          {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "hi",
+                "annotations": []
+              }
+            ]
+          }
+        ]
+      },
+      "lm_response": {
+        "model": "gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": null,
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_1",
+        "provider_data": {},
+        "metadata": {}
+      }
+    },
+    {
+      "name": "model_fallback",
+      "response": {
+        "id": "resp_9",
+        "model": null,
+        "output": [
+          {
+            "type": "message",
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "hi",
+                "annotations": []
+              }
+            ]
+          }
+        ]
+      },
+      "lm_response": {
+        "model": "openai/gpt-5",
+        "outputs": [
+          {
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "finish_reason": null,
+            "truncated": false,
+            "logprobs": null,
+            "provider_data": {},
+            "metadata": {}
+          }
+        ],
+        "usage": null,
+        "cost": null,
+        "cache_hit": false,
+        "response_id": "resp_9",
+        "provider_data": {},
+        "metadata": {}
+      }
+    }
+  ]
+}

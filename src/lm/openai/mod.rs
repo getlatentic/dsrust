@@ -12,6 +12,7 @@ use super::token_limit::TokenLimitRule;
 use super::{ChatModel, LmUsage, PROVIDER_TIMEOUT, api, env_nonempty};
 
 mod response;
+mod responses;
 mod stream;
 
 /// OpenAI's own endpoint, and the value every other service replaces.
@@ -53,6 +54,16 @@ pub enum JsonFormat {
     Schema,
 }
 
+/// Which OpenAI wire an endpoint speaks: the chat-completions route every service shares, or the
+/// Responses API OpenAI uses for reasoning models. dspy's `model_type`, narrowed to the two this
+/// crate builds. Non-streaming only for now — a streamed call takes the chat route regardless.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OpenAiWire {
+    #[default]
+    Chat,
+    Responses,
+}
+
 /// Which OpenAI-shaped service [`Provider::OpenAiCompatible`](super::Provider::OpenAiCompatible)
 /// talks to.
 #[derive(Debug, Clone)]
@@ -65,6 +76,8 @@ pub struct OpenAiConfig {
     pub json_format: JsonFormat,
     /// Which generation-cap field this service takes. See [`TokenLimitRule`].
     pub token_limit_rule: TokenLimitRule,
+    /// The chat route, or the Responses API. See [`OpenAiWire`].
+    pub wire: OpenAiWire,
 }
 
 impl Default for OpenAiConfig {
@@ -78,6 +91,7 @@ impl Default for OpenAiConfig {
             // this rule in place on purpose: a service is chosen by the caller, not
             // inferred from a host that a proxy or gateway can freely change.
             token_limit_rule: TokenLimitRule::ByOpenAiModelFamily,
+            wire: OpenAiWire::Chat,
         }
     }
 }
@@ -104,6 +118,7 @@ pub(crate) struct Endpoint<'a> {
     key_var: &'a str,
     json_format: JsonFormat,
     token_limit_rule: TokenLimitRule,
+    wire: OpenAiWire,
 }
 
 impl<'a> Endpoint<'a> {
@@ -119,6 +134,7 @@ impl<'a> Endpoint<'a> {
             key_var: OPENROUTER_KEY_VAR,
             json_format: JsonFormat::Object,
             token_limit_rule: TokenLimitRule::AlwaysMaxTokens,
+            wire: OpenAiWire::Chat,
         }
     }
 
@@ -133,6 +149,7 @@ impl<'a> Endpoint<'a> {
             key_var: &config.key_var,
             json_format: config.json_format,
             token_limit_rule: config.token_limit_rule,
+            wire: config.wire,
         }
     }
 
@@ -180,16 +197,20 @@ impl ChatModel for Endpoint<'_> {
             let key = self
                 .api_key
                 .ok_or_else(|| anyhow!("{} is not set", self.key_var))?;
+            let (url, body) = match self.wire {
+                OpenAiWire::Chat => (
+                    chat_completions_url(self.base_url),
+                    request(self.model, call, self.json_format, self.token_limit_rule),
+                ),
+                OpenAiWire::Responses => {
+                    (responses_url(self.base_url), responses::request(self.model, call))
+                }
+            };
             let response = http
-                .post(chat_completions_url(self.base_url))
+                .post(url)
                 .bearer_auth(key)
                 .timeout(PROVIDER_TIMEOUT)
-                .json(&request(
-                    self.model,
-                    call,
-                    self.json_format,
-                    self.token_limit_rule,
-                ))
+                .json(&body)
                 .send()
                 .await
                 .with_context(|| format!("{} request failed", self.label))?;
@@ -198,7 +219,10 @@ impl ChatModel for Endpoint<'_> {
                 .json()
                 .await
                 .with_context(|| format!("{} response was not JSON", self.label))?;
-            response::reply(self.label, self.model, status, &body)
+            match self.wire {
+                OpenAiWire::Chat => response::reply(self.label, self.model, status, &body),
+                OpenAiWire::Responses => responses::reply(self.label, self.model, status, &body),
+            }
         }
     }
 }
@@ -207,6 +231,11 @@ impl ChatModel for Endpoint<'_> {
 /// routinely configured with one.
 fn chat_completions_url(base_url: &str) -> String {
     format!("{}/chat/completions", base_url.trim_end_matches('/'))
+}
+
+/// The Responses API route, `/responses` off the same base URL.
+fn responses_url(base_url: &str) -> String {
+    format!("{}/responses", base_url.trim_end_matches('/'))
 }
 
 fn request(
@@ -275,7 +304,7 @@ fn request(
 }
 
 /// dspy's `tool_to_openai`: a function tool, its provider data merged onto the tool object.
-fn tool_json(tool: &api::LmToolSpec) -> Value {
+pub(super) fn tool_json(tool: &api::LmToolSpec) -> Value {
     let mut data = json!({
         "type": tool.r#type,
         "function": { "name": tool.name, "parameters": tool.parameters },
@@ -292,7 +321,7 @@ fn tool_json(tool: &api::LmToolSpec) -> Value {
 /// dspy's `tool_choice_to_openai`: one named tool when exactly one is allowed under `auto`/
 /// `required`, otherwise the bare mode. A wider constraint OpenAI cannot express falls back to the
 /// mode rather than raising, since the request builder has no way to report an error.
-fn apply_tool_choice(request: &mut Value, choice: &api::LmToolChoice) {
+pub(super) fn apply_tool_choice(request: &mut Value, choice: &api::LmToolChoice) {
     let single = choice.allowed.as_ref().filter(|allowed| {
         allowed.len() == 1
             && matches!(
@@ -373,6 +402,22 @@ mod tests {
         assert_eq!(config.token_limit_rule, TokenLimitRule::ByOpenAiModelFamily);
     }
 
+    /// The Responses API is opt-in and reached at its own route off the same base url; a chat
+    /// endpoint is untouched by it.
+    #[test]
+    fn the_responses_wire_is_opt_in_and_has_its_own_route() {
+        assert_eq!(
+            responses_url("https://api.openai.com/v1"),
+            "https://api.openai.com/v1/responses"
+        );
+        assert_eq!(OpenAiConfig::default().wire, OpenAiWire::Chat);
+        let responses = OpenAiConfig {
+            wire: OpenAiWire::Responses,
+            ..OpenAiConfig::default()
+        };
+        assert_eq!(Endpoint::configured("gpt-5", &responses).wire, OpenAiWire::Responses);
+    }
+
     #[test]
     fn a_trailing_slash_on_the_base_url_names_the_same_route() {
         assert_eq!(
@@ -435,6 +480,7 @@ mod tests {
             key_var: "GROQ_API_KEY".into(),
             json_format: JsonFormat::Object,
             token_limit_rule: TokenLimitRule::AlwaysMaxTokens,
+            wire: OpenAiWire::Chat,
         };
         let endpoint = Endpoint::configured("probe", &config);
         assert_eq!(endpoint.key_var, "GROQ_API_KEY");

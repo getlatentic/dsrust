@@ -314,6 +314,14 @@ impl LmPart {
         }
     }
 
+    /// A model declining to answer, kept as its own part rather than folded into the reply text.
+    pub fn refusal(text: impl Into<String>) -> Self {
+        Self::Refusal {
+            text: text.into(),
+            metadata: Metadata::new(),
+        }
+    }
+
     /// dspy's `citation_to_part`: the quote, title and link read from whichever spelling a provider
     /// used — OpenAI's litellm channel and Anthropic's own blocks disagree — every other field kept
     /// as metadata.
