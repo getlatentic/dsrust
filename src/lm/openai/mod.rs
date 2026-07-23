@@ -178,7 +178,7 @@ impl<'a> Endpoint<'a> {
                 self.api_key.map(str::to_owned),
                 self.label.to_owned(),
                 self.model.to_owned(),
-                responses::streaming_body(self.model, call),
+                responses::streaming_body(self.model, call, self.json_format),
             )),
         }
     }
@@ -214,7 +214,7 @@ impl ChatModel for Endpoint<'_> {
                     request(self.model, call, self.json_format, self.token_limit_rule),
                 ),
                 OpenAiWire::Responses => {
-                    (responses_url(self.base_url), responses::request(self.model, call))
+                    (responses_url(self.base_url), responses::request(self.model, call, self.json_format))
                 }
             };
             let response = http

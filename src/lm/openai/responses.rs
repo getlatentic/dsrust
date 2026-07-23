@@ -11,16 +11,17 @@ use anyhow::{Result, anyhow};
 use futures_util::Stream;
 use serde_json::{Value, json};
 
-use super::{apply_tool_choice, response, tool_json};
+use super::{JsonFormat, apply_tool_choice, response, tool_json};
 use crate::lm::PROVIDER_TIMEOUT;
 use crate::lm::api::{self, LmDelta, LmStreamEvent, Metadata};
 use crate::lm::streaming::{Framed, Framing, StreamState};
 
 // -------- request: LmRequest -> Responses body --------
 
-/// The Responses request body for one call. `response_format` is not built here — like the chat wire
-/// fixture, dspy carries the whole `text.format` envelope while this crate stores the bare schema.
-pub(super) fn request(model: &str, call: &api::LmRequest) -> Value {
+/// The Responses request body for one call. A requested schema rides under `text.format`, built from
+/// the bare schema by [`text_format`] — this crate builds the envelope rather than carrying dspy's
+/// whole one, the same split the chat wire makes.
+pub(super) fn request(model: &str, call: &api::LmRequest, json_format: JsonFormat) -> Value {
     let config = &call.config;
     let mut body = json!({ "model": model, "input": input(&call.wire_messages()) });
     // dspy's `responses_config_kwargs` opens with the extensions, unknown kwargs passing through.
@@ -50,6 +51,9 @@ pub(super) fn request(model: &str, call: &api::LmRequest) -> Value {
     }
     if let Some(reasoning) = reasoning(call) {
         body["reasoning"] = reasoning;
+    }
+    if let Some(schema) = call.output_schema() {
+        body["text"] = text_format(schema, json_format);
     }
     if let Some(cache) = &config.prompt_cache
         && let Some(key) = &cache.key
@@ -158,6 +162,19 @@ fn output_text(content: &Value) -> String {
     }
 }
 
+/// The Responses `text.format` for json mode, built from the bare schema the way the chat wire builds
+/// its `response_format`: the object envelope by default, a strict schema when [`JsonFormat::Schema`]
+/// is asked for. This is the flat shape the Responses API — and litellm's own transform — expect,
+/// name/schema/strict at the format level rather than the chat wire's nested `json_schema`.
+fn text_format(schema: &Value, json_format: JsonFormat) -> Value {
+    match json_format {
+        JsonFormat::Object => json!({ "format": { "type": "json_object" } }),
+        JsonFormat::Schema => json!({
+            "format": { "type": "json_schema", "name": "response", "schema": schema, "strict": true },
+        }),
+    }
+}
+
 /// dspy's `reasoning_to_responses_kwargs`: the effort and the summary — not the max-tokens, which the
 /// Responses API does not take — under a `reasoning` object, or `None` when neither was set.
 fn reasoning(call: &api::LmRequest) -> Option<Value> {
@@ -175,8 +192,8 @@ fn reasoning(call: &api::LmRequest) -> Option<Value> {
 // -------- streaming: Responses SSE -> typed events --------
 
 /// The request body with the streaming flag set.
-pub(super) fn streaming_body(model: &str, call: &api::LmRequest) -> Value {
-    let mut body = request(model, call);
+pub(super) fn streaming_body(model: &str, call: &api::LmRequest, json_format: JsonFormat) -> Value {
+    let mut body = request(model, call, json_format);
     body["stream"] = json!(true);
     body
 }
@@ -386,7 +403,7 @@ mod tests {
             let call: api::LmRequest = serde_json::from_value(case["lm_request"].clone())
                 .unwrap_or_else(|error| panic!("{name}: the typed request did not parse: {error}"));
             assert_eq!(
-                request(&call.model, &call),
+                request(&call.model, &call, JsonFormat::Object),
                 case["expected"],
                 "{name}: our Responses body diverges from dspy's"
             );
@@ -407,6 +424,27 @@ mod tests {
             ours.outputs.iter_mut().for_each(|output| output.provider_output = None);
             assert_eq!(ours, expected, "{name}: our Responses reply diverges from dspy's");
         }
+    }
+
+    /// A requested schema rides under `text.format` in the flat shape the Responses API takes — the
+    /// object envelope by default, the strict named schema on [`JsonFormat::Schema`].
+    #[test]
+    fn a_requested_schema_rides_under_text_format() {
+        let schema = json!({ "type": "object", "properties": { "answer": { "type": "string" } } });
+        let call = crate::lm::api::interop::raise_request(
+            "be helpful",
+            &[crate::lm::ChatTurn::user("hi")],
+            crate::lm::OutputMode::Json { schema: &schema },
+            &crate::lm::LmConfig::default(),
+        );
+        assert_eq!(
+            request("gpt-5", &call, JsonFormat::Object)["text"],
+            json!({ "format": { "type": "json_object" } })
+        );
+        assert_eq!(
+            request("gpt-5", &call, JsonFormat::Schema)["text"],
+            json!({ "format": { "type": "json_schema", "name": "response", "schema": schema, "strict": true } })
+        );
     }
 
     fn request_fixture() -> Value {
