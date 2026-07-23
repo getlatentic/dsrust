@@ -54,6 +54,19 @@ impl<'a> From<&'a OutField> for Described<'a> {
     }
 }
 
+impl Described<'_> {
+    /// dspy `get_field_description_string`: a field left undescribed carries `${name}` as its
+    /// desc, and upstream renders that placeholder as nothing. A signature declared in this crate
+    /// spells the same absence as an empty string, so both read as no description — which is what
+    /// COPRO's `attempted_instructions` relies on, declared with no desc yet rendered blank.
+    fn description(&self) -> &str {
+        match self.desc.strip_prefix("${").and_then(|rest| rest.strip_suffix('}')) {
+            Some(inner) if inner == self.name => "",
+            _ => self.desc,
+        }
+    }
+}
+
 /// dspy `get_field_description_string`, one field: the number, the field name, its Python
 /// annotation and the description on the numbered line, then a line apiece for what the
 /// annotation's custom types and the field's own constraints say. A closed set states itself
@@ -64,7 +77,7 @@ fn numbered_line(index: usize, field: &Described<'_>) -> String {
         index + 1,
         field.name,
         field.annotation,
-        field.desc,
+        field.description(),
         type_descriptions(field.kind),
         constraint_line(field.constraints),
     )

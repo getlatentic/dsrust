@@ -22,6 +22,10 @@ import sys
 
 import dspy
 from dspy.predict.refine import OfferFeedback
+from dspy.teleprompt.copro_optimizer import (
+    BasicGenerateInstruction,
+    GenerateInstructionGivenAttempts,
+)
 
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
 OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance"
@@ -168,6 +172,28 @@ CASES = [
         "inputs": [{"name": "question", "type": str, "kind": "str", "desc": None}],
         "outputs": [{"name": "answer", "type": str, "kind": "str", "desc": None}],
         "values": {"question": "Why is the sky blue?"},
+    },
+    {
+        # COPRO's zero-shot proposal step. Its instructions and both output-field descriptions
+        # reach the prompt verbatim, so a transcription is what must not be trusted — the crate
+        # builds this signature from the same strings and this fixture proves they render alike.
+        "name": "basic_generate_instruction",
+        "dspy_signature": BasicGenerateInstruction,
+        "values": {"basic_instruction": "Answer the question."},
+    },
+    {
+        # COPRO's depth step. `attempted_instructions` is a `str` field handed a list, which
+        # dspy lays out as a numbered `[N] «entry»` run rather than as JSON — the one rendering
+        # path this signature exercises that the others do not.
+        "name": "generate_instruction_given_attempts",
+        "dspy_signature": GenerateInstructionGivenAttempts,
+        "values": {
+            "attempted_instructions": [
+                "Instruction #1: Answer the question.",
+                "Prefix #1: Answer:",
+                "Resulting Score #1: 0.5",
+            ]
+        },
     },
 ]
 
