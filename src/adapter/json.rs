@@ -12,7 +12,7 @@ use serde_json::Value;
 
 use crate::example::Example;
 use crate::lm::{ChatTurn, OutputMode};
-use crate::signature::{FieldKind, Signature};
+use crate::signature::Signature;
 
 use super::exchange::{Style, json_answer, plain};
 use super::{Adapter, Input, blocks, conversation, live_inputs, output_slot, section};
@@ -96,7 +96,8 @@ pub(super) fn json_output_requirements(signature: &Signature) -> String {
         .iter()
         .map(|field| {
             let annotation = field.annotation();
-            let hint = match annotation == FieldKind::Str.annotation() {
+            // dspy asks `annotation is not str`; see the same test in the chat adapter.
+            let hint = match field.kind.is_plain_str() && field.values.is_none() {
                 true => String::new(),
                 false => format!(" (must be formatted as a valid Python {annotation})"),
             };
@@ -123,7 +124,7 @@ fn json_user(signature: &Signature, inputs: &[Input<'_>]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::signature::{InField, OutField};
+    use crate::signature::{FieldKind, InField, OutField};
     use serde_json::json;
 
     fn signature() -> Signature {

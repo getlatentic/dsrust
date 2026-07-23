@@ -20,6 +20,7 @@ import typing
 import pydantic
 from dspy.adapters.types.base_type import Type
 from dspy.adapters.types.code import Code
+from dspy.adapters.types.reasoning import Reasoning
 from dspy.adapters.utils import (
     _annotation_is_subclass,
     _get_json_schema,
@@ -55,6 +56,11 @@ def kind_of(annotation: typing.Any) -> str:
         return KINDS[annotation]
     except (KeyError, TypeError):
         pass
+    # Ahead of the JSON kinds: dspy treats `Reasoning` as a string — `get_annotation_name` returns
+    # "str" and the value formats as its raw content — so it carries no schema, but it is not the
+    # `str` type and keeps the output-requirement hint. Its own kind says both.
+    if _annotation_is_subclass(annotation, Reasoning):
+        return "reasoning"
     # Ahead of the JSON kinds: pydantic can schema an enum, but dspy does not describe one that
     # way — it names the type and lists its members' values.
     if isinstance(annotation, type) and issubclass(annotation, enum.Enum):

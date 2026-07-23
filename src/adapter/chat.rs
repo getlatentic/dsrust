@@ -11,7 +11,7 @@ use serde_json::Value;
 
 use crate::example::Example;
 use crate::lm::ChatTurn;
-use crate::signature::{FieldKind, Signature};
+use crate::signature::Signature;
 
 use super::Input;
 use super::exchange::{Style, answer, plain};
@@ -146,7 +146,9 @@ fn output_requirements(signature: &Signature) -> String {
         .iter()
         .map(|field| {
             let annotation = field.annotation();
-            let hint = match annotation == FieldKind::Str.annotation() {
+            // dspy asks `annotation is not str`, so a closed set (`Literal[...]`) and a str-like
+            // custom type (`Reasoning`, which prints "str") both still earn the hint.
+            let hint = match field.kind.is_plain_str() && field.values.is_none() {
                 true => String::new(),
                 false => format!(" (must be formatted as a valid Python {annotation})"),
             };
@@ -164,7 +166,7 @@ fn output_requirements(signature: &Signature) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::signature::{InField, JsonType, OutField, TypeDescription};
+    use crate::signature::{FieldKind, InField, JsonType, OutField, TypeDescription};
     use serde_json::json;
 
     /// A structured output whose annotation names a custom type, the way `Citations` or `Code`

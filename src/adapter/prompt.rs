@@ -146,7 +146,9 @@ fn states_its_own_contract(json: &JsonType) -> bool {
 /// earns a note on the same line, indented eight spaces as a comment.
 pub(super) fn output_slot(field: &OutField) -> String {
     let note = match &field.kind {
-        FieldKind::Str => match &field.values {
+        // `Reasoning` carries plain text and states no shape, exactly as an unconstrained `Str`
+        // does — dspy formats it through the type's `format`, which yields the content itself.
+        FieldKind::Str | FieldKind::Reasoning => match &field.values {
             Some(values) => format!(
                 "must exactly match (no extra characters) one of: {}",
                 wire_forms(values, "; ")

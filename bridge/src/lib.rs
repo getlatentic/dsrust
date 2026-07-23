@@ -74,6 +74,9 @@ fn kind_from(
         "int" => Ok(FieldKind::Int),
         "float" => Ok(FieldKind::Float),
         "bool" => Ok(FieldKind::Bool),
+        // dspy 3.3's str-like `Reasoning`: prints "str" and carries no schema, but is not the
+        // `str` type, so it keeps the output-requirement hint.
+        "reasoning" => Ok(FieldKind::Reasoning),
         // Anything not a scalar arrives as `json:<annotation>`, so the Python type name
         // dspy prints survives the crossing instead of being flattened to "json".
         other if other.starts_with("enum:") => Ok(FieldKind::Enum(

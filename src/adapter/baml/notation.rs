@@ -98,7 +98,8 @@ pub(super) fn output_type(field: &OutField) -> Result<String> {
         ));
     }
     match &field.kind {
-        FieldKind::Str => Ok("string".to_owned()),
+        // `Reasoning` is str-like: BAML writes it as the string it carries.
+        FieldKind::Str | FieldKind::Reasoning => Ok("string".to_owned()),
         FieldKind::Int => Ok("int".to_owned()),
         FieldKind::Float => Ok("float".to_owned()),
         FieldKind::Bool => Ok("boolean".to_owned()),

@@ -25,6 +25,12 @@ pub enum FieldKind {
     /// annotation and asks the model to produce one of the members' *values*, where a `Literal`
     /// prints its members and asks for an exact match on the spelling.
     Enum(String),
+    /// dspy 3.3's `Reasoning`: a str-like custom type. It renders and coerces exactly as `Str`
+    /// (`get_annotation_name` returns "str", its `format` yields the raw content, so it carries no
+    /// schema note), but its annotation *is not* the `str` type, so the output-requirement hint
+    /// still fires — `(must be formatted as a valid Python str)`. That one difference is why it is
+    /// a kind of its own rather than a `Str`.
+    Reasoning,
 }
 
 /// A non-scalar field's Python type, and the prose any custom type in it contributes.
@@ -110,7 +116,16 @@ impl FieldKind {
             FieldKind::Json(_) => None,
             // dspy schemas an enum by its members, which the field carries beside this.
             FieldKind::Enum(_) => Some("string"),
+            FieldKind::Reasoning => Some("string"),
         }
+    }
+
+    /// Whether this is the plain `str` annotation, which is what decides the output-requirement
+    /// hint: dspy asks `annotation is not str`, so every other kind — including one that *prints*
+    /// `str`, as [`FieldKind::Reasoning`] does — earns the hint. A closed set is checked beside
+    /// this, since `Literal[...]` is not `str` either.
+    pub(crate) fn is_plain_str(&self) -> bool {
+        matches!(self, FieldKind::Str)
     }
 
     /// The name the model is shown for this field's type. dspy prints Python's own type names
@@ -124,6 +139,9 @@ impl FieldKind {
             FieldKind::Float => "float",
             FieldKind::Json(json) => &json.annotation,
             FieldKind::Enum(name) => name,
+            // dspy's `get_annotation_name` returns "str" for `Reasoning`, keeping the old
+            // `ChainOfThought` wording where the reasoning field read as a plain string.
+            FieldKind::Reasoning => "str",
         }
     }
 }
@@ -235,7 +253,8 @@ fn quoted_member(value: &str) -> String {
 
 pub(super) fn coerce_value(kind: &FieldKind, name: &str, value: &mut Value) -> Result<()> {
     match kind {
-        FieldKind::Str => Ok(()),
+        // `Reasoning` carries its content as text, exactly as a `Str` does.
+        FieldKind::Str | FieldKind::Reasoning => Ok(()),
         FieldKind::Bool => coerce_bool(name, value),
         FieldKind::Int => coerce_int(name, value),
         FieldKind::Float => coerce_float(name, value),
