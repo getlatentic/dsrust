@@ -148,15 +148,23 @@ impl ChatModel for DummyLM {
             config: recorded_config(&request.config),
         };
         let message = asked.last_message().to_owned();
+        // dspy's `DummyLM` answers `n` times over, one identical choice per completion asked for;
+        // a caller reading several completions (an instruction optimizer's proposal step) needs
+        // the same count back rather than one.
+        let completions = request.config.n.unwrap_or(1).max(1) as usize;
         self.asked.lock().expect("not poisoned").push(asked);
         async move {
             let answer = self.choose(&message)?;
-            // No usage: a scripted answer had no cost, and reporting zero would let a test
-            // assert a total that no provider produced.
-            Ok(api::LmResponse::text(match json_mode {
+            let reply = match json_mode {
                 true => as_json_reply(&answer),
                 false => as_marker_reply(&answer),
-            }))
+            };
+            // No usage: a scripted answer had no cost, and reporting zero would let a test
+            // assert a total that no provider produced.
+            Ok(api::LmResponse::completions(std::iter::repeat_n(
+                reply,
+                completions,
+            )))
         }
     }
 }

@@ -24,6 +24,9 @@ use crate::signature::{Signature, infer_prefix};
 mod candidates;
 mod signatures;
 
+#[cfg(test)]
+mod conformance;
+
 use candidates::{Evaluated, Evaluations, Proposal, best_program, dspy_score, stripped};
 
 /// dspy `COPRO`: an instruction optimizer driven by a metric.
@@ -237,11 +240,13 @@ fn originals<S: Module + ?Sized>(student: &mut S) -> Vec<Proposal> {
         .iter()
         .map(|predictor| Proposal {
             instruction: predictor.signature.instructions.clone(),
+            // dspy's default field prefix is `infer_prefix(name) + ":"`; the original prefix seeds
+            // the search and is shown back in a depth prompt's attempts, so the colon has to be here.
             prefix: predictor
                 .signature
                 .outputs
                 .last()
-                .map(|field| infer_prefix(&field.name))
+                .map(|field| format!("{}:", infer_prefix(&field.name)))
                 .unwrap_or_default(),
         })
         .collect()
