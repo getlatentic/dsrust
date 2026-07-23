@@ -14,6 +14,7 @@
 //! teacher.
 
 mod bootstrap;
+mod copro;
 mod earned;
 mod labeled;
 mod rng;
@@ -24,6 +25,7 @@ mod conformance;
 pub(crate) mod scripted;
 
 pub use bootstrap::BootstrapFewShot;
+pub use copro::COPRO;
 pub use labeled::LabeledFewShot;
 
 use std::pin::Pin;

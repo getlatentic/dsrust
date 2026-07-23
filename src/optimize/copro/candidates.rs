@@ -1,0 +1,110 @@
+//! The bookkeeping COPRO's coordinate ascent runs on: the instruction/prefix pairs a model
+//! proposed, the score each earned, and the two orderings dspy reads them back in — highest score
+//! first to pick a winner, and worst-first to show the next round what has been tried.
+
+use serde_json::json;
+
+/// One instruction/prefix pair a model proposed. dspy keeps the raw strings and strips surrounding
+/// quotes and whitespace only where it uses them, so both are held raw and cleaned on the way in.
+#[derive(Clone)]
+pub(super) struct Proposal {
+    pub instruction: String,
+    pub prefix: String,
+}
+
+/// dspy `c.proposed_instruction.strip('"').strip()`: drop surrounding quote marks, then surrounding
+/// whitespace — in that order, since a quote outside the whitespace would otherwise survive.
+pub(super) fn stripped(raw: &str) -> String {
+    raw.trim_matches('"').trim().to_owned()
+}
+
+/// One evaluated candidate: the cleaned instruction and prefix, the score they earned, and the
+/// whole program's instructions at that moment — dspy stores a deep copy of the module so the
+/// highest-scoring one can be handed back verbatim.
+#[derive(Clone)]
+pub(super) struct Evaluated {
+    pub instruction: String,
+    pub prefix: String,
+    pub score: f64,
+    /// One instruction per predictor, in predictor order, as they stood when this was scored.
+    pub program: Vec<String>,
+}
+
+/// dspy Evaluate's headline number: `round(100 * mean, 2)`. The mean arrives on 0..1 from
+/// [`crate::evaluate::Evaluate`]; COPRO scales and rounds it the way upstream does before the
+/// value is compared or written into a prompt, so a score reads `50.0`, never `0.5`.
+pub(super) fn dspy_score(mean: f64) -> f64 {
+    (10_000.0 * mean).round_ties_even() / 100.0
+}
+
+/// A score as Python prints it: `serde_json`'s float form already keeps the trailing `.0` an
+/// integral score carries and agrees with Python's `repr` across the 0..100 range a score lives in.
+fn score_text(score: f64) -> String {
+    json!(score).to_string()
+}
+
+/// Every candidate evaluated for one predictor, in the order they were first tried — dspy keys
+/// these by `(instruction, prefix)` in an insertion-ordered dict, which both its "keep the best"
+/// and its "show the newest" reads depend on.
+#[derive(Default)]
+pub(super) struct Evaluations(Vec<Evaluated>);
+
+impl Evaluations {
+    /// dspy's replace rule: a repeat `(instruction, prefix)` overwrites the stored entry only when
+    /// its score is strictly higher (`existing >= new` keeps the old one, and its position). A pair
+    /// not seen before is appended, which is what makes the order an insertion order.
+    pub fn record(&mut self, candidate: Evaluated) {
+        let existing = self
+            .0
+            .iter_mut()
+            .find(|e| e.instruction == candidate.instruction && e.prefix == candidate.prefix);
+        match existing {
+            Some(entry) if candidate.score > entry.score => *entry = candidate,
+            Some(_) => {}
+            None => self.0.push(candidate),
+        }
+    }
+
+    /// dspy `max(values(), key=score)`: the highest-scoring candidate, and the earliest one on a
+    /// tie — the coordinate-ascent winner this predictor is set to before the next is scored.
+    pub fn best(&self) -> &Evaluated {
+        self.0
+            .iter()
+            .reduce(|best, next| if next.score > best.score { next } else { best })
+            .expect("a predictor is only read after it has been scored at least once")
+    }
+
+    /// dspy's few-shot block for the next round: the top `breadth` candidates by score, laid out
+    /// worst-first and numbered from one, each as its instruction, prefix and score. Feeds
+    /// `GenerateInstructionGivenAttempts`, whose signature promises increasing order.
+    pub fn attempts(&self, breadth: usize) -> Vec<String> {
+        let ranked = self.ranked();
+        let shown = breadth.min(ranked.len());
+        let mut lines = Vec::with_capacity(shown * 3);
+        for rank in (0..shown).rev() {
+            let number = shown - rank;
+            let candidate = ranked[rank];
+            lines.push(format!("Instruction #{number}: {}", candidate.instruction));
+            lines.push(format!("Prefix #{number}: {}", candidate.prefix));
+            lines.push(format!("Resulting Score #{number}: {}", score_text(candidate.score)));
+        }
+        lines
+    }
+
+    /// This predictor's candidates, highest score first, ties left in insertion order — the stable
+    /// descending sort both `attempts` and the final pick read.
+    fn ranked(&self) -> Vec<&Evaluated> {
+        let mut ranked: Vec<&Evaluated> = self.0.iter().collect();
+        ranked.sort_by(|a, b| b.score.total_cmp(&a.score));
+        ranked
+    }
+}
+
+/// dspy's closing pick: flatten every predictor's candidates in predictor order, take the
+/// highest-scoring across all of them, and the earliest on a tie. Its stored `program` is the
+/// instruction set the student is compiled to.
+pub(super) fn best_program(predictors: &[Evaluations]) -> Option<Vec<String>> {
+    let mut all: Vec<&Evaluated> = predictors.iter().flat_map(|e| e.0.iter()).collect();
+    all.sort_by(|a, b| b.score.total_cmp(&a.score));
+    all.first().map(|winner| winner.program.clone())
+}
