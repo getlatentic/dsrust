@@ -9,11 +9,43 @@
 //! The Rust equivalent is a trait. It stays object-safe so a program can hold
 //! `Box<dyn Module>`, which is what a composed program needs.
 
+use std::collections::BTreeMap;
+use std::path::Path;
+
 use anyhow::Result;
+use serde_json::{Map, Value};
 
 use crate::example::{Example, Prediction};
 use crate::lm::LmConfig;
 use crate::signature::Signature;
+
+/// The compiled state of one predictor — what an optimizer changes, and all that a saved program
+/// restores: its instructions and its demos. The field structure comes from the program's Rust
+/// types and never changes, so only these two travel.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct PredictorState {
+    pub instructions: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub demos: Vec<Map<String, Value>>,
+}
+
+/// A whole program's compiled state, keyed by predictor name — dspy's saved program. The on-disk
+/// shape is this crate's own serde, not a copy of dspy's `dump_state`: the file never reaches a
+/// model, so it is one of the places Rust is used properly rather than imitated.
+pub type ProgramState = BTreeMap<String, PredictorState>;
+
+/// A demo as its ordered field map, for saving; `serde_json`'s `preserve_order` keeps signature
+/// order so a reloaded demo renders exactly as it did.
+fn demo_fields(demo: &Example) -> Map<String, Value> {
+    demo.fields().map(|(name, value)| (name.to_owned(), value.clone())).collect()
+}
+
+/// A saved demo back as an [`Example`], its input split re-declared from the signature — which is
+/// where dspy keeps it too, so it need not be stored.
+fn demo_from_fields(fields: &Map<String, Value>, inputs: &[String]) -> Example {
+    Example::new(fields.iter().map(|(name, value)| (name.clone(), value.clone())))
+        .with_inputs(inputs.iter().cloned())
+}
 
 /// One predictor inside a program: its signature and its demos, borrowed for inspection or
 /// mutation. An optimizer's whole job is reading these and writing back better ones.
@@ -106,6 +138,51 @@ pub trait Module: Send + Sync {
         for predictor in self.named_predictors() {
             *predictor.config = config.clone();
         }
+    }
+
+    /// This program's compiled state — every predictor's instructions and demos, keyed by name.
+    /// dspy's `program.dump_state`: what an optimizer produced, ready to save and reload. The walk
+    /// is [`named_predictors`](Self::named_predictors), so a composed program dumps its children.
+    fn dump_state(&mut self) -> ProgramState {
+        self.named_predictors()
+            .into_iter()
+            .map(|predictor| {
+                let state = PredictorState {
+                    instructions: predictor.signature.instructions.clone(),
+                    demos: predictor.demos.iter().map(demo_fields).collect(),
+                };
+                (predictor.name, state)
+            })
+            .collect()
+    }
+
+    /// Restore a compiled state onto this program, which must be the same program the state was
+    /// dumped from. A predictor named in the state that this program lacks is skipped, and each
+    /// demo's input split is re-declared from its signature.
+    fn load_state(&mut self, state: &ProgramState) {
+        for predictor in self.named_predictors() {
+            let Some(saved) = state.get(&predictor.name) else {
+                continue;
+            };
+            predictor.signature.instructions = saved.instructions.clone();
+            let inputs: Vec<String> =
+                predictor.signature.inputs.iter().map(|field| field.name.clone()).collect();
+            *predictor.demos = saved.demos.iter().map(|fields| demo_from_fields(fields, &inputs)).collect();
+        }
+    }
+
+    /// Save this program's compiled state to a JSON file, reloaded onto a fresh copy of the same
+    /// program with [`load`](Self::load). This is dspy's `program.save`/`dspy.load(path)` — the
+    /// reusable artifact an optimizer exists to produce.
+    fn save(&mut self, path: &Path) -> Result<()> {
+        std::fs::write(path, serde_json::to_string_pretty(&self.dump_state())?)?;
+        Ok(())
+    }
+
+    /// Load a compiled state saved by [`save`](Self::save) onto this program.
+    fn load(&mut self, path: &Path) -> Result<()> {
+        self.load_state(&serde_json::from_str(&std::fs::read_to_string(path)?)?);
+        Ok(())
     }
 
     /// Run the program, recording which predictor saw what.
@@ -230,6 +307,33 @@ mod tests {
                 .expect("boxed module runs");
             assert_eq!(prediction.get("answer"), Some(&json!("held")));
         }
+    }
+
+    /// A compiled program — an optimizer's product — saves its instructions and demos to a file and
+    /// reloads them onto a fresh copy of the same program, each demo's input split re-declared from
+    /// the signature. This is the reusable artifact the optimizer family exists to produce.
+    #[test]
+    fn a_compiled_program_saves_and_reloads_its_state() {
+        let mut trained = echo();
+        trained.signature.instructions = "Answer in one word.".to_owned();
+        trained.demos = vec![example! { request: "hi", answer: "hello" }.with_inputs(["request"])];
+
+        let path = std::env::temp_dir().join("dsrs_program_state_roundtrip.json");
+        trained.save(&path).expect("saves");
+
+        let mut fresh = echo();
+        assert_eq!(fresh.signature.instructions, "Echo the request.", "fresh program is unoptimized");
+        fresh.load(&path).expect("loads");
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(fresh.signature.instructions, "Answer in one word.");
+        assert_eq!(fresh.demos.len(), 1);
+        assert_eq!(fresh.demos[0].get("answer"), Some(&json!("hello")));
+        assert!(
+            fresh.demos[0].is_input("request"),
+            "the demo's input split was re-declared from the signature"
+        );
+        assert!(!fresh.demos[0].is_input("answer"), "and its output stays a label");
     }
 
     #[test]
