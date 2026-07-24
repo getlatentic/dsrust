@@ -1,17 +1,15 @@
 # DsRust
 
-Every production LLM call comes with the same plumbing: a prompt template, a JSON parser with a
-retry loop, a reasoning pattern built by hand, and "tests" that amount to reading the output and
-hoping. Switch models and you re-tune all of it.
+DsRust is a framework for building LLM programs where you declare each step's inputs and outputs
+instead of writing prompts. It's [DSPy](https://github.com/stanfordnlp/dspy) in Rust — to LLM
+engineering what Tailwind is to CSS: a higher-level interface to the same power.
 
-DsRust replaces that with a declaration. You say what a step takes in and returns —
-`question -> answer`, or a struct with typed fields — and DsRust builds the prompt, calls the
-model, and parses the reply back into your types. Compose steps into a program; when you want it
-better, hand it a metric and a few examples and let an optimizer search for the prompt and few-shot
-examples that score highest.
-
-It's a faithful Rust port of [DSPy](https://github.com/stanfordnlp/dspy) — to LLM engineering what
-Tailwind is to CSS: a higher-level interface to the same power.
+Say a step answers a question. You declare it — `question -> answer`, or a struct with typed
+fields — and DsRust writes the prompt, calls the model, and hands you back typed values: no prompt
+template, no JSON parsing, no retry loop. Compose steps into a program — a chain-of-thought
+reasoner, a tool-using agent — and when it isn't good enough, give DsRust a metric and a few
+examples. An optimizer then finds the prompt and the few-shot examples that score highest, so you
+improve the program with data instead of by rewriting prompts.
 
 ```rust
 use dsrust::{predict, call};
@@ -32,11 +30,11 @@ dsrust = "0.1.0-alpha.1"
 
 ---
 
-## Why DsRust, and not the other Rust one
+## Why DsRust
 
-There's already a Rust DSPy, and it's a rewrite — reimagined in idiomatic Rust, with prompts of its
-own. DsRust makes the opposite bet: stay faithful down to the byte. The prompt it sends is the
-prompt DSPy sends, and that isn't a claim in a README — DSPy's own test suite runs against DsRust's
+Other Rust takes on DSPy are rewrites — reimagined in idiomatic Rust, with prompts of their own.
+DsRust makes a different bet: stay faithful down to the byte. The prompt it sends is the prompt
+DSPy sends, and that isn't a claim in a README — DSPy's own test suite runs against DsRust's
 renderer on every build.
 
 That fidelity is the reason to reach for it:
@@ -49,12 +47,12 @@ That fidelity is the reason to reach for it:
   ship. The model call is where the latency lives — but the rendering, parsing, parallel
   evaluation, and the optimizer's own search are all native.
 
-|                       | DSPy (Python) | dspy-rs (Rust) | **DsRust (Rust)**                          |
-|-----------------------|---------------|----------------|--------------------------------------------|
-| Relationship to DSPy  | the original  | a rewrite      | **a faithful port**                        |
-| Prompt bytes          | —             | its own        | **identical to DSPy, tested against its suite** |
-| Compiled artifacts    | DSPy format   | its own        | **DSPy format — load in either**           |
-| Runtime               | Python        | Rust           | Rust                                       |
+|                       | DSPy (Python) | Other Rust ports | **DsRust (Rust)**                        |
+|-----------------------|---------------|------------------|------------------------------------------|
+| Relationship to DSPy  | the original  | rewrites         | **a faithful port**                      |
+| Prompt bytes          | —             | their own        | **identical to DSPy, tested against its suite** |
+| Compiled artifacts    | DSPy format   | their own        | **DSPy format — load in either**         |
+| Runtime               | Python        | Rust             | Rust                                     |
 
 **Full guide, with every module and the DSPy-vs-DsRust mapping side by side:
 [`docs/usage.md`](docs/usage.md).**
@@ -168,11 +166,7 @@ filling in.
 
 ---
 
-## Related work & license
-
-[krypticmouse/DSRs](https://github.com/krypticmouse/DSRs) (`dspy-rs`) is a DSPy *rewrite* for Rust
-— an idiomatic reimagining. DsRust's distinct bet is fidelity: the DSPy you know, producing the
-prompts DSPy produces, held to DSPy's own tests.
+## License
 
 Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE).
 
