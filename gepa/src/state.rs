@@ -44,7 +44,7 @@ impl GepaState {
     }
 
     /// The per-testcase Pareto front, as [`crate::pareto::select_candidate`] reads it.
-    pub fn fronts(&self) -> &[std::collections::BTreeSet<usize>] {
+    pub fn fronts(&self) -> &[crate::pyset::PyIntSet] {
         self.front.fronts()
     }
 

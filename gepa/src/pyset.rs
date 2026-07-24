@@ -19,10 +19,10 @@ const LINEAR_PROBES: usize = 9;
 const PERTURB_SHIFT: u32 = 5;
 
 /// A set of non-negative integers with CPython's iteration order.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PyIntSet {
     /// `Some(key)` for a filled slot, `None` for an empty one. Length is always a power of two.
-    table: Vec<Option<u64>>,
+    table: Vec<Option<usize>>,
     /// One less than the table length, the mask CPython probes with.
     mask: usize,
     /// Filled slots. With no deletions this equals the element count, but CPython compares it,
@@ -36,7 +36,7 @@ impl PyIntSet {
     }
 
     /// The set of `keys`, inserted in order — CPython's `set(iterable)`.
-    pub fn from_keys(keys: impl IntoIterator<Item = u64>) -> Self {
+    pub fn from_keys(keys: impl IntoIterator<Item = usize>) -> Self {
         let mut set = Self::new();
         for key in keys {
             set.add(key);
@@ -44,7 +44,7 @@ impl PyIntSet {
         set
     }
 
-    pub fn contains(&self, key: u64) -> bool {
+    pub fn contains(&self, key: usize) -> bool {
         self.slot_of(key).is_none_or(|slot| self.table[slot].is_some())
     }
 
@@ -59,11 +59,11 @@ impl PyIntSet {
     }
 
     /// The elements in CPython's iteration order: the filled slots, front to back.
-    pub fn iter(&self) -> impl Iterator<Item = u64> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = usize> + '_ {
         self.table.iter().filter_map(|slot| *slot)
     }
 
-    pub fn to_vec(&self) -> Vec<u64> {
+    pub fn to_vec(&self) -> Vec<usize> {
         self.iter().collect()
     }
 
@@ -76,7 +76,7 @@ impl PyIntSet {
     }
 
     /// Insert `key`, growing the table when CPython would. Present keys are a no-op.
-    fn add(&mut self, key: u64) {
+    pub fn add(&mut self, key: usize) {
         let Some(slot) = self.slot_of(key) else {
             return; // already present
         };
@@ -94,9 +94,9 @@ impl PyIntSet {
     /// slot, then a window of `LINEAR_PROBES` consecutive slots while they fit under the mask,
     /// then perturbs to a new region — the sequence that decides where a colliding key lands, and
     /// so the order the table yields.
-    fn slot_of(&self, key: u64) -> Option<usize> {
+    fn slot_of(&self, key: usize) -> Option<usize> {
         let mut perturb = key;
-        let mut i = (key as usize) & self.mask;
+        let mut i = key & self.mask;
         loop {
             match self.table[i] {
                 None => return Some(i),
@@ -113,7 +113,7 @@ impl PyIntSet {
                 }
             }
             perturb >>= PERTURB_SHIFT;
-            i = (i.wrapping_mul(5).wrapping_add(1).wrapping_add(perturb as usize)) & self.mask;
+            i = i.wrapping_mul(5).wrapping_add(1).wrapping_add(perturb) & self.mask;
         }
     }
 
@@ -153,8 +153,8 @@ mod tests {
         serde_json::from_str(&text).expect("the golden parses")
     }
 
-    fn ints(value: &Value) -> Vec<u64> {
-        value.as_array().expect("a list").iter().map(|v| v.as_u64().expect("an int")).collect()
+    fn ints(value: &Value) -> Vec<usize> {
+        value.as_array().expect("a list").iter().map(|v| v.as_u64().expect("an int") as usize).collect()
     }
 
     #[test]

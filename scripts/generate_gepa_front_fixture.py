@@ -22,16 +22,29 @@ OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
 PINNED = require("gepa")
 
 # Each case: the seed program's per-testcase scores, then the scores of programs added in turn.
+#
+# The last case grows a front past index 7 with programs that collide in CPython's set table
+# (3 and 8 both land near slot 0), so the front reads `[0, 8, 3]` rather than sorted `[0, 3, 8]`.
+# A fixture that stayed under index 8, or stored `sorted(front)`, could not tell a faithful set
+# order from a sorted one — this case fails a sorted port outright.
 CASES = [
     {"seed": [0.5, 0.2, 0.7], "programs": [[0.5, 0.9, 0.3], [0.6, 0.9, 0.7], [0.1, 0.9, 0.7]]},
     {"seed": [0.0, 0.0, 0.0, 0.0], "programs": [[1.0, 1.0, 1.0, 1.0]]},  # dominates every testcase
     {"seed": [0.3, 0.3], "programs": [[0.3, 0.3], [0.3, 0.3]]},           # all tie -> fronts grow
     {"seed": [0.5, 0.5, 0.5], "programs": [[0.6, 0.4, 0.5], [0.4, 0.6, 0.5], [0.7, 0.7, 0.4]]},
+    # Programs 3 and 8 tie the seed on testcase 0; the rest score lower. The front becomes
+    # {0, 3, 8}, which CPython iterates 0, 8, 3.
+    {
+        "seed": [0.5],
+        "programs": [[0.4], [0.4], [0.5], [0.4], [0.4], [0.4], [0.4], [0.5]],
+    },
 ]
 
 
 def front_of(state) -> dict:
-    return {str(val_id): sorted(front) for val_id, front in state.program_at_pareto_front_valset.items()}
+    # `list(front)`, not `sorted` — the CPython set order is exactly what the crate must match, and
+    # sorting here would hide a divergence rather than catch it.
+    return {str(val_id): list(front) for val_id, front in state.program_at_pareto_front_valset.items()}
 
 
 def evaluation(scores: list[float]) -> ValsetEvaluation:

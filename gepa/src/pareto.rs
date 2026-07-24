@@ -3,19 +3,26 @@
 //!
 //! `fronts[testcase]` is the set of program indices that achieve the best score on that testcase.
 //! Dominated programs — whose every best-on testcase is also won by a survivor — are dropped, then
-//! a program is drawn weighted by how many testcases it still wins. Small non-negative program
-//! indices, so a CPython `set` iterates them ascending, which a [`BTreeSet`] matches.
+//! a program is drawn weighted by how many testcases it still wins.
+//!
+//! The frontier is a CPython `set` per testcase, and its *iteration order* is load-bearing: it
+//! seeds the first-appearance order the domination sweep walks, and — through
+//! [`find_dominator_programs`] — the candidate list merge's `rng.sample` draws against. That order
+//! is not sorted (it agrees with sorted only for indices 0-7), so the fronts are [`PyIntSet`]s,
+//! built by the same add sequence dspy's `_update_pareto_front_for_val_id` uses.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use pyrng::Random;
+
+use crate::pyset::PyIntSet;
 
 /// GEPA's per-testcase Pareto front (`GEPAState.program_at_pareto_front_valset`): for each validation
 /// testcase, the set of programs achieving the best score on it. [`select_candidate`] reads it; this
 /// maintains it. The seed program starts on every front.
 pub struct ParetoFront {
     best: Vec<f64>,
-    fronts: Vec<BTreeSet<usize>>,
+    fronts: Vec<PyIntSet>,
 }
 
 impl ParetoFront {
@@ -23,26 +30,27 @@ impl ParetoFront {
     pub fn seeded(seed_scores: &[f64]) -> Self {
         Self {
             best: seed_scores.to_vec(),
-            fronts: seed_scores.iter().map(|_| BTreeSet::from([0])).collect(),
+            fronts: seed_scores.iter().map(|_| PyIntSet::from_keys([0])).collect(),
         }
     }
 
     /// dspy `_update_pareto_front_for_val_id` over every testcase: a strictly higher score replaces a
-    /// testcase's front, an exact tie joins it, a worse score is ignored.
+    /// testcase's front with a fresh one-element set, an exact tie adds to the existing set (keeping
+    /// its insertion order, and so its iteration order), a worse score is ignored.
     pub fn add_program(&mut self, program: usize, scores: &[f64]) {
         for (testcase, &score) in scores.iter().enumerate() {
             let previous = self.best[testcase];
             if score > previous {
                 self.best[testcase] = score;
-                self.fronts[testcase] = BTreeSet::from([program]);
+                self.fronts[testcase] = PyIntSet::from_keys([program]);
             } else if score == previous {
-                self.fronts[testcase].insert(program);
+                self.fronts[testcase].add(program);
             }
         }
     }
 
     /// The front per testcase, as [`select_candidate`] reads it.
-    pub fn fronts(&self) -> &[BTreeSet<usize>] {
+    pub fn fronts(&self) -> &[PyIntSet] {
         &self.fronts
     }
 }
@@ -50,17 +58,36 @@ impl ParetoFront {
 /// dspy `select_program_candidate_from_pareto_front`: the survivor set, then a frequency-weighted
 /// draw. `scores` is the weighted aggregate score per program, used only to order the domination
 /// sweep.
-pub fn select_candidate(fronts: &[BTreeSet<usize>], scores: &[f64], rng: &mut Random) -> usize {
+pub fn select_candidate(fronts: &[PyIntSet], scores: &[f64], rng: &mut Random) -> usize {
     let survivors = remove_dominated(fronts, scores);
     let list = sampling_list(&survivors);
     let index = rng.choice_index(list.len());
     list[index]
 }
 
+/// dspy `find_dominator_programs`: the distinct programs left on any front after dominated ones are
+/// dropped, in the order `list(set(...))` yields them.
+///
+/// This is merge's candidate pool — `rng.sample` draws its pair from exactly this list — so the
+/// final `set` is rebuilt with a [`PyIntSet`] over the survivors in the order they appear across
+/// the fronts, rather than sorted.
+pub fn find_dominator_programs(fronts: &[PyIntSet], scores: &[f64]) -> Vec<usize> {
+    let survivors = remove_dominated(fronts, scores);
+    let mut unique = PyIntSet::new();
+    for front in &survivors {
+        for program in front.iter() {
+            unique.add(program);
+        }
+    }
+    unique.to_vec()
+}
+
 /// dspy `remove_dominated_programs`: drop every program whose best-on testcases are all also won by
 /// some surviving program, so only programs carrying a unique win remain. The sweep runs in
 /// ascending-score order and restarts whenever it removes one, matching upstream's `while` loop.
-fn remove_dominated(fronts: &[BTreeSet<usize>], scores: &[f64]) -> Vec<BTreeSet<usize>> {
+/// Each surviving front keeps its own iteration order minus the dropped programs — the `difference`
+/// dspy takes.
+fn remove_dominated(fronts: &[PyIntSet], scores: &[f64]) -> Vec<PyIntSet> {
     let mut programs = first_appearance_order(fronts);
     // dspy `sorted(programs, key=scores)`, a stable ascending sort — ties keep first-appearance order.
     programs.sort_by(|a, b| scores[*a].total_cmp(&scores[*b]));
@@ -85,18 +112,18 @@ fn remove_dominated(fronts: &[BTreeSet<usize>], scores: &[f64]) -> Vec<BTreeSet<
 
     fronts
         .iter()
-        .map(|front| front.iter().copied().filter(|p| !dominated.contains(p)).collect())
+        .map(|front| PyIntSet::from_keys(front.iter().filter(|p| !dominated.contains(p))))
         .collect()
 }
 
 /// dspy `is_dominated`: `y` is dominated unless some testcase it wins is won by nobody else in
 /// `others` — that testcase is `y`'s alone, so it survives.
-fn is_dominated(y: usize, others: &BTreeSet<usize>, fronts: &[BTreeSet<usize>]) -> bool {
+fn is_dominated(y: usize, others: &BTreeSet<usize>, fronts: &[PyIntSet]) -> bool {
     for front in fronts {
-        if !front.contains(&y) {
+        if !front.contains(y) {
             continue;
         }
-        if !front.iter().any(|program| others.contains(program)) {
+        if !front.iter().any(|program| others.contains(&program)) {
             return false;
         }
     }
@@ -104,12 +131,12 @@ fn is_dominated(y: usize, others: &BTreeSet<usize>, fronts: &[BTreeSet<usize>]) 
 }
 
 /// The program indices in the order they first appear across the fronts — dspy's `freq.keys()`,
-/// whose insertion order a small-int CPython set walks ascending within each front.
-fn first_appearance_order(fronts: &[BTreeSet<usize>]) -> Vec<usize> {
+/// whose insertion order is each front's CPython iteration order in turn.
+fn first_appearance_order(fronts: &[PyIntSet]) -> Vec<usize> {
     let mut seen = BTreeSet::new();
     let mut order = Vec::new();
     for front in fronts {
-        for &program in front {
+        for program in front.iter() {
             if seen.insert(program) {
                 order.push(program);
             }
@@ -120,10 +147,10 @@ fn first_appearance_order(fronts: &[BTreeSet<usize>]) -> Vec<usize> {
 
 /// dspy's `sampling_list`: each program repeated once per testcase it wins, in first-appearance
 /// order — so a program on more of the frontier is proportionally likelier to be drawn.
-fn sampling_list(fronts: &[BTreeSet<usize>]) -> Vec<usize> {
-    let mut counts: BTreeMap<usize, usize> = BTreeMap::new();
+fn sampling_list(fronts: &[PyIntSet]) -> Vec<usize> {
+    let mut counts: std::collections::BTreeMap<usize, usize> = std::collections::BTreeMap::new();
     for front in fronts {
-        for &program in front {
+        for program in front.iter() {
             *counts.entry(program).or_insert(0) += 1;
         }
     }
@@ -138,12 +165,16 @@ mod tests {
     use super::*;
     use serde_json::Value;
 
-    fn fronts_of(case: &Value) -> Vec<BTreeSet<usize>> {
+    fn fronts_of(case: &Value) -> Vec<PyIntSet> {
         case["fronts"]
             .as_array()
             .expect("fronts")
             .iter()
-            .map(|front| front.as_array().expect("a front").iter().map(|p| p.as_u64().unwrap() as usize).collect())
+            .map(|front| {
+                PyIntSet::from_keys(
+                    front.as_array().expect("a front").iter().map(|p| p.as_u64().unwrap() as usize),
+                )
+            })
             .collect()
     }
 
@@ -200,10 +231,11 @@ mod tests {
         }
     }
 
-    /// Compare the crate's front to a fixture snapshot: `{testcase -> sorted program indices}`.
+    /// Compare the crate's front to a fixture snapshot: `{testcase -> program indices in CPython
+    /// set order}`.
     fn assert_front(front: &ParetoFront, snapshot: &Value, at: &str) {
         for (testcase, set) in front.fronts().iter().enumerate() {
-            let got: Vec<usize> = set.iter().copied().collect();
+            let got: Vec<usize> = set.iter().collect();
             let want: Vec<usize> = snapshot[testcase.to_string()]
                 .as_array()
                 .unwrap_or_else(|| panic!("{at}: testcase {testcase} missing"))
