@@ -5,7 +5,7 @@
 //! vendored registry beside the crate is the same data, but reaching a row in it means resolving
 //! a reference the way litellm does, and that resolution is what these cases pin.
 
-use dsrs::lm::{Capabilities, ChatModel, LM};
+use dsrust::lm::{Capabilities, ChatModel, LM};
 use serde_json::Value;
 
 #[test]
@@ -52,8 +52,8 @@ async fn a_model_that_says_nothing_grants_nothing() {
         fn forward<'a>(
             &'a self,
             _http: &'a reqwest::Client,
-            _request: &'a dsrs::lm::api::LmRequest,
-        ) -> impl std::future::Future<Output = anyhow::Result<dsrs::lm::api::LmResponse>> + Send + 'a
+            _request: &'a dsrust::lm::api::LmRequest,
+        ) -> impl std::future::Future<Output = anyhow::Result<dsrust::lm::api::LmResponse>> + Send + 'a
         {
             async { unreachable!("not called") }
         }

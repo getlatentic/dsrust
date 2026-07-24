@@ -5,12 +5,12 @@
 //! can implement without touching this one, and this test is the proof.
 
 use anyhow::{Result, anyhow};
-use dsrs::Example;
-use dsrs::adapter::Input;
-use dsrs::adapter::python_json::format_value;
-use dsrs::lm::ChatTurn;
-use dsrs::signature::{OutField, Signature};
-use dsrs::{Adapter, ChatAdapter};
+use dsrust::Example;
+use dsrust::adapter::Input;
+use dsrust::adapter::python_json::format_value;
+use dsrust::lm::ChatTurn;
+use dsrust::signature::{OutField, Signature};
+use dsrust::{Adapter, ChatAdapter};
 use serde_json::{Map, Value, json};
 
 /// Fields wrapped in XML tags rather than `[[ ## markers ## ]]`.

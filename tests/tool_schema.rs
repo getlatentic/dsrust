@@ -7,10 +7,10 @@
 
 use std::sync::{Arc, Mutex};
 
-use dsrs::lm::global;
-use dsrs::react::tool_args;
-use dsrs::signature::{OutField, Signature};
-use dsrs::{DummyLM, FnTool, Module, ReAct, Tool, example, react::arg_str};
+use dsrust::lm::global;
+use dsrust::react::tool_args;
+use dsrust::signature::{OutField, Signature};
+use dsrust::{DummyLM, FnTool, Module, ReAct, Tool, example, react::arg_str};
 use schemars::JsonSchema;
 use serde_json::{Value, json};
 

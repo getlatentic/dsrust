@@ -1,4 +1,4 @@
-//! `dsrs::Reasoning` declared in a Rust signature, rendered against dspy 3.3's own bytes.
+//! `dsrust::Reasoning` declared in a Rust signature, rendered against dspy 3.3's own bytes.
 //!
 //! The bridge proves the crate renders what upstream's tests assert; this proves the *API* a Rust
 //! caller writes reaches the same place. A field declared `Reasoning` must print `(str)`, carry no
@@ -8,8 +8,8 @@
 //! The expected strings are upstream's, from
 //! `test_chat_adapter_format_exact_messages_with_reasoning_and_code_outputs`.
 
-use dsrs::signature::{FieldKind, SignatureSpec};
-use dsrs::{Adapter, ChatAdapter, Reasoning, Signature};
+use dsrust::signature::{FieldKind, SignatureSpec};
+use dsrust::{Adapter, ChatAdapter, Reasoning, Signature};
 
 // Declared for its signature, as the other derive tests are; nothing reads the fields back.
 #[allow(dead_code)]
@@ -57,7 +57,7 @@ fn it_still_earns_the_output_requirement_hint() {
         .format(
             &Explain::signature(),
             &[],
-            &[dsrs::adapter::Input::new("question", serde_json::json!("Q"))],
+            &[dsrust::adapter::Input::new("question", serde_json::json!("Q"))],
         )
         .expect("renders");
     let last = turns.last().expect("a user turn").content.text().unwrap_or_default().to_owned();

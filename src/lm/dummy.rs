@@ -41,7 +41,7 @@ impl Asked {
 /// A scripted model.
 ///
 /// ```
-/// use dsrs::{DummyLM, example};
+/// use dsrust::{DummyLM, example};
 /// let lm = DummyLM::new([example! { answer: "red" }, example! { answer: "blue" }]);
 /// assert_eq!(lm.remaining(), 2);
 /// ```

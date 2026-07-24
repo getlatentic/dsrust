@@ -2,9 +2,9 @@
 //! through a module in [`mod@predict`], and let the [`adapter`]s carry it over the wire to the
 //! provider behind [`lm::LM`].
 
-// `#[derive(Signature)]` expands to `::dsrs::...` paths; the alias keeps those
+// `#[derive(Signature)]` expands to `::dsrust::...` paths; the alias keeps those
 // paths valid when the derive is used inside this crate itself.
-extern crate self as dsrs;
+extern crate self as dsrust;
 
 pub mod adapter;
 pub mod evaluate;

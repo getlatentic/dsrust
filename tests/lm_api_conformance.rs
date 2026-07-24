@@ -10,8 +10,8 @@
 //! variants that `flatten` their payload — `LmPart` among them — and those are exactly the types
 //! most likely to grow a field.
 
-use dsrs::lm::LmUsage;
-use dsrs::lm::api::{
+use dsrust::lm::LmUsage;
+use dsrust::lm::api::{
     LmCacheConfig, LmConfig, LmDelta, LmMessage, LmOutput, LmPart, LmPromptCacheConfig,
     LmReasoningConfig, LmRequest, LmResponse, LmStreamEvent, LmToolChoice, LmToolSpec,
 };

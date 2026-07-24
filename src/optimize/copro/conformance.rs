@@ -28,7 +28,7 @@ use crate::{DummyLM, input};
 /// dspy's two-predictor `Pair`: the first drafts an answer, the second settles it. The composition
 /// is what makes the second predictor read a `draft`, so a demo or instruction one earns is one the
 /// other could not have.
-#[derive(dsrs::Module)]
+#[derive(dsrust::Module)]
 struct Pair {
     first: Predict,
     second: Predict,

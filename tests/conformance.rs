@@ -6,10 +6,10 @@
 //! question "are we faithful?" is answered by the test run instead of by reading both
 //! codebases. A divergence here is a bug in this crate until upstream is shown to be wrong.
 
-use dsrs::adapter::Input;
-use dsrs::signature::{FieldKind, InField, JsonType, OutField, Signature};
-use dsrs::lm::Content;
-use dsrs::{Adapter, ChainOfThought, ChatAdapter, Example, ReAct};
+use dsrust::adapter::Input;
+use dsrust::signature::{FieldKind, InField, JsonType, OutField, Signature};
+use dsrust::lm::Content;
+use dsrust::{Adapter, ChainOfThought, ChatAdapter, Example, ReAct};
 use serde_json::Value;
 
 struct Fixture {
@@ -130,7 +130,7 @@ fn load(path: &std::path::Path) -> Fixture {
             // Declared by the crate rather than by the fixture: what is under test is whether
             // our own OfferFeedback renders what dspy's does, so reading it back out of the
             // fixture would compare the fixture to itself.
-            Some("offer_feedback") => dsrs::predict::refine::feedback::signature(),
+            Some("offer_feedback") => dsrust::predict::refine::feedback::signature(),
             _ => declared,
         },
         demos,

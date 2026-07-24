@@ -246,7 +246,7 @@ where
 /// here as it is there.
 ///
 /// ```
-/// # use dsrs::{best_of_n, predict, Example, Prediction};
+/// # use dsrust::{best_of_n, predict, Example, Prediction};
 /// fn one_word(_inputs: &Example, out: &Prediction) -> f64 {
 ///     match out.get("answer").and_then(|answer| answer.as_str()) {
 ///         Some(answer) if answer.split_whitespace().count() == 1 => 1.0,

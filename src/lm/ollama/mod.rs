@@ -2,7 +2,7 @@
 //!
 //! litellm splits ollama across two providers on two endpoints: `ollama_chat/` speaks `/api/chat`
 //! — a message list, native tool calls — and `ollama/` speaks `/api/generate`, an older path that
-//! takes one flattened prompt and cannot carry tools natively. dsrs mirrors the split: the prefix
+//! takes one flattened prompt and cannot carry tools natively. dsrust mirrors the split: the prefix
 //! a caller writes picks the route, exactly as it does in dspy through litellm.
 //!
 //! The two [`ChatModel`]s live in [`chat`] and [`generate`]; this module holds what they share —

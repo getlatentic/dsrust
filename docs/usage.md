@@ -232,11 +232,11 @@ let lm = LM::new("openai/llama-3.3-70b")?
     .with_openai_base_url("https://api.groq.com/openai/v1")
     .with_openai_key(std::env::var("GROQ_API_KEY")?);
 
-dsrs::lm::configure(lm); // the process-wide default every module reaches
+dsrust::lm::configure(lm); // the process-wide default every module reaches
 ```
 
-This is where dsrs and dspy part on purpose. dspy routes every provider through **litellm**, whose
-prefix is the brand (`groq/…`, `bedrock/…`) with the host known for you; dsrs is litellm-free, so
+This is where DsRust and dspy part on purpose. dspy routes every provider through **litellm**, whose
+prefix is the brand (`groq/…`, `bedrock/…`) with the host known for you; DsRust is litellm-free, so
 the prefix is the wire format and a non-OpenAI host is named by its URL. The four built-in shapes
 are a closed `match`, because *something* must map a model string to a wire — dspy has the same map
 in litellm, just hidden.
@@ -252,8 +252,8 @@ impl ChatModel for MyProvider {
     fn forward<'a>(
         &'a self,
         http: &'a reqwest::Client,
-        request: &'a dsrs::lm::api::LmRequest,
-    ) -> impl Future<Output = Result<dsrs::lm::api::LmResponse>> + Send + 'a {
+        request: &'a dsrust::lm::api::LmRequest,
+    ) -> impl Future<Output = Result<dsrust::lm::api::LmResponse>> + Send + 'a {
         async move {
             // request.wire_messages(), request.config.temperature, request.output_schema() —
             // translate the typed request to your API, and its reply back to an LmResponse.
@@ -284,7 +284,7 @@ type — and each has a macro of the same name.
 **A wrapper takes another module.** There is no signature to hand it; the signature lives in
 whatever it wraps, so it is built with `::new` and has no macro.
 
-| module | takes | dspy | dsrs |
+| module | takes | dspy | DsRust |
 |---|---|---|---|
 | `Predict` | a signature | `dspy.Predict("q -> a")` | `predict!("q -> a")` |
 | `ChainOfThought` | a signature | `dspy.ChainOfThought("q -> a")` | `chain_of_thought!("q -> a")` |
@@ -306,7 +306,7 @@ out.answer
 ```
 
 ```rust
-// dsrs
+// DsRust
 let qa = chain_of_thought!("question -> answer");
 let out = call!(qa, question = "capital of France?").await?;
 out.get("answer").unwrap()
@@ -328,7 +328,7 @@ out = best(question="capital of Belgium?")
 ```
 
 ```rust
-// dsrs
+// DsRust
 fn one_word(_inputs: &Example, out: &Prediction) -> f64 {
     match out.get("answer").and_then(|answer| answer.as_str()) {
         Some(answer) if answer.split_whitespace().count() == 1 => 1.0,
@@ -360,7 +360,7 @@ through to the predictors inside it.
 
 ## Against dspy
 
-| | dspy | dsrs |
+| | dspy | DsRust |
 |---|---|---|
 | Constructor | `dspy.Predict(x)` | `predict!(x)` — a string or a task |
 | Call | `m(field=…)` | `call!(m, field = …)` |

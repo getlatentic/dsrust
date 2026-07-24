@@ -8,14 +8,14 @@
 //! instructions, ordered fields, and the already-formatted input values — because those are
 //! the only things the renderer needs.
 
-use dsrs::adapter::Input;
-use dsrs::adapter::parse::FieldMismatch;
-use dsrs::adapter::xml::XmlAdapter;
-use dsrs::lm::DynChatModel;
-use dsrs::signature::{
+use dsrust::adapter::Input;
+use dsrust::adapter::parse::FieldMismatch;
+use dsrust::adapter::xml::XmlAdapter;
+use dsrust::lm::DynChatModel;
+use dsrust::signature::{
     FieldKind, InField, JsonType, LiteralValue, OutField, Signature, TypeDescription,
 };
-use dsrs::{Adapter, BamlAdapter, ChatAdapter, Example, JsonAdapter, TwoStepAdapter};
+use dsrust::{Adapter, BamlAdapter, ChatAdapter, Example, JsonAdapter, TwoStepAdapter};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use serde_json::Value;
@@ -30,8 +30,8 @@ impl DynChatModel for NotOnThisSide {
     fn forward_dyn<'a>(
         &'a self,
         _http: &'a reqwest::Client,
-        _request: &'a dsrs::lm::api::LmRequest,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<dsrs::lm::api::LmResponse>> + Send + 'a>> {
+        _request: &'a dsrust::lm::api::LmRequest,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<dsrust::lm::api::LmResponse>> + Send + 'a>> {
         Box::pin(async {
             Err(anyhow::anyhow!(
                 "the bridge does not call models; Python runs the extraction"
@@ -43,8 +43,8 @@ impl DynChatModel for NotOnThisSide {
     fn capabilities_dyn<'a>(
         &'a self,
         _http: &'a reqwest::Client,
-    ) -> Pin<Box<dyn Future<Output = dsrs::lm::Capabilities> + Send + 'a>> {
-        Box::pin(std::future::ready(dsrs::lm::Capabilities::default()))
+    ) -> Pin<Box<dyn Future<Output = dsrust::lm::Capabilities> + Send + 'a>> {
+        Box::pin(std::future::ready(dsrust::lm::Capabilities::default()))
     }
 }
 
@@ -252,7 +252,7 @@ fn field_description(
     outputs: Vec<PyOutField>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    Ok(dsrs::adapter::field_description(&signature))
+    Ok(dsrust::adapter::field_description(&signature))
 }
 
 /// dspy's `infer_prefix`: the label an adapter prints in front of a field, from its name.
@@ -261,7 +261,7 @@ fn field_description(
 /// the boundary rather than only the rendering of its result.
 #[pyfunction]
 fn infer_prefix(name: &str) -> String {
-    dsrs::signature::infer_prefix(name)
+    dsrust::signature::infer_prefix(name)
 }
 
 /// dspy `majority`: which of several answers wins, as an index into them.
@@ -271,20 +271,20 @@ fn infer_prefix(name: &str) -> String {
 #[pyfunction]
 fn majority_index(values: Vec<String>, mode: &str) -> PyResult<usize> {
     let normalize = match mode {
-        "default" => dsrs::predict::Normalize::Default,
-        "identity" => dsrs::predict::Normalize::AsWritten,
-        "text" => dsrs::predict::Normalize::Text,
+        "default" => dsrust::predict::Normalize::Default,
+        "identity" => dsrust::predict::Normalize::AsWritten,
+        "text" => dsrust::predict::Normalize::Text,
         other => {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "unknown normalize mode {other:?}"
             )));
         }
     };
-    let completions: Vec<dsrs::Example> = values
+    let completions: Vec<dsrust::Example> = values
         .iter()
-        .map(|value| dsrs::Example::new([("value", Value::String(value.clone()))]))
+        .map(|value| dsrust::Example::new([("value", Value::String(value.clone()))]))
         .collect();
-    let winner = dsrs::predict::majority(&completions, &normalize, None).map_err(to_value_error)?;
+    let winner = dsrust::predict::majority(&completions, &normalize, None).map_err(to_value_error)?;
     let won = winner
         .get("value")
         .and_then(Value::as_str)
@@ -329,7 +329,7 @@ fn to_value_error(error: anyhow::Error) -> PyErr {
 #[pyfunction]
 fn extractor_instructions(outputs: Vec<PyOutField>) -> PyResult<String> {
     let signature = build_signature("", Vec::new(), outputs)?;
-    Ok(dsrs::adapter::extractor_signature(&signature).instructions)
+    Ok(dsrust::adapter::extractor_signature(&signature).instructions)
 }
 
 /// Render one exchange for the named adapter, as `(system, [(role, content), ...])`.
@@ -380,7 +380,7 @@ fn format_messages(
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
     // The whole message, not a role and a content: a turn carrying tool calls or a tool result
     // has keys beside `content`, and the crate is what states their shape.
-    let turns = dsrs::lm::api::wire_messages_of(&turns)
+    let turns = dsrust::lm::api::wire_messages_of(&turns)
         .iter()
         .map(|message| {
             serde_json::to_string(message)
@@ -465,7 +465,7 @@ fn parse_reply(
 fn normalize_tool_call(tool_call: &str) -> PyResult<String> {
     let written: Value = serde_json::from_str(tool_call)
         .map_err(|error| PyValueError::new_err(format!("bad tool call: {error}")))?;
-    let calls = dsrs::adapter::ToolCalls::from_dict_list(std::slice::from_ref(&written))
+    let calls = dsrust::adapter::ToolCalls::from_dict_list(std::slice::from_ref(&written))
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
     let call = calls
         .tool_calls

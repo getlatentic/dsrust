@@ -1,9 +1,9 @@
 //! GEPA end to end: the crate's optimizer against a scripted task model and reflection model.
 //!
-//! The sanity test drives the whole wiring — the [`gepa`] engine over the dsrs adapter — and checks
+//! The sanity test drives the whole wiring — the [`gepa`] engine over the dsrust adapter — and checks
 //! that GEPA reflects the seed instruction into the one that scores, accepts it on the minibatch, and
 //! leaves the student holding it. The dspy comparison (`gepa_makes_the_decisions_dspy_makes`) replays
-//! a run recorded from dspy's GEPA teleprompter and checks the candidate dsrs lands on matches.
+//! a run recorded from dspy's GEPA teleprompter and checks the candidate dsrust lands on matches.
 
 use std::sync::Arc;
 

@@ -130,15 +130,15 @@ impl Example {
 /// nested structure all work.
 ///
 /// ```
-/// let example = dsrs::example! { question: "Why is the sky blue?", answer: "Scattering." }
+/// let example = dsrust::example! { question: "Why is the sky blue?", answer: "Scattering." }
 ///     .with_inputs(["question"]);
 /// assert_eq!(example.labels().unwrap().len(), 1);
 /// ```
 /// The inputs of one call, each field named where its value goes.
 ///
 /// ```
-/// # async fn wrapper(haiku: impl dsrs::Module) -> anyhow::Result<()> {
-/// let out = haiku.forward(dsrs::input! { subject: "computer science" }).await?;
+/// # async fn wrapper(haiku: impl dsrust::Module) -> anyhow::Result<()> {
+/// let out = haiku.forward(dsrust::input! { subject: "computer science" }).await?;
 /// # Ok(()) }
 /// ```
 ///

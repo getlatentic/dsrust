@@ -338,7 +338,7 @@ where
 /// here as it is there, and `threshold` accepts `1.0` or an `Option<f64>`.
 ///
 /// ```
-/// # use dsrs::{refine, predict, Example, Prediction};
+/// # use dsrust::{refine, predict, Example, Prediction};
 /// fn one_word(_inputs: &Example, out: &Prediction) -> f64 {
 ///     match out.get("answer").and_then(|answer| answer.as_str()) {
 ///         Some(answer) if answer.split_whitespace().count() == 1 => 1.0,

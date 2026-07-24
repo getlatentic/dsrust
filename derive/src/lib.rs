@@ -47,13 +47,13 @@ pub fn predict(input: TokenStream) -> TokenStream {
         return signature_str::expand_module(spelling, "Predict");
     }
     if let Ok(task) = syn::parse::<syn::Ident>(input.clone()) {
-        return quote::quote! { ::dsrs::Predict::task::<#task>() }.into();
+        return quote::quote! { ::dsrust::Predict::task::<#task>() }.into();
     }
     call::expand(input, call::Module::Predict)
 }
 
 /// `#[derive(Module)]` — a program of your own, given everything Python inherits: the walk an
-/// optimizer works through, and being callable through `call!`. Write `dsrs::Forward` for how it
+/// optimizer works through, and being callable through `call!`. Write `dsrust::Forward` for how it
 /// runs; every named field is treated as a step unless marked `#[not_a_step]`.
 #[proc_macro_derive(Module, attributes(not_a_step))]
 pub fn derive_module(input: TokenStream) -> TokenStream {
@@ -80,7 +80,7 @@ pub fn chain_of_thought(input: TokenStream) -> TokenStream {
         return signature_str::expand_module(spelling, "ChainOfThought");
     }
     if let Ok(task) = syn::parse::<syn::Ident>(input.clone()) {
-        return quote::quote! { ::dsrs::ChainOfThought::task::<#task>() }.into();
+        return quote::quote! { ::dsrust::ChainOfThought::task::<#task>() }.into();
     }
     call::expand(input, call::Module::ChainOfThought)
 }

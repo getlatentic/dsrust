@@ -1,4 +1,4 @@
-//! The dsrs GEPA adapter (dspy's `DspyAdapter`): the bridge between GEPA's engine and a dsrs program.
+//! The dsrust GEPA adapter (dspy's `DspyAdapter`): the bridge between GEPA's engine and a dsrust program.
 //! It builds a program from a candidate's instructions, evaluates it on a batch (capturing traces for
 //! reflection), assembles the reflective dataset from those traces, and calls the reflection model to
 //! rewrite an instruction — the LLM work the [`gepa`] engine drives through [`gepa::GepaAdapter`].

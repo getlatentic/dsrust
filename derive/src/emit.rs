@@ -4,8 +4,8 @@ use quote::{format_ident, quote};
 use crate::parse::{Field, Kind, Model};
 
 /// Expansion: the two companion structs, the `SignatureSpec` impl, and the module
-/// constructors. Generated paths name the library as `::dsrs`, which its
-/// `extern crate self as dsrs` alias keeps valid inside the crate itself.
+/// constructors. Generated paths name the library as `::dsrust`, which its
+/// `extern crate self as dsrust` alias keeps valid inside the crate itself.
 pub fn expand(model: &Model) -> TokenStream {
     let companions = companions(model);
     let spec = spec_impl(model);
@@ -24,13 +24,13 @@ fn constructor_impl(model: &Model) -> TokenStream {
     quote! {
         impl #name {
             #[allow(dead_code)]
-            pub fn predict() -> ::dsrs::predict::TypedPredict<Self> {
-                ::dsrs::predict::Predict::task::<Self>()
+            pub fn predict() -> ::dsrust::predict::TypedPredict<Self> {
+                ::dsrust::predict::Predict::task::<Self>()
             }
 
             #[allow(dead_code)]
-            pub fn chain_of_thought() -> ::dsrs::predict::TypedChainOfThought<Self> {
-                ::dsrs::predict::ChainOfThought::task::<Self>()
+            pub fn chain_of_thought() -> ::dsrust::predict::TypedChainOfThought<Self> {
+                ::dsrust::predict::ChainOfThought::task::<Self>()
             }
         }
     }
@@ -72,12 +72,12 @@ fn spec_impl(model: &Model) -> TokenStream {
     let out_fields = model.outputs.iter().map(out_field);
     let pair_inputs = model.inputs.iter().map(pair_input);
     quote! {
-        impl ::dsrs::signature::SignatureSpec for #name {
+        impl ::dsrust::signature::SignatureSpec for #name {
             type Inputs = #inputs_name;
             type Outputs = #outputs_name;
 
-            fn signature() -> ::dsrs::signature::Signature {
-                ::dsrs::signature::Signature {
+            fn signature() -> ::dsrust::signature::Signature {
+                ::dsrust::signature::Signature {
                     instructions: #instructions.to_owned(),
                     inputs: ::std::vec![ #( #in_fields ),* ],
                     outputs: ::std::vec![ #( #out_fields ),* ],
@@ -86,7 +86,7 @@ fn spec_impl(model: &Model) -> TokenStream {
 
             fn input_pairs(
                 inputs: &Self::Inputs,
-            ) -> ::std::vec::Vec<::dsrs::adapter::Input<'static>> {
+            ) -> ::std::vec::Vec<::dsrust::adapter::Input<'static>> {
                 ::std::vec![ #( #pair_inputs ),* ]
             }
         }
@@ -111,8 +111,8 @@ fn pair_input(field: &Field) -> TokenStream {
     let name = field.ident.to_string();
     let value = pair_value(field);
     match crate::parse::is_record(&field.ty) {
-        true => quote! { ::dsrs::adapter::Input::record(#name, #value) },
-        false => quote! { ::dsrs::adapter::Input::new(#name, #value) },
+        true => quote! { ::dsrust::adapter::Input::record(#name, #value) },
+        false => quote! { ::dsrust::adapter::Input::new(#name, #value) },
     }
 }
 
@@ -128,18 +128,18 @@ fn kind(field: &Field) -> TokenStream {
         Kind::Json => {
             let annotation = crate::annotate::python_spelling(&field.ty);
             return quote! {
-                ::dsrs::signature::FieldKind::Json(
-                    ::dsrs::signature::JsonType::plain(#annotation),
+                ::dsrust::signature::FieldKind::Json(
+                    ::dsrust::signature::JsonType::plain(#annotation),
                 )
             };
         }
     };
-    quote! { ::dsrs::signature::FieldKind::#variant }
+    quote! { ::dsrust::signature::FieldKind::#variant }
 }
 
 /// An output field's kind, carrying the structure of its declared type as well as its name.
 ///
-/// [`BamlAdapter`](dsrs::BamlAdapter) states a type instead of a schema of it, and without this
+/// [`BamlAdapter`](dsrust::BamlAdapter) states a type instead of a schema of it, and without this
 /// every Rust type reached it as the bare word `json`. The shape comes from `schemars`, whose
 /// `JsonSchema` bound an output field already carries for its schema — so this asks nothing new
 /// of a caller, and needs no annotation of the kind other ports require.
@@ -153,10 +153,10 @@ fn out_kind(field: &Field) -> TokenStream {
     let ty = &field.ty;
     let annotation = crate::annotate::python_spelling(ty);
     quote! {
-        ::dsrs::signature::FieldKind::Json(
-            ::dsrs::signature::JsonType::reflected(
+        ::dsrust::signature::FieldKind::Json(
+            ::dsrust::signature::JsonType::reflected(
                 #annotation,
-                ::dsrs::signature::json_field_reflection::<#ty>(),
+                ::dsrust::signature::json_field_reflection::<#ty>(),
             ),
         )
     }
@@ -168,7 +168,7 @@ fn in_field(field: &Field) -> TokenStream {
     let kind = kind(field);
     let values = closed_set(field);
     quote! {
-        ::dsrs::signature::InField {
+        ::dsrust::signature::InField {
             name: #name.to_owned(),
             desc: #desc.to_owned(),
             kind: #kind,
@@ -184,7 +184,7 @@ fn closed_set(field: &Field) -> TokenStream {
     match &field.values {
         Some(values) => quote! {
             ::std::option::Option::Some(::std::vec![
-                #( ::dsrs::signature::LiteralValue::Str(#values.to_owned()) ),*
+                #( ::dsrust::signature::LiteralValue::Str(#values.to_owned()) ),*
             ])
         },
         None => quote! { ::std::option::Option::None },
@@ -204,14 +204,14 @@ fn out_field(field: &Field) -> TokenStream {
             let ty = &field.ty;
             quote! {
                 ::std::option::Option::Some(
-                    ::dsrs::signature::json_field_schema::<#ty>(),
+                    ::dsrust::signature::json_field_schema::<#ty>(),
                 )
             }
         }
         _ => quote! { ::std::option::Option::None },
     };
     quote! {
-        ::dsrs::signature::OutField {
+        ::dsrust::signature::OutField {
             name: #name.to_owned(),
             desc: #desc.to_owned(),
             kind: #kind,

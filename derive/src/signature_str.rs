@@ -4,7 +4,7 @@
 //! the string is a literal the compiler already holds: the two ways a spelling can be refused
 //! are decided here, and a program that spells one wrong does not build.
 //!
-//! Only the refusals live here. What a good spelling *becomes* is `dsrs::signature::parse`, and
+//! Only the refusals live here. What a good spelling *becomes* is `dsrust::signature::parse`, and
 //! the expansion calls it, so the field lists have one implementation rather than two. The
 //! refusals are checked against the same generated golden that parser is, which is what stops
 //! the halves drifting apart.
@@ -65,7 +65,7 @@ fn checked(literal: &syn::LitStr) -> Result<proc_macro2::TokenStream, syn::Error
         return Err(syn::Error::new(literal.span(), refusal));
     }
     Ok(quote! {
-        ::dsrs::signature::parse(#literal).expect("refused at compile time if it could fail")
+        ::dsrust::signature::parse(#literal).expect("refused at compile time if it could fail")
     })
 }
 
@@ -85,7 +85,7 @@ pub(crate) fn expand_module(literal: syn::LitStr, module: &str) -> TokenStream {
         Err(error) => return error.into_compile_error().into(),
     };
     let module = syn::Ident::new(module, literal.span());
-    quote! { ::dsrs::#module::from_signature(#built) }.into()
+    quote! { ::dsrust::#module::from_signature(#built) }.into()
 }
 
 #[cfg(test)]
@@ -95,7 +95,7 @@ mod tests {
     /// The same golden the runtime parser answers to.
     ///
     /// Two implementations decide whether a spelling is legal — this one so a bad literal fails
-    /// the build, and `dsrs::signature::parse` so a runtime string is answered. They agree here
+    /// the build, and `dsrust::signature::parse` so a runtime string is answered. They agree here
     /// or they do not agree at all.
     #[test]
     fn refuses_exactly_what_dspy_refuses() {

@@ -4,7 +4,7 @@
 //! upstream's JSONAdapter deliberately differs from every other adapter, and a `#[derive(Default)]`
 //! that happened to say `false` looked right while contradicting it.
 
-use dsrs::{ChatAdapter, JsonAdapter};
+use dsrust::{ChatAdapter, JsonAdapter};
 
 #[test]
 fn chat_defaults_match_dspys_chat_adapter() {

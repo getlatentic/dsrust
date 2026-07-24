@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use dsrs::{
+use dsrust::{
     Ask, DummyLM, Forward, Module, Predict, Signature, call, chain_of_thought, example, input,
     predict,
 };
@@ -48,7 +48,7 @@ struct Haiku {
 fn install() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
-        dsrs::lm::global::configure_model(
+        dsrust::lm::global::configure_model(
             reqwest::Client::new(),
             Arc::new(DummyLM::keyed([
                 ("capital of France?", example! { answer: "Paris" }),
@@ -218,7 +218,7 @@ async fn both_forms_are_one_type_and_one_module() {
 ///
 /// The derive supplies what Python inherits: the walk an optimizer works through, and being
 /// callable through `call!`. What is left is the part only the author knows.
-#[derive(dsrs::Module)]
+#[derive(dsrust::Module)]
 struct Outline {
     plan: Predict,
     write: Predict,
@@ -234,7 +234,7 @@ impl Outline {
 }
 
 impl Forward for Outline {
-    async fn forward(&self, inputs: dsrs::Example) -> anyhow::Result<dsrs::Prediction> {
+    async fn forward(&self, inputs: dsrust::Example) -> anyhow::Result<dsrust::Prediction> {
         let angle = self.plan.forward(inputs).await?;
         let handed = input! { angle: angle.get("angle").cloned().unwrap_or_default() };
         self.write.forward(handed).await
@@ -266,7 +266,7 @@ async fn a_module_of_your_own_composes_and_is_optimizable() {
 
 /// A reward is a named function in dspy's own example, and reads better than a closure written
 /// inline between the three arguments around it.
-fn one_word(_inputs: &dsrs::Example, out: &dsrs::Prediction) -> f64 {
+fn one_word(_inputs: &dsrust::Example, out: &dsrust::Prediction) -> f64 {
     match out.get("answer").and_then(|answer| answer.as_str()) {
         Some(answer) if answer.split_whitespace().count() == 1 => 1.0,
         _ => 0.0,
@@ -280,10 +280,10 @@ fn one_word(_inputs: &dsrs::Example, out: &dsrs::Prediction) -> f64 {
 async fn best_of_n_wraps_a_module_and_is_called_like_one() {
     install();
 
-    let best = dsrs::BestOfN::new(
+    let best = dsrust::BestOfN::new(
         predict!("question -> answer"),
         3,
-        |_inputs: &dsrs::Example, prediction: &dsrs::Prediction| match prediction
+        |_inputs: &dsrust::Example, prediction: &dsrust::Prediction| match prediction
             .get("answer")
             .and_then(|answer| answer.as_str())
         {
@@ -303,9 +303,9 @@ async fn best_of_n_wraps_a_module_and_is_called_like_one() {
 /// inside it rather than stopping at the wrapper.
 #[tokio::test]
 async fn best_of_n_is_a_module_an_optimizer_can_walk() {
-    use dsrs::Module;
+    use dsrust::Module;
 
-    let mut best = dsrs::best_of_n!(
+    let mut best = dsrust::best_of_n!(
         predict!("question -> answer"),
         n = 2,
         reward = one_word,

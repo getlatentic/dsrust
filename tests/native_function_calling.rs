@@ -8,13 +8,13 @@
 
 use std::sync::{Arc, Mutex};
 
-use dsrs::adapter::{ChatAdapter, Input};
-use dsrs::example::Example;
-use dsrs::module::Module;
-use dsrs::lm::api::{self, LmToolSpec};
-use dsrs::lm::{Capabilities, ChatModel, DynChatModel};
-use dsrs::predict::Predict;
-use dsrs::signature::{FieldKind, InField, JsonType, OutField, Signature};
+use dsrust::adapter::{ChatAdapter, Input};
+use dsrust::example::Example;
+use dsrust::module::Module;
+use dsrust::lm::api::{self, LmToolSpec};
+use dsrust::lm::{Capabilities, ChatModel, DynChatModel};
+use dsrust::predict::Predict;
+use dsrust::signature::{FieldKind, InField, JsonType, OutField, Signature};
 use serde_json::{Value, json};
 
 /// A model that answers nothing useful and keeps the request it was handed.
@@ -192,7 +192,7 @@ async fn asking_for_calls_without_offering_tools_never_reaches_the_model() {
 fn a_tool_with_no_arguments_still_states_an_object() {
     let signature = tool_signature();
     let inputs = [Input::new("tools", json!([{ "name": "finish", "desc": "stop" }]))];
-    let planned = dsrs::adapter::native_tools::plan(
+    let planned = dsrust::adapter::native_tools::plan(
         &signature,
         &inputs,
         Capabilities { function_calling: true, ..Default::default() },

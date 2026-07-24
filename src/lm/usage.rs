@@ -75,8 +75,8 @@ fn scope() -> &'static Mutex<()> {
 /// Count what every call costs until this is dropped. dspy's `with dspy.track_usage() as t:`.
 ///
 /// ```
-/// # async fn wrapper(program: dsrs::Predict) -> anyhow::Result<()> {
-/// let counting = dsrs::lm::usage::track();
+/// # async fn wrapper(program: dsrust::Predict) -> anyhow::Result<()> {
+/// let counting = dsrust::lm::usage::track();
 /// program.call("a question").await?;
 /// println!("{:?} tokens", counting.tracker().total().total());
 /// # Ok(()) }

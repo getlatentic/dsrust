@@ -3,11 +3,11 @@
 //!     cargo run --example quickstart
 //!
 //! The model is a `DummyLM` answering from a table, so this runs offline and always the same way.
-//! Point `dsrs::configure` at a real provider and nothing else here changes.
+//! Point `dsrust::configure` at a real provider and nothing else here changes.
 
 use std::sync::Arc;
 
-use dsrs::{
+use dsrust::{
     BootstrapFewShot, DummyLM, Evaluate, Example, Module, call, configure_model, exact_match,
     example, predict,
 };

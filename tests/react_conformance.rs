@@ -8,9 +8,9 @@
 
 use std::sync::{Arc, Mutex};
 
-use dsrs::lm::global;
-use dsrs::signature::{FieldKind, InField, OutField, Signature};
-use dsrs::{DummyLM, FnTool, Module, ReAct, Tool, example};
+use dsrust::lm::global;
+use dsrust::signature::{FieldKind, InField, OutField, Signature};
+use dsrust::{DummyLM, FnTool, Module, ReAct, Tool, example};
 use serde_json::{Value, json};
 
 fn weather() -> Box<dyn Tool> {

@@ -3,8 +3,8 @@
 
 use std::sync::Arc;
 
-use dsrs::signature::{InField, OutField, Signature};
-use dsrs::{DummyLM, Predict, TwoStepAdapter, example};
+use dsrust::signature::{InField, OutField, Signature};
+use dsrust::{DummyLM, Predict, TwoStepAdapter, example};
 
 fn signature() -> Signature {
     let mut signature = Signature::single_input(

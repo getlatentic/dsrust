@@ -2,16 +2,16 @@
 //! and a `Vec<Struct>` output declared on one derived signature, driven through a scripted
 //! model — prompt rendering, JSON coercion, both retry layers, and the call macros.
 
-use dsrs::Adapter;
-use dsrs::adapter::Input;
+use dsrust::Adapter;
+use dsrust::adapter::Input;
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use anyhow::{Result, anyhow};
-use dsrs::JsonAdapter;
-use dsrs::lm::api::{self, Content, content_of};
-use dsrs::lm::{self, ChatModel, ChatTurn, LM, Role};
-use dsrs::signature::{Signature, SignatureSpec, chain_of_thought, json_field_schema, predict};
+use dsrust::JsonAdapter;
+use dsrust::lm::api::{self, Content, content_of};
+use dsrust::lm::{self, ChatModel, ChatTurn, LM, Role};
+use dsrust::signature::{Signature, SignatureSpec, chain_of_thought, json_field_schema, predict};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -133,8 +133,8 @@ fn recorded_turns(request: &api::LmRequest) -> Vec<ChatTurn> {
 #[test]
 fn derive_spells_complex_field_types_the_way_dspy_prints_them() {
     let signature = IdeasTask::signature();
-    let annotation = |kind: &dsrs::signature::FieldKind| match kind {
-        dsrs::signature::FieldKind::Json(json) => json.annotation.clone(),
+    let annotation = |kind: &dsrust::signature::FieldKind| match kind {
+        dsrust::signature::FieldKind::Json(json) => json.annotation.clone(),
         other => format!("{other:?}"),
     };
     let inputs: Vec<String> = signature
@@ -148,7 +148,7 @@ fn derive_spells_complex_field_types_the_way_dspy_prints_them() {
         "a declared type keeps its name and a Vec becomes a list, as dspy prints them"
     );
     assert_eq!(annotation(&signature.outputs[0].kind), "list[GiftIdea]");
-    assert_eq!(signature.outputs[1].kind, dsrs::signature::FieldKind::Str);
+    assert_eq!(signature.outputs[1].kind, dsrust::signature::FieldKind::Str);
 
     let ideas_schema = json_field_schema::<Vec<GiftIdea>>();
     assert_eq!(signature.outputs[0].schema.as_ref(), Some(&ideas_schema));
@@ -466,7 +466,7 @@ fn call_macros_take_struct_literals_and_vecs() {
 #[ignore = "talks to a live provider; needs OPENROUTER_API_KEY"]
 async fn live_complex_output() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter("dsrs=warn")
+        .with_env_filter("dsrust=warn")
         .try_init()
         .ok();
     let model =
@@ -505,7 +505,7 @@ async fn live_complex_output() -> Result<()> {
 /// reflection from the derive leaves every other test passing.
 #[test]
 fn a_rust_type_reaches_baml_as_its_structure_rather_than_as_the_word_json() {
-    let system = dsrs::BamlAdapter
+    let system = dsrust::BamlAdapter
         .system_message(&IdeasTask::signature())
         .expect("renders");
     let at = system.find("Output field").expect("an output type block");
@@ -550,7 +550,7 @@ fn an_undescribed_field_line_ends_at_the_colon() {
         idea: String,
     }
 
-    let system = dsrs::BamlAdapter
+    let system = dsrust::BamlAdapter
         .system_message(&Bare::signature())
         .expect("renders");
     assert!(

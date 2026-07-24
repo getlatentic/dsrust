@@ -16,8 +16,8 @@
 //!   cargo test --test live_tools a_text_round_trip -- --ignored --nocapture
 //! ```
 
-use dsrs::lm::api::{self, LmConfig, LmMessage, LmPart, LmToolSpec};
-use dsrs::{ChatModel, LM};
+use dsrust::lm::api::{self, LmConfig, LmMessage, LmPart, LmToolSpec};
+use dsrust::{ChatModel, LM};
 
 /// The model, provider config, and cache-off LM the env asks for.
 fn live_setup() -> (LM, String, LmConfig) {

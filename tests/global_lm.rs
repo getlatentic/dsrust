@@ -7,8 +7,8 @@
 
 use std::time::Duration;
 
-use dsrs::lm::{self, LM};
-use dsrs::signature::{Signature, predict};
+use dsrust::lm::{self, LM};
+use dsrust::signature::{Signature, predict};
 
 /// Answer the question.
 // The derive is declaration data; the struct itself is never built.

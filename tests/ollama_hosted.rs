@@ -14,7 +14,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 
-use dsrs::lm::{ChatModel, LM};
+use dsrust::lm::{ChatModel, LM};
 use serde_json::{Value, json};
 
 /// What the server actually received.
@@ -161,7 +161,7 @@ async fn a_model_the_registry_lists_is_never_asked_about() {
 /// Against a real ollama, which the stubs above deliberately are not. Ignored by default, as the
 /// other live-provider tests here are: it needs a daemon with these models pulled.
 ///
-///     cargo test -p dsrs --test ollama_hosted -- --ignored
+///     cargo test -p dsrust --test ollama_hosted -- --ignored
 #[tokio::test]
 #[ignore = "needs a live ollama with qwen2.5:7b-instruct and gemma3:4b pulled"]
 async fn a_live_daemon_answers_the_way_litellm_reads_it() {

@@ -4,10 +4,10 @@
 //! caller actually does — build labelled examples, hand them to a module, and have the model
 //! see them as solved turns before the real request.
 
-use dsrs::adapter::Input;
-use dsrs::lm::Role;
-use dsrs::signature::{FieldKind, InField, OutField, Signature};
-use dsrs::{Adapter, ChatAdapter, Example};
+use dsrust::adapter::Input;
+use dsrust::lm::Role;
+use dsrust::signature::{FieldKind, InField, OutField, Signature};
+use dsrust::{Adapter, ChatAdapter, Example};
 use serde_json::json;
 
 fn signature() -> Signature {

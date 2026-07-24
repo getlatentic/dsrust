@@ -8,9 +8,9 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
-use dsrs::lm::{ChatModel, api, global};
-use dsrs::signature::{OutField, Signature};
-use dsrs::{FnTool, Module, ReAct, Tool, example, react::arg_str};
+use dsrust::lm::{ChatModel, api, global};
+use dsrust::signature::{OutField, Signature};
+use dsrust::{FnTool, Module, ReAct, Tool, example, react::arg_str};
 use serde_json::Value;
 
 struct Scripted {

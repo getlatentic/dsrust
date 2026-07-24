@@ -300,7 +300,7 @@ fn unwrap_option(ty: &syn::Type) -> &syn::Type {
 }
 
 /// The derive's error paths surface as compile errors, so they are probed here at the
-/// parse level; `cargo test -p dsrs-derive` runs them.
+/// parse level; `cargo test -p dsrust-derive` runs them.
 #[cfg(test)]
 mod tests {
     use super::*;

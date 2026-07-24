@@ -181,7 +181,7 @@ mod tests {
 
     impl Scratch {
         fn new(name: &str) -> Self {
-            let path = std::env::temp_dir().join(format!("dsrs-cache-{name}"));
+            let path = std::env::temp_dir().join(format!("dsrust-cache-{name}"));
             let _ = fs::remove_dir_all(&path);
             Self(path)
         }
@@ -286,11 +286,11 @@ mod tests {
     fn the_environment_names_the_directory_and_the_budget() {
         // SAFETY: single-threaded read of what this test itself just set.
         unsafe {
-            std::env::set_var(CACHE_DIR_VAR, "/tmp/dsrs-cache-from-env");
+            std::env::set_var(CACHE_DIR_VAR, "/tmp/dsrust-cache-from-env");
             std::env::set_var(SIZE_LIMIT_VAR, "4096");
         }
         let cache = DiskCache::from_env().expect("a directory was named");
-        assert_eq!(cache.root(), Path::new("/tmp/dsrs-cache-from-env"));
+        assert_eq!(cache.root(), Path::new("/tmp/dsrust-cache-from-env"));
         assert_eq!(cache.size_limit, 4096);
         unsafe {
             std::env::remove_var(CACHE_DIR_VAR);

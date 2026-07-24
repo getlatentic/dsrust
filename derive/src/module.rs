@@ -25,7 +25,7 @@ pub(crate) fn expand(item: &DeriveInput) -> Result<proc_macro2::TokenStream, syn
     let walk = steps.iter().map(|field| {
         let label = field.to_string();
         quote! {
-            for mut inner in ::dsrs::Module::named_predictors(&mut self.#field) {
+            for mut inner in ::dsrust::Module::named_predictors(&mut self.#field) {
                 inner.name = #label.to_owned();
                 found.push(inner);
             }
@@ -33,28 +33,28 @@ pub(crate) fn expand(item: &DeriveInput) -> Result<proc_macro2::TokenStream, syn
     });
 
     Ok(quote! {
-        impl ::dsrs::Module for #name {
+        impl ::dsrust::Module for #name {
             fn forward<'a>(
                 &'a self,
-                inputs: ::dsrs::Example,
+                inputs: ::dsrust::Example,
             ) -> ::std::pin::Pin<
                 ::std::boxed::Box<
-                    dyn ::std::future::Future<Output = ::anyhow::Result<::dsrs::Prediction>>
+                    dyn ::std::future::Future<Output = ::anyhow::Result<::dsrust::Prediction>>
                         + Send
                         + 'a,
                 >,
             > {
-                ::std::boxed::Box::pin(::dsrs::Forward::forward(self, inputs))
+                ::std::boxed::Box::pin(::dsrust::Forward::forward(self, inputs))
             }
 
-            fn named_predictors(&mut self) -> ::std::vec::Vec<::dsrs::NamedPredictor<'_>> {
+            fn named_predictors(&mut self) -> ::std::vec::Vec<::dsrust::NamedPredictor<'_>> {
                 let mut found = ::std::vec::Vec::new();
                 #(#walk)*
                 found
             }
         }
 
-        ::dsrs::asks_with_a_prediction!(#name);
+        ::dsrust::asks_with_a_prediction!(#name);
     })
 }
 

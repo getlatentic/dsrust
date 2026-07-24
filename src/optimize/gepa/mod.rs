@@ -1,4 +1,4 @@
-//! GEPA in dsrs: instruction optimization by reflective evolution, wrapping the [`gepa`] crate the
+//! GEPA in dsrust: instruction optimization by reflective evolution, wrapping the [`gepa`] crate the
 //! way dspy's `GEPA` teleprompter wraps the gepa package.
 //!
 //! The [`gepa`] engine runs the loop (Pareto candidate selection, minibatch sampling, the accept

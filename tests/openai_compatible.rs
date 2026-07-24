@@ -9,7 +9,7 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 
-use dsrs::lm::{ChatModel, JsonFormat, LM, OutputMode, TokenLimitRule, api};
+use dsrust::lm::{ChatModel, JsonFormat, LM, OutputMode, TokenLimitRule, api};
 use serde_json::{Value, json};
 
 const REPLY: &str = r#"{"choices":[{"message":{"content":"the reply"}}]}"#;
@@ -249,7 +249,7 @@ async fn the_schema_envelope_is_opt_in_and_carries_the_schema() {
 #[tokio::test]
 async fn forward_stream_reads_sse_into_typed_events() {
     use futures_util::StreamExt;
-    use dsrs::lm::api::{LmDelta, LmStreamEvent};
+    use dsrust::lm::api::{LmDelta, LmStreamEvent};
 
     let sse = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Par\"}}]}\n\n\
                data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"is\"}}]}\n\n\
@@ -410,12 +410,12 @@ async fn an_identical_request_is_replayed_rather_than_sent_again() {
     //
     // Every other test in this binary asks through `without_cache`, so nothing has initialised
     // the shared cache yet and this is the value it takes.
-    let scratch = std::env::temp_dir().join("dsrs-openai-compatible-cache");
+    let scratch = std::env::temp_dir().join("dsrust-openai-compatible-cache");
     let _ = std::fs::remove_dir_all(&scratch);
     // SAFETY: set before this binary's first use of the cache, and read only through it.
     unsafe { std::env::set_var("DSRS_CACHEDIR", &scratch) };
     assert_eq!(
-        dsrs::lm::cache::shared()
+        dsrust::lm::cache::shared()
             .disk()
             .expect("a disk layer")
             .root(),

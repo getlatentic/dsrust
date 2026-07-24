@@ -10,7 +10,7 @@ keywords = ["dspy", "llm", "prompt", "ai", "agents"]
 categories = ["science", "api-bindings"]
 
 [lib]
-name = "dsrs"
+name = "dsrust"
 path = "src/lib.rs"
 
 [workspace]

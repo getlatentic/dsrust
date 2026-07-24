@@ -6,9 +6,9 @@
 
 use std::sync::{Arc, Mutex};
 
-use dsrs::lm::global;
-use dsrs::signature::{FieldKind, OutField, Signature};
-use dsrs::{DummyLM, Example, LabeledFewShot, Module, example};
+use dsrust::lm::global;
+use dsrust::signature::{FieldKind, OutField, Signature};
+use dsrust::{DummyLM, Example, LabeledFewShot, Module, example};
 use serde_json::Value;
 
 /// The configured model is process-wide, so these tests take turns.
@@ -38,7 +38,7 @@ async fn a_predict_answers_from_the_script() {
     let lm = Arc::new(DummyLM::new([example! { answer: "Paris" }]));
     let _guard = install(lm.clone());
 
-    let predict = dsrs::predict::Predict::from_signature(signature());
+    let predict = dsrust::predict::Predict::from_signature(signature());
     let prediction = predict
         .forward(example! { request: "capital of France?" }.with_inputs(["request"]))
         .await
@@ -68,7 +68,7 @@ async fn a_scripted_bool_survives_the_render_and_parse_round_trip() {
     let lm = Arc::new(DummyLM::new([example! { sure: true }]));
     let _guard = install(lm.clone());
 
-    let prediction = dsrs::predict::Predict::from_signature(bool_signature)
+    let prediction = dsrust::predict::Predict::from_signature(bool_signature)
         .forward(example! { request: "is the sky blue?" }.with_inputs(["request"]))
         .await
         .expect("the scripted bool parses");
@@ -85,7 +85,7 @@ async fn a_compiled_program_shows_its_demos_to_the_model() {
         example! { request: "capital of France?", answer: "Paris" }.with_inputs(["request"]),
         example! { request: "capital of Germany?", answer: "Berlin" }.with_inputs(["request"]),
     ];
-    let mut predict = dsrs::predict::Predict::from_signature(signature());
+    let mut predict = dsrust::predict::Predict::from_signature(signature());
     LabeledFewShot::new(2).compile(&mut predict, &trainset);
 
     predict
@@ -105,7 +105,7 @@ async fn a_keyed_dummy_suits_a_loop_whose_order_the_model_chooses() {
     ]));
     let _guard = install(lm.clone());
 
-    let predict = dsrs::predict::Predict::from_signature(signature());
+    let predict = dsrust::predict::Predict::from_signature(signature());
     for (question, expected) in [
         ("capital of Spain?", "Madrid"),
         ("capital of France?", "Paris"),

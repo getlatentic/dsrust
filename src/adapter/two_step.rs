@@ -30,7 +30,7 @@ const TEXT: &str = "text";
 /// An adapter that asks for prose first and structure second.
 ///
 /// ```
-/// # use dsrs::{DummyLM, TwoStepAdapter, example};
+/// # use dsrust::{DummyLM, TwoStepAdapter, example};
 /// # use std::sync::Arc;
 /// let smaller = Arc::new(DummyLM::new([example! { answer: "Paris" }]));
 /// let adapter = TwoStepAdapter::new(smaller);

@@ -9,9 +9,9 @@
 
 use std::collections::BTreeMap;
 
-use dsrs::example::Example;
-use dsrs::module::{Module, ProgramState};
-use dsrs::predict::{ChainOfThought, Predict};
+use dsrust::example::Example;
+use dsrust::module::{Module, ProgramState};
+use dsrust::predict::{ChainOfThought, Predict};
 use serde_json::{Value, json};
 
 fn saved(program: &mut dyn Module, path: &std::path::Path) -> Value {
@@ -20,7 +20,7 @@ fn saved(program: &mut dyn Module, path: &std::path::Path) -> Value {
 }
 
 fn scratch(name: &str) -> std::path::PathBuf {
-    let path = std::env::temp_dir().join(format!("dsrs-saved-{name}.json"));
+    let path = std::env::temp_dir().join(format!("dsrust-saved-{name}.json"));
     let _ = std::fs::remove_file(&path);
     path
 }
@@ -47,7 +47,7 @@ fn the_file_has_dspys_shape_key_for_key() {
         ]),
         "inputs then outputs, in declaration order"
     );
-    assert_eq!(file["metadata"]["dependency_versions"]["dspy"], json!(dsrs::module::DSPY_VERSION));
+    assert_eq!(file["metadata"]["dependency_versions"]["dspy"], json!(dsrust::module::DSPY_VERSION));
 }
 
 /// What each optimizer leaves differs while the shape does not: demos for a bootstrap, rewritten
@@ -91,7 +91,7 @@ fn a_rewritten_field_description_survives_the_round_trip() {
 /// dspy's own reader, on a file this crate wrote. Ignored by default because it needs the dspy
 /// virtualenv the conformance suite uses.
 ///
-///     cargo test -p dsrs --test saved_program -- --ignored
+///     cargo test -p dsrust --test saved_program -- --ignored
 #[test]
 #[ignore = "needs .dspy-venv, as the conformance suite does"]
 fn dspy_loads_and_runs_what_this_crate_saved() {

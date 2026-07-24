@@ -1,5 +1,5 @@
 //! The `/api/generate` route against a real daemon. Ignored by default like the other live tests.
-use dsrs::lm::{ChatModel, LM, api};
+use dsrust::lm::{ChatModel, LM, api};
 
 #[tokio::test]
 #[ignore = "needs a live ollama with llama3.2:1b pulled"]

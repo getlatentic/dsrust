@@ -77,7 +77,7 @@ pub struct TraceStep {
 ///     async fn forward(&self, inputs: Example) -> Result<Prediction> {
 ///         let angle = self.plan.forward(inputs).await?;
 ///         self.write
-///             .forward(dsrs::input! { angle: angle.get("angle").cloned().unwrap_or_default() })
+///             .forward(dsrust::input! { angle: angle.get("angle").cloned().unwrap_or_default() })
 ///             .await
 ///     }
 /// }
@@ -191,8 +191,8 @@ pub fn relabel(trace: &mut [TraceStep], from: usize, name: &str) {
 /// Ask a module, naming each input where its value goes.
 ///
 /// ```
-/// # async fn wrapper(haiku: dsrs::Predict) -> anyhow::Result<()> {
-/// let result = dsrs::call!(haiku, subject = "computer science", tone = "wry").await?;
+/// # async fn wrapper(haiku: dsrust::Predict) -> anyhow::Result<()> {
+/// let result = dsrust::call!(haiku, subject = "computer science", tone = "wry").await?;
 /// # Ok(()) }
 /// ```
 ///
@@ -201,7 +201,7 @@ pub fn relabel(trace: &mut [TraceStep], from: usize, name: &str) {
 /// to the call's future, so the caller writes `.await?` and sees where the model is reached.
 ///
 /// Asks through [`Ask`], so what comes back is whatever the module promised. A module of your
-/// own joins in with one line — `dsrs::asks_with_a_prediction!(YourModule);` — which is the same
+/// own joins in with one line — `dsrust::asks_with_a_prediction!(YourModule);` — which is the same
 /// line the modules here use.
 #[macro_export]
 macro_rules! call {

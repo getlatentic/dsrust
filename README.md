@@ -9,7 +9,7 @@ examples and let an optimizer find the prompts and few-shot examples that score 
 It's a faithful Rust port of [DSPy](https://github.com/stanfordnlp/dspy).
 
 ```rust
-use dsrs::{predict, call};
+use dsrust::{predict, call};
 
 let qa = predict!("question -> answer");
 let out = call!(qa, question = "capital of France?").await?;
@@ -18,7 +18,7 @@ println!("{}", out.get("answer").unwrap());
 
 ```toml
 [dependencies]
-dsrust = "0.1.0-alpha.1"   # import it as `dsrs`
+dsrust = "0.1.0-alpha.1"
 ```
 
 > **Status: alpha.** The core — byte-level rendering and parsing, the optimizers, the RNG — is
@@ -61,7 +61,7 @@ That fidelity is the reason to reach for it:
 A task can be a typed struct, which gives you a reply checked at compile time:
 
 ```rust
-use dsrs::{predict, call, Signature};
+use dsrust::{predict, call, Signature};
 
 #[derive(Signature)]
 /// Answer the question.
@@ -78,7 +78,7 @@ Reach a provider by naming it `provider/model-id` — the prefix is a **wire for
 so any OpenAI-compatible host is a base-URL away:
 
 ```rust
-use dsrs::lm::{LM, configure};
+use dsrust::lm::{LM, configure};
 
 configure(LM::new("openai/gpt-4o-mini")?);                 // from OPENAI_API_KEY
 

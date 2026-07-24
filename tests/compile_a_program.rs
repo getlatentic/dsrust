@@ -4,15 +4,15 @@
 //! reach for, and checks the thing that matters: after compiling, the demos an optimizer chose
 //! appear in the prompt the model receives. If they do not, the compile changed nothing.
 
-use dsrs::adapter::Input;
+use dsrust::adapter::Input;
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use anyhow::Result;
-use dsrs::lm::api::{self, Content, content_of};
-use dsrs::lm::{ChatModel, ChatTurn, Role};
-use dsrs::signature::{OutField, Signature};
-use dsrs::{Adapter, ChatAdapter, Example, LabeledFewShot, example};
+use dsrust::lm::api::{self, Content, content_of};
+use dsrust::lm::{ChatModel, ChatTurn, Role};
+use dsrust::signature::{OutField, Signature};
+use dsrust::{Adapter, ChatAdapter, Example, LabeledFewShot, example};
 use serde_json::json;
 
 struct Recorder {
@@ -84,7 +84,7 @@ fn trainset() -> Vec<Example> {
 
 #[test]
 fn compiling_a_predict_writes_demos_through_the_module_seam() {
-    let mut predict = dsrs::predict::Predict::from_signature(signature());
+    let mut predict = dsrust::predict::Predict::from_signature(signature());
     assert!(predict.demos.is_empty());
 
     LabeledFewShot::new(2).compile(&mut predict, &trainset());
@@ -95,7 +95,7 @@ fn compiling_a_predict_writes_demos_through_the_module_seam() {
 
 #[tokio::test]
 async fn the_chosen_demos_reach_the_prompt() {
-    let mut predict = dsrs::predict::Predict::from_signature(signature());
+    let mut predict = dsrust::predict::Predict::from_signature(signature());
     LabeledFewShot::new(2).compile(&mut predict, &trainset());
 
     let lm = Recorder::new(&["[[ ## answer ## ]]\nMadrid\n\n[[ ## completed ## ]]"]);
@@ -128,8 +128,8 @@ async fn the_chosen_demos_reach_the_prompt() {
 
 #[test]
 fn a_compiled_program_and_an_uncompiled_one_render_differently() {
-    let bare = dsrs::predict::Predict::from_signature(signature());
-    let mut compiled = dsrs::predict::Predict::from_signature(signature());
+    let bare = dsrust::predict::Predict::from_signature(signature());
+    let mut compiled = dsrust::predict::Predict::from_signature(signature());
     LabeledFewShot::new(2).compile(&mut compiled, &trainset());
 
     let inputs = [Input::new("request", json!("capital of Spain?"))];
