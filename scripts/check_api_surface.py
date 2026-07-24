@@ -103,18 +103,19 @@ def main() -> None:
         failures.append(f"{len(broken)} mapped entr(ies) whose Rust identifier is undefined:")
         failures += [f"    ? {k} -> {ledger[k]['rust']}" for k in broken]
 
-    counts = {"mapped": 0, "divergence": 0, "todo": 0}
+    counts = {"mapped": 0, "divergence": 0, "deferred": 0, "todo": 0}
     for key in defined:
         entry = ledger.get(key)
         if entry:
             counts[entry["status"]] = counts.get(entry["status"], 0) + 1
     total = len(defined)
-    resolved = counts["mapped"] + counts["divergence"]
+    resolved = counts["mapped"] + counts["divergence"] + counts["deferred"]
 
     print(f"API surface (top-level, {len(PORTED_MODULES)} ported modules): {total} symbols")
     print(f"  mapped     : {counts['mapped']}")
     print(f"  divergence : {counts['divergence']}")
-    print(f"  todo       : {counts['todo']}")
+    print(f"  deferred   : {counts['deferred']} (out of 1.0 scope)")
+    print(f"  todo       : {counts['todo']} (1.0 backlog)")
     if total:
         print(f"  resolved   : {resolved}/{total} ({100 * resolved // total}%)")
 

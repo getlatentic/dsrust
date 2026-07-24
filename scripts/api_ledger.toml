@@ -8,9 +8,12 @@
 # status = "divergence" — intended: no 1:1 symbol, and `reason` says why (Python-only machinery,
 #                         an internal helper folded into another file, or a different Rust shape
 #                         such as an enum variant). Counts as resolved.
-# status = "todo"       — a genuine gap: dspy has public API this crate has not ported. `reason`
-#                         names it. Tracked and counted, does not fail the gate — this is the
-#                         API backlog, the honest companion to the byte-level suites.
+# status = "todo"       — a genuine gap, in scope for 1.0: dspy has public API this crate has not
+#                         ported yet. `reason` names it. Tracked and counted, does not fail the
+#                         gate — this is the 1.0 API backlog.
+# status = "deferred"   — public API deliberately out of the 1.0 ceiling (finetuning/RL), a made
+#                         decision rather than a pending gap. Counts as resolved-for-1.0, reported
+#                         apart from todo so the 1.0 backlog is only in-scope work.
 #
 # Scope is top-level classes and functions. Methods of mapped classes are measured and reported by
 # the gate (same-name coverage) but not yet required here; tightening the gate to method level is
@@ -118,11 +121,11 @@
 "clients/lm.py::alitellm_responses_completion" = { status = "divergence", reason = "async litellm Responses-API wire call; native provider stack" }
 "clients/cache.py::Cache" = { status = "mapped", rust = "Cached" }
 "clients/cache.py::request_cache" = { status = "divergence", reason = "internal cache-key decorator" }
-"clients/provider.py::Provider" = { status = "todo", reason = "finetuning provider abstraction not ported" }
-"clients/provider.py::TrainingJob" = { status = "todo", reason = "finetuning not ported" }
-"clients/provider.py::ReinforceJob" = { status = "todo", reason = "RL finetuning not ported" }
-"clients/openai.py::OpenAIProvider" = { status = "todo", reason = "OpenAI finetuning provider not ported" }
-"clients/openai.py::TrainingJobOpenAI" = { status = "todo", reason = "OpenAI finetuning job not ported" }
+"clients/provider.py::Provider" = { status = "deferred", reason = "finetuning provider abstraction; out of the 1.0 inference/optimization ceiling" }
+"clients/provider.py::TrainingJob" = { status = "deferred", reason = "finetuning; out of the 1.0 ceiling" }
+"clients/provider.py::ReinforceJob" = { status = "deferred", reason = "RL finetuning; out of the 1.0 ceiling" }
+"clients/openai.py::OpenAIProvider" = { status = "deferred", reason = "OpenAI finetuning provider; out of the 1.0 ceiling" }
+"clients/openai.py::TrainingJobOpenAI" = { status = "deferred", reason = "OpenAI finetuning job; out of the 1.0 ceiling" }
 
 # --- evaluate ---
 "evaluate/evaluate.py::Evaluate" = { status = "mapped", rust = "Evaluate" }
