@@ -26,16 +26,17 @@
 [project]
 name = "dsrs"
 upstream = "dspy"
-upstream_version = "3.2.1"
-updated = "2026-07-21"
+upstream_version = "3.3.0b1"
+updated = "2026-07-24"
 
 [status]
-rust_tests = 456
-upstream_tests_passing = 380
-upstream_tests_crossing = 180
-upstream_tests_deciding_signatures = 260
+rust_tests = 696
+upstream_tests_passing = 452
+upstream_tests_crossing = 243
+upstream_tests_deciding_signatures = 325
 xfail_backlog = 0
 suites_run = 24
+release_stage = "alpha"
 
 # ---------------------------------------------------------------------------
 # Shipped
@@ -1157,4 +1158,126 @@ kind = "release"
 detail = """
 Not blocked by scope — blocked by deciding what the 0.1 API surface promises. Adapter::format
 became fallible once already; another such change after publishing is a breaking release.
+"""
+
+# ---------------------------------------------------------------------------
+# Public-release roadmap (2026-07-24) — scoped for going public as alpha, then
+# closing the API/model-level breadth the conformance audit flagged. Ordered so
+# each sprint ships a usable increment and builds on the last.
+# ---------------------------------------------------------------------------
+
+[[sprint]]
+id = "r1"
+name = "ReAct v2"
+state = "next"
+outcome = """
+dspy 3.3's ReActV2 runs in dsrs, byte-conformant in both native-tool-calling and text mode.
+This is the first public-roadmap sprint because it builds directly on the tool-calling
+infrastructure already landed (ToolCalls, native function calling, the tool-call response path,
+tool history) — it is the payoff for that work, and a dspy 3.3 feature no other Rust port has.
+"""
+suites = ["predict/test_react_v2.py"]
+rationale = """
+ReActV2 is a rewrite of ReAct on the native-tool-calling boundary: the model returns `ToolCalls`
+rather than a rendered `next_tool_name` field, a `history` of {tool_calls, tool_call_results}
+messages carries the loop, a `submit` tool replaces `finish`, and it works whether or not the
+adapter uses native function calling. Every piece it needs — ToolCalls.from_dict_list, the
+`_call_postprocess` tool path, tool_call_results pairing, native/text-mode branching — is already
+built and conformance-tested, so this sprint is assembly plus its own end-to-end golden, not new
+primitives.
+"""
+
+[[story]]
+id = "r1-1"
+sprint = "r1"
+title = "ReActV2 module: the native-tool loop with a submit tool and message history"
+state = "next"
+size = "L"
+plan = """
+Port dspy/predict/react.py's ReActV2 as src/predict/react_v2.rs (or promote react/ to hold both):
+the loop that asks for ToolCalls, runs the named tool, appends {tool_calls, tool_call_results} to
+a History, and stops on `submit`. Text mode reads tool calls from a rendered field via
+ToolCalls.from_dict_list; native mode reads them off the response. Hold it to test_react_v2.py
+through the bridge, plus a committed golden of the assembled history for a scripted multi-turn run.
+"""
+
+[[story]]
+id = "r1-2"
+sprint = "r1"
+title = "History as a first-class type, since ReActV2's loop is built on it"
+state = "next"
+size = "M"
+plan = """
+ReActV2 threads `pred.history.messages[i]["tool_calls"]`. dsrs currently recognises History by
+matching the printed annotation string; ReActV2 needs it as a real value with typed messages
+carrying ToolCalls and ToolCallResults. Model it as the struct dspy's History is, on the
+adapter/types boundary beside Reasoning and ToolCalls.
+"""
+
+[[sprint]]
+id = "r2"
+name = "The custom-type seam"
+state = "planned"
+outcome = """
+A Rust caller can add a custom type the way a Python one subclasses dspy.Type, and the six types
+dspy ships on that seam — Image, Audio, File, Code (Citations, Document where present) — exist as
+first-class types rather than pre-serialised strings arriving from Python.
+"""
+suites = [
+  "signatures/test_custom_types.py", "adapters/test_base_type.py",
+  "adapters/test_code.py", "adapters/test_audio.py", "signatures/test_adapter_image.py",
+]
+rationale = """
+The highest-value model-level gap: dspy models Type with format/description/parse_lm_response/
+adapt_to_native_lm_feature hooks, and dsrs currently models these as data (JsonType /
+TypeDescription), so a Rust user cannot add a custom type at all and multimodal input only works
+when a pre-serialised string crosses from Python. Closing this one seam unblocks Image/Audio/File/
+Code AND makes the port extensible. It follows ReAct v2 because ToolCalls/Reasoning already proved
+the types/ boundary shape it will use.
+"""
+
+[[sprint]]
+id = "r3"
+name = "The modules that run code"
+state = "planned"
+outcome = "ProgramOfThought and CodeAct — a module that writes and runs code to answer."
+suites = ["predict/test_program_of_thought.py", "predict/test_code_act.py"]
+rationale = """
+Both take a signature and will get macros (predict!-family). CodeAct composes ReAct's tool loop
+with code execution, so it follows r1; ProgramOfThought needs the Code type from r2. Sequenced
+after both rather than before either.
+"""
+
+[[sprint]]
+id = "r4"
+name = "The remaining optimizers"
+state = "planned"
+outcome = """
+BootstrapFewShotWithRandomSearch, Ensemble, KNNFewShot, InferRules, BetterTogether, SIMBA,
+BootstrapFinetune — the optimizer surface a dspy user reaches for beyond the flagship three.
+"""
+suites = [
+  "teleprompt/test_random_search.py", "teleprompt/test_ensemble.py",
+  "teleprompt/test_knn_fewshot.py", "teleprompt/test_infer_rules.py",
+]
+rationale = """
+Most are compositions over BootstrapFewShot + the Optimizer trait that already exist; SIMBA and
+BootstrapFinetune are the two with genuinely new search/finetune machinery. Ranked last of the
+feature sprints because the flagship optimizers (MIPROv2, GEPA) already prove the hard parts —
+the TPE sampler, the RNG, the reflective engine — and these reuse them.
+"""
+
+[[sprint]]
+id = "r5"
+name = "Error taxonomy and the thin API edges"
+state = "planned"
+outcome = """
+The typed-error surface dspy branches on (ChatAdapter must not fall back on an LMError; ReAct must
+catch ContextWindowExceededError) plus the Signature edit API (append/prepend/insert) and the GEPA
+teleprompter config that is still thin (auto budgets, current_best selection, custom proposers).
+"""
+rationale = """
+Cross-cutting polish rather than a feature: dsrs uses anyhow throughout where dspy has ~18 error
+types, and a few branches upstream takes on error identity are currently unreachable. Grouped last
+because each item is small and touches code the earlier sprints will have just moved.
 """

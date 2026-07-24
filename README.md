@@ -1,32 +1,57 @@
-# dsrs — DSPy in Rust
+# dsrs — DSPy in Rust, byte-for-byte
 
-A Rust implementation of [DSPy](https://github.com/stanfordnlp/dspy): signatures, adapters,
-modules, and — as they land — evaluation and optimizers.
+A faithful Rust port of [DSPy](https://github.com/stanfordnlp/dspy): signatures, adapters,
+modules, providers, evaluation, and optimizers. Where DSPy renders a prompt, dsrs renders **the
+same bytes**; where DSPy's optimizer makes a decision, dsrs makes **the same decision, in the same
+order**. That is a claim worth testing rather than asserting — so it is tested against DSPy itself.
 
-The goal is **fidelity, not inspiration**. Where DSPy renders a prompt, this crate renders the
-same bytes. That is a claim worth testing rather than asserting, so upstream's own adapter
-tests are the acceptance criteria: `tests/conformance/` holds goldens written by *running* the
-pinned dspy rather than by transcribing its assertions, and `tests/conformance.rs` runs this
-crate's renderer against them.
+> **Status: alpha.** The conformance core is strong and the API surface is real, but incomplete
+> (see [Roadmap](#roadmap)) and still moving. Pin an exact version.
+
+---
+
+## Why another DSPy for Rust?
+
+There are other Rust takes on DSPy, and they describe themselves honestly as a *"rewrite, not a
+port."* dsrs is the opposite bet: **a port whose fidelity is the product.** The difference is
+testable, and dsrs holds itself to five levels of it at once:
+
+| Level | What it means | Example in dsrs |
+|---|---|---|
+| **File** | Ported code lands where upstream keeps it | `dspy/adapters/types/reasoning.py` → `src/adapter/types/reasoning.rs` |
+| **API** | Same surface — names, fields, defaults | `ChatAdapter` carries `use_native_function_calling` *and* `parallel_tool_calls`, with `None ≠ Some(false)` |
+| **Model** | Each Python class becomes the right Rust construct | base-class-with-hooks → **trait**; pydantic model → **struct**; closed variant set → **enum** |
+| **Algorithm** | The same decisions in the same order, including the odd ones | DSPy finds a tool-calls field by asking the *value*, not the signature — so dsrs does too |
+| **Byte I/O** | The exact text sent to and read from the model | `json_dumps` matches Python's `", "` / `": "` spacing |
+
+The payoff: a program you compile with dsrs's optimizer saves to **the exact JSON file `dspy.load`
+reads** — you can move a compiled artifact between the two ports and run it either side.
+
+**Keywords:** DSPy Rust port, prompt optimization, LLM programming, GEPA, MIPROv2, structured
+outputs, tool calling, byte-for-byte conformance.
+
+---
+
+## Quickstart — no provider, no API key
 
 ```rust
+use dsrs::{predict, call};
+
 let qa = predict!("question -> answer");
 let out = call!(qa, question = "capital of France?").await?;
 println!("{}", out.get("answer").unwrap());
 ```
 
-A task is declared by its field names or by a struct, and both produce the same type, are asked
-the same way, and can be compiled by an optimizer. A malformed signature fails the build rather
-than the run:
+A task can also be a struct, which gives you a typed reply checked at compile time:
 
 ```rust
+use dsrs::{predict, call, Signature};
+
 #[derive(Signature)]
 /// Answer the question.
 struct QA {
-    #[input]
-    question: String,
-    #[output]
-    answer: String,
+    #[input]  question: String,
+    #[output] answer: String,
 }
 
 let qa = predict!(QA);
@@ -34,75 +59,148 @@ let out = call!(qa, question = "capital of France?").await?;
 println!("{}", out.answer);   // typed, checked when this compiles
 ```
 
-Run the whole loop — declare, ask, score, compile — with no provider and no API key:
+Run the whole loop — declare, ask, score, compile — against a scripted model with no network:
 
 ```bash
 cargo run --example quickstart
 ```
 
-Every spelling, against the Python it mirrors: **[docs/usage.md](docs/usage.md)**.
+---
+
+## Reaching a real provider
+
+A model is an `LM`, named `provider/model-id`. The prefix picks a **wire format**, not a brand:
+
+```rust
+use dsrs::lm::{LM, configure};
+
+// OpenAI itself, from OPENAI_API_KEY in the environment.
+configure(LM::new("openai/gpt-4o-mini")?);
+
+// Groq — same OpenAI wire, different host and key.
+configure(
+    LM::new("openai/llama-3.3-70b")?
+        .with_openai_base_url("https://api.groq.com/openai/v1")
+        .with_openai_key(std::env::var("GROQ_API_KEY")?),
+);
+```
+
+`anthropic/…`, `ollama/…` (the `/api/generate` route) and `ollama_chat/…` (the `/api/chat` route,
+with native tool calls) are the other built-in wires — the same split litellm draws, drawn
+explicitly. **Your own provider is the `ChatModel` trait** (`forward(LmRequest) -> LmResponse`,
+DSPy 3.3's typed-LM shape) — a model built that way is indistinguishable from the built-ins.
+
+---
+
+## Modules and optimizers
+
+```rust
+// Chain of thought
+let qa = chain_of_thought!("question -> answer");
+
+// ReAct with tools
+let agent = ReAct::new(signature!("question -> answer"), tools);
+
+// Optimize: GEPA evolves the instruction by reflecting on how the program did
+let compiled = GEPA::new(metric, reflection_lm)
+    .with_max_metric_calls(200)
+    .compile(program, trainset, valset)
+    .await?;
+
+// The compiled artifact is DSPy's own on-disk format — load it in Python if you like
+compiled.save(std::path::Path::new("compiled.json"))?;
+```
+
+See **[`docs/usage.md`](docs/usage.md)** for the full guide — every module, provider composition,
+custom types, and the DSPy-vs-dsrs mapping side by side.
+
+---
+
+## How conformance is tested (and reproduced)
+
+Fidelity is checked two ways, both against the pinned upstream (`dspy==3.3.0b1`, `gepa==0.1.1`,
+`optuna==4.9.0`), never against a transcription of it:
+
+1. **Committed goldens.** `tests/conformance/**` holds fixtures generated by *running* the pinned
+   Python (`scripts/generate_*.py`) and captured to JSON — the exact bytes and decisions upstream
+   produced. The generators refuse to run against a different version (`scripts/pins.py`), so a
+   golden cannot silently drift from the version it claims. These are the reproducible oracle:
+   they live in the repo, and `cargo test` needs no Python to check against them.
+
+2. **Upstream's own test suite, over dsrs's renderer.** A PyO3 bridge (`bridge/`) runs DSPy's
+   actual pytest files with dsrs underneath. `scripts/run_upstream_tests.sh` fetches the test tree
+   at the pinned tag and builds the bridge; a crossing-counter fails any test that passes *without*
+   touching the Rust crate, so green cannot mean "Python answered for us."
+
+Numbers today: **~696 Rust tests**, **452 of DSPy's own adapter/predict tests passing through the
+crate**, plus separately-verified reproductions of CPython's Mersenne Twister (checked against
+CPython's *own* `test_guaranteed_stable` vector), numpy's RNG (raw IEEE-754 bits), optuna's TPE
+sampler, and the gepa package's evolution engine.
+
+**Reproducing it yourself:**
 
 ```bash
-cargo test                          # everything, including committed goldens
-./scripts/run_upstream_tests.sh     # dspy's own pytest, running on this crate
+uv venv .dspy-venv --python 3.12
+uv pip install --python .dspy-venv/bin/python \
+    dspy==3.3.0b1 gepa==0.1.1 optuna==4.9.0 pytest pytest-asyncio maturin pillow
+cargo test --workspace                # the Rust suite + committed goldens
+bash scripts/run_upstream_tests.sh    # DSPy's own tests, over dsrs
 ```
 
-Two layers check the same claim. `tests/conformance/` holds goldens generated by running the
-pinned dspy (`scripts/generate_fixtures.py`), so `cargo test` needs no Python. Above that,
-`scripts/run_upstream_tests.sh` downloads dspy's own `test_chat_adapter.py` at the pinned tag
-and runs it **unmodified**, through a PyO3 bridge, with a `conftest.py` that swaps
-`dspy.ChatAdapter` for a subclass whose rendering is this crate.
+The Python environment is reconstructed from that pinned install — never committed. See
+[`docs/`](docs/) and `backlog.toml` for the full conformance ledger.
 
-A case Rust cannot render raises rather than quietly reaching Python: `Unsupported` derives
-from `BaseException`, so the `except Exception` that guards dspy's JSON re-ask cannot catch
-it on either the sync or the async path. That re-ask itself stays, because dspy has it and
-upstream tests it — what it may never do is stand in for code this crate has not written. The
-unbuilt cases are named in `conftest.py` and marked `xfail(strict=True)`, so they never count
-as passes, and the run fails if one starts passing while still listed — a backlog in code,
-unable to go stale. It is currently empty.
+---
 
-A pass count alone would overstate what that proves, so the runner reports how far each test
-reached and how much of upstream is carried at all:
+## Roadmap
 
-```
-18 of 81 upstream test files (22%)
-160 of 300 tests rendered or parsed through the crate
-229 of 300 tests decided a signature through the crate
-```
+dsrs is honest about what is and isn't done. The **byte and algorithm levels are strong**; the
+**breadth of the API — the full set of types and optimizers a DSPy user reaches for — is where it
+is still thin.**
 
-The suite is an allowlist, so green means the files named in it pass. The first line is what
-stops that reading as done.
+### Done
 
-The bridge builds through maturin with `build.rs` calling
-`pyo3_build_config::add_extension_module_link_args()`, and deliberately does **not** use
-PyO3's `extension-module` Cargo feature — that feature disables Python linking for tests and
-binaries, which is what produces undefined `_Py…` symbols. Keeping the link arguments in
-`build.rs` rather than `.cargo/config.toml` scopes them to this crate instead of every
-binary in the workspace. If the module ever fails to import, `conftest.py` skips the run with
-that error rather than letting a broken build read as a pass.
+- **Adapters** — Chat, JSON, XML, BAML, TwoStep — render and parse byte-identically, incl. native
+  function calling and the tool-call response path.
+- **Modules** — Predict, ChainOfThought, ReAct, MultiChainComparison, BestOfN, Refine, Parallel.
+- **Providers** — OpenAI-compatible (OpenAI, Groq, Together, vLLM, …), Anthropic, ollama (both
+  routes); the typed `ChatModel` / `LmRequest` / `LmResponse` boundary, streaming, a response
+  cache, and litellm-grounded capability detection.
+- **Optimizers** — LabeledFewShot, BootstrapFewShot, COPRO, **MIPROv2** (over a byte-conformant
+  `tpe` crate reproducing optuna), **GEPA** (over a byte-conformant `gepa` crate — reflective
+  mutation *and* merge, with CPython set-order and RNG reproduced).
+- **Save/load** — DSPy's exact on-disk program format; a Rust-compiled program loads and runs in
+  Python.
+- **`Reasoning`, `Tool`, `ToolCalls`** and the tool history.
 
-## Status
+### In progress / next
 
-| Layer | State |
-|---|---|
-| Signatures (`#[derive(Signature)]`, typed + complex fields) | built |
-| `Adapter` trait: `ChatAdapter`, `JsonAdapter`, or your own | built, conformance-checked |
-| `Predict`, `ChainOfThought` (+ typed forms) | built |
-| `ReAct` with schema-carrying tools and an iteration budget | built |
-| LM layer (Anthropic, OpenRouter, ollama, OpenAI-compatible) | built |
-| `DummyLM` for testing a program with no provider | built |
-| Two-tier feedback retry | built |
-| Demos (few-shot examples) rendered as turns | built, conformance-checked |
-| `Example` with the input/label split, `Prediction` | built, semantics checked against dspy |
-| `Module` trait, implemented by every module including derived tasks | built |
-| `Evaluate` over a devset, with a metric | built (sequential) |
-| `LabeledFewShot` and `BootstrapFewShot` | built, compared against dspy's own decisions |
-| `Optimizer` trait, so a caller can write their own | built |
-| Instruction-search optimizers (COPRO, MIPROv2, GEPA) | next |
+- **ReAct v2** (DSPy 3.3's native-tool-calling rewrite) — the next sprint.
+- **Custom-type seam** — `dspy.Type` + `Image` / `Audio` / `File` / `Code` as first-class types.
 
-## Why another one
+### Not yet
 
-[`dspy-rs`](https://github.com/krypticmouse/DSRs) covers similar ground with a larger
-dependency surface (arrow, parquet, hf-hub, rig-core). This crate keeps the dependency list
-short enough to embed in a service, and treats byte-level agreement with Python DSPy as the
-thing being tested.
+- Modules: `ProgramOfThought`, `CodeAct`, `RLM`.
+- Optimizers: `BootstrapRS`, `SIMBA`, `KNNFewShot`, `Ensemble`, `BetterTogether`, `InferRules`,
+  `BootstrapFinetune`.
+- Retrieval, `History` as a first-class type, a full error taxonomy, richer GEPA teleprompter
+  config (`auto` budgets, `current_best` selection, custom proposers).
+
+---
+
+## Related work
+
+- [krypticmouse/DSRs](https://github.com/krypticmouse/DSRs) / `dspy-rs` on crates.io — a DSPy
+  *rewrite* for Rust. Different goal: an idiomatic reimagining rather than byte-level fidelity.
+
+dsrs's niche is the fidelity claim, held to DSPy's own tests. If you want the DSPy you know,
+producing the prompts DSPy produces, in Rust — that is what this is for.
+
+---
+
+## License
+
+TBD before first publish (MIT or Apache-2.0, matching DSPy's licensing).
+
+*dsrs is an independent port and is not affiliated with or endorsed by the DSPy project or
+Stanford NLP.*

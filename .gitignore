@@ -1,6 +1,32 @@
+# Rust build output (workspace shares one target/; derive/ builds its own)
 /target/
 derive/target/
-.dspy-venv/
-.dspy-venv-3.3/
+**/*.rs.bk
+
+# The Python environment the conformance harness builds against, in every spelling it has had.
+# Reconstructed by scripts/run_upstream_tests.sh's documented `uv pip install` — never committed.
+.dspy-venv*/
+.venv/
+
+# Upstream test tree the bridge fetches at the pinned tag (regenerated on demand)
 target/upstream-tests/
+
+# Python bytecode and test caches from the bridge + fixture generators
 __pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor / OS noise
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+
+# Local env / secrets — never in a public repo
+.env
+.env.*
+*.local
