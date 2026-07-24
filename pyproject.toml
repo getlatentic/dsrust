@@ -1,13 +1,5 @@
-# The pinned Python environment DsRust's conformance harness is built and tested against — the
-# exact dspy / gepa / optuna the crate is held to, plus the tooling the PyO3 bridge and the fixture
-# generators need. This is not a Python package; it exists so `uv sync` reconstructs the harness
-# environment in one step.
-#
-#     uv sync
-#     bash scripts/run_upstream_tests.sh
-#
-# The versions here match scripts/DSPY_VERSION and scripts/pins.py — the generators refuse to run
-# against any other, so a fixture can never drift from the version it claims.
+# The pinned environment the conformance harness runs against. `uv sync` reconstructs it into
+# .venv. Versions match scripts/DSPY_VERSION and scripts/pins.py.
 [project]
 name = "dsrust-conformance"
 version = "0"
@@ -24,5 +16,4 @@ dependencies = [
 ]
 
 [tool.uv]
-# Just an environment, not a distributable package — nothing here is built or published.
 package = false

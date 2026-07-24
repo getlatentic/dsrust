@@ -1,7 +1,4 @@
 [package]
-# The crate is DsRust — Declarative Self-improving Rust, the parallel to DSPy (Declarative
-# Self-improving Python). The library name below stays `dsrs` (DS-Rs, the same DS-+-language-suffix
-# shape as DSPy), so `use dsrs::` is the short import.
 name = "dsrust"
 version = "0.1.0"
 edition = "2024"
@@ -17,7 +14,6 @@ name = "dsrs"
 path = "src/lib.rs"
 
 [workspace]
-# The bridge is a conformance tool, not part of a normal build.
 members = ["derive", "bridge", "tpe", "pyrng", "gepa"]
 default-members = [".", "derive", "tpe", "pyrng", "gepa"]
 
@@ -25,27 +21,17 @@ default-members = [".", "derive", "tpe", "pyrng", "gepa"]
 anyhow = "1"
 base64 = "0.22.1"
 dsrs-derive = { version = "0.1.0", path = "derive" }
-# GEPA's reflective prompt-evolution engine (the gepa package dspy wraps), reproduced as its own crate.
 gepa = { version = "0.1.0", path = "gepa" }
 pyrng = { version = "0.1.0", path = "pyrng" }
-# `std` is for `lock::Mutex`, whose guard is `Send` and so may be held across an await. `BestOfN`
-# needs it to be a real `Module`: `forward` takes `&self`, and varying an attempt's sampling means
-# reaching the module mutably from inside it.
 bytes = "1"
 futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
-# The response cache is a bounded LRU, which is what dspy's is (`cachetools.LRUCache`). Default
-# features off leaves it on std's hashmap rather than pulling hashbrown in for one map.
 lru = { version = "0.18.1", default-features = false }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 schemars = "1"
 serde = { version = "1", features = ["derive"] }
-# `preserve_order`: Python dicts keep insertion order, so `json.dumps` writes a schema in the
-# order pydantic built it. Sorted keys would reorder every schema note dspy renders.
+# preserve_order keeps schemas in pydantic's insertion order; sorting keys would break byte-conformance.
 serde_json = { version = "1", features = ["preserve_order"] }
-# Cache entries are named by the SHA-256 of the request, which is what upstream keys on and what
-# lets an entry be a file on disk.
 sha2 = "0.11.0"
-# MIPROv2's Step-3 search engine, reproducing optuna's categorical TPESampler as dspy wraps optuna.
 tpe = { version = "0.1.0", path = "tpe" }
 tracing = "0.1"
 unicode-general-category = "1.1.0"
