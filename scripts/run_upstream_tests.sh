@@ -57,6 +57,13 @@ grep -v '^#' "$MANIFEST" | sed 's|tests/||;s|/.*||' | sort -u | while read -r ar
   [ "$have" -lt "$want" ] && printf '    %-14s %s of %s\n' "$area" "$have" "$want"
 done || true
 
+# The suites above check byte/algorithm conformance of what runs. This checks the API surface:
+# every public symbol dspy defines in a ported module must be mapped to a Rust counterpart,
+# justified as an intended divergence, or tracked as a todo — and a `mapped` claim must resolve to
+# a real definition. It reads only the pinned submodule and the tree, so it needs no build.
+echo "==> API surface"
+python3 "$ROOT/scripts/check_api_surface.py"
+
 # The whole tests/ tree is needed, not just the run files: every shared helper a suite imports
 # (tests.adapters.conftest's format_messages_and_lm_kwargs, tests.test_utils, …) has to be an
 # importable package, which is how dspy 3.3's new shared conftest first surfaced.

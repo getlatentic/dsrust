@@ -1,0 +1,175 @@
+# The API-surface ledger: every public symbol dspy defines in a ported module (see
+# `api_surface.py`'s PORTED_MODULES) classified against this crate. `check_api_surface.py` keeps it
+# honest — it fails if dspy defines a symbol absent here (triage it), if an entry names a symbol
+# dspy no longer defines (delete it), or if a `mapped` entry's Rust identifier is nowhere in the
+# tree (a mapping that rotted).
+#
+# status = "mapped"     — a Rust counterpart exists; `rust` is an identifier the gate greps for.
+# status = "divergence" — intended: no 1:1 symbol, and `reason` says why (Python-only machinery,
+#                         an internal helper folded into another file, or a different Rust shape
+#                         such as an enum variant). Counts as resolved.
+# status = "todo"       — a genuine gap: dspy has public API this crate has not ported. `reason`
+#                         names it. Tracked and counted, does not fail the gate — this is the
+#                         API backlog, the honest companion to the byte-level suites.
+#
+# Scope is top-level classes and functions. Methods of mapped classes are measured and reported by
+# the gate (same-name coverage) but not yet required here; tightening the gate to method level is
+# the next step, the way the upstream suites grew.
+
+[symbols]
+
+# --- adapters ---
+"adapters/base.py::Adapter" = { status = "mapped", rust = "Adapter" }
+"adapters/chat_adapter.py::ChatAdapter" = { status = "mapped", rust = "ChatAdapter" }
+"adapters/chat_adapter.py::FieldInfoWithName" = { status = "divergence", reason = "dspy's (name, FieldInfo) render pair; folded into field rendering in adapter/prompt.rs" }
+"adapters/json_adapter.py::JSONAdapter" = { status = "mapped", rust = "JsonAdapter" }
+"adapters/xml_adapter.py::XMLAdapter" = { status = "mapped", rust = "XmlAdapter" }
+"adapters/baml_adapter.py::BAMLAdapter" = { status = "mapped", rust = "BamlAdapter" }
+"adapters/two_step_adapter.py::TwoStepAdapter" = { status = "mapped", rust = "TwoStepAdapter" }
+"adapters/utils.py::find_enum_member" = { status = "divergence", reason = "internal parse helper; enum matching folded into adapter/parse.rs" }
+"adapters/utils.py::format_field_value" = { status = "divergence", reason = "internal render helper; folded into adapter/prompt.rs and python_json.rs" }
+"adapters/utils.py::get_annotation_name" = { status = "divergence", reason = "reproduced as FieldKind::annotation in signature/field_type.rs" }
+"adapters/utils.py::get_field_description_string" = { status = "divergence", reason = "reproduced as numbered_block in adapter/prompt.rs" }
+"adapters/utils.py::parse_value" = { status = "divergence", reason = "internal parse helper; folded into adapter/parse.rs" }
+"adapters/utils.py::serialize_for_json" = { status = "divergence", reason = "internal; folded into adapter/python_json.rs" }
+"adapters/utils.py::translate_field_type" = { status = "divergence", reason = "internal; folded into signature/field_type.rs" }
+
+# --- adapter types ---
+"adapters/types/base_type.py::Type" = { status = "mapped", rust = "Type" }
+"adapters/types/base_type.py::split_message_content_for_custom_types" = { status = "mapped", rust = "split_custom_types" }
+"adapters/types/image.py::Image" = { status = "mapped", rust = "Image" }
+"adapters/types/image.py::encode_image" = { status = "divergence", reason = "Python-side ingestion (bytes/PIL/URL -> data URI); a Rust caller supplies the url/data (image.rs)" }
+"adapters/types/image.py::is_image" = { status = "divergence", reason = "Python isinstance probe; not needed with a typed Rust value" }
+"adapters/types/image.py::is_url" = { status = "divergence", reason = "Python URL sniff; not needed" }
+"adapters/types/audio.py::Audio" = { status = "mapped", rust = "Audio" }
+"adapters/types/audio.py::encode_audio" = { status = "divergence", reason = "Python-side ingestion; a Rust caller supplies data + format" }
+"adapters/types/file.py::File" = { status = "mapped", rust = "File" }
+"adapters/types/file.py::encode_file_to_dict" = { status = "divergence", reason = "Python-side ingestion; a Rust caller supplies the fields" }
+"adapters/types/code.py::Code" = { status = "mapped", rust = "Code" }
+"adapters/types/citation.py::Citations" = { status = "todo", reason = "no first-class Rust type; a Citations value crosses only pre-serialized through the custom-type block path (blocks.rs)" }
+"adapters/types/document.py::Document" = { status = "todo", reason = "no constructible Rust type; only the LmPart::Document wire part exists" }
+"adapters/types/history.py::History" = { status = "mapped", rust = "History" }
+"adapters/types/reasoning.py::Reasoning" = { status = "mapped", rust = "Reasoning" }
+"adapters/types/tool.py::Tool" = { status = "mapped", rust = "Tool" }
+"adapters/types/tool.py::ToolCalls" = { status = "mapped", rust = "ToolCalls" }
+"adapters/types/tool.py::ToolCallResults" = { status = "mapped", rust = "ToolCallResults" }
+"adapters/types/tool.py::convert_input_schema_to_tool_args" = { status = "divergence", reason = "internal schema->args helper; folded into react/tool.rs" }
+
+# --- signatures ---
+"signatures/signature.py::Signature" = { status = "mapped", rust = "Signature" }
+"signatures/signature.py::SignatureMeta" = { status = "divergence", reason = "Python metaclass; a Rust signature is built by #[derive(Signature)]" }
+"signatures/signature.py::ensure_signature" = { status = "divergence", reason = "string/Signature coercion; Rust uses a typed SignatureSpec" }
+"signatures/signature.py::infer_prefix" = { status = "mapped", rust = "infer_prefix" }
+"signatures/signature.py::make_signature" = { status = "divergence", reason = "dynamic string-signature construction; Rust uses the derive/builder" }
+"signatures/field.py::InputField" = { status = "mapped", rust = "InField" }
+"signatures/field.py::OutputField" = { status = "mapped", rust = "OutField" }
+"signatures/field.py::OldField" = { status = "divergence", reason = "dspy's deprecated legacy field class; not reproduced" }
+"signatures/field.py::OldInputField" = { status = "divergence", reason = "deprecated legacy field; not reproduced" }
+"signatures/field.py::OldOutputField" = { status = "divergence", reason = "deprecated legacy field; not reproduced" }
+"signatures/field.py::move_kwargs" = { status = "divergence", reason = "internal kwargs plumbing for the legacy field" }
+"signatures/field.py::new_to_old_field" = { status = "divergence", reason = "legacy field bridging" }
+"signatures/utils.py::get_dspy_field_type" = { status = "divergence", reason = "internal; field-type classification folded into signature/field_type.rs" }
+
+# --- predict ---
+"predict/predict.py::Predict" = { status = "mapped", rust = "Predict" }
+"predict/predict.py::serialize_object" = { status = "divergence", reason = "internal state-serialization helper" }
+"predict/parameter.py::Parameter" = { status = "divergence", reason = "Python base-class marker for learnable params; folded into Module/Predict" }
+"predict/chain_of_thought.py::ChainOfThought" = { status = "mapped", rust = "ChainOfThought" }
+"predict/react.py::ReAct" = { status = "mapped", rust = "ReAct" }
+"predict/react_v2.py::ReActV2" = { status = "mapped", rust = "ReActV2" }
+"predict/refine.py::Refine" = { status = "mapped", rust = "Refine" }
+"predict/refine.py::OfferFeedback" = { status = "divergence", reason = "reproduced as the OfferFeedback signature built by predict/refine/feedback.rs::signature(), not a same-named type" }
+"predict/refine.py::inspect_modules" = { status = "divergence", reason = "internal module walk" }
+"predict/refine.py::recursive_mask" = { status = "divergence", reason = "internal masking helper" }
+"predict/best_of_n.py::BestOfN" = { status = "mapped", rust = "BestOfN" }
+"predict/parallel.py::Parallel" = { status = "mapped", rust = "Parallel" }
+"predict/multi_chain_comparison.py::MultiChainComparison" = { status = "mapped", rust = "MultiChainComparison" }
+"predict/aggregation.py::majority" = { status = "mapped", rust = "majority" }
+"predict/aggregation.py::default_normalize" = { status = "divergence", reason = "internal normalizer; folded into predict/aggregation.rs" }
+
+# --- primitives ---
+"primitives/example.py::Example" = { status = "mapped", rust = "Example" }
+"primitives/prediction.py::Prediction" = { status = "mapped", rust = "Prediction" }
+"primitives/prediction.py::Completions" = { status = "todo", reason = "dspy's multi-completion container; not ported (single-completion path today)" }
+"primitives/module.py::Module" = { status = "mapped", rust = "Module" }
+"primitives/module.py::ProgramMeta" = { status = "divergence", reason = "Python metaclass" }
+"primitives/module.py::set_attribute_by_name" = { status = "divergence", reason = "internal attribute plumbing" }
+"primitives/base_module.py::BaseModule" = { status = "divergence", reason = "dspy's serialization base; dump/load-state folded into Module" }
+
+# --- teleprompt (optimizers) ---
+"teleprompt/teleprompt.py::Teleprompter" = { status = "mapped", rust = "Optimizer" }
+"teleprompt/bootstrap.py::BootstrapFewShot" = { status = "mapped", rust = "BootstrapFewShot" }
+"teleprompt/vanilla.py::LabeledFewShot" = { status = "mapped", rust = "LabeledFewShot" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2" = { status = "mapped", rust = "MIPROv2" }
+"teleprompt/bettertogether.py::BetterTogether" = { status = "todo", reason = "meta-optimizer not ported; the DynOptimizer seam (optimize.rs) exists for it" }
+"teleprompt/gepa/gepa.py::GEPA" = { status = "mapped", rust = "GEPA" }
+"teleprompt/gepa/gepa.py::GEPAFeedbackMetric" = { status = "divergence", reason = "metric callable type; Rust passes a metric closure/trait" }
+"teleprompt/gepa/gepa.py::DspyGEPAResult" = { status = "divergence", reason = "GEPA's result object; surfaced through the gepa crate's own result type" }
+
+# --- clients (the LM stack) ---
+"clients/base_lm.py::BaseLM" = { status = "mapped", rust = "ChatModel" }
+"clients/base_lm.py::inspect_history" = { status = "divergence", reason = "Python REPL history-printing helper" }
+"clients/lm.py::LM" = { status = "mapped", rust = "LM" }
+"clients/lm.py::litellm_completion" = { status = "divergence", reason = "litellm wire call; reproduced natively in the provider stack (lm/api, lm/anthropic, lm/ollama)" }
+"clients/lm.py::alitellm_completion" = { status = "divergence", reason = "async litellm wire call; native provider stack is async already" }
+"clients/lm.py::litellm_text_completion" = { status = "divergence", reason = "litellm text-completion wire call; native provider stack" }
+"clients/lm.py::alitellm_text_completion" = { status = "divergence", reason = "async litellm text-completion; native provider stack" }
+"clients/lm.py::litellm_responses_completion" = { status = "divergence", reason = "litellm Responses-API wire call; native provider stack" }
+"clients/lm.py::alitellm_responses_completion" = { status = "divergence", reason = "async litellm Responses-API wire call; native provider stack" }
+"clients/cache.py::Cache" = { status = "mapped", rust = "Cached" }
+"clients/cache.py::request_cache" = { status = "divergence", reason = "internal cache-key decorator" }
+"clients/provider.py::Provider" = { status = "todo", reason = "finetuning provider abstraction not ported" }
+"clients/provider.py::TrainingJob" = { status = "todo", reason = "finetuning not ported" }
+"clients/provider.py::ReinforceJob" = { status = "todo", reason = "RL finetuning not ported" }
+"clients/openai.py::OpenAIProvider" = { status = "todo", reason = "OpenAI finetuning provider not ported" }
+"clients/openai.py::TrainingJobOpenAI" = { status = "todo", reason = "OpenAI finetuning job not ported" }
+
+# --- evaluate ---
+"evaluate/evaluate.py::Evaluate" = { status = "mapped", rust = "Evaluate" }
+"evaluate/evaluate.py::EvaluationResult" = { status = "mapped", rust = "Evaluation" }
+"evaluate/evaluate.py::configure_dataframe_for_ipython_notebook_display" = { status = "divergence", reason = "Python notebook display" }
+"evaluate/evaluate.py::display_dataframe" = { status = "divergence", reason = "Python notebook display" }
+"evaluate/evaluate.py::is_in_ipython_notebook_environment" = { status = "divergence", reason = "Python environment probe" }
+"evaluate/evaluate.py::merge_dicts" = { status = "divergence", reason = "internal helper" }
+"evaluate/evaluate.py::prediction_is_dictlike" = { status = "divergence", reason = "internal helper" }
+"evaluate/evaluate.py::stylize_metric_name" = { status = "divergence", reason = "Python display" }
+"evaluate/evaluate.py::truncate_cell" = { status = "divergence", reason = "Python display" }
+"evaluate/metrics.py::answer_exact_match" = { status = "mapped", rust = "exact_match" }
+"evaluate/metrics.py::EM" = { status = "todo", reason = "exact-match alias not ported (exact_match covers the core)" }
+"evaluate/metrics.py::F1" = { status = "todo", reason = "F1 metric not ported" }
+"evaluate/metrics.py::HotPotF1" = { status = "todo", reason = "HotPotF1 metric not ported" }
+"evaluate/metrics.py::answer_passage_match" = { status = "todo", reason = "passage-match metric not ported" }
+"evaluate/metrics.py::em_score" = { status = "todo", reason = "internal EM scorer not ported" }
+"evaluate/metrics.py::f1_score" = { status = "todo", reason = "internal F1 scorer not ported" }
+"evaluate/metrics.py::hotpot_f1_score" = { status = "todo", reason = "internal HotPotF1 scorer not ported" }
+"evaluate/metrics.py::normalize_text" = { status = "todo", reason = "text normalization not ported" }
+"evaluate/metrics.py::precision_score" = { status = "todo", reason = "precision scorer not ported" }
+
+# --- core (the typed LM boundary; reproduced as Rust-shaped types in lm/api/*) ---
+"core/types.py::LMRequest" = { status = "mapped", rust = "LmRequest" }
+"core/types.py::LMMessage" = { status = "mapped", rust = "LmMessage" }
+"core/types.py::LMTextPart" = { status = "divergence", reason = "reproduced as the LmPart::Text variant (lm/api/part.rs)" }
+"core/types.py::LMImagePart" = { status = "divergence", reason = "reproduced as the LmPart::Image variant" }
+"core/types.py::LMAudioPart" = { status = "divergence", reason = "reproduced as the LmPart::Audio variant" }
+"core/types.py::LMVideoPart" = { status = "divergence", reason = "reproduced as the LmPart::Video variant" }
+"core/types.py::LMDocumentPart" = { status = "divergence", reason = "reproduced as the LmPart::Document variant" }
+"core/types.py::LMBinaryPart" = { status = "divergence", reason = "reproduced as an LmPart variant" }
+"core/types.py::LMToolCallPart" = { status = "divergence", reason = "reproduced as the LmPart::ToolCall variant" }
+"core/types.py::LMToolResultPart" = { status = "divergence", reason = "reproduced as the LmPart::ToolResult variant" }
+"core/types.py::LMThinkingPart" = { status = "divergence", reason = "reproduced as the LmPart::Thinking variant" }
+"core/types.py::LMCitationPart" = { status = "divergence", reason = "reproduced as the LmPart::Citation variant" }
+"core/types.py::LMRefusalPart" = { status = "divergence", reason = "reproduced as an LmPart variant" }
+"core/types.py::LMToolSpec" = { status = "divergence", reason = "reproduced in the LM request tool spec (lm/api)" }
+"core/types.py::LMReasoningConfig" = { status = "divergence", reason = "reproduced as the reasoning config in lm/api" }
+"core/types.py::LMToolChoice" = { status = "divergence", reason = "reproduced as the tool-choice config in lm/api" }
+"core/types.py::LMCacheConfig" = { status = "divergence", reason = "reproduced in lm/api" }
+"core/types.py::LMPromptCacheConfig" = { status = "divergence", reason = "reproduced in lm/api" }
+"core/types.py::LMConfig" = { status = "divergence", reason = "reproduced as the LM config (lm/api/config.rs)" }
+"core/types.py::LMUsage" = { status = "divergence", reason = "reproduced as the usage record in lm/api" }
+"core/types.py::LMOutput" = { status = "divergence", reason = "reproduced as part of the LM response (lm/api/response.rs)" }
+"core/types.py::LMResponse" = { status = "divergence", reason = "reproduced as the LM response (lm/api/response.rs)" }
+"core/types.py::Assistant" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
+"core/types.py::Developer" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
+"core/types.py::System" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
+"core/types.py::User" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
+"core/types.py::ToolResult" = { status = "divergence", reason = "tool-result message constructor; reproduced via LmMessage" }
