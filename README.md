@@ -46,12 +46,12 @@ That fidelity is the reason to reach for it:
   ship. The model call is where the latency lives, but the rendering, parsing, parallel
   evaluation, and the optimizer's own search are all native.
 
-|                       | DSPy (Python) | Other Rust ports | **DsRust (Rust)**                        |
-|-----------------------|---------------|------------------|------------------------------------------|
-| Relationship to DSPy  | the original  | rewrites         | **a faithful port**                      |
-| Prompt bytes          | n/a           | their own        | **identical to DSPy, tested against its suite** |
-| Compiled artifacts    | DSPy format   | their own        | **DSPy format (load in either)**         |
-| Runtime               | Python        | Rust             | Rust                                     |
+|                    | **DsRust**                                        | Other Rust ports          |
+|--------------------|---------------------------------------------------|---------------------------|
+| Approach           | **a faithful port of DSPy**                       | a rewrite (self-described) |
+| Prompt bytes       | **identical to DSPy, checked against DSPy's own tests** | their own            |
+| Compiled programs  | **load in Python via DSPy's on-disk format**      | their own                 |
+| Runtime            | Rust                                              | Rust                      |
 
 **Full guide, with every module and the DSPy-vs-DsRust mapping side by side:
 [`docs/usage.md`](docs/usage.md).**
