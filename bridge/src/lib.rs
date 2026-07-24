@@ -46,6 +46,10 @@ impl DynChatModel for NotOnThisSide {
     ) -> Pin<Box<dyn Future<Output = dsrust::lm::Capabilities> + Send + 'a>> {
         Box::pin(std::future::ready(dsrust::lm::Capabilities::default()))
     }
+
+    fn native_reasoning_usable_dyn(&self) -> bool {
+        true
+    }
 }
 
 /// One input field as Python describes it: name, kind, description, any closed set, the prose

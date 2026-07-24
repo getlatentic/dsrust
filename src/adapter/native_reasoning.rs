@@ -42,11 +42,13 @@ pub fn reasoning_output_field(signature: &Signature) -> Option<&str> {
 ///
 /// dspy `adapt_to_native_lm_feature`: the effort is the caller's when set, otherwise `"low"` — the
 /// default that turns native reasoning on for a signature that asked for it. A caller's explicit
-/// `Off`, or a model that cannot reason, leaves the field in the render and sends no effort.
+/// `Off`, a model that cannot reason, or a model whose path cannot carry it (`usable` — dspy's
+/// gpt-5-chat caveat) leaves the field in the render and sends no effort.
 pub fn plan(
     signature: &Signature,
     capabilities: Capabilities,
     effort: &ReasoningEffort,
+    usable: bool,
 ) -> Option<NativeReasoning> {
     let field = reasoning_output_field(signature)?;
     let effort = match effort {
@@ -54,7 +56,7 @@ pub fn plan(
         ReasoningEffort::Level(level) => level.clone(),
         ReasoningEffort::Unset => "low".to_owned(),
     };
-    if !capabilities.reasoning {
+    if !capabilities.reasoning || !usable {
         return None;
     }
     let field = field.to_owned();
@@ -86,8 +88,8 @@ mod tests {
     /// carries the default `"low"` effort.
     #[test]
     fn a_reasoning_field_moves_onto_the_request_at_the_default_effort() {
-        let planned =
-            plan(&reasoning_signature(), able(), &ReasoningEffort::Unset).expect("native reasoning");
+        let planned = plan(&reasoning_signature(), able(), &ReasoningEffort::Unset, true)
+            .expect("native reasoning");
         assert_eq!(planned.effort, "low");
         let names: Vec<&str> = planned.signature.outputs.iter().map(|f| f.name.as_str()).collect();
         assert_eq!(names, ["answer"], "the reasoning field is gone from the render");
@@ -96,30 +98,37 @@ mod tests {
     /// A named level is carried as stated.
     #[test]
     fn a_named_effort_is_carried_as_given() {
-        let planned = plan(&reasoning_signature(), able(), &ReasoningEffort::Level("high".into()))
-            .expect("native reasoning");
+        let planned =
+            plan(&reasoning_signature(), able(), &ReasoningEffort::Level("high".into()), true)
+                .expect("native reasoning");
         assert_eq!(planned.effort, "high");
     }
 
     /// A caller's explicit `Off` leaves the field in the render — dspy's `reasoning_effort=None`.
     #[test]
     fn an_off_effort_leaves_the_field_rendered() {
-        assert_eq!(plan(&reasoning_signature(), able(), &ReasoningEffort::Off), None);
+        assert_eq!(plan(&reasoning_signature(), able(), &ReasoningEffort::Off, true), None);
     }
 
     /// A model that cannot reason renders the field however the effort is set.
     #[test]
     fn a_model_that_cannot_reason_renders_the_field() {
         assert_eq!(
-            plan(&reasoning_signature(), Capabilities::default(), &ReasoningEffort::Unset),
+            plan(&reasoning_signature(), Capabilities::default(), &ReasoningEffort::Unset, true),
             None
         );
+    }
+
+    /// A model whose path cannot carry native reasoning (dspy's gpt-5-chat caveat) renders it.
+    #[test]
+    fn a_model_whose_path_cannot_carry_reasoning_renders_the_field() {
+        assert_eq!(plan(&reasoning_signature(), able(), &ReasoningEffort::Unset, false), None);
     }
 
     /// A signature with no reasoning field is left alone.
     #[test]
     fn a_signature_with_no_reasoning_field_is_left_alone() {
         let plain = Signature::single_input("Answer.", vec![OutField::default()]);
-        assert_eq!(plan(&plain, able(), &ReasoningEffort::Unset), None);
+        assert_eq!(plan(&plain, able(), &ReasoningEffort::Unset, true), None);
     }
 }

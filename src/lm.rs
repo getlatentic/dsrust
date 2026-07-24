@@ -170,6 +170,10 @@ pub trait DynChatModel: Send + Sync {
         &'a self,
         http: &'a reqwest::Client,
     ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>>;
+
+    /// The object-safe form of [`ChatModel::native_reasoning_usable`] — the `_dyn` name keeps it from
+    /// clashing with the inherent one on a model that implements both.
+    fn native_reasoning_usable_dyn(&self) -> bool;
 }
 
 impl<T: ChatModel + Send + Sync> DynChatModel for T {
@@ -186,6 +190,10 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
         http: &'a reqwest::Client,
     ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>> {
         Box::pin(self.capabilities(http))
+    }
+
+    fn native_reasoning_usable_dyn(&self) -> bool {
+        ChatModel::native_reasoning_usable(self)
     }
 }
 
@@ -212,6 +220,17 @@ pub trait ChatModel {
         _http: &'a reqwest::Client,
     ) -> impl Future<Output = Capabilities> + Send + 'a {
         std::future::ready(Capabilities::default())
+    }
+
+    /// Whether native reasoning is usable over this model's current path — dspy's model-specific
+    /// caveat in `Reasoning.adapt_to_native_lm_feature`, kept where the model itself is known.
+    ///
+    /// On by default, since a model that reasons at all reasons over its own path. dspy turns it off
+    /// for the gpt-5 family on the chat-completions route, where litellm 1.79.0 never returns the
+    /// reasoning content (its issue #14748); the Responses API is unaffected. A model that reports
+    /// `false` keeps the reasoning field rendered as prose instead of asking for it natively.
+    fn native_reasoning_usable(&self) -> bool {
+        true
     }
 }
 
@@ -393,6 +412,19 @@ impl ChatModel for LM {
             }
         }
     }
+
+    /// dspy `Reasoning.adapt_to_native_lm_feature`'s caveat: `"gpt-5" in lm.model and lm.model_type
+    /// == "chat"`. The chat-completions route is [`OpenAiWire::Chat`] for a compatible endpoint and
+    /// the only route OpenRouter speaks; the Responses API, and every non-OpenAI provider, is
+    /// unaffected.
+    fn native_reasoning_usable(&self) -> bool {
+        let on_chat_completions = match self.model.provider {
+            Provider::OpenAiCompatible => matches!(self.openai.wire, OpenAiWire::Chat),
+            Provider::OpenRouter => true,
+            _ => false,
+        };
+        !(on_chat_completions && self.model.id.contains("gpt-5"))
+    }
 }
 
 impl LM {
@@ -498,6 +530,24 @@ impl LM {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// dspy's gpt-5-chat native-reasoning caveat, on the `LM` that knows the model and its route.
+    #[test]
+    fn native_reasoning_is_suppressed_only_for_gpt5_on_the_chat_route() {
+        // gpt-5 on the chat-completions route: litellm 1.79.0 loses the reasoning content.
+        assert!(!LM::new("openai/gpt-5-mini").expect("an LM").native_reasoning_usable());
+        // The Responses API is unaffected.
+        assert!(
+            LM::new("openai/gpt-5-mini")
+                .expect("an LM")
+                .with_openai_responses_api()
+                .native_reasoning_usable()
+        );
+        // A non-gpt-5 model on the chat route is fine.
+        assert!(LM::new("openai/gpt-4o").expect("an LM").native_reasoning_usable());
+        // Another provider is not the OpenAI chat API, so the caveat never applies.
+        assert!(LM::new("anthropic/claude-opus-4-1").expect("an LM").native_reasoning_usable());
+    }
 
     /// Drive every `litellm_chat.json` case for one provider through its request builder and hold
     /// the body to litellm's own captured output. Shared by the Anthropic and ollama request

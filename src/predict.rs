@@ -312,7 +312,12 @@ impl<S> Predict<S> {
             false => None,
         };
         let asked = native.as_ref().map_or(asked, |plan| plan.signature.clone());
-        let reasoning = native_reasoning::plan(&asked, capabilities, &steering.reasoning_effort);
+        let reasoning = native_reasoning::plan(
+            &asked,
+            capabilities,
+            &steering.reasoning_effort,
+            lm.native_reasoning_usable_dyn(),
+        );
         let asked = reasoning.as_ref().map_or(asked, |plan| plan.signature.clone());
         let schema = asked.schema();
         let (system, opening) = adapter.format(&asked, &self.demos, &hinted)?;

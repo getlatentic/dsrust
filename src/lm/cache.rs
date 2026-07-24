@@ -198,6 +198,18 @@ impl<M: ChatModel + Send + Sync> ChatModel for Cached<M> {
         self.cache.keep(key, answered.clone());
         Ok(answered)
     }
+
+    fn capabilities<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+    ) -> impl Future<Output = crate::lm::Capabilities> + Send + 'a {
+        self.inner.capabilities(http)
+    }
+
+    /// Transparent: a wrapper caches replies, it does not change what the model behind it can do.
+    fn native_reasoning_usable(&self) -> bool {
+        self.inner.native_reasoning_usable()
+    }
 }
 
 #[cfg(test)]
