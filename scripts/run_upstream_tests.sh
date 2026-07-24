@@ -8,9 +8,10 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="$(cat "$ROOT/scripts/DSPY_VERSION")"
 WORK="$ROOT/target/upstream-tests"
-VENV="$ROOT/.dspy-venv"
+# The pinned harness environment, built by `uv sync` from pyproject.toml.
+VENV="$ROOT/.venv"
 
-[ -x "$VENV/bin/python" ] || { echo "run: uv venv .dspy-venv --python 3.12 && uv pip install --python $VENV/bin/python dspy==$VERSION pytest pytest-asyncio maturin pillow" >&2; exit 1; }
+[ -x "$VENV/bin/python" ] || { echo "run: uv sync   (builds .venv from pyproject.toml)" >&2; exit 1; }
 
 echo "==> Building and installing the Rust bridge"
 # maturin supplies the platform's extension-module link arguments; build.rs keeps them scoped

@@ -13,7 +13,8 @@ crate-type = ["cdylib"]
 [dependencies]
 anyhow = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
-dsrs = { path = ".." }
+# The crate publishes as `dsrust`; the `dsrs` key keeps `use dsrs::` unchanged in this shim.
+dsrs = { path = "..", package = "dsrust" }
 # No `extension-module` feature: current PyO3 recommends against it, because it disables
 # Python linking for tests and binaries and produces undefined _Py symbols. build.rs supplies
 # the macOS link arguments instead, scoped to this crate rather than the whole workspace.

@@ -136,7 +136,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "dsrs"
+name = "dsrs-bridge"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "dsrust",
+ "pyo3",
+ "pyo3-build-config",
+ "reqwest",
+ "serde_json",
+]
+
+[[package]]
+name = "dsrs-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde_json",
+ "syn 2.0.119",
+]
+
+[[package]]
+name = "dsrust"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -158,28 +180,6 @@ dependencies = [
  "tracing-subscriber",
  "unicode-general-category",
  "unicode-normalization",
-]
-
-[[package]]
-name = "dsrs-bridge"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "dsrs",
- "pyo3",
- "pyo3-build-config",
- "reqwest",
- "serde_json",
-]
-
-[[package]]
-name = "dsrs-derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "serde_json",
- "syn 2.0.119",
 ]
 
 [[package]]

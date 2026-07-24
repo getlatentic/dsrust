@@ -1,7 +1,8 @@
 [package]
-# Published crate name is pending (`dsrs` is taken on crates.io); the library name below stays
-# `dsrs`, so `use dsrs::` is unaffected by whatever the package is published as.
-name = "dsrs"
+# The crate is DsRust — Declarative Self-improving Rust, the parallel to DSPy (Declarative
+# Self-improving Python). The library name below stays `dsrs` (DS-Rs, the same DS-+-language-suffix
+# shape as DSPy), so `use dsrs::` is the short import.
+name = "dsrust"
 version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
