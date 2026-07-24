@@ -19,9 +19,17 @@ let out = call!(qa, question = "capital of France?").await?;
 println!("{}", out.get("answer").unwrap());
 ```
 
+Add it with Cargo:
+
+```bash
+cargo add dsrust@0.1.0-alpha.2
+```
+
+or in `Cargo.toml` (the explicit version is needed while it is a pre-release):
+
 ```toml
 [dependencies]
-dsrust = "0.1.0-alpha.1"
+dsrust = "0.1.0-alpha.2"
 ```
 
 > **Status: alpha.** The core (byte-level rendering and parsing, the optimizers, the RNG) is
