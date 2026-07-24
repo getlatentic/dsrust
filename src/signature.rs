@@ -686,8 +686,7 @@ mod tests {
         assert_eq!(sig.outputs[0].desc, "two rhyming lines");
         assert_eq!(sig.outputs[1].desc, "", "an undescribed field says nothing");
 
-        // Neither an attribute nor a doc comment, so nothing — where this used to answer
-        // "essay" and "grade".
+        // A field with neither a describe attribute nor a doc comment carries no description.
         let doc = DocTask::signature();
         assert_eq!(doc.inputs[0].desc, "");
         assert_eq!(doc.outputs[0].desc, "");

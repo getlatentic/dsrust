@@ -223,8 +223,8 @@ mod tests {
         assert_eq!(half.total_tokens, None, "a total needs both halves");
     }
 
-    /// Merging carries every counter, not the two it used to. Two calls of which one reported
-    /// reasoning tokens report that one's.
+    /// Merging carries every counter, so two calls of which one reported reasoning tokens report
+    /// that one's.
     #[test]
     fn merging_carries_the_counters_only_one_call_reported() {
         let plain = LmUsage::counted(10, 4);

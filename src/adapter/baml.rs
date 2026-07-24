@@ -132,8 +132,8 @@ fn user_message(signature: &Signature, inputs: &[Input<'_>]) -> String {
 ///
 /// These come from an [`Example`], which holds JSON a caller put there rather than a record
 /// instance, so they take the ordinary formatter — the same answer upstream reaches for a demo
-/// built from a plain mapping. Only a live input can carry the provenance that earns the
-/// multi-line layout, and it no longer travels through here to get it.
+/// built from a plain mapping. The provenance that earns the multi-line layout rides only a live
+/// input, which a demo value is not.
 fn demo_value(_signature: &Signature, _name: &str, value: &Value) -> String {
     format_value(value)
 }
