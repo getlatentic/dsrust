@@ -39,6 +39,32 @@ impl Random {
         self.below(len)
     }
 
+    /// CPython `random.choices(population, weights=..., k=k)`: `k` weighted draws, each the index
+    /// `bisect_right(cumulative_weights, random() * total)`. Returned as indices so a caller picks
+    /// from its own population.
+    ///
+    /// Draws through `random()` — the 53-bit double — not `_randbelow`, so this consumes the
+    /// generator differently from [`Self::choice_index`]; a caller mixing the two on one generator
+    /// only reproduces dspy if it mixes them in the same order. Weights need not sum to one; they
+    /// are accumulated and the draw scaled by the total, exactly as CPython does.
+    pub fn choices(&mut self, weights: &[f64], k: usize) -> Vec<usize> {
+        let cumulative: Vec<f64> = weights
+            .iter()
+            .scan(0.0, |sum, weight| {
+                *sum += weight;
+                Some(*sum)
+            })
+            .collect();
+        let total = cumulative.last().copied().unwrap_or(0.0);
+        let hi = cumulative.len() - 1;
+        (0..k)
+            .map(|_| {
+                let target = self.0.random_double() * total;
+                bisect_right(&cumulative, target, hi)
+            })
+            .collect()
+    }
+
     /// CPython `random.randint(low, high)` (inclusive): `low + _randbelow(high - low + 1)`.
     pub fn randint(&mut self, low: u64, high: u64) -> u64 {
         low + self.below((high - low + 1) as usize) as u64
@@ -94,6 +120,24 @@ impl Random {
             })
             .collect()
     }
+}
+
+/// Python's `bisect_right(a, x, 0, hi)`: the leftmost position at which `x` could be inserted to
+/// keep `a` sorted and stay to the right of any equal value, bounded above by `hi`.
+///
+/// `hi` is `len - 1`, matching CPython's `random.choices`, which caps the index at the last
+/// element so a draw that rounds up to the total still lands in the population.
+fn bisect_right(sorted: &[f64], x: f64, hi: usize) -> usize {
+    let (mut low, mut high) = (0, hi);
+    while low < high {
+        let mid = (low + high) / 2;
+        if x < sorted[mid] {
+            high = mid;
+        } else {
+            low = mid + 1;
+        }
+    }
+    low
 }
 
 /// CPython `random_seed`: an integer seed spread over 32-bit words, least significant first.
@@ -212,6 +256,26 @@ mod tests {
                 integers(&case, "result"),
                 "sample({size}, {k}) from seed {seed}, threshold {}",
                 number(&case, "setsize")
+            );
+        }
+    }
+
+    #[test]
+    fn draws_the_weighted_choices_cpython_draws() {
+        for case in cases("choices") {
+            let seed = number(&case, "seed") as u64;
+            let weights: Vec<f64> = case["weights"]
+                .as_array()
+                .expect("weights")
+                .iter()
+                .map(|value| value.as_f64().expect("a number"))
+                .collect();
+            let k = number(&case, "k");
+            let drawn = Random::seeded(seed).choices(&weights, k);
+            assert_eq!(
+                drawn,
+                integers(&case, "result"),
+                "choices({weights:?}, k={k}) from seed {seed}"
             );
         }
     }

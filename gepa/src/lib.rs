@@ -10,6 +10,7 @@ pub mod batch;
 pub mod engine;
 pub mod instruction_proposal;
 pub mod pareto;
+pub mod pyset;
 pub mod state;
 
 pub use adapter::{Candidate, EvalBatch, GepaAdapter};

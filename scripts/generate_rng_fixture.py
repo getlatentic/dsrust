@@ -47,6 +47,20 @@ RANDBELOW_BOUNDS = sorted(
 
 SHUFFLE_SIZES = [0, 1, 2, 3, 4, 5, 8, 13, 21, 34, 55]
 
+# `random.choices` draws through `random()` and bisects the cumulative weights. The weight
+# shapes below cover a flat distribution (every draw equally likely), a skewed one (a bisect
+# that lands late), a single-element population (the draw must still return index 0), and a zero
+# weight (an element the bisect can never pick), so the accumulation and the `hi` clamp are both
+# exercised.
+CHOICES_WEIGHTS = [
+    [1.0],
+    [1.0, 1.0, 1.0, 1.0],
+    [0.1, 0.2, 0.3, 0.4],
+    [5.0, 0.0, 1.0],
+    [0.01, 100.0, 0.01],
+    [2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5],
+]
+
 
 def setsize(k: int) -> int:
     """CPython's threshold for tracking a pool instead of a set of drawn indices."""
@@ -153,6 +167,17 @@ def main() -> None:
                 "result": random.Random(seed).sample(range(size), k),
             }
             for seed, size, k in sample_cases()
+        ],
+        "choices": [
+            {
+                "seed": seed,
+                "weights": weights,
+                "k": 8,
+                # `population` is the indices, so the result is the drawn indices directly.
+                "result": random.Random(seed).choices(range(len(weights)), weights=weights, k=8),
+            }
+            for seed in SEEDS
+            for weights in CHOICES_WEIGHTS
         ],
     }
 
