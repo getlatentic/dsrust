@@ -1,9 +1,10 @@
-//! ollama streaming: its line-delimited JSON read back as the typed [`LmStreamEvent`]s.
+//! ollama `/api/chat` streaming: its line-delimited JSON read back as the typed [`LmStreamEvent`]s.
 //!
 //! There is no dspy reference for this mapping — dspy 3.3 streams ollama through litellm — so it is
 //! faithful to ollama's own wire: one reply chunk per line, the last carrying `done`, the counts and
 //! the reason generation stopped. The reading, framing and assembly are shared; this is the line's
-//! meaning.
+//! meaning. The `/api/generate` route streams the same way over its own `response` field, in
+//! [`generate`](super::generate).
 
 use anyhow::Result;
 use futures_util::Stream;

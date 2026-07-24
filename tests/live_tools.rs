@@ -21,7 +21,7 @@ use dsrs::{ChatModel, LM};
 
 /// The model, provider config, and cache-off LM the env asks for.
 fn live_setup() -> (LM, String, LmConfig) {
-    let model = std::env::var("LIVE_LM").unwrap_or_else(|_| "ollama/qwen2.5:7b-instruct".to_owned());
+    let model = std::env::var("LIVE_LM").unwrap_or_else(|_| "ollama_chat/qwen2.5:7b-instruct".to_owned());
     let mut lm = LM::new(&model).expect("a valid model ref").without_cache();
     if let Ok(base_url) = std::env::var("LIVE_BASE_URL") {
         lm = lm.with_openai_base_url(base_url);

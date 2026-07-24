@@ -43,7 +43,12 @@ pub enum Provider {
     /// vLLM, LM Studio. Which one is a matter of [`OpenAiConfig`] rather than of the model
     /// prefix, since they are one wire format on different hosts.
     OpenAiCompatible,
+    /// ollama's `/api/generate` route, litellm's `ollama/` — one flattened prompt, no native
+    /// tool calls. The legacy path; [`Provider::OllamaChat`] is the one to reach for tool use.
     Ollama,
+    /// ollama's `/api/chat` route, litellm's `ollama_chat/` — a message list and native tool
+    /// calls. What dspy's docs steer an ollama user to.
+    OllamaChat,
 }
 
 /// A LiteLLM-style model reference, `provider/model-id`: `anthropic/claude-opus-4-8`,
@@ -68,6 +73,7 @@ impl ModelRef {
             "openrouter" => Provider::OpenRouter,
             "openai" => Provider::OpenAiCompatible,
             "ollama" => Provider::Ollama,
+            "ollama_chat" => Provider::OllamaChat,
             other => return Err(anyhow!("unknown provider {other:?} in {raw:?}")),
         };
         Ok(Self {
@@ -84,6 +90,7 @@ impl ModelRef {
             Provider::OpenRouter => "openrouter",
             Provider::OpenAiCompatible => "openai",
             Provider::Ollama => "ollama",
+            Provider::OllamaChat => "ollama_chat",
         };
         format!("{prefix}/{}", self.id)
     }
@@ -365,18 +372,24 @@ impl ChatModel for LM {
             if let Some(stated) = self.capabilities {
                 return stated;
             }
-            let reference = self.model.reference();
-            if let Some(listed) = Capabilities::listed(&reference) {
-                return listed;
-            }
             match self.model.provider {
-                // litellm falls through to the server for an ollama model it does not list, and
-                // so does this. Every other provider's silence is its answer.
-                Provider::Ollama => {
-                    ollama::capabilities(http, &self.ollama_host, self.ollama_api_key.as_deref(), &self.model.id)
-                        .await
-                }
-                _ => Capabilities::default(),
+                // The `/api/generate` wire cannot carry a native tool call — litellm renders tools
+                // into the prompt on this route rather than sending them — so this configured LM
+                // has no native feature to offer, whatever the registry says about the model.
+                Provider::Ollama => Capabilities::default(),
+                // The chat route can. litellm keeps ollama's rows under an `ollama/` key and falls
+                // through to the server for a model it does not list; so does this.
+                Provider::OllamaChat => Capabilities::listed(&format!("ollama/{}", self.model.id))
+                    .unwrap_or(
+                        ollama::capabilities(
+                            http,
+                            &self.ollama_host,
+                            self.ollama_api_key.as_deref(),
+                            &self.model.id,
+                        )
+                        .await,
+                    ),
+                _ => Capabilities::listed(&self.model.reference()).unwrap_or_default(),
             }
         }
     }
@@ -413,15 +426,20 @@ impl LM {
                 self.anthropic_api_key.as_deref(),
                 request,
             )),
-            Provider::Ollama => {
-                Box::pin(ollama::stream(
-                    http,
-                    &self.model.id,
-                    &self.ollama_host,
-                    self.ollama_api_key.as_deref(),
-                    request,
-                ))
-            }
+            Provider::Ollama => Box::pin(ollama::generate_stream(
+                http,
+                &self.model.id,
+                &self.ollama_host,
+                self.ollama_api_key.as_deref(),
+                request,
+            )),
+            Provider::OllamaChat => Box::pin(ollama::chat_stream(
+                http,
+                &self.model.id,
+                &self.ollama_host,
+                self.ollama_api_key.as_deref(),
+                request,
+            )),
         }
     }
 
@@ -456,7 +474,16 @@ impl LM {
                     .await
             }
             Provider::Ollama => {
-                ollama::Ollama {
+                ollama::Generate {
+                    api_key: self.ollama_api_key.as_deref(),
+                    model: &self.model.id,
+                    host: &self.ollama_host,
+                }
+                .forward(http, request)
+                .await
+            }
+            Provider::OllamaChat => {
+                ollama::Chat {
                     api_key: self.ollama_api_key.as_deref(),
                     model: &self.model.id,
                     host: &self.ollama_host,
@@ -539,6 +566,10 @@ mod tests {
         let lm = LM::new("ollama/qwen2.5:7b-instruct").expect("valid ref");
         assert_eq!(lm.model.provider, Provider::Ollama);
         assert_eq!(lm.model.id, "qwen2.5:7b-instruct");
+        // The two ollama routes are distinct providers, as they are in litellm.
+        let chat = LM::new("ollama_chat/qwen2.5:7b-instruct").expect("valid ref");
+        assert_eq!(chat.model.provider, Provider::OllamaChat);
+        assert_eq!(chat.model.id, "qwen2.5:7b-instruct");
         assert!(LM::new("cohere/command-r").is_err());
     }
 

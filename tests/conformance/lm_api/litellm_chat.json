@@ -1647,6 +1647,432 @@
           ]
         }
       }
+    },
+    {
+      "name": "minimal",
+      "provider": "ollama_generate",
+      "lm_request": {
+        "model": "ollama/llama3.2",
+        "messages": [
+          {
+            "role": "system",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "be helpful"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "prompt": "### System:\nbe helpful\n\n### User:\nweather in Paris?\n\n",
+        "options": {},
+        "stream": false,
+        "images": []
+      }
+    },
+    {
+      "name": "temperature",
+      "provider": "ollama_generate",
+      "lm_request": {
+        "model": "ollama/llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": 0.7,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "prompt": "### User:\nhi\n\n",
+        "options": {
+          "temperature": 0.7
+        },
+        "stream": false,
+        "images": []
+      }
+    },
+    {
+      "name": "stop_and_max_tokens",
+      "provider": "ollama_generate",
+      "lm_request": {
+        "model": "ollama/llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": 0.1,
+          "max_tokens": 64,
+          "top_p": null,
+          "stop": [
+            "\n\n"
+          ],
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "prompt": "### User:\nhi\n\n",
+        "options": {
+          "temperature": 0.1,
+          "stop": [
+            "\n\n"
+          ],
+          "num_predict": 64
+        },
+        "stream": false,
+        "images": []
+      }
+    },
+    {
+      "name": "multi_turn",
+      "provider": "ollama_generate",
+      "lm_request": {
+        "model": "ollama/llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "Let me check."
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "thanks"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "prompt": "### User:\nweather in Paris?\n\n### Assistant:\nLet me check.\n\n### User:\nthanks\n\n",
+        "options": {},
+        "stream": false,
+        "images": []
+      }
+    },
+    {
+      "name": "image_base64",
+      "provider": "ollama_generate",
+      "lm_request": {
+        "model": "ollama/llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "describe"
+              },
+              {
+                "type": "image",
+                "metadata": {},
+                "media_type": "image/png",
+                "data": null,
+                "url": "data:image/png;base64,iVBORw0KGgo=",
+                "file_id": null,
+                "path": null,
+                "detail": null
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "prompt": "### User:\ndescribe\n\n",
+        "options": {},
+        "stream": false,
+        "images": [
+          "iVBORw0KGgo="
+        ]
+      }
+    },
+    {
+      "name": "tool_conversation",
+      "provider": "ollama_generate",
+      "lm_request": {
+        "model": "ollama/llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "weather in Paris?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "tool_call",
+                "metadata": {},
+                "id": "call_1",
+                "name": "get_weather",
+                "args": {
+                  "city": "Paris"
+                },
+                "provider_data": {}
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "tool",
+            "parts": [
+              {
+                "type": "tool_result",
+                "metadata": {},
+                "call_id": "call_1",
+                "name": "get_weather",
+                "content": [
+                  {
+                    "type": "text",
+                    "metadata": {},
+                    "text": "sunny, 22C"
+                  }
+                ],
+                "is_error": false,
+                "provider_data": {}
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "prompt": "### User:\nweather in Paris?\n\n### Assistant:\nTool Calls: [\n  {\n    \"id\": \"call_1\",\n    \"type\": \"function\",\n    \"function\": {\n      \"name\": \"get_weather\",\n      \"arguments\": {\n        \"city\": \"Paris\"\n      }\n    }\n  }\n]\n\n### User:\nsunny, 22C\n\n",
+        "options": {},
+        "stream": false,
+        "images": []
+      }
+    },
+    {
+      "name": "structured_output",
+      "provider": "ollama_generate",
+      "lm_request": {
+        "model": "ollama/llama3.2",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "answer"
+            ]
+          },
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "llama3.2",
+        "prompt": "### User:\nhi\n\n",
+        "options": {},
+        "stream": false,
+        "format": {
+          "type": "object",
+          "properties": {
+            "answer": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "answer"
+          ]
+        },
+        "images": []
+      }
     }
   ]
 }

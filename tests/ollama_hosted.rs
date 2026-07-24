@@ -3,7 +3,8 @@
 //! `OLLAMA_HOST` has always pointed anywhere, but nothing carried a credential, so a hosted server
 //! behind auth could be configured and not reached. The capability probe makes that sharper: it is
 //! a second endpoint on the same server, and one that skipped the credential would report every
-//! model incapable — a hosted ollama would silently never get native tool calls.
+//! model incapable — a hosted ollama would silently never get native tool calls. The probe is the
+//! chat route's (`ollama_chat/`); the `/api/generate` route carries no native tools to probe for.
 //!
 //! A one-shot server on the loopback interface stands in for the host, so what is asserted is what
 //! left the process. The stub is std's `TcpListener`, as in `openai_compatible.rs`: no network, and
@@ -93,7 +94,7 @@ fn write_response(stream: &mut TcpStream, body: &str) {
 
 /// A model name no other test asks about, so the process-wide probe cache cannot answer for it.
 fn unlisted(tag: &str) -> String {
-    format!("ollama/a-model-litellm-never-heard-of:{tag}")
+    format!("ollama_chat/a-model-litellm-never-heard-of:{tag}")
 }
 
 /// litellm asks `POST /api/show` and reads the template; a hosted server needs the credential on
@@ -112,8 +113,8 @@ async fn the_probe_asks_the_configured_host_and_carries_its_credential() {
     let asked = stub.received();
     assert_eq!(asked.path, "/api/show");
     assert_eq!(asked.authorization.as_deref(), Some("Bearer hosted-secret"));
-    // The name is sent without the `ollama/` prefix, as litellm strips it.
-    assert_eq!(asked.body["name"], json!(unlisted("carries").trim_start_matches("ollama/")));
+    // The name is sent without the provider prefix, as litellm strips it.
+    assert_eq!(asked.body["name"], json!(unlisted("carries").trim_start_matches("ollama_chat/")));
 }
 
 /// A local server wants no credential, and sending one to a server that did not ask is its own
@@ -148,11 +149,11 @@ async fn a_host_that_cannot_be_reached_grants_nothing() {
 #[tokio::test]
 async fn a_model_the_registry_lists_is_never_asked_about() {
     let stub = Stub::answering(json!({ "template": "{{ if .Tools }}{{ end }}" }));
-    let lm = LM::new("ollama/llama2")
+    let lm = LM::new("ollama_chat/llama2")
         .expect("a valid reference")
         .with_ollama_host(&stub.host);
 
-    // `ollama/llama2` is in the registry crediting nothing; the stub would say otherwise if asked.
+    // `llama2` is in litellm's registry crediting nothing; the stub would say otherwise if asked.
     assert!(!lm.capabilities(&reqwest::Client::new()).await.function_calling);
     drop(stub);
 }
@@ -165,7 +166,7 @@ async fn a_model_the_registry_lists_is_never_asked_about() {
 #[ignore = "needs a live ollama with qwen2.5:7b-instruct and gemma3:4b pulled"]
 async fn a_live_daemon_answers_the_way_litellm_reads_it() {
     let http = reqwest::Client::new();
-    for (model, tools) in [("ollama/qwen2.5:7b-instruct", true), ("ollama/gemma3:4b", false)] {
+    for (model, tools) in [("ollama_chat/qwen2.5:7b-instruct", true), ("ollama_chat/gemma3:4b", false)] {
         let lm = LM::new(model).expect("a valid reference");
         assert_eq!(lm.capabilities(&http).await.function_calling, tools, "{model}");
     }

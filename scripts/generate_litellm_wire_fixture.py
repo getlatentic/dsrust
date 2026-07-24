@@ -32,11 +32,20 @@ from litellm.llms.custom_httpx.http_handler import HTTPHandler
 PINNED = "3.3.0b1"
 OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "lm_api" / "litellm_chat.json"
 
-# The litellm route for each dsrs provider: dsrs says `ollama`, litellm's chat endpoint is
-# `ollama_chat` (bare `ollama` is its /api/generate route, which dsrs does not use).
-LITELLM_ROUTE = {"anthropic": "anthropic", "ollama": "ollama_chat"}
+# The litellm route for each dsrs provider. dsrs mirrors litellm's own split: `ollama` here is
+# the `/api/chat` route (litellm's `ollama_chat`), and `ollama_generate` is the `/api/generate`
+# route (litellm's bare `ollama`).
+LITELLM_ROUTE = {
+    "anthropic": "anthropic",
+    "ollama": "ollama_chat",
+    "ollama_generate": "ollama",
+}
 # What each provider needs to get past litellm's credential/host checks and reach the transform.
-REACH = {"anthropic": {"api_key": "sk-ant-x"}, "ollama": {"api_base": "http://localhost:11434"}}
+REACH = {
+    "anthropic": {"api_key": "sk-ant-x"},
+    "ollama": {"api_base": "http://localhost:11434"},
+    "ollama_generate": {"api_base": "http://localhost:11434"},
+}
 
 _captured: dict = {}
 
@@ -164,10 +173,34 @@ def ollama_cases() -> list:
     ]
 
 
+def ollama_generate_cases() -> list:
+    """The `/api/generate` route: one flattened prompt rather than a message list. dsrs never
+    sends native tools here — the route cannot carry them — so these are the conversations the
+    adapter produces, and the assertion is that `ollama_pt`'s flattening is reproduced byte for
+    byte. A tool conversation is included to pin the `Tool Calls:` append litellm does when an
+    assistant turn carries calls."""
+    p = "ollama_generate"
+    m = "llama3.2"
+    return [
+        case("minimal", p, m, [SYS, ASK]),
+        case("temperature", p, m, HI, temperature=0.7),
+        case("stop_and_max_tokens", p, m, HI, temperature=0.1, stop=["\n\n"], max_tokens=64),
+        case("multi_turn", p, m, [
+            ASK,
+            t.LMMessage(role="assistant", parts=[text("Let me check.")]),
+            t.LMMessage(role="user", parts=[text("thanks")]),
+        ]),
+        case("image_base64", p, m, [t.LMMessage(role="user", parts=[
+            text("describe"), t.LMImagePart(url="data:image/png;base64,iVBORw0KGgo=")])]),
+        case("tool_conversation", p, m, list(CONVERSATION)),
+        structured_case("structured_output", p, m),
+    ]
+
+
 def main() -> None:
     if dspy.__version__ != PINNED:
         raise SystemExit(f"expected dspy {PINNED}, found {dspy.__version__}")
-    cases = anthropic_cases() + ollama_cases()
+    cases = anthropic_cases() + ollama_cases() + ollama_generate_cases()
     fixture = {
         "source": f"dspy=={PINNED} to_openai_chat_request -> litellm.completion (HTTP body captured)",
         "dspy_version": PINNED,
