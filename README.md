@@ -1,12 +1,10 @@
 # DsRust
 
-**Type-safe, self-optimizing LLM programs in Rust.**
-
-Stop hand-writing and tweaking prompt strings. In DsRust you *declare* a task by its inputs and
-outputs — `question -> answer` — and compose those declarations into programs: chain-of-thought,
-tool-using agents, and more. When you want better results, an **optimizer rewrites the prompts and
-picks the few-shot examples for you**, scored against a metric you define. Prompt engineering
-becomes a compile step, not a guessing game.
+A task in DsRust is a type, not a prompt. You write `question -> answer` — or a struct with typed
+input and output fields — and DsRust turns it into the messages the model actually sees. When the
+answers aren't good enough, you don't go back and fiddle with wording: an optimizer does that for
+you, rewriting the prompt and choosing few-shot examples against a metric you define. It's the
+[DSPy](https://github.com/stanfordnlp/dspy) idea — you write programs, not prompt strings — in Rust.
 
 ```rust
 use dsrs::{predict, call};
@@ -27,20 +25,22 @@ dsrust = "0.1.0-alpha.1"   # import it as `dsrs`
 
 ---
 
-## Why DsRust
+## Why DsRust, and not the other Rust one
 
-DsRust is the **[DSPy](https://github.com/stanfordnlp/dspy) programming model, brought to Rust
-faithfully** — not "inspired by." The prompts it sends are byte-for-byte what DSPy sends, proven
-against DSPy's own test suite. Fidelity is the point, and it buys you three things:
+There's already a Rust DSPy, and it's a rewrite — reimagined in idiomatic Rust, with prompts of its
+own. DsRust makes the opposite bet: stay faithful down to the byte. The prompt it sends is the
+prompt DSPy sends, and that isn't a claim in a README — DSPy's own test suite runs against DsRust's
+renderer on every build.
 
-- **Proven, not reinvented.** You inherit DSPy's research — its prompts, adapters, and optimizers
-  (MIPROv2, GEPA) — *exactly*, not one author's reinterpretation of them.
-- **Interoperable.** A program you compile in DsRust saves to DSPy's on-disk format and loads and
-  runs in Python — and the reverse.
-- **Native.** Rust orchestration with real parallelism (no GIL), a single static binary, no Python
-  runtime. The model call still dominates end-to-end latency — but everything around it (rendering,
-  parsing, parallel evaluation, the optimizers' own compute) is native and free of interpreter
-  overhead.
+That fidelity is the reason to reach for it:
+
+- **You run the real thing, not a retelling.** DSPy's prompts, adapters, and its optimizers —
+  MIPROv2, GEPA — come across exactly. Years of research, ported rather than paraphrased.
+- **Compiled programs cross the language line.** Optimize one in DsRust and `dspy.load` opens it in
+  Python; save one in Python and DsRust runs it. Same on-disk format, both directions.
+- **Underneath, it's Rust.** Real parallelism instead of the GIL, no interpreter, one binary to
+  ship. The model call is where the latency lives — but the rendering, parsing, parallel
+  evaluation, and the optimizer's own search are all native.
 
 |                       | DSPy (Python) | dspy-rs (Rust) | **DsRust (Rust)**                          |
 |-----------------------|---------------|----------------|--------------------------------------------|
