@@ -55,17 +55,29 @@ grep -v '^#' "$MANIFEST" | sed 's|tests/||;s|/.*||' | sort -u | while read -r ar
   [ "$have" -lt "$want" ] && printf '    %-14s %s of %s\n' "$area" "$have" "$want"
 done || true
 
-echo "==> Fetching upstream tests at dspy $VERSION (full tree, unmodified)"
-# The whole tests/ tree from the release tarball, so every shared helper a suite imports
-# (tests.adapters.conftest's format_messages_and_lm_kwargs, tests.test_utils, …) is present as
-# an importable package — rather than fetching each file and discovering its imports one failure
-# at a time, which is how dspy 3.3's new shared conftest first surfaced.
-TARBALL="$WORK/dspy-$VERSION.tar.gz"
+# The whole tests/ tree is needed, not just the run files: every shared helper a suite imports
+# (tests.adapters.conftest's format_messages_and_lm_kwargs, tests.test_utils, …) has to be an
+# importable package, which is how dspy 3.3's new shared conftest first surfaced.
+#
+# The pinned tree lives in the `third_party/dspy` submodule (checked out at tag $VERSION), so the
+# exact source the crate is held to is captured in this repo and needs no network. The tarball
+# download is the fallback for a checkout where the submodule was not initialised.
+SUBMODULE="$ROOT/third_party/dspy/tests"
 SRC="$WORK/upstream_src"
-[ -f "$TARBALL" ] || curl -sSfL --max-time 120 \
-  "https://github.com/stanfordnlp/dspy/archive/refs/tags/$VERSION.tar.gz" -o "$TARBALL"
-rm -rf "$SRC"; mkdir -p "$SRC"
-tar xzf "$TARBALL" -C "$SRC" --strip-components=1 "dspy-$VERSION/tests"
+rm -rf "$SRC"; mkdir -p "$SRC/tests"
+if [ -d "$SUBMODULE" ]; then
+  echo "==> Upstream tests from the dspy submodule (pinned at $VERSION)"
+  PINNED_AT="$(git -C "$ROOT/third_party/dspy" describe --tags 2>/dev/null || echo unknown)"
+  [ "$PINNED_AT" = "$VERSION" ] || echo "  warning: submodule is at $PINNED_AT, not $VERSION"
+  cp -R "$SUBMODULE/." "$SRC/tests/"
+else
+  echo "==> Fetching upstream tests at dspy $VERSION (submodule not initialised; downloading)"
+  echo "     run \`git submodule update --init third_party/dspy\` to use the pinned tree instead"
+  TARBALL="$WORK/dspy-$VERSION.tar.gz"
+  [ -f "$TARBALL" ] || curl -sSfL --max-time 120 \
+    "https://github.com/stanfordnlp/dspy/archive/refs/tags/$VERSION.tar.gz" -o "$TARBALL"
+  tar xzf "$TARBALL" -C "$SRC" --strip-components=1 "dspy-$VERSION/tests"
+fi
 
 # Run flattened, prefixed copies so pytest loads OUR conftest (not upstream's tree conftests), while
 # `PYTHONPATH` still resolves `tests.*` helper imports against the full tree below.

@@ -1,7 +1,15 @@
 [package]
+# Published crate name is pending (`dsrs` is taken on crates.io); the library name below stays
+# `dsrs`, so `use dsrs::` is unaffected by whatever the package is published as.
 name = "dsrs"
 version = "0.1.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "A faithful, byte-for-byte Rust port of DSPy — signatures, adapters, modules, providers, and optimizers, tested against DSPy itself."
+readme = "README.md"
+authors = ["Tosin Amuda"]
+keywords = ["dspy", "llm", "prompt", "ai", "agents"]
+categories = ["science", "api-bindings"]
 
 [lib]
 name = "dsrs"
