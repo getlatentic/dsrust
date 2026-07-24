@@ -17,7 +17,7 @@ use crate::example::{Example, Prediction};
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::predict::Predict;
 use crate::signature::{FieldKind, InField, JsonType, LiteralValue, OutField, Signature};
-use tool::describe;
+use crate::adapter::types::tool::format_tool;
 
 pub use mcp::{mcp_tool, mcp_tool_args, mcp_tool_result};
 pub use tool::{FINISH, FnTool, Tool, arg_str, tool_args};
@@ -202,7 +202,7 @@ fn react_instructions(signature: &Signature, tools: &[Box<dyn Tool>]) -> String 
         format!(
             "({}) {}",
             index + 1,
-            describe(tool.name(), tool.description(), tool.args())
+            format_tool(tool.name(), tool.description(), tool.args())
         )
     });
 

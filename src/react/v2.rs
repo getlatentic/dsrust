@@ -16,7 +16,7 @@ use crate::adapter::{Adapter, History, ToolCallResults, ToolCalls};
 use crate::example::{Example, Prediction};
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::predict::Predict;
-use crate::signature::{FieldKind, InField, JsonType, OutField, Signature};
+use crate::signature::{FieldKind, InField, JsonType, OutField, Signature, TypeDescription};
 
 use super::tool::Tool;
 use super::{as_dict, backticked};
@@ -85,6 +85,12 @@ impl ReActV2 {
         &self.react.signature
     }
 
+    /// The `tools` input value the per-turn predictor is handed each turn — each tool as
+    /// `{name, desc, args}`, the same list a native request formats into provider function calls.
+    pub fn turn_tools(&self) -> &Value {
+        &self.tool_list
+    }
+
     /// Every tool the model may call, `submit` included, in the order they are held.
     pub fn tool_names(&self) -> Vec<&str> {
         self.tools.iter().map(|tool| tool.name()).collect()
@@ -106,7 +112,7 @@ impl ReActV2 {
 
         let mut break_reason = "max_iters";
         for turn_index in 0..max_iters {
-            let asked = self.ask_turn(&history, &pending, None, trace).await;
+            let asked = self.ask_turn(&history, &pending, trace).await;
             let (pred, calls) = match asked {
                 Ok(pair) => pair,
                 // dspy catches a parse or validation failure and ends the loop, so a recoverable
@@ -148,10 +154,8 @@ impl ReActV2 {
         &self,
         history: &History,
         pending: &Example,
-        config: Option<()>,
         trace: &mut Vec<TraceStep>,
     ) -> Result<(Prediction, ToolCalls)> {
-        let _ = config;
         let mut inputs = pending.clone();
         inputs.set("history", history.to_value());
         inputs.set("tools", self.tool_list.clone());
@@ -229,9 +233,13 @@ impl ReActV2 {
         event
     }
 
-    /// dspy `_forced_submit`: the loop ended without a submit, so ask once more — upstream pins the
-    /// tool choice to `submit` and clears `reasoning_effort` — and take only a submit call. Anything
-    /// else, or a failure, ends the episode carrying the reason it stopped.
+    /// dspy `_forced_submit`: the loop ended without a submit, so ask once more and take only a
+    /// submit call. Anything else, or a failure, ends the episode carrying the reason it stopped.
+    ///
+    /// Upstream steers this last ask with `config={"tool_choice": submit, "reasoning_effort": None}`
+    /// — pinning the provider to `submit` and clearing the reasoning budget. The module `LmConfig`
+    /// carries neither field yet, so the ask goes out unsteered: the loop is behaviorally the same
+    /// (a submit call still ends it), but a real provider is not forced to choose `submit` here.
     async fn forced_submit(
         &self,
         mut history: History,
@@ -240,7 +248,7 @@ impl ReActV2 {
         turn_index: usize,
         trace: &mut Vec<TraceStep>,
     ) -> Result<Prediction> {
-        let Ok((pred, calls)) = self.ask_turn(&history, &pending, Some(()), trace).await else {
+        let Ok((pred, calls)) = self.ask_turn(&history, &pending, trace).await else {
             return Ok(failed(&history, break_reason));
         };
         let calls = ensure_ids(calls, turn_index);
@@ -370,10 +378,7 @@ fn react_signature(task: &Signature, tools: &[Box<dyn Tool>]) -> Signature {
         .map(|field| InField {
             name: field.name.clone(),
             desc: field.desc.clone(),
-            // dspy widens each to `X | None`, since a continuation turn omits it. This crate leaves
-            // a supplied-but-absent input out of the render already, so the loop behaves the same;
-            // the annotation dspy prints is the remaining difference, checked at the byte level.
-            kind: field.kind.clone(),
+            kind: widened(&field.kind),
             ..Default::default()
         })
         .collect();
@@ -384,11 +389,31 @@ fn react_signature(task: &Signature, tools: &[Box<dyn Tool>]) -> Signature {
         OutField { name: "next_thought".into(), kind: FieldKind::Reasoning, ..Default::default() },
         OutField {
             name: "tool_calls".into(),
-            kind: FieldKind::Json(JsonType::plain("ToolCalls")),
+            // dspy carries `ToolCalls`'s own description on the field's line and its JSON schema in
+            // the note under the marker — the type describes itself, so every field of it reads the
+            // same. `JsonType::plain` would state neither.
+            kind: FieldKind::Json(JsonType {
+                annotation: "ToolCalls".into(),
+                descriptions: vec![TypeDescription {
+                    name: "ToolCalls".into(),
+                    text: ToolCalls::description().to_owned(),
+                    replaces_schema: false,
+                }],
+                reflection: None,
+            }),
+            schema: Some(ToolCalls::output_schema()),
             ..Default::default()
         },
     ];
     Signature { instructions: react_instructions(task, tools), inputs, outputs }
+}
+
+/// dspy `_optional_annotation`: each task input is widened to `X | None`, since a continuation turn
+/// omits it. `get_annotation_name` renders that union `UnionType[X, NoneType]`, which is the only
+/// change — the value still reads as its own type, so a scalar renders identically. (The rendering
+/// omits an absent input already, so the loop needs nothing more from the widening than its name.)
+fn widened(kind: &FieldKind) -> FieldKind {
+    FieldKind::Json(JsonType::plain(format!("UnionType[{}, NoneType]", kind.annotation())))
 }
 
 /// An input field carrying a custom type's annotation, which is how the history and tools fields

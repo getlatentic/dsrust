@@ -8,6 +8,7 @@
 
 use serde_json::{Value, json};
 
+use crate::adapter::types::tool::format_tool;
 use crate::signature::FieldKind;
 
 /// Python's spelling of a bare value: a dict or a list is `json.dumps` text, and anything else is
@@ -57,8 +58,26 @@ pub(crate) fn json_dumps(value: &Value) -> String {
 pub fn format_field_value(kind: &FieldKind, value: &Value) -> String {
     match (kind, value) {
         (FieldKind::Str, Value::Array(items)) => input_list(items),
+        // dspy renders a `list[Tool]` field as the JSON array of each tool's `str()`, so the model
+        // reads the same tool lines a numbered catalogue would carry rather than raw descriptors.
+        (FieldKind::Json(json), Value::Array(tools)) if json.annotation == "list[Tool]" => {
+            tool_list(tools)
+        }
         _ => format_value(value),
     }
+}
+
+/// The tools as dspy prints them: a JSON array of each tool's `str()`.
+fn tool_list(tools: &[Value]) -> String {
+    let lines = tools.iter().map(|tool| {
+        let args = tool.get("args").cloned().unwrap_or_else(|| json!({}));
+        Value::String(format_tool(
+            tool.get("name").and_then(Value::as_str).unwrap_or_default(),
+            tool.get("desc").and_then(Value::as_str).unwrap_or_default(),
+            &args,
+        ))
+    });
+    format_value(&Value::Array(lines.collect()))
 }
 
 /// dspy `_format_input_list_field_value`: nothing, one blob, or a numbered run of them.

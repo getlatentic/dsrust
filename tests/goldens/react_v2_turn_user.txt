@@ -1,0 +1,7 @@
+[[ ## question ## ]]
+cats
+
+[[ ## tools ## ]]
+["lookup, whose description is <desc>look something up</desc>. It takes arguments {'query': {'type': 'string'}}.", "submit, whose description is <desc>Submit the final outputs for the task.</desc>. It takes arguments {'answer': {'type': 'string'}}."]
+
+Respond with the corresponding output fields, starting with the field `[[ ## next_thought ## ]]` (must be formatted as a valid Python str), then `[[ ## tool_calls ## ]]` (must be a JSON object like {"tool_calls": [{"name": "...", "args": {...}}]}), and then ending with the marker for `[[ ## completed ## ]]`.

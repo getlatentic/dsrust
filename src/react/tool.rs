@@ -56,45 +56,6 @@ pub fn tool_args<T: schemars::JsonSchema>() -> Value {
 /// has a way to stop that is indistinguishable from any other choice it makes.
 pub const FINISH: &str = "finish";
 
-/// One line of the tool catalogue, matching dspy's `Tool.__str__`: the name, the description
-/// in `<desc>` tags, and the argument schema the model has to fill.
-pub(super) fn describe(name: &str, description: &str, args: &Value) -> String {
-    let desc = match description.is_empty() {
-        true => ".".to_owned(),
-        // dspy flattens newlines so a multi-line description cannot break the numbered list.
-        false => format!(", whose description is <desc>{description}</desc>.").replace('\n', "  "),
-    };
-    format!("{name}{desc} It takes arguments {}.", python_repr(args))
-}
-
-/// Render a JSON value the way Python's `repr` prints a dict, because that is literally what
-/// dspy interpolates into the instructions — `str(tool)` formats `self.args`, a dict.
-///
-/// The difference is visible to the model: `{'city': {'type': 'string'}}` rather than
-/// `{"city":{"type":"string"}}`. Matching it keeps the prompt bytes identical, which is the
-/// standard the conformance fixtures hold everything else to.
-fn python_repr(value: &Value) -> String {
-    match value {
-        Value::Null => "None".to_owned(),
-        Value::Bool(true) => "True".to_owned(),
-        Value::Bool(false) => "False".to_owned(),
-        Value::String(text) => format!("'{}'", text.replace('\\', "\\\\").replace('\'', "\\'")),
-        Value::Array(items) => format!(
-            "[{}]",
-            items.iter().map(python_repr).collect::<Vec<_>>().join(", ")
-        ),
-        Value::Object(fields) => format!(
-            "{{{}}}",
-            fields
-                .iter()
-                .map(|(key, value)| format!("'{key}': {}", python_repr(value)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        number => number.to_string(),
-    }
-}
-
 /// A tool built from a closure, for callers who do not want to declare a type per tool.
 pub struct FnTool<F> {
     pub name: String,
@@ -156,24 +117,6 @@ pub fn arg_str<'a>(args: &'a Value, name: &str) -> Result<&'a str> {
 mod tests {
     use super::*;
     use serde_json::json;
-
-    #[test]
-    fn a_description_spanning_lines_stays_on_one_catalogue_line() {
-        // dspy replaces newlines so a wrapped docstring cannot break the numbered list apart.
-        let entry = describe("noisy", "first\nsecond", &json!({}));
-        assert_eq!(
-            entry,
-            "noisy, whose description is <desc>first  second</desc>. It takes arguments {}."
-        );
-    }
-
-    #[test]
-    fn a_tool_with_no_description_is_rendered_without_the_desc_tags() {
-        assert_eq!(
-            describe("bare", "", &json!({})),
-            "bare. It takes arguments {}."
-        );
-    }
 
     #[test]
     fn tool_args_reads_the_argument_schema_off_a_rust_type() {

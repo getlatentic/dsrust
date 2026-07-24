@@ -116,6 +116,36 @@ impl ToolCalls {
         self
     }
 
+    /// dspy's rendered JSON schema for a `ToolCalls` output field — the note the model is shown
+    /// under `[[ ## tool_calls ## ]]`. It is the pydantic schema with `type` lifted to the front the
+    /// way upstream renders it, and with the transport-only `id` dropped, so a value built from it
+    /// matches [`ToolCall::format`]. Held as a constant because the type never varies.
+    pub fn output_schema() -> Value {
+        json!({
+            "type": "object",
+            "$defs": {
+                "ToolCall": {
+                    "type": "object",
+                    "properties": {
+                        "args": { "type": "object", "additionalProperties": true, "title": "Args" },
+                        "name": { "type": "string", "title": "Name" },
+                    },
+                    "required": ["name", "args"],
+                    "title": "ToolCall",
+                }
+            },
+            "properties": {
+                "tool_calls": {
+                    "type": "array",
+                    "items": { "$ref": "#/$defs/ToolCall" },
+                    "title": "Tool Calls",
+                }
+            },
+            "required": ["tool_calls"],
+            "title": "ToolCalls",
+        })
+    }
+
     /// dspy `ToolCalls.description`: what the field's line tells the model this type must be.
     pub fn description() -> &'static str {
         "Tool calls must be a JSON object with `tool_calls`, a list of calls. \
@@ -316,9 +346,62 @@ impl ToolCallResults {
     }
 }
 
+/// dspy `Tool.__str__`: one tool as the line the model reads — the name, the description in
+/// `<desc>` tags, and the argument schema it has to fill. It is what a `list[Tool]` field renders
+/// each entry as, and what `ReAct`'s numbered catalogue is built from.
+pub fn format_tool(name: &str, description: &str, args: &Value) -> String {
+    let desc = match description.is_empty() {
+        true => ".".to_owned(),
+        // dspy flattens newlines so a multi-line description cannot break a numbered list.
+        false => format!(", whose description is <desc>{description}</desc>.").replace('\n', "  "),
+    };
+    format!("{name}{desc} It takes arguments {}.", python_repr(args))
+}
+
+/// Render a JSON value the way Python's `repr` prints a dict, because that is literally what dspy
+/// interpolates: `str(tool)` formats `self.args`, a dict.
+///
+/// The difference is visible to the model: `{'city': {'type': 'string'}}` rather than
+/// `{"city":{"type":"string"}}`. Matching it keeps the prompt bytes identical, which is the
+/// standard the conformance fixtures hold everything else to.
+fn python_repr(value: &Value) -> String {
+    match value {
+        Value::Null => "None".to_owned(),
+        Value::Bool(true) => "True".to_owned(),
+        Value::Bool(false) => "False".to_owned(),
+        Value::String(text) => format!("'{}'", text.replace('\\', "\\\\").replace('\'', "\\'")),
+        Value::Array(items) => {
+            format!("[{}]", items.iter().map(python_repr).collect::<Vec<_>>().join(", "))
+        }
+        Value::Object(fields) => format!(
+            "{{{}}}",
+            fields
+                .iter()
+                .map(|(key, value)| format!("'{key}': {}", python_repr(value)))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ),
+        number => number.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// dspy replaces newlines so a wrapped docstring cannot break a numbered list apart.
+    #[test]
+    fn a_tool_description_spanning_lines_stays_on_one_line() {
+        assert_eq!(
+            format_tool("noisy", "first\nsecond", &json!({})),
+            "noisy, whose description is <desc>first  second</desc>. It takes arguments {}."
+        );
+    }
+
+    #[test]
+    fn a_tool_with_no_description_drops_the_desc_tags() {
+        assert_eq!(format_tool("bare", "", &json!({})), "bare. It takes arguments {}.");
+    }
 
     fn search_call() -> ToolCall {
         ToolCall::new("search", json!({ "query": "cats" }).as_object().expect("object").clone())
