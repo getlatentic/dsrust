@@ -128,9 +128,10 @@ Fidelity is checked two ways, both against the pinned upstream (`dspy==3.3.0b1`,
    they live in the repo, and `cargo test` needs no Python to check against them.
 
 2. **Upstream's own test suite, over dsrs's renderer.** A PyO3 bridge (`bridge/`) runs DSPy's
-   actual pytest files with dsrs underneath. `scripts/run_upstream_tests.sh` fetches the test tree
-   at the pinned tag and builds the bridge; a crossing-counter fails any test that passes *without*
-   touching the Rust crate, so green cannot mean "Python answered for us."
+   actual pytest files with dsrs underneath. DSPy's exact test tree is pinned in this repo as a
+   git submodule (`third_party/dspy` at tag `3.3.0b1`), so the tests dsrs is held to are captured,
+   not fetched at run time. A crossing-counter fails any test that passes *without* touching the
+   Rust crate, so green cannot mean "Python answered for us."
 
 Numbers today: **~696 Rust tests**, **452 of DSPy's own adapter/predict tests passing through the
 crate**, plus separately-verified reproductions of CPython's Mersenne Twister (checked against
@@ -140,15 +141,18 @@ sampler, and the gepa package's evolution engine.
 **Reproducing it yourself:**
 
 ```bash
+git clone --recurse-submodules <repo>          # brings in third_party/dspy at the pinned tag
+cargo test --workspace                          # the Rust suite + committed goldens (no Python)
+
+# For the bridge layer (DSPy's own pytest, over dsrs):
 uv venv .dspy-venv --python 3.12
 uv pip install --python .dspy-venv/bin/python \
     dspy==3.3.0b1 gepa==0.1.1 optuna==4.9.0 pytest pytest-asyncio maturin pillow
-cargo test --workspace                # the Rust suite + committed goldens
-bash scripts/run_upstream_tests.sh    # DSPy's own tests, over dsrs
+bash scripts/run_upstream_tests.sh              # runs against the pinned submodule, no network
 ```
 
-The Python environment is reconstructed from that pinned install — never committed. See
-[`docs/`](docs/) and `backlog.toml` for the full conformance ledger.
+The committed goldens need no Python; the bridge needs the pinned venv, reconstructed from that
+install (never committed). See [`docs/`](docs/) and `backlog.toml` for the full conformance ledger.
 
 ---
 
