@@ -190,6 +190,9 @@ fn build_signature(
                     kind: kind_from(&kind, descriptions, reflection)?,
                     values: closed_set_from(values)?,
                     constraints,
+                    // Python owns the prefix; nothing crossing here has one set, and the
+                    // renderer infers it from the name exactly as dspy does.
+                    prefix: None,
                 })
             },
         )
@@ -205,6 +208,7 @@ fn build_signature(
                     values: closed_set_from(values)?,
                     schema: json_text(schema, "field schema")?,
                     constraints,
+                    prefix: None,
                 })
             },
         )

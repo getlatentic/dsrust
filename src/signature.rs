@@ -37,6 +37,10 @@ pub struct InField {
     /// data and this crate only decides where in the prompt it reads. A signature declared in
     /// Rust has no constraints to state and leaves it empty.
     pub constraints: Option<String>,
+    /// dspy's field prefix — `Question:` for a field named `question`. `None` means nobody set
+    /// one and it is inferred from the name, which is what dspy does too; a saved program restores
+    /// whatever was in force when it was compiled.
+    pub prefix: Option<String>,
 }
 
 impl InField {
@@ -64,6 +68,10 @@ pub struct OutField {
     /// What pydantic's constraints on this field say, already in prose. See
     /// [`InField::constraints`].
     pub constraints: Option<String>,
+    /// dspy's field prefix — `Question:` for a field named `question`. `None` means nobody set
+    /// one and it is inferred from the name, which is what dspy does too; a saved program restores
+    /// whatever was in force when it was compiled.
+    pub prefix: Option<String>,
 }
 
 impl OutField {
