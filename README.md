@@ -1,15 +1,15 @@
 # DsRust
 
-DsRust is a Rust framework for building LLM features without hand-writing prompts. Three steps:
+DsRust is a Rust framework for building LLM features without hand-writing prompts, and a faithful
+port of [DSPy](https://github.com/stanfordnlp/dspy). It works in three steps:
 
-1. **Declare** a task by its inputs and outputs — `question -> answer`. DsRust builds the prompt,
-   calls the model, and gives you back typed values — no template, no JSON parsing, no retry loop.
-2. **Wrap** it in a module — `ChainOfThought`, `ReAct` (with tools), and more — to change how the
-   model reasons, without rewriting anything.
-3. **Optimize** with your own data. Hand DsRust a metric and a few examples, and it tunes the
-   instructions and picks the few-shot examples that score highest.
-
-It's a faithful Rust port of [DSPy](https://github.com/stanfordnlp/dspy).
+1. **Declare** a task by its inputs and outputs, like `question -> answer`. DsRust builds the
+   prompt, calls the model, and gives you back typed values. No template, no JSON parsing, no retry
+   loop.
+2. **Wrap** it in a module to use a proven prompting technique without building it yourself:
+   `ChainOfThought`, `ReAct` (with tools), and more.
+3. **Optimize** on your own data. You create a metric and provide a few examples, and DsRust tunes
+   the prompt to score best on your metric.
 
 ```rust
 use dsrust::{predict, call};
@@ -24,7 +24,7 @@ println!("{}", out.get("answer").unwrap());
 dsrust = "0.1.0-alpha.1"
 ```
 
-> **Status: alpha.** The core — byte-level rendering and parsing, the optimizers, the RNG — is
+> **Status: alpha.** The core (byte-level rendering and parsing, the optimizers, the RNG) is
 > solid and already tested against DSPy's own suite. The API is real and growing toward full
 > parity ([Roadmap](#roadmap)); pin an exact version while it fills in.
 
@@ -32,26 +32,25 @@ dsrust = "0.1.0-alpha.1"
 
 ## Why DsRust
 
-Other Rust takes on DSPy are rewrites — reimagined in idiomatic Rust, with prompts of their own.
+Other Rust takes on DSPy are rewrites, reimagined in idiomatic Rust, with prompts of their own.
 DsRust makes a different bet: stay faithful down to the byte. The prompt it sends is the prompt
-DSPy sends, and that isn't a claim in a README — DSPy's own test suite runs against DsRust's
+DSPy sends, and that isn't a claim in a README. DSPy's own test suite runs against DsRust's
 renderer on every build.
 
 That fidelity is the reason to reach for it:
 
-- **You run the real thing, not a retelling.** DSPy's prompts, adapters, and its optimizers —
-  MIPROv2, GEPA — come across exactly. Years of research, ported rather than paraphrased.
+- **You run the real thing, not a retelling.** DSPy's prompts, adapters, and the optimizers MIPROv2 and GEPA come across exactly. Years of research, ported rather than paraphrased.
 - **Compiled programs cross the language line.** Optimize one in DsRust and `dspy.load` opens it in
   Python; save one in Python and DsRust runs it. Same on-disk format, both directions.
 - **Underneath, it's Rust.** Real parallelism instead of the GIL, no interpreter, one binary to
-  ship. The model call is where the latency lives — but the rendering, parsing, parallel
+  ship. The model call is where the latency lives, but the rendering, parsing, parallel
   evaluation, and the optimizer's own search are all native.
 
 |                       | DSPy (Python) | Other Rust ports | **DsRust (Rust)**                        |
 |-----------------------|---------------|------------------|------------------------------------------|
 | Relationship to DSPy  | the original  | rewrites         | **a faithful port**                      |
-| Prompt bytes          | —             | their own        | **identical to DSPy, tested against its suite** |
-| Compiled artifacts    | DSPy format   | their own        | **DSPy format — load in either**         |
+| Prompt bytes          | n/a           | their own        | **identical to DSPy, tested against its suite** |
+| Compiled artifacts    | DSPy format   | their own        | **DSPy format (load in either)**         |
 | Runtime               | Python        | Rust             | Rust                                     |
 
 **Full guide, with every module and the DSPy-vs-DsRust mapping side by side:
@@ -77,7 +76,7 @@ let out = call!(predict!(QA), question = "capital of France?").await?;
 println!("{}", out.answer);   // typed, checked when this compiles
 ```
 
-Reach a provider by naming it `provider/model-id` — the prefix is a **wire format**, not a brand,
+Reach a provider by naming it `provider/model-id`. The prefix is a **wire format**, not a brand,
 so any OpenAI-compatible host is a base-URL away:
 
 ```rust
@@ -103,10 +102,10 @@ let compiled = GEPA::new(metric, reflection_lm)   // evolves the prompt against 
     .compile(program, trainset, valset)
     .await?;
 
-compiled.save(std::path::Path::new("compiled.json"))?;   // DSPy's format — open it in Python
+compiled.save(std::path::Path::new("compiled.json"))?;   // DSPy's format, open it in Python
 ```
 
-Run the whole loop — declare, ask, score, compile — with no provider and no API key:
+Run the whole loop (declare, ask, score, compile) with no provider and no API key:
 
 ```bash
 cargo run --example quickstart
@@ -119,9 +118,9 @@ cargo run --example quickstart
 Two layers, both against the pinned upstream (`dspy==3.3.0b1`, `gepa==0.1.1`, `optuna==4.9.0`),
 never against a transcription of it:
 
-1. **Committed goldens** (`tests/conformance/**`) — the exact bytes and decisions captured from
+1. **Committed goldens** (`tests/conformance/**`), the exact bytes and decisions captured from
    *running* the pinned Python. `cargo test` checks against them with no Python needed.
-2. **DSPy's own pytest suite, over DsRust** — a PyO3 bridge runs DSPy's actual tests (pinned in
+2. **DSPy's own pytest suite, over DsRust**: a PyO3 bridge runs DSPy's actual tests (pinned in
    `third_party/dspy` as a submodule) with DsRust underneath. A crossing-counter fails any test
    that passes *without* touching the Rust crate.
 
@@ -141,23 +140,23 @@ Details and the conformance ledger: [`docs/`](docs/) and `backlog.toml`.
 
 ## Roadmap
 
-The byte and algorithm levels are strong — verified against DSPy's own tests. The API breadth is
+The byte and algorithm levels are strong, verified against DSPy's own tests. The API breadth is
 filling in.
 
 **Done**
 
-- [x] **Adapters** — Chat, JSON, XML, BAML, TwoStep — byte-identical, incl. native function calling.
-- [x] **Modules** — Predict, ChainOfThought, ReAct, MultiChainComparison, BestOfN, Refine, Parallel.
-- [x] **Providers** — OpenAI-compatible, Anthropic, ollama; typed `ChatModel`/`LmRequest`/`LmResponse`,
+- [x] **Adapters**: Chat, JSON, XML, BAML, TwoStep. Byte-identical, incl. native function calling.
+- [x] **Modules**: Predict, ChainOfThought, ReAct, MultiChainComparison, BestOfN, Refine, Parallel.
+- [x] **Providers**: OpenAI-compatible, Anthropic, ollama; typed `ChatModel`/`LmRequest`/`LmResponse`,
   streaming, a response cache, litellm-grounded capability detection.
-- [x] **Optimizers** — LabeledFewShot, BootstrapFewShot, COPRO, MIPROv2, GEPA (reflective mutation
+- [x] **Optimizers**: LabeledFewShot, BootstrapFewShot, COPRO, MIPROv2, GEPA (reflective mutation
   *and* merge, with CPython set-order and RNG reproduced).
 - [x] **Save/load** in DSPy's on-disk format; `Reasoning`, `Tool`, `ToolCalls` + tool history.
 
 **Next**
 
-- [ ] **ReAct v2** — DSPy 3.3's native-tool-calling rewrite (current sprint).
-- [ ] **Custom-type seam** — `dspy.Type` + `Image` / `Audio` / `File` / `Code`.
+- [ ] **ReAct v2**: DSPy 3.3's native-tool-calling rewrite (current sprint).
+- [ ] **Custom-type seam**: `dspy.Type` + `Image` / `Audio` / `File` / `Code`.
 
 **Planned**
 
