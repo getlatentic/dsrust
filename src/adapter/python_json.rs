@@ -58,9 +58,14 @@ pub(crate) fn json_dumps(value: &Value) -> String {
 pub fn format_field_value(kind: &FieldKind, value: &Value) -> String {
     match (kind, value) {
         (FieldKind::Str, Value::Array(items)) => input_list(items),
-        // dspy renders a `list[Tool]` field as the JSON array of each tool's `str()`, so the model
-        // reads the same tool lines a numbered catalogue would carry rather than raw descriptors.
-        (FieldKind::Json(json), Value::Array(tools)) if json.annotation == "list[Tool]" => {
+        // dspy renders a `list[Tool]` field as the JSON array of each tool's `str()`. A caller
+        // holding tool *descriptors* — `{name, desc, args}` objects, as ReActV2 does — has them
+        // rendered to that string here. A value already carrying the strings (each tool serialized
+        // to its `str()`, which is how one crosses from dspy) is left to the default, which
+        // json-dumps the array exactly as upstream does.
+        (FieldKind::Json(json), Value::Array(tools))
+            if json.annotation == "list[Tool]" && tools.iter().all(Value::is_object) =>
+        {
             tool_list(tools)
         }
         _ => format_value(value),
@@ -160,6 +165,27 @@ mod tests {
             format_value(&json!({ "café": "a/b", "q": "he said \"hi\"" })),
             r#"{"café": "a/b", "q": "he said \"hi\""}"#
         );
+    }
+
+    /// A `list[Tool]` field renders each tool as its `str()`. dspy crosses the value as those
+    /// strings already (each tool serialized to its `str()`); a caller holding descriptor objects
+    /// has them rendered to the same string. Reading a ready string as a descriptor blanks the
+    /// name — the regression the bridge caught, so both shapes are pinned here.
+    #[test]
+    fn a_list_of_tools_renders_from_descriptors_or_from_ready_strings() {
+        let kind = FieldKind::Json(crate::signature::JsonType::plain("list[Tool]"));
+        let rendered =
+            r#"["search, whose description is <desc>look it up</desc>. It takes arguments {'q': {'type': 'string'}}."]"#;
+
+        let objects = json!([
+            { "name": "search", "desc": "look it up", "args": { "q": { "type": "string" } } }
+        ]);
+        assert_eq!(format_field_value(&kind, &objects), rendered);
+
+        let ready = json!([
+            "search, whose description is <desc>look it up</desc>. It takes arguments {'q': {'type': 'string'}}."
+        ]);
+        assert_eq!(format_field_value(&kind, &ready), rendered);
     }
 
     #[test]
