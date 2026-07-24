@@ -52,6 +52,78 @@ impl DynChatModel for NotOnThisSide {
     }
 }
 
+/// A model backed by a Python LM object, so this crate's own `Predict::forward` can run under
+/// dspy's module tests, driven by the test's `DummyLM`. The reply is canned and synchronous, so
+/// the async seam is met with a ready future rather than a runtime.
+struct PyLM {
+    inner: Py<PyAny>,
+}
+
+impl PyLM {
+    /// Call the Python LM the way a dspy module does — `lm(messages=..., n=...)`, which is
+    /// `BaseLM.__call__` — so it records `lm.history` (tests read it) and returns the completions
+    /// list. `DummyLM.forward` would skip the history and read a false green, so it is not used.
+    fn answer(
+        &self,
+        request: &dsrust::lm::api::LmRequest,
+    ) -> anyhow::Result<dsrust::lm::api::LmResponse> {
+        Python::attach(|py| {
+            // Cross the rendered messages as JSON text, the way every value crosses this bridge,
+            // and let Python rebuild the list — no Rust-to-Python object mapping to keep in step.
+            let messages_json = serde_json::to_string(&request.wire_messages())?;
+            let messages = py.import("json")?.call_method1("loads", (messages_json,))?;
+            let kwargs = pyo3::types::PyDict::new(py);
+            kwargs.set_item("messages", messages)?;
+            // `n` is the one kwarg a `DummyLM` reads — how many canned choices to return.
+            if let Some(n) = request.config.n {
+                kwargs.set_item("n", n)?;
+            }
+            let replies = self
+                .inner
+                .bind(py)
+                .call((), Some(&kwargs))
+                .map_err(|error| anyhow::anyhow!("the python LM raised: {error}"))?;
+            let mut texts = Vec::new();
+            for reply in replies.try_iter()? {
+                match reply?.extract::<String>() {
+                    Ok(text) => texts.push(text),
+                    // dspy flattens a text-only reply to a bare string; a dict means a channel
+                    // beside the text — tool calls, native reasoning, citations. The text-only
+                    // beachhead cannot answer for those, and taking the `text` key while dropping
+                    // the rest would be a false green, so it stops here for the shim to mark xfail.
+                    Err(_) => anyhow::bail!(MODULE_UNSUPPORTED),
+                }
+            }
+            Ok(dsrust::lm::api::LmResponse::completions(texts))
+        })
+    }
+}
+
+/// The sentinel a reply-with-extra-channels raises with, which the Python shim turns into the
+/// bridge's `Unsupported` so the case is a tracked xfail rather than a silent pass or a hard error.
+const MODULE_UNSUPPORTED: &str = "MODULE_UNSUPPORTED: the LM reply carried non-text channels";
+
+impl DynChatModel for PyLM {
+    fn forward_dyn<'a>(
+        &'a self,
+        _http: &'a reqwest::Client,
+        request: &'a dsrust::lm::api::LmRequest,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<dsrust::lm::api::LmResponse>> + Send + 'a>> {
+        Box::pin(std::future::ready(self.answer(request)))
+    }
+
+    fn capabilities_dyn<'a>(
+        &'a self,
+        _http: &'a reqwest::Client,
+    ) -> Pin<Box<dyn Future<Output = dsrust::lm::Capabilities> + Send + 'a>> {
+        Box::pin(std::future::ready(dsrust::lm::Capabilities::default()))
+    }
+
+    fn native_reasoning_usable_dyn(&self) -> bool {
+        true
+    }
+}
+
 /// One input field as Python describes it: name, kind, description, any closed set, the prose
 /// any custom type in its annotation contributes, the annotation's reflected structure, and
 /// what its pydantic constraints read as.
@@ -394,6 +466,54 @@ fn format_messages(
     Ok((system, turns))
 }
 
+/// Run this crate's own `Predict` for a signature, driven by a Python LM — the module-level
+/// crossing. dspy's `test_predict` builds a `DummyLM` and a `dspy.Predict`; the shim points the
+/// latter here, so `Predict::forward` renders, calls back into that `DummyLM`, and parses, all in
+/// Rust. Returns the prediction's output fields as JSON text and the raw reply the model gave.
+#[pyfunction]
+#[pyo3(signature = (instructions, inputs, outputs, values, py_lm, demos = None, n = None))]
+fn predict_forward(
+    instructions: &str,
+    inputs: Vec<PyInField>,
+    outputs: Vec<PyOutField>,
+    values: Vec<(String, String, bool)>,
+    py_lm: Py<PyAny>,
+    demos: Option<Vec<Vec<(String, String)>>>,
+    n: Option<u32>,
+) -> PyResult<(String, String)> {
+    let signature = build_signature(instructions, inputs, outputs)?;
+    let mut fields = Vec::new();
+    for (name, json, _record) in &values {
+        let value: Value = serde_json::from_str(json)
+            .map_err(|error| PyValueError::new_err(format!("input `{name}`: {error}")))?;
+        fields.push((name.clone(), value));
+    }
+    let example = Example::new(fields);
+    let demos: Vec<Example> = demos
+        .unwrap_or_default()
+        .into_iter()
+        .map(|fields| Example::new(fields.into_iter().map(|(name, value)| (name, Value::String(value)))))
+        .collect();
+    // The module-level config spells the completion count `completions`; it becomes the wire
+    // request's `n`, which is the kwarg a `DummyLM` reads.
+    let mut config = dsrust::lm::LmConfig::default();
+    config.completions = n;
+    let predict = dsrust::predict::Predict::from_signature(signature)
+        .with_config(config)
+        .with_demos(demos)
+        .with_lm(Arc::new(PyLM { inner: py_lm }));
+    let prediction =
+        pollster::block_on(dsrust::module::Module::forward(&predict, example)).map_err(to_value_error)?;
+    let output: serde_json::Map<String, Value> = prediction
+        .example
+        .fields()
+        .map(|(name, value)| (name.to_owned(), value.clone()))
+        .collect();
+    let output_json = serde_json::to_string(&output)
+        .map_err(|error| PyValueError::new_err(format!("bad prediction: {error}")))?;
+    Ok((output_json, prediction.raw))
+}
+
 /// The system message the named adapter states for this signature.
 ///
 /// dspy exposes this separately from a whole exchange, and a caller reading it should read the
@@ -516,6 +636,7 @@ fn json_fallback_settings(
 #[pymodule]
 fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(format_messages, module)?)?;
+    module.add_function(wrap_pyfunction!(predict_forward, module)?)?;
     module.add_function(wrap_pyfunction!(format_system_message, module)?)?;
     module.add_function(wrap_pyfunction!(baml_field_structure, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;

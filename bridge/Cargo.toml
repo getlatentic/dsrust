@@ -19,6 +19,9 @@ dsrust = { path = ".." }
 # the macOS link arguments instead, scoped to this crate rather than the whole workspace.
 pyo3 = "0.29"
 serde_json = "1"
+# Drive our async `Module::forward` to completion from the sync PyO3 entry point. The Python LM
+# it calls back into answers synchronously, so the future never parks — no real runtime is needed.
+pollster = "0.4"
 
 [build-dependencies]
 pyo3-build-config = "0.29"
