@@ -587,5 +587,6 @@
     {"seed": 42, "weights": [5.0, 0.0, 1.0], "k": 8, "result": [0, 0, 0, 0, 0, 0, 2, 0]},
     {"seed": 42, "weights": [0.01, 100.0, 0.01], "k": 8, "result": [1, 1, 1, 1, 1, 1, 1, 1]},
     {"seed": 42, "weights": [2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 2.5], "k": 8, "result": [6, 0, 2, 2, 7, 6, 8, 0]}
-  ]
+  ],
+  "cpython_guaranteed_stable": {"seed": 3456147, "note": "copied from CPython Lib/test/test_random.py test_guaranteed_stable", "random_bits": ["4605708395420160210", "4605442370584334341", "4603219453368224845", "4603144196776238097"]}
 }

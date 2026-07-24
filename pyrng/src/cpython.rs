@@ -280,6 +280,26 @@ mod tests {
         }
     }
 
+    /// CPython's own `test_guaranteed_stable` (`Lib/test/test_random.py`): `random()` after seeding
+    /// with `3456147`, compared to the values CPython's test suite hardcodes as "guaranteed to stay
+    /// the same across versions of python". Unlike the generated golden, these are CPython's own
+    /// published known answer, not this machine's interpreter — the strongest anchor for `random()`,
+    /// the 53-bit double, which the rest of the golden exercises only through `choices`.
+    #[test]
+    fn draws_the_double_cpythons_own_test_pins() {
+        let case = &golden()["cpython_guaranteed_stable"];
+        let seed = case["seed"].as_u64().expect("a seed");
+        let expected: Vec<u64> = case["random_bits"]
+            .as_array()
+            .expect("a list")
+            .iter()
+            .map(|value| value.as_str().expect("a string").parse().expect("an integer"))
+            .collect();
+        let mut rng = Random::seeded(seed);
+        let drawn: Vec<u64> = expected.iter().map(|_| rng.0.random_double().to_bits()).collect();
+        assert_eq!(drawn, expected, "random() after Random({seed}), against CPython's own test");
+    }
+
     /// The canonical `mt19937ar.c` sequence: `init_by_array` over the key that implementation
     /// publishes, then a thousand consecutive draws — the one check here that does not trace back to
     /// a locally installed interpreter.
