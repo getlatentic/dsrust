@@ -8,7 +8,10 @@ readme = "README.md"
 authors = ["Tosin Amuda"]
 keywords = ["dspy", "llm", "prompt", "ai", "agents"]
 categories = ["science", "api-bindings"]
-include = ["src/**/*", "examples/**/*", "README.md", "LICENSE-MIT", "LICENSE-APACHE"]
+exclude = [
+    "/third_party", "/local-compare", "/tests", "/scripts", "/docs", "/bridge",
+    "/backlog.toml", "/HANDOFF.md", "/.claude-tooling.md", "/pyproject.toml", "/uv.lock",
+]
 repository = "https://github.com/getlatentic/dsrust"
 
 [lib]
