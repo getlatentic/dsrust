@@ -4,14 +4,36 @@ use anyhow::{Context, Result, anyhow};
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
+use crate::adapter::native_reasoning::{self, ReasoningEffort};
 use crate::adapter::parse::FieldMismatch;
 use crate::adapter::{
     Adapter, ChatAdapter, Extraction, Feedback, Input, ToolCall, ToolCalls, native_tools, turns_for,
 };
 use crate::example::{Example, Prediction};
-use crate::lm::{DynChatModel, LmConfig, LmUsage, api, global};
+use crate::lm::{Capabilities, DynChatModel, LmConfig, LmUsage, api, global};
 use crate::module::{Module, NamedPredictor, TraceStep};
-use crate::signature::{Signature, SignatureSpec};
+use crate::signature::{FieldKind, Signature, SignatureSpec};
+
+/// dspy's per-call `config=`: the fields one ask steers that the module's own config does not carry.
+/// A reasoning budget, and a tool the provider must call — ReActV2's forced submit sets both, to
+/// pin the last ask to `submit` and turn native reasoning off for it.
+#[derive(Debug, Clone, Default)]
+pub struct Steering {
+    pub reasoning_effort: ReasoningEffort,
+    /// A tool the provider must call, sent only under native function calling, since dspy drops
+    /// `tool_choice` for an adapter that renders the tools instead.
+    pub forced_tool: Option<String>,
+}
+
+/// A reply and the signature that was actually rendered to get it.
+///
+/// dspy's `_call_preprocess` returns the render signature and `_call_postprocess` reads the reply
+/// against it: fields taken off the render for a native feature — the tool calls, the reasoning —
+/// are absent from what the reply spoke, and are filled from their own channels instead.
+struct Reply {
+    response: api::LmResponse,
+    rendered: Signature,
+}
 
 mod aggregation;
 mod best_of_n;
@@ -205,6 +227,7 @@ impl Predict<Dynamic> {
                 http,
                 lm,
                 &[Input::new(name, Value::String(input.to_owned()))],
+                &Steering::default(),
             )
             .await?
             .value)
@@ -240,6 +263,24 @@ fn as_tool_call(part: &api::LmPart) -> Option<ToolCall> {
     }
 }
 
+/// dspy's forced `tool_choice`: pin the provider to one tool by name. The normalized config states
+/// it as the sole allowed tool under `required`, which every provider lowers to
+/// `{"type":"function","function":{"name": tool}}`.
+fn force_tool(request: &mut api::LmRequest, tool: &str) {
+    let choice = request.config.tool_choice.get_or_insert_with(Default::default);
+    choice.mode = api::ToolChoiceMode::Required;
+    choice.allowed = Some(vec![tool.to_owned()]);
+}
+
+/// dspy `Reasoning.parse_lm_response` reads `reasoning_content` off a reply; here that is the
+/// thinking part the providers already lift out of it.
+fn thinking_text(output: &api::LmOutput) -> Option<String> {
+    output.parts.iter().find_map(|part| match part {
+        api::LmPart::Thinking { text, .. } => Some(text.clone()),
+        _ => None,
+    })
+}
+
 impl<S> Predict<S> {
     /// One attempt: render through the adapter, ask the model, hand back the raw reply.
     /// dspy's `Adapter.__call__` in the module rather than the adapter, because a Rust trait
@@ -251,20 +292,28 @@ impl<S> Predict<S> {
         lm: &dyn DynChatModel,
         inputs: &[Input<'_>],
         feedback: Option<&Feedback>,
-    ) -> Result<api::LmResponse> {
+        steering: &Steering,
+    ) -> Result<Reply> {
         let hint = self.hint.as_deref();
         let asked = hint::signature_with(&self.signature, hint);
         let hinted = hint::inputs_with(inputs, hint);
-        // dspy's `_call_preprocess`: when the provider will call the tools itself, they move onto
-        // the request and leave the signature, so what gets rendered never mentions them. An
-        // adapter that does not ask for native calls skips the whole branch, upstream's own
-        // refusal of a bad signature included.
+        // dspy's `_call_preprocess`: a native feature moves its field off the render — the provider
+        // calls the tools itself, the reasoning model thinks on its own channel — so what gets
+        // rendered never mentions it. Both adaptations ask the model's capabilities, so they are
+        // fetched once, and only for a signature that could use one.
         let asking = adapter.native_function_calling();
+        let reasons = native_reasoning::reasoning_output_field(&asked).is_some();
+        let capabilities = match asking.enabled || reasons {
+            true => lm.capabilities_dyn(http).await,
+            false => Capabilities::default(),
+        };
         let native = match asking.enabled {
-            true => native_tools::plan(&asked, &hinted, lm.capabilities_dyn(http).await)?,
+            true => native_tools::plan(&asked, &hinted, capabilities)?,
             false => None,
         };
         let asked = native.as_ref().map_or(asked, |plan| plan.signature.clone());
+        let reasoning = native_reasoning::plan(&asked, capabilities, &steering.reasoning_effort);
+        let asked = reasoning.as_ref().map_or(asked, |plan| plan.signature.clone());
         let schema = asked.schema();
         let (system, opening) = adapter.format(&asked, &self.demos, &hinted)?;
         let mode = adapter.output_mode(&schema);
@@ -276,7 +325,17 @@ impl<S> Predict<S> {
             request.tools = plan.tools;
             ask_for_parallel_calls(&mut request, asking.parallel);
         }
-        lm.forward_dyn(http, &request).await
+        if let Some(reasoning) = reasoning {
+            request.config.reasoning =
+                Some(api::LmReasoningConfig { effort: Some(reasoning.effort), ..Default::default() });
+        }
+        // dspy drops `tool_choice` unless the adapter asks natively, so a forced tool is sent only
+        // then; a rendered-tools exchange has no provider-side choice to steer.
+        if asking.enabled && let Some(tool) = &steering.forced_tool {
+            force_tool(&mut request, tool);
+        }
+        let response = lm.forward_dyn(http, &request).await?;
+        Ok(Reply { response, rendered: asked })
     }
 
     async fn ask(
@@ -285,56 +344,68 @@ impl<S> Predict<S> {
         lm: &dyn DynChatModel,
         inputs: &[Input<'_>],
         feedback: Option<&Feedback>,
-    ) -> Result<api::LmResponse> {
-        self.ask_through(self.adapter.as_ref(), http, lm, inputs, feedback)
+        steering: &Steering,
+    ) -> Result<Reply> {
+        self.ask_through(self.adapter.as_ref(), http, lm, inputs, feedback, steering)
             .await
     }
 
-    /// dspy `_call_postprocess` for a reply the provider answered with tool calls of its own.
+    /// dspy `_call_postprocess`: the value of a reply whose fields left the render for a native
+    /// feature.
     ///
-    /// Native function calling deletes the tool-call output field from the rendered signature — the
-    /// provider is asked, not told — so the calls arrive as parts on the reply rather than inside a
-    /// marker block. This fills that field from them, defaults every other output the signature
-    /// declares (each left the render, so the reply never spoke it), and reads whatever content did
-    /// come back against what remained. It returns `None` for a reply carrying no calls, which is
-    /// every reply the marker text path already handles.
-    fn native_tool_value(&self, answered: &api::LmResponse) -> Result<Option<Value>> {
-        let Some(output_field) =
-            native_tools::tool_call_output_field(&self.signature).map(str::to_owned)
-        else {
-            return Ok(None);
-        };
-        let calls: Vec<ToolCall> = answered
+    /// A field removed by native function calling or native reasoning is absent from what the reply
+    /// spoke, so it is read from its own channel instead — the provider's tool calls fill the
+    /// tool-call output, the model's own thinking fills the reasoning output — while whatever content
+    /// did come back is parsed against what remained. Returns `None` when the render kept every
+    /// output field, which is the marker text path the caller handles itself.
+    fn native_value(&self, reply: &Reply) -> Result<Option<Value>> {
+        let removed: Vec<&crate::signature::OutField> = self
+            .signature
             .outputs
-            .first()
-            .into_iter()
-            .flat_map(api::LmOutput::tool_calls)
-            .filter_map(as_tool_call)
+            .iter()
+            .filter(|field| !reply.rendered.outputs.iter().any(|kept| kept.name == field.name))
             .collect();
-        if calls.is_empty() {
+        if removed.is_empty() {
             return Ok(None);
         }
 
-        // The signature the request rendered had the tool input and its output field both removed,
-        // so any content the reply carried is read against what was left.
-        let mut rendered = self.signature.clone();
-        rendered.outputs.retain(|field| field.name != output_field);
-        if let Some(input_field) = native_tools::tool_call_input_field(&self.signature).map(str::to_owned)
-        {
-            rendered.inputs.retain(|field| field.name != input_field);
-        }
-
-        let text = answered.first_text();
-        let mut value = match !text.is_empty() && !rendered.outputs.is_empty() {
-            true => self.adapter.parse(&rendered, &text).unwrap_or_else(|_| Value::Object(Map::new())),
+        let text = reply.response.first_text();
+        let mut value = match !text.is_empty() && !reply.rendered.outputs.is_empty() {
+            true => self
+                .adapter
+                .parse(&reply.rendered, &text)
+                .unwrap_or_else(|_| Value::Object(Map::new())),
             false => Value::Object(Map::new()),
         };
         let object = value.as_object_mut().ok_or_else(|| anyhow!("a parsed reply is an object"))?;
-        // Fields removed for native features are absent from the parse; dspy defaults each to null.
         for field in &self.signature.outputs {
             object.entry(field.name.clone()).or_insert(Value::Null);
         }
-        object.insert(output_field, ToolCalls::new(calls).to_value_with_ids());
+
+        // The provider's own tool calls fill the tool-call output field.
+        if let Some(tool_field) = native_tools::tool_call_output_field(&self.signature) {
+            let calls: Vec<ToolCall> = reply
+                .response
+                .outputs
+                .first()
+                .into_iter()
+                .flat_map(api::LmOutput::tool_calls)
+                .filter_map(as_tool_call)
+                .collect();
+            if !calls.is_empty() {
+                object.insert(tool_field.to_owned(), ToolCalls::new(calls).to_value_with_ids());
+            }
+        }
+
+        // dspy `Reasoning.parse_lm_response`: a reasoning model's thinking fills the reasoning
+        // output that left the render for it.
+        if let Some(thinking) = reply.response.outputs.first().and_then(thinking_text) {
+            for field in &removed {
+                if matches!(field.kind, FieldKind::Reasoning) {
+                    object.insert(field.name.clone(), Value::String(thinking.clone()));
+                }
+            }
+        }
         Ok(Some(value))
     }
 
@@ -343,20 +414,24 @@ impl<S> Predict<S> {
         http: &reqwest::Client,
         lm: &dyn DynChatModel,
         inputs: &[Input<'_>],
+        steering: &Steering,
     ) -> Result<Validated> {
         // dspy's ChatAdapter catches a parse failure and re-asks the whole exchange through
         // the JSON adapter; `use_json_adapter_fallback` turns that off. The adapter states the
         // policy, this module carries it out, because only the module can call the model.
-        let answered = self.ask(http, lm, inputs, None).await?;
-        // dspy `_call_postprocess`: a provider that called the tools itself answers with the calls
-        // as parts, not a marker block, so the tool-call output field is filled from them and the
-        // whole text path — parse, coercion, feedback — is skipped, exactly as upstream returns the
-        // native reply without re-validating it.
-        if let Some(value) = self.native_tool_value(&answered)? {
-            return Ok(Validated { raw: answered.first_text(), value, usage: answered.spend() });
+        let answered = self.ask(http, lm, inputs, None, steering).await?;
+        // dspy `_call_postprocess`: a reply whose fields left the render for a native feature is
+        // filled from those channels and skips the whole text path — parse, coercion, feedback —
+        // exactly as upstream returns the native reply without re-validating it.
+        if let Some(value) = self.native_value(&answered)? {
+            return Ok(Validated {
+                raw: answered.response.first_text(),
+                value,
+                usage: answered.response.spend(),
+            });
         }
-        let usage = answered.spend();
-        let raw = answered.first_text();
+        let usage = answered.response.spend();
+        let raw = answered.response.first_text();
         // An adapter that answers in prose has a second model read the fields out of it. The
         // adapter says what to ask and who to ask; only this module can do the asking.
         if let Some(extraction) = self.adapter.extraction(&self.signature) {
@@ -379,11 +454,11 @@ impl<S> Predict<S> {
                 Some(fallback) => {
                     tracing::warn!(%error, "reply did not parse; re-asking through the fallback");
                     let answered = self
-                        .ask_through(fallback.as_ref(), http, lm, inputs, None)
+                        .ask_through(fallback.as_ref(), http, lm, inputs, None, steering)
                         .await?;
-                    let answered_text = answered.first_text();
+                    let answered_text = answered.response.first_text();
                     let value = fallback.parse(&self.signature, &answered_text)?;
-                    let merged = LmUsage::merge(usage, answered.spend());
+                    let merged = LmUsage::merge(usage, answered.response.spend());
                     (answered_text, value, merged)
                 }
             },
@@ -403,7 +478,8 @@ impl<S> Predict<S> {
                     previous: raw,
                     error: error.to_string(),
                 };
-                let (raw, value, retried) = self.feedback_ask(http, lm, inputs, &feedback).await?;
+                let (raw, value, retried) =
+                    self.feedback_ask(http, lm, inputs, &feedback, steering).await?;
                 Ok(Validated {
                     raw,
                     value,
@@ -467,13 +543,14 @@ impl<S> Predict<S> {
         lm: &dyn DynChatModel,
         inputs: &[Input<'_>],
         feedback: &Feedback,
+        steering: &Steering,
     ) -> Result<(String, Value, Option<LmUsage>)> {
-        let answered = self.ask(http, lm, inputs, Some(feedback)).await?;
-        let answered_text = answered.first_text();
+        let answered = self.ask(http, lm, inputs, Some(feedback), steering).await?;
+        let answered_text = answered.response.first_text();
         let mut value = self.adapter.parse(&self.signature, &answered_text)?;
         self.signature.coerce(&mut value)?;
         self.signature.ensure(&value)?;
-        let usage = answered.spend();
+        let usage = answered.response.spend();
         Ok((answered_text, value, usage))
     }
 }
@@ -1000,23 +1077,30 @@ mod tests {
 /// dspy's `Predict` is a `Module`, and so is this one. Without this an optimizer could not
 /// walk a program to reach the demos it exists to rewrite, and an evaluator could not take a
 /// built-in module and a caller's own module through the same door.
+impl<S: Send + Sync> Predict<S> {
+    /// One call steered as dspy's per-call `config=` steers it — a reasoning budget cleared or set,
+    /// a tool the provider must choose. [`Module::forward`] is this with nothing steered; ReActV2's
+    /// forced submit is this with the last ask pinned to `submit` and native reasoning turned off.
+    pub async fn forward_with_steering(
+        &self,
+        inputs: Example,
+        steering: &Steering,
+    ) -> Result<Prediction> {
+        let (http, lm) = self.asking()?;
+        let pairs: Vec<Input<'_>> =
+            inputs.fields().map(|(name, value)| Input::new(name, value.clone())).collect();
+        let validated = self.call_with_inputs(&http, lm.as_ref(), &pairs, steering).await?;
+        Ok(Prediction::new(prediction_example(&validated.value), validated.raw)
+            .with_usage(validated.usage))
+    }
+}
+
 impl<S: Send + Sync> Module for Predict<S> {
     fn forward<'a>(
         &'a self,
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
-        Box::pin(async move {
-            let (http, lm) = self.asking()?;
-            let pairs: Vec<Input<'_>> = inputs
-                .fields()
-                .map(|(name, value)| Input::new(name, value.clone()))
-                .collect();
-            let validated = self.call_with_inputs(&http, lm.as_ref(), &pairs).await?;
-            Ok(
-                Prediction::new(prediction_example(&validated.value), validated.raw)
-                    .with_usage(validated.usage),
-            )
-        })
+        Box::pin(async move { self.forward_with_steering(inputs, &Steering::default()).await })
     }
 
     fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {

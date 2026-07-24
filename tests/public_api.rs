@@ -7,8 +7,8 @@
 #![allow(unused_imports)]
 
 // Modules and how a program is asked.
-use dsrust::{Ask, Forward, Module, NamedPredictor, Prediction, Predict, ChainOfThought, ReAct};
-use dsrust::{Example, History, Signature, Tool, FnTool};
+use dsrust::{Ask, Forward, Module, NamedPredictor, Prediction, Predict, ChainOfThought, ReAct, ReActV2};
+use dsrust::{Example, History, Signature, Steering, ReasoningEffort, Tool, FnTool};
 
 // Every optimizer, all reachable from the root (this is the line GEPA was missing from).
 use dsrust::{BootstrapFewShot, COPRO, DynOptimizer, GEPA, LabeledFewShot, MIPROv2, Optimizer};

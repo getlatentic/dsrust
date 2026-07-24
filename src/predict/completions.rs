@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 
-use super::Predict;
+use super::{Predict, Steering};
 use crate::adapter::Input;
 use crate::example::{Example, Prediction};
 
@@ -21,10 +21,10 @@ impl<S> Predict<S> {
             .fields()
             .map(|(name, value)| Input::new(name, value.clone()))
             .collect();
-        let answered = self.ask(&http, lm.as_ref(), &pairs, None).await?;
-        let mut usage = answered.spend();
+        let answered = self.ask(&http, lm.as_ref(), &pairs, None, &Steering::default()).await?;
+        let mut usage = answered.response.spend();
         let mut predictions = Vec::new();
-        for output in &answered.outputs {
+        for output in &answered.response.outputs {
             let text = output.as_text();
             let Ok(mut value) = self.adapter.parse(&self.signature, &text) else {
                 continue;

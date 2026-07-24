@@ -75,7 +75,7 @@ pub(crate) async fn typed_pairs<S: SignatureSpec, P>(
         raw,
         value,
         usage: _,
-    } = predict.call_with_inputs(http, lm, &pairs).await?;
+    } = predict.call_with_inputs(http, lm, &pairs, &super::Steering::default()).await?;
     let error = match typed::<S::Outputs>(shape(value)) {
         Ok(outputs) => return Ok(outputs),
         Err(error) => error,
@@ -85,7 +85,8 @@ pub(crate) async fn typed_pairs<S: SignatureSpec, P>(
         previous: raw,
         error: format!("{error:#}"),
     };
-    let (_, value, _) = predict.feedback_ask(http, lm, &pairs, &feedback).await?;
+    let (_, value, _) =
+        predict.feedback_ask(http, lm, &pairs, &feedback, &super::Steering::default()).await?;
     typed(shape(value))
 }
 

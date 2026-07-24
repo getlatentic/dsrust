@@ -14,8 +14,8 @@ use serde_json::{Map, Value, json};
 
 use crate::adapter::{Adapter, History, ToolCallResults, ToolCalls};
 use crate::example::{Example, Prediction};
-use crate::module::{Module, NamedPredictor, TraceStep, relabel};
-use crate::predict::Predict;
+use crate::module::{Module, NamedPredictor, TraceStep};
+use crate::predict::{Predict, Steering};
 use crate::signature::{FieldKind, InField, JsonType, OutField, Signature, TypeDescription};
 
 use super::tool::Tool;
@@ -112,7 +112,7 @@ impl ReActV2 {
 
         let mut break_reason = "max_iters";
         for turn_index in 0..max_iters {
-            let asked = self.ask_turn(&history, &pending, trace).await;
+            let asked = self.ask_turn(&history, &pending, &Steering::default(), trace).await;
             let (pred, calls) = match asked {
                 Ok(pair) => pair,
                 // dspy catches a parse or validation failure and ends the loop, so a recoverable
@@ -149,20 +149,26 @@ impl ReActV2 {
         }))
     }
 
-    /// One turn of the loop: ask the per-turn predictor and read its tool calls back.
+    /// One turn of the loop: ask the per-turn predictor, steered as the caller asks, and read its
+    /// tool calls back. The forced submit steers `submit` and clears reasoning; a normal turn
+    /// steers nothing, so native reasoning turns on wherever the model allows it.
     async fn ask_turn(
         &self,
         history: &History,
         pending: &Example,
+        steering: &Steering,
         trace: &mut Vec<TraceStep>,
     ) -> Result<(Prediction, ToolCalls)> {
         let mut inputs = pending.clone();
         inputs.set("history", history.to_value());
         inputs.set("tools", self.tool_list.clone());
 
-        let mark = trace.len();
-        let pred = self.react.forward_traced(inputs, trace).await?;
-        relabel(trace, mark, "react");
+        let pred = self.react.forward_with_steering(inputs.clone(), steering).await?;
+        trace.push(TraceStep {
+            predictor: "react".to_owned(),
+            inputs,
+            outputs: pred.example.clone(),
+        });
         let calls = coerce_tool_calls(&pred)?;
         Ok((pred, calls))
     }
@@ -233,13 +239,10 @@ impl ReActV2 {
         event
     }
 
-    /// dspy `_forced_submit`: the loop ended without a submit, so ask once more and take only a
-    /// submit call. Anything else, or a failure, ends the episode carrying the reason it stopped.
-    ///
-    /// Upstream steers this last ask with `config={"tool_choice": submit, "reasoning_effort": None}`
-    /// — pinning the provider to `submit` and clearing the reasoning budget. The module `LmConfig`
-    /// carries neither field yet, so the ask goes out unsteered: the loop is behaviorally the same
-    /// (a submit call still ends it), but a real provider is not forced to choose `submit` here.
+    /// dspy `_forced_submit`: the loop ended without a submit, so ask once more — steered to pin the
+    /// provider to `submit` and turn native reasoning off, as upstream's
+    /// `config={"tool_choice": submit, "reasoning_effort": None}` does — and take only a submit call.
+    /// Anything else, or a failure, ends the episode carrying the reason it stopped.
     async fn forced_submit(
         &self,
         mut history: History,
@@ -248,7 +251,11 @@ impl ReActV2 {
         turn_index: usize,
         trace: &mut Vec<TraceStep>,
     ) -> Result<Prediction> {
-        let Ok((pred, calls)) = self.ask_turn(&history, &pending, trace).await else {
+        let steering = Steering {
+            reasoning_effort: crate::adapter::native_reasoning::ReasoningEffort::Off,
+            forced_tool: Some(SUBMIT.to_owned()),
+        };
+        let Ok((pred, calls)) = self.ask_turn(&history, &pending, &steering, trace).await else {
             return Ok(failed(&history, break_reason));
         };
         let calls = ensure_ids(calls, turn_index);
@@ -521,6 +528,32 @@ impl Tool for Submit {
                 .collect(),
         ))
     }
+}
+
+/// `react_v2!("question -> answer", tools)` — a [`ReActV2`] agent over a signature and its tools,
+/// the module form of `ReActV2::new(signature!(...), tools)`. `max_iters = N` caps the loop.
+///
+/// ```
+/// use dsrust::{react_v2, FnTool, Tool};
+/// use serde_json::{json, Value};
+///
+/// let tools: Vec<Box<dyn Tool>> = vec![Box::new(FnTool::new(
+///     "lookup",
+///     "look something up",
+///     json!({ "query": { "type": "string" } }),
+///     |args: &Value| Ok(format!("found {}", args["query"].as_str().unwrap_or_default())),
+/// ))];
+/// let agent = react_v2!("question -> answer", tools, max_iters = 8);
+/// assert_eq!(agent.max_iters, 8);
+/// ```
+#[macro_export]
+macro_rules! react_v2 {
+    ($signature:literal, $tools:expr $(,)?) => {
+        $crate::ReActV2::new($crate::signature!($signature), $tools)
+    };
+    ($signature:literal, $tools:expr, max_iters = $max:expr $(,)?) => {
+        $crate::ReActV2::new($crate::signature!($signature), $tools).with_max_iters($max)
+    };
 }
 
 #[cfg(test)]

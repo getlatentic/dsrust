@@ -95,7 +95,8 @@ configure(                                                  // Groq, same wire
 the `ChatModel` trait. Compose and optimize:
 
 ```rust
-let agent = ReAct::new(signature!("question -> answer"), tools);
+let agent = react!("question -> answer", tools);              // ReAct: thought, tool, observation
+let agent = react_v2!("question -> answer", tools);           // ReAct v2: the model calls tools natively
 
 let compiled = GEPA::new(metric, reflection_lm)   // evolves the prompt against your metric
     .with_max_metric_calls(200)
@@ -146,22 +147,24 @@ filling in.
 **Done**
 
 - [x] **Adapters**: Chat, JSON, XML, BAML, TwoStep. Byte-identical, incl. native function calling.
-- [x] **Modules**: Predict, ChainOfThought, ReAct, MultiChainComparison, BestOfN, Refine, Parallel.
+- [x] **Modules**: Predict, ChainOfThought, ReAct, ReActV2, MultiChainComparison, BestOfN, Refine,
+  Parallel.
 - [x] **Providers**: OpenAI-compatible, Anthropic, ollama; typed `ChatModel`/`LmRequest`/`LmResponse`,
   streaming, a response cache, litellm-grounded capability detection.
 - [x] **Optimizers**: LabeledFewShot, BootstrapFewShot, COPRO, MIPROv2, GEPA (reflective mutation
   *and* merge, with CPython set-order and RNG reproduced).
-- [x] **Save/load** in DSPy's on-disk format; `Reasoning`, `Tool`, `ToolCalls` + tool history.
+- [x] **Save/load** in DSPy's on-disk format; `Reasoning`, `Tool`, `ToolCalls`, `History` + tool
+  history; native function calling and native reasoning (`reasoning_effort`).
+- [x] **ReAct v2**: DSPy 3.3's native-tool-calling agent, its per-turn signature byte-conformant.
 
 **Next**
 
-- [ ] **ReAct v2**: DSPy 3.3's native-tool-calling rewrite (current sprint).
 - [ ] **Custom-type seam**: `dspy.Type` + `Image` / `Audio` / `File` / `Code`.
 
 **Planned**
 
 - [ ] `ProgramOfThought`, `CodeAct`, `RLM`; the remaining optimizers (SIMBA, KNNFewShot, …);
-  retrieval; `History` as a type; a full error taxonomy.
+  retrieval; a full error taxonomy.
 
 ---
 

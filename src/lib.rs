@@ -18,7 +18,7 @@ pub mod signature;
 
 pub use adapter::baml::BamlAdapter;
 pub use adapter::xml::XmlAdapter;
-pub use adapter::{Adapter, ChatAdapter, Extraction, JsonAdapter, NativeFunctionCalling, Reasoning, TwoStepAdapter};
+pub use adapter::{Adapter, ChatAdapter, Extraction, JsonAdapter, NativeFunctionCalling, Reasoning, ReasoningEffort, TwoStepAdapter};
 pub use adapter::{History, ToolCall, ToolCallResult, ToolCallResults, ToolCalls};
 pub use lm::Capabilities;
 pub use dsrust_derive::Module;
@@ -42,7 +42,7 @@ pub use lm::{
     ChatModel, ChatTurn, LM, ModelRef, OutputMode, Provider, Role, configure, configure_with_client,
 };
 pub use predict::{
-    Answered, BestOfN, ChainOfThought, MultiChainComparison, Parallel, Predict, Refine,
+    Answered, BestOfN, ChainOfThought, MultiChainComparison, Parallel, Predict, Refine, Steering,
     TypedChainOfThought, TypedPredict,
 };
 pub use signature::{

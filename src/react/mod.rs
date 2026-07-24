@@ -367,6 +367,32 @@ impl Module for ReAct {
     }
 }
 
+/// `react!("question -> answer", tools)` — a [`ReAct`] agent over a signature and its tools, the
+/// module form of `ReAct::new(signature!(...), tools)`. `max_iters = N` caps the loop.
+///
+/// ```
+/// use dsrust::{react, FnTool, Tool};
+/// use serde_json::{json, Value};
+///
+/// let tools: Vec<Box<dyn Tool>> = vec![Box::new(FnTool::new(
+///     "get_weather",
+///     "look up the weather for a city",
+///     json!({ "city": { "type": "string" } }),
+///     |args: &Value| Ok(format!("sunny in {}", args["city"].as_str().unwrap_or_default())),
+/// ))];
+/// let agent = react!("question -> answer", tools, max_iters = 5);
+/// assert_eq!(agent.max_iters, 5);
+/// ```
+#[macro_export]
+macro_rules! react {
+    ($signature:literal, $tools:expr $(,)?) => {
+        $crate::ReAct::new($crate::signature!($signature), $tools)
+    };
+    ($signature:literal, $tools:expr, max_iters = $max:expr $(,)?) => {
+        $crate::ReAct::new($crate::signature!($signature), $tools).with_max_iters($max)
+    };
+}
+
 fn string_field(prediction: &Prediction, name: &str) -> String {
     match prediction.get(name) {
         Some(Value::String(text)) => text.clone(),

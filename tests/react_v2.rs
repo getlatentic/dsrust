@@ -251,6 +251,14 @@ fn native_call(id: &str, name: &str, args: Value) -> api::LmResponse {
     }
 }
 
+/// A native reply that made no tool call — the turn that ends the loop into a forced submit.
+fn no_call() -> api::LmResponse {
+    api::LmResponse {
+        outputs: vec![api::LmOutput { finish_reason: Some("stop".into()), ..Default::default() }],
+        ..Default::default()
+    }
+}
+
 /// A `tool` message in a request, by the id it answers.
 fn tool_message_ids(request: &api::LmRequest) -> Vec<String> {
     request
@@ -292,6 +300,31 @@ async fn a_native_loop_replays_results_with_the_providers_id() {
         Some("call_provider_1")
     );
     assert_eq!(tool_message_ids(&lm.seen.lock().unwrap()[1]), ["call_provider_1"]);
+}
+
+/// dspy `_forced_submit` steers the last ask with `tool_choice={"function":{"name":"submit"}}`: a
+/// turn that makes no call ends the loop, and the forced ask pins the provider to `submit`.
+#[tokio::test]
+async fn a_forced_submit_pins_the_provider_to_submit() {
+    let lm = NativeToolLM::new(vec![
+        no_call(),
+        native_call("call_submit", "submit", json!({ "answer": "forced" })),
+    ]);
+    let prediction = ReActV2::new("question -> answer".parse().unwrap(), vec![lookup()])
+        .with_adapter(ChatAdapter::default().with_native_function_calling(true))
+        .with_lm(lm.clone() as Arc<dyn DynChatModel>)
+        .forward(Example::new([("question", json!("cats"))]))
+        .await
+        .expect("the loop runs");
+
+    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("forced"));
+    assert_eq!(prediction.get("termination_reason").and_then(Value::as_str), Some("forced_submit"));
+
+    let seen = lm.seen.lock().unwrap();
+    let forced = seen[1].config.tool_choice.as_ref().expect("the forced ask states a tool choice");
+    assert_eq!(forced.allowed, Some(vec!["submit".to_owned()]), "pinned to submit");
+    // The normal turn before it was not steered.
+    assert!(seen[0].config.tool_choice.as_ref().is_none_or(|choice| choice.allowed.is_none()));
 }
 
 /// dspy `test_react_v2_native_parallel_tool_calls_are_requested_and_replayed`: several calls come
