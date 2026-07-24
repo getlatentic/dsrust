@@ -95,6 +95,18 @@ impl<'de> Deserialize<'de> for Code {
     }
 }
 
+impl schemars::JsonSchema for Code {
+    /// A string on the wire — the code — so an output field carries a string's schema, which its
+    /// own description then replaces.
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Code".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        String::json_schema(generator)
+    }
+}
+
 /// dspy `_filter_code`: the code out of a markdown block, its language identifier and fences
 /// stripped, or the string as given when it carries no fence.
 ///

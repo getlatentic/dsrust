@@ -19,7 +19,7 @@ pub mod signature;
 pub use adapter::baml::BamlAdapter;
 pub use adapter::xml::XmlAdapter;
 pub use adapter::{Adapter, ChatAdapter, Extraction, JsonAdapter, NativeFunctionCalling, Reasoning, ReasoningEffort, TwoStepAdapter};
-pub use adapter::{Audio, Code, File, History, Image, ToolCall, ToolCallResult, ToolCallResults, ToolCalls, Type};
+pub use adapter::{Audio, Code, File, Formatted, History, Image, ToolCall, ToolCallResult, ToolCallResults, ToolCalls, Type};
 pub use lm::Capabilities;
 pub use dsrust_derive::Module;
 pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
@@ -31,11 +31,10 @@ pub use optimize::{
 };
 pub use react::{FnTool, ReAct, ReActV2, Tool, Trajectory, mcp_tool, mcp_tool_args, mcp_tool_result};
 
-/// Re-exports the macros need so a caller does not have to depend on them directly.
+/// Items the macros expand into so a caller does not have to depend on them directly.
 #[doc(hidden)]
-pub mod __macro_support {
-    pub use serde_json::json;
-}
+#[path = "macro_support.rs"]
+pub mod __macro_support;
 pub use lm::dummy::DummyLM;
 pub use lm::global::configure_model;
 pub use lm::{

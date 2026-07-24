@@ -49,6 +49,18 @@ impl<'de> Deserialize<'de> for Image {
     }
 }
 
+impl schemars::JsonSchema for Image {
+    /// The serialized form is a string — the sentinel-wrapped block — so an output field carries a
+    /// string's schema.
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Image".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        String::json_schema(generator)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

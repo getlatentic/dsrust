@@ -116,6 +116,20 @@ fn pair_input(field: &Field) -> TokenStream {
     }
 }
 
+/// The prose a field's declared type states about itself, asked of the type through the host
+/// crate's autoref probe: a custom [`Type`](dsrust::Type)'s `description()`, or nothing for a
+/// plain structure that says nothing about itself. The derive cannot see whether a Rust type is a
+/// custom type, so it asks rather than branching on the type's name.
+fn type_descriptions(ty: &syn::Type) -> TokenStream {
+    quote! {
+        {
+            use ::dsrust::__macro_support::{DescribeFallback as _, DescribeViaType as _};
+            ::dsrust::__macro_support::TypeProbe::<#ty>(::core::marker::PhantomData)
+                .field_descriptions()
+        }
+    }
+}
+
 /// The host crate's `FieldKind` for this field. Every non-scalar becomes the opaque `Json`
 /// kind: the derive reads the Rust type, which does not tell it the Python type dspy prints.
 fn kind(field: &Field) -> TokenStream {
@@ -127,9 +141,11 @@ fn kind(field: &Field) -> TokenStream {
         Kind::Reasoning => quote! { Reasoning },
         Kind::Json => {
             let annotation = crate::annotate::python_spelling(&field.ty);
+            let descriptions = type_descriptions(&field.ty);
             return quote! {
                 ::dsrust::signature::FieldKind::Json(
-                    ::dsrust::signature::JsonType::plain(#annotation),
+                    ::dsrust::signature::JsonType::plain(#annotation)
+                        .with_descriptions(#descriptions),
                 )
             };
         }
@@ -152,12 +168,14 @@ fn out_kind(field: &Field) -> TokenStream {
     };
     let ty = &field.ty;
     let annotation = crate::annotate::python_spelling(ty);
+    let descriptions = type_descriptions(ty);
     quote! {
         ::dsrust::signature::FieldKind::Json(
             ::dsrust::signature::JsonType::reflected(
                 #annotation,
                 ::dsrust::signature::json_field_reflection::<#ty>(),
-            ),
+            )
+            .with_descriptions(#descriptions),
         )
     }
 }

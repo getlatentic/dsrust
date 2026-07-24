@@ -37,6 +37,18 @@ impl Serialize for Audio {
     }
 }
 
+impl schemars::JsonSchema for Audio {
+    /// The serialized form is a string — the sentinel-wrapped block — so an output field carries a
+    /// string's schema.
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "Audio".into()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        String::json_schema(generator)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

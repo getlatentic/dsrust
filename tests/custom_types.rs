@@ -143,3 +143,82 @@ fn a_derived_signature_maps_custom_type_input_fields() {
     let text: String = blocks.iter().filter_map(|b| b.get("text").and_then(|t| t.as_str())).collect();
     assert!(text.contains("[[ ## code ## ]]\nx = 1"), "the code renders inline: {text}");
 }
+
+/// A custom type as a derived *output* field: dspy's `code: dspy.Code = OutputField()`. This needs
+/// `JsonSchema` on the type (for the field's schema) and the type's `description()` reaching the
+/// field's prompt line — the two halves the derive now carries. `Code`'s `replaces_schema` then
+/// drops the JSON-schema note, exactly as dspy renders it.
+#[allow(dead_code)]
+#[derive(dsrust::Signature)]
+/// Generate code.
+struct Generate {
+    #[input]
+    task: String,
+    #[output]
+    code: Code,
+}
+
+#[test]
+fn a_derived_code_output_carries_its_description_and_drops_the_schema() {
+    let signature = Generate::signature();
+    let (system, _turns) = ChatAdapter::default()
+        .format(&signature, &[], &[Input::new("task", json!("sort a list"))])
+        .expect("formats");
+    // dspy's `Code.description()`, reached through the derive — byte-for-byte its prose.
+    assert!(
+        system.contains(
+            "Type description of Code: Code represented in a string, specified in the `code` field. \
+             If this is an output field, the code field should follow the markdown code block \
+             format, e.g. \n```python\n{code}\n```\nProgramming language: python"
+        ),
+        "got: {system}"
+    );
+    // `replaces_schema` drops the schema note for the code field, as it does for dspy's `Code`.
+    assert!(!system.contains("must adhere to the JSON schema"), "got: {system}");
+}
+
+/// A caller's own `Type` — not one of the built-ins — reaching a derived output field's prompt
+/// line. This is the seam issue #4 opens: implement `Type` for a struct, and its `description()`
+/// rides through `#[derive(Signature)]` the same way `Code`'s does.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+struct Rating {
+    stars: u8,
+}
+
+impl dsrust::Type for Rating {
+    fn format(&self) -> dsrust::Formatted {
+        dsrust::Formatted::Text(self.stars.to_string())
+    }
+
+    fn description() -> Option<dsrust::signature::TypeDescription> {
+        Some(dsrust::signature::TypeDescription {
+            name: "Rating".into(),
+            text: "A whole-number star rating from 0 to 5.".into(),
+            replaces_schema: false,
+        })
+    }
+}
+
+#[allow(dead_code)]
+#[derive(dsrust::Signature)]
+/// Rate the answer.
+struct Judge {
+    #[input]
+    answer: String,
+    #[output]
+    rating: Rating,
+}
+
+#[test]
+fn a_callers_own_type_description_flows_through_the_derive() {
+    let (system, _turns) = ChatAdapter::default()
+        .format(&Judge::signature(), &[], &[Input::new("answer", json!("42"))])
+        .expect("formats");
+    assert!(
+        system.contains("Type description of Rating: A whole-number star rating from 0 to 5."),
+        "got: {system}"
+    );
+    // No `replaces_schema`, so this type keeps its schema note — the seam carries prose, it does
+    // not silence the schema.
+    assert!(system.contains("must adhere to the JSON schema"), "got: {system}");
+}
