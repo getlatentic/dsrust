@@ -1,12 +1,17 @@
 # DsRust
 
-DsRust is a Rust framework for building LLM pipelines without hand-writing prompts. You declare
-what each step takes in and returns — `question -> answer`, or a struct with typed fields — and
-DsRust renders the prompt, calls the model, and parses the reply back into those types. Compose the
-steps into a program; then, instead of tuning prompts by hand, give it a metric and a handful of
-examples and let an optimizer find the prompts and few-shot examples that score best.
+Every production LLM call comes with the same plumbing: a prompt template, a JSON parser with a
+retry loop, a reasoning pattern built by hand, and "tests" that amount to reading the output and
+hoping. Switch models and you re-tune all of it.
 
-It's a faithful Rust port of [DSPy](https://github.com/stanfordnlp/dspy).
+DsRust replaces that with a declaration. You say what a step takes in and returns —
+`question -> answer`, or a struct with typed fields — and DsRust builds the prompt, calls the
+model, and parses the reply back into your types. Compose steps into a program; when you want it
+better, hand it a metric and a few examples and let an optimizer search for the prompt and few-shot
+examples that score highest.
+
+It's a faithful Rust port of [DSPy](https://github.com/stanfordnlp/dspy) — to LLM engineering what
+Tailwind is to CSS: a higher-level interface to the same power.
 
 ```rust
 use dsrust::{predict, call};
