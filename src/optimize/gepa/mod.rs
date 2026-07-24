@@ -5,9 +5,11 @@
 //! test, the budget); this supplies the LLM work through [`adapter::Adapter`] — running the student
 //! program, scoring it with a feedback metric, and rewriting an instruction with a reflection model.
 //!
-//! This is the reflective-mutation path under dspy's defaults (`reflection_minibatch_size=3`, Pareto
-//! selection, `skip_perfect_score`, round-robin components). Merge is deferred, so dspy's `use_merge`
-//! default is turned off — the same shape of config boundary MIPROv2's zero-shot path draws.
+//! Both of dspy's proposers run under its defaults (`reflection_minibatch_size=3`, Pareto
+//! selection, `skip_perfect_score`, round-robin components, `use_merge=True`): reflective mutation
+//! evolves one predictor's instruction, and merge combines two candidates that improved different
+//! predictors. Merge only has something to combine in a multi-predictor program; over a single
+//! `Predict` it never fires, so `use_merge` on by default costs nothing there.
 
 mod adapter;
 mod metric;
@@ -44,6 +46,12 @@ pub struct GEPA<M> {
     skip_perfect_score: bool,
     failure_score: f64,
     seed: u64,
+    /// dspy `use_merge`: combine two candidates that improved different predictors of a
+    /// multi-predictor program. On by default, as the teleprompter has it. A single-predictor
+    /// program has nothing to combine, so this changes nothing there.
+    use_merge: bool,
+    /// dspy `max_merge_invocations`: the cap on accepted merges over a run (default 5).
+    max_merge_invocations: usize,
 }
 
 impl<M> GEPA<M>
@@ -62,7 +70,15 @@ where
             skip_perfect_score: true,
             failure_score: 0.0,
             seed: 0,
+            use_merge: true,
+            max_merge_invocations: 5,
         }
+    }
+
+    /// Turn merging off (dspy `use_merge=False`), leaving the reflective-mutation-only engine.
+    pub fn without_merge(mut self) -> Self {
+        self.use_merge = false;
+        self
     }
 
     /// The rollout budget: GEPA stops once this many metric calls have been spent (dspy's
@@ -119,6 +135,8 @@ where
             perfect_score: self.perfect_score,
             skip_perfect_score: self.skip_perfect_score,
             seed: self.seed,
+            use_merge: self.use_merge,
+            max_merge_invocations: self.max_merge_invocations,
         };
         let outcome = engine.optimize(seed_candidate).await;
         set_instructions(student, &outcome.best);

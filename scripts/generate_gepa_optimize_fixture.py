@@ -9,7 +9,8 @@ deterministic and reproducible in Rust without real LLMs, two scripted models dr
   - the reflection model, whatever prompt it is shown, proposes the instruction carrying `GOOD`.
 
 What is compared is the instruction GEPA leaves the student holding. Merge is turned off
-(`use_merge=False`) to match the reflective-mutation-only engine the dsrs crate reproduces.
+(`use_merge=True`, dspy's default) — the student is a single `Predict`, so its one component gives
+merge nothing to combine and the compiled instruction is the same either way.
 
     .dspy-venv/bin/python scripts/generate_gepa_optimize_fixture.py
 """
@@ -104,7 +105,11 @@ def compile_once(seed_instruction: str, minibatch_size: int, max_metric_calls: i
         reflection_minibatch_size=minibatch_size,
         candidate_selection_strategy="pareto",
         skip_perfect_score=True,
-        use_merge=False,
+        # dspy's own default, matching the dsrs wrapper. The program is a single `Predict`, so it
+        # has one component and merge never has two predictors to combine — the compiled result is
+        # identical whether merge is on or off, which is what keeps this fixture stable across the
+        # change that turned merge on.
+        use_merge=True,
         seed=seed,
         track_stats=True,
     )
