@@ -245,7 +245,7 @@ impl<S> Predict<S> {
         // refusal of a bad signature included.
         let asking = adapter.native_function_calling();
         let native = match asking.enabled {
-            true => native_tools::plan(&asked, &hinted, lm.capabilities_dyn())?,
+            true => native_tools::plan(&asked, &hinted, lm.capabilities_dyn(http).await)?,
             false => None,
         };
         let asked = native.as_ref().map_or(asked, |plan| plan.signature.clone());

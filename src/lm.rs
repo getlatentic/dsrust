@@ -159,7 +159,10 @@ pub trait DynChatModel: Send + Sync {
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>>;
 
     /// The object-safe form of [`ChatModel::capabilities`].
-    fn capabilities_dyn(&self) -> Capabilities;
+    fn capabilities_dyn<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>>;
 }
 
 impl<T: ChatModel + Send + Sync> DynChatModel for T {
@@ -171,8 +174,11 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
         Box::pin(self.forward(http, request))
     }
 
-    fn capabilities_dyn(&self) -> Capabilities {
-        self.capabilities()
+    fn capabilities_dyn<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>> {
+        Box::pin(self.capabilities(http))
     }
 }
 
@@ -191,8 +197,14 @@ pub trait ChatModel {
 
     /// What this model can be asked for natively. Nothing, unless the implementor says otherwise
     /// — the same default dspy's `BaseLM` carries, and for the same reason.
-    fn capabilities(&self) -> Capabilities {
-        Capabilities::default()
+    ///
+    /// Asynchronous because the honest answer is not always a lookup: an ollama server is asked
+    /// what a model can do, exactly as litellm asks it, and that is a request like any other.
+    fn capabilities<'a>(
+        &'a self,
+        _http: &'a reqwest::Client,
+    ) -> impl Future<Output = Capabilities> + Send + 'a {
+        std::future::ready(Capabilities::default())
     }
 }
 
@@ -203,6 +215,9 @@ pub struct LM {
     pub anthropic_api_key: Option<String>,
     pub openrouter_api_key: Option<String>,
     pub ollama_host: String,
+    /// The credential a hosted ollama wants, from OLLAMA_API_KEY. A server on the local machine
+    /// wants none, so this is normally unset.
+    pub ollama_api_key: Option<String>,
     pub openai: OpenAiConfig,
     /// Whether a repeated request is replayed from [`cache::shared`] rather than paid for again.
     ///
@@ -225,18 +240,18 @@ impl LM {
             anthropic_api_key: env_nonempty("ANTHROPIC_API_KEY"),
             openrouter_api_key: env_nonempty("OPENROUTER_API_KEY"),
             ollama_host: env_nonempty("OLLAMA_HOST").unwrap_or_else(|| DEFAULT_OLLAMA_HOST.into()),
+            ollama_api_key: env_nonempty("OLLAMA_API_KEY"),
             openai: OpenAiConfig::from_env(),
             cache: true,
             capabilities: None,
         })
     }
 
-    /// State what this model can be asked for natively, instead of taking the registry's word.
+    /// State what this model can be asked for natively, rather than have it resolved.
     ///
-    /// The registry is litellm's, and it answers for a model it lists. An ollama model is the
-    /// case it cannot answer for — upstream resolves those by asking the local daemon what is
-    /// pulled — so a caller running one says here what it does, and the request path treats the
-    /// answer exactly as it treats the registry's.
+    /// Resolution is litellm's registry, and for an unlisted ollama model the server itself. This
+    /// short-circuits both — for a provider-compatible endpoint serving a model under a name the
+    /// registry does not know, or to keep a program off the network while it decides.
     pub fn with_capabilities(mut self, capabilities: Capabilities) -> Self {
         self.capabilities = Some(capabilities);
         self
@@ -255,6 +270,13 @@ impl LM {
 
     pub fn with_openrouter_key(mut self, key: impl Into<String>) -> Self {
         self.openrouter_api_key = Some(key.into());
+        self
+    }
+
+    /// Authenticate to a hosted ollama. litellm sends this as a bearer token, and so does every
+    /// call this crate makes — the chat, the stream, and the capability probe alike.
+    pub fn with_ollama_key(mut self, key: impl Into<String>) -> Self {
+        self.ollama_api_key = Some(key.into());
         self
     }
 
@@ -333,10 +355,30 @@ impl ChatModel for LM {
         Ok(answered)
     }
 
-    /// What this model's provider will honour natively, from the same registry dspy consults —
-    /// unless the caller has said otherwise.
-    fn capabilities(&self) -> Capabilities {
-        self.capabilities.unwrap_or_else(|| Capabilities::of(&self.model.reference()))
+    /// What this model's provider will honour natively: what the caller stated, else the registry
+    /// dspy consults, else — for an ollama model the registry does not list — the server itself.
+    fn capabilities<'a>(
+        &'a self,
+        http: &'a reqwest::Client,
+    ) -> impl Future<Output = Capabilities> + Send + 'a {
+        async move {
+            if let Some(stated) = self.capabilities {
+                return stated;
+            }
+            let reference = self.model.reference();
+            if let Some(listed) = Capabilities::listed(&reference) {
+                return listed;
+            }
+            match self.model.provider {
+                // litellm falls through to the server for an ollama model it does not list, and
+                // so does this. Every other provider's silence is its answer.
+                Provider::Ollama => {
+                    ollama::capabilities(http, &self.ollama_host, self.ollama_api_key.as_deref(), &self.model.id)
+                        .await
+                }
+                _ => Capabilities::default(),
+            }
+        }
     }
 }
 
@@ -372,7 +414,13 @@ impl LM {
                 request,
             )),
             Provider::Ollama => {
-                Box::pin(ollama::stream(http, &self.model.id, &self.ollama_host, request))
+                Box::pin(ollama::stream(
+                    http,
+                    &self.model.id,
+                    &self.ollama_host,
+                    self.ollama_api_key.as_deref(),
+                    request,
+                ))
             }
         }
     }
@@ -409,6 +457,7 @@ impl LM {
             }
             Provider::Ollama => {
                 ollama::Ollama {
+                    api_key: self.ollama_api_key.as_deref(),
                     model: &self.model.id,
                     host: &self.ollama_host,
                 }

@@ -28,8 +28,9 @@ warnings.filterwarnings("ignore")
 # machine with ollama running this file would record that machine's library rather than anything
 # about litellm — `ollama/qwen2.5:7b-instruct` reads True here and False on a colleague's laptop.
 # Pointing it at a closed port takes the daemon out of the answer and leaves litellm's own
-# registry, which is what the vendored table can actually reproduce. Set before the import:
-# litellm reads the base at module load.
+# registry, which is what the vendored table can actually reproduce — the crate asks the server
+# itself at run time, as litellm does, so nothing is lost by leaving it out of the table. Set
+# before the import: litellm reads the base at module load.
 os.environ["OLLAMA_API_BASE"] = "http://127.0.0.1:9"
 
 import litellm
@@ -66,22 +67,26 @@ PROBES = [
     "openrouter/anthropic/claude-3.5-sonnet",
     "ollama/qwen2.5:7b-instruct",
     "ollama/llama3.2",
+    "ollama/mistral",
+    "ollama/llama2",
     "openai/a-model-litellm-has-never-heard-of",
 ]
 
 
 def table() -> dict[str, list[bool]]:
-    """Every model litellm credits with at least one capability.
+    """Every model litellm credits with at least one capability, plus every ollama row.
 
-    A model with none is left out: absent and all-false read the same at the lookup, and two
-    thirds of the registry says nothing.
+    A model with no capabilities is normally left out: absent and all-false read the same at the
+    lookup, and two thirds of the registry says nothing. Ollama is the exception, because there
+    absent does *not* mean all-false — litellm falls through to asking the server, so a row that
+    says "this model has nothing" has to be distinguishable from no row at all.
     """
     rows = {}
     for name, info in litellm.model_cost.items():
         if name == TEMPLATE:
             continue
         flags = [bool(info.get(flag)) for flag in FLAGS]
-        if any(flags):
+        if any(flags) or name.startswith("ollama"):
             rows[name] = flags
     if not rows:
         raise SystemExit("litellm credited no model with any capability, which cannot be right")

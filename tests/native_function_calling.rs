@@ -46,8 +46,11 @@ impl ChatModel for Recorder {
         Ok(api::LmResponse::text("[[ ## tool_calls ## ]]\n{\"tool_calls\": []}"))
     }
 
-    fn capabilities(&self) -> Capabilities {
-        self.capabilities
+    fn capabilities<'a>(
+        &'a self,
+        _http: &'a reqwest::Client,
+    ) -> impl std::future::Future<Output = Capabilities> + Send + 'a {
+        std::future::ready(self.capabilities)
     }
 }
 

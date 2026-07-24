@@ -120,6 +120,22 @@
       ]
     },
     {
+      "model": "ollama/mistral",
+      "capabilities": [
+        true,
+        false,
+        false
+      ]
+    },
+    {
+      "model": "ollama/llama2",
+      "capabilities": [
+        false,
+        false,
+        false
+      ]
+    },
+    {
       "model": "openai/a-model-litellm-has-never-heard-of",
       "capabilities": [
         false,

@@ -40,8 +40,11 @@ impl DynChatModel for NotOnThisSide {
     }
 
     /// Nothing, which is also what a model that never answers can honour.
-    fn capabilities_dyn(&self) -> dsrs::lm::Capabilities {
-        dsrs::lm::Capabilities::default()
+    fn capabilities_dyn<'a>(
+        &'a self,
+        _http: &'a reqwest::Client,
+    ) -> Pin<Box<dyn Future<Output = dsrs::lm::Capabilities> + Send + 'a>> {
+        Box::pin(std::future::ready(dsrs::lm::Capabilities::default()))
     }
 }
 

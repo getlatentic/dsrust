@@ -53,7 +53,7 @@ pub struct ToolCalls {
 impl ToolCalls {
     /// The annotation dspy prints for this type, and so the name a field carrying it is known by.
     /// Upstream compares the annotation itself; across the bridge the printed name is that
-    /// identity, which is how [`history`](super::super::history) recognises a `History` field too.
+    /// identity, which is how the history module recognises a `History` field too.
     pub const ANNOTATION: &'static str = "ToolCalls";
 
     pub fn new(tool_calls: Vec<ToolCall>) -> Self {

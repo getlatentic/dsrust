@@ -12,15 +12,35 @@ use serde_json::{Value, json};
 
 use super::{ChatModel, LmUsage, PROVIDER_TIMEOUT, api};
 
+mod capabilities;
 mod request;
 mod stream;
 
+pub(crate) use capabilities::capabilities;
 pub(crate) use stream::stream;
 
-/// A local ollama server as a [`ChatModel`], the model and host it needs held beside it.
+/// An ollama server as a [`ChatModel`], the model and host it needs held beside it.
 pub(crate) struct Ollama<'a> {
     pub model: &'a str,
     pub host: &'a str,
+    /// The credential a hosted server wants. A local one wants none, which is why this is an
+    /// option rather than a string every caller has to have.
+    pub api_key: Option<&'a str>,
+}
+
+/// Carry the credential a hosted ollama needs, on whichever call is being made.
+///
+/// litellm sends `OLLAMA_API_KEY` as a bearer token, and it has to reach every endpoint this
+/// crate touches: a server that authenticates `/api/chat` authenticates `/api/show` too, so a
+/// probe that skipped it would report that a perfectly capable model can do nothing.
+pub(super) fn authorized(
+    request: reqwest::RequestBuilder,
+    api_key: Option<&str>,
+) -> reqwest::RequestBuilder {
+    match api_key {
+        Some(key) => request.bearer_auth(key),
+        None => request,
+    }
 }
 
 impl ChatModel for Ollama<'_> {
@@ -30,10 +50,11 @@ impl ChatModel for Ollama<'_> {
         call: &'a api::LmRequest,
     ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
         async move {
-            let response = http
+            let request = http
                 .post(format!("{}/api/chat", self.host))
                 .timeout(PROVIDER_TIMEOUT)
-                .json(&request::request(self.model, call))
+                .json(&request::request(self.model, call));
+            let response = authorized(request, self.api_key)
                 .send()
                 .await
                 .context("ollama request failed")?;

@@ -20,15 +20,18 @@ pub(crate) fn stream<'h>(
     http: &'h reqwest::Client,
     model: &str,
     host: &str,
+    api_key: Option<&str>,
     call: &api::LmRequest,
 ) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + use<'h> {
     let mut body = request(model, call);
     body["stream"] = json!(true);
-    let connect = http
-        .post(format!("{host}/api/chat"))
-        .timeout(PROVIDER_TIMEOUT)
-        .json(&body)
-        .send();
+    let connect = super::authorized(
+        http.post(format!("{host}/api/chat"))
+            .timeout(PROVIDER_TIMEOUT)
+            .json(&body),
+        api_key,
+    )
+    .send();
     crate::lm::streaming::events(
         connect,
         "ollama".to_owned(),
