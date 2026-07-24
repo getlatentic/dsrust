@@ -144,6 +144,16 @@ DOES_NOT_EXERCISE_RUST = {
     # can cross by the tests' own design.
     "test_trajectory_truncation": "ReAct's loop with its predictors mocked out",
     "test_context_window_exceeded_after_retries": "ReAct's loop with its predictors mocked out",
+    # ReActV2 building its `submit` tool and per-turn signature, checked without a call — the agent
+    # is constructed and inspected, so nothing renders or parses. Its other ten tests do call it.
+    "test_react_v2_submit_tool_returns_original_output_fields": "dspy.ReActV2 construction",
+    # Refine and BestOfN choosing their fail-count budget, and Parallel's timeout / straggler knobs
+    # and batch error handling — module wiring and a non-rendering `forward`, so nothing crosses.
+    "test_refine_module_default_fail_count": "Refine/BestOfN fail-count config",
+    "test_refine_module_custom_fail_count": "Refine/BestOfN fail-count config",
+    "test_parallel_timeout_and_straggler_limit_params": "Parallel's timeout/straggler config",
+    "test_batch_timeout_and_straggler_limit_params": "Parallel's timeout/straggler config",
+    "test_batch_with_failed_examples": "Parallel's batch error handling over a non-rendering module",
     # Which Python class a serialized LM state names, and whether loading it is trusted enough to
     # import. Resolving a dotted class path at run time is Python reflection with no Rust reading,
     # and the trust decision sits above the wire either way.
