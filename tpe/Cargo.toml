@@ -5,6 +5,7 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/getlatentic/dsrust"
 authors = ["Tosin Amuda"]
+include = ["src/**/*"]
 description = "A faithful Rust reproduction of optuna's TPESampler over categorical distributions, as dspy's MIPROv2 uses it."
 
 [lib]

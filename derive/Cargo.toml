@@ -5,6 +5,7 @@ edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/getlatentic/dsrust"
 authors = ["Tosin Amuda"]
+include = ["src/**/*"]
 description = "Derive macros for DsRust: #[derive(Signature)] / #[derive(Module)] and the predict!/chain_of_thought!/signature! call macros."
 
 [lib]
