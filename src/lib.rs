@@ -25,7 +25,10 @@ pub use dsrust_derive::Module;
 pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
 pub use example::{Example, Prediction};
 pub use module::{Ask, Forward, Module, NamedPredictor, PredictorState, ProgramState, TraceStep};
-pub use optimize::{BootstrapFewShot, COPRO, DynOptimizer, LabeledFewShot, MIPROv2, Optimizer};
+pub use optimize::{
+    BootstrapFewShot, COPRO, DynOptimizer, Feedback, GEPA, GepaOutcome, LabeledFewShot, MIPROv2,
+    Optimizer,
+};
 pub use react::{FnTool, ReAct, Tool, Trajectory, mcp_tool, mcp_tool_args, mcp_tool_result};
 
 /// Re-exports the macros need so a caller does not have to depend on them directly.
