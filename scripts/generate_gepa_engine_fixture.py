@@ -42,11 +42,23 @@ PINNED = require("gepa")
 WEIGHT = 0.125
 
 
-class ScriptedAdapter:
-    """A GEPAAdapter whose scores are a fixed function of candidate component versions."""
+# Added to the two-component trade-off so the seed and every ancestor score above zero: merge draws
+# its common ancestor with `rng.choices(..., weights=agg_scores)`, which raises on an all-zero
+# weight, so a merge run needs positive aggregate scores while keeping the trade-off's front
+# diversity (which is what gives merge two dominators to combine).
+MERGE_BASE = 0.5
 
-    def __init__(self, cap: int):
+
+class ScriptedAdapter:
+    """A GEPAAdapter whose scores are a fixed function of candidate component versions.
+
+    `mode` picks the two-component scoring: `tradeoff` is the zero-centred trade-off the selection
+    cases use; `merge` shifts it positive so a merge run's ancestor weights are never all zero.
+    """
+
+    def __init__(self, cap: int, mode: str = "tradeoff"):
         self.cap = cap
+        self.mode = mode
 
     @staticmethod
     def _versions(candidate: dict[str, str]) -> list[int]:
@@ -59,7 +71,8 @@ class ScriptedAdapter:
         if k == 1:
             return favored * WEIGHT
         rival = versions[(example_id + 1) % k]
-        return (favored - rival) * WEIGHT
+        base = MERGE_BASE if self.mode == "merge" else 0.0
+        return (favored - rival) * WEIGHT + base
 
     def evaluate(self, batch, candidate, capture_traces=False):
         scores = [self._score(candidate, example_id) for example_id in batch]
@@ -73,21 +86,28 @@ class ScriptedAdapter:
         return {c: f"v{min(int(candidate[c][1:]) + 1, self.cap)}" for c in components_to_update}
 
 
-# (label, components, cap, trainset_size, valset_size, minibatch_size, max_metric_calls, perfect, seed).
-# Varied seeds force distinct selection draws; a small budget forces an early stop; the two-component
-# cases split the Pareto front and make acceptance depend on the shuffled minibatch; perfect_score=0.0
-# makes the seed already-perfect, exercising the skip-and-still-spend path.
+# (label, components, cap, trainset, valset, minibatch, max_metric_calls, perfect, seed, use_merge,
+# mode). Varied seeds force distinct selection draws; a small budget forces an early stop; the
+# two-component cases split the Pareto front and make acceptance depend on the shuffled minibatch;
+# perfect_score=0.0 makes the seed already-perfect. The `merge_*` cases turn merge on: they run long
+# enough to grow the candidate pool past index 7 (where CPython set order stops matching sorted) and
+# to accept several merges, so the whole merge flow — dominator pool, pair-and-ancestor draw, the
+# subsample accept test, and the interleaving of merge draws with reflective ones — is exercised
+# end to end, not just the merge functions in isolation.
 CASES = [
-    ("single_seed0", ["instruction"], 4, 5, 6, 2, 40, 1.0, 0),
-    ("single_small_budget", ["instruction"], 3, 4, 4, 2, 10, 1.0, 2),
-    ("skip_perfect", ["instruction"], 4, 4, 4, 2, 8, 0.0, 3),
-    ("two_components_seed1", ["instr_a", "instr_b"], 3, 6, 4, 2, 50, 1.0, 1),
-    ("two_components_seed5", ["instr_a", "instr_b"], 4, 5, 4, 3, 60, 1.0, 5),
+    ("single_seed0", ["instruction"], 4, 5, 6, 2, 40, 1.0, 0, False, "tradeoff"),
+    ("single_small_budget", ["instruction"], 3, 4, 4, 2, 10, 1.0, 2, False, "tradeoff"),
+    ("skip_perfect", ["instruction"], 4, 4, 4, 2, 8, 0.0, 3, False, "tradeoff"),
+    ("two_components_seed1", ["instr_a", "instr_b"], 3, 6, 4, 2, 50, 1.0, 1, False, "tradeoff"),
+    ("two_components_seed5", ["instr_a", "instr_b"], 4, 5, 4, 3, 60, 1.0, 5, False, "tradeoff"),
+    ("merge_seed1", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 1, True, "merge"),
+    ("merge_seed3", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge"),
 ]
 
 
 def build_once(
-    label, components, cap, trainset_size, valset_size, minibatch_size, max_metric_calls, perfect, seed
+    label, components, cap, trainset_size, valset_size, minibatch_size,
+    max_metric_calls, perfect, seed, use_merge, mode,
 ) -> dict:
     trainset = list(range(trainset_size))
     valset = list(range(valset_size))
@@ -97,11 +117,13 @@ def build_once(
         seed_candidate=seed_candidate,
         trainset=trainset,
         valset=valset,
-        adapter=ScriptedAdapter(cap),
+        adapter=ScriptedAdapter(cap, mode),
         max_metric_calls=max_metric_calls,
         reflection_minibatch_size=minibatch_size,
         perfect_score=perfect,
         seed=seed,
+        use_merge=use_merge,
+        max_merge_invocations=5,
         raise_on_exception=True,
     )
 
@@ -115,6 +137,8 @@ def build_once(
         "max_metric_calls": max_metric_calls,
         "perfect_score": perfect,
         "seed": seed,
+        "use_merge": use_merge,
+        "mode": mode,
         "seed_candidate": seed_candidate,
         "result": {
             "candidates": [dict(c) for c in result.candidates],

@@ -143,6 +143,11 @@ where
         self.evaluate(&examples, candidate, false).await
     }
 
+    async fn evaluate_valset_ids(&mut self, ids: &[usize], candidate: &Candidate) -> EvalBatch {
+        let examples: Vec<Example> = ids.iter().map(|&id| self.valset[id].clone()).collect();
+        self.evaluate(&examples, candidate, false).await
+    }
+
     /// dspy's reflective proposer step: for each component, build its reflective dataset, render the
     /// reflection prompt, and rewrite it from the reflection model's reply. A component with no
     /// reflective examples, or whose reflection call fails, is left unchanged (skipped).

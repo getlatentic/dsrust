@@ -49,6 +49,15 @@ pub trait GepaAdapter {
 
     fn evaluate_valset(&mut self, candidate: &Candidate) -> impl Future<Output = EvalBatch> + Send;
 
+    /// Score a candidate on the given validation ids only — dspy's `cached_evaluate_full` over a
+    /// merge subsample. The returned scores are in the order the ids were given, and the eval is
+    /// counted as exactly that many metric calls, not a whole valset. Merge is the only caller.
+    fn evaluate_valset_ids(
+        &mut self,
+        ids: &[usize],
+        candidate: &Candidate,
+    ) -> impl Future<Output = EvalBatch> + Send;
+
     fn propose_new_texts(
         &mut self,
         candidate: &Candidate,

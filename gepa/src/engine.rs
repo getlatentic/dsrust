@@ -12,8 +12,20 @@ use pyrng::Random;
 
 use crate::adapter::{Candidate, GepaAdapter};
 use crate::batch::BatchSampler;
-use crate::pareto::select_candidate;
+use crate::merge::{MergesPerformed, sample_and_attempt_merge, select_eval_subsample};
+use crate::pareto::{find_dominator_programs, select_candidate};
 use crate::state::GepaState;
+
+/// The engine's merge bookkeeping, dspy's counters on the `MergeProposer`: how many merges are due,
+/// how many have been accepted, whether the last iteration added a program (a merge is only tried
+/// right after one), and the record of merges already attempted.
+#[derive(Default)]
+struct MergeSchedule {
+    due: usize,
+    total_tested: usize,
+    last_iter_found_new_program: bool,
+    performed: MergesPerformed,
+}
 
 /// A reflective-mutation proposal: a mutated candidate and the minibatch scores of its parent and of
 /// itself, whose sums the engine compares to decide acceptance.
@@ -48,6 +60,27 @@ pub struct GepaEngine<A: GepaAdapter> {
     pub perfect_score: f64,
     pub skip_perfect_score: bool,
     pub seed: u64,
+    /// dspy `use_merge`: whether to attempt merges between reflective mutations. On by default
+    /// upstream; a run that leaves it off is the reflective-mutation-only engine.
+    pub use_merge: bool,
+    /// dspy `max_merge_invocations`: the cap on accepted merges over a run (default 5).
+    pub max_merge_invocations: usize,
+}
+
+/// The number of validation ids a merged candidate is scored on before the full re-evaluation, and
+/// the floor of shared support below which two candidates are not compared — dspy's
+/// `num_subsample_ids` and `val_overlap_floor`.
+const MERGE_SUBSAMPLE: usize = 5;
+const VAL_OVERLAP_FLOOR: usize = 5;
+
+/// What a scheduled merge attempt did this iteration.
+enum MergeOutcome {
+    /// A merged candidate beat both parents on the subsample and was added.
+    Accepted,
+    /// A merge was produced but lost to a parent; the iteration ends without reflective mutation.
+    Rejected,
+    /// No mergeable pair was found; the iteration falls through to reflective mutation.
+    NoMerge,
 }
 
 impl<A: GepaAdapter + Send> GepaEngine<A> {
@@ -59,9 +92,29 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         let mut state = GepaState::new(seed_candidate, base.scores);
         let mut rng = Random::seeded(self.seed);
         let mut sampler = BatchSampler::new(self.minibatch_size);
+        let mut merge = MergeSchedule::default();
 
         while state.total_num_evals < self.max_metric_calls {
             state.i += 1;
+
+            // dspy attempts a merge before the reflective step, but only right after an iteration
+            // that added a program, and only while merges are due. The attempt draws from the
+            // shared generator whether or not it finds a pair, so it runs before the reflective
+            // selection either way.
+            if self.use_merge && merge.due > 0 && merge.last_iter_found_new_program {
+                merge.last_iter_found_new_program = false;
+                match self.try_merge(&mut state, &mut rng, &mut merge.performed).await {
+                    MergeOutcome::Accepted => {
+                        merge.due -= 1;
+                        merge.total_tested += 1;
+                        continue;
+                    }
+                    MergeOutcome::Rejected => continue,
+                    MergeOutcome::NoMerge => {}
+                }
+            }
+            merge.last_iter_found_new_program = false;
+
             let Some(proposal) = self.propose(&mut state, &mut rng, &mut sampler).await else { continue };
             let before: f64 = proposal.scores_before.iter().sum();
             let after: f64 = proposal.scores_after.iter().sum();
@@ -69,8 +122,76 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
                 continue;
             }
             self.accept(&mut state, proposal).await;
+
+            // A program was added, so a merge becomes due — capped at the run's invocation budget.
+            if self.use_merge {
+                merge.last_iter_found_new_program = true;
+                if merge.total_tested < self.max_merge_invocations {
+                    merge.due += 1;
+                }
+            }
         }
         self.finish(state)
+    }
+
+    /// dspy `MergeProposer.propose` plus the engine's accept: find a mergeable pair, score the
+    /// merged candidate on a validation subsample, and — if it beats both parents there — re-score
+    /// it on the whole valset and fold it in with both parents. Every RNG draw here lands in the
+    /// shared stream ahead of the iteration's reflective step.
+    async fn try_merge(
+        &mut self,
+        state: &mut GepaState,
+        rng: &mut Random,
+        performed: &mut MergesPerformed,
+    ) -> MergeOutcome {
+        let agg = state.mean_scores();
+        let merge_candidates = find_dominator_programs(state.fronts(), &agg);
+        let overlap = |_: usize, _: usize| self.valset_size >= VAL_OVERLAP_FLOOR;
+        let Some(attempt) = sample_and_attempt_merge(
+            rng,
+            &agg,
+            &merge_candidates,
+            performed,
+            &state.candidates,
+            &state.parents,
+            overlap,
+            10,
+        ) else {
+            return MergeOutcome::NoMerge;
+        };
+        performed.record_triple(attempt.id1, attempt.id2, attempt.ancestor);
+
+        let common_ids: Vec<usize> = (0..self.valset_size).collect();
+        let subsample = select_eval_subsample(
+            state.subscores(attempt.id1),
+            state.subscores(attempt.id2),
+            &common_ids,
+            rng,
+            MERGE_SUBSAMPLE,
+        );
+        if subsample.is_empty() {
+            return MergeOutcome::NoMerge;
+        }
+
+        let eval = self.adapter.evaluate_valset_ids(&subsample, &attempt.candidate).await;
+        state.total_num_evals += subsample.len();
+
+        // dspy compares the merged candidate's subsample sum against the better parent's over the
+        // same ids: it is accepted only if it is at least as good as both.
+        let parent_sum = |id: usize| -> f64 {
+            subsample.iter().map(|&val_id| state.subscores(id)[val_id]).sum()
+        };
+        let best_parent = parent_sum(attempt.id1).max(parent_sum(attempt.id2));
+        if eval.scores.iter().sum::<f64>() < best_parent {
+            return MergeOutcome::Rejected;
+        }
+
+        let discovered_at = state.total_num_evals;
+        let full = self.adapter.evaluate_valset(&attempt.candidate).await;
+        state.total_num_evals += self.valset_size;
+        state.num_full_ds_evals += 1;
+        state.add_program(&[attempt.id1, attempt.id2], attempt.candidate, full.scores, discovered_at);
+        MergeOutcome::Accepted
     }
 
     /// dspy `ReflectiveMutationProposer.propose`: select a candidate, sample a minibatch, evaluate it

@@ -15,6 +15,8 @@
       "max_metric_calls": 40,
       "perfect_score": 1.0,
       "seed": 0,
+      "use_merge": false,
+      "mode": "tradeoff",
       "seed_candidate": {
         "instruction": "v0"
       },
@@ -84,6 +86,8 @@
       "max_metric_calls": 10,
       "perfect_score": 1.0,
       "seed": 2,
+      "use_merge": false,
+      "mode": "tradeoff",
       "seed_candidate": {
         "instruction": "v0"
       },
@@ -129,6 +133,8 @@
       "max_metric_calls": 8,
       "perfect_score": 0.0,
       "seed": 3,
+      "use_merge": false,
+      "mode": "tradeoff",
       "seed_candidate": {
         "instruction": "v0"
       },
@@ -167,6 +173,8 @@
       "max_metric_calls": 50,
       "perfect_score": 1.0,
       "seed": 1,
+      "use_merge": false,
+      "mode": "tradeoff",
       "seed_candidate": {
         "instr_a": "v0",
         "instr_b": "v0"
@@ -234,6 +242,8 @@
       "max_metric_calls": 60,
       "perfect_score": 1.0,
       "seed": 5,
+      "use_merge": false,
+      "mode": "tradeoff",
       "seed_candidate": {
         "instr_a": "v0",
         "instr_b": "v0"
@@ -285,6 +295,346 @@
           34,
           50,
           60
+        ]
+      }
+    },
+    {
+      "label": "merge_seed1",
+      "components": [
+        "a",
+        "b"
+      ],
+      "cap": 6,
+      "trainset_size": 8,
+      "valset_size": 6,
+      "minibatch_size": 3,
+      "max_metric_calls": 300,
+      "perfect_score": 99.0,
+      "seed": 1,
+      "use_merge": true,
+      "mode": "merge",
+      "seed_candidate": {
+        "a": "v0",
+        "b": "v0"
+      },
+      "result": {
+        "candidates": [
+          {
+            "a": "v0",
+            "b": "v0"
+          },
+          {
+            "a": "v0",
+            "b": "v1"
+          },
+          {
+            "a": "v1",
+            "b": "v1"
+          },
+          {
+            "a": "v1",
+            "b": "v2"
+          },
+          {
+            "a": "v2",
+            "b": "v1"
+          },
+          {
+            "a": "v1",
+            "b": "v3"
+          },
+          {
+            "a": "v1",
+            "b": "v3"
+          },
+          {
+            "a": "v1",
+            "b": "v4"
+          },
+          {
+            "a": "v1",
+            "b": "v5"
+          },
+          {
+            "a": "v3",
+            "b": "v1"
+          },
+          {
+            "a": "v3",
+            "b": "v2"
+          },
+          {
+            "a": "v4",
+            "b": "v1"
+          },
+          {
+            "a": "v1",
+            "b": "v5"
+          },
+          {
+            "a": "v1",
+            "b": "v6"
+          }
+        ],
+        "parents": [
+          [
+            null
+          ],
+          [
+            0
+          ],
+          [
+            1
+          ],
+          [
+            2
+          ],
+          [
+            2
+          ],
+          [
+            3
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6
+          ],
+          [
+            7
+          ],
+          [
+            4
+          ],
+          [
+            9
+          ],
+          [
+            9
+          ],
+          [
+            8,
+            11
+          ],
+          [
+            12
+          ]
+        ],
+        "val_aggregate_scores": [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ],
+        "best_idx": 0,
+        "total_metric_calls": 302,
+        "num_full_val_evals": 14,
+        "discovery_eval_counts": [
+          0,
+          66,
+          78,
+          108,
+          120,
+          143,
+          154,
+          166,
+          190,
+          202,
+          255,
+          267,
+          278,
+          290
+        ]
+      }
+    },
+    {
+      "label": "merge_seed3",
+      "components": [
+        "a",
+        "b"
+      ],
+      "cap": 6,
+      "trainset_size": 8,
+      "valset_size": 6,
+      "minibatch_size": 3,
+      "max_metric_calls": 300,
+      "perfect_score": 99.0,
+      "seed": 3,
+      "use_merge": true,
+      "mode": "merge",
+      "seed_candidate": {
+        "a": "v0",
+        "b": "v0"
+      },
+      "result": {
+        "candidates": [
+          {
+            "a": "v0",
+            "b": "v0"
+          },
+          {
+            "a": "v1",
+            "b": "v0"
+          },
+          {
+            "a": "v1",
+            "b": "v1"
+          },
+          {
+            "a": "v1",
+            "b": "v1"
+          },
+          {
+            "a": "v2",
+            "b": "v1"
+          },
+          {
+            "a": "v3",
+            "b": "v1"
+          },
+          {
+            "a": "v3",
+            "b": "v2"
+          },
+          {
+            "a": "v1",
+            "b": "v2"
+          },
+          {
+            "a": "v1",
+            "b": "v3"
+          },
+          {
+            "a": "v3",
+            "b": "v2"
+          },
+          {
+            "a": "v3",
+            "b": "v1"
+          },
+          {
+            "a": "v2",
+            "b": "v3"
+          },
+          {
+            "a": "v1",
+            "b": "v4"
+          },
+          {
+            "a": "v2",
+            "b": "v4"
+          },
+          {
+            "a": "v3",
+            "b": "v1"
+          },
+          {
+            "a": "v3",
+            "b": "v2"
+          }
+        ],
+        "parents": [
+          [
+            null
+          ],
+          [
+            0
+          ],
+          [
+            1
+          ],
+          [
+            1
+          ],
+          [
+            3
+          ],
+          [
+            4
+          ],
+          [
+            5
+          ],
+          [
+            3
+          ],
+          [
+            7
+          ],
+          [
+            5
+          ],
+          [
+            5,
+            8
+          ],
+          [
+            8
+          ],
+          [
+            8
+          ],
+          [
+            12
+          ],
+          [
+            5,
+            12
+          ],
+          [
+            14
+          ]
+        ],
+        "val_aggregate_scores": [
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5,
+          0.5
+        ],
+        "best_idx": 0,
+        "total_metric_calls": 301,
+        "num_full_val_evals": 16,
+        "discovery_eval_counts": [
+          0,
+          24,
+          42,
+          60,
+          78,
+          108,
+          120,
+          138,
+          173,
+          190,
+          201,
+          219,
+          231,
+          248,
+          259,
+          271
         ]
       }
     }

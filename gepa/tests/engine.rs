@@ -20,6 +20,9 @@ struct MirrorAdapter {
     cap: usize,
     weight: f64,
     valset_size: usize,
+    /// The `merge` mode shifts the two-component score positive (dspy's `MERGE_BASE`), so a merge
+    /// run's ancestor weights are never all zero. See the fixture generator.
+    merge_mode: bool,
 }
 
 impl MirrorAdapter {
@@ -35,7 +38,8 @@ impl MirrorAdapter {
             favored as f64 * self.weight
         } else {
             let rival = versions[(example_id + 1) % k];
-            (favored as f64 - rival as f64) * self.weight
+            let base = if self.merge_mode { 0.5 } else { 0.0 };
+            (favored as f64 - rival as f64) * self.weight + base
         }
     }
 }
@@ -48,6 +52,10 @@ impl GepaAdapter for MirrorAdapter {
 
     async fn evaluate_valset(&mut self, candidate: &Candidate) -> EvalBatch {
         EvalBatch::scored((0..self.valset_size).map(|id| self.score(candidate, id)).collect())
+    }
+
+    async fn evaluate_valset_ids(&mut self, ids: &[usize], candidate: &Candidate) -> EvalBatch {
+        EvalBatch::scored(ids.iter().map(|&id| self.score(candidate, id)).collect())
     }
 
     async fn propose_new_texts(
@@ -91,14 +99,22 @@ async fn reproduces_the_runs_gepa_produces() {
         let label = case["label"].as_str().expect("label");
         let valset_size = case["valset_size"].as_u64().expect("valset_size") as usize;
 
+        let merge_mode = case["mode"].as_str() == Some("merge");
         let engine = GepaEngine {
-            adapter: MirrorAdapter { cap: case["cap"].as_u64().expect("cap") as usize, weight, valset_size },
+            adapter: MirrorAdapter {
+                cap: case["cap"].as_u64().expect("cap") as usize,
+                weight,
+                valset_size,
+                merge_mode,
+            },
             trainset_size: case["trainset_size"].as_u64().expect("trainset_size") as usize,
             valset_size,
             minibatch_size: case["minibatch_size"].as_u64().expect("minibatch_size") as usize,
             max_metric_calls: case["max_metric_calls"].as_u64().expect("max_metric_calls") as usize,
             perfect_score: case["perfect_score"].as_f64().expect("perfect_score"),
             skip_perfect_score: true,
+            use_merge: case["use_merge"].as_bool().unwrap_or(false),
+            max_merge_invocations: 5,
             seed: case["seed"].as_u64().expect("seed"),
         };
         let outcome = engine.optimize(candidate_of(&case["seed_candidate"])).await;

@@ -54,6 +54,12 @@ impl GepaState {
         self.subscores.iter().map(|scores| mean(scores)).collect()
     }
 
+    /// One candidate's per-testcase valset subscores — `prog_candidate_val_subscores[id]`, which
+    /// merge reads to bucket the evaluation subsample and to sum a parent's score over it.
+    pub fn subscores(&self, candidate: usize) -> &[f64] {
+        &self.subscores[candidate]
+    }
+
     /// dspy `RoundRobinReflectionComponentSelector`: return the parent's next component to reflect on
     /// and advance that parent's cursor. A new candidate inherits the advanced cursor (see
     /// [`Self::add_program`]), so the family cycles through its components across generations.
