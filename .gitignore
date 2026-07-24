@@ -26,3 +26,6 @@ __pycache__/
 .env
 .env.*
 *.local
+
+# Local-only comparison against other projects (never tracked)
+/local-compare/
