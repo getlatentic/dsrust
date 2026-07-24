@@ -1,13 +1,14 @@
 [package]
 name = "dsrust"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
-description = "A faithful, byte-for-byte Rust port of DSPy — signatures, adapters, modules, providers, and optimizers, tested against DSPy itself."
+description = "A faithful, byte-for-byte Rust port of DSPy: signatures, adapters, modules, providers, and optimizers, tested against DSPy itself."
 readme = "README.md"
 authors = ["Tosin Amuda"]
 keywords = ["dspy", "llm", "prompt", "ai", "agents"]
 categories = ["science", "api-bindings"]
+repository = "https://github.com/getlatentic/dsrust"
 
 [lib]
 name = "dsrust"
@@ -20,9 +21,9 @@ default-members = [".", "derive", "tpe", "pyrng", "gepa"]
 [dependencies]
 anyhow = "1"
 base64 = "0.22.1"
-dsrs-derive = { version = "0.1.0", path = "derive" }
-gepa = { version = "0.1.0", path = "gepa" }
-pyrng = { version = "0.1.0", path = "pyrng" }
+dsrust-derive = { version = "0.1.0-alpha.1", path = "derive" }
+gepa = { version = "0.1.0-alpha.1", path = "gepa", package = "dsrust-gepa" }
+pyrng = { version = "0.1.0-alpha.1", path = "pyrng" }
 bytes = "1"
 futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
 lru = { version = "0.18.1", default-features = false }
@@ -32,7 +33,7 @@ serde = { version = "1", features = ["derive"] }
 # preserve_order keeps schemas in pydantic's insertion order; sorting keys would break byte-conformance.
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.11.0"
-tpe = { version = "0.1.0", path = "tpe" }
+tpe = { version = "0.1.0-alpha.1", path = "tpe", package = "dsrust-tpe" }
 tracing = "0.1"
 unicode-general-category = "1.1.0"
 unicode-normalization = "0.1.25"
