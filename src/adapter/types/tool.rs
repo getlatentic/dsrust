@@ -6,6 +6,7 @@
 //! provider called natively or as a rendered field when it did not.
 
 use anyhow::{Result, anyhow};
+use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
@@ -41,13 +42,62 @@ impl ToolCall {
 }
 
 /// dspy `ToolCalls`: the calls a model asked for, and — once they have run — their results.
-#[derive(Debug, Clone, PartialEq, Default, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct ToolCalls {
     pub tool_calls: Vec<ToolCall>,
     /// Present only after the calls have run. dspy keeps this off the schema the model is shown,
     /// because the model produces calls and never their results.
-    #[serde(default)]
     pub tool_call_results: Option<ToolCallResults>,
+}
+
+impl<'de> Deserialize<'de> for ToolCalls {
+    /// dspy `ToolCalls.validate_input`: the several shapes a set of calls arrives in all read back
+    /// the same. A bare list of calls, a `{"tool_calls": [...]}` wrapper, and a single top-level
+    /// `{"name", "args"}` are each accepted, and every call is normalized the way
+    /// [`from_dict_list`](Self::from_dict_list) normalizes one — so `args`, `arguments` and a
+    /// provider's `function` block are read alike. The derived form only knew the wrapper, and read
+    /// each call strictly, which is why a model stating its arguments as `arguments` lost them.
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        validated(&Value::deserialize(deserializer)?).map_err(de::Error::custom)
+    }
+}
+
+/// dspy `ToolCalls.validate_input` over an already-read value.
+fn validated(data: &Value) -> Result<ToolCalls> {
+    match data {
+        // A bare list, every item a call.
+        Value::Array(items) if items.iter().all(is_tool_call_value) => {
+            Ok(ToolCalls::new(items.iter().map(normalized_call).collect::<Result<_>>()?))
+        }
+        Value::Object(fields) => match fields.get("tool_calls") {
+            // The wrapper the model is shown, its results carried alongside when present.
+            Some(Value::Array(list)) => Ok(ToolCalls {
+                tool_calls: list.iter().map(normalized_call).collect::<Result<_>>()?,
+                tool_call_results: match fields.get("tool_call_results") {
+                    Some(value) if !value.is_null() => Some(
+                        serde_json::from_value(value.clone())
+                            .map_err(|error| anyhow!("invalid `tool_call_results`: {error}"))?,
+                    ),
+                    _ => None,
+                },
+            }),
+            // A single call stated at the top level.
+            _ if is_tool_call_dict(fields) => Ok(ToolCalls::new(vec![normalized_call(data)?])),
+            _ => Err(anyhow!("Received invalid value for `dspy.ToolCalls`: {data}")),
+        },
+        _ => Err(anyhow!("Received invalid value for `dspy.ToolCalls`: {data}")),
+    }
+}
+
+/// dspy `_is_tool_call_dict`: a value shaped like a call — a name with either spelling of its
+/// arguments, or a provider's `function` block.
+fn is_tool_call_value(value: &Value) -> bool {
+    value.as_object().is_some_and(is_tool_call_dict)
+}
+
+fn is_tool_call_dict(fields: &Map<String, Value>) -> bool {
+    (fields.contains_key("name") && (fields.contains_key("args") || fields.contains_key("arguments")))
+        || fields.contains_key("function")
 }
 
 impl ToolCalls {
@@ -89,6 +139,35 @@ impl ToolCalls {
     /// replayed conversation — the turn states what was asked for, and the results follow it.
     pub fn without_results(&self) -> Self {
         Self { tool_calls: self.tool_calls.clone(), tool_call_results: None }
+    }
+
+    /// The value a program keeps between turns: every call whole, ids included, results appended.
+    ///
+    /// [`Serialize`](#impl-Serialize-for-ToolCalls) drops the id, because it renders to the model
+    /// and the id is transport the model never sees — that is upstream's `model_dump`. But dspy
+    /// keeps a `ToolCalls` as a live object across an agent's turns, so its ids survive for free;
+    /// here a conversation `History` and a prediction are kept as data, and a call that has lost
+    /// its id can no longer be paired to its result. The [history formatter] reads these ids back
+    /// to replay a native tool exchange, so this keeps what the rendered form omits.
+    ///
+    /// [history formatter]: crate::adapter::history
+    pub fn to_value_with_ids(&self) -> Value {
+        let mut data = json!({
+            "tool_calls": self
+                .tool_calls
+                .iter()
+                .map(|call| serde_json::to_value(call).unwrap_or(Value::Null))
+                .collect::<Vec<_>>(),
+        });
+        if let Some(results) = &self.tool_call_results
+            && let Some(object) = data.as_object_mut()
+        {
+            object.insert(
+                "tool_call_results".to_owned(),
+                serde_json::to_value(results).unwrap_or(Value::Null),
+            );
+        }
+        data
     }
 
     /// Whether every call carries an id and the results answer exactly those ids, in order. dspy
@@ -291,6 +370,33 @@ mod tests {
                     ],
                 },
             })
+        );
+    }
+
+    /// The rendered form drops the id, but the kept form retains it — and reads back into a
+    /// `ToolCalls` whose ids survived, which is what pairs a replayed result to its call.
+    #[test]
+    fn the_kept_value_carries_the_ids_the_rendered_form_drops() {
+        let calls = ToolCalls::new(vec![search_call()]);
+        assert_eq!(
+            serde_json::to_value(&calls).expect("serializes"),
+            json!({ "tool_calls": [{ "name": "search", "args": { "query": "cats" } }] })
+        );
+        assert_eq!(
+            calls.to_value_with_ids(),
+            json!({ "tool_calls": [{ "id": "call_1", "name": "search", "args": { "query": "cats" } }] })
+        );
+
+        let with_results = calls.clone().with_results(
+            ToolCallResults::from_tool_calls_and_values(&calls.tool_calls, vec![json!("cat")], None)
+                .expect("pairs"),
+        );
+        let back: ToolCalls =
+            serde_json::from_value(with_results.to_value_with_ids()).expect("reads back");
+        assert_eq!(back.tool_calls[0].id.as_deref(), Some("call_1"));
+        assert_eq!(
+            back.tool_call_results.expect("results").tool_call_results[0].call_id.as_deref(),
+            Some("call_1")
         );
     }
 

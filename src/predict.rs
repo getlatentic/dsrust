@@ -1,11 +1,13 @@
 use std::marker::PhantomData;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use serde::de::DeserializeOwned;
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::adapter::parse::FieldMismatch;
-use crate::adapter::{Adapter, ChatAdapter, Extraction, Feedback, Input, native_tools, turns_for};
+use crate::adapter::{
+    Adapter, ChatAdapter, Extraction, Feedback, Input, ToolCall, ToolCalls, native_tools, turns_for,
+};
 use crate::example::{Example, Prediction};
 use crate::lm::{DynChatModel, LmConfig, LmUsage, api, global};
 use crate::module::{Module, NamedPredictor, TraceStep};
@@ -224,6 +226,20 @@ fn ask_for_parallel_calls(request: &mut api::LmRequest, parallel: Option<bool>) 
     }
 }
 
+/// dspy `_provider_tool_call_to_tool_call_dict`: a provider's native call as a [`ToolCall`].
+///
+/// The reply parser already structured the arguments and settled the id from `id`/`call_id`, so a
+/// part carries what upstream reads out of a litellm tool call — no repair or renaming is left to
+/// do here. A part that is not a tool call is not one of these and is dropped.
+fn as_tool_call(part: &api::LmPart) -> Option<ToolCall> {
+    match part {
+        api::LmPart::ToolCall { id, name, args, .. } => {
+            Some(ToolCall { id: id.clone(), name: name.clone(), args: args.clone() })
+        }
+        _ => None,
+    }
+}
+
 impl<S> Predict<S> {
     /// One attempt: render through the adapter, ask the model, hand back the raw reply.
     /// dspy's `Adapter.__call__` in the module rather than the adapter, because a Rust trait
@@ -274,6 +290,54 @@ impl<S> Predict<S> {
             .await
     }
 
+    /// dspy `_call_postprocess` for a reply the provider answered with tool calls of its own.
+    ///
+    /// Native function calling deletes the tool-call output field from the rendered signature — the
+    /// provider is asked, not told — so the calls arrive as parts on the reply rather than inside a
+    /// marker block. This fills that field from them, defaults every other output the signature
+    /// declares (each left the render, so the reply never spoke it), and reads whatever content did
+    /// come back against what remained. It returns `None` for a reply carrying no calls, which is
+    /// every reply the marker text path already handles.
+    fn native_tool_value(&self, answered: &api::LmResponse) -> Result<Option<Value>> {
+        let Some(output_field) =
+            native_tools::tool_call_output_field(&self.signature).map(str::to_owned)
+        else {
+            return Ok(None);
+        };
+        let calls: Vec<ToolCall> = answered
+            .outputs
+            .first()
+            .into_iter()
+            .flat_map(api::LmOutput::tool_calls)
+            .filter_map(as_tool_call)
+            .collect();
+        if calls.is_empty() {
+            return Ok(None);
+        }
+
+        // The signature the request rendered had the tool input and its output field both removed,
+        // so any content the reply carried is read against what was left.
+        let mut rendered = self.signature.clone();
+        rendered.outputs.retain(|field| field.name != output_field);
+        if let Some(input_field) = native_tools::tool_call_input_field(&self.signature).map(str::to_owned)
+        {
+            rendered.inputs.retain(|field| field.name != input_field);
+        }
+
+        let text = answered.first_text();
+        let mut value = match !text.is_empty() && !rendered.outputs.is_empty() {
+            true => self.adapter.parse(&rendered, &text).unwrap_or_else(|_| Value::Object(Map::new())),
+            false => Value::Object(Map::new()),
+        };
+        let object = value.as_object_mut().ok_or_else(|| anyhow!("a parsed reply is an object"))?;
+        // Fields removed for native features are absent from the parse; dspy defaults each to null.
+        for field in &self.signature.outputs {
+            object.entry(field.name.clone()).or_insert(Value::Null);
+        }
+        object.insert(output_field, ToolCalls::new(calls).to_value_with_ids());
+        Ok(Some(value))
+    }
+
     async fn call_with_inputs(
         &self,
         http: &reqwest::Client,
@@ -284,6 +348,13 @@ impl<S> Predict<S> {
         // the JSON adapter; `use_json_adapter_fallback` turns that off. The adapter states the
         // policy, this module carries it out, because only the module can call the model.
         let answered = self.ask(http, lm, inputs, None).await?;
+        // dspy `_call_postprocess`: a provider that called the tools itself answers with the calls
+        // as parts, not a marker block, so the tool-call output field is filled from them and the
+        // whole text path — parse, coercion, feedback — is skipped, exactly as upstream returns the
+        // native reply without re-validating it.
+        if let Some(value) = self.native_tool_value(&answered)? {
+            return Ok(Validated { raw: answered.first_text(), value, usage: answered.spend() });
+        }
         let usage = answered.spend();
         let raw = answered.first_text();
         // An adapter that answers in prose has a second model read the fields out of it. The

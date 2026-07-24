@@ -19,7 +19,7 @@ pub mod signature;
 pub use adapter::baml::BamlAdapter;
 pub use adapter::xml::XmlAdapter;
 pub use adapter::{Adapter, ChatAdapter, Extraction, JsonAdapter, NativeFunctionCalling, Reasoning, TwoStepAdapter};
-pub use adapter::{ToolCall, ToolCallResult, ToolCallResults, ToolCalls};
+pub use adapter::{History, ToolCall, ToolCallResult, ToolCallResults, ToolCalls};
 pub use lm::Capabilities;
 pub use dsrust_derive::Module;
 pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
@@ -29,7 +29,7 @@ pub use optimize::{
     BootstrapFewShot, COPRO, DynOptimizer, Feedback, GEPA, GepaOutcome, LabeledFewShot, MIPROv2,
     Optimizer,
 };
-pub use react::{FnTool, ReAct, Tool, Trajectory, mcp_tool, mcp_tool_args, mcp_tool_result};
+pub use react::{FnTool, ReAct, ReActV2, Tool, Trajectory, mcp_tool, mcp_tool_args, mcp_tool_result};
 
 /// Re-exports the macros need so a caller does not have to depend on them directly.
 #[doc(hidden)]

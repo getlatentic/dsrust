@@ -8,7 +8,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use dsrust::adapter::{ChatAdapter, Input};
+use dsrust::adapter::{ChatAdapter, Input, ToolCalls};
 use dsrust::example::Example;
 use dsrust::module::Module;
 use dsrust::lm::api::{self, LmToolSpec};
@@ -184,6 +184,90 @@ async fn asking_for_calls_without_offering_tools_never_reaches_the_model() {
         "{refused}"
     );
     assert!(model.seen.lock().expect("not poisoned").is_empty(), "a request went out anyway");
+}
+
+/// A model that answers with a native tool call of its own — content and calls beside each other,
+/// the way a provider replies once it has been handed a tool list.
+struct NativeReplier(api::LmResponse);
+
+impl ChatModel for NativeReplier {
+    async fn forward(
+        &self,
+        _http: &reqwest::Client,
+        _request: &api::LmRequest,
+    ) -> anyhow::Result<api::LmResponse> {
+        Ok(self.0.clone())
+    }
+
+    fn capabilities<'a>(
+        &'a self,
+        _http: &'a reqwest::Client,
+    ) -> impl std::future::Future<Output = Capabilities> + Send + 'a {
+        std::future::ready(Capabilities { function_calling: true, ..Default::default() })
+    }
+}
+
+fn call_part(id: &str, name: &str, args: Value) -> api::LmPart {
+    api::LmPart::ToolCall {
+        id: Some(id.to_owned()),
+        name: name.to_owned(),
+        args: args.as_object().expect("an object").clone(),
+        provider_data: Default::default(),
+        metadata: Default::default(),
+    }
+}
+
+/// dspy `_call_postprocess`: a native reply's calls fill the tool-call output field, and the
+/// provider's ids survive onto it — they are what later pairs each result to the call it answers.
+#[tokio::test]
+async fn a_native_reply_fills_the_output_field_with_the_providers_ids() {
+    let reply = api::LmResponse {
+        outputs: vec![api::LmOutput {
+            parts: vec![call_part("call_provider_1", "search", json!({ "query": "cats" }))],
+            finish_reason: Some("tool_calls".into()),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let predict = Predict::from_signature(tool_signature())
+        .with_adapter(ChatAdapter::default().with_native_function_calling(true))
+        .with_lm(Arc::new(NativeReplier(reply)) as Arc<dyn DynChatModel>);
+
+    let prediction = predict.forward(asked_example()).await.expect("a native reply parses");
+    let calls: ToolCalls = serde_json::from_value(
+        prediction.get("tool_calls").cloned().expect("the output field was filled"),
+    )
+    .expect("a ToolCalls value");
+
+    assert_eq!(calls.tool_calls.len(), 1);
+    assert_eq!(calls.tool_calls[0].id.as_deref(), Some("call_provider_1"));
+    assert_eq!(calls.tool_calls[0].name, "search");
+    assert_eq!(calls.tool_calls[0].args, *json!({ "query": "cats" }).as_object().unwrap());
+}
+
+/// Parallel native calls come back on the one reply, and both keep their ids and order.
+#[tokio::test]
+async fn parallel_native_calls_all_reach_the_output_field() {
+    let reply = api::LmResponse {
+        outputs: vec![api::LmOutput {
+            parts: vec![
+                call_part("call_provider_1", "search", json!({ "query": "cats" })),
+                call_part("call_provider_2", "search", json!({ "query": "dogs" })),
+            ],
+            finish_reason: Some("tool_calls".into()),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    let predict = Predict::from_signature(tool_signature())
+        .with_adapter(ChatAdapter::default().with_native_function_calling(true))
+        .with_lm(Arc::new(NativeReplier(reply)) as Arc<dyn DynChatModel>);
+
+    let prediction = predict.forward(asked_example()).await.expect("a native reply parses");
+    let calls: ToolCalls =
+        serde_json::from_value(prediction.get("tool_calls").cloned().expect("filled")).expect("a ToolCalls");
+    let ids: Vec<&str> = calls.tool_calls.iter().filter_map(|c| c.id.as_deref()).collect();
+    assert_eq!(ids, ["call_provider_1", "call_provider_2"]);
 }
 
 /// The spec is upstream's `format_as_litellm_function_call`, and every argument is required

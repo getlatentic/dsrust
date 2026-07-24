@@ -8,6 +8,7 @@
 pub mod mcp;
 mod tool;
 mod trajectory;
+mod v2;
 
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
@@ -21,6 +22,7 @@ use tool::describe;
 pub use mcp::{mcp_tool, mcp_tool_args, mcp_tool_result};
 pub use tool::{FINISH, FnTool, Tool, arg_str, tool_args};
 pub use trajectory::{Step, Trajectory};
+pub use v2::ReActV2;
 
 /// An agent that interleaves reasoning with tool calls over any signature.
 pub struct ReAct {
@@ -99,7 +101,7 @@ impl ReAct {
 /// dspy keeps its tools in `{tool.name: tool for tool in tools}`, so the catalogue is numbered
 /// in the order the caller supplied and a repeated name replaces the earlier tool without
 /// moving it. Sorting instead would renumber the prompt the model reads.
-fn as_dict(tools: impl Iterator<Item = Box<dyn Tool>>) -> Vec<Box<dyn Tool>> {
+pub(super) fn as_dict(tools: impl Iterator<Item = Box<dyn Tool>>) -> Vec<Box<dyn Tool>> {
     let mut ordered: Vec<Box<dyn Tool>> = Vec::new();
     for tool in tools {
         match ordered.iter().position(|held| held.name() == tool.name()) {
@@ -111,7 +113,7 @@ fn as_dict(tools: impl Iterator<Item = Box<dyn Tool>>) -> Vec<Box<dyn Tool>> {
 }
 
 /// The field-name list dspy interpolates into the instructions, each name in backticks.
-fn backticked<'a>(names: impl Iterator<Item = &'a str>) -> String {
+pub(super) fn backticked<'a>(names: impl Iterator<Item = &'a str>) -> String {
     names
         .map(|name| format!("`{name}`"))
         .collect::<Vec<_>>()

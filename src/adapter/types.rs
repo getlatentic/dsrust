@@ -4,8 +4,10 @@
 //! `tool.py` — and each states how it renders into a prompt and reads back out of a reply. The
 //! same split lives here, so a type ported from upstream lands in the file that names it.
 
+pub mod history;
 pub mod reasoning;
 pub mod tool;
 
+pub use history::History;
 pub use reasoning::Reasoning;
 pub use tool::{ToolCall, ToolCallResult, ToolCallResults, ToolCalls};

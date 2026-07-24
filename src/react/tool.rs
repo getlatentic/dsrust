@@ -28,6 +28,15 @@ pub trait Tool: Send + Sync {
 
     /// Run with the arguments the model supplied, returning the observation it will read.
     fn call(&self, args: &Value) -> Result<String>;
+
+    /// dspy's `Tool.__call__` returns whatever the tool produced, which need not be text: an
+    /// observation may be any JSON, and ReActV2's `submit` returns the final-output mapping the
+    /// loop reads back as the answer. `call` is the common case — a string observation — so it
+    /// stays the required method and this defaults to wrapping what it returns; a tool whose result
+    /// is structured overrides this instead.
+    fn call_value(&self, args: &Value) -> Result<Value> {
+        self.call(args).map(Value::String)
+    }
 }
 
 /// The `args` map for a tool whose arguments are the fields of `T`, so the schema comes from a
