@@ -1,10 +1,12 @@
 # DsRust
 
-A task in DsRust is a type, not a prompt. You write `question -> answer` — or a struct with typed
-input and output fields — and DsRust turns it into the messages the model actually sees. When the
-answers aren't good enough, you don't go back and fiddle with wording: an optimizer does that for
-you, rewriting the prompt and choosing few-shot examples against a metric you define. It's the
-[DSPy](https://github.com/stanfordnlp/dspy) idea — you write programs, not prompt strings — in Rust.
+DsRust is a Rust framework for building LLM pipelines without hand-writing prompts. You declare
+what each step takes in and returns — `question -> answer`, or a struct with typed fields — and
+DsRust renders the prompt, calls the model, and parses the reply back into those types. Compose the
+steps into a program; then, instead of tuning prompts by hand, give it a metric and a handful of
+examples and let an optimizer find the prompts and few-shot examples that score best.
+
+It's a faithful Rust port of [DSPy](https://github.com/stanfordnlp/dspy).
 
 ```rust
 use dsrs::{predict, call};
