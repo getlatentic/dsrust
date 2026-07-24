@@ -1,15 +1,16 @@
 # DsRust
 
-DsRust is a framework for building LLM programs where you declare each step's inputs and outputs
-instead of writing prompts. It's [DSPy](https://github.com/stanfordnlp/dspy) in Rust — to LLM
-engineering what Tailwind is to CSS: a higher-level interface to the same power.
+DsRust is a framework for building LLM programs where you describe each step — its inputs, its
+outputs, and a line about what it should do — and let DsRust turn that into the prompt. It's
+[DSPy](https://github.com/stanfordnlp/dspy) in Rust — to LLM engineering what Tailwind is to CSS: a
+higher-level interface to the same power.
 
-Say a step answers a question. You declare it — `question -> answer`, or a struct with typed
-fields — and DsRust writes the prompt, calls the model, and hands you back typed values: no prompt
-template, no JSON parsing, no retry loop. Compose steps into a program — a chain-of-thought
-reasoner, a tool-using agent — and when it isn't good enough, give DsRust a metric and a few
-examples. An optimizer then finds the prompt and the few-shot examples that score highest, so you
-improve the program with data instead of by rewriting prompts.
+Say a step answers a question. You declare it — `question -> answer`, typed fields, and a short
+instruction — and DsRust builds the prompt from that declaration, calls the model, and parses the
+reply back into your types: no prompt template, no JSON parsing, no retry loop to maintain. Compose
+steps into a program — a chain-of-thought reasoner, a tool-using agent. Then, to make it better,
+you don't rewrite the prompt by hand: you give DsRust a metric and a few examples, and an optimizer
+searches against your data for the instructions and few-shot examples that score highest.
 
 ```rust
 use dsrust::{predict, call};
