@@ -19,8 +19,10 @@ use serde_json::{Map, Value};
 use crate::react::Tool;
 
 pub mod repl;
+pub mod sandbox;
 
 pub use repl::{ReplEntry, ReplHistory, ReplVariable};
+pub use sandbox::{SandboxSerializable, build_repl_variable};
 
 /// What one execution produced.
 ///

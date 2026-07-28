@@ -96,8 +96,8 @@
 "primitives/repl_types.py::REPLEntry" = { status = "mapped", rust = "ReplEntry" }
 "primitives/repl_types.py::REPLHistory" = { status = "mapped", rust = "ReplHistory" }
 "primitives/code_interpreter.py::CodeInterpreterError" = { status = "divergence", reason = "an interpreter answers with `anyhow::Error`; a typed taxonomy is the error-taxonomy work (#10)" }
-"primitives/sandbox_serializable.py::SandboxSerializable" = { status = "todo", reason = "the BYO-sandbox type hook: a value that reaches the REPL as its own reconstruction rather than as JSON. Needs `CodeInterpreter::execute` to carry injected variables, as upstream's does (#21)" }
-"primitives/sandbox_serializable.py::build_repl_variable" = { status = "todo", reason = "as `SandboxSerializable` (#21)" }
+"primitives/sandbox_serializable.py::SandboxSerializable" = { status = "mapped", rust = "SandboxSerializable" }
+"primitives/sandbox_serializable.py::build_repl_variable" = { status = "mapped", rust = "build_repl_variable" }
 "predict/multi_chain_comparison.py::MultiChainComparison" = { status = "mapped", rust = "MultiChainComparison" }
 "predict/aggregation.py::majority" = { status = "mapped", rust = "majority" }
 "predict/aggregation.py::default_normalize" = { status = "divergence", reason = "internal normalizer; folded into predict/aggregation.rs" }
@@ -116,6 +116,9 @@
 "teleprompt/bootstrap.py::BootstrapFewShot" = { status = "mapped", rust = "BootstrapFewShot" }
 "teleprompt/vanilla.py::LabeledFewShot" = { status = "mapped", rust = "LabeledFewShot" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2" = { status = "mapped", rust = "MIPROv2" }
+"teleprompt/copro_optimizer.py::COPRO" = { status = "mapped", rust = "COPRO" }
+"teleprompt/copro_optimizer.py::BasicGenerateInstruction" = { status = "divergence", reason = "reproduced as the signature built by optimize/copro/signatures.rs, held to dspy by tests/conformance/basic_generate_instruction.json, not a same-named type" }
+"teleprompt/copro_optimizer.py::GenerateInstructionGivenAttempts" = { status = "divergence", reason = "as `BasicGenerateInstruction`; golden is generate_instruction_given_attempts.json" }
 "teleprompt/bettertogether.py::BetterTogether" = { status = "mapped", rust = "BetterTogether" }
 "teleprompt/gepa/gepa.py::GEPA" = { status = "mapped", rust = "GEPA" }
 "teleprompt/gepa/gepa.py::GEPAFeedbackMetric" = { status = "divergence", reason = "metric callable type; Rust passes a metric closure/trait" }
@@ -486,6 +489,7 @@
 
 # BetterTogether
 "teleprompt/bettertogether.py::BetterTogether.compile" = { status = "mapped", rust = "compile" }
+"teleprompt/copro_optimizer.py::COPRO.compile" = { status = "mapped", rust = "compile" }
 
 # RLM
 "predict/rlm.py::RLM.forward" = { status = "mapped", rust = "forward" }
@@ -500,4 +504,9 @@
 "primitives/repl_types.py::REPLEntry.format_output" = { status = "mapped", rust = "format_output" }
 "primitives/repl_types.py::REPLHistory.append" = { status = "mapped", rust = "append" }
 "primitives/repl_types.py::REPLHistory.format" = { status = "mapped", rust = "format" }
+"primitives/sandbox_serializable.py::SandboxSerializable.sandbox_setup" = { status = "mapped", rust = "sandbox_setup" }
+"primitives/sandbox_serializable.py::SandboxSerializable.to_sandbox" = { status = "mapped", rust = "to_sandbox" }
+"primitives/sandbox_serializable.py::SandboxSerializable.sandbox_assignment" = { status = "mapped", rust = "sandbox_assignment" }
+"primitives/sandbox_serializable.py::SandboxSerializable.rlm_preview" = { status = "mapped", rust = "rlm_preview" }
+"primitives/sandbox_serializable.py::SandboxSerializable.to_repl_variable" = { status = "divergence", reason = "a one-call forward to `build_repl_variable`, which the free function already is; upstream keeps both because a Python method reads better on the instance" }
 "primitives/repl_types.py::REPLHistory.serialize_model" = { status = "divergence", reason = "as `REPLVariable.serialize_model`" }

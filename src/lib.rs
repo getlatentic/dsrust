@@ -45,7 +45,10 @@ pub use lm::{
     ChatModel, ChatTurn, DEFAULT_PROVIDER_TIMEOUT, LM, ModelRef, OutputMode, Provider, Role,
     configure, configure_with_client,
 };
-pub use interpreter::{CodeInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable};
+pub use interpreter::{
+    CodeInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable, SandboxSerializable,
+    build_repl_variable,
+};
 pub use predict::{
     Answered, BestOfN, ChainOfThought, CodeAct, MultiChainComparison, Parallel, Predict,
     ProgramOfThought, Refine, Rlm, Steering, TypedChainOfThought, TypedPredict,

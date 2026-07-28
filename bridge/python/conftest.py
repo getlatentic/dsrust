@@ -342,6 +342,14 @@ NOT_ADAPTER_CONFORMANCE = {
     "upstream_test_document.py": "dspy.Document's own validation and string form",
     "upstream_test_audio.py": "dspy.Audio's own decoding and format detection",
     "upstream_test_tool.py": "dspy.Tool invoking Python functions, sync and async",
+    # A Python ABC, its `__get_pydantic_core_schema__` hook, and `build_repl_variable` over a
+    # Python instance. The crate's counterpart is a Rust trait a Rust caller implements, so a
+    # Python subclass has no surface to cross on; `interpreter/sandbox.rs` holds its own tests.
+    # The file is here rather than absent so that a bridge which *did* cross would fail this
+    # declaration rather than pass unnoticed.
+    "upstream_test_sandbox_serializable.py": (
+        "dspy's SandboxSerializable ABC and its pydantic hook, in Python"
+    ),
 }
 
 

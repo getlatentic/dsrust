@@ -11,6 +11,7 @@ mod signatures;
 mod submission;
 mod tools;
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
@@ -20,7 +21,10 @@ use crate::adapter::Type;
 use crate::adapter::python_json::json_dumps;
 use crate::adapter::types::base::{Formatted, to_field_value};
 use crate::example::{Example, Prediction};
-use crate::interpreter::{CodeInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable};
+use crate::interpreter::{
+    CodeInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable, SandboxSerializable,
+    build_repl_variable, sandbox,
+};
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::react::Tool;
 use crate::signature::Signature;
@@ -58,6 +62,9 @@ pub struct Rlm {
     extract: Predict<Dynamic>,
     tools: Vec<Arc<dyn Tool>>,
     interpreter: Arc<dyn CodeInterpreter>,
+    /// Inputs that live in the sandbox rather than crossing as JSON, by field name. See
+    /// [`Self::with_sandbox_input`].
+    sandboxed: BTreeMap<String, Arc<dyn SandboxSerializable>>,
 }
 
 impl Rlm {
@@ -80,7 +87,23 @@ impl Rlm {
             extract: Predict::from_signature(extract),
             tools,
             interpreter,
+            sandboxed: BTreeMap::new(),
         }
+    }
+
+    /// Hand this input to the sandbox as its own reconstruction rather than as JSON.
+    ///
+    /// dspy decides this by type — an input that `isinstance`s as `SandboxSerializable` takes the
+    /// other path. An [`Example`] holds JSON, so a Rust caller names the field instead, and the
+    /// value is serialized, rebuilt in the sandbox before the first turn, and described to the
+    /// model by [`build_repl_variable`] rather than previewed.
+    pub fn with_sandbox_input(
+        mut self,
+        name: impl Into<String>,
+        value: Arc<dyn SandboxSerializable>,
+    ) -> Self {
+        self.sandboxed.insert(name.into(), value);
+        self
     }
 
     pub fn with_max_iterations(mut self, max_iterations: usize) -> Self {
@@ -131,7 +154,11 @@ impl Rlm {
             .signature
             .inputs
             .iter()
-            .filter(|field| inputs.get(&field.name).is_none())
+            // A sandbox-held input is registered on the module rather than passed in the
+            // example, since an example carries JSON and this value is not JSON.
+            .filter(|field| {
+                inputs.get(&field.name).is_none() && !self.sandboxed.contains_key(&field.name)
+            })
             .map(|field| field.name.as_str())
             .collect();
         if !missing.is_empty() {
@@ -139,13 +166,22 @@ impl Rlm {
         }
 
         self.interpreter.define_tools(&self.tools)?;
+        // dspy `_prepare_serializable_vars`: a sandbox-held value is rebuilt in the sandbox once,
+        // before the first turn, and is not among the values bound on each `execute` after that.
+        self.interpreter.start()?;
+        for (name, value) in &self.sandboxed {
+            let (code, bound) = sandbox::injection(value.as_ref(), name);
+            self.interpreter.execute(&code, &bound)?;
+        }
+
         let variables = self.variables(&inputs);
-        // dspy binds the caller's inputs in the sandbox on every `execute`, which is what lets the
+        // dspy binds the caller's *remaining* inputs on every `execute`, which is what lets the
         // model's code reach them by name — `SUBMIT(sum(numbers))` sees `numbers`.
         let bound: serde_json::Map<String, Value> = self
             .signature
             .inputs
             .iter()
+            .filter(|field| !self.sandboxed.contains_key(&field.name))
             .filter_map(|field| {
                 inputs.get(&field.name).map(|value| (field.name.clone(), value.clone()))
             })
@@ -230,9 +266,14 @@ impl Rlm {
             .inputs
             .iter()
             .filter_map(|field| {
-                let value = inputs.get(&field.name)?;
-                let mut variable = ReplVariable::from_value(&field.name, value);
-                variable.desc = field.desc.clone();
+                let mut variable = match self.sandboxed.get(&field.name) {
+                    Some(held) => build_repl_variable(held.as_ref(), &field.name, &field.desc),
+                    None => {
+                        let mut built = ReplVariable::from_value(&field.name, inputs.get(&field.name)?);
+                        built.desc = field.desc.clone();
+                        built
+                    }
+                };
                 variable.constraints = field.constraints.clone().unwrap_or_default();
                 match Type::format(&variable) {
                     Formatted::Text(rendered) => Some(rendered),
@@ -515,5 +556,94 @@ mod loop_tests {
         let rlm = rlm(interpreter, &[]);
         let error = rlm.forward(Example::new([("other", json!(1))])).await.expect_err("refuses");
         assert!(error.to_string().contains("Missing required inputs"), "got: {error}");
+    }
+}
+
+#[cfg(test)]
+mod sandbox_tests {
+    use super::*;
+    use crate::interpreter::tests::Scripted as ScriptedInterpreter;
+    use crate::predict::scripted::Scripted;
+
+    /// A value the sandbox rebuilds rather than one the prompt carries.
+    struct Corpus(usize);
+
+    impl SandboxSerializable for Corpus {
+        fn sandbox_setup(&self) -> String {
+            "import json".to_owned()
+        }
+
+        fn to_sandbox(&self) -> Vec<u8> {
+            format!("{{\"documents\": {}}}", self.0).into_bytes()
+        }
+
+        fn sandbox_assignment(&self, var_name: &str, data_expr: &str) -> String {
+            format!("{var_name} = json.loads({data_expr})")
+        }
+
+        fn rlm_preview(&self, _max_chars: usize) -> String {
+            format!("Corpus of {} documents", self.0)
+        }
+
+        fn type_name(&self) -> &str {
+            "Corpus"
+        }
+    }
+
+    fn action(reasoning: &str, code: &str) -> String {
+        format!("[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## code ## ]]\n{code}\n\n[[ ## completed ## ]]")
+    }
+
+    /// The value is rebuilt in the sandbox before the first turn, described rather than previewed,
+    /// and left out of the per-turn bindings — it is already there under its own name.
+    #[tokio::test]
+    async fn a_sandbox_input_is_injected_once_and_described_not_previewed() {
+        let interpreter = Arc::new(ScriptedInterpreter::new([
+            Ok(Executed::Printed(json!("ok"))),
+            Ok(Executed::Submitted(json!({ "answer": "done" }))),
+        ]));
+        let submit =
+            Box::leak(action("finish", "```python\nSUBMIT(answer='done')\n```").into_boxed_str());
+        let model = Arc::new(Scripted::new(&[submit]));
+        let rlm = Rlm::new("corpus -> answer".parse().expect("parses"), interpreter.clone())
+            .with_sandbox_input("corpus", Arc::new(Corpus(12)))
+            .with_lm(model);
+
+        let prediction = rlm.forward(Example::default()).await.expect("answers");
+        assert_eq!(prediction.get("answer"), Some(&json!("done")));
+
+        let ran = interpreter.ran.lock().expect("ran").clone();
+        assert_eq!(
+            ran[0],
+            "import json\ncorpus = json.loads(_raw_corpus)",
+            "the value is rebuilt before the first turn"
+        );
+        let bound = interpreter.bound.lock().expect("bound").clone();
+        assert_eq!(bound[0]["_raw_corpus"], json!("{\"documents\": 12}"));
+        assert!(
+            bound[1].is_empty(),
+            "a sandbox-held input is not rebound per turn: {:?}",
+            bound[1]
+        );
+    }
+
+    /// The model is told what the value *is*, under the heading dspy uses, rather than shown a
+    /// slice of it.
+    #[test]
+    fn the_model_is_told_what_the_sandbox_holds() {
+        let interpreter = Arc::new(ScriptedInterpreter::new([]));
+        let mut signature: Signature = "corpus -> answer".parse().expect("parses");
+        signature.inputs[0].desc = "everything we have".to_owned();
+        let rlm = Rlm::new(signature, interpreter).with_sandbox_input("corpus", Arc::new(Corpus(12)));
+
+        let described = rlm.variables(&Example::default());
+        assert_eq!(described.len(), 1);
+        assert!(described[0].contains("Type: Corpus"), "got: {}", described[0]);
+        assert!(
+            described[0].contains("Description: everything we have\nSandbox imports available:\nimport json"),
+            "got: {}",
+            described[0]
+        );
+        assert!(described[0].contains("Preview:\n```\nCorpus of 12 documents\n```"));
     }
 }
