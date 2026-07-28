@@ -27,7 +27,7 @@ except ImportError as error:  # pragma: no cover - environment dependent
 
 import crossings  # noqa: E402
 import rust_signature  # noqa: E402
-from rust_module import RustPredict, RustReAct  # noqa: E402
+from rust_module import RustPredict, RustReAct, RustRLM  # noqa: E402
 from rust_adapter import (  # noqa: E402
     RustBAMLAdapter,
     RustChatAdapter,
@@ -95,6 +95,13 @@ NOT_YET_IMPLEMENTED = {
     "test_predicted_outputs_piped_from_predict_to_lm_call": (
         "dspy.LM's predicted-outputs `prediction` kwarg passthrough to litellm"
     ),
+    # `RLM._process_final_output` validates each submitted value against its output field's
+    # annotation and feeds a `[Type Error] …` back so the model can submit again. The crate's
+    # `Rlm::submitted` checks the shape and the field names and stops there, so a wrongly-typed
+    # submission is accepted where upstream would retry. See #22 — this is the divergence the RLM
+    # beachhead was built to find, and it is the whole reason these two are here.
+    "test_type_error_retries": "RLM does not yet type-check a submission and retry (#22)",
+    "test_with_input_variables_e2e": "as test_type_error_retries (#22)",
 }
 
 
@@ -264,6 +271,51 @@ DOES_NOT_EXERCISE_RUST = {
     "test_instructions_signature": "dspy rejecting empty instructions",
     "test_empty_signature": "dspy rejecting a signature string with no arrow",
     "test_duplicate_input_output_field_names_raise": "dspy rejecting a name used on both sides",
+    # --- the RLM suite, by class ---
+    # `RustRLM` crosses at `forward`, which is where the loop is. Everything upstream groups here
+    # is either dspy's own object under test or a piece this crate deliberately does not ship, and
+    # each has its own coverage named below.
+    "upstream_test_rlm.py::TestRLMInitialization": (
+        "dspy.RLM's constructor reading itself back; nothing runs"
+    ),
+    "upstream_test_rlm.py::TestMockInterpreter": "the test's own interpreter double",
+    "upstream_test_rlm.py::TestRLMCodeFenceParsing": (
+        "dspy's `_strip_code_fences` called directly; the crate's is held to it by the 22-case "
+        "golden in tests/conformance/predict/rlm.json"
+    ),
+    "upstream_test_rlm.py::TestRLMFormatting": (
+        "dspy's own `_format_output` and friends, called directly"
+    ),
+    "upstream_test_rlm.py::TestREPLTypes": (
+        "dspy's REPLVariable/REPLEntry/REPLHistory as Python objects; the crate's are held to "
+        "them by tests/conformance/primitives/repl_types.json"
+    ),
+    "upstream_test_rlm.py::TestRLMDynamicSignature": (
+        "the signatures dspy's own `__init__` built, which the shim leaves to dspy; the crate's "
+        "are held to them by the four signature cases in the rlm golden"
+    ),
+    "upstream_test_rlm.py::TestPythonInterpreter": (
+        "upstream's Deno/Pyodide sandbox, which this crate deliberately does not ship — the "
+        "interpreter is the caller's"
+    ),
+    "upstream_test_rlm.py::TestSandboxSecurity": "as TestPythonInterpreter",
+    "upstream_test_rlm.py::TestLargeSerializableRoundTrip": "as TestPythonInterpreter",
+    "upstream_test_rlm.py::TestRLMAsyncMock": (
+        "dspy's `aforward`; the crate is async throughout, so its one `forward` is that method "
+        "and the sync cases above are the same code"
+    ),
+    "upstream_test_rlm.py::TestBuildVariablesWithSerializable": (
+        "SandboxSerializable, which is not ported (#21)"
+    ),
+    "upstream_test_rlm.py::TestPrepareSerializableVars": "as TestBuildVariablesWithSerializable",
+}
+
+#: Tests that reach the crate even though their class is declared above as not doing so. A class
+#: upstream grouped by subject can still hold one case that drives the loop — `forward` among a
+#: class of constructor checks — and a class-wide exemption must not swallow it.
+CROSSES_DESPITE_ITS_CLASS = {
+    "test_forward_validates_required_inputs",
+    "test_forward_with_serializable",
 }
 
 # Whole files that test dspy's own Python rather than anything an adapter renders: a type's
@@ -322,11 +374,20 @@ def _require_a_crossing(request):
     # declaration may name its file to say which it means. It may also name one case of a
     # parametrized test, because whether a case reaches the crate can differ per case: an image
     # given as a URL renders, and the same test given a PIL object does not.
+    # A whole test *class* may be dspy's own Python — upstream groups by subject, so `TestREPLTypes`
+    # is every case for a type this crate does not own. Naming the class is as specific as naming
+    # each of its tests and reads as one decision rather than twenty identical ones.
+    cls = getattr(request.node, "cls", None)
+    class_keys = (
+        ()
+        if cls is None or name in CROSSES_DESPITE_ITS_CLASS
+        else (f"{module}::{cls.__name__}", cls.__name__)
+    )
     declared = any(
         key in DOES_NOT_EXERCISE_RUST
         for key in (f"{module}::{case}", case,
                     f"{module}::{name}", f"{module}::{name.removesuffix('_async')}",
-                    name, name.removesuffix("_async"))
+                    name, name.removesuffix("_async"), *class_keys)
     )
     if module in SIGNATURE_CONFORMANCE:
         reached = crossings.SIGNATURE > before_signature
@@ -458,6 +519,21 @@ def _use_rust_react(request, monkeypatch):
     monkeypatch.setattr(request.node.module, "ReAct", RustReAct, raising=False)
     monkeypatch.setattr(dspy, "ReAct", RustReAct)
     monkeypatch.setattr("dspy.predict.react.ReAct", RustReAct, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _use_rust_rlm(request, monkeypatch):
+    """For the rlm suite, make `dspy.RLM` this crate's `Rlm`, so the REPL loop runs in Rust.
+
+    This is the one beachhead that reaches RLM's control flow. Its prompts are covered by goldens —
+    the fence parser, both signatures, the REPL types — and none of those says which turn ends the
+    run or what an incomplete submission is answered with. Upstream's own tests do, so they run it.
+    """
+    if request.node.module.__name__ != "upstream_test_rlm":
+        return
+    monkeypatch.setattr(request.node.module, "RLM", RustRLM, raising=False)
+    monkeypatch.setattr(dspy, "RLM", RustRLM)
+    monkeypatch.setattr("dspy.predict.rlm.RLM", RustRLM, raising=False)
 
 
 @pytest.fixture(autouse=True)

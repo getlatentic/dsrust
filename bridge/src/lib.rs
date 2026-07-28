@@ -8,6 +8,8 @@
 //! instructions, ordered fields, and the already-formatted input values — because those are
 //! the only things the renderer needs.
 
+mod rlm;
+
 use dsrust::adapter::Input;
 use dsrust::adapter::parse::FieldMismatch;
 use dsrust::adapter::xml::XmlAdapter;
@@ -55,8 +57,8 @@ impl DynChatModel for NotOnThisSide {
 /// A model backed by a Python LM object, so this crate's own `Predict::forward` can run under
 /// dspy's module tests, driven by the test's `DummyLM`. The reply is canned and synchronous, so
 /// the async seam is met with a ready future rather than a runtime.
-struct PyLM {
-    inner: Py<PyAny>,
+pub(crate) struct PyLM {
+    pub(crate) inner: Py<PyAny>,
 }
 
 impl PyLM {
@@ -127,7 +129,7 @@ impl DynChatModel for PyLM {
 /// One input field as Python describes it: name, kind, description, any closed set, the prose
 /// any custom type in its annotation contributes, the annotation's reflected structure, and
 /// what its pydantic constraints read as.
-type PyInField = (
+pub(crate) type PyInField = (
     String,
     String,
     String,
@@ -137,7 +139,7 @@ type PyInField = (
     Option<String>,
 );
 /// One output field, which additionally carries the nested schema of a `Json` field.
-type PyOutField = (
+pub(crate) type PyOutField = (
     String,
     String,
     String,
@@ -251,7 +253,7 @@ fn literal_from(member: Value) -> PyResult<LiteralValue> {
     }
 }
 
-fn build_signature(
+pub(crate) fn build_signature(
     instructions: &str,
     inputs: Vec<PyInField>,
     outputs: Vec<PyOutField>,
@@ -394,7 +396,7 @@ fn split_example(
     Ok((named(inputs), named(labels)))
 }
 
-fn to_value_error(error: anyhow::Error) -> PyErr {
+pub(crate) fn to_value_error(error: anyhow::Error) -> PyErr {
     pyo3::exceptions::PyValueError::new_err(error.to_string())
 }
 
@@ -540,7 +542,7 @@ fn predict_forward(
 /// A tool backed by a Python callable (a `dspy.Tool`), so this crate's `ReAct` loop can call the
 /// same tools upstream's tests hand it. Name, description and the arg schema are read off the
 /// object once; `call` invokes it.
-struct PyTool {
+pub(crate) struct PyTool {
     name: String,
     description: String,
     args: Value,
@@ -772,6 +774,7 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(format_messages, module)?)?;
     module.add_function(wrap_pyfunction!(predict_forward, module)?)?;
     module.add_function(wrap_pyfunction!(react_forward, module)?)?;
+    module.add_function(wrap_pyfunction!(rlm::rlm_forward, module)?)?;
     module.add_function(wrap_pyfunction!(format_system_message, module)?)?;
     module.add_function(wrap_pyfunction!(baml_field_structure, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;

@@ -38,6 +38,7 @@ SUITES=(
   primitives/test_example.py
   predict/test_multi_chain_comparison.py predict/test_aggregation.py
   predict/test_refine.py predict/test_best_of_n.py predict/test_parallel.py
+  predict/test_rlm.py
 )
 
 # SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against
@@ -73,7 +74,10 @@ python3 "$ROOT/scripts/check_api_surface.py"
 # download is the fallback for a checkout where the submodule was not initialised.
 SUBMODULE="$ROOT/third_party/dspy/tests"
 SRC="$WORK/upstream_src"
-rm -rf "$SRC"; mkdir -p "$SRC/tests"
+# `$WORK` leads PYTHONPATH, so a `tests` package left there shadows the pinned tree and every
+# `tests.*` helper resolves against whatever an earlier run happened to leave behind. Clear it, so
+# the helpers a suite imports are always the pinned ones.
+rm -rf "$SRC" "$WORK/tests"; mkdir -p "$SRC/tests"
 if [ -d "$SUBMODULE" ]; then
   echo "==> Upstream tests from the dspy submodule (pinned at $VERSION)"
   PINNED_AT="$(git -C "$ROOT/third_party/dspy" describe --tags 2>/dev/null || echo unknown)"

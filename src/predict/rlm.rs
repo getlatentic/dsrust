@@ -102,6 +102,29 @@ impl Rlm {
         &self.generate_action.signature
     }
 
+    /// Ask both steps of this model.
+    pub fn with_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.generate_action = self.generate_action.with_lm(lm.clone());
+        self.extract = self.extract.with_lm(lm);
+        self
+    }
+
+    /// Ask the REPL turns of this model, leaving the extract step on whatever it had.
+    ///
+    /// The two steps are separable because upstream's are: `rlm.generate_action` and `rlm.extract`
+    /// are attributes its own tests replace one at a time, and a caller wanting a cheaper model to
+    /// read back a finished session wants the same seam.
+    pub fn with_action_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.generate_action = self.generate_action.with_lm(lm);
+        self
+    }
+
+    /// Ask the extract step of this model. See [`Self::with_action_lm`].
+    pub fn with_extract_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.extract = self.extract.with_lm(lm);
+        self
+    }
+
     async fn run(&self, inputs: Example, trace: &mut Vec<TraceStep>) -> Result<Prediction> {
         let missing: Vec<&str> = self
             .signature

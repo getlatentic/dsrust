@@ -123,3 +123,74 @@ class RustReAct(dspy.ReAct):
             max_iters,
         )
         return dspy.Prediction(**json.loads(output_json))
+
+
+class _PredictorAsLM:
+    """One of RLM's two predictors, shaped like an LM so the bridge's `PyLM` can carry it.
+
+    dspy's `test_rlm` mocks at the *predictor* level — `rlm.generate_action` is replaced by an
+    object handing back canned `Prediction`s — while the crate's `Rlm` holds a `Predict` that asks
+    an LM. Rather than open a second seam in the crate for a mock's benefit, the mock is dressed as
+    the thing the crate already talks to: its `Prediction` is rendered back into the field blocks a
+    reply arrives in, and the crate's own parse is what reads it. The loop crosses, and so does the
+    parse the loop depends on.
+    """
+
+    def __init__(self, predictor):
+        self.predictor = predictor
+
+    @property
+    def field_order(self):
+        """The predictor's declared outputs, where it has any — a test's mock predictor is a bare
+        object with no signature at all, and answers in whatever order it likes."""
+        signature = getattr(self.predictor, "signature", None)
+        return list(signature.output_fields) if signature is not None else []
+
+    def __call__(self, messages=None, n=None, **kwargs):
+        answered = dict(self.predictor(**kwargs).items())
+        order = self.field_order
+        names = [name for name in order if name in answered]
+        names += [name for name in answered if name not in names]
+        blocks = "\n\n".join(f"[[ ## {name} ## ]]\n{answered[name]}" for name in names)
+        return [f"{blocks}\n\n[[ ## completed ## ]]"]
+
+
+class RustRLM(dspy.RLM):
+    """A `dspy.RLM` whose REPL loop runs in this crate's `Rlm`.
+
+    `dspy.RLM.__init__` still builds both signatures and holds the interpreter, and
+    `_interpreter_context` still does upstream's own per-run setup, so what the tests read off the
+    object stays dspy's. Only the loop between them is ours: which turn ends the run, what lands in
+    the trajectory, when the extract fallback fires, and what a submission missing a field is
+    answered with — the layer no golden reaches.
+    """
+
+    def forward(self, **input_args):
+        crossings.record_render()
+        values = [
+            (name, json.dumps(_serialized(input_args[name]), ensure_ascii=False))
+            for name in self.signature.input_fields
+            if name in input_args
+        ]
+        with self._interpreter_context(self._prepare_execution_tools()) as interpreter:
+            output_json = dsrs_bridge.rlm_forward(
+                self.signature.instructions,
+                describe(self.signature.input_fields),
+                described_outputs(self.signature),
+                values,
+                interpreter,
+                _PredictorAsLM(self.generate_action),
+                _PredictorAsLM(self.extract),
+                self.max_iterations,
+                self.max_llm_calls,
+            )
+        return dspy.Prediction(
+            **{
+                name: (
+                    parse_value(value, self.signature.output_fields[name].annotation)
+                    if name in self.signature.output_fields
+                    else value
+                )
+                for name, value in json.loads(output_json).items()
+            }
+        )
