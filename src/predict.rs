@@ -37,6 +37,7 @@ struct Reply {
 
 mod aggregation;
 mod best_of_n;
+pub mod code_act;
 mod chain_of_thought;
 mod completions;
 mod derived;
@@ -47,6 +48,7 @@ pub mod program_of_thought;
 pub mod refine;
 pub use aggregation::{Normalize, majority, normalize_text};
 pub use best_of_n::BestOfN;
+pub use code_act::CodeAct;
 pub use chain_of_thought::{ChainOfThought, TypedChainOfThought};
 pub use refine::Refine;
 pub use derived::TypedPredict;

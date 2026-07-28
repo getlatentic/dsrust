@@ -86,6 +86,7 @@
 "predict/best_of_n.py::BestOfN" = { status = "mapped", rust = "BestOfN" }
 "predict/parallel.py::Parallel" = { status = "mapped", rust = "Parallel" }
 "predict/program_of_thought.py::ProgramOfThought" = { status = "mapped", rust = "ProgramOfThought" }
+"predict/code_act.py::CodeAct" = { status = "mapped", rust = "CodeAct" }
 
 # --- the code-execution seam ---
 "primitives/code_interpreter.py::CodeInterpreter" = { status = "mapped", rust = "CodeInterpreter" }
@@ -473,3 +474,6 @@
 "primitives/code_interpreter.py::CodeInterpreter.shutdown" = { status = "mapped", rust = "shutdown" }
 "primitives/code_interpreter.py::CodeInterpreter.start" = { status = "mapped", rust = "start" }
 "primitives/code_interpreter.py::CodeInterpreter.tools" = { status = "divergence", reason = "dspy exposes host functions the sandboxed code may call back into; a Rust caller wires those into its own interpreter, since the crate ships none" }
+
+# CodeAct
+"predict/code_act.py::CodeAct.forward" = { status = "mapped", rust = "forward" }

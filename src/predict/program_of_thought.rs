@@ -91,7 +91,7 @@ impl ProgramOfThought {
         let mark = trace.len();
         let written = self.generate.forward_traced(asked.clone(), trace).await?;
         relabel(trace, mark, "code_generate");
-        let (mut code, mut error) = parse_code(&written.example);
+        let (mut code, mut error) = parse_generated_code(&written.example);
         let mut output = None;
         if error.is_none() {
             (output, error) = self.execute(&code);
@@ -109,7 +109,7 @@ impl ProgramOfThought {
             let mark = trace.len();
             let written = self.regenerate.forward_traced(asked.clone(), trace).await?;
             relabel(trace, mark, "code_regenerate");
-            (code, error) = parse_code(&written.example);
+            (code, error) = parse_generated_code(&written.example);
             if error.is_none() {
                 (output, error) = self.execute(&code);
             }
@@ -246,7 +246,7 @@ fn backticked<'a>(names: impl Iterator<Item = &'a str>) -> String {
 /// Upstream cuts the field at the first `---` or blank-blank-line, prefers a fenced ```python
 /// block if there is one, and — where the last line assigns a name — appends that name so the
 /// value becomes the program's result.
-fn parse_code(written: &Example) -> (String, Option<String>) {
+pub(super) fn parse_generated_code(written: &Example) -> (String, Option<String>) {
     let code = written.get("generated_code").and_then(Value::as_str).unwrap_or_default();
     let code = code.split("---").next().unwrap_or_default();
     let code = code.split("\n\n\n").next().unwrap_or_default();
@@ -476,7 +476,7 @@ mod conformance {
     fn it_parses_the_code_dspy_parses() {
         for case in golden()["parse_code"].as_array().expect("cases") {
             let written = case["written"].as_str().expect("written");
-            let (code, error) = parse_code(&example! { generated_code: written });
+            let (code, error) = parse_generated_code(&example! { generated_code: written });
             assert_eq!(code, case["code"].as_str().expect("code"), "code for {written:?}");
             assert_eq!(
                 error.as_deref(),

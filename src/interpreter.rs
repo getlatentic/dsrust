@@ -11,8 +11,12 @@
 //! want. The seam is the same shape as [`ChatModel`](crate::lm::ChatModel) and
 //! [`Tool`](crate::react::Tool): a trait the caller implements.
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use serde_json::Value;
+
+use crate::react::Tool;
 
 /// What one execution produced.
 ///
@@ -56,6 +60,21 @@ pub trait CodeInterpreter: Send + Sync {
     /// feeds it back to the model as the error to correct, so it reaches a prompt and should read
     /// the way upstream's does.
     fn execute(&self, code: &str) -> Result<Executed>;
+
+    /// Make these tools callable from generated code, by the names they carry.
+    ///
+    /// Upstream's Protocol carries a `tools` property for exactly this — host functions the
+    /// sandboxed code calls back into — and its own interpreters dispatch to them. dspy's `CodeAct`
+    /// takes the other route open to Python and executes each tool function's *source* in the
+    /// sandbox (`inspect.getsource`); a Rust tool has no source to inject, so the tools are handed
+    /// over as values and the interpreter arranges the callback. Same effect, through the seam
+    /// upstream already provides.
+    ///
+    /// Doing nothing is a valid answer for an interpreter that was built knowing its tools.
+    fn define_tools(&self, tools: &[Arc<dyn Tool>]) -> Result<()> {
+        let _ = tools;
+        Ok(())
+    }
 
     /// Allocate whatever the environment needs, ahead of the first [`execute`](Self::execute).
     /// Doing nothing is a valid answer, and calling it twice must be safe.
