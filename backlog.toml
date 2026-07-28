@@ -1275,10 +1275,15 @@ the TPE sampler, the RNG, the reflective engine — and these reuse them.
 [[sprint]]
 id = "r6"
 name = "Close the manifest-to-SUITES gap"
-state = "planned"
+state = "done"
+shipped = "2026-07-28"
 outcome = """
 Every ported module's own upstream tests run against this crate, or say in writing why they
-cannot. Six of ten landed on 2026-07-28; these are the four that need a beachhead each.
+cannot. All seven files landed on 2026-07-28: 43 of upstream's 86 now run, 813 passing and 424
+crossing. Four divergences came out of it, three of them found by reading the module before
+wiring its suite rather than by the suite itself — see #22, #26, #25, #28. The one piece left is
+the Responses-API request body (#29), split out because it needs a request-body crossing the
+shim does not have.
 """
 suites = [
   "clients/test_lm.py", "clients/test_cache.py", "core/test_types.py",
@@ -1302,7 +1307,7 @@ typed LM-message surface is the boundary the crate owns outright.
 id = "r6-1"
 sprint = "r6"
 title = "The cache key, which decides what gets paid for twice"
-state = "planned"
+state = "done"
 size = "S"
 issue = 26
 plan = """
@@ -1316,7 +1321,7 @@ Storage-layer tests (diskcache, LRU eviction) are triaged after and may be decla
 id = "r6-2"
 sprint = "r6"
 title = "The typed LM-message surface, by round-trip"
-state = "planned"
+state = "done"
 size = "M"
 issue = 28
 plan = """
@@ -1330,7 +1335,7 @@ lm_api_conformance.rs already hit that trap once and was blind to a field upstre
 id = "r6-3"
 sprint = "r6"
 title = "Module save/load, where both sides produce a file to compare"
-state = "planned"
+state = "done"
 size = "M"
 issue = 25
 plan = """
@@ -1343,7 +1348,7 @@ round-trips a *file*, and a file is exactly what both sides can produce and comp
 id = "r6-4"
 sprint = "r6"
 title = "Settle bridge-vs-golden for the optimizer suites, and triage GEPA's five failures"
-state = "planned"
+state = "done"
 size = "M"
 issue = 27
 plan = """
@@ -1359,7 +1364,7 @@ or dspy-side plumbing, and either answer changes the plan.
 id = "r6-5"
 sprint = "r6"
 title = "Decide what the crate answers for in dspy's LM, then cross it"
-state = "planned"
+state = "done"
 size = "L"
 issue = 24
 plan = """
