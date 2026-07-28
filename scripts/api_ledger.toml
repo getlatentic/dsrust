@@ -102,6 +102,33 @@
 "predict/aggregation.py::majority" = { status = "mapped", rust = "majority" }
 "predict/aggregation.py::default_normalize" = { status = "divergence", reason = "internal normalizer; folded into predict/aggregation.rs" }
 
+# --- the error taxonomy (issue #10) ---
+# dspy exports seventeen error types. The crate answers with `anyhow::Error` throughout, and for
+# almost all of them that is the same thing said differently — a caller reads the message either
+# way, and no dspy code branches on the difference. The exception is the one a *module* catches by
+# name, which is ported as a typed error found by downcast.
+#
+# So these are divergences with one mapping, not a backlog of seventeen missing types. What would
+# turn a line here into a `todo` is finding upstream code that branches on it.
+"utils/exceptions.py::ContextWindowExceededError" = { status = "mapped", rust = "ContextWindowExceeded" }
+"utils/exceptions.py::DSPyError" = { status = "divergence", reason = "the taxonomy's root; `anyhow::Error` is the crate's, and nothing branches on the root itself" }
+"utils/exceptions.py::LMError" = { status = "divergence", reason = "dspy checks it to decide whether a JSON-adapter fallback is worth trying; the crate's fallback wraps only `parse`, so an LM failure never reaches that branch — see predict.rs::ask_through" }
+"utils/exceptions.py::AdapterParseError" = { status = "divergence", reason = "a parse failure is an `anyhow::Error`; the one place dspy branches on it — swallowing it to `{}` when a reply carries tool calls — is `Predict::native_value`" }
+"utils/exceptions.py::LMTransportError" = { status = "divergence", reason = "the message carries it; nothing branches" }
+"utils/exceptions.py::LMConfigurationError" = { status = "divergence", reason = "the message carries it; nothing branches" }
+"utils/exceptions.py::LMNotConfiguredError" = { status = "divergence", reason = "the message carries it; nothing branches" }
+"utils/exceptions.py::LMUnsupportedFeatureError" = { status = "divergence", reason = "the message carries it; nothing branches" }
+"utils/exceptions.py::LMProviderError" = { status = "divergence", reason = "the message carries it; nothing branches" }
+"utils/exceptions.py::LMUnexpectedError" = { status = "divergence", reason = "the message carries it; nothing branches" }
+"utils/exceptions.py::LMAuthError" = { status = "divergence", reason = "the message carries it; nothing branches" }
+"utils/exceptions.py::LMBillingError" = { status = "divergence", reason = "the message carries it; nothing branches" }
+"utils/exceptions.py::LMRateLimitError" = { status = "divergence", reason = "the message carries it; nothing branches" }
+"utils/exceptions.py::LMInvalidRequestError" = { status = "divergence", reason = "the message carries it; nothing branches" }
+"utils/exceptions.py::LMUnsupportedModelError" = { status = "divergence", reason = "the message carries it; nothing branches" }
+"utils/exceptions.py::LMTimeoutError" = { status = "divergence", reason = "a timeout is the reqwest error; the caller's bound is `LM::with_timeout`" }
+"utils/exceptions.py::LMServerError" = { status = "divergence", reason = "the message carries it; nothing branches" }
+"utils/exceptions.py::is_retryable_lm_error" = { status = "todo", reason = "whether a failure is worth retrying is a decision the crate does not make yet — nothing here retries a provider call, so there is no branch to feed (#10)" }
+
 # --- primitives ---
 "primitives/example.py::Example" = { status = "mapped", rust = "Example" }
 "primitives/prediction.py::Prediction" = { status = "mapped", rust = "Prediction" }

@@ -70,6 +70,8 @@ PORTED_MODULES = [
     "primitives/code_interpreter.py",
     "primitives/repl_types.py",
     "primitives/sandbox_serializable.py",
+    # the error taxonomy: 17 public types dspy exports and modules branch on
+    "utils/exceptions.py",
     # teleprompt
     "teleprompt/teleprompt.py",
     "teleprompt/bootstrap.py",

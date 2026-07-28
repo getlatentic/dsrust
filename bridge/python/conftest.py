@@ -553,13 +553,16 @@ def _require_a_crossing(request):
     reach Rust. It then passes for reasons this crate has no part in, which is the one way a
     conformance suite can lie about its coverage.
     """
-    before = crossings.RENDERED
-    before_signature = crossings.SIGNATURE
+    # Attributed rather than sampled: a bare before/after read of the globals credited a crossing
+    # made on a background thread — diskcache's fanout writers, say — to whichever test happened to
+    # be running when it landed, which made this guard flaky in both directions.
+    crossings.begin(request.node.nodeid)
     yield
-    crossed = crossings.RENDERED > before
+    rendered, signature_reached = crossings.end()
+    crossed = rendered > 0
     if crossed:
         _CROSSED.add(request.node.nodeid)
-    if crossings.SIGNATURE > before_signature:
+    if signature_reached > 0:
         _REACHED_SIGNATURE.add(request.node.nodeid)
     module = request.node.module.__name__ + ".py"
     case = request.node.name
@@ -585,7 +588,7 @@ def _require_a_crossing(request):
                     name, name.removesuffix("_async"), *class_keys)
     )
     if module in SIGNATURE_CONFORMANCE:
-        reached = crossings.SIGNATURE > before_signature
+        reached = signature_reached > 0
         # Both ways, as everywhere else here: a declaration that has started reaching the crate
         # is a claim that is no longer true.
         if reached and declared:
