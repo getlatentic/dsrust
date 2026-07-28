@@ -44,6 +44,7 @@ SUITES=(
   teleprompt/test_teleprompt.py teleprompt/test_copro_optimizer.py
   core/test_types.py clients/test_cache.py
   primitives/test_module.py primitives/test_base_module.py
+  teleprompt/test_gepa.py teleprompt/test_bettertogether.py
 )
 
 # SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against
@@ -109,6 +110,12 @@ done
 # Upstream's top-level conftest pulls in a litellm test server this harness does not run; neutralise
 # it so importing anything under tests/ can never drag the server in. Sub-package helpers stay intact.
 : > "$SRC/tests/conftest.py"
+
+# Some tests open a data file by a path relative to the repo root — `test_gepa.py` reads
+# `tests/teleprompt/gepa_dummy_lm.json`. A flattened copy runs from $WORK, where that path does not
+# exist. Link the pinned tree in under the name they expect. A *copy* here is what once shadowed the
+# pinned helpers with a stale one; a link cannot, because it is the pinned tree.
+ln -sfn "$SRC/tests" "$WORK/tests"
 
 echo "==> Running upstream's suite against Rust"
 cd "$WORK"

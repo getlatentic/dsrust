@@ -388,6 +388,14 @@ DOES_NOT_EXERCISE_RUST = {
     "test_forward_through_call_no_warning": "dspy's own call-style warning",
     "test_single_module_call_with_usage_tracker": "dspy's usage-tracker context manager",
     "test_multi_module_call_with_usage_tracker": "dspy's usage-tracker context manager",
+    # --- GEPA ---
+    # Twelve of GEPA's eighteen cross, because a proposal is rendered through this crate. These six
+    # do not: four check which logging flags its adapter sets on a minibatch eval, and two check
+    # that dspy raises on a metric with the wrong signature or a reflection template passed the
+    # wrong way — all before anything is proposed.
+    "test_gepa_adapter_disables_logging_on_minibatch_eval": "dspy's own logging flags",
+    "test_metric_requires_feedback_signature": "dspy raising before a proposal is made",
+    "test_reflection_prompt_template_in_gepa_kwargs_raises": "dspy raising before a proposal is made",
 }
 
 #: Tests that reach the crate even though their class is declared above as not doing so. A class
@@ -426,6 +434,17 @@ NOT_ADAPTER_CONFORMANCE = {
     # declaration rather than pass unnoticed.
     "upstream_test_sandbox_serializable.py": (
         "dspy's SandboxSerializable ABC and its pydantic hook, in Python"
+    ),
+    # Every test here drives dspy's BetterTogether over *mock* optimizers and asserts on the
+    # orchestration — strategy order, which candidate is returned with and without a valset, how
+    # compile args reach each step. Nothing is proposed, so nothing renders.
+    #
+    # This is the routing rule holding: an optimizer-shaped primitive goes to a golden, because
+    # both directions of an optimizer bridge execute the wrong side — patching dspy's class to call
+    # the crate has our optimizer driving dspy's modules, and leaving it has dspy's optimizer
+    # driving our adapter. Our side is `optimize/better_together.rs`'s own tests.
+    "upstream_test_bettertogether.py": (
+        "dspy's BetterTogether orchestration over mock optimizers, in Python"
     ),
 }
 
