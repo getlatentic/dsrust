@@ -214,3 +214,16 @@ fn answered<M: dsrust::module::Module>(
     serde_json::to_string(&output)
         .map_err(|error| PyValueError::new_err(format!("bad prediction: {error}")))
 }
+
+/// dspy `answer_exact_match`, answered by the crate.
+///
+/// The example's gold answer and the prediction's are read Python-side — reflection over dspy's
+/// own objects is Python's job — and what a *match* means is decided here: normalisation, the
+/// article and punctuation rules, and the best score across several gold answers.
+#[pyfunction]
+pub(crate) fn answer_exact_match(answers: Vec<String>, answered: &str) -> f64 {
+    match dsrust::evaluate::metrics::em(answered, &answers) {
+        true => 1.0,
+        false => 0.0,
+    }
+}

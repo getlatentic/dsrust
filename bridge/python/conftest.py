@@ -311,6 +311,13 @@ DOES_NOT_EXERCISE_RUST = {
     # `CodeAct.__init__` rejecting a callable object that is not a function. dspy's own constructor
     # validation, raised before a signature is built, let alone a prompt.
     "test_codeact_tool_validation": "dspy's CodeAct rejecting a non-function tool",
+    # --- evaluate ---
+    # dspy's `Evaluate` reading back its own constructor, its result object's `__repr__`, and the
+    # pandas frame it builds for display. The scoring is the crate's and every other test in the
+    # file crosses on it; none of these three scores anything.
+    "test_evaluate_initialization": "dspy's Evaluate reading back its own constructor",
+    "test_evaluation_result_repr": "dspy's own result-object repr",
+    "test_construct_result_df": "dspy's pandas display frame, built from a metric that never runs",
 }
 
 #: Tests that reach the crate even though their class is declared above as not doing so. A class
@@ -568,6 +575,44 @@ def _use_rust_code_modules(request, monkeypatch):
     monkeypatch.setattr(dspy, name, rust)
     monkeypatch.setattr(path, rust, raising=False)
     monkeypatch.setattr(f"dspy.predict.{name}", rust, raising=False)
+
+
+def _rust_answer_exact_match(example, pred, trace=None, frac=1.0):
+    """dspy's `answer_exact_match`, decided by the crate.
+
+    Reading the gold answer off a `dspy.Example` and the answer off a `Prediction` is reflection
+    over dspy's own objects, so it stays Python. What a *match* is — normalisation, the article and
+    punctuation rules, the best score across several gold answers — is the crate's.
+    """
+    assert not isinstance(example.answer, str) or frac >= 1.0
+    answers = example.answer if isinstance(example.answer, list) else [example.answer]
+    crossings.record_render()
+    return bool(dsrs_bridge.answer_exact_match([str(a) for a in answers], str(pred.answer)))
+
+
+# dspy names a result column after the metric's `__name__`, so the stand-in carries upstream's
+# rather than its own — `test_construct_result_df` compares that column by name.
+_rust_answer_exact_match.__name__ = "answer_exact_match"
+
+
+@pytest.fixture(autouse=True)
+def _metrics_are_rust(request, monkeypatch):
+    """`answer_exact_match` is the crate's, wherever a test reached for it.
+
+    dspy exports it from three places and a test file holds its own reference, so all of them are
+    rebound — the same reason the adapter swap rebinds the test module's name.
+    """
+    for path in (
+        "dspy.evaluate.metrics.answer_exact_match",
+        "dspy.evaluate.answer_exact_match",
+        "dspy.answer_exact_match",
+    ):
+        monkeypatch.setattr(path, _rust_answer_exact_match, raising=False)
+    # A test file that did `from dspy.evaluate.metrics import answer_exact_match` holds its own
+    # reference, bound when pytest imported it, so the name is rebound there too.
+    monkeypatch.setattr(
+        request.node.module, "answer_exact_match", _rust_answer_exact_match, raising=False
+    )
 
 
 @pytest.fixture(autouse=True)

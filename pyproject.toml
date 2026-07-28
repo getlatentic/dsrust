@@ -13,6 +13,10 @@ dependencies = [
     "pytest-asyncio",
     "maturin",
     "pillow",
+    # dspy builds its evaluation display table with pandas, and `test_evaluate` compares the frame
+    # it produced. Bounded below 3 because dspy 3.3 asks for `pandas>=2.1.1` and 3.0 renames a
+    # column it reads back — an upstream/pandas mismatch, not this port's.
+    "pandas>=2.1.1,<3",
 ]
 
 [tool.uv]
