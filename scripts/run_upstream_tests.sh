@@ -106,5 +106,14 @@ done
 
 echo "==> Running upstream's suite against Rust"
 cd "$WORK"
+# Teed rather than piped, so the run's own exit status is what this script exits with — a `| tee`
+# would report the tee's. The recorder reads the copy and leaves `[status]` alone on a red run.
+set +e
 PYTHONPATH="$WORK:$SRC" "$VENV/bin/python" -m pytest $(for f in "${SUITES[@]}"; do echo "upstream_$(basename "$f")"; done) \
-  "$@"
+  "$@" 2>&1 | tee "$WORK/last-run.txt"
+STATUS=${PIPESTATUS[0]}
+set -e
+# backlog.toml's [status] block was hand-written and stale. It is generated from the run now, so a
+# number in the plan cannot part company with the evidence for it.
+python3 "$ROOT/scripts/record_status.py" --suites "${#SUITES[@]}" < "$WORK/last-run.txt"
+exit "$STATUS"
