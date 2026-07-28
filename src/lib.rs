@@ -19,11 +19,14 @@ pub mod signature;
 pub use adapter::baml::BamlAdapter;
 pub use adapter::xml::XmlAdapter;
 pub use adapter::{Adapter, ChatAdapter, Extraction, JsonAdapter, NativeFunctionCalling, Reasoning, ReasoningEffort, TwoStepAdapter};
-pub use adapter::{Audio, Code, File, Formatted, History, Image, ToolCall, ToolCallResult, ToolCallResults, ToolCalls, Type};
+pub use adapter::{
+    Audio, Citation, Citations, Code, Document, File, Formatted, History, Image, MediaType,
+    ToolCall, ToolCallResult, ToolCallResults, ToolCalls, Type,
+};
 pub use lm::Capabilities;
 pub use dsrust_derive::Module;
 pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
-pub use example::{Example, Prediction};
+pub use example::{Completions, Example, Prediction};
 pub use module::{Ask, Forward, Module, NamedPredictor, PredictorState, ProgramState, TraceStep};
 pub use optimize::{
     BootstrapFewShot, COPRO, DynOptimizer, Feedback, GEPA, GepaOutcome, LabeledFewShot, MIPROv2,

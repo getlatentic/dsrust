@@ -12,6 +12,8 @@ use std::future::Future;
 
 use crate::example::{Example, Prediction};
 
+pub mod metrics;
+
 /// What one example scored, and what produced that score.
 ///
 /// The prediction is kept alongside the number because a bare score cannot be debugged: when

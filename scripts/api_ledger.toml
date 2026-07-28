@@ -49,8 +49,8 @@
 "adapters/types/file.py::File" = { status = "mapped", rust = "File" }
 "adapters/types/file.py::encode_file_to_dict" = { status = "divergence", reason = "Python-side ingestion; a Rust caller supplies the fields" }
 "adapters/types/code.py::Code" = { status = "mapped", rust = "Code" }
-"adapters/types/citation.py::Citations" = { status = "todo", reason = "no first-class Rust type; a Citations value crosses only pre-serialized through the custom-type block path (blocks.rs)" }
-"adapters/types/document.py::Document" = { status = "todo", reason = "no constructible Rust type; only the LmPart::Document wire part exists" }
+"adapters/types/citation.py::Citations" = { status = "mapped", rust = "Citations" }
+"adapters/types/document.py::Document" = { status = "mapped", rust = "Document" }
 "adapters/types/history.py::History" = { status = "mapped", rust = "History" }
 "adapters/types/reasoning.py::Reasoning" = { status = "mapped", rust = "Reasoning" }
 "adapters/types/tool.py::Tool" = { status = "mapped", rust = "Tool" }
@@ -93,7 +93,7 @@
 # --- primitives ---
 "primitives/example.py::Example" = { status = "mapped", rust = "Example" }
 "primitives/prediction.py::Prediction" = { status = "mapped", rust = "Prediction" }
-"primitives/prediction.py::Completions" = { status = "todo", reason = "dspy's multi-completion container; not ported (single-completion path today)" }
+"primitives/prediction.py::Completions" = { status = "mapped", rust = "Completions" }
 "primitives/module.py::Module" = { status = "mapped", rust = "Module" }
 "primitives/module.py::ProgramMeta" = { status = "divergence", reason = "Python metaclass" }
 "primitives/module.py::set_attribute_by_name" = { status = "divergence", reason = "internal attribute plumbing" }
@@ -140,16 +140,16 @@
 "evaluate/evaluate.py::prediction_is_dictlike" = { status = "divergence", reason = "internal helper" }
 "evaluate/evaluate.py::stylize_metric_name" = { status = "divergence", reason = "Python display" }
 "evaluate/evaluate.py::truncate_cell" = { status = "divergence", reason = "Python display" }
-"evaluate/metrics.py::answer_exact_match" = { status = "mapped", rust = "exact_match" }
-"evaluate/metrics.py::EM" = { status = "todo", reason = "exact-match alias not ported (exact_match covers the core)" }
-"evaluate/metrics.py::F1" = { status = "todo", reason = "F1 metric not ported" }
-"evaluate/metrics.py::HotPotF1" = { status = "todo", reason = "HotPotF1 metric not ported" }
-"evaluate/metrics.py::answer_passage_match" = { status = "todo", reason = "passage-match metric not ported" }
-"evaluate/metrics.py::em_score" = { status = "todo", reason = "internal EM scorer not ported" }
-"evaluate/metrics.py::f1_score" = { status = "todo", reason = "internal F1 scorer not ported" }
-"evaluate/metrics.py::hotpot_f1_score" = { status = "todo", reason = "internal HotPotF1 scorer not ported" }
-"evaluate/metrics.py::normalize_text" = { status = "todo", reason = "text normalization not ported" }
-"evaluate/metrics.py::precision_score" = { status = "todo", reason = "precision scorer not ported" }
+"evaluate/metrics.py::answer_exact_match" = { status = "mapped", rust = "answer_exact_match" }
+"evaluate/metrics.py::EM" = { status = "mapped", rust = "em" }
+"evaluate/metrics.py::F1" = { status = "mapped", rust = "f1" }
+"evaluate/metrics.py::HotPotF1" = { status = "mapped", rust = "hotpot_f1" }
+"evaluate/metrics.py::answer_passage_match" = { status = "deferred", reason = "scores a retrieved passage through dsp.utils' DPR_normalize/has_answer; retrieval is out of the 1.0 ceiling" }
+"evaluate/metrics.py::em_score" = { status = "mapped", rust = "em_score" }
+"evaluate/metrics.py::f1_score" = { status = "mapped", rust = "f1_score" }
+"evaluate/metrics.py::hotpot_f1_score" = { status = "mapped", rust = "hotpot_f1_score" }
+"evaluate/metrics.py::normalize_text" = { status = "mapped", rust = "normalize_text" }
+"evaluate/metrics.py::precision_score" = { status = "mapped", rust = "precision_score" }
 
 # --- core (the typed LM boundary; reproduced as Rust-shaped types in lm/api/*) ---
 "core/types.py::LMRequest" = { status = "mapped", rust = "LmRequest" }

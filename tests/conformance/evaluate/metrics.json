@@ -1,0 +1,284 @@
+{
+  "source": "generated from dspy==3.3.0b1 via scripts/generate_metrics_fixture.py",
+  "dspy_version": "3.3.0b1",
+  "normalize_text": [
+    {
+      "text": "The,  Eiffel  Tower!",
+      "normalized": "eiffel tower"
+    },
+    {
+      "text": "A cat and an apple",
+      "normalized": "cat and apple"
+    },
+    {
+      "text": "theatre",
+      "normalized": "theatre"
+    },
+    {
+      "text": "the,cat",
+      "normalized": "thecat"
+    },
+    {
+      "text": "a_b the_thing",
+      "normalized": "ab thething"
+    },
+    {
+      "text": "an",
+      "normalized": ""
+    },
+    {
+      "text": "a",
+      "normalized": ""
+    },
+    {
+      "text": "  ",
+      "normalized": ""
+    },
+    {
+      "text": "",
+      "normalized": ""
+    },
+    {
+      "text": "Paris",
+      "normalized": "paris"
+    },
+    {
+      "text": "café",
+      "normalized": "café"
+    },
+    {
+      "text": "CAFÉ",
+      "normalized": "café"
+    },
+    {
+      "text": "naïve résumé",
+      "normalized": "naïve résumé"
+    },
+    {
+      "text": "«quote» —dash—",
+      "normalized": "«quote» —dash—"
+    },
+    {
+      "text": "don't stop",
+      "normalized": "dont stop"
+    },
+    {
+      "text": "10 items, 20 boxes",
+      "normalized": "10 items 20 boxes"
+    },
+    {
+      "text": "yes",
+      "normalized": "yes"
+    },
+    {
+      "text": "noanswer",
+      "normalized": "noanswer"
+    },
+    {
+      "text": "tower tower",
+      "normalized": "tower tower"
+    },
+    {
+      "text": "The The The",
+      "normalized": ""
+    },
+    {
+      "text": "a1 a-1 a_1",
+      "normalized": "a1 a1 a1"
+    },
+    {
+      "text": "ÅNGSTRÖM",
+      "normalized": "̊ngström"
+    }
+  ],
+  "pairs": [
+    {
+      "prediction": "Paris",
+      "truth": "paris",
+      "em_score": true,
+      "f1_score": 1.0,
+      "hotpot_f1_score": 1.0,
+      "precision_score": 1.0
+    },
+    {
+      "prediction": "The Eiffel Tower",
+      "truth": "Eiffel Tower",
+      "em_score": true,
+      "f1_score": 1.0,
+      "hotpot_f1_score": 1.0,
+      "precision_score": 1.0
+    },
+    {
+      "prediction": "paris",
+      "truth": "Paris, France",
+      "em_score": false,
+      "f1_score": 0.6666666666666666,
+      "hotpot_f1_score": 0.6666666666666666,
+      "precision_score": 1.0
+    },
+    {
+      "prediction": "Eiffel Tower is in Paris",
+      "truth": "Paris",
+      "em_score": false,
+      "f1_score": 0.33333333333333337,
+      "hotpot_f1_score": 0.33333333333333337,
+      "precision_score": 0.2
+    },
+    {
+      "prediction": "eiffel tower in paris",
+      "truth": "eiffel tower",
+      "em_score": false,
+      "f1_score": 0.6666666666666666,
+      "hotpot_f1_score": 0.6666666666666666,
+      "precision_score": 0.5
+    },
+    {
+      "prediction": "tower tower",
+      "truth": "tower",
+      "em_score": false,
+      "f1_score": 0.6666666666666666,
+      "hotpot_f1_score": 0.6666666666666666,
+      "precision_score": 0.5
+    },
+    {
+      "prediction": "yes",
+      "truth": "no",
+      "em_score": false,
+      "f1_score": 0.0,
+      "hotpot_f1_score": 0.0,
+      "precision_score": 0.0
+    },
+    {
+      "prediction": "yes",
+      "truth": "yes",
+      "em_score": true,
+      "f1_score": 1.0,
+      "hotpot_f1_score": 1.0,
+      "precision_score": 1.0
+    },
+    {
+      "prediction": "noanswer",
+      "truth": "the answer is unknown",
+      "em_score": false,
+      "f1_score": 0.0,
+      "hotpot_f1_score": 0.0,
+      "precision_score": 0.0
+    },
+    {
+      "prediction": "no",
+      "truth": "no way",
+      "em_score": false,
+      "f1_score": 0.6666666666666666,
+      "hotpot_f1_score": 0.0,
+      "precision_score": 1.0
+    },
+    {
+      "prediction": "",
+      "truth": "",
+      "em_score": true,
+      "f1_score": 0.0,
+      "hotpot_f1_score": 0.0,
+      "precision_score": 0.0
+    },
+    {
+      "prediction": "",
+      "truth": "Paris",
+      "em_score": false,
+      "f1_score": 0.0,
+      "hotpot_f1_score": 0.0,
+      "precision_score": 0.0
+    },
+    {
+      "prediction": "Paris",
+      "truth": "",
+      "em_score": false,
+      "f1_score": 0.0,
+      "hotpot_f1_score": 0.0,
+      "precision_score": 0.0
+    },
+    {
+      "prediction": "café",
+      "truth": "cafe",
+      "em_score": false,
+      "f1_score": 0.0,
+      "hotpot_f1_score": 0.0,
+      "precision_score": 0.0
+    },
+    {
+      "prediction": "the a an",
+      "truth": "an the a",
+      "em_score": true,
+      "f1_score": 0.0,
+      "hotpot_f1_score": 0.0,
+      "precision_score": 0.0
+    },
+    {
+      "prediction": "10 items",
+      "truth": "10 items",
+      "em_score": true,
+      "f1_score": 1.0,
+      "hotpot_f1_score": 1.0,
+      "precision_score": 1.0
+    }
+  ],
+  "sets": [
+    {
+      "prediction": "The Eiffel Tower",
+      "answers": [
+        "Eiffel Tower",
+        "Louvre"
+      ],
+      "em": true,
+      "f1": 1.0,
+      "hotpot_f1": 1.0
+    },
+    {
+      "prediction": "Berlin",
+      "answers": [
+        "Eiffel Tower",
+        "Louvre"
+      ],
+      "em": false,
+      "f1": 0.0,
+      "hotpot_f1": 0.0
+    },
+    {
+      "prediction": "Eiffel Tower is in Paris",
+      "answers": [
+        "Paris"
+      ],
+      "em": false,
+      "f1": 0.33333333333333337,
+      "hotpot_f1": 0.33333333333333337
+    },
+    {
+      "prediction": "yes",
+      "answers": [
+        "no",
+        "yes"
+      ],
+      "em": true,
+      "f1": 1.0,
+      "hotpot_f1": 1.0
+    },
+    {
+      "prediction": "yes",
+      "answers": [
+        "no"
+      ],
+      "em": false,
+      "f1": 0.0,
+      "hotpot_f1": 0.0
+    },
+    {
+      "prediction": "café",
+      "answers": [
+        "cafe",
+        "coffee"
+      ],
+      "em": false,
+      "f1": 0.0,
+      "hotpot_f1": 0.0
+    }
+  ]
+}

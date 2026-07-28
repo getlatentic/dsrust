@@ -10,8 +10,10 @@
 use std::collections::BTreeMap;
 
 use anyhow::{Result, anyhow};
-use unicode_normalization::UnicodeNormalization;
 
+// The definition lives with dspy's, in `evaluate/metrics.py`; re-exported here because
+// `majority` normalises before it counts, and callers reached it by this path first.
+pub use crate::evaluate::metrics::normalize_text;
 use crate::example::Example;
 
 /// How a value is compared with another before the votes are counted.
@@ -120,25 +122,6 @@ fn text(completion: &Example, field: &str) -> String {
             None => value.to_string(),
         })
         .unwrap_or_default()
-}
-
-/// dspy `normalize_text` (`evaluate/metrics.py`): decompose, lowercase, drop punctuation, drop
-/// English articles, collapse whitespace — in that order, because each step feeds the next.
-pub fn normalize_text(text: &str) -> String {
-    // `unicodedata.normalize("NFD", …)`, and it reaches the output: an accent survives as its
-    // own combining mark, so `café` normalises to six bytes rather than five.
-    let lowered: String = text.nfd().flat_map(char::to_lowercase).collect();
-    let unpunctuated: String = lowered.chars().filter(|c| !is_punctuation(*c)).collect();
-    unpunctuated
-        .split_whitespace()
-        .filter(|word| !matches!(*word, "a" | "an" | "the"))
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// Python's `string.punctuation`, which is ASCII and nothing else — an em dash is not in it.
-fn is_punctuation(character: char) -> bool {
-    r##"!"#$%&'()*+,-./:;<=>?@[\]^_`{|}~"##.contains(character)
 }
 
 #[cfg(test)]

@@ -15,6 +15,10 @@ use crate::lm::LmUsage;
 
 use crate::adapter::python_json::format_value;
 
+pub mod completions;
+
+pub use completions::Completions;
+
 /// One labelled example: field values, plus which of those fields are inputs.
 ///
 /// Field order is preserved, because prompts render fields in signature order and a stable

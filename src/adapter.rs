@@ -71,7 +71,8 @@ mod demos;
 mod exchange;
 pub mod types;
 pub use types::{
-    Audio, Code, File, Formatted, History, Image, Reasoning, ToolCall, ToolCallResult,
+    Audio, Citation, Citations, Code, Document, File, Formatted, History, Image, MediaType,
+    Reasoning, ToolCall, ToolCallResult,
     ToolCallResults, ToolCalls, Type,
 };
 pub mod stream;
