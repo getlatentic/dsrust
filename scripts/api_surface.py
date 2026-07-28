@@ -22,7 +22,7 @@ ROOT = pathlib.Path(__file__).parent.parent
 DSPY = ROOT / "third_party" / "dspy" / "dspy"
 
 #: The dspy modules this crate ports, relative to `third_party/dspy/dspy`. A module absent here is
-#: out of scope for API conformance — either not ported (KNN, RLM, the avatar/simba/copro
+#: out of scope for API conformance — either not ported (KNN, the avatar/simba/copro
 #: optimizers) or infrastructure with no public surface to mirror. Adding a module here is a claim
 #: that the crate reproduces its public API, checked against the ledger.
 PORTED_MODULES = [
@@ -59,6 +59,7 @@ PORTED_MODULES = [
     "predict/parallel.py",
     "predict/program_of_thought.py",
     "predict/code_act.py",
+    "predict/rlm.py",
     "predict/multi_chain_comparison.py",
     "predict/aggregation.py",
     # primitives
@@ -67,6 +68,7 @@ PORTED_MODULES = [
     "primitives/module.py",
     "primitives/base_module.py",
     "primitives/code_interpreter.py",
+    "primitives/repl_types.py",
     # teleprompt
     "teleprompt/teleprompt.py",
     "teleprompt/bootstrap.py",

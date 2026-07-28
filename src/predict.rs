@@ -46,7 +46,7 @@ mod multi_chain_comparison;
 mod parallel;
 pub mod program_of_thought;
 pub mod refine;
-mod rlm;
+pub mod rlm;
 pub use aggregation::{Normalize, majority, normalize_text};
 pub use best_of_n::BestOfN;
 pub use code_act::CodeAct;
@@ -57,6 +57,7 @@ use derived::typed;
 pub use multi_chain_comparison::MultiChainComparison;
 pub use parallel::{Answered, Parallel};
 pub use program_of_thought::ProgramOfThought;
+pub use rlm::Rlm;
 
 #[cfg(test)]
 mod scripted;

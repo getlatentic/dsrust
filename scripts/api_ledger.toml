@@ -87,10 +87,14 @@
 "predict/parallel.py::Parallel" = { status = "mapped", rust = "Parallel" }
 "predict/program_of_thought.py::ProgramOfThought" = { status = "mapped", rust = "ProgramOfThought" }
 "predict/code_act.py::CodeAct" = { status = "mapped", rust = "CodeAct" }
+"predict/rlm.py::RLM" = { status = "mapped", rust = "Rlm" }
 
 # --- the code-execution seam ---
 "primitives/code_interpreter.py::CodeInterpreter" = { status = "mapped", rust = "CodeInterpreter" }
 "primitives/code_interpreter.py::FinalOutput" = { status = "mapped", rust = "Executed" }
+"primitives/repl_types.py::REPLVariable" = { status = "mapped", rust = "ReplVariable" }
+"primitives/repl_types.py::REPLEntry" = { status = "mapped", rust = "ReplEntry" }
+"primitives/repl_types.py::REPLHistory" = { status = "mapped", rust = "ReplHistory" }
 "primitives/code_interpreter.py::CodeInterpreterError" = { status = "divergence", reason = "an interpreter answers with `anyhow::Error`; a typed taxonomy is the error-taxonomy work (#10)" }
 "predict/multi_chain_comparison.py::MultiChainComparison" = { status = "mapped", rust = "MultiChainComparison" }
 "predict/aggregation.py::majority" = { status = "mapped", rust = "majority" }
@@ -480,3 +484,18 @@
 
 # BetterTogether
 "teleprompt/bettertogether.py::BetterTogether.compile" = { status = "mapped", rust = "compile" }
+
+# RLM
+"predict/rlm.py::RLM.forward" = { status = "mapped", rust = "forward" }
+"predict/rlm.py::RLM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward` is the async method" }
+"predict/rlm.py::RLM.tools" = { status = "divergence", reason = "dspy's property merges the caller's tools with the built-in llm_query pair; the crate holds the caller's and states the built-ins in the instructions" }
+
+# the REPL types
+"primitives/repl_types.py::REPLVariable.format" = { status = "mapped", rust = "format" }
+"primitives/repl_types.py::REPLVariable.from_value" = { status = "mapped", rust = "new" }
+"primitives/repl_types.py::REPLVariable.serialize_model" = { status = "divergence", reason = "reproduced by the `Type` seam: a Text-formatted value crosses as its prose, via `serialized`" }
+"primitives/repl_types.py::REPLEntry.format" = { status = "mapped", rust = "format_at" }
+"primitives/repl_types.py::REPLEntry.format_output" = { status = "mapped", rust = "format_output" }
+"primitives/repl_types.py::REPLHistory.append" = { status = "mapped", rust = "append" }
+"primitives/repl_types.py::REPLHistory.format" = { status = "mapped", rust = "format" }
+"primitives/repl_types.py::REPLHistory.serialize_model" = { status = "divergence", reason = "as `REPLVariable.serialize_model`" }

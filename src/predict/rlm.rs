@@ -11,8 +11,21 @@ use std::sync::Arc;
 use anyhow::{Result, bail};
 use serde_json::Value;
 
+use serde_json::json;
+
+use crate::adapter::python_json::json_dumps;
+use crate::adapter::types::base::{Formatted, to_field_value};
+use crate::adapter::Type;
+use crate::example::{Example, Prediction};
+use crate::interpreter::{CodeInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable};
+use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::react::Tool;
 use crate::signature::{FieldKind, InField, JsonType, OutField, Signature};
+
+use super::{Dynamic, Predict};
+
+/// dspy's default sub-LLM call budget.
+const DEFAULT_MAX_LLM_CALLS: usize = 50;
 
 /// dspy `_PYTHON_FENCE_LANGS`: the language tags a fence may carry and still be Python. The empty
 /// one is a bare ``` fence, which upstream reads as Python rather than refusing.
@@ -351,5 +364,431 @@ mod conformance {
             assert_eq!(inputs, described(&case["extract"]["inputs"]), "extract inputs for {label}");
             assert_eq!(outputs, described(&case["extract"]["outputs"]), "extract outputs for {label}");
         }
+    }
+}
+
+/// dspy's `RLM`: a model that explores its input in a REPL rather than being handed it.
+pub struct Rlm {
+    /// The task's real signature: what the caller asked for.
+    pub signature: Signature,
+    /// How many snippets the model may run before the extract ask happens anyway.
+    pub max_iterations: usize,
+    /// The sub-LLM call budget the model is told about.
+    pub max_llm_calls: usize,
+    /// How much of one output reaches the next prompt.
+    pub max_output_chars: usize,
+    generate_action: Predict<Dynamic>,
+    extract: Predict<Dynamic>,
+    tools: Vec<Arc<dyn Tool>>,
+    interpreter: Arc<dyn CodeInterpreter>,
+}
+
+impl Rlm {
+    pub fn new(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
+        Self::with_tools(signature, Vec::new(), interpreter)
+    }
+
+    pub fn with_tools(
+        signature: Signature,
+        tools: Vec<Arc<dyn Tool>>,
+        interpreter: Arc<dyn CodeInterpreter>,
+    ) -> Self {
+        let (action, extract) = signatures(&signature, &tools, DEFAULT_MAX_LLM_CALLS);
+        Self {
+            signature,
+            max_iterations: 20,
+            max_llm_calls: DEFAULT_MAX_LLM_CALLS,
+            max_output_chars: crate::interpreter::repl::MAX_OUTPUT_CHARS,
+            generate_action: Predict::from_signature(action),
+            extract: Predict::from_signature(extract),
+            tools,
+            interpreter,
+        }
+    }
+
+    pub fn with_max_iterations(mut self, max_iterations: usize) -> Self {
+        self.max_iterations = max_iterations;
+        self
+    }
+
+    /// The budget the model is told about, which is stated in the action instructions — so
+    /// changing it rebuilds them.
+    pub fn with_max_llm_calls(mut self, max_llm_calls: usize) -> Self {
+        self.max_llm_calls = max_llm_calls;
+        let (action, _) = signatures(&self.signature, &self.tools, max_llm_calls);
+        self.generate_action = Predict::from_signature(action);
+        self
+    }
+
+    /// The signature each REPL turn is asked with. dspy reaches the same thing as
+    /// `rlm.generate_action.signature`.
+    pub fn action_signature(&self) -> &Signature {
+        &self.generate_action.signature
+    }
+
+    async fn run(&self, inputs: Example, trace: &mut Vec<TraceStep>) -> Result<Prediction> {
+        let missing: Vec<&str> = self
+            .signature
+            .inputs
+            .iter()
+            .filter(|field| inputs.get(&field.name).is_none())
+            .map(|field| field.name.as_str())
+            .collect();
+        if !missing.is_empty() {
+            bail!("Missing required inputs: {missing:?}");
+        }
+
+        self.interpreter.define_tools(&self.tools)?;
+        let variables = self.variables(&inputs);
+        let mut history = ReplHistory::new(self.max_output_chars);
+
+        for iteration in 0..self.max_iterations {
+            let asked = Example::new([
+                ("variables_info", json!(variables)),
+                ("repl_history", to_field_value(&history)),
+                (
+                    "iteration",
+                    json!(format!("{}/{}", iteration + 1, self.max_iterations)),
+                ),
+            ]);
+            let mark = trace.len();
+            let action = self.generate_action.forward_traced(asked, trace).await?;
+            relabel(trace, mark, "generate_action");
+
+            let reasoning = string_field(&action.example, "reasoning");
+            let written = string_field(&action.example, "code");
+            // A fence the parser refuses is not run: the refusal itself is what the next turn
+            // reads, which is how the model learns to write Python.
+            let (code, refused) = match strip_code_fences(&written) {
+                Ok(code) => (code, None),
+                Err(error) => (written.clone(), Some(format!("[Error] {error}"))),
+            };
+            let outcome = match refused {
+                Some(error) => Err(error),
+                None => self
+                    .interpreter
+                    .execute(&code)
+                    .map_err(|error| format!("[Error] {error}")),
+            };
+
+            match outcome {
+                // An error is an observation, not the end of the episode.
+                Err(error) => history = history.append(ReplEntry::new(reasoning, code, error)),
+                Ok(Executed::Submitted(value)) => {
+                    match self.submitted(&value) {
+                        // A malformed submission is fed back so the model can submit again.
+                        Err(error) => {
+                            history = history.append(ReplEntry::new(reasoning, code, error))
+                        }
+                        Ok(outputs) => {
+                            let final_history = history.append(ReplEntry::new(
+                                reasoning.clone(),
+                                code,
+                                format!("FINAL: {}", json_dumps(&Value::Object(outputs.clone()))),
+                            ));
+                            return Ok(self.answered(outputs, &final_history, reasoning));
+                        }
+                    }
+                }
+                Ok(Executed::Printed(printed)) => {
+                    history = history.append(ReplEntry::new(reasoning, code, printed_output(&printed)))
+                }
+            }
+        }
+
+        // Out of iterations: the extract ask reads the outputs off the session instead.
+        tracing::warn!("RLM reached max iterations, using extract to get final output");
+        let asked = Example::new([
+            ("variables_info", json!(variables)),
+            ("repl_history", to_field_value(&history)),
+        ]);
+        let mark = trace.len();
+        let extracted = self.extract.forward_traced(asked, trace).await?;
+        relabel(trace, mark, "extract");
+        let outputs = extracted
+            .example
+            .fields()
+            .map(|(name, value)| (name.to_owned(), value.clone()))
+            .collect();
+        Ok(self.answered(outputs, &history, "Extract forced final output".to_owned()))
+    }
+
+    /// dspy `_build_variables`: what the model is told about each input it can reach.
+    fn variables(&self, inputs: &Example) -> Vec<String> {
+        self.signature
+            .inputs
+            .iter()
+            .filter_map(|field| {
+                let value = inputs.get(&field.name)?;
+                let text = match value {
+                    Value::String(text) => text.clone(),
+                    other => json_dumps(other),
+                };
+                let mut variable = ReplVariable::new(&field.name, python_type_name(value), &text);
+                variable.desc = field.desc.clone();
+                variable.constraints = field.constraints.clone().unwrap_or_default();
+                match Type::format(&variable) {
+                    Formatted::Text(rendered) => Some(rendered),
+                    Formatted::Blocks(_) => None,
+                }
+            })
+            .collect()
+    }
+
+    /// dspy `_process_final_output`: a submission must be a mapping carrying every output field.
+    /// What it is not is fed back to the model rather than raised, so it can submit again.
+    fn submitted(&self, value: &Value) -> Result<serde_json::Map<String, Value>, String> {
+        let Some(fields) = value.as_object() else {
+            let names: Vec<&str> =
+                self.signature.outputs.iter().map(|field| field.name.as_str()).collect();
+            return Err(format!(
+                "[Error] FINAL returned {}, expected dict with fields: {names:?}",
+                python_type_name(value)
+            ));
+        };
+        let mut missing: Vec<&str> = self
+            .signature
+            .outputs
+            .iter()
+            .map(|field| field.name.as_str())
+            .filter(|name| !fields.contains_key(*name))
+            .collect();
+        if !missing.is_empty() {
+            missing.sort_unstable();
+            let names: Vec<&str> =
+                self.signature.outputs.iter().map(|field| field.name.as_str()).collect();
+            return Err(format!(
+                "[Error] Missing output fields: {missing:?}. Use SUBMIT({})",
+                names.join(", ")
+            ));
+        }
+        let mut outputs = serde_json::Map::new();
+        for field in &self.signature.outputs {
+            outputs.insert(field.name.clone(), fields[&field.name].clone());
+        }
+        Ok(outputs)
+    }
+
+    /// dspy returns the outputs beside the trajectory and the reasoning that ended the run.
+    fn answered(
+        &self,
+        outputs: serde_json::Map<String, Value>,
+        history: &ReplHistory,
+        final_reasoning: String,
+    ) -> Prediction {
+        let mut example = Example::new(outputs);
+        example.set("trajectory", json!(history.entries));
+        example.set("final_reasoning", json!(final_reasoning));
+        Prediction::new(example, String::new())
+    }
+}
+
+/// dspy `_format_output`: silence is reported as such, since a turn that printed nothing is
+/// almost always a turn that forgot to.
+fn printed_output(printed: &Value) -> String {
+    let output = match printed {
+        Value::Null => String::new(),
+        // dspy joins a list of output lines with newlines.
+        Value::Array(lines) => lines
+            .iter()
+            .map(|line| match line {
+                Value::String(text) => text.clone(),
+                other => json_dumps(other),
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+        Value::String(text) => text.clone(),
+        other => json_dumps(other),
+    };
+    match output.is_empty() {
+        true => "(no output - did you forget to print?)".to_owned(),
+        false => output,
+    }
+}
+
+/// The name Python would print for this value's type, which is what the model is shown.
+fn python_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::String(_) => "str",
+        Value::Bool(_) => "bool",
+        Value::Number(number) if number.is_f64() => "float",
+        Value::Number(_) => "int",
+        Value::Array(_) => "list",
+        Value::Object(_) => "dict",
+        Value::Null => "NoneType",
+    }
+}
+
+fn string_field(example: &Example, name: &str) -> String {
+    example.get(name).and_then(Value::as_str).unwrap_or_default().to_owned()
+}
+
+impl Module for Rlm {
+    fn forward<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        Box::pin(async move {
+            let mut discarded = Vec::new();
+            self.run(inputs, &mut discarded).await
+        })
+    }
+
+    fn forward_traced<'a>(
+        &'a self,
+        inputs: Example,
+        trace: &'a mut Vec<TraceStep>,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
+        Box::pin(async move { self.run(inputs, trace).await })
+    }
+
+    fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
+        let mut predictors = Vec::new();
+        for mut predictor in self.generate_action.named_predictors() {
+            predictor.name = format!("generate_action.{}", predictor.name);
+            predictors.push(predictor);
+        }
+        for mut predictor in self.extract.named_predictors() {
+            predictor.name = format!("extract.{}", predictor.name);
+            predictors.push(predictor);
+        }
+        predictors
+    }
+}
+
+#[cfg(test)]
+mod loop_tests {
+    use super::*;
+    use crate::example;
+    use crate::interpreter::tests::Scripted as ScriptedInterpreter;
+    use crate::predict::scripted::Scripted;
+
+    fn task() -> Signature {
+        "context -> answer".parse().expect("parses")
+    }
+
+    fn action(reasoning: &str, code: &str) -> String {
+        format!("[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## code ## ]]\n{code}\n\n[[ ## completed ## ]]")
+    }
+
+    fn rlm(interpreter: Arc<ScriptedInterpreter>, replies: &[&'static str]) -> Rlm {
+        let model = Arc::new(Scripted::new(replies));
+        let mut rlm = Rlm::new(task(), interpreter);
+        rlm.generate_action = rlm.generate_action.with_lm(model.clone());
+        rlm.extract = rlm.extract.with_lm(model);
+        rlm
+    }
+
+    /// A `SUBMIT()` carrying every output field ends the run, and the trajectory records the turn
+    /// that did it.
+    #[tokio::test]
+    async fn a_submission_ends_the_run() {
+        let interpreter = Arc::new(ScriptedInterpreter::new([Ok(Executed::Submitted(
+            json!({ "answer": "42" }),
+        ))]));
+        let rlm = rlm(interpreter.clone(), &[&*Box::leak(
+            action("submit it", "```python\nSUBMIT(answer='42')\n```").into_boxed_str(),
+        )]);
+
+        let prediction = rlm.forward(example! { context: "a long document" }).await.expect("answers");
+        assert_eq!(prediction.get("answer"), Some(&json!("42")));
+        assert_eq!(prediction.get("final_reasoning"), Some(&json!("submit it")));
+        // The fence was stripped before the code reached the interpreter.
+        assert_eq!(*interpreter.ran.lock().expect("ran"), ["SUBMIT(answer='42')"]);
+        let trajectory = prediction.get("trajectory").expect("a trajectory");
+        assert_eq!(trajectory.as_array().expect("entries").len(), 1);
+        assert!(trajectory[0]["output"].as_str().expect("output").starts_with("FINAL: "));
+    }
+
+    /// Printed output becomes the next turn's history rather than ending anything, and silence is
+    /// reported as such.
+    #[tokio::test]
+    async fn printed_output_becomes_history() {
+        let interpreter = Arc::new(ScriptedInterpreter::new([
+            Ok(Executed::Printed(json!("1000 lines"))),
+            Ok(Executed::Printed(Value::Null)),
+            Ok(Executed::Submitted(json!({ "answer": "done" }))),
+        ]));
+        let look = Box::leak(action("look", "```python\nprint(len(context))\n```").into_boxed_str());
+        let quiet = Box::leak(action("quiet", "```python\nx = 1\n```").into_boxed_str());
+        let finish = Box::leak(action("finish", "```python\nSUBMIT(answer='done')\n```").into_boxed_str());
+        let rlm = rlm(interpreter.clone(), &[look, quiet, finish]);
+
+        let prediction = rlm.forward(example! { context: "doc" }).await.expect("answers");
+        let trajectory = prediction.get("trajectory").expect("a trajectory");
+        assert_eq!(trajectory[0]["output"], json!("1000 lines"));
+        assert_eq!(trajectory[1]["output"], json!("(no output - did you forget to print?)"));
+    }
+
+    /// A failing run, and a fence the parser refuses, both reach the model as the turn's output
+    /// rather than ending the episode.
+    #[tokio::test]
+    async fn failures_are_fed_back_as_observations() {
+        let interpreter = Arc::new(ScriptedInterpreter::new([
+            Err("NameError: name 'x' is not defined".to_owned()),
+            Ok(Executed::Submitted(json!({ "answer": "ok" }))),
+        ]));
+        let broken = Box::leak(action("try", "```python\nprint(x)\n```").into_boxed_str());
+        let finish = Box::leak(action("done", "```python\nSUBMIT(answer='ok')\n```").into_boxed_str());
+        let rlm = rlm(interpreter, &[broken, finish]);
+
+        let prediction = rlm.forward(example! { context: "doc" }).await.expect("answers");
+        let trajectory = prediction.get("trajectory").expect("a trajectory");
+        assert_eq!(
+            trajectory[0]["output"],
+            json!("[Error] NameError: name 'x' is not defined")
+        );
+    }
+
+    /// A submission missing a field is refused with dspy's wording and fed back, so the model can
+    /// submit again rather than the run ending wrong.
+    #[tokio::test]
+    async fn an_incomplete_submission_is_fed_back() {
+        let mut signature = task();
+        signature.outputs.push(OutField { name: "count".to_owned(), ..Default::default() });
+        let interpreter = Arc::new(ScriptedInterpreter::new([
+            Ok(Executed::Submitted(json!({ "answer": "42" }))),
+            Ok(Executed::Submitted(json!({ "answer": "42", "count": "1" }))),
+        ]));
+        let first = Box::leak(action("partial", "```python\nSUBMIT(answer='42')\n```").into_boxed_str());
+        let second = Box::leak(action("full", "```python\nSUBMIT(answer='42', count=1)\n```").into_boxed_str());
+        let model = Arc::new(Scripted::new(&[first, second]));
+        let mut rlm = Rlm::new(signature, interpreter);
+        rlm.generate_action = rlm.generate_action.with_lm(model.clone());
+        rlm.extract = rlm.extract.with_lm(model);
+
+        let prediction = rlm.forward(example! { context: "doc" }).await.expect("answers");
+        let trajectory = prediction.get("trajectory").expect("a trajectory");
+        assert_eq!(
+            trajectory[0]["output"],
+            json!("[Error] Missing output fields: [\"count\"]. Use SUBMIT(answer, count)")
+        );
+        assert_eq!(prediction.get("count"), Some(&json!("1")));
+    }
+
+    /// Out of iterations, the extract ask reads the outputs off the session instead.
+    #[tokio::test]
+    async fn it_extracts_when_the_iterations_run_out() {
+        let interpreter =
+            Arc::new(ScriptedInterpreter::new([Ok(Executed::Printed(json!("still looking")))]));
+        let look = Box::leak(action("look", "```python\nprint(1)\n```").into_boxed_str());
+        let extracted = "[[ ## answer ## ]]\nfrom the trajectory\n\n[[ ## completed ## ]]";
+        let rlm = rlm(interpreter, &[look, extracted]).with_max_iterations(1);
+
+        let prediction = rlm.forward(example! { context: "doc" }).await.expect("answers");
+        assert_eq!(prediction.get("answer"), Some(&json!("from the trajectory")));
+        assert_eq!(
+            prediction.get("final_reasoning"),
+            Some(&json!("Extract forced final output"))
+        );
+    }
+
+    /// An input the signature declares but the caller did not pass is refused, with dspy's wording.
+    #[tokio::test]
+    async fn it_refuses_missing_inputs() {
+        let interpreter = Arc::new(ScriptedInterpreter::new([]));
+        let rlm = rlm(interpreter, &[]);
+        let error = rlm.forward(Example::new([("other", json!(1))])).await.expect_err("refuses");
+        assert!(error.to_string().contains("Missing required inputs"), "got: {error}");
     }
 }

@@ -47,7 +47,7 @@ pub use lm::{
 pub use interpreter::{CodeInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable};
 pub use predict::{
     Answered, BestOfN, ChainOfThought, CodeAct, MultiChainComparison, Parallel, Predict,
-    ProgramOfThought, Refine, Steering, TypedChainOfThought, TypedPredict,
+    ProgramOfThought, Refine, Rlm, Steering, TypedChainOfThought, TypedPredict,
 };
 pub use signature::{
     FieldKind, InField, LiteralValue, OutField, Signature, SignatureSpec, chain_of_thought,
