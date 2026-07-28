@@ -1,0 +1,116 @@
+{
+  "source": "generated from dspy==3.3.0b1 via scripts/generate_rlm_fixture.py",
+  "dspy_version": "3.3.0b1",
+  "strip_code_fences": [
+    {
+      "written": "print(1)",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "  print(1)  ",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "\n\nprint(1)\n\n",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```python\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```py\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```python3\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```py3\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```javascript\nconsole.log(1)\n```",
+      "code": null,
+      "error": "Expected Python code but got ```javascript fence. Write Python code, not javascript."
+    },
+    {
+      "written": "```json\n{}\n```",
+      "code": null,
+      "error": "Expected Python code but got ```json fence. Write Python code, not json."
+    },
+    {
+      "written": "```PYTHON\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```python title=example\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```\n```python\nprint(1)\n```\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```\n```\n```python\nprint(1)\n```\n```\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "Here is the code:\n```python\nprint(1)\n```",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "Here is the code:\n```python\nprint(1)\n```\nAnd that is all.",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```python\nprint(1)",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "```python print(1)```",
+      "code": "```python print(1)```",
+      "error": null
+    },
+    {
+      "written": "```python",
+      "code": "```python",
+      "error": null
+    },
+    {
+      "written": "",
+      "code": "",
+      "error": null
+    },
+    {
+      "written": "```\n```",
+      "code": "",
+      "error": null
+    },
+    {
+      "written": "```python\nprint(1)\n```\n```python\nprint(2)\n```",
+      "code": "print(1)",
+      "error": null
+    }
+  ]
+}

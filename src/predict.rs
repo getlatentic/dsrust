@@ -46,6 +46,7 @@ mod multi_chain_comparison;
 mod parallel;
 pub mod program_of_thought;
 pub mod refine;
+mod rlm;
 pub use aggregation::{Normalize, majority, normalize_text};
 pub use best_of_n::BestOfN;
 pub use code_act::CodeAct;
