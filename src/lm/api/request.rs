@@ -98,36 +98,12 @@ impl LmRequest {
     /// share an entry, and the second is answered with the first's reply. Tools were exactly that
     /// — add a tool to a program and it replayed an answer from before the tool existed.
     pub fn cache_key(&self, model: &str) -> String {
-        use sha2::Digest;
         let mut identity =
             serde_json::to_value(self).unwrap_or_else(|_| json!({ "unserializable": true }));
         // The store is shared across every model in the process, so the model this call is going to
         // is part of what makes it that call — and the caller's is authoritative over the field.
         identity["model"] = json!(model);
-        let digest = sha2::Sha256::digest(canonical(&identity).as_bytes());
-        digest.iter().map(|byte| format!("{byte:02x}")).collect()
-    }
-}
-
-/// The value with every object's keys in sorted order, which is what upstream's `OPT_SORT_KEYS`
-/// gives it. This crate builds `serde_json` with `preserve_order`, so two equal requests assembled
-/// by different paths can carry the same keys in different orders — without this they would hash
-/// differently and each pay for an answer the other already has.
-fn canonical(value: &Value) -> String {
-    match value {
-        Value::Object(fields) => {
-            let mut keys: Vec<&String> = fields.keys().collect();
-            keys.sort_unstable();
-            let members: Vec<String> = keys
-                .iter()
-                .map(|key| format!("{}:{}", json!(key), canonical(&fields[*key])))
-                .collect();
-            format!("{{{}}}", members.join(","))
-        }
-        Value::Array(items) => {
-            format!("[{}]", items.iter().map(canonical).collect::<Vec<_>>().join(","))
-        }
-        scalar => scalar.to_string(),
+        crate::lm::cache::key_of(&identity)
     }
 }
 

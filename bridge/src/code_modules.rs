@@ -240,3 +240,16 @@ pub(crate) fn normalize_message(written: &str) -> PyResult<String> {
         .map_err(|error| PyValueError::new_err(format!("{error}")))?;
     serde_json::to_string(&message).map_err(|error| PyValueError::new_err(format!("{error}")))
 }
+
+/// dspy `Cache.cache_key`, computed by the crate.
+///
+/// Upstream hashes its whole kwargs dict with sorted keys; so does this. What crosses is the rule
+/// that decides whether two calls are the same call — and therefore whether one is answered with
+/// the other's reply, or paid for again.
+#[pyfunction]
+#[pyo3(signature = (request, ignored = None))]
+pub(crate) fn cache_key(request: &str, ignored: Option<Vec<String>>) -> PyResult<String> {
+    let value: Value =
+        serde_json::from_str(request).map_err(|error| PyValueError::new_err(format!("{error}")))?;
+    Ok(dsrust::lm::cache::key_ignoring(&value, &ignored.unwrap_or_default()))
+}

@@ -340,6 +340,16 @@ DOES_NOT_EXERCISE_RUST = {
     "test_stream_builder_rejects_sparse_part_indices": "dspy's own stream builder",
     "test_stream_builder_rejects_delta_type_changes": "dspy's own stream builder",
     "test_stream_builder_rejects_incomplete_tool_call_arguments": "dspy's own stream builder",
+    # --- the cache ---
+    # The crossing here is the key, and these five never compute one: three read dspy's Cache
+    # constructor back, and two check its unpickling guard. `test_unserializable_key` is the
+    # interesting one — the key *raises* rather than being computed, which is the behaviour under
+    # test, so by construction the crate is never asked.
+    "test_initialization": "dspy's Cache reading back its own constructor",
+    "test_invalid_cache_initialization": "dspy's Cache constructor validation",
+    "test_cache_init_with_disk_disabled_and_none_dir": "dspy's Cache constructor",
+    "test_unserializable_key": "a request whose key raises before the crate is asked for one",
+    "test_safe_types_rejects_non_types": "dspy's restricted-unpickling guard",
 }
 
 #: Tests that reach the crate even though their class is declared above as not doing so. A class
@@ -615,6 +625,46 @@ def _rust_answer_exact_match(example, pred, trace=None, frac=1.0):
 # dspy names a result column after the metric's `__name__`, so the stand-in carries upstream's
 # rather than its own — `test_construct_result_df` compares that column by name.
 _rust_answer_exact_match.__name__ = "answer_exact_match"
+
+
+def _rust_cache_key(self, request, ignored_args_for_cache_key=None):
+    """dspy's `Cache.cache_key`, decided by the crate.
+
+    Upstream transforms pydantic values to their schema before hashing, which is reflection and
+    stays Python; the rule that turns the transformed request into a key — every field, sorted, one
+    sha256 — is the crate's. It is the rule that decides whether two calls are the same call, and
+    therefore whether one is answered with the other's reply.
+    """
+    from dspy.clients.cache import _transform_value
+
+    import dataclasses
+
+    def orjson_default(value):
+        """What upstream's orjson serializes that the stdlib's json does not.
+
+        A dataclass in the request is the one that matters here: orjson dumps it natively, so a
+        request carrying one is cacheable upstream. Anything else still raises, because
+        `get`/`put` catch that and treat the request as uncacheable — which the suite checks.
+        """
+        if dataclasses.is_dataclass(value) and not isinstance(value, type):
+            return dataclasses.asdict(value)
+        raise TypeError(f"not JSON-serializable: {type(value).__name__}")
+
+    ignored = ignored_args_for_cache_key or []
+    params = {k: _transform_value(v) for k, v in request.items() if k not in ignored}
+    written = json.dumps(params, default=orjson_default)
+    crossings.record_render()
+    return dsrs_bridge.cache_key(written)
+
+
+@pytest.fixture(autouse=True)
+def _cache_keys_are_rust(request, monkeypatch):
+    """For the cache suite, the key is the crate's."""
+    if request.node.module.__name__ != "upstream_test_cache":
+        return
+    from dspy.clients.cache import Cache
+
+    monkeypatch.setattr(Cache, "cache_key", _rust_cache_key)
 
 
 @pytest.fixture(autouse=True)

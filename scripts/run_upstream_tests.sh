@@ -42,7 +42,7 @@ SUITES=(
   primitives/test_sandbox_serializable.py
   evaluate/test_metrics.py evaluate/test_evaluate.py
   teleprompt/test_teleprompt.py teleprompt/test_copro_optimizer.py
-  core/test_types.py
+  core/test_types.py clients/test_cache.py
 )
 
 # SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against

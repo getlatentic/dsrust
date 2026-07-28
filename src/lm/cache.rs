@@ -135,6 +135,54 @@ static SHARED: OnceLock<ResponseCache> = OnceLock::new();
 /// a program that constructs one per call ends up with — answer each other's repeated requests.
 /// Backed by disk as well as memory when there is a directory to use, which is upstream's
 /// default and what makes a repeated compile cheap.
+/// dspy `Cache.cache_key`: the request hashed, with any argument the caller excluded left out.
+///
+/// The *whole* request goes in, as upstream's whole kwargs dict does. Hashing a chosen subset is
+/// the dangerous kind of wrong — two calls differing only in a missed field share an entry, and the
+/// second is answered with the first's reply.
+pub fn key_of(request: &serde_json::Value) -> String {
+    use sha2::Digest;
+    let digest = sha2::Sha256::digest(canonical(request).as_bytes());
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+/// As [`key_of`], with `ignored` keys dropped from the top level first — dspy's
+/// `ignored_args_for_cache_key`, which is how `api_key` stays out of a key.
+pub fn key_ignoring(request: &serde_json::Value, ignored: &[String]) -> String {
+    let Some(fields) = request.as_object() else {
+        return key_of(request);
+    };
+    let kept: serde_json::Map<String, serde_json::Value> = fields
+        .iter()
+        .filter(|(name, _)| !ignored.contains(name))
+        .map(|(name, value)| (name.clone(), value.clone()))
+        .collect();
+    key_of(&serde_json::Value::Object(kept))
+}
+
+/// The value with every object's keys in sorted order, which is what upstream's `OPT_SORT_KEYS`
+/// gives it. This crate builds `serde_json` with `preserve_order`, so two equal requests assembled
+/// by different paths can carry the same keys in different orders — without this they would hash
+/// differently and each pay for an answer the other already has.
+fn canonical(value: &serde_json::Value) -> String {
+    use serde_json::{Value, json};
+    match value {
+        Value::Object(fields) => {
+            let mut keys: Vec<&String> = fields.keys().collect();
+            keys.sort_unstable();
+            let members: Vec<String> = keys
+                .iter()
+                .map(|key| format!("{}:{}", json!(key), canonical(&fields[*key])))
+                .collect();
+            format!("{{{}}}", members.join(","))
+        }
+        Value::Array(items) => {
+            format!("[{}]", items.iter().map(canonical).collect::<Vec<_>>().join(","))
+        }
+        scalar => scalar.to_string(),
+    }
+}
+
 pub fn shared() -> &'static ResponseCache {
     SHARED.get_or_init(|| match DiskCache::from_env() {
         Some(disk) => ResponseCache::default().with_disk(disk),

@@ -794,6 +794,7 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(code_modules::code_act_forward, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::answer_exact_match, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::normalize_message, module)?)?;
+    module.add_function(wrap_pyfunction!(code_modules::cache_key, module)?)?;
     module.add_function(wrap_pyfunction!(format_system_message, module)?)?;
     module.add_function(wrap_pyfunction!(baml_field_structure, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;
