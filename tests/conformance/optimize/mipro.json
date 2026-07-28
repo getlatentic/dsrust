@@ -1,6 +1,7 @@
 {
-  "source": "generated from dspy==3.3.0b1 + optuna via scripts/generate_mipro_fixture.py",
+  "source": "generated from dspy==3.3.0b1 + optuna==4.9.0 via scripts/generate_mipro_fixture.py",
   "dspy_version": "3.3.0b1",
+  "optuna_version": "4.9.0",
   "trainset": [
     {
       "question": "capital of France?",
@@ -15,22 +16,317 @@
       "answer": "Madrid"
     }
   ],
-  "proposal": "Answer with GOOD precision.",
+  "profiles": {
+    "1": [
+      "capital of France?",
+      "capital of Germany?"
+    ],
+    "2": [
+      "capital of France?",
+      "capital of Germany?"
+    ],
+    "3": [
+      "capital of France?",
+      "capital of Germany?",
+      "capital of Spain?"
+    ],
+    "4": [
+      "capital of Spain?"
+    ]
+  },
   "cases": [
     {
-      "num_candidates": 2,
+      "num_candidates": 5,
       "num_trials": 3,
-      "seed": 9,
+      "seed": 0,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        }
+      ],
       "compiled": [
-        "Answer with GOOD precision."
+        "Answer with GOOD-2 precision."
       ]
     },
     {
-      "num_candidates": 3,
-      "num_trials": 5,
-      "seed": 7,
+      "num_candidates": 5,
+      "num_trials": 3,
+      "seed": 1,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        }
+      ],
       "compiled": [
-        "Answer with GOOD precision."
+        "Answer with GOOD-2 precision."
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 3,
+      "seed": 5,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 0.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 3,
+      "seed": 9,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 100.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-3 precision."
+      ]
+    },
+    {
+      "num_candidates": 6,
+      "num_trials": 8,
+      "seed": 7,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision.",
+        "Answer with GOOD-6 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 0.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-4 precision."
+      ]
+    },
+    {
+      "num_candidates": 4,
+      "num_trials": 6,
+      "seed": 3,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 100.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-3 precision."
       ]
     }
   ]

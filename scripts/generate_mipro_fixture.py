@@ -1,18 +1,25 @@
-"""Record what dspy's MIPROv2 compiles to, end to end, by running it.
+"""Record what dspy's MIPROv2 compiles to, end to end, by running it — in the regime where the
+search dynamics decide the answer.
 
 MIPROv2 has three steps — bootstrap demo sets, propose instructions, search the combinations with
 optuna — and the pieces are verified apart (the proposer signatures byte-for-byte, the demo sets,
-the TPE sampler against optuna). This pins them together: does the crate's MIPROv2 select the
-instruction dspy's does?
+the TPE sampler against optuna). This pins them together, and it must do so *discriminatingly*: a
+single always-best proposal would let a search that ignores the seed, the trial budget and the
+sampler still pick the winner. So:
 
-The model is instruction-sensitive on purpose. A question-keyed DummyLM would tie every instruction's
-score and both sides would trivially keep the baseline; here the model answers correctly only when
-the proposed instruction (carrying `GOOD`) is in force, so that proposal scores 100% against the
-original's 0% and the search *must* select it. The Rust `Coach` model mirrors this rule exactly.
+  - the proposer answers each proposal ask with a **distinct** instruction (`GOOD-1`, `GOOD-2`, …
+    in call order), so the candidate set is real;
+  - each instruction has its own **score profile** (which questions it answers correctly), with a
+    deliberate tie at the top, so which candidates the sampler tries and in which order decides
+    the compiled instruction;
+  - there are **more candidates than trials** in most cases, so the tried set itself is
+    seed-dependent — different seeds genuinely compile different instructions;
+  - the whole **trial sequence** is recorded off the optuna study (params and score per trial),
+    not just the winner, so the Rust side is held to the search path, not the destination.
 
-Needs optuna: `uv pip install --python .dspy-venv/bin/python optuna==4.5.0`.
+Needs optuna in the venv (`uv sync` provides it).
 
-    .dspy-venv/bin/python scripts/generate_mipro_fixture.py
+    .venv/bin/python scripts/generate_mipro_fixture.py
 """
 
 from __future__ import annotations
@@ -20,6 +27,7 @@ from __future__ import annotations
 import json
 import logging
 import pathlib
+import re
 import sys
 import warnings
 
@@ -27,6 +35,7 @@ logging.disable(logging.CRITICAL)
 warnings.filterwarnings("ignore")
 
 import dspy
+import optuna
 from dspy.clients.base_lm import BaseLM
 from dspy.dsp.utils.utils import dotdict
 
@@ -35,23 +44,46 @@ PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
 
 TRAINSET = [("capital of France?", "Paris"), ("capital of Germany?", "Berlin"), ("capital of Spain?", "Madrid")]
 TABLE = dict(TRAINSET)
-PROPOSAL = "Answer with GOOD precision."
+
+#: Which questions each proposed instruction answers correctly: `GOOD-k` solves PROFILES[k].
+#: 1 and 2 tie at the top so the trial *order* decides between them; 3 beats both but may go
+#: untried when trials < candidates; 4 is a distractor; anything later scores zero. The baseline
+#: instruction carries no marker and scores zero.
+PROFILES = {
+    1: {"capital of France?", "capital of Germany?"},
+    2: {"capital of France?", "capital of Germany?"},
+    3: {"capital of France?", "capital of Germany?", "capital of Spain?"},
+    4: {"capital of Spain?"},
+}
 
 
 class Coach(BaseLM):
-    """Proposes an instruction carrying `GOOD`; answers the task correctly only when `GOOD` is the
-    instruction in force (so the proposal outscores the original). The Rust side mirrors this."""
+    """Proposes `GOOD-k` on the k-th proposal ask; answers question q correctly iff the instruction
+    in force carries a marker whose profile contains q. The Rust side mirrors this exactly.
+
+    Two shapes matter. The proposer runs each ask on `prompt_model.copy(...)` — a *shallow* copy —
+    so the call tally lives in a dict every copy shares by reference; a plain int would rebind per
+    copy and pin every proposal to `GOOD-1`. And the cache is off: the tally makes replies
+    stateful, and a cache hit would skip `forward` and swallow an increment.
+    """
 
     def __init__(self):
-        super().__init__("coach", "chat", 0.0, 1000, True)
+        super().__init__("coach", "chat", 0.0, 1000, False)
+        self.tally = {"proposal_calls": 0}
+        self.proposals = []
 
     def forward(self, prompt=None, messages=None, **kwargs):
         system, last = messages[0]["content"], messages[-1]["content"]
         if "generate a new instruction that will be used" in system:
-            content = f"[[ ## proposed_instruction ## ]]\n{PROPOSAL}\n\n[[ ## completed ## ]]"
+            self.tally["proposal_calls"] += 1
+            proposal = f"Answer with GOOD-{self.tally['proposal_calls']} precision."
+            self.proposals.append(proposal)
+            content = f"[[ ## proposed_instruction ## ]]\n{proposal}\n\n[[ ## completed ## ]]"
         else:
             question = next((q for q in TABLE if q in last), None)
-            answer = TABLE[question] if (question and "GOOD" in system) else "wrong"
+            marker = re.search(r"GOOD-(\d+)", system)
+            solved = PROFILES.get(int(marker.group(1)), set()) if marker else set()
+            answer = TABLE[question] if question in solved else "wrong"
             content = f"[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]"
         message = dotdict(content=content, tool_calls=None)
         return dotdict(
@@ -74,27 +106,57 @@ def metric(example, prediction, trace=None) -> float:
     return float(example.answer == prediction.answer)
 
 
-# (num_candidates, num_trials, seed).
-CASES = [(2, 3, 9), (3, 5, 7)]
+#: (num_candidates, num_trials, seed). Trials below candidates so the tried set is seed-dependent;
+#: one case with trials above candidates so repeat suggestions are exercised too. The committed
+#: set must compile more than one distinct instruction across cases — checked in main().
+CASES = [
+    (5, 3, 0),
+    (5, 3, 1),
+    (5, 3, 5),
+    (5, 3, 9),
+    (6, 8, 7),
+    (4, 6, 3),
+]
 
 
 def compile_once(num_candidates: int, num_trials: int, seed: int) -> dict:
-    dspy.configure(lm=Coach())
+    coach = Coach()
+    dspy.configure(lm=coach)
     trainset = [dspy.Example(question=q, answer=a).with_inputs("question") for q, a in TRAINSET]
-    optimizer = dspy.MIPROv2(
-        metric=metric, prompt_model=dspy.settings.lm, task_model=dspy.settings.lm,
-        auto=None, num_candidates=num_candidates, num_threads=1, seed=seed,
-        max_bootstrapped_demos=0, max_labeled_demos=0,
-    )
-    compiled = optimizer.compile(
-        Program(), trainset=trainset, valset=trainset, num_trials=num_trials, minibatch=False,
-        requires_permission_to_run=False, program_aware_proposer=False, data_aware_proposer=False,
-        tip_aware_proposer=True, fewshot_aware_proposer=False,
-    )
+
+    # The study is created inside compile; capture it so the golden carries the whole trial
+    # sequence rather than only the winner.
+    studies = []
+    orig_create_study = optuna.create_study
+
+    def capture(*args, **kwargs):
+        study = orig_create_study(*args, **kwargs)
+        studies.append(study)
+        return study
+
+    optuna.create_study = capture
+    try:
+        optimizer = dspy.MIPROv2(
+            metric=metric, prompt_model=dspy.settings.lm, task_model=dspy.settings.lm,
+            auto=None, num_candidates=num_candidates, num_threads=1, seed=seed,
+            max_bootstrapped_demos=0, max_labeled_demos=0,
+        )
+        compiled = optimizer.compile(
+            Program(), trainset=trainset, valset=trainset, num_trials=num_trials, minibatch=False,
+            requires_permission_to_run=False, program_aware_proposer=False, data_aware_proposer=False,
+            tip_aware_proposer=True, fewshot_aware_proposer=False,
+        )
+    finally:
+        optuna.create_study = orig_create_study
+
+    (study,) = studies
+    trials = [{"params": dict(t.params), "score": t.value} for t in study.trials]
     return {
         "num_candidates": num_candidates,
         "num_trials": num_trials,
         "seed": seed,
+        "proposals": list(coach.proposals),
+        "trials": trials,
         "compiled": [p.signature.instructions for _, p in compiled.named_predictors()],
     }
 
@@ -102,17 +164,29 @@ def compile_once(num_candidates: int, num_trials: int, seed: int) -> dict:
 def main() -> None:
     if dspy.__version__ != PINNED:
         raise SystemExit(f"expected dspy {PINNED}, found {dspy.__version__}")
+    cases = [compile_once(*case) for case in CASES]
+    distinct = {case["compiled"][0] for case in cases}
+    # The whole point of the case set: if every case compiles the same instruction, the golden
+    # cannot tell a seeded search from one that ignores its seed. Refuse to write it.
+    if len(distinct) < 2:
+        raise SystemExit(f"case set is not discriminating: every case compiled {distinct!r}")
     fixture = {
-        "source": f"generated from dspy=={PINNED} + optuna via scripts/generate_mipro_fixture.py",
+        "source": f"generated from dspy=={PINNED} + optuna=={optuna.__version__} via scripts/generate_mipro_fixture.py",
         "dspy_version": PINNED,
+        "optuna_version": optuna.__version__,
         "trainset": [{"question": q, "answer": a} for q, a in TRAINSET],
-        "proposal": PROPOSAL,
-        "cases": [compile_once(*case) for case in CASES],
+        "profiles": {str(k): sorted(v) for k, v in PROFILES.items()},
+        "cases": cases,
     }
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / "mipro.json"
     path.write_text(json.dumps(fixture, indent=2, ensure_ascii=False) + "\n")
     print(f"  wrote {path.relative_to(OUT.parent.parent)}", file=sys.stderr)
+    for case in cases:
+        print(
+            f"  ({case['num_candidates']},{case['num_trials']},{case['seed']}) -> {case['compiled'][0]!r}",
+            file=sys.stderr,
+        )
 
 
 if __name__ == "__main__":

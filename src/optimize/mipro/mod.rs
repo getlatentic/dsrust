@@ -52,6 +52,14 @@ const TIPS: [&str; 6] = [
 
 /// dspy `round(100 * mean, 2)`: the percentage `Evaluate` reports, which is the number MIPROv2 hands
 /// the sampler and compares. Half-to-even at the second decimal, matching Python's `round`.
+/// One search trial: the candidate index chosen per predictor, and the score it earned — one
+/// entry of dspy's `trial_logs`, as the optuna study records it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Trial {
+    pub params: Vec<usize>,
+    pub score: f64,
+}
+
 fn percent(mean: f64) -> f64 {
     (10_000.0 * mean).round_ties_even() / 100.0
 }
@@ -184,13 +192,25 @@ where
         student: &mut S,
         trainset: &[Example],
     ) -> Result<()> {
+        self.compile_traced(student, trainset).await.map(|_| ())
+    }
+
+    /// The same compile, also returning the search's trial sequence — dspy's `trial_logs`, which
+    /// upstream attaches to the compiled program. Each entry is the candidate index the trial
+    /// chose per predictor and the score it earned; the first entry is the default program's
+    /// baseline trial, exactly as the optuna study records it.
+    pub async fn compile_traced<S: Module + ?Sized>(
+        &self,
+        student: &mut S,
+        trainset: &[Example],
+    ) -> Result<Vec<Trial>> {
         let predictors: Vec<Signature> = student
             .named_predictors()
             .iter()
             .map(|predictor| predictor.signature.clone())
             .collect();
         if predictors.is_empty() {
-            return Ok(());
+            return Ok(Vec::new());
         }
 
         let mut rng = Rng::seeded(self.seed);
@@ -217,8 +237,7 @@ where
         let candidates = proposer.propose(&predictors, self.num_candidates, &mut rng).await?;
 
         // Step 3: search the instruction combinations.
-        self.search(student, &candidates, trainset).await;
-        Ok(())
+        Ok(self.search(student, &candidates, trainset).await)
     }
 
     /// dspy's Step 3: seed the sampler with the default program as a baseline trial, run `num_trials`
@@ -229,27 +248,29 @@ where
         student: &mut S,
         candidates: &[Vec<String>],
         valset: &[Example],
-    ) -> f64 {
+    ) -> Vec<Trial> {
         let cardinalities: Vec<usize> = candidates.iter().map(Vec::len).collect();
         let baseline = vec![0usize; candidates.len()];
         let default_score = self.score(student, valset).await;
 
         let mut sampler = tpe::TpeSampler::new(self.seed as u32, cardinalities);
         sampler.tell(baseline.clone(), default_score);
-        let mut best = (default_score, baseline);
+        let mut best = (default_score, baseline.clone());
+        let mut trials = vec![Trial { params: baseline, score: default_score }];
 
         for _ in 0..self.num_trials {
             let params = sampler.ask();
             apply(student, candidates, &params);
             let score = self.score(student, valset).await;
             sampler.tell(params.clone(), score);
+            trials.push(Trial { params: params.clone(), score });
             if score > best.0 {
                 best = (score, params);
             }
         }
 
         apply(student, candidates, &best.1);
-        best.0
+        trials
     }
 
     /// dspy Evaluate's headline for one candidate: the metric's mean over the valset, as a percentage.
