@@ -69,6 +69,7 @@ PORTED_MODULES = [
     "primitives/base_module.py",
     "primitives/code_interpreter.py",
     "primitives/repl_types.py",
+    "primitives/sandbox_serializable.py",
     # teleprompt
     "teleprompt/teleprompt.py",
     "teleprompt/bootstrap.py",

@@ -96,6 +96,8 @@
 "primitives/repl_types.py::REPLEntry" = { status = "mapped", rust = "ReplEntry" }
 "primitives/repl_types.py::REPLHistory" = { status = "mapped", rust = "ReplHistory" }
 "primitives/code_interpreter.py::CodeInterpreterError" = { status = "divergence", reason = "an interpreter answers with `anyhow::Error`; a typed taxonomy is the error-taxonomy work (#10)" }
+"primitives/sandbox_serializable.py::SandboxSerializable" = { status = "todo", reason = "the BYO-sandbox type hook: a value that reaches the REPL as its own reconstruction rather than as JSON. Needs `CodeInterpreter::execute` to carry injected variables, as upstream's does (#21)" }
+"primitives/sandbox_serializable.py::build_repl_variable" = { status = "todo", reason = "as `SandboxSerializable` (#21)" }
 "predict/multi_chain_comparison.py::MultiChainComparison" = { status = "mapped", rust = "MultiChainComparison" }
 "predict/aggregation.py::majority" = { status = "mapped", rust = "majority" }
 "predict/aggregation.py::default_normalize" = { status = "divergence", reason = "internal normalizer; folded into predict/aggregation.rs" }
@@ -492,7 +494,7 @@
 
 # the REPL types
 "primitives/repl_types.py::REPLVariable.format" = { status = "mapped", rust = "format" }
-"primitives/repl_types.py::REPLVariable.from_value" = { status = "mapped", rust = "new" }
+"primitives/repl_types.py::REPLVariable.from_value" = { status = "mapped", rust = "from_value" }
 "primitives/repl_types.py::REPLVariable.serialize_model" = { status = "divergence", reason = "reproduced by the `Type` seam: a Text-formatted value crosses as its prose, via `serialized`" }
 "primitives/repl_types.py::REPLEntry.format" = { status = "mapped", rust = "format_at" }
 "primitives/repl_types.py::REPLEntry.format_output" = { status = "mapped", rust = "format_output" }

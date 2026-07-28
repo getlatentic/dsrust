@@ -6,7 +6,9 @@
 //! one carries the prose rather than a JSON dump of its fields.
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
+use crate::adapter::python_json::{json_dumps_indented, python_type_name};
 use crate::adapter::types::base::{Formatted, Type};
 
 /// dspy's default cap on how much of an output reaches a prompt.
@@ -31,10 +33,39 @@ pub struct ReplVariable {
 }
 
 impl ReplVariable {
+    /// dspy `REPLVariable.from_value`: what the model is told about a value it can reach.
+    ///
+    /// Two writers decide the text, and they are not the one the adapters use. A container goes
+    /// through `json.dumps(indent=2)` — an entry per line, and non-ASCII escaped, since upstream
+    /// leaves `ensure_ascii` at its default. Anything else is what Python's `str` prints, so a
+    /// bool reads `True` and a null reads `None`. The length reported beside the preview counts
+    /// that text, escapes and all.
+    pub fn from_value(name: impl Into<String>, value: &Value) -> Self {
+        Self::from_value_previewed(name, value, PREVIEW_CHARS)
+    }
+
+    /// As [`Self::from_value`], with dspy's `preview_chars` stated rather than defaulted.
+    pub fn from_value_previewed(
+        name: impl Into<String>,
+        value: &Value,
+        preview_chars: usize,
+    ) -> Self {
+        let text = stringified(value);
+        Self {
+            name: name.into(),
+            type_name: python_type_name(value).to_owned(),
+            desc: String::new(),
+            constraints: String::new(),
+            total_length: text.chars().count(),
+            preview: preview(&text, preview_chars),
+        }
+    }
+
     /// A variable whose value is this text, previewed the way dspy previews it.
     ///
-    /// The type name is the caller's: only the sandbox knows what the value became on its side, and
-    /// a Rust caller states it rather than a Python `type()` guessing at it.
+    /// The type name is the caller's, which is what a value living in the sandbox needs: only the
+    /// sandbox knows what it became on its side, so upstream's `SandboxSerializable` hook has the
+    /// holder state it. [`Self::from_value`] is the path for a value the caller still holds.
     pub fn new(name: impl Into<String>, type_name: impl Into<String>, value: &str) -> Self {
         Self {
             name: name.into(),
@@ -67,8 +98,29 @@ fn preview(value: &str, budget: usize) -> String {
     // character rather than gaining one.
     let half = budget / 2;
     let head: String = characters[..half].iter().collect();
-    let tail: String = characters[characters.len() - half..].iter().collect();
-    format!("{head}...{tail}")
+    format!("{head}...{}", tail(&characters, half))
+}
+
+/// Python's `value[-half:]`, which is not `value[len - half..]` at zero: `-0 == 0`, so a budget
+/// with no half to spare hands back the *whole* value rather than nothing.
+fn tail(characters: &[char], half: usize) -> String {
+    match half {
+        0 => characters.iter().collect(),
+        _ => characters[characters.len() - half..].iter().collect(),
+    }
+}
+
+/// dspy `REPLVariable.from_value`'s stringifier: `json.dumps(indent=2)` for a container, Python's
+/// `str` for anything else.
+fn stringified(value: &Value) -> String {
+    match value {
+        Value::Object(_) | Value::Array(_) => json_dumps_indented(value),
+        Value::String(text) => text.clone(),
+        Value::Null => "None".to_owned(),
+        Value::Bool(true) => "True".to_owned(),
+        Value::Bool(false) => "False".to_owned(),
+        number => number.to_string(),
+    }
 }
 
 /// Python's `f"{n:,}"`: a thousands separator every three digits. It reaches the prompt, so the
@@ -130,9 +182,12 @@ impl ReplEntry {
             true => {
                 let half = max_output_chars / 2;
                 let head: String = characters[..half].iter().collect();
-                let tail: String = characters[raw_len - half..].iter().collect();
                 let omitted = raw_len - max_output_chars;
-                format!("{head}\n\n... ({} characters omitted) ...\n\n{tail}", grouped(omitted))
+                format!(
+                    "{head}\n\n... ({} characters omitted) ...\n\n{}",
+                    grouped(omitted),
+                    tail(&characters, half)
+                )
             }
         };
         format!("Output ({} chars):\n{shown}", grouped(raw_len))
@@ -210,91 +265,19 @@ impl Type for ReplHistory {
 }
 
 #[cfg(test)]
+mod conformance;
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
+    /// Appending answers with a new history rather than mutating — a Rust property, since dspy
+    /// gets it from a frozen pydantic model.
     #[test]
-    fn a_variable_states_its_name_type_length_and_preview() {
-        let variable = ReplVariable::new("context", "str", "hello");
-        let Formatted::Text(rendered) = variable.format() else {
-            panic!("a variable renders as text");
-        };
-        assert_eq!(
-            rendered,
-            "Variable: `context` (access it in your code)\n\
-             Type: str\n\
-             Total length: 5 characters\n\
-             Preview:\n```\nhello\n```"
-        );
-    }
-
-    /// The description and constraints appear only where they were given, between the type and the
-    /// length.
-    #[test]
-    fn a_variable_states_a_description_and_constraints_only_when_it_has_them() {
-        let variable = ReplVariable::new("n", "int", "42").with_desc("how many").with_constraints("> 0");
-        let Formatted::Text(rendered) = variable.format() else {
-            panic!("a variable renders as text");
-        };
-        assert!(rendered.contains("Type: int\nDescription: how many\nConstraints: > 0\nTotal length:"));
-    }
-
-    /// Python's thousands separator reaches the prompt, so it is reproduced rather than left plain.
-    #[test]
-    fn lengths_carry_pythons_thousands_separator() {
-        assert_eq!(grouped(0), "0");
-        assert_eq!(grouped(999), "999");
-        assert_eq!(grouped(1_000), "1,000");
-        assert_eq!(grouped(12_345), "12,345");
-        assert_eq!(grouped(1_234_567), "1,234,567");
-    }
-
-    /// A value past the budget is cut in the middle, both halves off the same budget.
-    #[test]
-    fn a_long_value_is_previewed_head_and_tail() {
-        let value: String = std::iter::repeat_n('x', 10).collect();
-        assert_eq!(preview(&value, 10), value, "at the budget nothing is cut");
-        assert_eq!(preview("abcdefghij", 4), "ab...ij");
-        // An odd budget loses a character to Python's floor division, rather than gaining one.
-        assert_eq!(preview("abcdefghij", 5), "ab...ij");
-    }
-
-    /// The header states the *true* length even when the body was cut.
-    #[test]
-    fn an_output_keeps_its_true_length_in_the_header() {
-        assert_eq!(ReplEntry::format_output("hi", 10), "Output (2 chars):\nhi");
-        let long: String = std::iter::repeat_n('y', 20).collect();
-        let formatted = ReplEntry::format_output(&long, 10);
-        assert!(formatted.starts_with("Output (20 chars):\n"), "got: {formatted}");
-        assert!(formatted.contains("\n\n... (10 characters omitted) ...\n\n"), "got: {formatted}");
-    }
-
-    /// An entry is numbered from one, and its reasoning line appears only when there is one.
-    #[test]
-    fn an_entry_is_numbered_from_one() {
-        let entry = ReplEntry::new("", "print(1)", "1");
-        assert_eq!(
-            entry.format_at(0, MAX_OUTPUT_CHARS),
-            "=== Step 1 ===\nCode:\n```python\nprint(1)\n```\nOutput (1 chars):\n1"
-        );
-        let reasoned = ReplEntry::new("look first", "print(1)", "1");
-        assert!(reasoned.format_at(1, MAX_OUTPUT_CHARS).starts_with("=== Step 2 ===\nReasoning: look first\nCode:"));
-    }
-
-    /// An empty history says so rather than rendering blank, and appending answers with a new one.
-    #[test]
-    fn an_empty_history_says_so_and_appending_does_not_mutate() {
+    fn appending_does_not_mutate() {
         let history = ReplHistory::default();
-        assert_eq!(
-            history.format(),
-            Formatted::Text("You have not interacted with the REPL environment yet.".to_owned())
-        );
         let appended = history.append(ReplEntry::new("", "print(1)", "1"));
         assert!(history.is_empty(), "the original is unchanged");
         assert_eq!(appended.len(), 1);
-        let Formatted::Text(rendered) = appended.format() else {
-            panic!("a history renders as text");
-        };
-        assert!(rendered.starts_with("=== Step 1 ==="));
     }
 }

@@ -49,6 +49,83 @@ pub(crate) fn json_dumps(value: &Value) -> String {
     }
 }
 
+/// The name Python would print for this value's type, which is what a model driving a REPL is
+/// shown and what an error naming the wrong shape quotes back.
+pub fn python_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::String(_) => "str",
+        Value::Bool(_) => "bool",
+        Value::Number(number) if number.is_f64() => "float",
+        Value::Number(_) => "int",
+        Value::Array(_) => "list",
+        Value::Object(_) => "dict",
+        Value::Null => "NoneType",
+    }
+}
+
+/// Python's `json.dumps(value, indent=2)`, the writer `REPLVariable.from_value` previews a value
+/// through. Two things separate it from [`json_dumps`]: an item per line at two spaces a level,
+/// and `ensure_ascii` left at its default — so every character outside printable ASCII is escaped,
+/// which changes both the text and the length reported beside it.
+pub fn json_dumps_indented(value: &Value) -> String {
+    indented(value, 0)
+}
+
+fn indented(value: &Value, level: usize) -> String {
+    match value {
+        // An empty container stays on one line, whatever the indent.
+        Value::Array(items) if items.is_empty() => "[]".to_owned(),
+        Value::Object(fields) if fields.is_empty() => "{}".to_owned(),
+        Value::Array(items) => {
+            block('[', ']', level, items.iter().map(|item| indented(item, level + 1)))
+        }
+        Value::Object(fields) => block(
+            '{',
+            '}',
+            level,
+            fields
+                .iter()
+                .map(|(key, item)| format!("{}: {}", escape_ascii(key), indented(item, level + 1))),
+        ),
+        Value::String(text) => escape_ascii(text),
+        scalar => scalar.to_string(),
+    }
+}
+
+/// One bracketed run: an entry per line two spaces deeper, and the closer back at this level.
+fn block(open: char, close: char, level: usize, entries: impl Iterator<Item = String>) -> String {
+    let inner = "  ".repeat(level + 1);
+    let body = entries.map(|entry| format!("{inner}{entry}")).collect::<Vec<_>>().join(",\n");
+    format!("{open}\n{body}\n{}{close}", "  ".repeat(level))
+}
+
+/// Python's `py_encode_basestring_ascii`: everything outside `\x20..=\x7e` is escaped, with the
+/// five short forms it prefers and a surrogate pair for anything past the basic plane.
+fn escape_ascii(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push('"');
+    for character in text.chars() {
+        match character {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
+            ' '..='~' => out.push(character),
+            other => {
+                let mut units = [0u16; 2];
+                for unit in other.encode_utf16(&mut units) {
+                    out.push_str(&format!("\\u{unit:04x}"));
+                }
+            }
+        }
+    }
+    out.push('"');
+    out
+}
+
 /// dspy `format_field_value`: a field's value as the model reads it.
 ///
 /// A list handed to a `str` field is laid out as a numbered list rather than as JSON, because

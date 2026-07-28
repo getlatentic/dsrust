@@ -314,10 +314,6 @@ mod tests {
         "question -> answer".parse().expect("parses")
     }
 
-    fn written(code: &str) -> Example {
-        example! { generated_code: code }
-    }
-
     /// The three asks carry the fields dspy composes, in upstream's order.
     #[test]
     fn each_mode_adds_the_fields_dspy_adds() {
