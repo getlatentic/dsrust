@@ -471,8 +471,9 @@ fn format_messages(
 /// latter here, so `Predict::forward` renders, calls back into that `DummyLM`, and parses, all in
 /// Rust. Returns the prediction's output fields as JSON text and the raw reply the model gave.
 #[pyfunction]
-#[pyo3(signature = (instructions, inputs, outputs, values, py_lm, demos = None, n = None))]
+#[pyo3(signature = (adapter, instructions, inputs, outputs, values, py_lm, demos = None, n = None))]
 fn predict_forward(
+    adapter: &str,
     instructions: &str,
     inputs: Vec<PyInField>,
     outputs: Vec<PyOutField>,
@@ -502,16 +503,38 @@ fn predict_forward(
         .with_config(config)
         .with_demos(demos)
         .with_lm(Arc::new(PyLM { inner: py_lm }));
-    let prediction =
-        pollster::block_on(dsrust::module::Module::forward(&predict, example)).map_err(to_value_error)?;
-    let output: serde_json::Map<String, Value> = prediction
-        .example
-        .fields()
-        .map(|(name, value)| (name.to_owned(), value.clone()))
+    // Honour the adapter dspy configured, since a test may set a JSON or XML one. `from_signature`
+    // already defaults to `ChatAdapter`, so only the others need setting.
+    let predict = match adapter {
+        "json" => predict.with_adapter(JsonAdapter::default()),
+        "xml" => predict.with_adapter(XmlAdapter),
+        "baml" => predict.with_adapter(BamlAdapter),
+        _ => predict,
+    };
+    // One candidate goes through the full `forward` — parse, coercion, the feedback retry, any
+    // native or extraction path. Several candidates (dspy's `n`) go through `forward_completions`,
+    // which reads every candidate the one response carried. Both return the parsed output fields,
+    // always as a JSON array so the shim hands `Prediction.from_completions` a list either way.
+    let predictions = if n.unwrap_or(1) > 1 {
+        pollster::block_on(predict.forward_completions(example)).map_err(to_value_error)?
+    } else {
+        vec![pollster::block_on(dsrust::module::Module::forward(&predict, example))
+            .map_err(to_value_error)?]
+    };
+    let completions: Vec<serde_json::Map<String, Value>> = predictions
+        .iter()
+        .map(|prediction| {
+            prediction
+                .example
+                .fields()
+                .map(|(name, value)| (name.to_owned(), value.clone()))
+                .collect()
+        })
         .collect();
-    let output_json = serde_json::to_string(&output)
+    let output_json = serde_json::to_string(&completions)
         .map_err(|error| PyValueError::new_err(format!("bad prediction: {error}")))?;
-    Ok((output_json, prediction.raw))
+    let raw = predictions.first().map(|prediction| prediction.raw.clone()).unwrap_or_default();
+    Ok((output_json, raw))
 }
 
 /// The system message the named adapter states for this signature.

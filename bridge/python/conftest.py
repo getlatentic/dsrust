@@ -27,6 +27,7 @@ except ImportError as error:  # pragma: no cover - environment dependent
 
 import crossings  # noqa: E402
 import rust_signature  # noqa: E402
+from rust_module import RustPredict  # noqa: E402
 from rust_adapter import (  # noqa: E402
     RustBAMLAdapter,
     RustChatAdapter,
@@ -87,6 +88,13 @@ dspy.adapters.base._provider_tool_call_to_tool_call_dict = _rust_provider_tool_c
 # A run may report xfails this list is empty of: dspy marks two of its own image cases xfail
 # inside the test body, for a gap upstream has rather than one this port has.
 NOT_YET_IMPLEMENTED = {
+    # dspy.LM's predicted-outputs feature: a `prediction` kwarg passed straight through to
+    # litellm's `completion`. The crate's typed `LmConfig` does not model it, so `RustPredict`
+    # renders and calls but never forwards it. The other half of the test — `prediction` as an
+    # ordinary input field, which must NOT reach the LM — does cross correctly.
+    "test_predicted_outputs_piped_from_predict_to_lm_call": (
+        "dspy.LM's predicted-outputs `prediction` kwarg passthrough to litellm"
+    ),
 }
 
 
@@ -409,6 +417,23 @@ def _use_rust_adapter(monkeypatch):
     monkeypatch.setattr("dspy.adapters.xml_adapter.XMLAdapter", RustXMLAdapter, raising=False)
     monkeypatch.setattr(dspy, "TwoStepAdapter", RustTwoStepAdapter, raising=False)
     monkeypatch.setattr("dspy.adapters.TwoStepAdapter", RustTwoStepAdapter, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _use_rust_predict(request, monkeypatch):
+    """For the predict suite, make `dspy.Predict` this crate's `Predict`, so those tests exercise
+    our module's orchestration — render, call, parse — not dspy's over our adapter.
+
+    Scoped to that one file: `dspy.Predict` is constructed inside `ChainOfThought`, `ReAct` and the
+    optimizers, so a blanket swap would route every module suite through this at once. Each of those
+    crosses under its own beachhead instead. The name is rebound in the test module too, since it
+    did `from dspy import Predict` and holds its own reference.
+    """
+    if request.node.module.__name__ != "upstream_test_predict":
+        return
+    monkeypatch.setattr(request.node.module, "Predict", RustPredict, raising=False)
+    monkeypatch.setattr(dspy, "Predict", RustPredict)
+    monkeypatch.setattr("dspy.predict.predict.Predict", RustPredict, raising=False)
 
 
 @pytest.fixture(autouse=True)

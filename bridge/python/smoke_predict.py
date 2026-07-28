@@ -19,6 +19,7 @@ def run() -> None:
 
     values = [("question", json.dumps("What color is the sky?"), False)]
     output_json, raw = dsrs_bridge.predict_forward(
+        "chat",
         signature.instructions,
         describe(signature.input_fields),
         described_outputs(signature),
@@ -27,7 +28,7 @@ def run() -> None:
         None,
         None,
     )
-    output = json.loads(output_json)
+    output = json.loads(output_json)[0]
     print("output:", output)
     print("raw:", repr(raw))
     assert output.get("answer") == "blue", f"expected blue, got {output!r}"
@@ -35,6 +36,7 @@ def run() -> None:
     # The second call draws the next canned answer, and lm.history recorded both — proof it went
     # through BaseLM.__call__, not DummyLM.forward.
     output2, _ = dsrs_bridge.predict_forward(
+        "chat",
         signature.instructions,
         describe(signature.input_fields),
         described_outputs(signature),
@@ -43,7 +45,7 @@ def run() -> None:
         None,
         None,
     )
-    assert json.loads(output2).get("answer") == "red", f"expected red, got {output2!r}"
+    assert json.loads(output2)[0].get("answer") == "red", f"expected red, got {output2!r}"
     assert len(lm.history) == 2, f"expected 2 history entries, got {len(lm.history)}"
     print("SMOKE OK — our Predict ran, DummyLM answered, history recorded")
 

@@ -266,7 +266,7 @@ pub(crate) fn coerce_value(kind: &FieldKind, name: &str, value: &mut Value) -> R
         FieldKind::Bool => coerce_bool(name, value),
         FieldKind::Int => coerce_int(name, value),
         FieldKind::Float => coerce_float(name, value),
-        FieldKind::Json(_) => coerce_json(name, value),
+        FieldKind::Json(json) => coerce_json(name, &json.annotation, value),
         // A member reaches the marker path as the text of its value, which is what the model
         // was asked for; naming the member it belongs to is the declared type's job.
         FieldKind::Enum(_) => Ok(()),
@@ -310,7 +310,7 @@ fn coerce_int(name: &str, value: &mut Value) -> Result<()> {
 
 /// A native value of any non-string shape passes through; a string parses as JSON, with a
 /// surrounding code fence tolerated because marker-path models like to wrap JSON in one.
-fn coerce_json(name: &str, value: &mut Value) -> Result<()> {
+fn coerce_json(name: &str, annotation: &str, value: &mut Value) -> Result<()> {
     let Some(text) = value.as_str() else {
         return Ok(());
     };
@@ -319,8 +319,18 @@ fn coerce_json(name: &str, value: &mut Value) -> Result<()> {
             *value = parsed;
             Ok(())
         }
+        // A type whose own string form is not JSON — a `datetime`, a `date` — is what dspy hands to
+        // that type rather than rejecting, so the bare string is left for the caller's typing (or,
+        // across the bridge, `parse_value`) to read. A container or model still needs valid JSON.
+        Err(_) if accepts_string_form(annotation) => Ok(()),
         Err(error) => Err(anyhow!("{name} must be valid JSON: {error}")),
     }
+}
+
+/// Annotations whose Python type validates a bare, non-JSON string, so such a value is its own
+/// form rather than malformed JSON. dspy's `TypeAdapter` accepts the string for each of these.
+fn accepts_string_form(annotation: &str) -> bool {
+    matches!(annotation, "datetime" | "date" | "time" | "timedelta")
 }
 
 /// The content of a ```json ... ``` (or bare ```) block, when the whole text is one fence.
