@@ -216,6 +216,21 @@
       "written": "text before\n```python\nprint(2)\n```\ntext after",
       "code": "print(2)",
       "error": null
+    },
+    {
+      "written": "```py\nx = 1\nprint(x)\n```",
+      "code": "```py\nx = 1\nprint(x)\n```",
+      "error": null
+    },
+    {
+      "written": "```Python\nprint(1)\n```",
+      "code": "```Python\nprint(1)\n```",
+      "error": null
+    },
+    {
+      "written": "```python3\nprint(1)\n```",
+      "code": "```python3\nprint(1)\n```",
+      "error": null
     }
   ]
 }

@@ -42,6 +42,12 @@ WRITTEN = [
     "no fence here\nresult = 4",
     "```python\nresult  =  4\n```",
     "text before\n```python\nprint(2)\n```\ntext after",
+    # Tags a real model actually writes. dspy's PoT regex matches ```python and nothing else, so
+    # these keep their fences and reach the interpreter as-is — unlike RLM's `_strip_code_fences`,
+    # which accepts them. The two parsers disagree upstream; both are reproduced.
+    "```py\nx = 1\nprint(x)\n```",
+    "```Python\nprint(1)\n```",
+    "```python3\nprint(1)\n```",
 ]
 
 
