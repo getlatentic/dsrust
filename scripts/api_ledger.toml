@@ -127,6 +127,9 @@
 "clients/openai.py::OpenAIProvider" = { status = "deferred", reason = "OpenAI finetuning provider; out of the 1.0 ceiling" }
 "clients/openai.py::TrainingJobOpenAI" = { status = "deferred", reason = "OpenAI finetuning job; out of the 1.0 ceiling" }
 
+# --- ambient configuration (dspy.settings / configure / context) ---
+"dsp/utils/settings.py::Settings" = { status = "divergence", reason = "dspy's thread-local ambient settings object, deliberately not reproduced: ambient state is a concurrency hazard and un-idiomatic in Rust. Its members map to explicit seams — `configure`/`settings.lm` -> lm::global::configure (the one global: the model); `context(lm=..., adapter=...)` -> per-call parameters (Predict::with_lm / with_adapter); `context(trace=[])` + settings.trace -> the trace passed explicitly as &mut Vec<TraceStep> through Module::forward_traced; save/load of ambient settings not reproduced" }
+
 # --- evaluate ---
 "evaluate/evaluate.py::Evaluate" = { status = "mapped", rust = "Evaluate" }
 "evaluate/evaluate.py::EvaluationResult" = { status = "mapped", rust = "Evaluation" }

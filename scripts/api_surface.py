@@ -82,6 +82,9 @@ PORTED_MODULES = [
     "evaluate/metrics.py",
     # core
     "core/types.py",
+    # ambient configuration — dspy.settings/configure/context are re-exports of this class's
+    # methods, so the surface a user touches daily is defined here.
+    "dsp/utils/settings.py",
 ]
 
 #: Dunder methods that are genuine API — the model is called, not just constructed — so they count
