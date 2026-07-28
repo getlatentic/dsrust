@@ -15,9 +15,8 @@
 #                         decision rather than a pending gap. Counts as resolved-for-1.0, reported
 #                         apart from todo so the 1.0 backlog is only in-scope work.
 #
-# Scope is top-level classes and functions. Methods of mapped classes are measured and reported by
-# the gate (same-name coverage) but not yet required here; tightening the gate to method level is
-# the next step, the way the upstream suites grew.
+# Both top-level symbols and the methods of every mapped class are gated; the `[methods]` table
+# below carries the second.
 
 [symbols]
 
@@ -179,3 +178,283 @@
 "core/types.py::System" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
 "core/types.py::User" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
 "core/types.py::ToolResult" = { status = "divergence", reason = "tool-result message constructor; reproduced via LmMessage" }
+
+# Every public method of a `mapped` class, classified the same way. A class can otherwise pass the
+# gate while missing half of what its Python counterpart does; this is what closes that.
+#
+# The existence check is looser here than for a top-level symbol: `rust` names the Rust method (or
+# the free function or type that took its place) and the gate looks it up across the tree rather
+# than on one type, since a method can move to a trait impl, an inherent block or a constructor.
+# The classification is the load-bearing part — a recorded decision per method.
+
+[methods]
+
+# Adapter
+"adapters/base.py::Adapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"adapters/base.py::Adapter.format" = { status = "mapped", rust = "format" }
+"adapters/base.py::Adapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/base.py::Adapter.format_conversation_history" = { status = "divergence", reason = "folded into adapter/history.rs, which expands a History field into its turns" }
+"adapters/base.py::Adapter.format_demos" = { status = "divergence", reason = "folded into adapter/demos.rs" }
+"adapters/base.py::Adapter.format_field_description" = { status = "mapped", rust = "field_description" }
+"adapters/base.py::Adapter.format_field_structure" = { status = "divergence", reason = "only the BAML adapter states one; see `BamlAdapter::field_structure`" }
+"adapters/base.py::Adapter.format_system_message" = { status = "mapped", rust = "system_message" }
+"adapters/base.py::Adapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/base.py::Adapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/base.py::Adapter.parse" = { status = "mapped", rust = "parse" }
+
+# ChatAdapter
+"adapters/chat_adapter.py::ChatAdapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"adapters/chat_adapter.py::ChatAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/chat_adapter.py::ChatAdapter.format_field_description" = { status = "mapped", rust = "field_description" }
+"adapters/chat_adapter.py::ChatAdapter.format_field_structure" = { status = "divergence", reason = "the chat adapter states no field-structure section of its own" }
+"adapters/chat_adapter.py::ChatAdapter.format_field_with_value" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/chat_adapter.py::ChatAdapter.format_finetune_data" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
+"adapters/chat_adapter.py::ChatAdapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/chat_adapter.py::ChatAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/chat_adapter.py::ChatAdapter.parse" = { status = "mapped", rust = "parse" }
+"adapters/chat_adapter.py::ChatAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+
+# JSONAdapter
+"adapters/json_adapter.py::JSONAdapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"adapters/json_adapter.py::JSONAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/json_adapter.py::JSONAdapter.format_field_structure" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/json_adapter.py::JSONAdapter.format_field_with_value" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/json_adapter.py::JSONAdapter.format_finetune_data" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
+"adapters/json_adapter.py::JSONAdapter.parse" = { status = "mapped", rust = "parse" }
+"adapters/json_adapter.py::JSONAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+
+# XMLAdapter
+"adapters/xml_adapter.py::XMLAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/xml_adapter.py::XMLAdapter.format_field_structure" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/xml_adapter.py::XMLAdapter.format_field_with_value" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/xml_adapter.py::XMLAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/xml_adapter.py::XMLAdapter.parse" = { status = "mapped", rust = "parse" }
+"adapters/xml_adapter.py::XMLAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+
+# BAMLAdapter
+"adapters/baml_adapter.py::BAMLAdapter.format_field_structure" = { status = "mapped", rust = "field_structure" }
+"adapters/baml_adapter.py::BAMLAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+
+# TwoStepAdapter
+"adapters/two_step_adapter.py::TwoStepAdapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"adapters/two_step_adapter.py::TwoStepAdapter.format" = { status = "mapped", rust = "format" }
+"adapters/two_step_adapter.py::TwoStepAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/two_step_adapter.py::TwoStepAdapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/two_step_adapter.py::TwoStepAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/two_step_adapter.py::TwoStepAdapter.parse" = { status = "mapped", rust = "parse" }
+
+# Type
+"adapters/types/base_type.py::Type.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
+"adapters/types/base_type.py::Type.description" = { status = "mapped", rust = "description" }
+"adapters/types/base_type.py::Type.extract_custom_type_from_annotation" = { status = "divergence", reason = "Python annotation walking; a Rust field states its type directly" }
+"adapters/types/base_type.py::Type.format" = { status = "mapped", rust = "format" }
+"adapters/types/base_type.py::Type.is_streamable" = { status = "mapped", rust = "is_streamable" }
+"adapters/types/base_type.py::Type.parse_lm_response" = { status = "mapped", rust = "parse_lm_response" }
+"adapters/types/base_type.py::Type.parse_stream_chunk" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
+"adapters/types/base_type.py::Type.serialize_model" = { status = "mapped", rust = "serialized" }
+
+# Image
+"adapters/types/image.py::Image.format" = { status = "mapped", rust = "format" }
+"adapters/types/image.py::Image.from_PIL" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
+"adapters/types/image.py::Image.from_file" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
+"adapters/types/image.py::Image.from_url" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
+
+# Audio
+"adapters/types/audio.py::Audio.format" = { status = "mapped", rust = "format" }
+"adapters/types/audio.py::Audio.from_array" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
+"adapters/types/audio.py::Audio.from_file" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
+"adapters/types/audio.py::Audio.from_url" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
+"adapters/types/audio.py::Audio.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+
+# File
+"adapters/types/file.py::File.format" = { status = "mapped", rust = "format" }
+"adapters/types/file.py::File.from_bytes" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
+"adapters/types/file.py::File.from_file_id" = { status = "mapped", rust = "from_id" }
+"adapters/types/file.py::File.from_path" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
+"adapters/types/file.py::File.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+
+# Code
+"adapters/types/code.py::Code.description" = { status = "mapped", rust = "description" }
+"adapters/types/code.py::Code.format" = { status = "mapped", rust = "format" }
+"adapters/types/code.py::Code.serialize_model" = { status = "divergence", reason = "reproduced as the type's `Serialize`, via the `Type` seam's `serialized`" }
+"adapters/types/code.py::Code.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+
+# Citations
+"adapters/types/citation.py::Citations.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
+"adapters/types/citation.py::Citations.description" = { status = "mapped", rust = "description" }
+"adapters/types/citation.py::Citations.format" = { status = "mapped", rust = "format" }
+"adapters/types/citation.py::Citations.from_dict_list" = { status = "mapped", rust = "new" }
+"adapters/types/citation.py::Citations.is_streamable" = { status = "mapped", rust = "is_streamable" }
+"adapters/types/citation.py::Citations.parse_lm_response" = { status = "mapped", rust = "parse_lm_response" }
+"adapters/types/citation.py::Citations.parse_stream_chunk" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
+"adapters/types/citation.py::Citations.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+
+# Document
+"adapters/types/document.py::Document.description" = { status = "mapped", rust = "description" }
+"adapters/types/document.py::Document.format" = { status = "mapped", rust = "format" }
+"adapters/types/document.py::Document.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+
+# Reasoning
+"adapters/types/reasoning.py::Reasoning.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
+"adapters/types/reasoning.py::Reasoning.format" = { status = "mapped", rust = "format" }
+"adapters/types/reasoning.py::Reasoning.is_streamable" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
+"adapters/types/reasoning.py::Reasoning.parse_lm_response" = { status = "divergence", reason = "read off the reply by predict.rs's `native_value`, which fills the field from the Thinking part" }
+"adapters/types/reasoning.py::Reasoning.parse_stream_chunk" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
+"adapters/types/reasoning.py::Reasoning.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+
+# Tool
+"adapters/types/tool.py::Tool.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"adapters/types/tool.py::Tool.format" = { status = "mapped", rust = "format_tool" }
+"adapters/types/tool.py::Tool.format_as_litellm_function_call" = { status = "mapped", rust = "spec" }
+"adapters/types/tool.py::Tool.from_langchain" = { status = "divergence", reason = "LangChain interop, a Python-ecosystem constructor" }
+"adapters/types/tool.py::Tool.from_mcp_tool" = { status = "mapped", rust = "mcp_tool" }
+
+# ToolCalls
+"adapters/types/tool.py::ToolCalls.description" = { status = "mapped", rust = "description" }
+"adapters/types/tool.py::ToolCalls.format" = { status = "mapped", rust = "format" }
+"adapters/types/tool.py::ToolCalls.from_dict_list" = { status = "mapped", rust = "from_dict_list" }
+"adapters/types/tool.py::ToolCalls.serialize_model" = { status = "divergence", reason = "reproduced as the type's `Serialize`, via the `Type` seam's `serialized`" }
+"adapters/types/tool.py::ToolCalls.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+
+# ToolCallResults
+"adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values" = { status = "mapped", rust = "from_tool_calls_and_values" }
+"adapters/types/tool.py::ToolCallResults.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+
+# Signature
+"signatures/signature.py::Signature.append" = { status = "todo", reason = "adding a field to a signature is not ported; call sites build the field vectors directly" }
+"signatures/signature.py::Signature.delete" = { status = "mapped", rust = "delete" }
+"signatures/signature.py::Signature.dump_state" = { status = "mapped", rust = "PredictorState" }
+"signatures/signature.py::Signature.equals" = { status = "divergence", reason = "reproduced as `PartialEq`" }
+"signatures/signature.py::Signature.insert" = { status = "todo", reason = "as `append`" }
+"signatures/signature.py::Signature.load_state" = { status = "mapped", rust = "restore" }
+"signatures/signature.py::Signature.prepend" = { status = "todo", reason = "as `append`" }
+"signatures/signature.py::Signature.with_instructions" = { status = "mapped", rust = "with_instructions" }
+"signatures/signature.py::Signature.with_updated_fields" = { status = "todo", reason = "updating one field's description or type in place is not ported" }
+
+# Predict
+"predict/predict.py::Predict.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"predict/predict.py::Predict.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"predict/predict.py::Predict.dump_state" = { status = "mapped", rust = "dump_state" }
+"predict/predict.py::Predict.forward" = { status = "mapped", rust = "forward" }
+"predict/predict.py::Predict.get_config" = { status = "mapped", rust = "config" }
+"predict/predict.py::Predict.load_state" = { status = "mapped", rust = "load_state" }
+"predict/predict.py::Predict.reset" = { status = "divergence", reason = "clearing a predictor's learned state; a Rust caller rebuilds it or assigns the fields `named_predictors` exposes" }
+"predict/predict.py::Predict.update_config" = { status = "mapped", rust = "with_config" }
+
+# ChainOfThought
+"predict/chain_of_thought.py::ChainOfThought.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"predict/chain_of_thought.py::ChainOfThought.forward" = { status = "mapped", rust = "forward" }
+
+# ReAct
+"predict/react.py::ReAct.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"predict/react.py::ReAct.forward" = { status = "mapped", rust = "forward" }
+"predict/react.py::ReAct.truncate_trajectory" = { status = "todo", reason = "trimming a trajectory that outgrew the context window is not ported" }
+
+# ReActV2
+"predict/react_v2.py::ReActV2.forward" = { status = "mapped", rust = "forward" }
+
+# Refine
+"predict/refine.py::Refine.forward" = { status = "mapped", rust = "forward" }
+
+# BestOfN
+"predict/best_of_n.py::BestOfN.forward" = { status = "mapped", rust = "forward" }
+
+# Parallel
+"predict/parallel.py::Parallel.forward" = { status = "mapped", rust = "forward" }
+
+# MultiChainComparison
+"predict/multi_chain_comparison.py::MultiChainComparison.forward" = { status = "mapped", rust = "forward" }
+
+# Example
+"primitives/example.py::Example.copy" = { status = "divergence", reason = "reproduced as `Clone`" }
+"primitives/example.py::Example.get" = { status = "mapped", rust = "get" }
+"primitives/example.py::Example.inputs" = { status = "mapped", rust = "inputs" }
+"primitives/example.py::Example.items" = { status = "mapped", rust = "fields" }
+"primitives/example.py::Example.keys" = { status = "divergence", reason = "Python object protocol (mapping, iteration, copy); Rust uses the standard traits instead" }
+"primitives/example.py::Example.labels" = { status = "mapped", rust = "labels" }
+"primitives/example.py::Example.toDict" = { status = "divergence", reason = "Python object protocol (mapping, iteration, copy); Rust uses the standard traits instead" }
+"primitives/example.py::Example.values" = { status = "divergence", reason = "Python object protocol (mapping, iteration, copy); Rust uses the standard traits instead" }
+"primitives/example.py::Example.with_inputs" = { status = "mapped", rust = "with_inputs" }
+"primitives/example.py::Example.without" = { status = "divergence", reason = "reproduced as `subset`, which keeps the named fields rather than dropping them" }
+
+# Prediction
+"primitives/prediction.py::Prediction.completions" = { status = "mapped", rust = "Completions" }
+"primitives/prediction.py::Prediction.from_completions" = { status = "mapped", rust = "from_candidates" }
+"primitives/prediction.py::Prediction.get_lm_usage" = { status = "mapped", rust = "usage" }
+"primitives/prediction.py::Prediction.set_lm_usage" = { status = "mapped", rust = "with_usage" }
+
+# Completions
+"primitives/prediction.py::Completions.items" = { status = "mapped", rust = "items" }
+
+# Module
+"primitives/module.py::Module.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"primitives/module.py::Module.batch" = { status = "mapped", rust = "Parallel" }
+"primitives/module.py::Module.get_lm" = { status = "mapped", rust = "lm" }
+"primitives/module.py::Module.inspect_history" = { status = "divergence", reason = "Python REPL history printing" }
+"primitives/module.py::Module.map_named_predictors" = { status = "divergence", reason = "`named_predictors` hands back `&mut` references, so a caller maps over them directly" }
+"primitives/module.py::Module.named_predictors" = { status = "mapped", rust = "named_predictors" }
+"primitives/module.py::Module.predictors" = { status = "mapped", rust = "named_predictors" }
+"primitives/module.py::Module.set_lm" = { status = "mapped", rust = "with_lm" }
+
+# Teleprompter
+"teleprompt/teleprompt.py::Teleprompter.compile" = { status = "mapped", rust = "compile" }
+"teleprompt/teleprompt.py::Teleprompter.get_params" = { status = "divergence", reason = "reads the optimizer's own `__dict__`; a Rust optimizer's configuration is its public fields" }
+
+# BootstrapFewShot
+"teleprompt/bootstrap.py::BootstrapFewShot.compile" = { status = "mapped", rust = "compile" }
+
+# LabeledFewShot
+"teleprompt/vanilla.py::LabeledFewShot.compile" = { status = "mapped", rust = "compile" }
+
+# MIPROv2
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile" = { status = "mapped", rust = "compile" }
+
+# GEPA
+"teleprompt/gepa/gepa.py::GEPA.auto_budget" = { status = "todo", reason = "GEPA's automatic metric-call budget is not ported; the budget is set explicitly" }
+"teleprompt/gepa/gepa.py::GEPA.compile" = { status = "mapped", rust = "compile" }
+
+# BaseLM
+"clients/base_lm.py::BaseLM.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"clients/base_lm.py::BaseLM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"clients/base_lm.py::BaseLM.copy" = { status = "divergence", reason = "reproduced as `Clone` plus the per-call `LmConfig`, which is where a rollout differs" }
+"clients/base_lm.py::BaseLM.dump_state" = { status = "divergence", reason = "serialising a model into a program's state; the crate stores the model reference, not its credentials" }
+"clients/base_lm.py::BaseLM.forward" = { status = "mapped", rust = "forward" }
+"clients/base_lm.py::BaseLM.inspect_history" = { status = "divergence", reason = "Python REPL history printing" }
+"clients/base_lm.py::BaseLM.load_state" = { status = "divergence", reason = "as `dump_state`" }
+"clients/base_lm.py::BaseLM.supported_params" = { status = "todo", reason = "which config keys a model accepts is not answered yet" }
+"clients/base_lm.py::BaseLM.supports_function_calling" = { status = "mapped", rust = "capabilities" }
+"clients/base_lm.py::BaseLM.supports_reasoning" = { status = "mapped", rust = "capabilities" }
+"clients/base_lm.py::BaseLM.supports_response_schema" = { status = "mapped", rust = "capabilities" }
+"clients/base_lm.py::BaseLM.update_history" = { status = "divergence", reason = "dspy's global call log; the crate returns each response to its caller" }
+
+# LM
+"clients/lm.py::LM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"clients/lm.py::LM.dump_state" = { status = "divergence", reason = "as `BaseLM.dump_state`" }
+"clients/lm.py::LM.finetune" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
+"clients/lm.py::LM.forward" = { status = "mapped", rust = "forward" }
+"clients/lm.py::LM.infer_provider" = { status = "mapped", rust = "Provider" }
+"clients/lm.py::LM.kill" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
+"clients/lm.py::LM.launch" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
+"clients/lm.py::LM.load_state" = { status = "divergence", reason = "as `BaseLM.dump_state`" }
+"clients/lm.py::LM.reinforce" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
+"clients/lm.py::LM.supported_params" = { status = "todo", reason = "as `BaseLM.supported_params`" }
+"clients/lm.py::LM.supports_function_calling" = { status = "mapped", rust = "capabilities" }
+"clients/lm.py::LM.supports_reasoning" = { status = "mapped", rust = "capabilities" }
+"clients/lm.py::LM.supports_response_schema" = { status = "mapped", rust = "capabilities" }
+
+# Cache
+"clients/cache.py::Cache.cache_key" = { status = "mapped", rust = "cache_key" }
+"clients/cache.py::Cache.get" = { status = "divergence", reason = "the cache is transparent: `Cached::forward` looks a request up and stores its answer, so there is no separate read" }
+"clients/cache.py::Cache.load_memory_cache" = { status = "divergence", reason = "dspy persists its in-memory cache to disk on demand; the crate's disk cache (lm/cache/disk.rs) is written as it goes" }
+"clients/cache.py::Cache.put" = { status = "divergence", reason = "as `get`" }
+"clients/cache.py::Cache.reset_memory_cache" = { status = "mapped", rust = "clear" }
+"clients/cache.py::Cache.save_memory_cache" = { status = "divergence", reason = "as `load_memory_cache`" }
+
+# LMMessage
+"core/types.py::LMMessage.normalize_parts" = { status = "divergence", reason = "pydantic validation of the parts list; reproduced by the typed `LmPart` enum" }
+"core/types.py::LMMessage.text" = { status = "mapped", rust = "text" }
+
+# LMRequest
+"core/types.py::LMRequest.from_call" = { status = "mapped", rust = "new" }
+"core/types.py::LMRequest.from_prompt_or_messages" = { status = "divergence", reason = "builds a request from dspy's legacy prompt/messages pair; the crate's boundary is typed-only" }
+"core/types.py::LMRequest.with_config_overrides" = { status = "mapped", rust = "configured" }

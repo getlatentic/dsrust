@@ -7,9 +7,11 @@ what this crate did about each symbol. This binds the two so neither can drift:
   * a ledger entry naming a symbol dspy no longer defines fails — delete it;
   * a `mapped` entry whose Rust identifier is defined nowhere in the tree fails — the mapping rotted.
 
+The three checks run over dspy's top-level symbols *and* over every public method of a class the
+ledger maps, so a class cannot pass while missing half of what its Python counterpart does.
+
 `todo` entries do not fail: they are the acknowledged API backlog, and the run prints them so the
-gap is visible rather than implied. Method-level coverage of mapped classes is reported too, as the
-next thing to tighten.
+gap is visible rather than implied.
 
 Run by the upstream runner, so an API claim and its evidence cannot part company.
 """
@@ -56,58 +58,63 @@ def top_level_keys(surface: dict) -> set[str]:
     return keys
 
 
-def method_coverage(surface: dict, ledger: dict, source: str) -> tuple[int, int, list[str]]:
-    """Same-name Rust coverage of the public methods of mapped classes — informational."""
-    have = total = 0
-    thin = []
+def method_keys(surface: dict, ledger: dict) -> set[str]:
+    """Every public method of a mapped class, as the `module::Class.method` key the ledger uses.
+
+    `__call__` is skipped: invoking a module is `forward` here, which is already classified.
+    """
+    keys = set()
     for module, api in surface.items():
         for cls, methods in api["classes"].items():
-            entry = ledger.get(f"{module}::{cls}", {})
-            if entry.get("status") != "mapped":
+            if ledger.get(f"{module}::{cls}", {}).get("status") != "mapped":
                 continue
-            named = [m for m in methods if m != "__call__"]
-            if not named:
-                continue
-            hit = sum(1 for m in named if re.search(r"fn\s+" + re.escape(m) + r"\b", source))
-            have += hit
-            total += len(named)
-            if hit < len(named):
-                thin.append(f"{module}::{cls}  {hit}/{len(named)}")
-    return have, total, thin
+            keys.update(f"{module}::{cls}.{m}" for m in methods if m != "__call__")
+    return keys
 
 
 def main() -> None:
     surface = full_surface()
-    ledger = tomllib.loads(LEDGER.read_text())["symbols"]
+    ledger_file = tomllib.loads(LEDGER.read_text())
+    ledger = ledger_file["symbols"]
+    methods = ledger_file["methods"]
     defined = top_level_keys(surface)
     source = rust_source()
 
-    unclassified = sorted(defined - set(ledger))
-    stale = sorted(set(ledger) - defined)
+    # The same three checks over the top-level symbols and over the methods of every mapped class,
+    # so a method that quietly went missing fails the run exactly as a symbol does.
+    defined_methods = method_keys(surface, ledger)
+    entries = {**ledger, **methods}
+    unclassified = sorted(defined - set(ledger)) + sorted(defined_methods - set(methods))
+    stale = sorted(set(ledger) - defined) + sorted(set(methods) - defined_methods)
     broken = sorted(
         key
-        for key, entry in ledger.items()
-        if key in defined
+        for key, entry in entries.items()
+        if key in defined | defined_methods
         and entry.get("status") == "mapped"
         and not is_defined(entry["rust"], source)
     )
 
     failures = []
     if unclassified:
-        failures.append(f"{len(unclassified)} dspy symbol(s) not in the ledger:")
+        failures.append(f"{len(unclassified)} dspy symbol(s)/method(s) not in the ledger:")
         failures += [f"    + {k}" for k in unclassified]
     if stale:
         failures.append(f"{len(stale)} ledger entr(ies) dspy no longer defines:")
         failures += [f"    - {k}" for k in stale]
     if broken:
         failures.append(f"{len(broken)} mapped entr(ies) whose Rust identifier is undefined:")
-        failures += [f"    ? {k} -> {ledger[k]['rust']}" for k in broken]
+        failures += [f"    ? {k} -> {entries[k]['rust']}" for k in broken]
 
     counts = {"mapped": 0, "divergence": 0, "deferred": 0, "todo": 0}
     for key in defined:
         entry = ledger.get(key)
         if entry:
             counts[entry["status"]] = counts.get(entry["status"], 0) + 1
+    method_counts = {"mapped": 0, "divergence": 0, "deferred": 0, "todo": 0}
+    for key in defined_methods:
+        entry = methods.get(key)
+        if entry:
+            method_counts[entry["status"]] = method_counts.get(entry["status"], 0) + 1
     total = len(defined)
     resolved = counts["mapped"] + counts["divergence"] + counts["deferred"]
 
@@ -119,24 +126,30 @@ def main() -> None:
     if total:
         print(f"  resolved   : {resolved}/{total} ({100 * resolved // total}%)")
 
+    method_total = len(defined_methods)
+    method_resolved = method_counts["mapped"] + method_counts["divergence"] + method_counts["deferred"]
+    print(f"methods of mapped classes: {method_total}")
+    print(f"  mapped     : {method_counts['mapped']}")
+    print(f"  divergence : {method_counts['divergence']}")
+    print(f"  deferred   : {method_counts['deferred']} (out of 1.0 scope)")
+    print(f"  todo       : {method_counts['todo']} (1.0 backlog)")
+    if method_total:
+        print(f"  resolved   : {method_resolved}/{method_total} ({100 * method_resolved // method_total}%)")
+
     todos = sorted(k for k in defined if ledger.get(k, {}).get("status") == "todo")
+    todos += sorted(k for k in defined_methods if methods.get(k, {}).get("status") == "todo")
     if todos:
         print("  API backlog (todo):")
         for key in todos:
-            print(f"    · {key} — {ledger[key]['reason']}")
-
-    have, mtotal, thin = method_coverage(surface, ledger, source)
-    if mtotal:
-        print(f"method same-name coverage (informational): {have}/{mtotal} across mapped classes")
-        for line in thin:
-            print(f"    {line}")
+            entry = ledger.get(key) or methods[key]
+            print(f"    · {key} — {entry['reason']}")
 
     if failures:
         print("\nAPI-surface gate FAILED:")
         for line in failures:
             print(f"  {line}")
         sys.exit(1)
-    print("\nAPI-surface gate: OK (every dspy symbol mapped, justified, or tracked as todo)")
+    print("\nAPI-surface gate: OK (every dspy symbol and method mapped, justified, or tracked)")
 
 
 if __name__ == "__main__":
