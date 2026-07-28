@@ -27,7 +27,13 @@ except ImportError as error:  # pragma: no cover - environment dependent
 
 import crossings  # noqa: E402
 import rust_signature  # noqa: E402
-from rust_module import RustPredict, RustReAct, RustRLM  # noqa: E402
+from rust_module import (  # noqa: E402
+    RustCodeAct,
+    RustPredict,
+    RustProgramOfThought,
+    RustReAct,
+    RustRLM,
+)
 from rust_adapter import (  # noqa: E402
     RustBAMLAdapter,
     RustChatAdapter,
@@ -308,6 +314,10 @@ DOES_NOT_EXERCISE_RUST = {
         "SandboxSerializable, which is not ported (#21)"
     ),
     "upstream_test_rlm.py::TestPrepareSerializableVars": "as TestBuildVariablesWithSerializable",
+    # --- the code-writing suites ---
+    # `CodeAct.__init__` rejecting a callable object that is not a function. dspy's own constructor
+    # validation, raised before a signature is built, let alone a prompt.
+    "test_codeact_tool_validation": "dspy's CodeAct rejecting a non-function tool",
 }
 
 #: Tests that reach the crate even though their class is declared above as not doing so. A class
@@ -534,6 +544,29 @@ def _use_rust_rlm(request, monkeypatch):
     monkeypatch.setattr(request.node.module, "RLM", RustRLM, raising=False)
     monkeypatch.setattr(dspy, "RLM", RustRLM)
     monkeypatch.setattr("dspy.predict.rlm.RLM", RustRLM, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _use_rust_code_modules(request, monkeypatch):
+    """For the two code-writing suites, make dspy's module this crate's.
+
+    Both files are `@pytest.mark.deno`: a real sandbox runs what the model wrote, so these assert
+    the loop end to end — parse, execute, and either answer or rewrite — which is the layer the
+    prompt goldens cannot reach.
+    """
+    swaps = {
+        "upstream_test_program_of_thought": ("ProgramOfThought", RustProgramOfThought,
+                                             "dspy.predict.program_of_thought.ProgramOfThought"),
+        "upstream_test_code_act": ("CodeAct", RustCodeAct, "dspy.predict.code_act.CodeAct"),
+    }
+    swap = swaps.get(request.node.module.__name__)
+    if swap is None:
+        return
+    name, rust, path = swap
+    monkeypatch.setattr(request.node.module, name, rust, raising=False)
+    monkeypatch.setattr(dspy, name, rust)
+    monkeypatch.setattr(path, rust, raising=False)
+    monkeypatch.setattr(f"dspy.predict.{name}", rust, raising=False)
 
 
 @pytest.fixture(autouse=True)

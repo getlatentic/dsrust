@@ -8,7 +8,7 @@
 //! instructions, ordered fields, and the already-formatted input values — because those are
 //! the only things the renderer needs.
 
-mod rlm;
+mod code_modules;
 
 use dsrust::adapter::Input;
 use dsrust::adapter::parse::FieldMismatch;
@@ -592,6 +592,29 @@ impl dsrust::Tool for PyTool {
     }
 }
 
+/// One `dspy.Tool` as a Rust [`Tool`](dsrust::Tool), reading the name, description and argument
+/// schema off the Python object.
+pub(crate) fn py_tool(py: Python<'_>, tool: &Py<PyAny>) -> PyResult<PyTool> {
+    let bound = tool.bind(py);
+    let name: String = bound.getattr("name")?.extract()?;
+    // A tool built from a function with no docstring carries `desc = None`.
+    let description: String =
+        bound.getattr("desc")?.extract::<Option<String>>()?.unwrap_or_default();
+    let args_json: String =
+        py.import("json")?.call_method1("dumps", (bound.getattr("args")?,))?.extract()?;
+    let args: Value = serde_json::from_str(&args_json)
+        .map_err(|error| PyValueError::new_err(format!("tool `{name}` args: {error}")))?;
+    Ok(PyTool { name, description, args, func: tool.clone_ref(py) })
+}
+
+/// Every tool in the list, in order.
+pub(crate) fn py_tools(py: Python<'_>, tools: &[Py<PyAny>]) -> PyResult<Vec<Arc<dyn dsrust::Tool>>> {
+    tools
+        .iter()
+        .map(|tool| py_tool(py, tool).map(|built| Arc::new(built) as Arc<dyn dsrust::Tool>))
+        .collect()
+}
+
 /// Run this crate's own `ReAct` for a signature and a set of Python tools, driven by a Python LM —
 /// the module-level crossing for the agent loop. dspy's `test_react` builds `dspy.ReAct(sig,
 /// tools=[…])` with a `DummyLM`; the shim points its `forward` here, so the loop, the tool calls
@@ -611,19 +634,11 @@ fn react_forward(
     let signature = build_signature(instructions, inputs, outputs)?;
     let mut rust_tools: Vec<Box<dyn dsrust::Tool>> = Vec::new();
     for tool in &tools {
-        let bound = tool.bind(py);
-        let name: String = bound.getattr("name")?.extract()?;
+        let built = py_tool(py, tool)?;
         // dspy's tool dict carries its own `finish`; `ReAct::new` adds one, so skip the duplicate.
-        if name == "finish" {
-            continue;
+        if built.name != "finish" {
+            rust_tools.push(Box::new(built));
         }
-        // A tool built from a function with no docstring carries `desc = None`.
-        let description: String = bound.getattr("desc")?.extract::<Option<String>>()?.unwrap_or_default();
-        let args_obj = bound.getattr("args")?;
-        let args_json: String = py.import("json")?.call_method1("dumps", (args_obj,))?.extract()?;
-        let args: Value = serde_json::from_str(&args_json)
-            .map_err(|error| PyValueError::new_err(format!("tool `{name}` args: {error}")))?;
-        rust_tools.push(Box::new(PyTool { name, description, args, func: tool.clone_ref(py) }));
     }
 
     let mut react = dsrust::ReAct::new(signature, rust_tools).with_lm(Arc::new(PyLM { inner: py_lm }));
@@ -774,7 +789,9 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(format_messages, module)?)?;
     module.add_function(wrap_pyfunction!(predict_forward, module)?)?;
     module.add_function(wrap_pyfunction!(react_forward, module)?)?;
-    module.add_function(wrap_pyfunction!(rlm::rlm_forward, module)?)?;
+    module.add_function(wrap_pyfunction!(code_modules::rlm_forward, module)?)?;
+    module.add_function(wrap_pyfunction!(code_modules::program_of_thought_forward, module)?)?;
+    module.add_function(wrap_pyfunction!(code_modules::code_act_forward, module)?)?;
     module.add_function(wrap_pyfunction!(format_system_message, module)?)?;
     module.add_function(wrap_pyfunction!(baml_field_structure, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;

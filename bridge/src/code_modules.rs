@@ -1,13 +1,14 @@
-//! The RLM crossing: this crate's `Rlm` loop, driven by dspy's own test doubles.
+//! The three code-writing modules, driven by dspy's own tests: `ProgramOfThought`, `CodeAct`, `Rlm`.
 //!
-//! `test_rlm.py` mocks the two predictors and the interpreter and then asserts what the loop did —
-//! which turn ended it, what landed in the trajectory, when the extract fallback fires, and what a
-//! malformed submission is answered with. That is exactly the layer no golden reaches: the prompts
-//! are bytes a fixture can record, and the control flow between them is not.
+//! Each has a loop that a golden cannot reach. A fixture records bytes; which turn ends a run, what
+//! lands in the trajectory, whether a failed snippet is rewritten or given up on — none of that is
+//! bytes. Upstream's tests assert exactly that layer, so they run against these.
 //!
-//! So both doubles cross. The interpreter arrives as a [`PyInterpreter`] calling the Python mock's
-//! `execute`, and each predictor arrives already wrapped Python-side in an LM-shaped object, so the
-//! existing [`PyLM`](crate::PyLM) carries it and the crate's own `Predict` is what asks.
+//! All three drive a Python interpreter through [`PyInterpreter`]: dspy's `MockInterpreter` for the
+//! RLM cases, and its real Deno sandbox for the `@pytest.mark.deno` ones, which means the code the
+//! model wrote is genuinely executed. The model side is the existing [`PyLM`](crate::PyLM) — for
+//! RLM the two predictors arrive already dressed as LMs Python-side, since upstream mocks at the
+//! predictor level rather than the LM level.
 
 use std::sync::Arc;
 
@@ -122,14 +123,79 @@ pub(crate) fn rlm_forward(
         .with_action_lm(Arc::new(PyLM { inner: action_lm }))
         .with_extract_lm(Arc::new(PyLM { inner: extract_lm }));
 
+    answered(py, rlm, values)
+}
+
+/// Run this crate's `ProgramOfThought` over a Python interpreter, driven by a Python LM.
+///
+/// Upstream's cases are `@pytest.mark.deno`: a real sandbox executes what the model wrote, so what
+/// is asserted is the whole loop — the code parsed, ran, and either answered or was rewritten.
+#[pyfunction]
+#[pyo3(signature = (instructions, inputs, outputs, values, interpreter, py_lm, max_iters = None))]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn program_of_thought_forward(
+    py: Python<'_>,
+    instructions: &str,
+    inputs: Vec<PyInField>,
+    outputs: Vec<PyOutField>,
+    values: Vec<(String, String)>,
+    interpreter: Py<PyAny>,
+    py_lm: Py<PyAny>,
+    max_iters: Option<usize>,
+) -> PyResult<String> {
+    let signature = build_signature(instructions, inputs, outputs)?;
+    let mut pot = dsrust::ProgramOfThought::new(signature, Arc::new(PyInterpreter { inner: interpreter }));
+    if let Some(max_iters) = max_iters {
+        pot = pot.with_max_iters(max_iters);
+    }
+    answered(py, pot.with_lm(Arc::new(PyLM { inner: py_lm })), values)
+}
+
+/// Run this crate's `CodeAct` over a Python interpreter and a set of Python tools.
+///
+/// The tools reach the sandbox the way dspy puts them there — their *source*, executed before the
+/// first turn — because that is the setup upstream's `forward` does and it is not the loop under
+/// test. The crate's `define_tools` seam is what a Rust caller uses instead, and it is a no-op on
+/// an interpreter that already has them.
+#[pyfunction]
+#[pyo3(signature = (instructions, inputs, outputs, values, interpreter, py_lm, tools, max_iters = None))]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn code_act_forward(
+    py: Python<'_>,
+    instructions: &str,
+    inputs: Vec<PyInField>,
+    outputs: Vec<PyOutField>,
+    values: Vec<(String, String)>,
+    interpreter: Py<PyAny>,
+    py_lm: Py<PyAny>,
+    tools: Vec<Py<PyAny>>,
+    max_iters: Option<usize>,
+) -> PyResult<String> {
+    let signature = build_signature(instructions, inputs, outputs)?;
+    let rust_tools = crate::py_tools(py, &tools)?;
+    let mut act =
+        dsrust::CodeAct::new(signature, rust_tools, Arc::new(PyInterpreter { inner: interpreter }));
+    if let Some(max_iters) = max_iters {
+        act = act.with_max_iters(max_iters);
+    }
+    answered(py, act.with_lm(Arc::new(PyLM { inner: py_lm })), values)
+}
+
+/// Run a module over the named input values and hand its prediction back as JSON.
+fn answered<M: dsrust::module::Module>(
+    py: Python<'_>,
+    module: M,
+    values: Vec<(String, String)>,
+) -> PyResult<String> {
     let mut fields = Vec::new();
     for (name, json) in &values {
         let value: Value = serde_json::from_str(json)
             .map_err(|error| PyValueError::new_err(format!("input `{name}`: {error}")))?;
         fields.push((name.clone(), value));
     }
+    // Released while the loop runs, so the interpreter and the LM can be called back into Python.
     let prediction = py
-        .detach(|| pollster::block_on(dsrust::module::Module::forward(&rlm, dsrust::Example::new(fields))))
+        .detach(|| pollster::block_on(dsrust::module::Module::forward(&module, dsrust::Example::new(fields))))
         .map_err(to_value_error)?;
     let output: serde_json::Map<String, Value> = prediction
         .example

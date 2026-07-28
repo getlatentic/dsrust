@@ -57,6 +57,13 @@ impl CodeAct {
         self
     }
 
+    /// Ask both steps — the per-turn code and the final extraction — of this model.
+    pub fn with_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.codeact = self.codeact.with_lm(lm.clone());
+        self.extractor = self.extractor.with_lm(lm);
+        self
+    }
+
     /// The signature each turn is asked with — the task's inputs, the trajectory, and the code and
     /// `finished` flag the model answers with. dspy reaches the same thing as `codeact.signature`.
     pub fn turn_signature(&self) -> &Signature {

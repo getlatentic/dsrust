@@ -11,6 +11,7 @@ orchestration, and everything above the wire stays dspy's own code rather than a
 
 from __future__ import annotations
 
+import inspect
 import json
 
 import dspy
@@ -122,6 +123,74 @@ class RustReAct(dspy.ReAct):
             list(self.tools.values()),
             max_iters,
         )
+        return dspy.Prediction(**json.loads(output_json))
+
+
+def _input_values(signature, input_args):
+    """The task's declared inputs the caller supplied, as JSON the bridge reads."""
+    return [
+        (name, json.dumps(_serialized(input_args[name]), ensure_ascii=False))
+        for name in signature.input_fields
+        if name in input_args
+    ]
+
+
+class RustProgramOfThought(dspy.ProgramOfThought):
+    """A `dspy.ProgramOfThought` whose write/run/rewrite loop runs in this crate's module.
+
+    Upstream's cases are `@pytest.mark.deno`, so the interpreter here is its real sandbox and the
+    code the model wrote genuinely executes. What crosses is the loop: whether a snippet that
+    failed is rewritten or the run gives up, and what the rewrite is told about the failure.
+    """
+
+    def forward(self, **kwargs):
+        crossings.record_render()
+        try:
+            output_json = dsrs_bridge.program_of_thought_forward(
+                self.signature.instructions,
+                describe(self.signature.input_fields),
+                described_outputs(self.signature),
+                _input_values(self.signature, kwargs),
+                self.interpreter,
+                dspy.settings.lm,
+                self.max_iters,
+            )
+        except ValueError as error:
+            # The crate answers with an untyped `anyhow::Error`, which the bridge can only hand
+            # over as a ValueError, and dspy raises RuntimeError when the hops run out. The message
+            # is already upstream's byte for byte; only the class differs, so it is restored here.
+            # The real fix is the crate's error taxonomy (#10), after which this can read a type.
+            if str(error).startswith("Max hops reached."):
+                raise RuntimeError(str(error)) from None
+            raise
+        finally:
+            self.interpreter.shutdown()
+        return dspy.Prediction(**json.loads(output_json))
+
+
+class RustCodeAct(dspy.CodeAct):
+    """A `dspy.CodeAct` whose per-turn loop runs in this crate's `CodeAct`."""
+
+    def forward(self, **kwargs):
+        # dspy puts the tools in the sandbox by executing their *source*, before the first turn.
+        # That is upstream's setup rather than the loop under test, so it stays upstream's — and it
+        # is why the crate's `define_tools` seam finds nothing left to do here.
+        for tool in self.tools.values():
+            self.interpreter(inspect.getsource(tool.func))
+
+        crossings.record_render()
+        max_iters = kwargs.pop("max_iters", self.max_iters)
+        output_json = dsrs_bridge.code_act_forward(
+            self.signature.instructions,
+            describe(self.signature.input_fields),
+            described_outputs(self.signature),
+            _input_values(self.signature, kwargs),
+            self.interpreter,
+            dspy.settings.lm,
+            list(self.tools.values()),
+            max_iters,
+        )
+        self.interpreter.shutdown()
         return dspy.Prediction(**json.loads(output_json))
 
 

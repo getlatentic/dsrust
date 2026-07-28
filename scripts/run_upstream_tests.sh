@@ -38,7 +38,7 @@ SUITES=(
   primitives/test_example.py
   predict/test_multi_chain_comparison.py predict/test_aggregation.py
   predict/test_refine.py predict/test_best_of_n.py predict/test_parallel.py
-  predict/test_rlm.py
+  predict/test_rlm.py predict/test_program_of_thought.py predict/test_code_act.py
 )
 
 # SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against

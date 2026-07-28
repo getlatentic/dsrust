@@ -59,6 +59,14 @@ impl ProgramOfThought {
         self
     }
 
+    /// Ask all three steps — write, rewrite and answer — of this model.
+    pub fn with_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.generate = self.generate.with_lm(lm.clone());
+        self.regenerate = self.regenerate.with_lm(lm.clone());
+        self.answer = self.answer.with_lm(lm);
+        self
+    }
+
     /// The signature of one of the three asks, as dspy's `_generate_signature` builds it.
     pub fn mode_signature_for(&self, mode: &str) -> Option<Signature> {
         let mode = match mode {
