@@ -14,15 +14,25 @@
 //! Run them **serialized**: one local daemon cannot serve three multi-turn conversations at once,
 //! and concurrent runs time out against a model that answers any one of them fine.
 //!
-//! RLM sends a far larger prompt than the other two — its action template, the variables and the
-//! whole session — so a 7B model on a laptop can exceed the crate's 20-second provider timeout on
-//! it while handling ProgramOfThought and CodeAct comfortably. A smaller model runs all three.
-//!
 //! ```text
 //! cargo test --test live_code_modules -- --ignored --nocapture --test-threads=1
-//! LIVE_LM=ollama_chat/llama3.2:3b \
+//! LIVE_LM=ollama_chat/qwen2.5:7b-instruct \
 //!   cargo test --test live_code_modules -- --ignored --nocapture --test-threads=1
 //! ```
+//!
+//! What three local models did with them, since the failures are the provider's rather than the
+//! module's and are worth recognising:
+//!
+//! - `gemma3:4b` — all three pass, which is why it is the default here.
+//! - `qwen2.5:7b-instruct` — ProgramOfThought and CodeAct pass. RLM sends a far larger prompt (its
+//!   action template, the variables and the whole session) and exceeds the crate's 20-second
+//!   provider timeout on this size of model; see issue #20, which is about that timeout having no
+//!   caller knob.
+//! - `gpt-oss:20b` — CodeAct passes; the other two do not, and neither failure is the crate's.
+//!   ProgramOfThought times out as above. RLM gets an ollama 500: its harmony parser reads the
+//!   model's Python as a malformed tool call (`error parsing tool call: raw='print(len(context))'`).
+//!   A model whose output the provider parses for tool calls cannot be used to *write* code
+//!   through it. That message is only legible because the ollama client now surfaces the body.
 
 use std::sync::{Arc, Mutex};
 
@@ -32,7 +42,7 @@ use serde_json::{Value, json};
 
 /// The model the env asks for, or a local ollama.
 fn live_model() -> String {
-    std::env::var("LIVE_LM").unwrap_or_else(|_| "ollama_chat/qwen2.5:7b-instruct".to_owned())
+    std::env::var("LIVE_LM").unwrap_or_else(|_| "ollama_chat/gemma3:4b".to_owned())
 }
 
 fn configure_live() -> String {

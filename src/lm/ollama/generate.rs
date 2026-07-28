@@ -14,6 +14,8 @@
 use std::future::Future;
 
 use anyhow::{Context, Result, anyhow};
+
+use super::refusal;
 use futures_util::Stream;
 use serde_json::{Map, Value, json};
 
@@ -44,10 +46,11 @@ impl ChatModel for Generate<'_> {
                 .send()
                 .await
                 .context("ollama request failed")?;
-            if !response.status().is_success() {
-                return Err(anyhow!("ollama {}", response.status()));
-            }
+            let status = response.status();
             let body: Value = response.json().await.context("ollama response was not JSON")?;
+            if !status.is_success() {
+                return Err(anyhow!("ollama {status}: {}", refusal(&body)));
+            }
             reply(self.model, &body)
         }
     }

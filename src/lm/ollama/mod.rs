@@ -63,3 +63,12 @@ pub(super) fn provider_data(body: &Value) -> Option<Value> {
     let done_reason = body["done_reason"].as_str()?;
     Some(json!({ "done_reason": done_reason }))
 }
+
+/// What ollama said when it refused the call.
+///
+/// Its errors carry a bare `{"error": "…"}` rather than OpenAI's nested `error.message`, and
+/// without it a caller gets only a status — a 500 on an over-long prompt reads exactly like a 500
+/// on a broken request. The other providers already surface their own message; this is ollama's.
+pub(crate) fn refusal(body: &serde_json::Value) -> String {
+    body["error"].as_str().unwrap_or("unknown error").to_owned()
+}

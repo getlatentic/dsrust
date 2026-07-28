@@ -9,6 +9,8 @@
 use std::future::Future;
 
 use anyhow::{Context, Result, anyhow};
+
+use super::refusal;
 use serde_json::Value;
 
 use super::request::request;
@@ -38,10 +40,11 @@ impl ChatModel for Chat<'_> {
                 .send()
                 .await
                 .context("ollama request failed")?;
-            if !response.status().is_success() {
-                return Err(anyhow!("ollama {}", response.status()));
-            }
+            let status = response.status();
             let body: Value = response.json().await.context("ollama response was not JSON")?;
+            if !status.is_success() {
+                return Err(anyhow!("ollama {status}: {}", refusal(&body)));
+            }
             reply(self.model, &body)
         }
     }
