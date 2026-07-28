@@ -30,6 +30,23 @@ pub struct Trajectory {
 }
 
 impl Trajectory {
+    /// dspy `truncate_trajectory`: drop the oldest tool call, so the next ask is shorter.
+    ///
+    /// Upstream works in the flattened `thought_0`/`tool_name_0`/… keys and pops four of them,
+    /// which is one step here. A trajectory of one step cannot be shortened and says so rather
+    /// than emptying itself — an empty trajectory would ask again with nothing learned and fail
+    /// the same way, three times over.
+    pub fn truncate_oldest(&mut self) -> anyhow::Result<()> {
+        if self.steps.len() < 2 {
+            anyhow::bail!(
+                "The trajectory is too long so your prompt exceeded the context window, but the \
+                 trajectory cannot be truncated because it only has one tool call."
+            );
+        }
+        self.steps.remove(0);
+        Ok(())
+    }
+
     /// The trajectory as prompt text, one labelled block per field, matching how dspy renders
     /// it: `format_user_message_content` over a signature built from the trajectory's own
     /// keys, which joins the blocks with a blank line and strips the result.

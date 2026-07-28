@@ -10,14 +10,18 @@ mod tool;
 mod trajectory;
 mod v2;
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use serde_json::{Value, json};
 
 use crate::example::{Example, Prediction};
+use crate::lm::ContextWindowExceeded;
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::predict::Predict;
 use crate::signature::{FieldKind, InField, JsonType, LiteralValue, OutField, Signature};
 use crate::adapter::types::tool::format_tool;
+
+/// dspy tries three times before giving up on a trajectory that will not fit.
+const TRUNCATION_ATTEMPTS: usize = 3;
 
 pub use mcp::{mcp_tool, mcp_tool_args, mcp_tool_result};
 pub use tool::{FINISH, FnTool, Tool, arg_str, tool_args};
@@ -293,6 +297,37 @@ fn extract_signature(signature: &Signature) -> Signature {
 }
 
 impl ReAct {
+    /// dspy `_call_with_potential_trajectory_truncation`: ask, and where the prompt was too long
+    /// for the model, drop the oldest tool call and ask again — three times, then give up.
+    ///
+    /// This is the one place the crate branches on an error's *identity* rather than its message.
+    /// Every other failure means the call will not work; this one means the call will not work
+    /// *as it stands*, and there is something to do about it. Without it a long agent run ends
+    /// where upstream's carries on.
+    async fn asked(
+        &self,
+        predictor: &Predict,
+        inputs: Example,
+        trajectory: &mut Trajectory,
+        trace: &mut Vec<TraceStep>,
+    ) -> Result<Prediction> {
+        for _ in 0..TRUNCATION_ATTEMPTS {
+            let mut asking = inputs.clone();
+            asking.set("trajectory", Value::String(trajectory.rendered()));
+            match predictor.forward_traced(asking, trace).await {
+                Ok(step) => return Ok(step),
+                Err(error) if error.is::<ContextWindowExceeded>() => {
+                    tracing::warn!(
+                        "Trajectory exceeded the context window, truncating the oldest tool call information."
+                    );
+                    trajectory.truncate_oldest()?;
+                }
+                Err(error) => return Err(error),
+            }
+        }
+        bail!("The context window was exceeded even after 3 attempts to truncate the trajectory.")
+    }
+
     /// The episode itself, written once because [`Module::forward`] and
     /// [`Module::forward_traced`] differ only in whether anyone keeps what the trace records.
     async fn run(&self, inputs: Example, trace: &mut Vec<TraceStep>) -> Result<Prediction> {
@@ -303,7 +338,9 @@ impl ReAct {
                 turn_inputs.set("trajectory", Value::String(trajectory.rendered()));
 
                 let mark = trace.len();
-                let step = self.react.forward_traced(turn_inputs, trace).await?;
+                let step = self
+                    .asked(&self.react, turn_inputs, &mut trajectory, trace)
+                    .await?;
                 relabel(trace, mark, "react");
                 let thought = string_field(&step, "next_thought");
                 let tool = string_field(&step, "next_tool_name");
@@ -325,10 +362,11 @@ impl ReAct {
                 }
             }
 
-            let mut final_inputs = inputs;
-            final_inputs.set("trajectory", Value::String(trajectory.rendered()));
+            let final_inputs = inputs;
             let mark = trace.len();
-            let extracted = self.extract.forward_traced(final_inputs, trace).await?;
+            let extracted = self
+                .asked(&self.extract, final_inputs, &mut trajectory, trace)
+                .await?;
             relabel(trace, mark, "extract");
 
             // dspy returns `Prediction(trajectory=trajectory, **extract)`: what the agent did
@@ -414,7 +452,7 @@ mod tests {
     use super::*;
     use serde_json::json;
 
-    fn weather() -> Box<dyn Tool> {
+    pub(super) fn weather() -> Box<dyn Tool> {
         Box::new(FnTool::new(
             "get_weather",
             "look up the weather for a city",
@@ -428,7 +466,7 @@ mod tests {
         ))
     }
 
-    fn task() -> Signature {
+    pub(super) fn task() -> Signature {
         Signature::single_input(
             "Answer the question.",
             vec![OutField {
@@ -581,5 +619,172 @@ mod tests {
             .map(|predictor| predictor.name)
             .collect();
         assert_eq!(names, ["react", "extract"]);
+    }
+}
+
+#[cfg(test)]
+mod truncation_tests {
+    use super::tests::{task, weather};
+    use super::*;
+    use crate::lm::api::{LmRequest, LmResponse};
+    use crate::lm::{Capabilities, DynChatModel};
+    use serde_json::json;
+    use std::sync::Mutex;
+
+    /// A model that refuses while the trajectory is longer than it can read, and answers once it
+    /// fits.
+    ///
+    /// The whole point of the typed error is that this failure is *recoverable*: the same request
+    /// with less trajectory in it succeeds. A model that always refused would prove only that the
+    /// loop gives up. `budget` is a step count — `Trajectory::rendered` renumbers from zero, so a
+    /// prompt still naming `thought_{budget}` is one still carrying more steps than that.
+    struct TooLong {
+        budget: usize,
+        refusals: Mutex<usize>,
+        reply: String,
+    }
+
+    impl DynChatModel for TooLong {
+        fn forward_dyn<'a>(
+            &'a self,
+            _http: &'a reqwest::Client,
+            request: &'a LmRequest,
+        ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>> {
+            let asked: String =
+                request.messages.iter().filter_map(|m| m.text()).collect();
+            let too_long = asked.contains(&format!("thought_{}", self.budget));
+            Box::pin(std::future::ready(match too_long {
+                true => {
+                    *self.refusals.lock().expect("refusals") += 1;
+                    Err(crate::lm::ContextWindowExceeded {
+                        model: "test".to_owned(),
+                        message: "maximum context length is 8192 tokens".to_owned(),
+                    }
+                    .into())
+                }
+                false => Ok(LmResponse::completions(vec![self.reply.clone()])),
+            }))
+        }
+
+        fn capabilities_dyn<'a>(
+            &'a self,
+            _http: &'a reqwest::Client,
+        ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>> {
+            Box::pin(std::future::ready(Capabilities::default()))
+        }
+
+        fn native_reasoning_usable_dyn(&self) -> bool {
+            false
+        }
+    }
+
+    fn long_trajectory(steps: usize) -> Trajectory {
+        Trajectory {
+            steps: (0..steps)
+                .map(|n| Step {
+                    thought: format!("thinking about step {n} at some length to fill the window"),
+                    tool: "get_weather".to_owned(),
+                    args: json!({ "city": "Paris" }),
+                    observation: json!(format!("observation {n}, also reasonably wordy")),
+                })
+                .collect(),
+        }
+    }
+
+    /// The oldest tool call goes, and only that one.
+    #[test]
+    fn truncating_drops_the_oldest_step() {
+        let mut trajectory = long_trajectory(3);
+        trajectory.truncate_oldest().expect("three steps can lose one");
+        assert_eq!(trajectory.steps.len(), 2);
+        assert!(trajectory.steps[0].thought.contains("step 1"), "the oldest went");
+    }
+
+    /// A trajectory of one cannot be shortened, and says so rather than emptying itself — an empty
+    /// one would ask again with nothing learned and fail the same way, three times over.
+    #[test]
+    fn a_single_step_cannot_be_truncated() {
+        let refused = long_trajectory(1).truncate_oldest().expect_err("nothing to drop");
+        assert!(refused.to_string().contains("only has one tool call"), "got: {refused}");
+    }
+
+    /// The recovery end to end: a prompt too long is trimmed and asked again, and the run finishes.
+    #[tokio::test]
+    async fn a_prompt_too_long_is_trimmed_and_asked_again() {
+        let model = std::sync::Arc::new(TooLong {
+            budget: 3,
+            refusals: Mutex::new(0),
+            reply: "[[ ## reasoning ## ]]\nit was sunny\n\n[[ ## answer ## ]]\nsunny\n\n[[ ## completed ## ]]".to_owned(),
+        });
+        let react = ReAct::new(task(), vec![weather()]).with_lm(model.clone());
+        // Five steps against a three-step budget: refuse, trim, refuse, trim, fits — the third of
+        // the three attempts upstream allows. Six would never get there, upstream included.
+        let mut trajectory = long_trajectory(5);
+        let mut trace = Vec::new();
+
+        let answered = react
+            .asked(&react.extract, Example::default(), &mut trajectory, &mut trace)
+            .await
+            .expect("the trimmed trajectory fits");
+
+        assert_eq!(answered.get("answer"), Some(&json!("sunny")));
+        assert_eq!(*model.refusals.lock().expect("refusals"), 2, "it really did refuse first");
+        assert_eq!(trajectory.steps.len(), 3, "and the trajectory really was trimmed");
+    }
+
+    /// Three refusals is the end of it, with dspy's wording.
+    #[tokio::test]
+    async fn a_prompt_that_never_fits_gives_up_after_three_tries() {
+        let model = std::sync::Arc::new(TooLong {
+            budget: 0,
+            refusals: Mutex::new(0),
+            reply: String::new(),
+        });
+        let react = ReAct::new(task(), vec![weather()]).with_lm(model.clone());
+        let mut trajectory = long_trajectory(8);
+
+        let refused = react
+            .asked(&react.extract, Example::default(), &mut trajectory, &mut Vec::new())
+            .await
+            .expect_err("nothing fits");
+        assert!(
+            refused.to_string().contains("even after 3 attempts to truncate"),
+            "got: {refused}"
+        );
+        assert_eq!(*model.refusals.lock().expect("refusals"), 3, "three tries, not more");
+    }
+
+    /// Any other refusal is passed straight up. Trimming does not fix an expired key, and trying
+    /// would spend three more calls before failing anyway.
+    #[tokio::test]
+    async fn another_failure_is_not_retried() {
+        struct Broken;
+        impl DynChatModel for Broken {
+            fn forward_dyn<'a>(
+                &'a self,
+                _http: &'a reqwest::Client,
+                _request: &'a LmRequest,
+            ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>> {
+                Box::pin(std::future::ready(Err(anyhow!("Incorrect API key provided"))))
+            }
+            fn capabilities_dyn<'a>(
+                &'a self,
+                _http: &'a reqwest::Client,
+            ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>> {
+                Box::pin(std::future::ready(Capabilities::default()))
+            }
+            fn native_reasoning_usable_dyn(&self) -> bool {
+                false
+            }
+        }
+
+        let react = ReAct::new(task(), vec![weather()]).with_lm(std::sync::Arc::new(Broken));
+        let mut trajectory = long_trajectory(4);
+        let refused = react
+            .asked(&react.extract, Example::default(), &mut trajectory, &mut Vec::new())
+            .await
+            .expect_err("the key is wrong");
+        assert!(refused.to_string().contains("Incorrect API key"), "got: {refused}");
+        assert_eq!(trajectory.steps.len(), 4, "and nothing was trimmed over it");
     }
 }

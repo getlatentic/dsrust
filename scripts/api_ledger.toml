@@ -364,7 +364,7 @@
 # ReAct
 "predict/react.py::ReAct.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
 "predict/react.py::ReAct.forward" = { status = "mapped", rust = "forward" }
-"predict/react.py::ReAct.truncate_trajectory" = { status = "todo", reason = "trimming a trajectory that outgrew the context window is not ported" }
+"predict/react.py::ReAct.truncate_trajectory" = { status = "mapped", rust = "truncate_oldest" }
 
 # ReActV2
 "predict/react_v2.py::ReActV2.forward" = { status = "mapped", rust = "forward" }

@@ -51,6 +51,11 @@ impl ChatModel for Generate<'_> {
             let status = response.status();
             let body: Value = response.json().await.context("ollama response was not JSON")?;
             if !status.is_success() {
+                if let Some(too_long) =
+                    crate::lm::ContextWindowExceeded::detected(self.model, &body)
+                {
+                    return Err(too_long.into());
+                }
                 return Err(anyhow!("ollama {status}: {}", refusal(&body)));
             }
             reply(self.model, &body)

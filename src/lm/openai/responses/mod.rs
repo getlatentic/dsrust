@@ -305,6 +305,9 @@ pub(super) fn reply(
     body: &Value,
 ) -> Result<api::LmResponse> {
     if !status.is_success() {
+        if let Some(too_long) = crate::lm::ContextWindowExceeded::detected(model, body) {
+            return Err(too_long.into());
+        }
         let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
         return Err(anyhow!("{label} {status}: {detail}"));
     }

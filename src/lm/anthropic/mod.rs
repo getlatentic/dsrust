@@ -63,6 +63,9 @@ impl ChatModel for Anthropic<'_> {
 /// JSON adapters surface as the empty answer it is.
 fn reply(model: &str, status: reqwest::StatusCode, body: &Value) -> Result<api::LmResponse> {
     if !status.is_success() {
+        if let Some(too_long) = crate::lm::ContextWindowExceeded::detected(model, body) {
+            return Err(too_long.into());
+        }
         let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
         return Err(anyhow!("anthropic {status}: {detail}"));
     }

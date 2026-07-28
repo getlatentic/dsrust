@@ -4,6 +4,7 @@ pub mod cache;
 mod capabilities;
 mod call;
 pub mod dummy;
+pub mod error;
 pub mod global;
 mod ollama;
 pub mod openai;
@@ -19,6 +20,7 @@ use serde_json::Value;
 
 pub use cache::{Cached, ResponseCache};
 pub use capabilities::Capabilities;
+pub use error::ContextWindowExceeded;
 pub use call::{LmConfig, LmUsage};
 pub use global::{configure, configure_with_client};
 pub use api::{Content, Detail, LmPart, LmSource};
