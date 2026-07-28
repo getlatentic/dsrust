@@ -18,6 +18,10 @@ use serde_json::Value;
 
 use crate::react::Tool;
 
+pub mod repl;
+
+pub use repl::{ReplEntry, ReplHistory, ReplVariable};
+
 /// What one execution produced.
 ///
 /// dspy's `execute` returns `FinalOutput` when the code called the preloaded `SUBMIT()`, and the
