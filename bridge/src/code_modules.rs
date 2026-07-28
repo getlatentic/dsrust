@@ -294,3 +294,25 @@ pub(crate) fn responses_body(request: &str) -> PyResult<String> {
     let body = dsrust::lm::openai::responses::request(model, &call, dsrust::lm::JsonFormat::Schema);
     serde_json::to_string(&body).map_err(|error| PyValueError::new_err(format!("{error}")))
 }
+
+/// dspy `UsageTracker._merge_usage_entries`, computed by the crate.
+///
+/// What two calls' counters come to together. A nested breakdown merges into itself and a number
+/// adds, so a program's total is the sum of what it spent rather than the last call's.
+#[pyfunction]
+pub(crate) fn merge_usage(left: &str, right: &str) -> PyResult<String> {
+    use dsrust::lm::LmUsage;
+    let parse = |written: &str| -> PyResult<Option<LmUsage>> {
+        let value: Value =
+            serde_json::from_str(written).map_err(|error| PyValueError::new_err(format!("{error}")))?;
+        match value.as_object().is_some_and(serde_json::Map::is_empty) || value.is_null() {
+            true => Ok(None),
+            false => serde_json::from_value(value)
+                .map(Some)
+                .map_err(|error| PyValueError::new_err(format!("{error}"))),
+        }
+    };
+    let merged = LmUsage::merge(parse(left)?, parse(right)?);
+    serde_json::to_string(&merged.unwrap_or_default())
+        .map_err(|error| PyValueError::new_err(format!("{error}")))
+}

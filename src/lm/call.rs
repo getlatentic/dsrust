@@ -4,7 +4,7 @@
 //! stays here is the sampling config a module varies per attempt and the usage every provider
 //! reports, both of which predate that boundary and are read throughout the crate.
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 /// How a model should sample its reply.
 ///
@@ -139,12 +139,69 @@ impl LmUsage {
                     cache_write_tokens: added(left.cache_write_tokens, right.cache_write_tokens),
                     input_audio_tokens: added(left.input_audio_tokens, right.input_audio_tokens),
                     output_audio_tokens: added(left.output_audio_tokens, right.output_audio_tokens),
-                    details: left.details.into_iter().chain(right.details).collect(),
-                    extra: left.extra.into_iter().chain(right.extra).collect(),
+                    details: added_counters(left.details, right.details),
+                    extra: added_counters(left.extra, right.extra),
                 }
                 .fill_aliases(),
             ),
         }
+    }
+}
+
+/// dspy `_merge_usage_entries` over the counters this crate does not model by name: a nested
+/// breakdown merges into itself, and a number adds.
+///
+/// Taking one side's value would *undercount*. These carry `cached_tokens`, `audio_tokens` and
+/// whatever a provider reports that nobody has modelled yet, and a program that made ten calls
+/// would report the tenth call's cached tokens as the total.
+fn added_counters(
+    left: serde_json::Map<String, Value>,
+    right: serde_json::Map<String, Value>,
+) -> serde_json::Map<String, Value> {
+    let mut merged = right;
+    for (key, value) in left {
+        let combined = match (merged.remove(&key), value) {
+            // Upstream recurses when *either* side is a breakdown, not both. Requiring both let a
+            // side that reported `null` erase the other's real numbers, and which side won
+            // depended on the order the two calls happened to be merged in.
+            (held, value) if held.as_ref().is_some_and(Value::is_object) || value.is_object() => {
+                Value::Object(added_counters(
+                    object_or_empty(value),
+                    object_or_empty(held.unwrap_or(Value::Null)),
+                ))
+            }
+            (Some(held), value) => added_numbers(held, value),
+            (None, value) => value,
+        };
+        merged.insert(key, combined);
+    }
+    merged
+}
+
+/// A breakdown as its fields, and anything else — a `null` where a provider reported nothing — as
+/// none, which is how upstream's "empty means the other side" branch reads it.
+fn object_or_empty(value: Value) -> serde_json::Map<String, Value> {
+    match value {
+        Value::Object(fields) => fields,
+        _ => serde_json::Map::new(),
+    }
+}
+
+/// Two reported numbers added; anything that is not a number keeps whichever side had one, since
+/// adding is not what a non-numeric counter means.
+fn added_numbers(held: Value, adding: Value) -> Value {
+    match (held.as_f64(), adding.as_f64()) {
+        (Some(held), Some(adding)) => match (held.fract() == 0.0) && (adding.fract() == 0.0) {
+            true => json!((held + adding) as i64),
+            false => json!(held + adding),
+        },
+        (Some(_), None) => held,
+        // A counter one side did not report is the other's, whichever way round they were merged.
+        (None, Some(_)) => adding,
+        _ => match adding.is_null() {
+            true => held,
+            false => adding,
+        },
     }
 }
 
@@ -270,5 +327,97 @@ mod tests {
         assert_eq!(LmUsage::merge(None, usage(3, 4)), usage(3, 4));
         assert_eq!(LmUsage::merge(usage(3, 4), None), usage(3, 4));
         assert_eq!(LmUsage::merge(None, None), None);
+    }
+}
+
+#[cfg(test)]
+mod usage_merge_tests {
+    use super::*;
+
+    fn counted(counters: Value) -> LmUsage {
+        serde_json::from_value(counters).expect("a usage record")
+    }
+
+    /// dspy adds a nested breakdown rather than replacing it. Taking one side would report the
+    /// last call's cached tokens as a whole program's total.
+    #[test]
+    fn a_nested_breakdown_adds_rather_than_replaces() {
+        let first = counted(json!({
+            "prompt_tokens": 100,
+            "prompt_tokens_details": { "cached_tokens": 40, "audio_tokens": 2 },
+        }));
+        let second = counted(json!({
+            "prompt_tokens": 50,
+            "prompt_tokens_details": { "cached_tokens": 10, "audio_tokens": 1 },
+        }));
+        let merged = LmUsage::merge(Some(first), Some(second)).expect("merges");
+        assert_eq!(merged.prompt_tokens, Some(150));
+        let details = merged.extra.get("prompt_tokens_details").expect("the breakdown");
+        assert_eq!(details["cached_tokens"], json!(50));
+        assert_eq!(details["audio_tokens"], json!(3));
+    }
+
+    /// A counter nobody has modelled yet adds too — a provider reporting its own is still counting
+    /// something, and reporting the last call's would be wrong in the same way.
+    #[test]
+    fn an_unmodelled_counter_adds() {
+        let merged = LmUsage::merge(
+            Some(counted(json!({ "some_provider_counter": 7 }))),
+            Some(counted(json!({ "some_provider_counter": 3 }))),
+        )
+        .expect("merges");
+        assert_eq!(merged.extra["some_provider_counter"], json!(10));
+    }
+
+    /// A counter only one side reported is kept, not dropped.
+    #[test]
+    fn a_counter_only_one_side_reported_survives() {
+        let merged = LmUsage::merge(
+            Some(counted(json!({ "only_left": 4 }))),
+            Some(counted(json!({ "only_right": 6 }))),
+        )
+        .expect("merges");
+        assert_eq!(merged.extra["only_left"], json!(4));
+        assert_eq!(merged.extra["only_right"], json!(6));
+    }
+
+    /// Adding is not what a non-numeric counter means, so the reported one stands.
+    #[test]
+    fn a_non_numeric_counter_is_not_added() {
+        let merged = LmUsage::merge(
+            Some(counted(json!({ "tier": "scale" }))),
+            Some(counted(json!({ "tier": "scale" }))),
+        )
+        .expect("merges");
+        assert_eq!(merged.extra["tier"], json!("scale"));
+    }
+}
+
+#[cfg(test)]
+mod usage_order_tests {
+    use super::*;
+
+    fn counted(counters: Value) -> LmUsage {
+        serde_json::from_value(counters).expect("a usage record")
+    }
+
+    /// A side that reported nothing for a breakdown must not erase the side that did — and must
+    /// not depend on which order the two calls were merged in, which is not something a caller
+    /// controls.
+    #[test]
+    fn a_null_breakdown_does_not_erase_a_real_one() {
+        let reported = json!({ "prompt_tokens": 100, "prompt_tokens_details": { "cached_tokens": 50 } });
+        let silent = json!({ "prompt_tokens": 50, "prompt_tokens_details": null });
+        for (left, right) in [(&reported, &silent), (&silent, &reported)] {
+            let merged =
+                LmUsage::merge(Some(counted(left.clone())), Some(counted(right.clone())))
+                    .expect("merges");
+            assert_eq!(merged.prompt_tokens, Some(150));
+            assert_eq!(
+                merged.extra["prompt_tokens_details"]["cached_tokens"],
+                json!(50),
+                "the reported breakdown survives whichever side it was on"
+            );
+        }
     }
 }

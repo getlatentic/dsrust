@@ -388,6 +388,33 @@ DOES_NOT_EXERCISE_RUST = {
     "test_forward_through_call_no_warning": "dspy's own call-style warning",
     "test_single_module_call_with_usage_tracker": "dspy's usage-tracker context manager",
     "test_multi_module_call_with_usage_tracker": "dspy's usage-tracker context manager",
+    # --- the usage tracker ---
+    # What two calls' counters come to together is the crate's, and five tests cross on it. These
+    # two are the bookkeeping around it: appending an entry to a per-model list, and the context
+    # manager that installs a tracker.
+    "test_add_usage_entry": "dspy's per-model list bookkeeping",
+    "test_track_usage_context_manager": "dspy's context manager installing a tracker",
+    # --- ambient settings ---
+    # dspy's thread-local configuration: its context manager, its refusal to be configured from a
+    # child thread, what a saved settings file excludes. The crate's is a process-wide store behind
+    # `configure`, with no thread-local stack for any of this to reach.
+    "test_basic_dspy_settings": "dspy's thread-local settings object",
+    "test_dspy_context": "dspy's settings context manager",
+    "test_dspy_context_parallel": "dspy's settings context manager across threads",
+    "test_dspy_configure_allowance_async": "dspy's configure-from-async guard",
+    "test_forbid_configure_call_in_child_thread": "dspy's configure-from-thread guard",
+    "test_dspy_settings_save_load": "dspy's settings file, written and read by dspy",
+    "test_dspy_settings_save_exclude_keys": "dspy's settings file",
+    "test_settings_save_with_extra_modules": "dspy's settings file",
+    # --- dspy's own saving ---
+    # Its pickle mode and the permission gates around unpickling. The crate saves JSON state and
+    # has no pickle to gate; `module.rs` and `check_saved_program.py` hold that side.
+    "test_save_predict": "dspy's own save format, written and read by dspy",
+    "test_save_custom_model": "dspy's pickle-mode save",
+    "test_save_model_with_custom_signature": "dspy's pickle-mode save",
+    "test_pickle_loading_requires_explicit_permission": "dspy's unpickling permission gate",
+    "test_pkl_file_loading_requires_explicit_permission": "dspy's unpickling permission gate",
+    "test_json_file_loading_works_without_permission": "dspy's unpickling permission gate",
     # --- GEPA ---
     # Twelve of GEPA's eighteen cross, because a proposal is rendered through this crate. These six
     # do not: four check which logging flags its adapter sets on a minibatch eval, and two check
@@ -476,6 +503,10 @@ NOT_ADAPTER_CONFORMANCE = {
     "upstream_test_bettertogether.py": (
         "dspy's BetterTogether orchestration over mock optimizers, in Python"
     ),
+    # dspy's ThreadPoolExecutor plumbing: worker independence, which thread a sequential run uses,
+    # how many errors it tolerates. The crate's `Parallel` is Rust futures over its own executor,
+    # so none of this has a shape to cross onto — and none of it renders.
+    "upstream_test_parallelizer.py": "dspy's thread-pool plumbing, in Python",
 }
 
 
@@ -780,6 +811,31 @@ def _rust_is_openai_reasoning_model(model: str) -> bool:
     """
     crossings.record_render()
     return dsrs_bridge.is_openai_reasoning_model(model)
+
+
+@pytest.fixture(autouse=True)
+def _usage_merging_is_rust(request, monkeypatch):
+    """What two calls' counters come to together is the crate's answer.
+
+    This is the arithmetic a program's reported spend is built from, and the place it goes wrong
+    quietly: a nested breakdown (`prompt_tokens_details.cached_tokens`) or a counter nobody has
+    modelled has to *add* across calls, not be replaced by the latest.
+    """
+    if request.node.module.__name__ != "upstream_test_usage_tracker":
+        return
+    from dspy.utils.usage_tracker import UsageTracker
+
+    def merged(self, left, right):
+        crossings.record_render()
+        answered = json.loads(
+            dsrs_bridge.merge_usage(json.dumps(left or {}), json.dumps(right or {}))
+        )
+        # The crate fills both spellings of a counter it knows under two names; upstream carries
+        # only what a provider reported, so a name neither side sent is dropped again.
+        seen = set(left or {}) | set(right or {})
+        return {k: v for k, v in answered.items() if k in seen}
+
+    monkeypatch.setattr(UsageTracker, "_merge_usage_entries", merged)
 
 
 @pytest.fixture(autouse=True)
