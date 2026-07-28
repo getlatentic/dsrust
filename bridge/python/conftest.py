@@ -10,6 +10,7 @@ genuinely runs on Rust.
 """
 
 import json
+import os
 
 import dspy
 import pytest
@@ -350,6 +351,43 @@ DOES_NOT_EXERCISE_RUST = {
     "test_cache_init_with_disk_disabled_and_none_dir": "dspy's Cache constructor",
     "test_unserializable_key": "a request whose key raises before the crate is asked for one",
     "test_safe_types_rejects_non_types": "dspy's restricted-unpickling guard",
+    # --- dspy's BaseModule as a Python object ---
+    # These walk an *attribute graph*: a Python module holding sub-modules as attributes, found by
+    # name, deep-copied, pickled. A Rust module is a trait with a `named_predictors` walk and no
+    # attribute graph for any of this to reach, which is the same finding as
+    # test_sandbox_serializable — a Python object protocol has no Rust surface to cross onto.
+    "test_module_initialization": "dspy's Module attribute graph",
+    "test_empty_module": "dspy's Module attribute graph",
+    "test_predictors": "dspy's Module attribute graph",
+    "test_single_level": "dspy's Module attribute graph",
+    "test_multiple_levels": "dspy's Module attribute graph",
+    "test_multiple_sub_modules": "dspy's Module attribute graph",
+    "test_nested_named_predictors": "dspy's Module attribute graph",
+    "test_non_base_module_attributes": "dspy's Module attribute graph",
+    "test_complex_module_traversal": "dspy's Module attribute graph",
+    "test_complex_module_traversal_with_same_module": "dspy's Module attribute graph",
+    "test_complex_module_set_attribute_by_name": "dspy's Module attribute graph",
+    "test_named_parameters_duplicate_references": "dspy's Module attribute graph",
+    "test_deepcopy_basic": "Python's deepcopy over that graph",
+    "test_deepcopy_with_nested_modules": "Python's deepcopy over that graph",
+    "test_deepcopy_with_uncopyable_modules": "Python's deepcopy over that graph",
+    # dspy's own save/load: its pickle mode, its version stamp, and the `Path(__file__)/resources`
+    # program a past dspy wrote. The crate's state round-trip is `module.rs`'s own tests and the
+    # `check_saved_program.py` gate.
+    "test_save_and_load_with_json": "dspy's own state file, written and read by dspy",
+    "test_save_with_extra_modules": "dspy's pickle-mode save",
+    "test_load_with_version_mismatch": "dspy's version stamp on its own file",
+    "test_load_dspy_program_cross_version": "a program a past dspy wrote, read by dspy",
+    # The property this one tests *is* ported — `Module::load_state` refuses a state that does not
+    # name every predictor, before touching any of them — but the test drives dspy's Python
+    # `load_state` over a Python graph, so it cannot reach ours. `module.rs`'s
+    # `a_state_that_does_not_fit_is_refused_and_changes_nothing` is our side of it.
+    "test_load_state_is_transactional": "dspy's load_state over a Python module graph",
+    # dspy's `__call__`-versus-`forward` warning, and its usage-tracker context manager.
+    "test_forward_direct_call_warning": "dspy's own call-style warning",
+    "test_forward_through_call_no_warning": "dspy's own call-style warning",
+    "test_single_module_call_with_usage_tracker": "dspy's usage-tracker context manager",
+    "test_multi_module_call_with_usage_tracker": "dspy's usage-tracker context manager",
 }
 
 #: Tests that reach the crate even though their class is declared above as not doing so. A class
@@ -398,6 +436,21 @@ _CROSSED: set[str] = set()
 
 #: Names of tests that reached the signature layer, counted apart for the reason above.
 _REACHED_SIGNATURE: set[str] = set()
+
+
+@pytest.fixture
+def lm_for_test():
+    """Upstream's own fixture, reproduced because its conftest is blanked here.
+
+    The runner empties `tests/conftest.py` so importing anything under `tests/` cannot drag in the
+    litellm test server. That takes this with it, and a test asking for it errors instead of
+    skipping — which reads as a failure this port caused. Upstream skips without `LM_FOR_TEST`, and
+    so does this.
+    """
+    model = os.environ.get("LM_FOR_TEST")
+    if model is None:
+        pytest.skip("LM_FOR_TEST is not set in the environment variables")
+    return model
 
 
 @pytest.fixture(autouse=True)

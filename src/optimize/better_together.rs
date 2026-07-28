@@ -133,7 +133,9 @@ where
             false => ranked.iter().max_by_key(|(at, _)| *at),
         };
         if let Some((_, best)) = best {
-            student.load_state(&best.state);
+            // The state came from this very student a moment ago, so a mismatch here would mean
+            // the walk changed underneath — worth surfacing rather than passing over.
+            student.load_state(&best.state)?;
         }
         Ok(ranked.into_iter().map(|(_, candidate)| candidate).collect())
     }

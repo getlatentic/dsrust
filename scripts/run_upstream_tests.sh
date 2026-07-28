@@ -43,6 +43,7 @@ SUITES=(
   evaluate/test_metrics.py evaluate/test_evaluate.py
   teleprompt/test_teleprompt.py teleprompt/test_copro_optimizer.py
   core/test_types.py clients/test_cache.py
+  primitives/test_module.py primitives/test_base_module.py
 )
 
 # SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against
@@ -100,6 +101,10 @@ fi
 # `PYTHONPATH` still resolves `tests.*` helper imports against the full tree below.
 for file in "${SUITES[@]}"; do
   cp "$SRC/tests/$file" "$WORK/upstream_$(basename "$file")"
+  # A flattened copy loses the directory its test reads fixtures from — `test_module.py` opens
+  # `Path(__file__).parent / "resources" / …`. Bring that directory along beside it.
+  RESOURCES="$SRC/tests/$(dirname "$file")/resources"
+  [ -d "$RESOURCES" ] && mkdir -p "$WORK/resources" && cp -R "$RESOURCES/." "$WORK/resources/"
 done
 # Upstream's top-level conftest pulls in a litellm test server this harness does not run; neutralise
 # it so importing anything under tests/ can never drag the server in. Sub-package helpers stay intact.

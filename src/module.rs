@@ -11,7 +11,7 @@
 
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 
 use crate::example::{Example, Prediction};
 use crate::lm::LmConfig;
@@ -133,9 +133,25 @@ pub trait Module: Send + Sync {
     }
 
     /// Restore a compiled state onto this program, which must be the same program the state was
-    /// dumped from. A predictor named in the state that this program lacks is skipped, and each
-    /// demo's input split is re-declared from its signature.
-    fn load_state(&mut self, state: &ProgramState) {
+    /// dumped from. Each demo's input split is re-declared from its signature.
+    ///
+    /// A predictor this program has and the state does not is an error, as it is upstream — dspy
+    /// indexes `state[name]` and raises. Skipping it instead would hand back a program that looks
+    /// loaded and is not, which is what loading the wrong saved program would silently produce.
+    /// The check runs over every predictor before any is touched, so a state that does not fit
+    /// leaves the program as it was rather than half-loaded — dspy gets the same from its
+    /// `_apply(self.deepcopy())` trial run.
+    fn load_state(&mut self, state: &ProgramState) -> Result<()> {
+        let missing: Vec<String> = self
+            .named_predictors()
+            .iter()
+            .map(|predictor| predictor.name.clone())
+            .filter(|name| state.get(name).is_none())
+            .collect();
+        if !missing.is_empty() {
+            bail!("the saved state has no entry for {missing:?}");
+        }
+
         for predictor in self.named_predictors() {
             let Some(saved) = state.get(&predictor.name) else {
                 continue;
@@ -145,6 +161,7 @@ pub trait Module: Send + Sync {
                 predictor.signature.inputs.iter().map(|field| field.name.clone()).collect();
             *predictor.demos = saved.demos.iter().map(|fields| demo_from_fields(fields, &inputs)).collect();
         }
+        Ok(())
     }
 
     /// Save this program's compiled state to a JSON file, reloaded onto a fresh copy of the same
@@ -157,7 +174,7 @@ pub trait Module: Send + Sync {
 
     /// Load a compiled state saved by [`save`](Self::save) onto this program.
     fn load(&mut self, path: &Path) -> Result<()> {
-        self.load_state(&serde_json::from_str(&std::fs::read_to_string(path)?)?);
+        self.load_state(&serde_json::from_str(&std::fs::read_to_string(path)?)?)?;
         Ok(())
     }
 
@@ -310,6 +327,23 @@ mod tests {
             "the demo's input split was re-declared from the signature"
         );
         assert!(!fresh.demos[0].is_input("answer"), "and its output stays a label");
+    }
+
+    /// A state that does not name every predictor this program has is refused, and refused before
+    /// anything is touched. dspy indexes `state[name]` and raises; skipping instead would hand back
+    /// a program that looks loaded and is not, which is what loading the wrong saved program would
+    /// quietly produce.
+    #[test]
+    fn a_state_that_does_not_fit_is_refused_and_changes_nothing() {
+        let mut fresh = echo();
+        let refused = fresh
+            .load_state(&ProgramState::new(Default::default()))
+            .expect_err("a state naming no predictor at all does not fit");
+        assert!(refused.to_string().contains("has no entry for"), "got: {refused}");
+        assert_eq!(
+            fresh.signature.instructions, "Echo the request.",
+            "the program is as it was, not half-loaded"
+        );
     }
 
     #[test]
