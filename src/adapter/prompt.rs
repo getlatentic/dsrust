@@ -162,7 +162,7 @@ pub(super) fn output_hint(field: &OutField) -> String {
 /// dspy `translate_field_type`: an output slot carries a note telling the model what shape the
 /// value must take. `str` says nothing, since a string needs no constraint; everything else
 /// earns a note on the same line, indented eight spaces as a comment.
-pub(super) fn output_slot(field: &OutField) -> String {
+pub(crate) fn output_slot(field: &OutField) -> String {
     let note = match &field.kind {
         // `Reasoning` carries plain text and states no shape, exactly as an unconstrained `Str`
         // does — dspy formats it through the type's `format`, which yields the content itself.

@@ -15,7 +15,9 @@ import json
 import pathlib
 import sys
 
-from dspy.predict.rlm import _strip_code_fences
+import dspy
+from dspy.adapters.utils import get_annotation_name
+from dspy.predict.rlm import RLM, _strip_code_fences
 
 from pins import require
 
@@ -58,6 +60,62 @@ WRITTEN = [
 ]
 
 
+def factorial(n: int) -> int:
+    """Compute the factorial of n."""
+    return 1 if n <= 1 else n * factorial(n - 1)
+
+
+class Unused:
+    """RLM builds an interpreter lazily; the fixture never runs code."""
+
+    def execute(self, code, variables=None):
+        raise AssertionError("the fixture does not execute code")
+
+    def shutdown(self):
+        pass
+
+
+class Described(dspy.Signature):
+    """Answer from the context."""
+
+    context: str = dspy.InputField()
+    answer: str = dspy.OutputField()
+
+
+class Typed(dspy.Signature):
+    context: str = dspy.InputField()
+    answer: str = dspy.OutputField()
+    count: int = dspy.OutputField(desc="how many")
+
+
+#: (label, signature, tools, max_llm_calls) — the template interpolates the input names, the
+#: output-field list, the SUBMIT() names and the call cap, and tool docs are appended after it.
+SIGNATURE_CASES = [
+    ("plain", "context, query -> answer", [], 50),
+    ("described", Described, [], 50),
+    ("typed", Typed, [], 7),
+    ("tools", "context -> answer", [factorial], 50),
+]
+
+
+def described_signature(signature) -> dict:
+    def fields(items):
+        return [
+            {
+                "name": name,
+                "desc": "" if (d := f.json_schema_extra.get("desc", "")) == f"${{{name}}}" else d,
+                "annotation": get_annotation_name(f.annotation),
+            }
+            for name, f in items.items()
+        ]
+
+    return {
+        "instructions": signature.instructions,
+        "inputs": fields(signature.input_fields),
+        "outputs": fields(signature.output_fields),
+    }
+
+
 def main() -> None:
     cases = []
     for written in WRITTEN:
@@ -65,10 +123,25 @@ def main() -> None:
             cases.append({"written": written, "code": _strip_code_fences(written), "error": None})
         except SyntaxError as error:
             cases.append({"written": written, "code": None, "error": str(error)})
+    signatures = []
+    for label, signature, tools, max_llm_calls in SIGNATURE_CASES:
+        rlm = RLM(signature, tools=tools or None, max_llm_calls=max_llm_calls, interpreter=Unused())
+        signatures.append(
+            {
+                "label": label,
+                "task": signature if isinstance(signature, str) else signature.__name__,
+                "task_instructions": rlm.signature.instructions,
+                "max_llm_calls": max_llm_calls,
+                "tools": [str(tool) for tool in rlm._user_tools.values()],
+                "action": described_signature(rlm.generate_action.signature),
+                "extract": described_signature(rlm.extract.signature),
+            }
+        )
     fixture = {
         "source": f"generated from dspy=={PINNED} via scripts/generate_rlm_fixture.py",
         "dspy_version": PINNED,
         "strip_code_fences": cases,
+        "signatures": signatures,
     }
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / "rlm.json"
