@@ -14,7 +14,7 @@ use std::time::Duration;
 use super::{ChatModel, LmUsage, api, env_nonempty};
 
 mod response;
-mod responses;
+pub mod responses;
 mod stream;
 
 /// OpenAI's own endpoint, and the value every other service replaces.

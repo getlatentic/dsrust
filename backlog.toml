@@ -37,7 +37,7 @@ updated = "2026-07-28"
 [status]
 rust_tests = 837
 upstream_tests_passing = 813
-upstream_tests_crossing = 424
+upstream_tests_crossing = 427
 upstream_tests_deciding_signatures = 514
 xfail_backlog = 3
 suites_run = 43

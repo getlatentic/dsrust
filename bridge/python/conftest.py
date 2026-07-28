@@ -423,14 +423,9 @@ DOES_NOT_EXERCISE_RUST = {
     "test_lm_calls_support_pydantic_models": "a mocked litellm answering directly",
     "test_dspy_cache": "dspy's cache around a mocked litellm; the key itself crosses in test_cache",
     "test_streaming_passes_headers_correctly": "headers litellm is handed",
-    # The Responses-API request body. The crate *does* build one — `lm/openai/responses/mod.rs`,
-    # held to a golden — but dspy assembles its own from litellm kwargs, and comparing the two
-    # wants a request-body crossing this shim does not have yet. The most valuable thing still
-    # unwired in this file; see #24.
-    "test_responses_api_converts_files_correctly": "dspy's Responses body, not the crate's (#24)",
-    "test_responses_api_converts_images_correctly": "dspy's Responses body, not the crate's (#24)",
-    "test_responses_api_preserves_multi_message_structure": "dspy's Responses body (#24)",
-    "test_responses_api_tool_calls": "dspy's Responses body, not the crate's (#24)",
+    # Asks for `litellm_test_server` and so skips here, which means it can never reach the crate —
+    # unlike its three siblings, whose Responses bodies do cross.
+    "test_responses_api_tool_calls": "needs upstream's litellm test server, so it skips",
 }
 
 #: Tests that reach the crate even though their class is declared above as not doing so. A class
@@ -785,6 +780,40 @@ def _rust_is_openai_reasoning_model(model: str) -> bool:
     """
     crossings.record_render()
     return dsrs_bridge.is_openai_reasoning_model(model)
+
+
+@pytest.fixture(autouse=True)
+def _responses_body_is_rust(request, monkeypatch):
+    """dspy's `_convert_chat_request_to_responses_request`, answered by the crate.
+
+    The two get here by different routes: dspy rewrites a chat dict in place, and the crate goes
+    typed request -> body, which is dspy's *other* route (`openai_format.responses_request`). The
+    conformance question is not the route but the wire — the same conversation, taken the crate's
+    way, has to reach the same body.
+
+    So the crate answers for what it builds — the input list, the text format, the tools — and
+    everything else is carried over from dspy's own rewrite, those being litellm passthrough keys
+    rather than part of what either one builds.
+    """
+    if request.node.module.__name__ != "upstream_test_lm":
+        return
+    from dspy.clients import lm as dspy_lm
+
+    # Captured before the patch: looking it up inside would find the replacement and recurse.
+    original = dspy_lm._convert_chat_request_to_responses_request
+
+    def answered(chat_request):
+        theirs = original(chat_request)
+        crossings.record_render()
+        ours = json.loads(dsrs_bridge.responses_body(json.dumps(chat_request, default=str)))
+        # `input` and `tools` only. The two routes agree on those and *do not* agree on `text`:
+        # this legacy converter names the format after the pydantic class it was handed, where the
+        # typed route the crate follows emits `{"type": "json_schema", "name": "response", …,
+        # "strict": true}`. Ours is held to the typed shape by tests/lm_api_conformance.rs, so
+        # forcing it here would assert the wrong one of dspy's two answers.
+        return {**theirs, **{k: v for k, v in ours.items() if k in ("input", "tools")}}
+
+    monkeypatch.setattr(dspy_lm, "_convert_chat_request_to_responses_request", answered)
 
 
 @pytest.fixture(autouse=True)

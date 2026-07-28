@@ -6,7 +6,7 @@ mod call;
 pub mod dummy;
 pub mod global;
 mod ollama;
-mod openai;
+pub mod openai;
 mod streaming;
 mod token_limit;
 pub mod usage;

@@ -264,3 +264,33 @@ pub(crate) fn is_openai_reasoning_model(model: &str) -> bool {
     use dsrust::lm::{TokenLimitField, TokenLimitRule};
     TokenLimitRule::ByOpenAiModelFamily.field_for(model) == TokenLimitField::MaxCompletionTokens
 }
+
+/// The Responses-API request body the crate builds for a chat-shaped request.
+///
+/// dspy has two routes to this body: a typed one over `LMRequest`, which the crate implements, and
+/// `_convert_chat_request_to_responses_request`, which rewrites a chat dict. The crate has no
+/// chat-dict route — its `LM` always holds a typed request — so the crossing is the *body*: the
+/// same conversation, taken the crate's way, must reach the same wire.
+#[pyfunction]
+pub(crate) fn responses_body(request: &str) -> PyResult<String> {
+    use dsrust::lm::api::{LmConfig, LmMessage, LmRequest};
+
+    let written: Value =
+        serde_json::from_str(request).map_err(|error| PyValueError::new_err(format!("{error}")))?;
+    let model = written.get("model").and_then(Value::as_str).unwrap_or_default();
+    let messages: Vec<LmMessage> = written
+        .get("messages")
+        .cloned()
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(|error| PyValueError::new_err(format!("messages: {error}")))?
+        .unwrap_or_default();
+
+    let mut config = LmConfig::default();
+    if let Some(schema) = written.get("response_format") {
+        config.response_format = Some(schema.clone());
+    }
+    let call = LmRequest::new(model, messages).configured(config);
+    let body = dsrust::lm::openai::responses::request(model, &call, dsrust::lm::JsonFormat::Schema);
+    serde_json::to_string(&body).map_err(|error| PyValueError::new_err(format!("{error}")))
+}

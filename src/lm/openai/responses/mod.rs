@@ -24,7 +24,7 @@ mod media;
 /// The Responses request body for one call. A requested schema rides under `text.format`, built from
 /// the bare schema by [`text_format`] — this crate builds the envelope rather than carrying dspy's
 /// whole one, the same split the chat wire makes.
-pub(super) fn request(model: &str, call: &api::LmRequest, json_format: JsonFormat) -> Value {
+pub fn request(model: &str, call: &api::LmRequest, json_format: JsonFormat) -> Value {
     let config = &call.config;
     let mut body = json!({ "model": model, "input": input(&call.wire_messages()) });
     // dspy's `responses_config_kwargs` opens with the extensions, unknown kwargs passing through.
@@ -133,6 +133,18 @@ fn content_block(block: &Value) -> Value {
                 out["detail"] = detail.clone();
             }
             out
+        }
+        // A file is the one block whose *keys* move: the chat wire nests them under `file`, and the
+        // Responses wire carries them at the top of an `input_file`. Each is emitted even when
+        // absent, as upstream emits them — a `.get` that found nothing is a null, not a gap.
+        Some("file") => {
+            let file = &block["file"];
+            json!({
+                "type": "input_file",
+                "file_data": file.get("file_data").cloned().unwrap_or(Value::Null),
+                "filename": file.get("filename").cloned().unwrap_or(Value::Null),
+                "file_id": file.get("file_id").cloned().unwrap_or(Value::Null),
+            })
         }
         _ => block.clone(),
     }

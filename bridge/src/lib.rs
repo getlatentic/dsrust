@@ -796,6 +796,7 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(code_modules::normalize_message, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::cache_key, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::is_openai_reasoning_model, module)?)?;
+    module.add_function(wrap_pyfunction!(code_modules::responses_body, module)?)?;
     module.add_function(wrap_pyfunction!(format_system_message, module)?)?;
     module.add_function(wrap_pyfunction!(baml_field_structure, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;
