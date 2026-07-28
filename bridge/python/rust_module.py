@@ -216,6 +216,16 @@ class _PredictorAsLM:
         return list(signature.output_fields) if signature is not None else []
 
     def __call__(self, messages=None, n=None, **kwargs):
+        lm = dspy.settings.lm
+        if isinstance(self.predictor, dspy.Predict) and lm is not None:
+            # A real predictor, so the crate has already rendered this turn's prompt and the model
+            # answers *that*. Calling the predictor would render it a second time in Python and
+            # spend a canned reply doing it — which is both a wasted response and Python answering
+            # for the renderer under test.
+            return lm(messages=messages, **({"n": n} if n else {}))
+
+        # A mock predictor: it ignores what it is asked and hands back a canned `Prediction`, so
+        # the reply is built back into the field blocks the crate's own parse reads.
         answered = dict(self.predictor(**kwargs).items())
         order = self.field_order
         names = [name for name in order if name in answered]

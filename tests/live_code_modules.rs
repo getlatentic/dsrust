@@ -86,7 +86,11 @@ impl Canned {
 }
 
 impl CodeInterpreter for Canned {
-    fn execute(&self, code: &str) -> anyhow::Result<Executed> {
+    fn execute(
+        &self,
+        code: &str,
+        _variables: &serde_json::Map<String, Value>,
+    ) -> anyhow::Result<Executed> {
         self.ran.lock().expect("ran").push(code.to_owned());
         Ok(self.answer.clone())
     }

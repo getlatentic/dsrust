@@ -14,7 +14,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::react::Tool;
 
@@ -60,10 +60,14 @@ impl Executed {
 pub trait CodeInterpreter: Send + Sync {
     /// Run the code and answer with what it produced.
     ///
+    /// `variables` are bound in the namespace before the code runs, which is how a module puts its
+    /// caller's inputs where generated code can reach them — `RLM` passes its input fields every
+    /// turn, so `SUBMIT(sum(numbers))` can see `numbers`. The other two modules pass none.
+    ///
     /// An error is the code's own failure — an undefined name, a raised exception — and a module
     /// feeds it back to the model as the error to correct, so it reaches a prompt and should read
     /// the way upstream's does.
-    fn execute(&self, code: &str) -> Result<Executed>;
+    fn execute(&self, code: &str, variables: &Map<String, Value>) -> Result<Executed>;
 
     /// Make these tools callable from generated code, by the names they carry.
     ///
@@ -101,6 +105,8 @@ pub(crate) mod tests {
     pub(crate) struct Scripted {
         answers: Mutex<std::collections::VecDeque<Result<Executed, String>>>,
         pub(crate) ran: Mutex<Vec<String>>,
+        /// What each `execute` was asked to bind, so a module's variable passing is checkable.
+        pub(crate) bound: Mutex<Vec<Map<String, Value>>>,
         pub(crate) shutdowns: Mutex<usize>,
     }
 
@@ -109,14 +115,16 @@ pub(crate) mod tests {
             Self {
                 answers: Mutex::new(answers.into_iter().collect()),
                 ran: Mutex::new(Vec::new()),
+                bound: Mutex::new(Vec::new()),
                 shutdowns: Mutex::new(0),
             }
         }
     }
 
     impl CodeInterpreter for Scripted {
-        fn execute(&self, code: &str) -> Result<Executed> {
+        fn execute(&self, code: &str, variables: &Map<String, Value>) -> Result<Executed> {
             self.ran.lock().expect("ran").push(code.to_owned());
+            self.bound.lock().expect("bound").push(variables.clone());
             match self.answers.lock().expect("answers").pop_front() {
                 Some(Ok(executed)) => Ok(executed),
                 Some(Err(error)) => Err(anyhow::anyhow!(error)),

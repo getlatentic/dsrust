@@ -12,7 +12,7 @@
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use crate::example::{Example, Prediction};
 use crate::interpreter::CodeInterpreter;
@@ -86,7 +86,7 @@ impl ProgramOfThought {
         if code.is_empty() {
             return (None, Some("Error: Empty code before execution.".to_owned()));
         }
-        match self.interpreter.execute(code) {
+        match self.interpreter.execute(code, &Map::new()) {
             Ok(executed) => (Some(crate::adapter::python_json::json_dumps(executed.value())), None),
             Err(error) => (None, Some(format!("{error}"))),
         }

@@ -52,12 +52,21 @@ fn jsonable(py: Python<'_>, value: &Bound<'_, PyAny>) -> anyhow::Result<Value> {
 }
 
 impl CodeInterpreter for PyInterpreter {
-    fn execute(&self, code: &str) -> anyhow::Result<Executed> {
+    fn execute(
+        &self,
+        code: &str,
+        variables: &serde_json::Map<String, Value>,
+    ) -> anyhow::Result<Executed> {
         Python::attach(|py| {
+            let bound = py
+                .import("json")?
+                .call_method1("loads", (serde_json::to_string(variables)?,))?;
+            let kwargs = pyo3::types::PyDict::new(py);
+            kwargs.set_item("variables", bound)?;
             let result = self
                 .inner
                 .bind(py)
-                .call_method1("execute", (code,))
+                .call_method("execute", (code,), Some(&kwargs))
                 // dspy raises the message the loop shows the model, so it crosses as written.
                 .map_err(|error| anyhow::anyhow!("{}", raised_message(py, &error)))?;
             PyInterpreter::executed(py, &result)

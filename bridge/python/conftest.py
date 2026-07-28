@@ -101,13 +101,6 @@ NOT_YET_IMPLEMENTED = {
     "test_predicted_outputs_piped_from_predict_to_lm_call": (
         "dspy.LM's predicted-outputs `prediction` kwarg passthrough to litellm"
     ),
-    # `RLM._process_final_output` validates each submitted value against its output field's
-    # annotation and feeds a `[Type Error] …` back so the model can submit again. The crate's
-    # `Rlm::submitted` checks the shape and the field names and stops there, so a wrongly-typed
-    # submission is accepted where upstream would retry. See #22 — this is the divergence the RLM
-    # beachhead was built to find, and it is the whole reason these two are here.
-    "test_type_error_retries": "RLM does not yet type-check a submission and retry (#22)",
-    "test_with_input_variables_e2e": "as test_type_error_retries (#22)",
 }
 
 

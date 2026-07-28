@@ -8,6 +8,7 @@
 
 mod fences;
 mod signatures;
+mod submission;
 mod tools;
 
 use std::sync::Arc;
@@ -16,7 +17,7 @@ use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
 use crate::adapter::Type;
-use crate::adapter::python_json::{json_dumps, python_type_name};
+use crate::adapter::python_json::json_dumps;
 use crate::adapter::types::base::{Formatted, to_field_value};
 use crate::example::{Example, Prediction};
 use crate::interpreter::{CodeInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable};
@@ -139,6 +140,16 @@ impl Rlm {
 
         self.interpreter.define_tools(&self.tools)?;
         let variables = self.variables(&inputs);
+        // dspy binds the caller's inputs in the sandbox on every `execute`, which is what lets the
+        // model's code reach them by name — `SUBMIT(sum(numbers))` sees `numbers`.
+        let bound: serde_json::Map<String, Value> = self
+            .signature
+            .inputs
+            .iter()
+            .filter_map(|field| {
+                inputs.get(&field.name).map(|value| (field.name.clone(), value.clone()))
+            })
+            .collect();
         let mut history = ReplHistory::new(self.max_output_chars);
 
         for iteration in 0..self.max_iterations {
@@ -166,7 +177,7 @@ impl Rlm {
                 Some(error) => Err(error),
                 None => self
                     .interpreter
-                    .execute(&code)
+                    .execute(&code, &bound)
                     .map_err(|error| format!("[Error] {error}")),
             };
 
@@ -231,38 +242,10 @@ impl Rlm {
             .collect()
     }
 
-    /// dspy `_process_final_output`: a submission must be a mapping carrying every output field.
-    /// What it is not is fed back to the model rather than raised, so it can submit again.
+    /// dspy `_process_final_output`, in [`submission`]: what a `SUBMIT()` must be, and what the
+    /// model is told when it is not — fed back rather than raised, so it can submit again.
     fn submitted(&self, value: &Value) -> Result<serde_json::Map<String, Value>, String> {
-        let Some(fields) = value.as_object() else {
-            let names: Vec<&str> =
-                self.signature.outputs.iter().map(|field| field.name.as_str()).collect();
-            return Err(format!(
-                "[Error] FINAL returned {}, expected dict with fields: {names:?}",
-                python_type_name(value)
-            ));
-        };
-        let mut missing: Vec<&str> = self
-            .signature
-            .outputs
-            .iter()
-            .map(|field| field.name.as_str())
-            .filter(|name| !fields.contains_key(*name))
-            .collect();
-        if !missing.is_empty() {
-            missing.sort_unstable();
-            let names: Vec<&str> =
-                self.signature.outputs.iter().map(|field| field.name.as_str()).collect();
-            return Err(format!(
-                "[Error] Missing output fields: {missing:?}. Use SUBMIT({})",
-                names.join(", ")
-            ));
-        }
-        let mut outputs = serde_json::Map::new();
-        for field in &self.signature.outputs {
-            outputs.insert(field.name.clone(), fields[&field.name].clone());
-        }
-        Ok(outputs)
+        submission::process(&self.signature, value)
     }
 
     /// dspy returns the outputs beside the trajectory and the reasoning that ended the run.
@@ -472,6 +455,57 @@ mod loop_tests {
             prediction.get("final_reasoning"),
             Some(&json!("Extract forced final output"))
         );
+    }
+
+    /// The caller's inputs are bound in the sandbox on every turn, which is what lets the model's
+    /// code reach them by name rather than by having them pasted into the prompt.
+    #[tokio::test]
+    async fn the_inputs_are_bound_in_the_sandbox_each_turn() {
+        let interpreter = Arc::new(ScriptedInterpreter::new([
+            Err("NameError".to_owned()),
+            Ok(Executed::Submitted(json!({ "answer": "ok" }))),
+        ]));
+        let look = Box::leak(action("look", "```python\nprint(context)\n```").into_boxed_str());
+        let finish =
+            Box::leak(action("done", "```python\nSUBMIT(answer='ok')\n```").into_boxed_str());
+        let rlm = rlm(interpreter.clone(), &[look, finish]);
+
+        rlm.forward(example! { context: "a long document" }).await.expect("answers");
+
+        let bound = interpreter.bound.lock().expect("bound").clone();
+        assert_eq!(bound.len(), 2, "both turns bind");
+        for turn in &bound {
+            assert_eq!(turn["context"], json!("a long document"));
+        }
+    }
+
+    /// A submission whose value is not its field's type is refused with dspy's wording and fed
+    /// back, so the model corrects it rather than the run ending on a wrong answer.
+    #[tokio::test]
+    async fn a_wrongly_typed_submission_is_fed_back() {
+        let mut signature = task();
+        signature.outputs[0].values =
+            Some(vec![crate::signature::LiteralValue::Str("yes".to_owned())]);
+        let interpreter = Arc::new(ScriptedInterpreter::new([
+            Ok(Executed::Submitted(json!({ "answer": "maybe" }))),
+            Ok(Executed::Submitted(json!({ "answer": "yes" }))),
+        ]));
+        let wrong =
+            Box::leak(action("guess", "```python\nSUBMIT(answer='maybe')\n```").into_boxed_str());
+        let right =
+            Box::leak(action("fix", "```python\nSUBMIT(answer='yes')\n```").into_boxed_str());
+        let model = Arc::new(Scripted::new(&[wrong, right]));
+        let mut rlm = Rlm::new(signature, interpreter);
+        rlm.generate_action = rlm.generate_action.with_lm(model.clone());
+        rlm.extract = rlm.extract.with_lm(model);
+
+        let prediction = rlm.forward(example! { context: "doc" }).await.expect("answers");
+        let trajectory = prediction.get("trajectory").expect("a trajectory");
+        assert_eq!(
+            trajectory[0]["output"],
+            json!("[Type Error] answer: expected Literal, got str: 'maybe' is not one of ('yes',)")
+        );
+        assert_eq!(prediction.get("answer"), Some(&json!("yes")));
     }
 
     /// An input the signature declares but the caller did not pass is refused, with dspy's wording.

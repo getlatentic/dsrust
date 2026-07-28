@@ -191,7 +191,7 @@ impl LiteralValue {
         }
     }
 
-    pub(super) fn to_json(&self) -> Value {
+    pub(crate) fn to_json(&self) -> Value {
         match self {
             LiteralValue::Str(text) => json!(text),
             LiteralValue::Int(number) => json!(number),

@@ -98,7 +98,7 @@ impl CodeAct {
             }
 
             trajectory.insert(format!("generated_code_{turn}"), json!(code));
-            match self.interpreter.execute(&code) {
+            match self.interpreter.execute(&code, &Map::new()) {
                 Ok(executed) => {
                     let output = crate::adapter::python_json::json_dumps(executed.value());
                     trajectory.insert(format!("code_output_{turn}"), json!(output));

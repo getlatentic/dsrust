@@ -476,7 +476,7 @@
 "predict/program_of_thought.py::ProgramOfThought.forward" = { status = "mapped", rust = "forward" }
 
 # CodeInterpreter
-"primitives/code_interpreter.py::CodeInterpreter.execute" = { status = "mapped", rust = "execute" }
+"primitives/code_interpreter.py::CodeInterpreter.execute" = { status = "mapped", rust = "execute" }  # carries `variables`, as upstream's does
 "primitives/code_interpreter.py::CodeInterpreter.shutdown" = { status = "mapped", rust = "shutdown" }
 "primitives/code_interpreter.py::CodeInterpreter.start" = { status = "mapped", rust = "start" }
 "primitives/code_interpreter.py::CodeInterpreter.tools" = { status = "divergence", reason = "dspy exposes host functions the sandboxed code may call back into; a Rust caller wires those into its own interpreter, since the crate ships none" }
