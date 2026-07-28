@@ -227,3 +227,16 @@ pub(crate) fn answer_exact_match(answers: Vec<String>, answered: &str) -> f64 {
         false => 0.0,
     }
 }
+
+/// One message read by the crate's `LmMessage` and written back out.
+///
+/// dspy's `LMMessage` accepts either the typed shape or the one a provider writes, and normalises
+/// the second into the first. The crate does the same, so a message crosses by round-trip: what
+/// comes back is what *our* normaliser made of it, and a test asserting on the parts is asserting
+/// on that.
+#[pyfunction]
+pub(crate) fn normalize_message(written: &str) -> PyResult<String> {
+    let message: dsrust::lm::api::LmMessage = serde_json::from_str(written)
+        .map_err(|error| PyValueError::new_err(format!("{error}")))?;
+    serde_json::to_string(&message).map_err(|error| PyValueError::new_err(format!("{error}")))
+}

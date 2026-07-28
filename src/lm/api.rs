@@ -11,6 +11,7 @@ mod history;
 pub(crate) mod interop;
 pub use interop::wire_messages_of;
 mod legacy;
+mod openai_shape;
 mod message;
 mod part;
 mod patch;

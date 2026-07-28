@@ -5,7 +5,7 @@
 
 use serde_json::Value;
 
-use super::part::{LmPart, LmSource, Metadata};
+use super::part::{DocumentSource, LmPart, LmSource, Metadata};
 
 /// One block as the part it describes, or carried whole when it describes nothing known.
 pub fn part_of_block(block: &Value) -> LmPart {
@@ -16,6 +16,7 @@ pub fn part_of_block(block: &Value) -> LmPart {
         Some("text") => LmPart::text(text_of(object)),
         Some("image_url") => image(object),
         Some("input_audio") => audio(object),
+        Some("video") => video(object),
         Some("document") => document(object),
         // A file keeps its block: upstream re-emits that one verbatim rather than rebuilding it,
         // since `file_data` and `file_id` do not survive the trip through a media source.
@@ -51,53 +52,144 @@ fn image(object: &serde_json::Map<String, Value>) -> LmPart {
     }
 }
 
+/// dspy `_audio_dict_to_part`: the format, then the first source the block actually carries.
+///
+/// The order matters and the fallthrough is not optional — a block naming a `url` and no `data`
+/// must keep the url. Taking `data` unconditionally turned every URL-given audio into an empty
+/// data source, losing the only thing that said where the audio was.
 fn audio(object: &serde_json::Map<String, Value>) -> LmPart {
-    let audio = object.get("input_audio").and_then(Value::as_object);
+    let block = object.get("input_audio").and_then(Value::as_object);
     let read = |key: &str| {
-        audio
-            .and_then(|audio| audio.get(key))
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned()
+        block.and_then(|block| block.get(key)).and_then(Value::as_str).filter(|text| !text.is_empty())
     };
-    let format = match read("format").as_str() {
-        "" => "wav".to_owned(),
-        named => named.to_owned(),
+    // A format already carrying a slash is the media type itself, as upstream reads it.
+    let format = read("format").unwrap_or("wav");
+    let media_type = match format.contains('/') {
+        true => format.to_owned(),
+        false => format!("audio/{format}"),
     };
-    LmPart::Audio {
-        source: LmSource::Data(read("data")),
-        media_type: format!("audio/{format}"),
-        metadata: Metadata::new(),
-    }
+
+    let (media_type, source) = match media_source(read("data"), media_type.clone()) {
+        Some(found) => found,
+        None => match (read("url"), read("file_id"), read("path")) {
+            (Some(url), _, _) => (media_type, LmSource::Url(url.to_owned())),
+            (_, Some(file_id), _) => (media_type, LmSource::FileId(file_id.to_owned())),
+            (_, _, Some(path)) => (media_type, LmSource::Path(path.into())),
+            // Upstream raises; a block with no source at all still has to become *some* part here,
+            // and empty data is what the rest of the crate already reads as "nothing to send".
+            _ => (media_type, LmSource::Data(String::new())),
+        },
+    };
+    LmPart::Audio { source, media_type, metadata: Metadata::new() }
 }
 
+/// dspy `_media_dict_to_video_part`, which reads the same four sources.
+fn video(object: &serde_json::Map<String, Value>) -> LmPart {
+    let block = object.get("video").and_then(Value::as_object);
+    let read = |key: &str| {
+        block.and_then(|block| block.get(key)).and_then(Value::as_str).filter(|text| !text.is_empty())
+    };
+    let media_type = read("media_type").unwrap_or("video/mp4").to_owned();
+    let (media_type, source) = match media_source(read("data"), media_type.clone()) {
+        Some(found) => found,
+        None => match (read("url"), read("file_id"), read("path")) {
+            (Some(url), _, _) => (media_type, LmSource::Url(url.to_owned())),
+            (_, Some(file_id), _) => (media_type, LmSource::FileId(file_id.to_owned())),
+            (_, _, Some(path)) => (media_type, LmSource::Path(path.into())),
+            _ => (media_type, LmSource::Data(String::new())),
+        },
+    };
+    LmPart::Video { source, media_type, metadata: Metadata::new() }
+}
+
+/// Inline data as a source, its media type taken from a `data:` URI where the value is one.
+fn media_source(data: Option<&str>, media_type: String) -> Option<(String, LmSource)> {
+    let data = data?;
+    Some(match data_uri(data) {
+        Some((declared, decoded)) => (declared, LmSource::Data(decoded)),
+        None => (media_type, LmSource::Data(data.to_owned())),
+    })
+}
+
+/// dspy `_document_dict_to_part`: a source named directly on the block, else a `source` that is
+/// either a mapping to keep or a *string* to classify.
+///
+/// The string case is the one that matters and is easy to get wrong: `"https://…/report.pdf"` is a
+/// url, not the document's text. Reading it as inline text loses the only thing saying where the
+/// document is.
 fn document(object: &serde_json::Map<String, Value>) -> LmPart {
-    let source = match object.get("source") {
-        Some(Value::Object(source)) => source.clone(),
-        other => {
-            let mut described = Metadata::new();
-            described.insert("type".to_owned(), Value::String("text".to_owned()));
-            let data = other.map(crate::adapter::python_json::format_value);
-            described.insert("data".to_owned(), Value::String(data.unwrap_or_default()));
-            described
-        }
-    };
-    let citations = match object.get("citations").and_then(Value::as_object) {
-        Some(citations) => citations.clone(),
-        None => {
-            let mut enabled = Metadata::new();
-            enabled.insert("enabled".to_owned(), Value::Bool(true));
-            enabled
-        }
-    };
-    LmPart::Document {
-        source: super::part::DocumentSource::Source(source),
-        media_type: "application/pdf".to_owned(),
+    let media_type = string_at(object, "media_type").unwrap_or_else(|| "application/pdf".to_owned());
+    let described = |source, citations, media_type| LmPart::Document {
+        source,
+        media_type,
         citations,
         title: string_at(object, "title"),
         context: string_at(object, "context"),
         metadata: Metadata::new(),
+    };
+
+    // A source named on the block itself wins, in upstream's order.
+    for (key, build) in named_sources() {
+        if let Some(value) = string_at(object, key) {
+            return described(DocumentSource::Media(build(value)), Metadata::new(), media_type);
+        }
     }
+
+    match object.get("source") {
+        // A mapping is kept as written, and only this path carries the block's own citations.
+        Some(Value::Object(source)) => described(
+            DocumentSource::Source(source.clone()),
+            object.get("citations").and_then(Value::as_object).cloned().unwrap_or_default(),
+            media_type,
+        ),
+        Some(Value::String(source)) => {
+            let (media_type, media) = classify(source, media_type);
+            described(DocumentSource::Media(media), Metadata::new(), media_type)
+        }
+        // Upstream raises on a block with no source; an empty one is what the rest of the crate
+        // already reads as nothing to send.
+        _ => described(DocumentSource::Media(LmSource::Data(String::new())), Metadata::new(), media_type),
+    }
+}
+
+/// The source keys a block may name directly, in the order upstream checks them.
+fn named_sources() -> [(&'static str, fn(String) -> LmSource); 4] {
+    [
+        ("data", LmSource::Data),
+        ("url", LmSource::Url),
+        ("file_id", LmSource::FileId),
+        ("path", |path| LmSource::Path(path.into())),
+    ]
+}
+
+/// dspy `_media_source_kwargs`: a `data:` URI is inline data, an http(s) URL is a url whose media
+/// type is guessed from its path, and anything else is a file id.
+fn classify(source: &str, default_media_type: String) -> (String, LmSource) {
+    if let Some((media_type, data)) = data_uri(source) {
+        return (media_type, LmSource::Data(data));
+    }
+    match source.starts_with("http://") || source.starts_with("https://") {
+        true => (guessed_media_type(source).unwrap_or(default_media_type), LmSource::Url(source.to_owned())),
+        false => (default_media_type, LmSource::FileId(source.to_owned())),
+    }
+}
+
+/// Python's `mimetypes.guess_type` for the handful of suffixes a document URL actually carries.
+/// An unknown suffix falls back to the block's declared type, exactly as upstream's `or` does.
+fn guessed_media_type(url: &str) -> Option<String> {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    let suffix = path.rsplit_once('.')?.1.to_ascii_lowercase();
+    let media_type = match suffix.as_str() {
+        "pdf" => "application/pdf",
+        "txt" => "text/plain",
+        "html" | "htm" => "text/html",
+        "json" => "application/json",
+        "csv" => "text/csv",
+        "md" => "text/markdown",
+        "xml" => "text/xml",
+        _ => return None,
+    };
+    Some(media_type.to_owned())
 }
 
 fn string_at(object: &serde_json::Map<String, Value>, key: &str) -> Option<String> {

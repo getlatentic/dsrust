@@ -323,6 +323,23 @@ DOES_NOT_EXERCISE_RUST = {
     # `__dict__`, and COPRO's checks the depth and breadth it was given. Nothing is proposed.
     "test_get_params": "dspy's Teleprompter reading back its own __dict__",
     "test_signature_optimizer_initialization": "COPRO reading back its own constructor",
+    # --- the typed LM boundary ---
+    # The crossing here is `LMMessage`, whose every construction is normalised by the crate too and
+    # compared. These eleven build no message: they assert on dspy's own validators for config and
+    # usage aliases, on its response and stream-builder guards, or (the image one) on a raise that
+    # happens before a message exists. The crate's equivalents are held to a golden by
+    # tests/lm_api_conformance.rs.
+    "test_image_content_requires_mapping_with_url": "dspy raising before a message is built",
+    "test_lm_kwargs_aliases_normalize_for_existing_dspy_lm_callers": "dspy's config aliases",
+    "test_nested_config_aliases_remain_supported_for_existing_interfaces": "dspy's config aliases",
+    "test_usage_normalizes_existing_user_visible_token_aliases": "dspy's usage aliases",
+    "test_response_rejects_empty_outputs": "dspy's own response validator",
+    "test_output_to_value_preserves_redacted_thinking_part": "dspy's own output dump",
+    "test_stream_event_indices_must_be_non_negative": "dspy's own stream-event validator",
+    "test_stream_builder_rejects_sparse_output_indices": "dspy's own stream builder",
+    "test_stream_builder_rejects_sparse_part_indices": "dspy's own stream builder",
+    "test_stream_builder_rejects_delta_type_changes": "dspy's own stream builder",
+    "test_stream_builder_rejects_incomplete_tool_call_arguments": "dspy's own stream builder",
 }
 
 #: Tests that reach the crate even though their class is declared above as not doing so. A class
@@ -598,6 +615,54 @@ def _rust_answer_exact_match(example, pred, trace=None, frac=1.0):
 # dspy names a result column after the metric's `__name__`, so the stand-in carries upstream's
 # rather than its own — `test_construct_result_df` compares that column by name.
 _rust_answer_exact_match.__name__ = "answer_exact_match"
+
+
+@pytest.fixture(autouse=True)
+def _messages_normalize_through_rust(request, monkeypatch):
+    """Every `LMMessage` the types suite builds is normalised by the crate too, and the two answers
+    must agree.
+
+    dspy's `LMMessage` accepts either the typed shape or the one a provider writes and normalises
+    the second into the first. The crate does the same. Rather than replace pydantic's model — it is
+    what the rest of dspy validates against — each construction is *also* handed to the crate, and a
+    disagreement fails the test. So the suite asserts on dspy's object while holding ours to it.
+    """
+    if request.node.module.__name__ != "upstream_test_types":
+        return
+
+    from dspy.core import types as dspy_types
+
+    original = dspy_types.LMMessage.__init__
+
+    def checked(self, **data):
+        original(self, **data)
+        crossings.record_render()
+        # A test may hand over real part objects rather than dicts, and `str()` on one is its
+        # repr — which the crate would read as a bare string. Dump them the way pydantic does.
+        def jsonable(value):
+            dump = getattr(value, "model_dump", None)
+            # With defaults, since a part's `type` is a Literal default and dropping it leaves the
+            # crate's internally-tagged enum nothing to dispatch on.
+            return dump(mode="json") if dump else str(value)
+
+        ours = json.loads(dsrs_bridge.normalize_message(json.dumps(data, default=jsonable)))
+        # Compared key by key against what dspy *kept*: each side elides its own defaults, so a
+        # whole-dict equality would fail on `type` (dspy's Literal default) rather than on any
+        # disagreement. Every key dspy holds, the crate must hold with the same value — which is
+        # what caught an audio block losing its url.
+        mine, theirs = ours.get("parts", []), self.model_dump(exclude_defaults=True)["parts"]
+        assert len(mine) == len(theirs), (
+            f"the crate read a different number of parts:\n  written: {data}\n"
+            f"  dspy:  {theirs}\n  crate: {mine}"
+        )
+        for got, want in zip(mine, theirs):
+            for key, value in want.items():
+                assert got.get(key) == value, (
+                    f"the crate normalised `{key}` differently:\n  written: {data}\n"
+                    f"  dspy:  {want}\n  crate: {got}"
+                )
+
+    monkeypatch.setattr(dspy_types.LMMessage, "__init__", checked)
 
 
 @pytest.fixture(autouse=True)

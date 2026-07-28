@@ -4,8 +4,12 @@ use serde_json::Value;
 
 use super::part::{LmPart, Metadata};
 
+/// One role's turn as a list of parts.
+///
+/// Serializes as itself; *deserializes* from either that or the shape a provider writes — see
+/// [`OpenAiShaped`](super::openai_shape::OpenAiShaped), which is upstream's `normalize_parts`.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(try_from = "super::openai_shape::OpenAiShaped")]
 pub struct LmMessage {
     pub role: String,
     pub parts: Vec<LmPart>,
