@@ -318,6 +318,11 @@ DOES_NOT_EXERCISE_RUST = {
     "test_evaluate_initialization": "dspy's Evaluate reading back its own constructor",
     "test_evaluation_result_repr": "dspy's own result-object repr",
     "test_construct_result_df": "dspy's pandas display frame, built from a metric that never runs",
+    # --- optimizers ---
+    # Each reads back an optimizer's own constructor: `Teleprompter.get_params` returns its
+    # `__dict__`, and COPRO's checks the depth and breadth it was given. Nothing is proposed.
+    "test_get_params": "dspy's Teleprompter reading back its own __dict__",
+    "test_signature_optimizer_initialization": "COPRO reading back its own constructor",
 }
 
 #: Tests that reach the crate even though their class is declared above as not doing so. A class

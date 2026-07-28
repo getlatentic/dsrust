@@ -41,6 +41,7 @@ SUITES=(
   predict/test_rlm.py predict/test_program_of_thought.py predict/test_code_act.py
   primitives/test_sandbox_serializable.py
   evaluate/test_metrics.py evaluate/test_evaluate.py
+  teleprompt/test_teleprompt.py teleprompt/test_copro_optimizer.py
 )
 
 # SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against
