@@ -59,6 +59,10 @@ echo "==> Upstream coverage"
 # claim without evidence is the failure mode a plan has, so the two are checked against each
 # other before anything else.
 python3 "$ROOT/scripts/check_plan.py"
+# And the other direction: every file upstream ships either runs or carries a written reason. The
+# by-hand enumeration this replaces used a path heuristic and silently missed six modules, two of
+# which were hiding live bugs.
+python3 "$ROOT/scripts/check_coverage.py"
 TOTAL=$(grep -vc '^#' "$MANIFEST")
 echo "  ${#SUITES[@]} of $TOTAL upstream test files ($(( ${#SUITES[@]} * 100 / TOTAL ))%)"
 grep -v '^#' "$MANIFEST" | sed 's|tests/||;s|/.*||' | sort -u | while read -r area; do
