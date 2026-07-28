@@ -16,25 +16,27 @@
 //!
 //! ```text
 //! cargo test --test live_code_modules -- --ignored --nocapture --test-threads=1
-//! LIVE_LM=ollama_chat/qwen2.5:7b-instruct \
+//! LIVE_LM=ollama_chat/qwen2.5:7b-instruct LIVE_LM_TIMEOUT=180 \
 //!   cargo test --test live_code_modules -- --ignored --nocapture --test-threads=1
 //! ```
 //!
 //! What three local models did with them, since the failures are the provider's rather than the
 //! module's and are worth recognising:
 //!
-//! - `gemma3:4b` — all three pass, which is why it is the default here.
-//! - `qwen2.5:7b-instruct` — ProgramOfThought and CodeAct pass. RLM sends a far larger prompt (its
-//!   action template, the variables and the whole session) and exceeds the crate's 20-second
-//!   provider timeout on this size of model; see issue #20, which is about that timeout having no
-//!   caller knob.
-//! - `gpt-oss:20b` — CodeAct passes; the other two do not, and neither failure is the crate's.
-//!   ProgramOfThought times out as above. RLM gets an ollama 500: its harmony parser reads the
-//!   model's Python as a malformed tool call (`error parsing tool call: raw='print(len(context))'`).
-//!   A model whose output the provider parses for tool calls cannot be used to *write* code
-//!   through it. That message is only legible because the ollama client now surfaces the body.
+//! - `gemma3:4b` — all three pass inside the crate's default bound, which is why it is the default
+//!   here.
+//! - `qwen2.5:7b-instruct` — RLM sends a far larger prompt than the other two (its action template,
+//!   the variables and the whole session), and this size of model spends longer than the default
+//!   twenty seconds on it. All three pass with the bound raised, which is what
+//!   [`LM::with_timeout`] is for.
+//! - `gpt-oss:20b` — CodeAct passes. ProgramOfThought wants a raised bound as above. RLM gets an
+//!   ollama 500 that no timeout helps: its harmony parser reads the model's Python as a malformed
+//!   tool call (`error parsing tool call: raw='print(len(context))'`). A model whose output the
+//!   provider parses for tool calls cannot be used to *write* code through it. That message is only
+//!   legible because the ollama client surfaces the body.
 
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use dsrust::interpreter::{CodeInterpreter, Executed};
 use dsrust::{CodeAct, Example, LM, Module, ProgramOfThought, Rlm, Signature, example};
@@ -45,9 +47,20 @@ fn live_model() -> String {
     std::env::var("LIVE_LM").unwrap_or_else(|_| "ollama_chat/gemma3:4b".to_owned())
 }
 
+/// How long one call may take, in seconds. The crate's default is deliberately tight for a hosted
+/// model; a larger local one reading an RLM session wants more, and `LIVE_LM_TIMEOUT` is how a run
+/// against one says so.
+fn live_timeout() -> Option<Duration> {
+    let seconds: u64 = std::env::var("LIVE_LM_TIMEOUT").ok()?.parse().ok()?;
+    Some(Duration::from_secs(seconds))
+}
+
 fn configure_live() -> String {
     let model = live_model();
-    let lm = LM::new(&model).expect("a valid model ref").without_cache();
+    let mut lm = LM::new(&model).expect("a valid model ref").without_cache();
+    if let Some(timeout) = live_timeout() {
+        lm = lm.with_timeout(timeout);
+    }
     dsrust::configure(lm);
     model
 }

@@ -12,6 +12,7 @@
 //! route to reach for native calls.
 
 use std::future::Future;
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 
@@ -22,13 +23,14 @@ use serde_json::{Map, Value, json};
 use super::{authorized, provider_data, usage};
 use crate::lm::api::{self, LmConfig, LmDelta, LmStreamEvent};
 use crate::lm::streaming::{Framed, Framing, StreamState};
-use crate::lm::{ChatModel, PROVIDER_TIMEOUT};
+use crate::lm::ChatModel;
 
 /// An ollama server reached over `/api/generate`, the model and host beside it.
 pub(crate) struct Generate<'a> {
     pub model: &'a str,
     pub host: &'a str,
     pub api_key: Option<&'a str>,
+    pub timeout: Duration,
 }
 
 impl ChatModel for Generate<'_> {
@@ -40,7 +42,7 @@ impl ChatModel for Generate<'_> {
         async move {
             let request = http
                 .post(format!("{}/api/generate", self.host))
-                .timeout(PROVIDER_TIMEOUT)
+                .timeout(self.timeout)
                 .json(&request(self.model, call));
             let response = authorized(request, self.api_key)
                 .send()
@@ -63,12 +65,13 @@ pub(crate) fn stream<'h>(
     model: &str,
     host: &str,
     api_key: Option<&str>,
+    timeout: Duration,
     call: &api::LmRequest,
 ) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + use<'h> {
     let mut body = request(model, call);
     body["stream"] = json!(true);
     let connect = authorized(
-        http.post(format!("{host}/api/generate")).timeout(PROVIDER_TIMEOUT).json(&body),
+        http.post(format!("{host}/api/generate")).timeout(timeout).json(&body),
         api_key,
     )
     .send();

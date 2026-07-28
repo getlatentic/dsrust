@@ -5,6 +5,8 @@
 //! `message_start`, the output with `message_delta`), text arriving as `content_block_delta`, and
 //! `message_stop` closing. The reading, framing and assembly are shared; this is the frame's meaning.
 
+use std::time::Duration;
+
 use anyhow::Result;
 use futures_util::Stream;
 use serde_json::{Value, json};
@@ -12,7 +14,6 @@ use serde_json::{Value, json};
 use super::request::request;
 use crate::lm::api::{self, LmDelta, LmStreamEvent};
 use crate::lm::streaming::{Framed, Framing, StreamState};
-use crate::lm::PROVIDER_TIMEOUT;
 
 /// The streaming form of the call: the same body with `stream` set, its event stream read back as
 /// the typed vocabulary. Its owned inputs are lifted out before the stream is built, so it borrows
@@ -21,6 +22,7 @@ pub(crate) fn stream<'h>(
     http: &'h reqwest::Client,
     model: &str,
     api_key: Option<&str>,
+    timeout: Duration,
     call: &api::LmRequest,
 ) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + use<'h> {
     let mut body = request(model, call);
@@ -29,7 +31,7 @@ pub(crate) fn stream<'h>(
         .post(super::MESSAGES_URL)
         .header("anthropic-version", "2023-06-01")
         .header("content-type", "application/json")
-        .timeout(PROVIDER_TIMEOUT)
+        .timeout(timeout)
         .json(&body);
     if let Some(key) = api_key {
         request = request.header("x-api-key", key);

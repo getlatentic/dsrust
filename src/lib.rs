@@ -42,7 +42,8 @@ pub mod __macro_support;
 pub use lm::dummy::DummyLM;
 pub use lm::global::configure_model;
 pub use lm::{
-    ChatModel, ChatTurn, LM, ModelRef, OutputMode, Provider, Role, configure, configure_with_client,
+    ChatModel, ChatTurn, DEFAULT_PROVIDER_TIMEOUT, LM, ModelRef, OutputMode, Provider, Role,
+    configure, configure_with_client,
 };
 pub use interpreter::{CodeInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable};
 pub use predict::{

@@ -12,24 +12,26 @@
 //! natively still works.
 
 use std::collections::HashMap;
+use std::time::Duration;
 use std::sync::{Mutex, OnceLock};
 
 use serde_json::{Value, json};
 
-use crate::lm::{Capabilities, PROVIDER_TIMEOUT};
+use crate::lm::Capabilities;
 
 /// What `host` says `model` can do, asked once per host and model.
 pub(crate) async fn capabilities(
     http: &reqwest::Client,
     host: &str,
     api_key: Option<&str>,
+    timeout: Duration,
     model: &str,
 ) -> Capabilities {
     let asked = (host.to_owned(), model.to_owned());
     if let Some(known) = remembered(&asked) {
         return known;
     }
-    let found = ask(http, host, api_key, model).await;
+    let found = ask(http, host, api_key, timeout, model).await;
     remember(asked, found);
     found
 }
@@ -39,11 +41,12 @@ async fn ask(
     http: &reqwest::Client,
     host: &str,
     api_key: Option<&str>,
+    timeout: Duration,
     model: &str,
 ) -> Capabilities {
     let request = http
         .post(format!("{host}/api/show"))
-        .timeout(PROVIDER_TIMEOUT)
+        .timeout(timeout)
         .json(&json!({ "name": model }));
     let Ok(response) = super::authorized(request, api_key).send().await else {
         return Capabilities::default();

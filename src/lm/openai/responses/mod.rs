@@ -7,12 +7,13 @@
 //! text, a function_call as a tool call, a refusal as its own part. Both are built from the same
 //! OpenAI-shaped pieces the chat wire uses, and `tests/lm_api_conformance.rs` holds them to dspy's.
 
+use std::time::Duration;
+
 use anyhow::{Result, anyhow};
 use futures_util::Stream;
 use serde_json::{Value, json};
 
 use super::{JsonFormat, apply_tool_choice, response, tool_json};
-use crate::lm::PROVIDER_TIMEOUT;
 use crate::lm::api::{self, LmDelta, LmStreamEvent, Metadata};
 use crate::lm::streaming::{Framed, Framing, StreamState};
 
@@ -210,8 +211,9 @@ pub(super) fn stream<'h>(
     label: String,
     model: String,
     body: Value,
+    timeout: Duration,
 ) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + 'h {
-    let mut request = http.post(url).timeout(PROVIDER_TIMEOUT).json(&body);
+    let mut request = http.post(url).timeout(timeout).json(&body);
     if let Some(key) = key {
         request = request.bearer_auth(key);
     }

@@ -6,6 +6,8 @@
 //! meaning. The `/api/generate` route streams the same way over its own `response` field, in
 //! [`generate`](super::generate).
 
+use std::time::Duration;
+
 use anyhow::Result;
 use futures_util::Stream;
 use serde_json::{Value, json};
@@ -13,7 +15,6 @@ use serde_json::{Value, json};
 use super::request::request;
 use crate::lm::api::{self, LmDelta, LmStreamEvent};
 use crate::lm::streaming::{Framed, Framing, StreamState};
-use crate::lm::PROVIDER_TIMEOUT;
 
 /// The streaming form: the request with `stream` set true, ollama's line-delimited JSON read back as
 /// the typed vocabulary. Each line is a reply chunk; the last carries `done` and the counts.
@@ -22,13 +23,14 @@ pub(crate) fn stream<'h>(
     model: &str,
     host: &str,
     api_key: Option<&str>,
+    timeout: Duration,
     call: &api::LmRequest,
 ) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + use<'h> {
     let mut body = request(model, call);
     body["stream"] = json!(true);
     let connect = super::authorized(
         http.post(format!("{host}/api/chat"))
-            .timeout(PROVIDER_TIMEOUT)
+            .timeout(timeout)
             .json(&body),
         api_key,
     )

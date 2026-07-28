@@ -9,7 +9,9 @@ use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
 use super::token_limit::TokenLimitRule;
-use super::{ChatModel, LmUsage, PROVIDER_TIMEOUT, api, env_nonempty};
+use std::time::Duration;
+
+use super::{ChatModel, LmUsage, api, env_nonempty};
 
 mod response;
 mod responses;
@@ -119,13 +121,18 @@ pub(crate) struct Endpoint<'a> {
     json_format: JsonFormat,
     token_limit_rule: TokenLimitRule,
     wire: OpenAiWire,
+    timeout: Duration,
 }
 
 impl<'a> Endpoint<'a> {
     /// OpenRouter: its own host and credential, on the envelope it has always been sent.
     /// It accepts `max_tokens` for every model it hosts, OpenAI's reasoning models included,
     /// so the model name never moves the cap to another field here.
-    pub(crate) fn openrouter(model: &'a str, api_key: Option<&'a str>) -> Self {
+    pub(crate) fn openrouter(
+        model: &'a str,
+        api_key: Option<&'a str>,
+        timeout: Duration,
+    ) -> Self {
         Self {
             model,
             label: "openrouter",
@@ -135,12 +142,17 @@ impl<'a> Endpoint<'a> {
             json_format: JsonFormat::Object,
             token_limit_rule: TokenLimitRule::AlwaysMaxTokens,
             wire: OpenAiWire::Chat,
+            timeout,
         }
     }
 
     /// Whatever the configuration names: OpenAI itself by default, or any other service
     /// exposing the same route.
-    pub(crate) fn configured(model: &'a str, config: &'a OpenAiConfig) -> Self {
+    pub(crate) fn configured(
+        model: &'a str,
+        config: &'a OpenAiConfig,
+        timeout: Duration,
+    ) -> Self {
         Self {
             model,
             label: "openai",
@@ -150,6 +162,7 @@ impl<'a> Endpoint<'a> {
             json_format: config.json_format,
             token_limit_rule: config.token_limit_rule,
             wire: config.wire,
+            timeout,
         }
     }
 
@@ -171,6 +184,7 @@ impl<'a> Endpoint<'a> {
                 self.label.to_owned(),
                 self.model.to_owned(),
                 streaming_body(self.model, call, self.json_format, self.token_limit_rule),
+                self.timeout,
             )),
             OpenAiWire::Responses => Box::pin(responses::stream(
                 http,
@@ -179,6 +193,7 @@ impl<'a> Endpoint<'a> {
                 self.label.to_owned(),
                 self.model.to_owned(),
                 responses::streaming_body(self.model, call, self.json_format),
+                self.timeout,
             )),
         }
     }
@@ -220,7 +235,7 @@ impl ChatModel for Endpoint<'_> {
             let response = http
                 .post(url)
                 .bearer_auth(key)
-                .timeout(PROVIDER_TIMEOUT)
+                .timeout(self.timeout)
                 .json(&body)
                 .send()
                 .await
@@ -365,7 +380,7 @@ mod tests {
     use super::super::token_limit::TokenLimitField;
     use super::*;
     use crate::lm::api::interop::raise_request;
-    use crate::lm::{ChatTurn, LmConfig, OutputMode};
+    use crate::lm::{ChatTurn, DEFAULT_PROVIDER_TIMEOUT, LmConfig, OutputMode};
 
     fn schema() -> Value {
         json!({
@@ -426,7 +441,7 @@ mod tests {
             wire: OpenAiWire::Responses,
             ..OpenAiConfig::default()
         };
-        assert_eq!(Endpoint::configured("gpt-5", &responses).wire, OpenAiWire::Responses);
+        assert_eq!(Endpoint::configured("gpt-5", &responses, DEFAULT_PROVIDER_TIMEOUT).wire, OpenAiWire::Responses);
     }
 
     #[test]
@@ -474,7 +489,7 @@ mod tests {
     /// envelope are pinned here.
     #[test]
     fn openrouter_keeps_its_own_host_and_credential() {
-        let endpoint = Endpoint::openrouter("probe", Some("key"));
+        let endpoint = Endpoint::openrouter("probe", Some("key"), DEFAULT_PROVIDER_TIMEOUT);
         assert_eq!(
             chat_completions_url(endpoint.base_url),
             "https://openrouter.ai/api/v1/chat/completions"
@@ -493,7 +508,7 @@ mod tests {
             token_limit_rule: TokenLimitRule::AlwaysMaxTokens,
             wire: OpenAiWire::Chat,
         };
-        let endpoint = Endpoint::configured("probe", &config);
+        let endpoint = Endpoint::configured("probe", &config, DEFAULT_PROVIDER_TIMEOUT);
         assert_eq!(endpoint.key_var, "GROQ_API_KEY");
         assert_eq!(
             chat_completions_url(endpoint.base_url),
@@ -589,7 +604,7 @@ mod tests {
     /// so a model name that OpenAI treats specially must still leave these exact bytes.
     #[test]
     fn openrouter_sends_every_model_on_the_max_tokens_envelope() {
-        let endpoint = Endpoint::openrouter("probe", Some("key"));
+        let endpoint = Endpoint::openrouter("probe", Some("key"), DEFAULT_PROVIDER_TIMEOUT);
         // A named cap, so the routing this test is about has something to place; OpenRouter's
         // rule keeps every model on `max_tokens`, its reasoning-named ones included.
         let capped = LmConfig {
@@ -618,12 +633,12 @@ mod tests {
     #[test]
     fn each_endpoint_reports_the_token_limit_rule_it_follows() {
         assert_eq!(
-            Endpoint::openrouter("probe", Some("key")).token_limit_rule,
+            Endpoint::openrouter("probe", Some("key"), DEFAULT_PROVIDER_TIMEOUT).token_limit_rule,
             TokenLimitRule::AlwaysMaxTokens
         );
         let config = OpenAiConfig::default();
         assert_eq!(
-            Endpoint::configured("probe", &config)
+            Endpoint::configured("probe", &config, DEFAULT_PROVIDER_TIMEOUT)
                 .token_limit_rule
                 .field_for("o3"),
             TokenLimitField::MaxCompletionTokens

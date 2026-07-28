@@ -5,11 +5,12 @@
 //! `[DONE]` to close) and the typed streaming vocabulary rather than to a shipped implementation.
 //! The reading, framing and assembly are shared; this is only the OpenAI frame's meaning.
 
+use std::time::Duration;
+
 use anyhow::Result;
 use futures_util::Stream;
 use serde_json::Value;
 
-use crate::lm::PROVIDER_TIMEOUT;
 use crate::lm::api::{LmDelta, LmStreamEvent};
 use crate::lm::streaming::{Framed, Framing, StreamState};
 
@@ -100,8 +101,9 @@ pub(super) fn events<'h>(
     label: String,
     model: String,
     body: Value,
+    timeout: Duration,
 ) -> impl Stream<Item = Result<LmStreamEvent>> + Send + 'h {
-    let mut request = http.post(url).timeout(PROVIDER_TIMEOUT).json(&body);
+    let mut request = http.post(url).timeout(timeout).json(&body);
     if let Some(key) = key {
         request = request.bearer_auth(key);
     }

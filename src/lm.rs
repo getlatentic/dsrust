@@ -26,9 +26,13 @@ pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, Op
 pub use token_limit::{TokenLimitField, TokenLimitRule};
 pub use usage::{UsageTracker, track as track_usage};
 
-/// Bound every provider call, so one slow upstream cannot hold a worker for the whole request
-/// timeout while the agent's in-flight slots stay occupied.
-const PROVIDER_TIMEOUT: Duration = Duration::from_secs(20);
+/// What bounds a provider call unless the caller says otherwise, so one slow upstream cannot hold
+/// a worker for the whole request timeout while the agent's in-flight slots stay occupied.
+///
+/// Twenty seconds is comfortable for a hosted model and tight for a large local one: a 7B serving
+/// a short prompt answers well inside it and the same model reading an RLM session does not. See
+/// [`LM::with_timeout`].
+pub const DEFAULT_PROVIDER_TIMEOUT: Duration = Duration::from_secs(20);
 
 /// The stock ollama port on the local machine, shared with the server's config so `LM::new`
 /// and the server resolve the same host when OLLAMA_HOST is unset.
@@ -251,6 +255,8 @@ pub struct LM {
     /// almost never means to buy the answer twice, and every retry-shaped module depends on
     /// `rollout_id` having a cache to miss. [`Self::without_cache`] turns it off.
     pub cache: bool,
+    /// How long any one call to this model may take. See [`Self::with_timeout`].
+    pub timeout: Duration,
     /// What this model can be asked for natively, where the caller has stated it rather than
     /// leaving it to the registry. See [`Self::with_capabilities`].
     capabilities: Option<Capabilities>,
@@ -269,8 +275,20 @@ impl LM {
             ollama_api_key: env_nonempty("OLLAMA_API_KEY"),
             openai: OpenAiConfig::from_env(),
             cache: true,
+            timeout: DEFAULT_PROVIDER_TIMEOUT,
             capabilities: None,
         })
+    }
+
+    /// How long any one call to this model may take, replacing
+    /// [`DEFAULT_PROVIDER_TIMEOUT`]. dspy's `LM(..., timeout=…)`, which litellm applies the same
+    /// way: to the whole request rather than to the idle gaps within it.
+    ///
+    /// Raise it for a local model reading a long prompt — the cost of a low bound is a call that
+    /// would have answered being abandoned, not a slow one being made faster.
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = timeout;
+        self
     }
 
     /// State what this model can be asked for natively, rather than have it resolved.
@@ -404,6 +422,7 @@ impl ChatModel for LM {
                             http,
                             &self.ollama_host,
                             self.ollama_api_key.as_deref(),
+                            self.timeout,
                             &self.model.id,
                         )
                         .await,
@@ -446,16 +465,20 @@ impl LM {
             // `Endpoint::stream` already boxes — it picks the chat or Responses wire, whose stream
             // types differ — so these arms hand its stream straight back rather than box it again.
             Provider::OpenAiCompatible => {
-                openai::Endpoint::configured(&self.model.id, &self.openai).stream(http, request)
-            }
-            Provider::OpenRouter => {
-                openai::Endpoint::openrouter(&self.model.id, self.openrouter_api_key.as_deref())
+                openai::Endpoint::configured(&self.model.id, &self.openai, self.timeout)
                     .stream(http, request)
             }
+            Provider::OpenRouter => openai::Endpoint::openrouter(
+                &self.model.id,
+                self.openrouter_api_key.as_deref(),
+                self.timeout,
+            )
+            .stream(http, request),
             Provider::Anthropic => Box::pin(anthropic::stream(
                 http,
                 &self.model.id,
                 self.anthropic_api_key.as_deref(),
+                self.timeout,
                 request,
             )),
             Provider::Ollama => Box::pin(ollama::generate_stream(
@@ -463,6 +486,7 @@ impl LM {
                 &self.model.id,
                 &self.ollama_host,
                 self.ollama_api_key.as_deref(),
+                self.timeout,
                 request,
             )),
             Provider::OllamaChat => Box::pin(ollama::chat_stream(
@@ -470,6 +494,7 @@ impl LM {
                 &self.model.id,
                 &self.ollama_host,
                 self.ollama_api_key.as_deref(),
+                self.timeout,
                 request,
             )),
         }
@@ -491,17 +516,20 @@ impl LM {
                 anthropic::Anthropic {
                     model: &self.model.id,
                     api_key: self.anthropic_api_key.as_deref(),
+                    timeout: self.timeout,
                 }
                 .forward(http, request)
                 .await
             }
-            Provider::OpenRouter => {
-                openai::Endpoint::openrouter(&self.model.id, self.openrouter_api_key.as_deref())
-                    .forward(http, request)
-                    .await
-            }
+            Provider::OpenRouter => openai::Endpoint::openrouter(
+                &self.model.id,
+                self.openrouter_api_key.as_deref(),
+                self.timeout,
+            )
+            .forward(http, request)
+            .await,
             Provider::OpenAiCompatible => {
-                openai::Endpoint::configured(&self.model.id, &self.openai)
+                openai::Endpoint::configured(&self.model.id, &self.openai, self.timeout)
                     .forward(http, request)
                     .await
             }
@@ -510,6 +538,7 @@ impl LM {
                     api_key: self.ollama_api_key.as_deref(),
                     model: &self.model.id,
                     host: &self.ollama_host,
+                    timeout: self.timeout,
                 }
                 .forward(http, request)
                 .await
@@ -519,6 +548,7 @@ impl LM {
                     api_key: self.ollama_api_key.as_deref(),
                     model: &self.model.id,
                     host: &self.ollama_host,
+                    timeout: self.timeout,
                 }
                 .forward(http, request)
                 .await

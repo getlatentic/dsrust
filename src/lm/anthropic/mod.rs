@@ -10,7 +10,9 @@ use std::future::Future;
 use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 
-use super::{ChatModel, LmUsage, PROVIDER_TIMEOUT, api};
+use std::time::Duration;
+
+use super::{ChatModel, LmUsage, api};
 
 mod request;
 mod stream;
@@ -23,6 +25,7 @@ pub(super) const MESSAGES_URL: &str = "https://api.anthropic.com/v1/messages";
 pub(crate) struct Anthropic<'a> {
     pub model: &'a str,
     pub api_key: Option<&'a str>,
+    pub timeout: Duration,
 }
 
 impl ChatModel for Anthropic<'_> {
@@ -40,7 +43,7 @@ impl ChatModel for Anthropic<'_> {
                 .header("x-api-key", key)
                 .header("anthropic-version", "2023-06-01")
                 .header("content-type", "application/json")
-                .timeout(PROVIDER_TIMEOUT)
+                .timeout(self.timeout)
                 .json(&request::request(self.model, call))
                 .send()
                 .await

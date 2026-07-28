@@ -7,6 +7,7 @@
 //! parts.
 
 use std::future::Future;
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 
@@ -16,13 +17,14 @@ use serde_json::Value;
 use super::request::request;
 use super::{authorized, provider_data, usage};
 use crate::lm::api;
-use crate::lm::{ChatModel, PROVIDER_TIMEOUT};
+use crate::lm::ChatModel;
 
 /// An ollama server reached over `/api/chat`, the model and host beside it.
 pub(crate) struct Chat<'a> {
     pub model: &'a str,
     pub host: &'a str,
     pub api_key: Option<&'a str>,
+    pub timeout: Duration,
 }
 
 impl ChatModel for Chat<'_> {
@@ -34,7 +36,7 @@ impl ChatModel for Chat<'_> {
         async move {
             let request = http
                 .post(format!("{}/api/chat", self.host))
-                .timeout(PROVIDER_TIMEOUT)
+                .timeout(self.timeout)
                 .json(&request(self.model, call));
             let response = authorized(request, self.api_key)
                 .send()
