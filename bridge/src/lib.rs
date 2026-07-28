@@ -537,6 +537,117 @@ fn predict_forward(
     Ok((output_json, raw))
 }
 
+/// A tool backed by a Python callable (a `dspy.Tool`), so this crate's `ReAct` loop can call the
+/// same tools upstream's tests hand it. Name, description and the arg schema are read off the
+/// object once; `call` invokes it.
+struct PyTool {
+    name: String,
+    description: String,
+    args: Value,
+    func: Py<PyAny>,
+}
+
+impl dsrust::Tool for PyTool {
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn description(&self) -> &str {
+        &self.description
+    }
+
+    fn args(&self) -> &Value {
+        &self.args
+    }
+
+    fn call(&self, args: &Value) -> anyhow::Result<String> {
+        match self.call_value(args)? {
+            Value::String(text) => Ok(text),
+            other => Ok(other.to_string()),
+        }
+    }
+
+    /// dspy keeps the tool's raw return as the observation, so read the value, not its text: its
+    /// JSON form where it has one, and its string form when it does not (a live object such as an
+    /// image). The `ReAct` loop renders whichever into the prompt.
+    fn call_value(&self, args: &Value) -> anyhow::Result<Value> {
+        Python::attach(|py| {
+            let args_json = serde_json::to_string(args)?;
+            let kwargs = py.import("json")?.call_method1("loads", (args_json,))?;
+            let kwargs = kwargs
+                .cast::<pyo3::types::PyDict>()
+                .map_err(|error| anyhow::anyhow!("tool `{}` args are not an object: {error}", self.name))?;
+            let result = self
+                .func
+                .bind(py)
+                .call((), Some(kwargs))
+                .map_err(|error| anyhow::anyhow!("tool `{}` raised: {error}", self.name))?;
+            match py.import("json")?.call_method1("dumps", (&result,)) {
+                Ok(dumped) => Ok(serde_json::from_str(&dumped.extract::<String>()?)?),
+                Err(_) => Ok(Value::String(result.str()?.extract::<String>()?)),
+            }
+        })
+    }
+}
+
+/// Run this crate's own `ReAct` for a signature and a set of Python tools, driven by a Python LM —
+/// the module-level crossing for the agent loop. dspy's `test_react` builds `dspy.ReAct(sig,
+/// tools=[…])` with a `DummyLM`; the shim points its `forward` here, so the loop, the tool calls
+/// and the extraction all run in Rust.
+#[pyfunction]
+#[pyo3(signature = (instructions, inputs, outputs, values, py_lm, tools, max_iters = None))]
+fn react_forward(
+    py: Python<'_>,
+    instructions: &str,
+    inputs: Vec<PyInField>,
+    outputs: Vec<PyOutField>,
+    values: Vec<(String, String, bool)>,
+    py_lm: Py<PyAny>,
+    tools: Vec<Py<PyAny>>,
+    max_iters: Option<usize>,
+) -> PyResult<(String, String)> {
+    let signature = build_signature(instructions, inputs, outputs)?;
+    let mut rust_tools: Vec<Box<dyn dsrust::Tool>> = Vec::new();
+    for tool in &tools {
+        let bound = tool.bind(py);
+        let name: String = bound.getattr("name")?.extract()?;
+        // dspy's tool dict carries its own `finish`; `ReAct::new` adds one, so skip the duplicate.
+        if name == "finish" {
+            continue;
+        }
+        // A tool built from a function with no docstring carries `desc = None`.
+        let description: String = bound.getattr("desc")?.extract::<Option<String>>()?.unwrap_or_default();
+        let args_obj = bound.getattr("args")?;
+        let args_json: String = py.import("json")?.call_method1("dumps", (args_obj,))?.extract()?;
+        let args: Value = serde_json::from_str(&args_json)
+            .map_err(|error| PyValueError::new_err(format!("tool `{name}` args: {error}")))?;
+        rust_tools.push(Box::new(PyTool { name, description, args, func: tool.clone_ref(py) }));
+    }
+
+    let mut react = dsrust::ReAct::new(signature, rust_tools).with_lm(Arc::new(PyLM { inner: py_lm }));
+    if let Some(max_iters) = max_iters {
+        react = react.with_max_iters(max_iters);
+    }
+
+    let mut fields = Vec::new();
+    for (name, json, _record) in &values {
+        let value: Value = serde_json::from_str(json)
+            .map_err(|error| PyValueError::new_err(format!("input `{name}`: {error}")))?;
+        fields.push((name.clone(), value));
+    }
+    let example = Example::new(fields);
+    let prediction =
+        pollster::block_on(dsrust::module::Module::forward(&react, example)).map_err(to_value_error)?;
+    let output: serde_json::Map<String, Value> = prediction
+        .example
+        .fields()
+        .map(|(name, value)| (name.to_owned(), value.clone()))
+        .collect();
+    let output_json = serde_json::to_string(&output)
+        .map_err(|error| PyValueError::new_err(format!("bad prediction: {error}")))?;
+    Ok((output_json, prediction.raw))
+}
+
 /// The system message the named adapter states for this signature.
 ///
 /// dspy exposes this separately from a whole exchange, and a caller reading it should read the
@@ -660,6 +771,7 @@ fn json_fallback_settings(
 fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(format_messages, module)?)?;
     module.add_function(wrap_pyfunction!(predict_forward, module)?)?;
+    module.add_function(wrap_pyfunction!(react_forward, module)?)?;
     module.add_function(wrap_pyfunction!(format_system_message, module)?)?;
     module.add_function(wrap_pyfunction!(baml_field_structure, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;

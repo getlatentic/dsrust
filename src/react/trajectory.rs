@@ -14,7 +14,11 @@ pub struct Step {
     pub thought: String,
     pub tool: String,
     pub args: Value,
-    pub observation: String,
+    /// The tool's return, kept as the value it produced rather than its text — dspy holds
+    /// `observation_N` as whatever the tool returned (an int, a mapping) and hands it back that
+    /// way, so a caller reading the trajectory sees the real value. It renders as text on the way
+    /// into the prompt.
+    pub observation: Value,
 }
 
 /// What the agent did, in order. A failed tool call stays in the trajectory rather than being
@@ -38,10 +42,13 @@ impl Trajectory {
                 "[[ ## tool_args_{index} ## ]]\n{}",
                 format_value(&step.args)
             ));
-            blocks.push(format!(
-                "[[ ## observation_{index} ## ]]\n{}",
-                step.observation
-            ));
+            // A string observation reaches the prompt bare; anything else takes dspy's value
+            // formatting, the same `json.dumps` spacing the arguments use.
+            let observation = match &step.observation {
+                Value::String(text) => text.clone(),
+                other => format_value(other),
+            };
+            blocks.push(format!("[[ ## observation_{index} ## ]]\n{observation}"));
         }
         blocks.join("\n\n").trim().to_owned()
     }
@@ -54,7 +61,7 @@ impl Trajectory {
             fields.insert(format!("thought_{index}"), json!(step.thought));
             fields.insert(format!("tool_name_{index}"), json!(step.tool));
             fields.insert(format!("tool_args_{index}"), step.args.clone());
-            fields.insert(format!("observation_{index}"), json!(step.observation));
+            fields.insert(format!("observation_{index}"), step.observation.clone());
         }
         Value::Object(fields)
     }
@@ -76,7 +83,7 @@ mod tests {
                 thought: "I should look it up".to_owned(),
                 tool: "get_weather".to_owned(),
                 args: json!({ "city": "Tokyo" }),
-                observation: "sunny".to_owned(),
+                observation: json!("sunny"),
             }],
         };
         assert_eq!(
@@ -105,7 +112,7 @@ mod tests {
                     thought: String::new(),
                     tool: "get_weather".to_owned(),
                     args,
-                    observation: String::new(),
+                    observation: json!(""),
                 }],
             }
             .rendered()

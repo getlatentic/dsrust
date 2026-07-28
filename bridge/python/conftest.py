@@ -27,7 +27,7 @@ except ImportError as error:  # pragma: no cover - environment dependent
 
 import crossings  # noqa: E402
 import rust_signature  # noqa: E402
-from rust_module import RustPredict  # noqa: E402
+from rust_module import RustPredict, RustReAct  # noqa: E402
 from rust_adapter import (  # noqa: E402
     RustBAMLAdapter,
     RustChatAdapter,
@@ -434,6 +434,30 @@ def _use_rust_predict(request, monkeypatch):
     monkeypatch.setattr(request.node.module, "Predict", RustPredict, raising=False)
     monkeypatch.setattr(dspy, "Predict", RustPredict)
     monkeypatch.setattr("dspy.predict.predict.Predict", RustPredict, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _use_rust_react(request, monkeypatch):
+    """For the react suite, make `dspy.ReAct` this crate's `ReAct`, so the loop, tool calls and
+    extraction run in Rust. Scoped to that file, like the predict swap."""
+    if request.node.module.__name__ != "upstream_test_react":
+        return
+    # A few react tests reach past what the module crossing can carry, so they keep running dspy's
+    # ReAct (over the Rust adapter) rather than ours:
+    #   - the first two mock ReAct's own predictors to test dspy's loop (truncation, the
+    #     context-window retry) — nothing renders, and they are declared non-crossing;
+    #   - the last spies on the Python adapter's `format_user_message_content` and needs live PIL
+    #     images preserved through the loop, both of which the Rust loop bypasses (it renders in
+    #     Rust and cannot hold a Python object). It stays an adapter-level multimodal test.
+    if request.node.name.split("[")[0] in {
+        "test_trajectory_truncation",
+        "test_context_window_exceeded_after_retries",
+        "test_tool_observation_preserves_custom_type",
+    }:
+        return
+    monkeypatch.setattr(request.node.module, "ReAct", RustReAct, raising=False)
+    monkeypatch.setattr(dspy, "ReAct", RustReAct)
+    monkeypatch.setattr("dspy.predict.react.ReAct", RustReAct, raising=False)
 
 
 @pytest.fixture(autouse=True)

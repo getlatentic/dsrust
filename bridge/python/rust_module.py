@@ -90,3 +90,36 @@ class RustPredict(dspy.Predict):
             }
             for fields in json.loads(output_json)
         ]
+
+
+class RustReAct(dspy.ReAct):
+    """A `dspy.ReAct` whose loop, tool calls and extraction run in this crate's `ReAct`.
+
+    Only `forward` is replaced; `dspy.ReAct.__init__` still builds the tool dict and the react/
+    extract signatures, so `self.tools`, `self.signature` and `self.max_iters` stay dspy's. The
+    crate's loop calls the same Python tools (through a `PyTool`) and the same LM (through `PyLM`).
+    """
+
+    def forward(self, **input_args):
+        max_iters = input_args.pop("max_iters", self.max_iters)
+        lm = dspy.settings.lm
+        crossings.record_render()
+        values = [
+            (
+                name,
+                json.dumps(_serialized(input_args[name]), ensure_ascii=False),
+                isinstance(input_args[name], pydantic.BaseModel),
+            )
+            for name in self.signature.input_fields
+            if name in input_args
+        ]
+        output_json, _raw = dsrs_bridge.react_forward(
+            self.signature.instructions,
+            describe(self.signature.input_fields),
+            described_outputs(self.signature),
+            values,
+            lm,
+            list(self.tools.values()),
+            max_iters,
+        )
+        return dspy.Prediction(**json.loads(output_json))

@@ -70,6 +70,14 @@ impl ReAct {
         self
     }
 
+    /// Ask both inner predictors — the loop's `react` turn and the final `extract` — through this
+    /// model. Without it they reach for the globally configured one, the way dspy's do.
+    pub fn with_lm(mut self, lm: std::sync::Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.react = self.react.with_lm(lm.clone());
+        self.extract = self.extract.with_lm(lm);
+        self
+    }
+
     /// Every tool the model may pick, `finish` included, in the order they are numbered.
     pub fn tool_names(&self) -> Vec<&str> {
         self.tools.iter().map(|tool| tool.name()).collect()
@@ -87,12 +95,12 @@ impl ReAct {
     /// dspy does the same: a tool that raises reports its error into the trajectory so the
     /// model can try something else. Aborting the episode would throw away the reasoning that
     /// got this far.
-    fn observe(&self, name: &str, args: &Value) -> String {
+    fn observe(&self, name: &str, args: &Value) -> Value {
         match self.tool(name) {
-            None => format!("Execution error in {name}: no such tool"),
-            Some(tool) => match tool.call(args) {
+            None => json!(format!("Execution error in {name}: no such tool")),
+            Some(tool) => match tool.call_value(args) {
                 Ok(observation) => observation,
-                Err(error) => format!("Execution error in {name}: {error:#}"),
+                Err(error) => json!(format!("Execution error in {name}: {error:#}")),
             },
         }
     }
@@ -462,10 +470,10 @@ mod tests {
     #[test]
     fn finish_refuses_arguments_it_never_declared() {
         let react = ReAct::new(task(), vec![weather()]);
-        assert_eq!(react.observe(FINISH, &json!({})), "Completed.");
+        assert_eq!(react.observe(FINISH, &json!({})), json!("Completed."));
         assert_eq!(
             react.observe(FINISH, &json!({ "answer": "sunny" })),
-            "Execution error in finish: finish takes no arguments"
+            json!("Execution error in finish: finish takes no arguments")
         );
     }
 
@@ -524,6 +532,7 @@ mod tests {
         // throw away the reasoning that got this far.
         let react = ReAct::new(task(), vec![weather()]);
         let observation = react.observe("get_weather", &json!({}));
+        let observation = observation.as_str().expect("an error observation");
         assert!(observation.starts_with("Execution error in get_weather"));
         assert!(observation.contains("missing string argument `city`"));
     }
@@ -535,7 +544,7 @@ mod tests {
         let react = ReAct::new(task(), vec![weather()]);
         assert_eq!(
             react.observe("teleport", &json!({})),
-            "Execution error in teleport: no such tool"
+            json!("Execution error in teleport: no such tool")
         );
     }
 
