@@ -110,7 +110,7 @@
 "teleprompt/bootstrap.py::BootstrapFewShot" = { status = "mapped", rust = "BootstrapFewShot" }
 "teleprompt/vanilla.py::LabeledFewShot" = { status = "mapped", rust = "LabeledFewShot" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2" = { status = "mapped", rust = "MIPROv2" }
-"teleprompt/bettertogether.py::BetterTogether" = { status = "todo", reason = "meta-optimizer not ported; the DynOptimizer seam (optimize.rs) exists for it" }
+"teleprompt/bettertogether.py::BetterTogether" = { status = "mapped", rust = "BetterTogether" }
 "teleprompt/gepa/gepa.py::GEPA" = { status = "mapped", rust = "GEPA" }
 "teleprompt/gepa/gepa.py::GEPAFeedbackMetric" = { status = "divergence", reason = "metric callable type; Rust passes a metric closure/trait" }
 "teleprompt/gepa/gepa.py::DspyGEPAResult" = { status = "divergence", reason = "GEPA's result object; surfaced through the gepa crate's own result type" }
@@ -477,3 +477,6 @@
 
 # CodeAct
 "predict/code_act.py::CodeAct.forward" = { status = "mapped", rust = "forward" }
+
+# BetterTogether
+"teleprompt/bettertogether.py::BetterTogether.compile" = { status = "mapped", rust = "compile" }

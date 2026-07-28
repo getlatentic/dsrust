@@ -13,6 +13,7 @@
 //! the optimizer that runs a program to earn its demos and imports the baseline to prime its
 //! teacher.
 
+mod better_together;
 mod bootstrap;
 mod gepa;
 mod mipro;
@@ -26,6 +27,7 @@ mod conformance;
 #[cfg(test)]
 pub(crate) mod scripted;
 
+pub use better_together::{BetterTogether, Candidate};
 pub use bootstrap::BootstrapFewShot;
 pub use copro::COPRO;
 pub use gepa::{Feedback, GEPA, GepaOutcome};

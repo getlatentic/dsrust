@@ -17,7 +17,7 @@ use anyhow::{Result, bail};
 
 use super::Optimizer;
 use super::rng::Rng;
-use crate::evaluate::Evaluate;
+use crate::evaluate::{Evaluate, percent};
 use crate::example::{Example, Prediction};
 use crate::lm::DynChatModel;
 use crate::module::Module;
@@ -50,18 +50,12 @@ const TIPS: [&str; 6] = [
     "Include a persona that is relevant to the task in the instruction (ie. \"You are a ...\")",
 ];
 
-/// dspy `round(100 * mean, 2)`: the percentage `Evaluate` reports, which is the number MIPROv2 hands
-/// the sampler and compares. Half-to-even at the second decimal, matching Python's `round`.
 /// One search trial: the candidate index chosen per predictor, and the score it earned — one
 /// entry of dspy's `trial_logs`, as the optuna study records it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Trial {
     pub params: Vec<usize>,
     pub score: f64,
-}
-
-fn percent(mean: f64) -> f64 {
-    (10_000.0 * mean).round_ties_even() / 100.0
 }
 
 /// The grounded proposer, in its zero-shot form: propose `num_candidates` instructions per predictor,

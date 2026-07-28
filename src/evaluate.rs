@@ -125,6 +125,14 @@ where
 }
 
 /// A metric for the common case: every label field must match the prediction exactly.
+/// dspy `Evaluate.score`: the metric's mean as a percentage, rounded to two places.
+///
+/// Not the 0..1 mean [`Evaluation::score`] carries — upstream reports a percentage, and it reaches
+/// a model in COPRO's attempts block, so the rounding is part of the bytes.
+pub fn percent(mean: f64) -> f64 {
+    (10_000.0 * mean).round_ties_even() / 100.0
+}
+
 pub fn exact_match(example: &Example, prediction: &Prediction) -> f64 {
     // An undeclared example cannot be scored; the runner reports that as a row failure, so
     // reaching here with one means scoring nothing rather than everything.
