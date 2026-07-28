@@ -36,11 +36,11 @@ updated = "2026-07-28"
 #     | grep -oE '[0-9]+' | awk '{s+=$1} END {print s}'
 [status]
 rust_tests = 837
-upstream_tests_passing = 761
-upstream_tests_crossing = 385
-upstream_tests_deciding_signatures = 513
+upstream_tests_passing = 813
+upstream_tests_crossing = 424
+upstream_tests_deciding_signatures = 514
 xfail_backlog = 3
-suites_run = 42
+suites_run = 43
 release_stage = "alpha"
 
 # ---------------------------------------------------------------------------

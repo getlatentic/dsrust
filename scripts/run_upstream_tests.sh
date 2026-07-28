@@ -45,6 +45,7 @@ SUITES=(
   core/test_types.py clients/test_cache.py
   primitives/test_module.py primitives/test_base_module.py
   teleprompt/test_gepa.py teleprompt/test_bettertogether.py
+  clients/test_lm.py
 )
 
 # SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against

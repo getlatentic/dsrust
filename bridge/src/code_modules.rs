@@ -253,3 +253,14 @@ pub(crate) fn cache_key(request: &str, ignored: Option<Vec<String>>) -> PyResult
         serde_json::from_str(request).map_err(|error| PyValueError::new_err(format!("{error}")))?;
     Ok(dsrust::lm::cache::key_ignoring(&value, &ignored.unwrap_or_default()))
 }
+
+/// dspy `_is_openai_reasoning_model`, decided by the crate.
+///
+/// Which family a model belongs to is the whole of the decision behind two things a request
+/// carries: whether the generation cap travels as `max_tokens` or `max_completion_tokens`, and
+/// whether `temperature=1.0` and a 16k floor are required.
+#[pyfunction]
+pub(crate) fn is_openai_reasoning_model(model: &str) -> bool {
+    use dsrust::lm::{TokenLimitField, TokenLimitRule};
+    TokenLimitRule::ByOpenAiModelFamily.field_for(model) == TokenLimitField::MaxCompletionTokens
+}

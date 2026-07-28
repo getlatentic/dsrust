@@ -396,6 +396,41 @@ DOES_NOT_EXERCISE_RUST = {
     "test_gepa_adapter_disables_logging_on_minibatch_eval": "dspy's own logging flags",
     "test_metric_requires_feedback_signature": "dspy raising before a proposal is made",
     "test_reflection_prompt_template_in_gepa_kwargs_raises": "dspy raising before a proposal is made",
+    # --- dspy's LM ---
+    # Thirty-nine of the sixty-four cross, on the one predicate that decides a request's shape:
+    # which models are reasoning models, and therefore whether the generation cap travels as
+    # `max_tokens` or `max_completion_tokens` and whether temperature=1.0 is demanded. These
+    # nineteen are dspy's own wrapper around litellm, in three groups.
+    #
+    # `BaseLM` as a Python base class: its forward contract, its callback list, its shallow copy,
+    # the warnings it raises when a subclass returns the wrong shape. dspy's `LM` is a wrapper over
+    # litellm; the crate's implements the same contract over three provider wires and has no
+    # litellm underneath to wrap, so none of this has a Rust counterpart to reach.
+    "test_base_lm_copy_is_shallow_runtime_copy_with_isolated_dspy_state": "dspy's BaseLM protocol",
+    "test_base_lm_errors_when_explicit_legacy_forward_returns_lm_response": "dspy's BaseLM protocol",
+    "test_base_lm_forward_contract_accepts_explicit_values": "dspy's BaseLM protocol",
+    "test_base_lm_forward_contract_defaults_to_legacy": "dspy's BaseLM protocol",
+    "test_base_lm_forward_contract_rejects_unknown_values": "dspy's BaseLM protocol",
+    "test_base_lm_init_uses_lm_defaults_and_isolates_callback_list": "dspy's BaseLM protocol",
+    "test_base_lm_tracks_usage_for_custom_subclasses": "dspy's BaseLM protocol",
+    "test_base_lm_validates_typed_lm_response": "dspy's BaseLM protocol",
+    "test_base_lm_warns_when_inherited_legacy_forward_returns_lm_response": "dspy's BaseLM protocol",
+    # A call answered by a mocked litellm: what comes back is the mock's, and nothing the crate
+    # decides is on the path between the two.
+    "test_chat_lms_can_be_queried": "a mocked litellm answering directly",
+    "test_text_lms_can_be_queried": "a mocked litellm answering directly",
+    "test_lm_calls_support_callables": "a mocked litellm answering directly",
+    "test_lm_calls_support_pydantic_models": "a mocked litellm answering directly",
+    "test_dspy_cache": "dspy's cache around a mocked litellm; the key itself crosses in test_cache",
+    "test_streaming_passes_headers_correctly": "headers litellm is handed",
+    # The Responses-API request body. The crate *does* build one — `lm/openai/responses/mod.rs`,
+    # held to a golden — but dspy assembles its own from litellm kwargs, and comparing the two
+    # wants a request-body crossing this shim does not have yet. The most valuable thing still
+    # unwired in this file; see #24.
+    "test_responses_api_converts_files_correctly": "dspy's Responses body, not the crate's (#24)",
+    "test_responses_api_converts_images_correctly": "dspy's Responses body, not the crate's (#24)",
+    "test_responses_api_preserves_multi_message_structure": "dspy's Responses body (#24)",
+    "test_responses_api_tool_calls": "dspy's Responses body, not the crate's (#24)",
 }
 
 #: Tests that reach the crate even though their class is declared above as not doing so. A class
@@ -455,6 +490,18 @@ _CROSSED: set[str] = set()
 
 #: Names of tests that reached the signature layer, counted apart for the reason above.
 _REACHED_SIGNATURE: set[str] = set()
+
+
+@pytest.fixture
+def litellm_test_server():
+    """A stand-in that skips, because this harness does not run upstream's litellm server.
+
+    The runner empties `tests/conftest.py` so importing anything under `tests/` cannot start that
+    server, which takes this fixture with it — and a test asking for it *errors* rather than
+    skipping, reading as a failure this port caused. These tests answer from a real litellm talking
+    to a local server, so nothing the crate decides is on the path either way.
+    """
+    pytest.skip("this harness does not run upstream's litellm test server")
 
 
 @pytest.fixture
@@ -727,6 +774,27 @@ def _rust_cache_key(self, request, ignored_args_for_cache_key=None):
     written = json.dumps(params, default=orjson_default)
     crossings.record_render()
     return dsrs_bridge.cache_key(written)
+
+
+def _rust_is_openai_reasoning_model(model: str) -> bool:
+    """dspy's `_is_openai_reasoning_model`, decided by the crate.
+
+    It is one predicate and it decides two things a request carries: whether the generation cap
+    travels as `max_tokens` or `max_completion_tokens`, and whether `temperature=1.0` and a 16k
+    floor are demanded. dspy spells it as a regex; the crate reads the family off the name.
+    """
+    crossings.record_render()
+    return dsrs_bridge.is_openai_reasoning_model(model)
+
+
+@pytest.fixture(autouse=True)
+def _reasoning_families_are_rust(request, monkeypatch):
+    """For the LM suite, which models count as reasoning models is the crate's answer."""
+    if request.node.module.__name__ != "upstream_test_lm":
+        return
+    monkeypatch.setattr(
+        "dspy.clients.lm._is_openai_reasoning_model", _rust_is_openai_reasoning_model
+    )
 
 
 @pytest.fixture(autouse=True)
