@@ -43,6 +43,7 @@ mod derived;
 mod hint;
 mod multi_chain_comparison;
 mod parallel;
+pub mod program_of_thought;
 pub mod refine;
 pub use aggregation::{Normalize, majority, normalize_text};
 pub use best_of_n::BestOfN;
@@ -52,6 +53,7 @@ pub use derived::TypedPredict;
 use derived::typed;
 pub use multi_chain_comparison::MultiChainComparison;
 pub use parallel::{Answered, Parallel};
+pub use program_of_thought::ProgramOfThought;
 
 #[cfg(test)]
 mod scripted;

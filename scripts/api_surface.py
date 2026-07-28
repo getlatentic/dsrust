@@ -57,6 +57,7 @@ PORTED_MODULES = [
     "predict/refine.py",
     "predict/best_of_n.py",
     "predict/parallel.py",
+    "predict/program_of_thought.py",
     "predict/multi_chain_comparison.py",
     "predict/aggregation.py",
     # primitives
@@ -64,6 +65,7 @@ PORTED_MODULES = [
     "primitives/prediction.py",
     "primitives/module.py",
     "primitives/base_module.py",
+    "primitives/code_interpreter.py",
     # teleprompt
     "teleprompt/teleprompt.py",
     "teleprompt/bootstrap.py",

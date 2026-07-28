@@ -85,6 +85,12 @@
 "predict/refine.py::recursive_mask" = { status = "divergence", reason = "internal masking helper" }
 "predict/best_of_n.py::BestOfN" = { status = "mapped", rust = "BestOfN" }
 "predict/parallel.py::Parallel" = { status = "mapped", rust = "Parallel" }
+"predict/program_of_thought.py::ProgramOfThought" = { status = "mapped", rust = "ProgramOfThought" }
+
+# --- the code-execution seam ---
+"primitives/code_interpreter.py::CodeInterpreter" = { status = "mapped", rust = "CodeInterpreter" }
+"primitives/code_interpreter.py::FinalOutput" = { status = "mapped", rust = "Executed" }
+"primitives/code_interpreter.py::CodeInterpreterError" = { status = "divergence", reason = "an interpreter answers with `anyhow::Error`; a typed taxonomy is the error-taxonomy work (#10)" }
 "predict/multi_chain_comparison.py::MultiChainComparison" = { status = "mapped", rust = "MultiChainComparison" }
 "predict/aggregation.py::majority" = { status = "mapped", rust = "majority" }
 "predict/aggregation.py::default_normalize" = { status = "divergence", reason = "internal normalizer; folded into predict/aggregation.rs" }
@@ -458,3 +464,12 @@
 "core/types.py::LMRequest.from_call" = { status = "mapped", rust = "new" }
 "core/types.py::LMRequest.from_prompt_or_messages" = { status = "divergence", reason = "builds a request from dspy's legacy prompt/messages pair; the crate's boundary is typed-only" }
 "core/types.py::LMRequest.with_config_overrides" = { status = "mapped", rust = "configured" }
+
+# ProgramOfThought
+"predict/program_of_thought.py::ProgramOfThought.forward" = { status = "mapped", rust = "forward" }
+
+# CodeInterpreter
+"primitives/code_interpreter.py::CodeInterpreter.execute" = { status = "mapped", rust = "execute" }
+"primitives/code_interpreter.py::CodeInterpreter.shutdown" = { status = "mapped", rust = "shutdown" }
+"primitives/code_interpreter.py::CodeInterpreter.start" = { status = "mapped", rust = "start" }
+"primitives/code_interpreter.py::CodeInterpreter.tools" = { status = "divergence", reason = "dspy exposes host functions the sandboxed code may call back into; a Rust caller wires those into its own interpreter, since the crate ships none" }

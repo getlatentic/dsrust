@@ -11,6 +11,7 @@ pub mod evaluate;
 pub mod example;
 pub mod lm;
 pub mod module;
+pub mod interpreter;
 pub mod optimize;
 pub mod predict;
 pub mod react;
@@ -43,8 +44,10 @@ pub use lm::global::configure_model;
 pub use lm::{
     ChatModel, ChatTurn, LM, ModelRef, OutputMode, Provider, Role, configure, configure_with_client,
 };
+pub use interpreter::{CodeInterpreter, Executed};
 pub use predict::{
-    Answered, BestOfN, ChainOfThought, MultiChainComparison, Parallel, Predict, Refine, Steering,
+    Answered, BestOfN, ChainOfThought, MultiChainComparison, Parallel, Predict, ProgramOfThought,
+    Refine, Steering,
     TypedChainOfThought, TypedPredict,
 };
 pub use signature::{

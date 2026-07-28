@@ -1,0 +1,116 @@
+//! dspy `primitives/code_interpreter.py`: the seam a code-running module executes through.
+//!
+//! Upstream states this as a `Protocol` with `PythonInterpreter` — a Deno/Pyodide sandbox — as one
+//! implementation and a scriptable mock as another. The same split lives here: the modules that
+//! *write* code ([`ProgramOfThought`](crate::predict::ProgramOfThought)) are the crate's, and what
+//! *runs* it is the caller's, supplied as a [`CodeInterpreter`].
+//!
+//! Nothing sandboxed ships with the crate, and that is deliberate. Upstream's interpreter is a
+//! Python runtime in a WASM sandbox; a Rust crate cannot vendor one, and quietly running generated
+//! code in-process would be a far worse answer than asking the caller for the environment they
+//! want. The seam is the same shape as [`ChatModel`](crate::lm::ChatModel) and
+//! [`Tool`](crate::react::Tool): a trait the caller implements.
+
+use anyhow::Result;
+use serde_json::Value;
+
+/// What one execution produced.
+///
+/// dspy's `execute` returns `FinalOutput` when the code called the preloaded `SUBMIT()`, and the
+/// captured stdout otherwise; the two mean different things to the loop, so they are distinct here
+/// rather than a value plus a flag.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Executed {
+    /// The code called `SUBMIT(...)`: this is the answer, and the loop is done.
+    Submitted(Value),
+    /// Whatever the code printed. `Value::Null` where it printed nothing.
+    Printed(Value),
+}
+
+impl Executed {
+    /// The value either way — what a module records as the code's output.
+    pub fn value(&self) -> &Value {
+        match self {
+            Executed::Submitted(value) | Executed::Printed(value) => value,
+        }
+    }
+
+    pub fn is_submitted(&self) -> bool {
+        matches!(self, Executed::Submitted(_))
+    }
+}
+
+/// An environment that runs generated code.
+///
+/// State persists across calls within one session, as upstream's does: a name bound by one
+/// `execute` is in scope for the next, until [`shutdown`](Self::shutdown).
+///
+/// `&self` rather than `&mut self` because a module holds its interpreter behind a shared
+/// reference and [`Module::forward`](crate::module::Module::forward) takes `&self`; an
+/// implementation that owns a subprocess keeps it behind its own lock, exactly as
+/// [`Tool`](crate::react::Tool) does.
+pub trait CodeInterpreter: Send + Sync {
+    /// Run the code and answer with what it produced.
+    ///
+    /// An error is the code's own failure — an undefined name, a raised exception — and a module
+    /// feeds it back to the model as the error to correct, so it reaches a prompt and should read
+    /// the way upstream's does.
+    fn execute(&self, code: &str) -> Result<Executed>;
+
+    /// Allocate whatever the environment needs, ahead of the first [`execute`](Self::execute).
+    /// Doing nothing is a valid answer, and calling it twice must be safe.
+    fn start(&self) -> Result<()> {
+        Ok(())
+    }
+
+    /// Release the environment. A module calls this when its episode ends, and upstream's modules
+    /// do so on the way out of `forward` — including the way out that raises.
+    fn shutdown(&self) {}
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    /// dspy's `MockInterpreter`: canned answers in order, so a test drives the loop without a
+    /// sandbox. The shutdown count is recorded because upstream's modules promise to call it.
+    pub(crate) struct Scripted {
+        answers: Mutex<std::collections::VecDeque<Result<Executed, String>>>,
+        pub(crate) ran: Mutex<Vec<String>>,
+        pub(crate) shutdowns: Mutex<usize>,
+    }
+
+    impl Scripted {
+        pub(crate) fn new(answers: impl IntoIterator<Item = Result<Executed, String>>) -> Self {
+            Self {
+                answers: Mutex::new(answers.into_iter().collect()),
+                ran: Mutex::new(Vec::new()),
+                shutdowns: Mutex::new(0),
+            }
+        }
+    }
+
+    impl CodeInterpreter for Scripted {
+        fn execute(&self, code: &str) -> Result<Executed> {
+            self.ran.lock().expect("ran").push(code.to_owned());
+            match self.answers.lock().expect("answers").pop_front() {
+                Some(Ok(executed)) => Ok(executed),
+                Some(Err(error)) => Err(anyhow::anyhow!(error)),
+                None => Err(anyhow::anyhow!("the script ran out of answers")),
+            }
+        }
+
+        fn shutdown(&self) {
+            *self.shutdowns.lock().expect("shutdowns") += 1;
+        }
+    }
+
+    #[test]
+    fn a_submitted_value_is_distinguishable_from_printed_output() {
+        let submitted = Executed::Submitted(serde_json::json!({ "answer": 2 }));
+        assert!(submitted.is_submitted());
+        assert_eq!(submitted.value(), &serde_json::json!({ "answer": 2 }));
+        assert!(!Executed::Printed(serde_json::json!("2")).is_submitted());
+    }
+}

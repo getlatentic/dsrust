@@ -56,6 +56,13 @@ impl ChainOfThought {
         }
     }
 
+    /// Ask through this model rather than the globally configured one — the per-module override,
+    /// and the seam a composed module uses to point its children at one model.
+    pub fn with_lm(mut self, lm: std::sync::Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.predict = self.predict.with_lm(lm);
+        self
+    }
+
     /// The module for a derived signature; its caller speaks the signature's own types.
     pub fn task<S: SignatureSpec>() -> TypedChainOfThought<S> {
         TypedChainOfThought {
