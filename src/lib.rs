@@ -54,6 +54,6 @@ pub use predict::{
     ProgramOfThought, Refine, Rlm, Steering, TypedChainOfThought, TypedPredict,
 };
 pub use signature::{
-    FieldKind, InField, LiteralValue, OutField, Signature, SignatureSpec, chain_of_thought,
-    json_field_schema, predict, signature,
+    FieldEdit, FieldKind, InField, LiteralValue, OutField, Side, Signature, SignatureSpec,
+    chain_of_thought, json_field_schema, predict, signature,
 };

@@ -161,6 +161,64 @@ impl std::str::FromStr for Signature {
     }
 }
 
+/// A field being added, carrying which side of the signature it belongs to.
+///
+/// dspy reads that off the field's own `__dspy_field_type`, because a Python `InputField` and an
+/// `OutputField` are the same class with a marker. Rust has two types, so the side is the type —
+/// this is what lets one `insert` take either without a runtime look-up.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Side {
+    Input(InField),
+    Output(OutField),
+}
+
+impl Side {
+    /// What upstream's error message calls this side.
+    fn side_name(&self) -> &'static str {
+        match self {
+            Side::Input(_) => "input",
+            Side::Output(_) => "output",
+        }
+    }
+}
+
+impl From<InField> for Side {
+    fn from(field: InField) -> Self {
+        Side::Input(field)
+    }
+}
+
+impl From<OutField> for Side {
+    fn from(field: OutField) -> Self {
+        Side::Output(field)
+    }
+}
+
+/// One field of a signature, handed to a caller editing it in place.
+#[derive(Debug)]
+pub enum FieldEdit<'a> {
+    Input(&'a mut InField),
+    Output(&'a mut OutField),
+}
+
+impl FieldEdit<'_> {
+    /// The field's description, whichever side it is on.
+    pub fn set_desc(&mut self, desc: impl Into<String>) {
+        match self {
+            FieldEdit::Input(field) => field.desc = desc.into(),
+            FieldEdit::Output(field) => field.desc = desc.into(),
+        }
+    }
+
+    /// The field's kind, whichever side it is on — upstream's `type_` argument.
+    pub fn set_kind(&mut self, kind: FieldKind) {
+        match self {
+            FieldEdit::Input(field) => field.kind = kind,
+            FieldEdit::Output(field) => field.kind = kind,
+        }
+    }
+}
+
 impl Signature {
     /// A signature whose whole input is one free-form `request` field, for callers that
     /// render their own prompt string.
@@ -184,6 +242,82 @@ impl Signature {
         without.inputs.retain(|field| field.name != name);
         without.outputs.retain(|field| field.name != name);
         without
+    }
+
+    /// dspy `Signature.insert`: this signature with a field added at `index` of its own side.
+    ///
+    /// Upstream takes one `field` and reads which side it belongs to off its
+    /// `__dspy_field_type`; a Rust field already *is* one side or the other, so
+    /// [`Side`] carries that and there is nothing to look up.
+    ///
+    /// A negative index counts from the end *past* the last field, not before it: `-1` appends
+    /// and `-2` inserts before the last. Upstream adds `len + 1` rather than Python's usual `len`,
+    /// which is what makes one-past-the-end reachable from either direction.
+    pub fn insert(&self, index: isize, field: Side) -> Result<Self, String> {
+        let mut edited = self.clone();
+        let length = match &field {
+            Side::Input(_) => edited.inputs.len(),
+            Side::Output(_) => edited.outputs.len(),
+        } as isize;
+        let at = match index < 0 {
+            true => index + length + 1,
+            false => index,
+        };
+        if at < 0 || at > length {
+            // Upstream builds this message *after* adjusting, so a rejected negative index is
+            // reported as what it became rather than as what was passed.
+            return Err(format!(
+                "Invalid index to insert: {at}, index must be in the range of [{}, {length}] for \
+                 {} fields, but received: {at}.",
+                length - 1,
+                field.side_name(),
+            ));
+        }
+        match field {
+            Side::Input(input) => edited.inputs.insert(at as usize, input),
+            Side::Output(output) => edited.outputs.insert(at as usize, output),
+        }
+        Ok(edited)
+    }
+
+    /// dspy `Signature.prepend`: the field first among its own side.
+    pub fn prepend(&self, field: Side) -> Self {
+        self.insert(0, field).expect("index 0 is always in range")
+    }
+
+    /// dspy `Signature.append`: the field last among its own side.
+    pub fn append(&self, field: Side) -> Self {
+        let end = match &field {
+            Side::Input(_) => self.inputs.len(),
+            Side::Output(_) => self.outputs.len(),
+        } as isize;
+        self.insert(end, field).expect("the end is always in range")
+    }
+
+    /// dspy `Signature.with_updated_fields`: one field's description or kind changed, the rest of
+    /// the signature untouched.
+    ///
+    /// Upstream takes arbitrary `**kwargs` into the field's `json_schema_extra`, which is a
+    /// Python dict; a Rust field is a struct, so the caller is handed the field to edit.
+    ///
+    /// A name on neither side is an error, not a no-op — upstream indexes `fields_copy[name]` and
+    /// raises `KeyError`. This is the opposite of [`delete`](Self::delete), where upstream is
+    /// deliberately forgiving, and the difference is worth keeping: deleting a field an adapter
+    /// only sometimes adds is reasonable, while editing one that was never there is a typo.
+    pub fn with_updated_field(
+        &self,
+        name: &str,
+        edit: impl FnOnce(&mut FieldEdit<'_>),
+    ) -> Result<Self, String> {
+        let mut edited = self.clone();
+        if let Some(input) = edited.inputs.iter_mut().find(|field| field.name == name) {
+            edit(&mut FieldEdit::Input(input));
+        } else if let Some(output) = edited.outputs.iter_mut().find(|field| field.name == name) {
+            edit(&mut FieldEdit::Output(output));
+        } else {
+            return Err(format!("{name:?}"));
+        }
+        Ok(edited)
     }
 
     /// dspy `Signature.with_instructions`: the same fields under a different objective. What an
@@ -779,5 +913,123 @@ mod tests {
         assert!(outputs.fund);
         assert_eq!(outputs.counter, 0.02);
         assert_eq!(outputs.rounds, 3);
+    }
+}
+
+#[cfg(test)]
+mod edit_tests {
+    use super::*;
+
+    /// The signature the probe against real dspy was run on, so the cases below are its answers.
+    fn sig() -> Signature {
+        Signature {
+            instructions: "Translate.".to_owned(),
+            inputs: vec![
+                InField { name: "input_text".into(), ..Default::default() },
+                InField { name: "context".into(), ..Default::default() },
+            ],
+            outputs: vec![OutField { name: "output_text".into(), ..Default::default() }],
+        }
+    }
+
+    fn input(name: &str) -> Side {
+        Side::Input(InField { name: name.to_owned(), ..Default::default() })
+    }
+
+    fn output(name: &str) -> Side {
+        Side::Output(OutField { name: name.to_owned(), ..Default::default() })
+    }
+
+    fn names(signature: &Signature) -> (Vec<&str>, Vec<&str>) {
+        (
+            signature.inputs.iter().map(|f| f.name.as_str()).collect(),
+            signature.outputs.iter().map(|f| f.name.as_str()).collect(),
+        )
+    }
+
+    /// A field goes first or last among *its own side*, leaving the other side alone.
+    #[test]
+    fn prepend_and_append_act_on_the_fields_own_side() {
+        assert_eq!(
+            names(&sig().prepend(input("a"))),
+            (vec!["a", "input_text", "context"], vec!["output_text"])
+        );
+        assert_eq!(
+            names(&sig().append(input("z"))),
+            (vec!["input_text", "context", "z"], vec!["output_text"])
+        );
+        assert_eq!(
+            names(&sig().append(output("z"))),
+            (vec!["input_text", "context"], vec!["output_text", "z"])
+        );
+    }
+
+    /// A negative index counts past the last field, not before it: `-1` appends. Upstream adds
+    /// `len + 1` rather than Python's usual `len`, and getting that wrong puts every negative
+    /// insert one place early.
+    #[test]
+    fn a_negative_index_counts_past_the_end() {
+        let inserted = |at| {
+            let edited = sig().insert(at, input("n")).expect("in range");
+            edited.inputs.iter().map(|f| f.name.clone()).collect::<Vec<_>>()
+        };
+        assert_eq!(inserted(1), vec!["input_text", "n", "context"]);
+        assert_eq!(inserted(2), vec!["input_text", "context", "n"], "one past the end is allowed");
+        assert_eq!(inserted(-1), vec!["input_text", "context", "n"], "-1 appends");
+        assert_eq!(inserted(-2), vec!["input_text", "n", "context"]);
+    }
+
+    /// Out of range on either side, in upstream's wording — which reports the index *after*
+    /// adjustment, so a rejected `-4` is named as the `-1` it became.
+    #[test]
+    fn an_index_out_of_range_is_refused_the_way_dspy_refuses_it() {
+        assert_eq!(
+            sig().insert(3, input("x")).expect_err("too far"),
+            "Invalid index to insert: 3, index must be in the range of [1, 2] for input fields, \
+             but received: 3."
+        );
+        assert_eq!(
+            sig().insert(-4, input("x")).expect_err("too far back"),
+            "Invalid index to insert: -1, index must be in the range of [1, 2] for input fields, \
+             but received: -1."
+        );
+    }
+
+    /// One field changes and nothing else does — the instructions included, which is what makes
+    /// this usable by an optimizer editing a field mid-compile.
+    #[test]
+    fn updating_a_field_leaves_the_rest_alone() {
+        let edited = sig()
+            .with_updated_field("context", |field| field.set_desc("A better context"))
+            .expect("the field is there");
+        assert_eq!(edited.inputs[1].desc, "A better context");
+        assert_eq!(edited.inputs[0].desc, "", "the other field is untouched");
+        assert_eq!(edited.instructions, "Translate.");
+        assert_eq!(names(&edited), names(&sig()), "and the shape is unchanged");
+
+        let retyped = sig()
+            .with_updated_field("context", |field| field.set_kind(FieldKind::Int))
+            .expect("the field is there");
+        assert_eq!(retyped.inputs[1].kind, FieldKind::Int);
+    }
+
+    /// An output field is reachable by the same call, since a name identifies one side or neither.
+    #[test]
+    fn updating_reaches_either_side() {
+        let edited = sig()
+            .with_updated_field("output_text", |field| field.set_desc("the translation"))
+            .expect("the field is there");
+        assert_eq!(edited.outputs[0].desc, "the translation");
+    }
+
+    /// A name on neither side is an error, as upstream's `KeyError` is — the opposite of `delete`,
+    /// which is deliberately forgiving.
+    #[test]
+    fn updating_a_field_that_is_not_there_is_refused() {
+        assert_eq!(
+            sig().with_updated_field("nope", |field| field.set_desc("x")).expect_err("no such field"),
+            "\"nope\""
+        );
+        assert_eq!(names(&sig().delete("nope")), names(&sig()), "delete stays forgiving");
     }
 }

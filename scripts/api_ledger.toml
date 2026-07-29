@@ -364,15 +364,15 @@
 "adapters/types/tool.py::ToolCallResults.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
 # Signature
-"signatures/signature.py::Signature.append" = { status = "todo", reason = "adding a field to a signature is not ported; call sites build the field vectors directly" }
+"signatures/signature.py::Signature.append" = { status = "mapped", rust = "append" }
 "signatures/signature.py::Signature.delete" = { status = "mapped", rust = "delete" }
 "signatures/signature.py::Signature.dump_state" = { status = "mapped", rust = "PredictorState" }
 "signatures/signature.py::Signature.equals" = { status = "divergence", reason = "reproduced as `PartialEq`" }
-"signatures/signature.py::Signature.insert" = { status = "todo", reason = "as `append`" }
+"signatures/signature.py::Signature.insert" = { status = "mapped", rust = "insert" }
 "signatures/signature.py::Signature.load_state" = { status = "mapped", rust = "restore" }
-"signatures/signature.py::Signature.prepend" = { status = "todo", reason = "as `append`" }
+"signatures/signature.py::Signature.prepend" = { status = "mapped", rust = "prepend" }
 "signatures/signature.py::Signature.with_instructions" = { status = "mapped", rust = "with_instructions" }
-"signatures/signature.py::Signature.with_updated_fields" = { status = "todo", reason = "updating one field's description or type in place is not ported" }
+"signatures/signature.py::Signature.with_updated_fields" = { status = "mapped", rust = "with_updated_field" }
 
 # Predict
 "predict/predict.py::Predict.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
