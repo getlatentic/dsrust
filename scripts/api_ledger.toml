@@ -127,7 +127,7 @@
 "utils/exceptions.py::LMUnsupportedModelError" = { status = "divergence", reason = "the message carries it; nothing branches" }
 "utils/exceptions.py::LMTimeoutError" = { status = "divergence", reason = "a timeout is the reqwest error; the caller's bound is `LM::with_timeout`" }
 "utils/exceptions.py::LMServerError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::is_retryable_lm_error" = { status = "todo", reason = "whether a failure is worth retrying is a decision the crate does not make yet — nothing here retries a provider call, so there is no branch to feed (#10)" }
+"utils/exceptions.py::is_retryable_lm_error" = { status = "divergence", reason = "classifies four error types — rate limit, timeout, server, transport — that this crate models as `anyhow::Error`, because nothing branches on them. dspy does not call it either: it is exported for callers, and its own docstring calls it advisory, since litellm has already exhausted provider retries by the time anything sees the error. The crate has no retry loop for it to inform. What would change this is a retry loop here — at that point the four types earn their place and this comes with them, which is the rule #10 now states: start from a branch, not from the list's length" }
 
 # --- primitives ---
 "primitives/example.py::Example" = { status = "mapped", rust = "Example" }
