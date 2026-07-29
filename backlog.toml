@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 890
+rust_tests = 902
 upstream_tests_passing = 858
 upstream_tests_crossing = 441
 upstream_tests_deciding_signatures = 529
@@ -435,11 +435,17 @@ captures source at compile time.
 id = "s9"
 name = "The modules that run code"
 state = "planned"
-still_pending = "the sandbox itself — the crate ships a CodeInterpreter trait and no implementation"
+still_pending = "upstream's 44 interpreter tests do not run against DenoInterpreter yet"
 outcome = """
 A program can write code, run it in a sandbox, and use the result. The modules landed under r3 and
-RLM; what is outstanding is the half b7 sizes — the crate declares `CodeInterpreter` and ships no
-implementation of it, so running the code is still the caller's to supply.
+RLM. The sandbox landed as `DenoInterpreter`: b7's decision built, with dspy's own `runner.js`
+vendored and run unchanged under deno and pyodide, so generated code lands in the sandbox upstream
+uses rather than a reimplementation of it. Five live tests cover printed output, `SUBMIT`, injected
+variables, session state and a failure's wording.
+
+What is outstanding is the conformance half. `tests/primitives/test_python_interpreter.py` is 44
+tests and still excused; running them against `DenoInterpreter` through the bridge is what turns
+"it runs Python" into "it agrees with dspy", and it is the only evidence that counts here.
 """
 suites = [
   "predict/test_program_of_thought.py", "predict/test_code_act.py", "predict/test_rlm.py",

@@ -5,11 +5,15 @@
 //! *write* code ([`ProgramOfThought`](crate::predict::ProgramOfThought)) are the crate's, and what
 //! *runs* it is the caller's, supplied as a [`CodeInterpreter`].
 //!
-//! Nothing sandboxed ships with the crate, and that is deliberate. Upstream's interpreter is a
-//! Python runtime in a WASM sandbox; a Rust crate cannot vendor one, and quietly running generated
-//! code in-process would be a far worse answer than asking the caller for the environment they
-//! want. The seam is the same shape as [`ChatModel`](crate::lm::ChatModel) and
-//! [`Tool`](crate::react::Tool): a trait the caller implements.
+//! [`DenoInterpreter`] is that sandbox, and it is upstream's: dspy's own `runner.js` is vendored
+//! and executed unchanged, so generated code lands in the same Pyodide with the same `SUBMIT` and
+//! the same captured stdout. `deno` is a prerequisite rather than a dependency, which is the
+//! arrangement dspy already asks of its users.
+//!
+//! The seam stays a trait — the same shape as [`ChatModel`](crate::lm::ChatModel) and
+//! [`Tool`](crate::react::Tool) — because what runs a model's code reaches a prompt: float
+//! formatting, exception text and dict ordering all land in the next ask. A second interpreter is
+//! a documented divergence a caller opts into, not a swap.
 
 use std::sync::Arc;
 
@@ -18,9 +22,12 @@ use serde_json::{Map, Value};
 
 use crate::react::Tool;
 
+pub mod deno;
 pub mod repl;
 pub mod sandbox;
+mod variables;
 
+pub use deno::{DenoInterpreter, Permissions};
 pub use repl::{ReplEntry, ReplHistory, ReplVariable};
 pub use sandbox::{SandboxSerializable, build_repl_variable};
 
