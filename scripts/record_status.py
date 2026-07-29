@@ -61,15 +61,30 @@ def strict_xfails() -> int:
     raise SystemExit(f"{CONFTEST.name} has no NOT_YET_IMPLEMENTED to count")
 
 
+def refuse(output: str, status: int) -> str | None:
+    """Why this output must not be recorded, if it must not.
+
+    The exit status is the honest signal for a red run: pytest decorates its summary line, so
+    `1 failed` never starts one and the pattern that looked for it matched nothing. A `-k` run is
+    the other way to record a number that is not the number — it reported 1 crossing where the full
+    run reports 441, and wrote it, because a filtered run is green.
+    """
+    if status != 0:
+        return "the run was not green"
+    if (deselected := re.search(r"(\d+) deselected", output)) is not None:
+        return f"{deselected.group(1)} tests were filtered out, so this is not the whole suite"
+    return None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--suites", type=int, required=True, help="how many files the runner ran")
+    parser.add_argument("--status", type=int, required=True, help="the pytest run's exit status")
     args = parser.parse_args()
 
     output = sys.stdin.read()
-    # A red run says nothing trustworthy about coverage, so it leaves the block alone.
-    if re.search(r"^\d+ failed", output, re.M) or " error" in output.lower().split("=====")[-1]:
-        print("  status: not recorded (the run was not green)", file=sys.stderr)
+    if (refused := refuse(output, args.status)) is not None:
+        print(f"  status: not recorded ({refused})", file=sys.stderr)
         return
 
     values = observed(output)

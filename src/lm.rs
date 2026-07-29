@@ -7,6 +7,9 @@ pub mod dummy;
 pub mod error;
 pub mod global;
 mod ollama;
+mod model;
+mod routing;
+mod turn;
 pub mod openai;
 mod streaming;
 mod token_limit;
@@ -14,12 +17,14 @@ pub mod usage;
 
 use std::time::Duration;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use futures_util::Stream;
-use serde_json::Value;
 
 pub use cache::{Cached, ResponseCache};
 pub use capabilities::Capabilities;
+pub use model::{ChatModel, DynChatModel};
+pub use routing::{ModelRef, Provider};
+pub use turn::{ChatTurn, OutputMode, Role};
 pub use error::ContextWindowExceeded;
 pub use call::{LmConfig, LmUsage};
 pub use global::{configure, configure_with_client};
@@ -39,206 +44,6 @@ pub const DEFAULT_PROVIDER_TIMEOUT: Duration = Duration::from_secs(20);
 /// The stock ollama port on the local machine, shared with the server's config so `LM::new`
 /// and the server resolve the same host when OLLAMA_HOST is unset.
 pub const DEFAULT_OLLAMA_HOST: &str = "http://localhost:11434";
-
-/// Where a model runs. Each provider keeps its own wire format behind the one `LM` interface.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Provider {
-    Anthropic,
-    OpenRouter,
-    /// Any service exposing OpenAI's `/v1/chat/completions`: OpenAI itself, Groq, Together,
-    /// vLLM, LM Studio. Which one is a matter of [`OpenAiConfig`] rather than of the model
-    /// prefix, since they are one wire format on different hosts.
-    OpenAiCompatible,
-    /// ollama's `/api/generate` route, litellm's `ollama/` — one flattened prompt, no native
-    /// tool calls. The legacy path; [`Provider::OllamaChat`] is the one to reach for tool use.
-    Ollama,
-    /// ollama's `/api/chat` route, litellm's `ollama_chat/` — a message list and native tool
-    /// calls. What dspy's docs steer an ollama user to.
-    OllamaChat,
-}
-
-/// A LiteLLM-style model reference, `provider/model-id`: `anthropic/claude-opus-4-8`,
-/// `openrouter/openai/gpt-oss-120b`, `openai/gpt-4o-mini`, `ollama/qwen2.5:7b-instruct`.
-/// The id may itself contain slashes (OpenRouter namespaces models by vendor).
-#[derive(Debug, Clone)]
-pub struct ModelRef {
-    pub provider: Provider,
-    pub id: String,
-}
-
-impl ModelRef {
-    pub fn parse(raw: &str) -> Result<Self> {
-        let (prefix, id) = raw
-            .split_once('/')
-            .ok_or_else(|| anyhow!("model must be provider/model-id, got {raw:?}"))?;
-        if id.is_empty() {
-            return Err(anyhow!("model id is empty in {raw:?}"));
-        }
-        let provider = match prefix {
-            "anthropic" => Provider::Anthropic,
-            "openrouter" => Provider::OpenRouter,
-            "openai" => Provider::OpenAiCompatible,
-            "ollama" => Provider::Ollama,
-            "ollama_chat" => Provider::OllamaChat,
-            other => return Err(anyhow!("unknown provider {other:?} in {raw:?}")),
-        };
-        Ok(Self {
-            provider,
-            id: id.to_owned(),
-        })
-    }
-
-    /// The reference as written, `provider/model-id`. What the capability registry is keyed by,
-    /// and what dspy hands litellm.
-    pub fn reference(&self) -> String {
-        let prefix = match self.provider {
-            Provider::Anthropic => "anthropic",
-            Provider::OpenRouter => "openrouter",
-            Provider::OpenAiCompatible => "openai",
-            Provider::Ollama => "ollama",
-            Provider::OllamaChat => "ollama_chat",
-        };
-        format!("{prefix}/{}", self.id)
-    }
-}
-
-/// One side of the conversation; every provider speaks the user/assistant pair.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Role {
-    User,
-    Assistant,
-    /// What a tool returned. dspy sends these as their own messages once a provider has called
-    /// tools natively, each naming the call it answers.
-    Tool,
-}
-
-impl Role {
-    /// The name this role travels under on the wire, and the one dspy's message dicts use.
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Role::User => "user",
-            Role::Assistant => "assistant",
-            Role::Tool => "tool",
-        }
-    }
-}
-
-/// One turn of the conversation. Retries append the model's own previous reply as an
-/// assistant turn followed by a corrective user turn, so the model sees what it wrote.
-#[derive(Debug, Clone)]
-pub struct ChatTurn {
-    pub role: Role,
-    pub content: Content,
-}
-
-impl ChatTurn {
-    pub fn user(content: impl Into<Content>) -> Self {
-        Self {
-            role: Role::User,
-            content: content.into(),
-        }
-    }
-
-    pub fn assistant(content: impl Into<Content>) -> Self {
-        Self {
-            role: Role::Assistant,
-            content: content.into(),
-        }
-    }
-}
-
-/// What the reply should look like on the wire. `Json` engages the provider's native
-/// structured output (Anthropic json_schema, OpenRouter/ollama JSON mode); `Text` leaves
-/// the reply free-form for marker-based adapters, which need no provider support at all.
-#[derive(Debug, Clone, Copy)]
-pub enum OutputMode<'a> {
-    Text,
-    Json { schema: &'a Value },
-}
-
-/// The object-safe form of [`ChatModel`], so a model can be stored behind a pointer.
-///
-/// `ChatModel` returns `impl Future`, which is ergonomic to implement and impossible to make
-/// into a trait object. Every `ChatModel` gets this for free through the blanket impl below,
-/// and the global configuration stores this form — which is what lets a test install a
-/// scripted model the way dspy installs a `DummyLM`.
-pub trait DynChatModel: Send + Sync {
-    /// The object-safe form of [`ChatModel::forward`] — the typed 3.3 boundary behind a pointer,
-    /// which is how a module reaching its model through `dyn DynChatModel` asks it.
-    fn forward_dyn<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-        request: &'a api::LmRequest,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>>;
-
-    /// The object-safe form of [`ChatModel::capabilities`].
-    fn capabilities_dyn<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>>;
-
-    /// The object-safe form of [`ChatModel::native_reasoning_usable`] — the `_dyn` name keeps it from
-    /// clashing with the inherent one on a model that implements both.
-    fn native_reasoning_usable_dyn(&self) -> bool;
-}
-
-impl<T: ChatModel + Send + Sync> DynChatModel for T {
-    fn forward_dyn<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-        request: &'a api::LmRequest,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>> {
-        Box::pin(self.forward(http, request))
-    }
-
-    fn capabilities_dyn<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>> {
-        Box::pin(self.capabilities(http))
-    }
-
-    fn native_reasoning_usable_dyn(&self) -> bool {
-        ChatModel::native_reasoning_usable(self)
-    }
-}
-
-
-/// The typed 3.3 model boundary: dspy's `forward(request: LMRequest) -> LMResponse`.
-///
-/// The one seam every model implements — a provider-backed [`LM`], a [`Cached`] wrapper, the
-/// scripted doubles a test installs — and the one method a module calls to reach its model. Unit
-/// tests script it with canned replies while production speaks to real providers through [`LM`].
-pub trait ChatModel {
-    fn forward<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-        request: &'a api::LmRequest,
-    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a;
-
-    /// What this model can be asked for natively. Nothing, unless the implementor says otherwise
-    /// — the same default dspy's `BaseLM` carries, and for the same reason.
-    ///
-    /// Asynchronous because the honest answer is not always a lookup: an ollama server is asked
-    /// what a model can do, exactly as litellm asks it, and that is a request like any other.
-    fn capabilities<'a>(
-        &'a self,
-        _http: &'a reqwest::Client,
-    ) -> impl Future<Output = Capabilities> + Send + 'a {
-        std::future::ready(Capabilities::default())
-    }
-
-    /// Whether native reasoning is usable over this model's current path — dspy's model-specific
-    /// caveat in `Reasoning.adapt_to_native_lm_feature`, kept where the model itself is known.
-    ///
-    /// On by default, since a model that reasons at all reasons over its own path. dspy turns it off
-    /// for the gpt-5 family on the chat-completions route, where litellm 1.79.0 never returns the
-    /// reasoning content (its issue #14748); the Responses API is unaffected. A model that reports
-    /// `false` keeps the reasoning field rendered as prose instead of asking for it natively.
-    fn native_reasoning_usable(&self) -> bool {
-        true
-    }
-}
 
 /// One configured language model: a model reference plus the credentials and hosts its
 /// provider needs.

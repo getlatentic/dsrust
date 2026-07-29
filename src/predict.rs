@@ -1,18 +1,16 @@
 use std::marker::PhantomData;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
 use crate::adapter::native_reasoning::{self, ReasoningEffort};
 use crate::adapter::parse::FieldMismatch;
-use crate::adapter::{
-    Adapter, ChatAdapter, Extraction, Feedback, Input, ToolCall, ToolCalls, native_tools, turns_for,
-};
+use crate::adapter::{Adapter, Feedback, Input, native_tools, turns_for};
 use crate::example::{Example, Prediction};
-use crate::lm::{Capabilities, DynChatModel, LmConfig, LmUsage, api, global};
+use crate::lm::{Capabilities, DynChatModel, LmConfig, LmUsage, api};
 use crate::module::{Module, NamedPredictor, TraceStep};
-use crate::signature::{FieldKind, Signature, SignatureSpec};
+use crate::signature::Signature;
 
 /// dspy's per-call `config=`: the fields one ask steers that the module's own config does not carry.
 /// A reasoning budget, and a tool the provider must call — ReActV2's forced submit sets both, to
@@ -23,6 +21,39 @@ pub struct Steering {
     /// A tool the provider must call, sent only under native function calling, since dspy drops
     /// `tool_choice` for an adapter that renders the tools instead.
     pub forced_tool: Option<String>,
+    /// OpenAI's Predicted Outputs: text the reply is expected to mostly repeat, which the provider
+    /// bills and generates against rather than writing again. See [`predicted_output`] for the
+    /// other way in — an input field of the same shape, which takes precedence over this.
+    pub predicted_output: Option<Value>,
+}
+
+/// dspy `_forward_preprocess`: an input named `prediction` shaped like OpenAI's Predicted Outputs
+/// is not an input at all. It comes off the render and goes to the provider as a call parameter.
+///
+/// The *shape* is what decides, not the signature. A signature declaring `prediction` as an input
+/// still loses it to the model when a caller passes this exact object, and a `prediction` input
+/// holding anything else — a string, a differently-tagged object — stays an ordinary input. Both
+/// halves are upstream's, quirk included.
+fn predicted_output(inputs: &Example) -> Option<Value> {
+    let offered = inputs.get("prediction")?;
+    let fields = offered.as_object()?;
+    let shaped = fields.get("type").and_then(Value::as_str) == Some("content")
+        && fields.contains_key("content");
+    shaped.then(|| offered.clone())
+}
+
+/// What one call renders, and the predicted output taken out of it.
+///
+/// Both ways in need this — one answer or several — because upstream runs `_forward_preprocess`
+/// ahead of either, and a rule applied on only one path is a rule that depends on `n`.
+pub(crate) fn rendered_inputs(inputs: &Example) -> (Vec<Input<'_>>, Option<Value>) {
+    let lifted = predicted_output(inputs);
+    let pairs = inputs
+        .fields()
+        .filter(|(name, _)| lifted.is_none() || *name != "prediction")
+        .map(|(name, value)| Input::new(name, value.clone()))
+        .collect();
+    (pairs, lifted)
 }
 
 /// A reply and the signature that was actually rendered to get it.
@@ -37,13 +68,16 @@ struct Reply {
 
 mod aggregation;
 mod best_of_n;
+mod building;
 pub mod code_act;
 mod chain_of_thought;
 mod completions;
 mod derived;
 mod hint;
 mod multi_chain_comparison;
+mod native;
 mod parallel;
+mod recovery;
 pub mod program_of_thought;
 pub mod refine;
 pub mod rlm;
@@ -54,6 +88,7 @@ pub use chain_of_thought::{ChainOfThought, TypedChainOfThought};
 pub use refine::Refine;
 pub use derived::TypedPredict;
 use derived::typed;
+use native::{ask_for_parallel_calls, force_tool};
 pub use multi_chain_comparison::MultiChainComparison;
 pub use parallel::{Answered, Parallel};
 pub use program_of_thought::ProgramOfThought;
@@ -110,182 +145,6 @@ struct Validated {
     usage: Option<LmUsage>,
 }
 
-impl<S> Predict<S> {
-    /// The same module, told which task it asks. The signature and demos are unchanged; only
-    /// what a call answers with follows from the type.
-    pub(crate) fn into_task<T>(self) -> Predict<T> {
-        Predict {
-            spec: PhantomData,
-            signature: self.signature,
-            adapter: self.adapter,
-            demos: self.demos,
-            lm: self.lm,
-            config: self.config,
-            hint: self.hint,
-        }
-    }
-
-    /// Ask this model rather than the configured one. dspy's `set_lm`.
-    pub fn with_lm(mut self, lm: std::sync::Arc<dyn DynChatModel>) -> Self {
-        self.lm = Some(lm);
-        self
-    }
-
-    /// Ask for the reply to be sampled this way rather than at the provider's defaults.
-    ///
-    /// dspy reaches the same setting through `lm.copy(temperature=...)`, which needs a model to
-    /// copy; this is per call, so a module that defers to the configured model can still vary
-    /// how it is asked.
-    pub fn with_config(mut self, config: LmConfig) -> Self {
-        self.config = config;
-        self
-    }
-
-    /// The config this module asks for. An optimizer reads it to vary one field and leave
-    /// the rest alone.
-    pub fn config(&self) -> &LmConfig {
-        &self.config
-    }
-
-    /// dspy's `get_lm`: the model this module asks, or nothing if it defers to the configured
-    /// one. An optimizer reads it to copy the settings it is about to vary.
-    pub fn lm(&self) -> Option<&std::sync::Arc<dyn DynChatModel>> {
-        self.lm.as_ref()
-    }
-
-    /// The model and client one call should use: this module's own, or the configured default.
-    ///
-    /// A module with its own model needs only a client, not the global model behind it, so it
-    /// runs where none is configured — which is what `BestOfN` and `Refine` rely on when they
-    /// hand a predictor a scripted model.
-    fn asking(&self) -> Result<(reqwest::Client, std::sync::Arc<dyn DynChatModel>)> {
-        match &self.lm {
-            Some(lm) => Ok((global::client(), lm.clone())),
-            None => global::current(),
-        }
-    }
-
-    /// Show the model these solved examples before the request.
-    pub fn with_demos(mut self, demos: impl IntoIterator<Item = Example>) -> Self {
-        self.demos = demos.into_iter().collect();
-        self
-    }
-
-    /// Send this module's prompts through a different wire format. Any [`Adapter`] works,
-    /// including one a caller writes: dspy chooses its adapter the same way.
-    pub fn with_adapter(mut self, adapter: impl Adapter + 'static) -> Self {
-        self.adapter = Box::new(adapter);
-        self
-    }
-}
-
-impl Predict<Dynamic> {
-    /// A module for a signature held as field names. `predict!("question -> answer")` is the
-    /// spelling to reach for; this is what it expands to.
-    pub fn from_signature(signature: Signature) -> Self {
-        Self {
-            spec: PhantomData,
-            lm: None,
-            config: LmConfig::default(),
-            hint: None,
-            signature,
-            adapter: Box::new(ChatAdapter::default()),
-            demos: Vec::new(),
-        }
-    }
-
-    /// dspy `Predict("email -> sentiment")`: declare the task by naming its fields.
-    ///
-    /// The shortest way to a working module. A field with no type is a string, which is what
-    /// makes the untyped spelling useful for a first pass; `Predict::task` takes a derived
-    /// signature when the types matter.
-    pub fn parse(signature: &str) -> Result<Self> {
-        Ok(Self::from_signature(signature.parse()?))
-    }
-
-    /// The module for a derived signature, which is `Predict::<Task>::new()` reached from the
-    /// untyped name.
-    pub fn task<S: SignatureSpec + Send + Sync>() -> Predict<S> {
-        Predict::<S>::new()
-    }
-
-    /// Ask through the globally configured LM; see [`crate::lm::configure`].
-    pub async fn call(&self, input: &str) -> Result<Value> {
-        let (http, lm) = self.asking()?;
-        self.call_with(&http, lm.as_ref(), input).await
-    }
-
-    /// Ask through an explicit client and model: the per-call override, and the seam tests
-    /// script with a canned [`ChatModel`](crate::lm::ChatModel).
-    pub async fn call_with(
-        &self,
-        http: &reqwest::Client,
-        lm: &dyn DynChatModel,
-        input: &str,
-    ) -> Result<Value> {
-        let name = self
-            .signature
-            .inputs
-            .first()
-            .map_or("request", |f| f.name.as_str());
-        Ok(self
-            .call_with_inputs(
-                http,
-                lm,
-                &[Input::new(name, Value::String(input.to_owned()))],
-                &Steering::default(),
-            )
-            .await?
-            .value)
-    }
-}
-
-/// dspy sets `parallel_tool_calls` only when the adapter states one and the request has not
-/// already asked, so an explicit `false` from the caller is never overwritten by the default.
-///
-/// The normalized config spells it `tool_choice.parallel`, which is where upstream's own
-/// `LMToolChoice.from_value` puts a `parallel_tool_calls` kwarg.
-fn ask_for_parallel_calls(request: &mut api::LmRequest, parallel: Option<bool>) {
-    let Some(parallel) = parallel else {
-        return;
-    };
-    let choice = request.config.tool_choice.get_or_insert_with(Default::default);
-    if choice.parallel.is_none() {
-        choice.parallel = Some(parallel);
-    }
-}
-
-/// dspy `_provider_tool_call_to_tool_call_dict`: a provider's native call as a [`ToolCall`].
-///
-/// The reply parser already structured the arguments and settled the id from `id`/`call_id`, so a
-/// part carries what upstream reads out of a litellm tool call — no repair or renaming is left to
-/// do here. A part that is not a tool call is not one of these and is dropped.
-fn as_tool_call(part: &api::LmPart) -> Option<ToolCall> {
-    match part {
-        api::LmPart::ToolCall { id, name, args, .. } => {
-            Some(ToolCall { id: id.clone(), name: name.clone(), args: args.clone() })
-        }
-        _ => None,
-    }
-}
-
-/// dspy's forced `tool_choice`: pin the provider to one tool by name. The normalized config states
-/// it as the sole allowed tool under `required`, which every provider lowers to
-/// `{"type":"function","function":{"name": tool}}`.
-fn force_tool(request: &mut api::LmRequest, tool: &str) {
-    let choice = request.config.tool_choice.get_or_insert_with(Default::default);
-    choice.mode = api::ToolChoiceMode::Required;
-    choice.allowed = Some(vec![tool.to_owned()]);
-}
-
-/// dspy `Reasoning.parse_lm_response` reads `reasoning_content` off a reply; here that is the
-/// thinking part the providers already lift out of it.
-fn thinking_text(output: &api::LmOutput) -> Option<String> {
-    output.parts.iter().find_map(|part| match part {
-        api::LmPart::Thinking { text, .. } => Some(text.clone()),
-        _ => None,
-    })
-}
 
 impl<S> Predict<S> {
     /// One attempt: render through the adapter, ask the model, hand back the raw reply.
@@ -345,6 +204,11 @@ impl<S> Predict<S> {
         if asking.enabled && let Some(tool) = &steering.forced_tool {
             force_tool(&mut request, tool);
         }
+        // Predicted Outputs is not a field the normalized config models, upstream's included — it
+        // rides in `extensions`, which every provider flattens back onto the call it makes.
+        if let Some(predicted) = &steering.predicted_output {
+            request.config.extensions.insert("prediction".to_owned(), predicted.clone());
+        }
         let response = lm.forward_dyn(http, &request).await?;
         Ok(Reply { response, rendered: asked })
     }
@@ -361,65 +225,6 @@ impl<S> Predict<S> {
             .await
     }
 
-    /// dspy `_call_postprocess`: the value of a reply whose fields left the render for a native
-    /// feature.
-    ///
-    /// A field removed by native function calling or native reasoning is absent from what the reply
-    /// spoke, so it is read from its own channel instead — the provider's tool calls fill the
-    /// tool-call output, the model's own thinking fills the reasoning output — while whatever content
-    /// did come back is parsed against what remained. Returns `None` when the render kept every
-    /// output field, which is the marker text path the caller handles itself.
-    fn native_value(&self, reply: &Reply) -> Result<Option<Value>> {
-        let removed: Vec<&crate::signature::OutField> = self
-            .signature
-            .outputs
-            .iter()
-            .filter(|field| !reply.rendered.outputs.iter().any(|kept| kept.name == field.name))
-            .collect();
-        if removed.is_empty() {
-            return Ok(None);
-        }
-
-        let text = reply.response.first_text();
-        let mut value = match !text.is_empty() && !reply.rendered.outputs.is_empty() {
-            true => self
-                .adapter
-                .parse(&reply.rendered, &text)
-                .unwrap_or_else(|_| Value::Object(Map::new())),
-            false => Value::Object(Map::new()),
-        };
-        let object = value.as_object_mut().ok_or_else(|| anyhow!("a parsed reply is an object"))?;
-        for field in &self.signature.outputs {
-            object.entry(field.name.clone()).or_insert(Value::Null);
-        }
-
-        // The provider's own tool calls fill the tool-call output field.
-        if let Some(tool_field) = native_tools::tool_call_output_field(&self.signature) {
-            let calls: Vec<ToolCall> = reply
-                .response
-                .outputs
-                .first()
-                .into_iter()
-                .flat_map(api::LmOutput::tool_calls)
-                .filter_map(as_tool_call)
-                .collect();
-            if !calls.is_empty() {
-                object.insert(tool_field.to_owned(), ToolCalls::new(calls).to_value_with_ids());
-            }
-        }
-
-        // dspy `Reasoning.parse_lm_response`: a reasoning model's thinking fills the reasoning
-        // output that left the render for it.
-        if let Some(thinking) = reply.response.outputs.first().and_then(thinking_text) {
-            for field in &removed {
-                if matches!(field.kind, FieldKind::Reasoning) {
-                    object.insert(field.name.clone(), Value::String(thinking.clone()));
-                }
-            }
-        }
-        Ok(Some(value))
-    }
-
     async fn call_with_inputs(
         &self,
         http: &reqwest::Client,
@@ -431,6 +236,18 @@ impl<S> Predict<S> {
         // the JSON adapter; `use_json_adapter_fallback` turns that off. The adapter states the
         // policy, this module carries it out, because only the module can call the model.
         let answered = self.ask(http, lm, inputs, None, steering).await?;
+        // A provider that returned no completions at all did not return an empty one. Upstream's
+        // `Adapter.__call__` loops over the outputs, so an empty list never reaches its parser and
+        // `Predict` hands back a prediction with no fields; parsing `""` instead would report a
+        // malformed reply for a call that produced none. `forward_completions` already answers with
+        // an empty list here, and the two paths cannot disagree about the same response.
+        if answered.response.outputs.is_empty() {
+            return Ok(Validated {
+                raw: String::new(),
+                value: Value::Object(Map::new()),
+                usage: answered.response.spend(),
+            });
+        }
         // dspy `_call_postprocess`: a reply whose fields left the render for a native feature is
         // filled from those channels and skips the whole text path — parse, coercion, feedback —
         // exactly as upstream returns the native reply without re-validating it.
@@ -499,74 +316,39 @@ impl<S> Predict<S> {
             }
         }
     }
-
-    /// The second ask of a two-step adapter: hand the first reply to the extraction model and
-    /// read the signature's fields out of what it answers.
-    ///
-    /// The extraction speaks its own adapter over its own signature — `text` in, the task's
-    /// outputs out — so nothing here knows it is reading prose rather than a fresh request.
-    async fn extract(
-        &self,
-        http: &reqwest::Client,
-        extraction: Extraction<'_>,
-        raw: String,
-        asking: Option<LmUsage>,
-    ) -> Result<Validated> {
-        let text = [Input::new("text", Value::String(raw.clone()))];
-        let (system, turns) = extraction
-            .adapter
-            .format(&extraction.signature, &[], &text)?;
-        let schema = extraction.signature.schema();
-        let mode = extraction.adapter.output_mode(&schema);
-        // Left at the provider's defaults rather than given the module's config: this call
-        // rewrites prose the model already produced into fields, so a temperature chosen to
-        // vary the *answer* would only vary the transcription of one.
-        let request = api::interop::raise_request(&system, &turns, mode, &LmConfig::default());
-        let extracted = extraction
-            .model
-            .forward_dyn(http, &request)
-            .await
-            .context("the extraction model did not answer")?;
-        let extracted_text = extracted.first_text();
-        let mut value = extraction
-            .adapter
-            .parse(&extraction.signature, &extracted_text)
-            // dspy names the *first* reply here, not the extraction's. That is the one a
-            // caller can act on: the extraction failing usually means the prose never carried
-            // the fields, and the prose is what they would go and look at.
-            .with_context(|| {
-                format!("Failed to parse response from the original completion: {raw}")
-            })?;
-        self.signature.coerce(&mut value)?;
-        self.signature.ensure(&value)?;
-        Ok(Validated {
-            usage: LmUsage::merge(asking, extracted.spend()),
-            raw: extracted_text,
-            value,
-        })
-    }
-
-    /// One more ask on the same adapter carrying the rejected reply and its error; every
-    /// failure past this point is final.
-    async fn feedback_ask(
-        &self,
-        http: &reqwest::Client,
-        lm: &dyn DynChatModel,
-        inputs: &[Input<'_>],
-        feedback: &Feedback,
-        steering: &Steering,
-    ) -> Result<(String, Value, Option<LmUsage>)> {
-        let answered = self.ask(http, lm, inputs, Some(feedback), steering).await?;
-        let answered_text = answered.response.first_text();
-        let mut value = self.adapter.parse(&self.signature, &answered_text)?;
-        self.signature.coerce(&mut value)?;
-        self.signature.ensure(&value)?;
-        let usage = answered.response.spend();
-        Ok((answered_text, value, usage))
-    }
 }
 
 impl Predict<Dynamic> {
+    /// Ask through the globally configured LM; see [`crate::lm::configure`].
+    pub async fn call(&self, input: &str) -> Result<Value> {
+        let (http, lm) = self.asking()?;
+        self.call_with(&http, lm.as_ref(), input).await
+    }
+
+    /// Ask through an explicit client and model: the per-call override, and the seam tests
+    /// script with a canned [`ChatModel`](crate::lm::ChatModel).
+    pub async fn call_with(
+        &self,
+        http: &reqwest::Client,
+        lm: &dyn DynChatModel,
+        input: &str,
+    ) -> Result<Value> {
+        let name = self
+            .signature
+            .inputs
+            .first()
+            .map_or("request", |f| f.name.as_str());
+        Ok(self
+            .call_with_inputs(
+                http,
+                lm,
+                &[Input::new(name, Value::String(input.to_owned()))],
+                &Steering::default(),
+            )
+            .await?
+            .value)
+    }
+
     /// The validated reply as a caller-owned struct instead of loose JSON.
     pub async fn call_typed<T: DeserializeOwned>(&self, input: &str) -> Result<T> {
         typed(self.call(input).await?)
@@ -586,7 +368,7 @@ impl Predict<Dynamic> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::adapter::JsonAdapter;
+    use crate::adapter::{ChatAdapter, JsonAdapter};
     use crate::lm::Role;
     use crate::predict::scripted::{
         Pick, RoomTask, RoomTaskInputs, RoomTaskOutputs, Scripted, room_inputs, signature,
@@ -627,6 +409,83 @@ mod tests {
         ) -> Result<api::LmResponse> {
             Ok(api::LmResponse::completions(self.0.iter().map(|reply| reply.to_string())))
         }
+    }
+
+    /// A provider that keeps the request it was handed, so a test can read what the crate decided
+    /// to *send* and not only what it decided to render.
+    #[derive(Default)]
+    struct Captured(std::sync::Mutex<Option<api::LmRequest>>);
+
+    impl crate::lm::ChatModel for Captured {
+        async fn forward(
+            &self,
+            _http: &reqwest::Client,
+            request: &api::LmRequest,
+        ) -> Result<api::LmResponse> {
+            *self.0.lock().expect("the captured request") = Some(request.clone());
+            Ok(api::LmResponse::completions([MARKER_REPLY.to_owned()]))
+        }
+    }
+
+    /// What one call sent, for a predictor answering through [`Captured`].
+    async fn sent_by(spec: &str, inputs: Example) -> api::LmRequest {
+        let model = std::sync::Arc::new(Captured::default());
+        let predict = Predict::parse(spec).expect("parses").with_lm(model.clone());
+        predict.forward(inputs).await.expect("answers");
+        model.0.lock().expect("captured").clone().expect("a request reached the model")
+    }
+
+    fn rendered(request: &api::LmRequest) -> String {
+        serde_json::to_string(&request.messages).expect("the messages serialize")
+    }
+
+    /// OpenAI's Predicted Outputs is a call parameter, not an input. dspy moves it off the render
+    /// into the per-call config, and the normalized config models no such field on either side —
+    /// so it travels in `extensions`, which is what a provider flattens onto its call.
+    #[tokio::test]
+    async fn a_predicted_output_reaches_the_provider_and_not_the_prompt() {
+        let offered = json!({ "type": "content", "content": "a room that is red" });
+        let sent = sent_by(
+            "request -> color, why",
+            Example::new([("request", json!("pick a colour")), ("prediction", offered.clone())]),
+        )
+        .await;
+
+        assert_eq!(sent.config.extensions.get("prediction"), Some(&offered));
+        assert!(!rendered(&sent).contains("a room that is red"), "and never reached the prompt");
+    }
+
+    /// The quirk, reproduced on purpose: upstream tests the *value*, never the field list, so a
+    /// signature declaring `prediction` as an input still loses it when the value is that shape.
+    /// Declaring the field is no protection, and this is the case that proves the filter runs.
+    #[tokio::test]
+    async fn a_declared_prediction_input_is_taken_too_when_it_is_that_shape() {
+        let offered = json!({ "type": "content", "content": "a room that is red" });
+        let sent = sent_by(
+            "request, prediction -> color, why",
+            Example::new([("request", json!("pick a colour")), ("prediction", offered.clone())]),
+        )
+        .await;
+
+        assert_eq!(sent.config.extensions.get("prediction"), Some(&offered));
+        assert!(!rendered(&sent).contains("a room that is red"), "declared, and still not rendered");
+    }
+
+    /// The other half of upstream's test: a `prediction` input holding anything else is an
+    /// ordinary input. It renders, and no call parameter is set for it.
+    #[tokio::test]
+    async fn a_prediction_input_of_another_shape_stays_an_input() {
+        let sent = sent_by(
+            "request, prediction -> color, why",
+            Example::new([
+                ("request", json!("pick a colour")),
+                ("prediction", json!("to get to the other side")),
+            ]),
+        )
+        .await;
+
+        assert!(sent.config.extensions.is_empty(), "nothing was lifted out of the inputs");
+        assert!(rendered(&sent).contains("to get to the other side"), "it rendered as an input");
     }
 
     /// An instruction optimizer proposes `n` candidates in one call; `forward_completions` reads
@@ -1098,9 +957,15 @@ impl<S: Send + Sync> Predict<S> {
         steering: &Steering,
     ) -> Result<Prediction> {
         let (http, lm) = self.asking()?;
-        let pairs: Vec<Input<'_>> =
-            inputs.fields().map(|(name, value)| Input::new(name, value.clone())).collect();
-        let validated = self.call_with_inputs(&http, lm.as_ref(), &pairs, steering).await?;
+        let (pairs, lifted) = rendered_inputs(&inputs);
+        let mut steering = steering.clone();
+        // Upstream assigns `config["prediction"]` after merging the caller's `config=`, so an input
+        // of that shape wins over one steered directly. Only over one: a call that steers a
+        // predicted output and passes no such input keeps what it steered.
+        if lifted.is_some() {
+            steering.predicted_output = lifted;
+        }
+        let validated = self.call_with_inputs(&http, lm.as_ref(), &pairs, &steering).await?;
         Ok(Prediction::new(prediction_example(&validated.value), validated.raw)
             .with_usage(validated.usage))
     }

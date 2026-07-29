@@ -34,7 +34,8 @@ EXCUSED = {
     "tests/teleprompt/test_finetune.py": "finetuning, deferred past 1.0",
     "tests/teleprompt/test_bootstrap_finetune.py": "finetuning, deferred past 1.0",
     "tests/teleprompt/test_grpo.py": "RL, deferred past 1.0",
-    # Optimizers not yet built — Sprint 4 (#8) and the deferred set (#9).
+    # The optimizers deliberately deferred past 1.0 (#9). Both need the KNN retriever rather than
+    # anything the optimizer work builds, which is why they sit with retrieval in s10.
     "tests/teleprompt/test_knn_fewshot.py": "KNNFewShot is deferred (#9)",
     "tests/predict/test_knn.py": "KNN is deferred (#9)",
     # Python-runtime machinery with no Rust counterpart to reach.
@@ -47,7 +48,10 @@ EXCUSED = {
     "tests/utils/test_unbatchify.py": "a Python batching helper",
     "tests/utils/test_langchain_tool.py": "a LangChain adapter",
     "tests/callback/test_callback.py": "dspy's Python callback protocol",
-    "tests/utils/test_exceptions.py": "dspy's exception classes; see the error taxonomy (#10)",
+    # The taxonomy stayed small on purpose: upstream branches on error *identity* in one place,
+    # and that one — ContextWindowExceeded, which ReAct catches to truncate — is built and tested.
+    # What this file tests is the other ~17 classes existing, which is Python's class hierarchy.
+    "tests/utils/test_exceptions.py": "dspy's exception classes, as a Python hierarchy",
     "tests/clients/test_disk_serialization.py": "Python pickling policy",
     "tests/clients/test_inspect_global_history.py": "dspy's history printing",
     "tests/clients/test_lm_local.py": "launching a locally-served model",

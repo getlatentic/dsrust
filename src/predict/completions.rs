@@ -4,8 +4,7 @@
 
 use anyhow::Result;
 
-use super::{Predict, Steering};
-use crate::adapter::Input;
+use super::{Predict, Steering, rendered_inputs};
 use crate::example::{Example, Prediction};
 
 impl<S> Predict<S> {
@@ -17,11 +16,9 @@ impl<S> Predict<S> {
     /// nothing.
     pub async fn forward_completions(&self, inputs: Example) -> Result<Vec<Prediction>> {
         let (http, lm) = self.asking()?;
-        let pairs: Vec<Input<'_>> = inputs
-            .fields()
-            .map(|(name, value)| Input::new(name, value.clone()))
-            .collect();
-        let answered = self.ask(&http, lm.as_ref(), &pairs, None, &Steering::default()).await?;
+        let (pairs, predicted_output) = rendered_inputs(&inputs);
+        let steering = Steering { predicted_output, ..Steering::default() };
+        let answered = self.ask(&http, lm.as_ref(), &pairs, None, &steering).await?;
         let mut usage = answered.response.spend();
         let mut predictions = Vec::new();
         for output in &answered.response.outputs {

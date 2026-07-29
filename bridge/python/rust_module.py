@@ -31,10 +31,15 @@ class RustPredict(dspy.Predict):
         # dspy's own pre/post steps: defaults + warnings + LM validation, then the Prediction
         # assembly and trace. Only the completions in between are ours.
         lm, config, signature, demos, kwargs = self._forward_preprocess(**kwargs)
-        completions = self._rust_completions(lm, config, signature, demos, kwargs)
+        # `_forward_preprocess` has already decided whether a `prediction` kwarg is a predicted
+        # output or an ordinary input. Handing it back undoes that decision, so the crate makes it
+        # — otherwise Rust is a courier for an answer Python worked out, and the test would read
+        # green whatever the crate did.
+        predicted = config.pop("prediction", None)
+        completions = self._rust_completions(lm, config, signature, demos, kwargs, predicted)
         return self._forward_postprocess(completions, signature, **kwargs)
 
-    def _rust_completions(self, lm, config, signature, demos, inputs):
+    def _rust_completions(self, lm, config, signature, demos, inputs, predicted=None):
         # A module-level crossing: the whole render→call→parse ran in Rust.
         crossings.record_render()
 
@@ -47,6 +52,8 @@ class RustPredict(dspy.Predict):
             for name in signature.input_fields
             if name in inputs
         ]
+        if predicted is not None:
+            values.append(("prediction", json.dumps(predicted, ensure_ascii=False), False))
         rendered_demos = [
             [
                 (name, format_field_value(field_info=field, value=demo[name]))

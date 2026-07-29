@@ -135,5 +135,5 @@ STATUS=${PIPESTATUS[0]}
 set -e
 # backlog.toml's [status] block was hand-written and stale. It is generated from the run now, so a
 # number in the plan cannot part company with the evidence for it.
-python3 "$ROOT/scripts/record_status.py" --suites "${#SUITES[@]}" < "$WORK/last-run.txt"
+python3 "$ROOT/scripts/record_status.py" --suites "${#SUITES[@]}" --status "$STATUS" < "$WORK/last-run.txt"
 exit "$STATUS"

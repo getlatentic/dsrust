@@ -94,15 +94,7 @@ dspy.adapters.base._provider_tool_call_to_tool_call_dict = _rust_provider_tool_c
 #
 # A run may report xfails this list is empty of: dspy marks two of its own image cases xfail
 # inside the test body, for a gap upstream has rather than one this port has.
-NOT_YET_IMPLEMENTED = {
-    # dspy.LM's predicted-outputs feature: a `prediction` kwarg passed straight through to
-    # litellm's `completion`. The crate's typed `LmConfig` does not model it, so `RustPredict`
-    # renders and calls but never forwards it. The other half of the test — `prediction` as an
-    # ordinary input field, which must NOT reach the LM — does cross correctly.
-    "test_predicted_outputs_piped_from_predict_to_lm_call": (
-        "dspy.LM's predicted-outputs `prediction` kwarg passthrough to litellm"
-    ),
-}
+NOT_YET_IMPLEMENTED = {}
 
 
 # Upstream tests that pass without the crate rendering or parsing anything, with the reason.

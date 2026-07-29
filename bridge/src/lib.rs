@@ -80,6 +80,14 @@ impl PyLM {
             if let Some(n) = request.config.n {
                 kwargs.set_item("n", n)?;
             }
+            // Whatever the normalized config does not model travels in `extensions`, and dspy's own
+            // `LM.forward` opens with `kwargs = {**extensions, **kwargs}`. Passing them on is what
+            // lets the crate's decision about one — a predicted output lifted off the inputs —
+            // reach litellm, rather than the Python side having decided it before Rust ran.
+            for (key, value) in &request.config.extensions {
+                let crossed = py.import("json")?.call_method1("loads", (value.to_string(),))?;
+                kwargs.set_item(key.as_str(), crossed)?;
+            }
             let replies = self
                 .inner
                 .bind(py)
