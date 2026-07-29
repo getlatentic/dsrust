@@ -19,6 +19,7 @@ import tomllib
 ROOT = pathlib.Path(__file__).parent.parent
 BACKLOG = ROOT / "backlog.toml"
 HANDOFF = ROOT / "HANDOFF.md"
+README = ROOT / "README.md"
 MANIFEST = ROOT / "scripts" / "upstream_tests.txt"
 
 #: The rendered region in HANDOFF.md. Everything between the two is this script's output, so an
@@ -68,17 +69,29 @@ def table(status: dict[str, int]) -> str:
     return "\n".join(["| | |", "|---|---|", *(f"| {name} | {value} |" for name, value in rows)])
 
 
-def render_handoff(status: dict[str, int]) -> None:
-    text = HANDOFF.read_text()
+def sentence(status: dict[str, int]) -> str:
+    """The README's one-line version, for a reader who will not open the plan."""
+    return (
+        f"Today: **{status['rust_tests']} Rust tests**, and "
+        f"**{status['upstream_tests_passing']} of DSPy's own tests passing through the crate** — "
+        f"{status['upstream_tests_crossing']} of them crossing into Rust — across "
+        f"{status['suites_run']} of DSPy's {upstream_files()} test files."
+    )
+
+
+def render(path: pathlib.Path, body: str) -> None:
+    text = path.read_text()
     region = re.compile(f"{re.escape(OPEN)}.*?{re.escape(CLOSE)}", re.S)
     if region.search(text) is None:
-        raise SystemExit(f"{HANDOFF.name} has no generated status region to write")
-    HANDOFF.write_text(region.sub(f"{OPEN}\n\n{table(status)}\n\n{CLOSE}", text))
+        raise SystemExit(f"{path.name} has no generated status region to write")
+    path.write_text(region.sub(f"{OPEN}\n\n{body}\n\n{CLOSE}", text))
 
 
 def record(values: dict[str, int]) -> list[str]:
     """Write what a run observed, and re-render every view of it. Answers with what moved."""
     text, changed = rewrite(BACKLOG.read_text(), values)
     BACKLOG.write_text(text)
-    render_handoff(tomllib.loads(text)["status"])
+    status = tomllib.loads(text)["status"]
+    render(HANDOFF, table(status))
+    render(README, sentence(status))
     return changed

@@ -29,9 +29,9 @@ character for character, including whitespace that looks accidental. Much of it 
 | | |
 |---|---|
 | Rust tests | 888 passing |
-| Upstream dspy tests | 857 passing, 441 crossing into Rust, 529 deciding a signature |
+| Upstream dspy tests | 858 passing, 441 crossing into Rust, 529 deciding a signature |
 | Upstream files run | 51 of 86, every other one excused by name |
-| Strict-xfail backlog | 1 entry in `conftest.py` |
+| Strict-xfail backlog | 0 entries in `conftest.py` |
 
 <!-- /status -->
 
@@ -183,7 +183,11 @@ a fresh session loads automatically. Start with `MEMORY.md`.
 ## Working agreements
 
 - Split a file at ~400 non-test lines, along a seam justified by **interface width** — how much
-  stays reachable from outside — not by line count.
+  stays reachable from outside — not by line count. `./scripts/file_sizes.py` exits non-zero, so
+  this is a gate and not advice; it was red for four files while it was only ever a checklist item.
+- Formatting is rustfmt's at its defaults, with no `rustfmt.toml`. The tree was reformatted in one
+  pass on 2026-07-29 — before that `cargo fmt --check` had never been green, so do not read a wide
+  line in `git blame` as a deliberate exception.
 - Comments state the current state and say *why*. No "was/now", no narrating the edit.
 - A test that would pass with the logic deleted is worthless. Break the logic and watch it fail.
 - Fix a pre-existing bug you land on, in the same change.

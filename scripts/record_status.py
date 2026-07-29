@@ -24,8 +24,12 @@ import status
 CONFTEST = pathlib.Path(__file__).parent.parent / "bridge" / "python" / "conftest.py"
 
 #: Each status key, and the pattern that finds its value in a pytest run's output.
+#:
+#: pytest pads its summary line with `=` to the terminal width, and a pattern anchored at `^(\d+)`
+#: matched nothing when it did — silently leaving the old number in place, which reads exactly like
+#: "unchanged". The leading `=*` is what makes the padded and unpadded forms the same line.
 OBSERVED = {
-    "upstream_tests_passing": re.compile(r"^(\d+) passed", re.M),
+    "upstream_tests_passing": re.compile(r"^=*\s*(\d+) passed", re.M),
     "upstream_tests_crossing": re.compile(r"^-+ (\d+) of \d+ tests rendered or parsed", re.M),
     "upstream_tests_deciding_signatures": re.compile(
         r"^-+ (\d+) of \d+ tests decided a signature", re.M
@@ -35,11 +39,19 @@ OBSERVED = {
 
 
 def observed(output: str) -> dict[str, int]:
+    """What the run reported, and a named complaint for anything it did not.
+
+    A key whose pattern finds nothing is left at its old value, which is indistinguishable from a
+    number that did not move — so say which ones those were. That is how `upstream_tests_passing`
+    sat one behind a green run without anything looking wrong.
+    """
     found = {}
     for key, pattern in OBSERVED.items():
         match = pattern.search(output)
         if match is not None:
             found[key] = int(match.group(1))
+    if missing := [key for key in OBSERVED if key not in found]:
+        print(f"  status: not found in the run's output: {', '.join(missing)}", file=sys.stderr)
     return found
 
 
