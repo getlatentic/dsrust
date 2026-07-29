@@ -1,8 +1,13 @@
-"""Hold the plan to what actually runs.
+"""Hold the plan to what actually runs, in both directions.
 
 `backlog.toml` says which upstream suites a sprint shipped. `run_upstream_tests.sh` says which
 ones this crate is held to. Nothing connected the two, so a sprint could be marked done while
 naming a file the suite never ran — the plan claiming coverage the gates do not check.
+
+The other direction is the one nobody notices, because nothing goes red: a sprint left `planned`
+while the modules it describes are built and its suites green. Four sat that way here. A plan that
+under-reports reads as a to-do list with work still ahead of it, which is a claim about the project
+as much as an over-report is.
 
 Run by the upstream runner before the suite, so a claim and its evidence cannot part company.
 """
@@ -20,6 +25,9 @@ RUNNER = ROOT / "scripts" / "run_upstream_tests.sh"
 MANIFEST = ROOT / "scripts" / "upstream_tests.txt"
 VERSION = (ROOT / "scripts" / "DSPY_VERSION").read_text().strip()
 
+#: States that read as "this shipped". Everything else is a claim that work remains.
+FINISHED = {"done", "in-progress"}
+
 
 def running() -> set[str]:
     """The suites the runner names, read from the array itself."""
@@ -29,14 +37,17 @@ def running() -> set[str]:
     return set(re.findall(r"[\w/]+/test_\w+\.py", block.group(1)))
 
 
-def shipped() -> dict[str, list[str]]:
-    """Suites each finished sprint claims, keyed by sprint."""
-    backlog = tomllib.loads(BACKLOG.read_text())
-    return {
-        sprint["id"]: sprint["suites"]
-        for sprint in backlog.get("sprint", [])
-        if sprint.get("state") in {"done", "in-progress"} and "suites" in sprint
-    }
+def sprints() -> list[dict]:
+    return tomllib.loads(BACKLOG.read_text()).get("sprint", [])
+
+
+def named(sprint: dict) -> list[str]:
+    """The suites a sprint names as files.
+
+    An entry naming a group rather than a file — "signatures/* (4 files)" — is prose about intent
+    and cannot be held to anything, so neither direction checks it.
+    """
+    return [suite for suite in sprint.get("suites", []) if "*" not in suite]
 
 
 def stale_manifest() -> str | None:
@@ -56,31 +67,76 @@ def stale_manifest() -> str | None:
     )
 
 
+def claims_without_evidence(suites: set[str], manifest: set[str]) -> list[str]:
+    """Sprints reporting coverage of a file that does not run, or that upstream does not ship."""
+    found = []
+    for sprint in sprints():
+        if sprint.get("state") not in FINISHED:
+            continue
+        for suite in named(sprint):
+            if suite not in manifest:
+                found.append(f"{sprint['id']} names {suite}, which dspy does not ship at this version")
+            elif suite not in suites:
+                found.append(f"{sprint['id']} claims {suite}, which the runner does not run")
+    return found
+
+
+def evidence_without_claims(suites: set[str]) -> list[str]:
+    """Sprints still pending while every suite they name already runs.
+
+    A suite running is not by itself proof a sprint shipped — it can pass through dspy's own
+    module rather than this crate's, which is the whole reason the crossing count exists. So the
+    escape hatch is a written one: `still_pending` says what remains despite the green. A sprint
+    with neither the `done` nor the sentence is the case this catches, where the state is simply
+    older than the work.
+    """
+    found = []
+    for sprint in sprints():
+        if sprint.get("state") in FINISHED or "still_pending" in sprint:
+            continue
+        claimed = named(sprint)
+        if claimed and all(suite in suites for suite in claimed):
+            found.append(
+                f"{sprint['id']} is {sprint.get('state', 'unstated')!r} while all {len(claimed)} "
+                f"suite(s) it names run — mark it done, or say what is left in `still_pending`"
+            )
+    return found
+
+
+def runs_without_manifest(suites: set[str], manifest: set[str]) -> list[str]:
+    return [f"the runner runs {suite}, which is not in the manifest" for suite in sorted(suites)
+            if suite not in manifest]
+
+
+def sprints_naming_nothing() -> list[str]:
+    """Sprints that never say what would prove them either way.
+
+    An empty `suites` is an answer — s11 and s12 both carry one, with the reason written above it,
+    and running the suites they first named would have exercised dspy's module rather than this
+    crate's. A *missing* `suites` is the question never having been asked, and a sprint in that
+    state is invisible to both directions above.
+    """
+    return [
+        f"{sprint['id']} names no `suites` at all — list the files that prove it, or `suites = []` "
+        f"with the reason there are none"
+        for sprint in sprints()
+        if "suites" not in sprint
+    ]
+
+
 def complaints() -> list[str]:
-    suites, found = running(), []
+    suites = running()
     manifest = {
         line.removeprefix("tests/")
         for line in MANIFEST.read_text().splitlines()
         if not line.startswith("#")
     }
-    if (stale := stale_manifest()) is not None:
-        found.append(stale)
-
-    for sprint, claimed in shipped().items():
-        for suite in claimed:
-            # A sprint may describe a group it has not enumerated — "signatures/* (4 files)" —
-            # which is prose about intent rather than a claim about a file.
-            if "*" in suite:
-                continue
-            if suite not in manifest:
-                found.append(f"{sprint} names {suite}, which dspy does not ship at this version")
-            elif suite not in suites:
-                found.append(f"{sprint} claims {suite}, which the runner does not run")
-
-    for suite in sorted(suites):
-        if suite not in manifest:
-            found.append(f"the runner runs {suite}, which is not in the manifest")
-    return found
+    found = [] if (stale := stale_manifest()) is None else [stale]
+    return (found
+            + claims_without_evidence(suites, manifest)
+            + evidence_without_claims(suites)
+            + runs_without_manifest(suites, manifest)
+            + sprints_naming_nothing())
 
 
 def main() -> None:
@@ -89,7 +145,12 @@ def main() -> None:
         print(f"  {complaint}", file=sys.stderr)
     if found:
         raise SystemExit(1)
-    print(f"  the plan and the suite agree on {len(running())} files", file=sys.stderr)
+    # Neither direction can say anything about a sprint whose evidence is deliberately not a suite,
+    # so the count states how far this gate reaches rather than letting a clean run imply it holds
+    # the whole plan.
+    holds = sum(1 for sprint in sprints() if named(sprint))
+    print(f"  the plan and the suite agree on {len(running())} files "
+          f"({holds} of {len(sprints())} sprints are held to one)", file=sys.stderr)
 
 
 if __name__ == "__main__":

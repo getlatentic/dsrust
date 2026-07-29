@@ -14,12 +14,14 @@ Drift then shows up as an uncommitted diff instead of quietly persisting.
 from __future__ import annotations
 
 import argparse
+import ast
 import pathlib
 import re
 import sys
 
-ROOT = pathlib.Path(__file__).parent.parent
-BACKLOG = ROOT / "backlog.toml"
+import status
+
+CONFTEST = pathlib.Path(__file__).parent.parent / "bridge" / "python" / "conftest.py"
 
 #: Each status key, and the pattern that finds its value in a pytest run's output.
 OBSERVED = {
@@ -28,7 +30,7 @@ OBSERVED = {
     "upstream_tests_deciding_signatures": re.compile(
         r"^-+ (\d+) of \d+ tests decided a signature", re.M
     ),
-    "xfail_backlog": re.compile(r"(\d+) xfailed"),
+    "upstream_tests_xfailed": re.compile(r"(\d+) xfailed"),
 }
 
 
@@ -41,18 +43,22 @@ def observed(output: str) -> dict[str, int]:
     return found
 
 
-def rewrite(text: str, values: dict[str, int]) -> tuple[str, list[str]]:
-    """The backlog with `[status]` updated, and which keys actually moved."""
-    changed = []
-    for key, value in values.items():
-        pattern = re.compile(rf"^({re.escape(key)} = )(\d+)$", re.M)
-        match = pattern.search(text)
-        if match is None:
-            continue
-        if int(match.group(2)) != value:
-            changed.append(f"{key}: {match.group(2)} -> {value}")
-        text = pattern.sub(rf"\g<1>{value}", text, count=1)
-    return text, changed
+def strict_xfails() -> int:
+    """How many gaps this port has declared, counted from the dict rather than from pytest.
+
+    `xfail_backlog` used to record pytest's `N xfailed`, which is not the same thing and was
+    larger: dspy marks two of its own image cases xfail inside the test body, for a gap upstream
+    has rather than one this port has. Reading the declaration itself is what makes the number
+    mean what its name says.
+    """
+    for node in ast.walk(ast.parse(CONFTEST.read_text())):
+        named = isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "NOT_YET_IMPLEMENTED"
+            for target in node.targets
+        )
+        if named:
+            return len(node.value.keys)
+    raise SystemExit(f"{CONFTEST.name} has no NOT_YET_IMPLEMENTED to count")
 
 
 def main() -> None:
@@ -71,13 +77,10 @@ def main() -> None:
         print("  status: nothing to record (no pytest summary found)", file=sys.stderr)
         return
     values["suites_run"] = args.suites
+    values["xfail_backlog"] = strict_xfails()
 
-    text, changed = rewrite(BACKLOG.read_text(), values)
-    BACKLOG.write_text(text)
-    if changed:
-        print(f"  status: {'; '.join(changed)}", file=sys.stderr)
-    else:
-        print("  status: unchanged", file=sys.stderr)
+    changed = status.record(values)
+    print(f"  status: {'; '.join(changed) if changed else 'unchanged'}", file=sys.stderr)
 
 
 if __name__ == "__main__":
