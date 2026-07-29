@@ -24,37 +24,56 @@ edition = "2024"
 
 [dependencies]
 dsrust = { path = "$ROOT" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 # Its own workspace, so the repo's does not lend it dependencies it never declared.
 [workspace]
 EOF
 
+# The program README.md and docs/usage.md both open with, so the dependency list they print is the
+# one that compiles rather than the one someone remembered. It never reaches a provider — building
+# a module makes no call — so this stays a build with no network in it.
 cat > "$WORK/src/main.rs" <<'EOF'
-//! What a caller writes on their first afternoon, with `dsrust` as their only dependency.
+use dsrust::lm::{LM, configure};
 use dsrust::signature::SignatureSpec;
-use dsrust::{Signature, chain_of_thought, predict};
+use dsrust::{Signature, call, chain_of_thought, predict};
 
 #[derive(Signature)]
-/// Write independent practice for this lesson step.
-struct PracticeForStep {
+/// Answer the question.
+struct QA {
     #[input]
-    learning_goal: String,
-    #[input]
-    worked_example_problem: String,
+    question: String,
     #[output]
-    practice_question: String,
-    /// A non-scalar output, which is where a caller would otherwise owe `schemars`.
-    #[output]
-    hints: Vec<String>,
+    answer: String,
 }
 
-fn main() {
-    let _ = predict!(PracticeForStep);
-    let _ = chain_of_thought!(PracticeForStep);
-    let signature = PracticeForStep::signature();
-    assert_eq!(signature.inputs.len(), 2);
-    assert_eq!(signature.outputs.len(), 2);
-    println!("{}", signature.instructions);
+#[derive(Signature)]
+/// Give the steps.
+struct Steps {
+    #[input]
+    topic: String,
+    /// A non-scalar output, which is where a caller would otherwise owe `schemars`.
+    #[output]
+    steps: Vec<String>,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    configure(LM::new("openai/gpt-4o-mini")?);
+
+    // Declared and built, not asked: `predict!` reaches no provider, so this needs no key.
+    let _ = predict!(QA);
+    let _ = chain_of_thought!(QA);
+    let _ = predict!(Steps);
+    let _ = predict!("question -> answer");
+    if false {
+        let out = call!(predict!(QA), question = "What is the capital of France?").await?;
+        println!("{}", out.answer);
+    }
+
+    assert_eq!(QA::signature().instructions, "Answer the question.");
+    println!("{}", Steps::signature().outputs.len());
+    Ok(())
 }
 EOF
 

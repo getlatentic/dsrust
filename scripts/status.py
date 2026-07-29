@@ -72,10 +72,10 @@ def table(status: dict[str, int]) -> str:
 def sentence(status: dict[str, int]) -> str:
     """The README's one-line version, for a reader who will not open the plan."""
     return (
-        f"Today: **{status['rust_tests']} Rust tests**, and "
-        f"**{status['upstream_tests_passing']} of DSPy's own tests passing through the crate** — "
-        f"{status['upstream_tests_crossing']} of them crossing into Rust — across "
-        f"{status['suites_run']} of DSPy's {upstream_files()} test files."
+        f"Today: **{status['rust_tests']} Rust tests pass**, and "
+        f"**{status['upstream_tests_passing']} of DSPy's own**, across "
+        f"{status['suites_run']} of its {upstream_files()} test files. "
+        f"{status['upstream_tests_crossing']} of those cross into the Rust crate."
     )
 
 

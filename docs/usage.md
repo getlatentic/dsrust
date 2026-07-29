@@ -7,6 +7,54 @@ A task is declared one of two ways — its field names in a string, or a struct 
 of two modules. Both declarations produce the same type and are asked the same way, which is what
 dspy gives by having one `Predict` class and one `Signature` base.
 
+## What a program needs
+
+Two dependencies. Asking a model is a network call, so the call is `async` and the program needs a
+runtime. Tokio is the only crate you add beside this one.
+
+```toml
+[dependencies]
+dsrust = "=0.1.0-alpha.2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```
+
+Every snippet below is a fragment. Here is one inside a whole program:
+
+```rust
+use dsrust::lm::{LM, configure};
+use dsrust::{Signature, call, predict};
+
+#[derive(Signature)]
+/// Answer the question.
+struct QA {
+    #[input]
+    question: String,
+    #[output]
+    answer: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    configure(LM::new("openai/gpt-4o-mini")?);   // reads OPENAI_API_KEY
+
+    let out = call!(predict!(QA), question = "What is the capital of France?").await?;
+    println!("{}", out.answer);
+    Ok(())
+}
+```
+
+`out.answer` is a `String` because the task was declared as a struct. A task declared as a string
+has no struct to fill. Its fields arrive as JSON, so `out.get("answer")` answers with a `&Value`.
+Call `as_str()` on it to print `Paris` rather than `"Paris"`.
+
+[`scripts/check_external_consumer.sh`](../scripts/check_external_consumer.sh) compiles that program
+on every gate run, from a crate outside this repository. So the dependency list above is the one
+that works, not the one someone remembered.
+
+`configure` sets the model for the whole process. Pass one to a single module instead with
+`Predict::with_lm`, which is what an optimizer varies; see
+[Reaching a provider](#reaching-a-provider-and-adding-your-own).
+
 ## The shape of it
 
 ```rust
@@ -207,10 +255,10 @@ let out = call!(mine, subject = "winter mornings").await?;
 
 You write how it runs; the derive writes what Python inherits.
 
-Every named field is a step, so `named_predictors` — the seam an optimizer works through — comes
-from the field list, and each child's predictors are renamed after the field holding them, so a
-demo says which step earned it. A field that is not a step carries `#[not_a_step]`. The derive
-also makes the module callable through `call!`.
+Every named field is a step. `named_predictors` — the seam an optimizer works through — comes from
+that field list. The derive renames each child's predictors after the field holding them, so a demo
+says which step earned it. A field that is not a step carries `#[not_a_step]`. The derive also makes
+the module callable through `call!`.
 
 `Forward` exists so an author is not writing `Pin<Box<dyn Future>>` by hand. `Module` keeps that
 shape because it must be object-safe for a composed program to hold `Box<dyn Module>`; the derive
@@ -218,10 +266,10 @@ does the boxing in between.
 
 ## Reaching a provider, and adding your own
 
-A model is an `LM`, named `provider/model-id`. The prefix picks a **wire format**, not a brand:
-`openai/…` is the OpenAI `/v1/chat/completions` shape, which OpenAI, Groq, Together, Fireworks,
-DeepSeek, vLLM and LM Studio all speak — you reach any of them by pointing the base URL, not by a
-new prefix. `anthropic/…` and `ollama/…` are their own shapes.
+A model is an `LM`, named `provider/model-id`. The prefix picks a **wire format**, not a brand.
+`openai/…` is the OpenAI `/v1/chat/completions` shape. OpenAI, Groq, Together, Fireworks, DeepSeek,
+vLLM, LM Studio and `llama-server` all speak it. You reach any of them by pointing the base URL, not
+by adding a prefix. `anthropic/…` and `ollama/…` are their own shapes.
 
 ```rust
 // OpenAI itself, from OPENAI_API_KEY in the environment.
@@ -235,11 +283,11 @@ let lm = LM::new("openai/llama-3.3-70b")?
 dsrust::lm::configure(lm); // the process-wide default every module reaches
 ```
 
-This is where DsRust and dspy part on purpose. dspy routes every provider through **litellm**, whose
-prefix is the brand (`groq/…`, `bedrock/…`) with the host known for you; DsRust is litellm-free, so
-the prefix is the wire format and a non-OpenAI host is named by its URL. The four built-in shapes
-are a closed `match`, because *something* must map a model string to a wire — dspy has the same map
-in litellm, just hidden.
+This is where DsRust and dspy part on purpose. dspy routes every provider through **litellm**, where
+the prefix is the brand (`groq/…`, `bedrock/…`) and litellm knows the host. DsRust carries no
+litellm. The prefix is the wire format, and you name a non-OpenAI host by its URL. The four built-in
+shapes are a closed `match`, because *something* must map a model string to a wire. dspy has the
+same map inside litellm, just hidden.
 
 **A provider of your own is the `ChatModel` trait**, the one seam every built-in already implements:
 
@@ -269,10 +317,10 @@ every module, and (with `forward_stream`, optional) streams.
 
 Rust has no class inheritance, so "extend OpenAI and change one thing" is **composition**: the
 built-in OpenAI provider is `Endpoint`, parameterised by base URL, key, JSON envelope and
-token-cap rule, so a variant that differs only in configuration is a different `Endpoint`, not a
-subclass. A provider that shares the OpenAI wire but changes a header or the reply parsing wraps
-the OpenAI request/reply pieces in its own `ChatModel` — it holds what it reuses rather than
-inheriting it.
+token-cap rule. A variant that differs only in configuration is therefore a different `Endpoint`,
+not a subclass. A provider that shares the OpenAI wire but changes a header or the reply parsing
+wraps the OpenAI request and reply pieces in its own `ChatModel`. It holds what it reuses rather
+than inheriting it.
 
 ## Every module, and what it takes
 
