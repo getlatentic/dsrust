@@ -30,8 +30,8 @@ pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
 pub use example::{Completions, Example, Prediction};
 pub use module::{Ask, Forward, Module, NamedPredictor, PredictorState, ProgramState, TraceStep};
 pub use optimize::{
-    BootstrapFewShot, COPRO, DynOptimizer, Feedback, GEPA, GepaOutcome, LabeledFewShot, MIPROv2,
-    Optimizer,
+    BootstrapFewShot, COPRO, DynOptimizer, Ensemble, Ensembled, Feedback, GEPA, GepaOutcome,
+    LabeledFewShot, MIPROv2, Optimizer,
 };
 pub use react::{FnTool, ReAct, ReActV2, Tool, Trajectory, mcp_tool, mcp_tool_args, mcp_tool_result};
 

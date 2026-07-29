@@ -88,6 +88,55 @@ where
         self
     }
 
+    /// dspy `GEPA.auto_budget`: a budget worked out from the shape of the run rather than named.
+    ///
+    /// Every part of this is a place to be off by one, so it is arithmetic transcribed rather than
+    /// rederived: the trial count is the larger of two arms under an `int()` that *truncates*, the
+    /// periodic-evaluation divisor is `full_eval_steps` and not `full_eval_steps + 1` despite the
+    /// comment above it in upstream saying `m+1`, and a final full evaluation is added only when
+    /// the trial count falls below that divisor.
+    ///
+    /// `num_preds` is how many predictors the program has and `num_candidates` how many will be
+    /// proposed; both come from the caller because GEPA cannot know them until it has the student.
+    pub fn auto_budget(
+        num_preds: usize,
+        num_candidates: usize,
+        valset_size: usize,
+        minibatch_size: usize,
+        full_eval_steps: usize,
+    ) -> Result<usize, String> {
+        if full_eval_steps < 1 {
+            return Err("full_eval_steps must be >= 1.".to_owned());
+        }
+        // `log2(0)` is negative infinity in Python and this crate has no candidates to propose, so
+        // the second arm is what stands — as it does upstream, where `max` picks it.
+        let searched = 2.0 * (num_preds as f64 * 2.0) * (num_candidates as f64).log2();
+        let by_candidates = 1.5 * num_candidates as f64;
+        let trials = searched.max(by_candidates).max(0.0) as usize;
+
+        let mut total = valset_size + num_candidates * 5 + trials * minibatch_size;
+        if trials == 0 {
+            // No loop ran, so no evaluation inside it did either.
+            return Ok(total);
+        }
+        let periodic = (trials + 1) / full_eval_steps + 1;
+        let final_eval = usize::from(trials < full_eval_steps);
+        total += (periodic + final_eval) * valset_size;
+        Ok(total)
+    }
+
+    /// The budget [`auto_budget`](Self::auto_budget) works out, set on this optimizer.
+    pub fn with_auto_budget(
+        self,
+        num_preds: usize,
+        num_candidates: usize,
+        valset_size: usize,
+    ) -> Result<Self, String> {
+        // dspy's own defaults for the two it defaults.
+        let calls = Self::auto_budget(num_preds, num_candidates, valset_size, 35, 5)?;
+        Ok(self.with_max_metric_calls(calls))
+    }
+
     /// The minibatch size reflection evaluates on each iteration (dspy default 3).
     pub fn with_reflection_minibatch_size(mut self, size: usize) -> Self {
         self.reflection_minibatch_size = size;
@@ -163,5 +212,78 @@ where
             self.compile(student, trainset, trainset).await?;
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod budget_tests {
+    use super::*;
+    use serde_json::Value;
+
+    /// dspy's own answers, recorded by `scripts/generate_gepa_budget_fixture.py`. Transcribed
+    /// arithmetic is exactly the kind that reads right and computes wrong, so none of these
+    /// numbers is one this crate worked out.
+    fn golden() -> Value {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/conformance/optimize/gepa_budget.json");
+        let text = std::fs::read_to_string(&path).expect("the golden is committed");
+        serde_json::from_str(&text).expect("the golden parses")
+    }
+
+    fn field(case: &Value, name: &str) -> usize {
+        case[name].as_u64().unwrap_or_else(|| panic!("{name} is a number")) as usize
+    }
+
+    #[test]
+    fn every_budget_dspy_worked_out_is_the_one_this_works_out() {
+        let golden = golden();
+        let cases = golden["cases"].as_array().expect("cases");
+        assert!(!cases.is_empty(), "no cases to check");
+        for case in cases {
+            let answered = GEPA::<fn(&Example, &Prediction) -> Feedback>::auto_budget(
+                field(case, "num_preds"),
+                field(case, "num_candidates"),
+                field(case, "valset_size"),
+                field(case, "minibatch_size"),
+                field(case, "full_eval_steps"),
+            )
+            .expect("a budget");
+            assert_eq!(answered, field(case, "budget"), "for {case}");
+        }
+    }
+
+    /// `full_eval_steps` below one is refused in dspy's wording. The other two refusals upstream
+    /// has are unreachable here — a negative size cannot be spelled in a `usize`, which is the
+    /// type system doing what the check does.
+    #[test]
+    fn a_full_eval_step_below_one_is_refused() {
+        let refused = GEPA::<fn(&Example, &Prediction) -> Feedback>::auto_budget(1, 2, 10, 35, 0)
+            .expect_err("zero is refused");
+        assert_eq!(refused, "full_eval_steps must be >= 1.");
+    }
+
+    /// The builder sets what the calculation says, using dspy's own defaults for the two it
+    /// defaults — so a caller who does not want to name a budget need not name those either.
+    #[test]
+    fn the_builder_sets_the_budget_it_works_out() {
+        let golden = golden();
+        let defaulted = golden["cases"]
+            .as_array()
+            .expect("cases")
+            .iter()
+            .find(|case| field(case, "minibatch_size") == 35 && field(case, "full_eval_steps") == 5)
+            .expect("a case on dspy's defaults");
+        let expected = field(defaulted, "budget");
+        assert_eq!(
+            GEPA::<fn(&Example, &Prediction) -> Feedback>::auto_budget(
+                field(defaulted, "num_preds"),
+                field(defaulted, "num_candidates"),
+                field(defaulted, "valset_size"),
+                35,
+                5,
+            )
+            .expect("a budget"),
+            expected
+        );
     }
 }

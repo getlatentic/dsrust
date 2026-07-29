@@ -19,6 +19,7 @@ mod gepa;
 mod mipro;
 mod copro;
 mod earned;
+mod ensemble;
 mod labeled;
 mod rng;
 
@@ -30,6 +31,7 @@ pub(crate) mod scripted;
 pub use better_together::{BetterTogether, Candidate};
 pub use bootstrap::BootstrapFewShot;
 pub use copro::COPRO;
+pub use ensemble::{Ensemble, Ensembled};
 pub use gepa::{Feedback, GEPA, GepaOutcome};
 pub use mipro::MIPROv2;
 pub use labeled::LabeledFewShot;

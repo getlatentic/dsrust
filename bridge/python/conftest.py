@@ -503,6 +503,12 @@ NOT_ADAPTER_CONFORMANCE = {
     "upstream_test_bettertogether.py": (
         "dspy's BetterTogether orchestration over mock optimizers, in Python"
     ),
+    # Ensemble over mock programs returning canned dicts: which members were asked, what the
+    # reduction did with them, and that `deterministic=True` is refused. Nothing renders, for the
+    # same reason BetterTogether's suite does not — an optimizer-shaped primitive is a golden's
+    # job. `optimize/ensemble.rs` holds our side, including the per-call draw dspy leaves to a
+    # process-wide RNG.
+    "upstream_test_ensemble.py": "dspy's Ensemble over mock programs, in Python",
     # dspy's ThreadPoolExecutor plumbing: worker independence, which thread a sequential run uses,
     # how many errors it tolerates. The crate's `Parallel` is Rust futures over its own executor,
     # so none of this has a shape to cross onto — and none of it renders.

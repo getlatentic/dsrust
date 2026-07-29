@@ -79,6 +79,7 @@ PORTED_MODULES = [
     "teleprompt/copro_optimizer.py",
     "teleprompt/mipro_optimizer_v2.py",
     "teleprompt/bettertogether.py",
+    "teleprompt/ensemble.py",
     "teleprompt/gepa/gepa.py",
     # clients (the LM stack)
     "clients/base_lm.py",

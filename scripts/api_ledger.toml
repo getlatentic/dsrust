@@ -146,6 +146,7 @@
 "teleprompt/copro_optimizer.py::COPRO" = { status = "mapped", rust = "COPRO" }
 "teleprompt/copro_optimizer.py::BasicGenerateInstruction" = { status = "divergence", reason = "reproduced as the signature built by optimize/copro/signatures.rs, held to dspy by tests/conformance/basic_generate_instruction.json, not a same-named type" }
 "teleprompt/copro_optimizer.py::GenerateInstructionGivenAttempts" = { status = "divergence", reason = "as `BasicGenerateInstruction`; golden is generate_instruction_given_attempts.json" }
+"teleprompt/ensemble.py::Ensemble" = { status = "mapped", rust = "Ensemble" }
 "teleprompt/bettertogether.py::BetterTogether" = { status = "mapped", rust = "BetterTogether" }
 "teleprompt/gepa/gepa.py::GEPA" = { status = "mapped", rust = "GEPA" }
 "teleprompt/gepa/gepa.py::GEPAFeedbackMetric" = { status = "divergence", reason = "metric callable type; Rust passes a metric closure/trait" }
@@ -453,7 +454,7 @@
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.compile" = { status = "mapped", rust = "compile" }
 
 # GEPA
-"teleprompt/gepa/gepa.py::GEPA.auto_budget" = { status = "todo", reason = "GEPA's automatic metric-call budget is not ported; the budget is set explicitly" }
+"teleprompt/gepa/gepa.py::GEPA.auto_budget" = { status = "mapped", rust = "auto_budget" }
 "teleprompt/gepa/gepa.py::GEPA.compile" = { status = "mapped", rust = "compile" }
 
 # BaseLM
@@ -515,6 +516,7 @@
 "predict/code_act.py::CodeAct.forward" = { status = "mapped", rust = "forward" }
 
 # BetterTogether
+"teleprompt/ensemble.py::Ensemble.compile" = { status = "mapped", rust = "compile" }
 "teleprompt/bettertogether.py::BetterTogether.compile" = { status = "mapped", rust = "compile" }
 "teleprompt/copro_optimizer.py::COPRO.compile" = { status = "mapped", rust = "compile" }
 
