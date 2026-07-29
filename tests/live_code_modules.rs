@@ -23,12 +23,11 @@
 //! What three local models did with them, since the failures are the provider's rather than the
 //! module's and are worth recognising:
 //!
-//! - `gemma3:4b` — all three pass inside the crate's default bound, which is why it is the default
-//!   here.
+//! - `gemma3:4b` — all three pass, which is why it is the default here.
 //! - `qwen2.5:7b-instruct` — RLM sends a far larger prompt than the other two (its action template,
-//!   the variables and the whole session), and this size of model spends longer than the default
-//!   twenty seconds on it. All three pass with the bound raised, which is what
-//!   [`LM::with_timeout`] is for.
+//!   the variables and the whole session), and this size of model spent over twenty seconds on it.
+//!   That measurement is why the crate's default bound is no longer twenty seconds: it was tighter
+//!   than litellm's, so a call dspy completes was one this crate abandoned.
 //! - `gpt-oss:20b` — CodeAct passes. ProgramOfThought wants a raised bound as above. RLM gets an
 //!   ollama 500 that no timeout helps: its harmony parser reads the model's Python as a malformed
 //!   tool call (`error parsing tool call: raw='print(len(context))'`). A model whose output the

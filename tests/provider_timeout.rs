@@ -256,10 +256,12 @@ async fn the_bound_reaches_the_capability_probe() {
     stub.done();
 }
 
-/// Nothing changes for a caller who does not set one.
+/// A caller who sets none gets what dspy's caller gets: litellm's `request_timeout`, which dspy
+/// never overrides. The old default of twenty seconds was this crate's own idea of responsive, and
+/// it failed a local model's first call — a divergence a program hits before it hits anything else.
 #[test]
-fn the_default_is_the_documented_twenty_seconds() {
-    assert_eq!(DEFAULT_PROVIDER_TIMEOUT, Duration::from_secs(20));
+fn the_default_is_the_one_litellm_applies() {
+    assert_eq!(DEFAULT_PROVIDER_TIMEOUT, Duration::from_secs(6000));
     assert_eq!(
         LM::new("openai/gpt-4o-mini")
             .expect("a valid reference")

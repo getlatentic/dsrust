@@ -35,13 +35,15 @@ pub use token_limit::{TokenLimitField, TokenLimitRule};
 pub use turn::{ChatTurn, OutputMode, Role};
 pub use usage::{UsageTracker, track as track_usage};
 
-/// What bounds a provider call unless the caller says otherwise, so one slow upstream cannot hold
-/// a worker for the whole request timeout while the agent's in-flight slots stay occupied.
+/// What bounds a provider call unless the caller says otherwise: litellm's own default, which dspy
+/// never overrides, so a program that answers upstream answers here.
 ///
-/// Twenty seconds is comfortable for a hosted model and tight for a large local one: a 7B serving
-/// a short prompt answers well inside it and the same model reading an RLM session does not. See
+/// The number is `litellm.request_timeout`, measured against the pinned install rather than read
+/// off a docstring. It is long enough to look like no bound at all, and that is the point — a local
+/// model serving a long prompt takes minutes, and a default tight enough to feel responsive is one
+/// that fails a call dspy would have completed. A caller who wants a real bound sets it:
 /// [`LM::with_timeout`].
-pub const DEFAULT_PROVIDER_TIMEOUT: Duration = Duration::from_secs(20);
+pub const DEFAULT_PROVIDER_TIMEOUT: Duration = Duration::from_secs(6000);
 
 /// The stock ollama port on the local machine, shared with the server's config so `LM::new`
 /// and the server resolve the same host when OLLAMA_HOST is unset.
@@ -75,9 +77,13 @@ impl LM {
     /// A model with credentials resolved from the process environment: ANTHROPIC_API_KEY,
     /// OPENROUTER_API_KEY, OPENAI_API_KEY, OPENAI_BASE_URL and OLLAMA_HOST, with the same
     /// defaults the server config uses.
-    pub fn new(model: &str) -> Result<Self> {
+    ///
+    /// Takes anything that reads as a string, because the name is as often built at runtime as
+    /// written in the source — an app with a model picker has a `String`, and asking it for
+    /// `&format!(…)` is a borrow it should not have to think about.
+    pub fn new(model: impl AsRef<str>) -> Result<Self> {
         Ok(Self {
-            model: ModelRef::parse(model)?,
+            model: ModelRef::parse(model.as_ref())?,
             anthropic_api_key: env_nonempty("ANTHROPIC_API_KEY"),
             openrouter_api_key: env_nonempty("OPENROUTER_API_KEY"),
             ollama_host: env_nonempty("OLLAMA_HOST").unwrap_or_else(|| DEFAULT_OLLAMA_HOST.into()),

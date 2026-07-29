@@ -181,8 +181,12 @@ symbol DSPy defines in a ported module is mapped or carries a written divergence
 
 **Planned**
 
-- [ ] A sandbox that ships (today `CodeInterpreter` is a trait the caller implements); retrieval and
-  the optimizers that need it (KNN, KNNFewShot, SIMBA); finetuning and RL.
+- [ ] **A sandbox in the box.** DSPy 3.3's `CodeInterpreter` protocol is ported method for method —
+  `execute(code, variables)`, `start`, `shutdown` — along with `SandboxSerializable` and the REPL
+  types that reach a prompt, and DSPy's own Deno-sandbox tests for `ProgramOfThought` and `CodeAct`
+  run against DsRust's loop with the real sandbox executing the model's code. What is not here is an
+  implementation *behind* the trait, so today a caller supplies one.
+- [ ] Retrieval and the optimizers that need it (KNN, KNNFewShot, SIMBA); finetuning and RL.
 
 ---
 
