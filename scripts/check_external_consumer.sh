@@ -25,7 +25,7 @@ edition = "2024"
 
 [dependencies]
 dsrust = { path = "$ROOT/crates/dsrust" }
-tokio = "1"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 # Its own workspace, so the repo's does not lend it dependencies it never declared.
 [workspace]

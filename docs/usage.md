@@ -11,12 +11,13 @@ dspy gives by having one `Predict` class and one `Signature` base.
 
 ```bash
 cargo add dsrust@0.1.0-alpha.2
-cargo add tokio
+cargo add tokio --features macros,rt-multi-thread
 ```
 
 Asking a model is a network call, so every call is `async` and the program needs a runtime. Tokio
-is the only crate you add beside this one, with no feature flags: DsRust depends on tokio itself
-and asks for `macros` and `rt-multi-thread`, which cargo unifies into the caller's plain `tokio`.
+is the only crate you add beside this one. The flavour is yours: DsRust names no tokio type, so it
+does not choose a scheduler on your behalf. `rt-multi-thread` is what `#[tokio::main]` uses without
+arguments; a CLI wanting one thread asks for `rt` and `#[tokio::main(flavor = "current_thread")]`.
 
 Every snippet below is a fragment. Here is one inside a whole program:
 

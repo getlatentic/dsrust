@@ -15,12 +15,12 @@ port of [DSPy](https://github.com/stanfordnlp/dspy). It works in three steps:
 
 ```bash
 cargo add dsrust@0.1.0-alpha.2
-cargo add tokio
+cargo add tokio --features macros,rt-multi-thread
 ```
 
 Name the version: cargo does not pick a pre-release on its own. Asking a model is a network call,
-so every call is `async` and your program needs a runtime — tokio is the only other crate you add,
-and it needs no feature flags because DsRust already asks for the ones `#[tokio::main]` uses.
+so every call is `async` and your program needs a runtime. Tokio is the only other crate you add,
+and the flavour is yours to choose — DsRust names no tokio type, so it does not pick one for you.
 
 ## A whole program
 
