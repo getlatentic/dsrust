@@ -1,13 +1,6 @@
 [workspace]
 resolver = "3"
-members = [
-    "crates/dsrust",
-    "crates/dsrust-derive",
-    "crates/dsrust-gepa",
-    "crates/dsrust-tpe",
-    "crates/pyrng",
-    "crates/dsrs-bridge",
-]
+members = ["crates/*"]
 default-members = [
     "crates/dsrust",
     "crates/dsrust-derive",
