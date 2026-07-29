@@ -1,9 +1,13 @@
-# A virtual workspace: every crate lives under crates/, named for the package it publishes as.
 [workspace]
 resolver = "3"
-members = ["crates/*"]
-# The bridge is a PyO3 extension module and is never published; it builds through maturin, which
-# run_upstream_tests.sh drives, so a plain `cargo build` leaves it out.
+members = [
+    "crates/dsrust",
+    "crates/dsrust-derive",
+    "crates/dsrust-gepa",
+    "crates/dsrust-tpe",
+    "crates/pyrng",
+    "crates/dsrs-bridge",
+]
 default-members = [
     "crates/dsrust",
     "crates/dsrust-derive",
