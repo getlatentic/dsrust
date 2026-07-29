@@ -146,6 +146,7 @@
 "teleprompt/copro_optimizer.py::COPRO" = { status = "mapped", rust = "COPRO" }
 "teleprompt/copro_optimizer.py::BasicGenerateInstruction" = { status = "divergence", reason = "reproduced as the signature built by optimize/copro/signatures.rs, held to dspy by tests/conformance/basic_generate_instruction.json, not a same-named type" }
 "teleprompt/copro_optimizer.py::GenerateInstructionGivenAttempts" = { status = "divergence", reason = "as `BasicGenerateInstruction`; golden is generate_instruction_given_attempts.json" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch" = { status = "mapped", rust = "BootstrapRandomSearch" }
 "teleprompt/ensemble.py::Ensemble" = { status = "mapped", rust = "Ensemble" }
 "teleprompt/bettertogether.py::BetterTogether" = { status = "mapped", rust = "BetterTogether" }
 "teleprompt/gepa/gepa.py::GEPA" = { status = "mapped", rust = "GEPA" }
@@ -516,6 +517,7 @@
 "predict/code_act.py::CodeAct.forward" = { status = "mapped", rust = "forward" }
 
 # BetterTogether
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile" = { status = "mapped", rust = "compile" }
 "teleprompt/ensemble.py::Ensemble.compile" = { status = "mapped", rust = "compile" }
 "teleprompt/bettertogether.py::BetterTogether.compile" = { status = "mapped", rust = "compile" }
 "teleprompt/copro_optimizer.py::COPRO.compile" = { status = "mapped", rust = "compile" }

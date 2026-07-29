@@ -35,7 +35,6 @@ EXCUSED = {
     "tests/teleprompt/test_bootstrap_finetune.py": "finetuning, deferred past 1.0",
     "tests/teleprompt/test_grpo.py": "RL, deferred past 1.0",
     # Optimizers not yet built — Sprint 4 (#8) and the deferred set (#9).
-    "tests/teleprompt/test_random_search.py": "BootstrapRS is not built yet (#8)",
     "tests/teleprompt/test_knn_fewshot.py": "KNNFewShot is deferred (#9)",
     "tests/predict/test_knn.py": "KNN is deferred (#9)",
     # Python-runtime machinery with no Rust counterpart to reach.

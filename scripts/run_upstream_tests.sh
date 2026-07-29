@@ -45,7 +45,7 @@ SUITES=(
   core/test_types.py clients/test_cache.py
   primitives/test_module.py primitives/test_base_module.py
   teleprompt/test_gepa.py teleprompt/test_bettertogether.py
-  clients/test_lm.py teleprompt/test_ensemble.py
+  clients/test_lm.py teleprompt/test_ensemble.py teleprompt/test_random_search.py
   utils/test_usage_tracker.py utils/test_settings.py utils/test_saving.py
   utils/test_parallelizer.py utils/test_mcp.py propose/test_grounded_proposer.py
 )
