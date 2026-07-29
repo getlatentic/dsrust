@@ -25,7 +25,7 @@ import sys
 
 import optuna
 
-OUT = pathlib.Path(__file__).parent.parent / "tpe" / "tests" / "conformance" / "optuna_tpe.json"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "tpe" / "tests" / "conformance" / "optuna_tpe.json"
 
 # (seed, cardinalities, n_trials, mix) — mix varies the distinct-score table between cases.
 CASES = [

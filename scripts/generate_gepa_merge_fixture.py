@@ -34,7 +34,7 @@ from gepa.proposer.merge import (
 
 from pins import require
 
-OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "gepa" / "tests" / "conformance"
 PINNED = require("gepa")
 
 

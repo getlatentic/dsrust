@@ -36,7 +36,7 @@ from gepa import optimize
 from pins import require
 from gepa.core.adapter import EvaluationBatch
 
-OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "gepa" / "tests" / "conformance"
 PINNED = require("gepa")
 
 WEIGHT = 0.125

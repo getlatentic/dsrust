@@ -9,14 +9,13 @@ dspy gives by having one `Predict` class and one `Signature` base.
 
 ## What a program needs
 
-Two dependencies. Asking a model is a network call, so the call is `async` and the program needs a
-runtime. Tokio is the only crate you add beside this one.
-
-```toml
-[dependencies]
-dsrust = "=0.1.0-alpha.2"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+```bash
+cargo add dsrust@0.1.0-alpha.2
 ```
+
+One dependency. Asking a model is a network call, so every call is `async`. `#[dsrust::main]`
+starts the runtime, which is why tokio is not a second line. A program that already has tokio
+keeps `#[tokio::main]` and loses nothing.
 
 Every snippet below is a fragment. Here is one inside a whole program:
 
@@ -33,7 +32,7 @@ struct QA {
     answer: String,
 }
 
-#[tokio::main]
+#[dsrust::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     configure(LM::new("openai/gpt-4o-mini")?);   // reads OPENAI_API_KEY
 

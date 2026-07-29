@@ -20,7 +20,7 @@ import json
 import pathlib
 import sys
 
-OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "gepa" / "tests" / "conformance"
 
 # Deterministic without an RNG: a fixed spread of sequences chosen to cross the boundaries a
 # faithful port has to clear — a table that stays at 8 slots, one that resizes to 32 and 128, keys

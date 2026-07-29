@@ -28,7 +28,7 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 890 passing |
+| Rust tests | 892 passing |
 | Upstream dspy tests | 858 passing, 441 crossing into Rust, 529 deciding a signature |
 | Upstream files run | 51 of 86, every other one excused by name |
 | Strict-xfail backlog | 0 entries in `conftest.py` |
@@ -105,11 +105,11 @@ Two layers.
 so a new fixture is exercised the moment it lands.
 
 **Upstream's own pytest.** `scripts/run_upstream_tests.sh` downloads dspy's unmodified test files
-at the pinned tag and runs them against the crate through a PyO3 bridge in `bridge/`. Suites are
+at the pinned tag and runs them against the crate through a PyO3 bridge in `crates/bridge/`. Suites are
 the `SUITES=(...)` array in that script, named relative to `tests/`. **Adding a file there is how
 coverage grows** — it arrives as a failure list to triage, which is the honest starting point.
 
-Gaps are `xfail(strict=True)` entries in `bridge/python/conftest.py`: they never count as passes,
+Gaps are `xfail(strict=True)` entries in `crates/bridge/python/conftest.py`: they never count as passes,
 and the run **fails** if one starts passing while still listed. That is what keeps the backlog
 from going stale. Never widen a shim to green a test — an `except Exception` there once silently
 passed five unimplemented cases.
@@ -119,7 +119,7 @@ running pytest there directly uses a stale list. Always go through the script.
 
 ## The bridge
 
-`bridge/` is a PyO3 extension letting dspy's Python tests drive Rust. The division is deliberate:
+`crates/bridge/` is a PyO3 extension letting dspy's Python tests drive Rust. The division is deliberate:
 
 > **Python reflects. Rust decides.**
 
@@ -127,23 +127,30 @@ Python does what only Python can — walk a pydantic annotation, ask whether a t
 `dspy.Code`, produce a JSON schema. Rust decides every byte the model reads. When a shim starts
 formatting text, the test has stopped testing the port.
 
-`bridge/python/reflect.py` holds the reflection; `rust_adapter.py` holds the adapter shims, one
+`crates/bridge/python/reflect.py` holds the reflection; `rust_adapter.py` holds the adapter shims, one
 per wire format, over a shared `_RustBacked` mixin.
 
 ## Architecture
 
 ```
-src/
-  signature/      Signature, InField/OutField, FieldKind, LiteralValue
-                  reflect.rs (a declared type's shape, from its schemars schema)
-  adapter/        prompt.rs (shared frame) + chat, json, xml, baml, two_step
-                  exchange.rs (Style: how one adapter differs)
-                  demos.rs, history.rs, blocks.rs, parse/, python_json.rs
-  predict.rs      Predict + the recovery engine; chain_of_thought.rs
-  react/          ReAct, Trajectory, Tool
-  optimize/       rng, labeled, bootstrap
-  lm/             ChatModel/DynChatModel, call (request/response), cache (+disk),
-                  usage, anthropic, ollama, openai, dummy
+src/                the dsrust crate itself
+  signature/        Signature, InField/OutField, FieldKind, LiteralValue
+                    reflect.rs (a declared type's shape, from its schemars schema)
+  adapter/          prompt.rs (shared frame) + chat, json, xml, baml, two_step
+                    exchange.rs (Style: how one adapter differs)
+                    demos.rs, history.rs, blocks.rs, parse/, python_json.rs
+  predict.rs        Predict + the recovery engine; chain_of_thought.rs
+  react/            ReAct, Trajectory, Tool
+  optimize/         rng, labeled, bootstrap, copro, mipro, gepa
+  interpreter/      the CodeInterpreter seam and the REPL types (no sandbox ships)
+  lm/               ChatModel/DynChatModel, call (request/response), cache (+disk),
+                    usage, anthropic, ollama, openai, dummy
+crates/             the workspace members, each published on its own
+  derive/           #[derive(Signature)], #[derive(Module)], predict!, #[dsrust::main]
+  gepa/             the gepa engine reproduced, byte for byte (dsrust-gepa)
+  tpe/              optuna's TPE sampler reproduced (dsrust-tpe)
+  pyrng/            CPython's and numpy's RNGs reproduced
+  bridge/           the PyO3 harness; never published
 ```
 
 **Adapters share everything but three seams:** the structure block, the user trailer, and

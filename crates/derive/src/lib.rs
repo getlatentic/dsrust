@@ -13,6 +13,7 @@ use proc_macro::TokenStream;
 mod annotate;
 mod call;
 mod emit;
+mod entry;
 mod module;
 mod parse;
 mod signature_str;
@@ -83,4 +84,15 @@ pub fn chain_of_thought(input: TokenStream) -> TokenStream {
         return quote::quote! { ::dsrust::ChainOfThought::task::<#task>() }.into();
     }
     call::expand(input, call::Module::ChainOfThought)
+}
+
+/// `#[dsrust::main]` — an async `main` with the runtime already under it, so `dsrust` can be a
+/// caller's only dependency. Equivalent to `#[tokio::main]`, which cannot be used through a
+/// re-export because the code it writes names `::tokio` in the caller's own crate root.
+#[proc_macro_attribute]
+pub fn main(_arguments: TokenStream, item: TokenStream) -> TokenStream {
+    match entry::expand(item.into()) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.into_compile_error().into(),
+    }
 }

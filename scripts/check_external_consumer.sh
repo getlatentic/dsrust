@@ -24,7 +24,6 @@ edition = "2024"
 
 [dependencies]
 dsrust = { path = "$ROOT" }
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 
 # Its own workspace, so the repo's does not lend it dependencies it never declared.
 [workspace]
@@ -57,7 +56,7 @@ struct Steps {
     steps: Vec<String>,
 }
 
-#[tokio::main]
+#[dsrust::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     configure(LM::new("openai/gpt-4o-mini")?);
 
@@ -81,4 +80,7 @@ echo "==> A crate depending only on dsrust"
 # Warnings are failures here, because the ones this catches are in the *caller's* crate: a declared
 # signature is never constructed, so without help every field of every signature reads as dead code
 # in someone else's build.
-( cd "$WORK" && RUSTFLAGS="-D warnings" cargo run --quiet )
+#
+# Its own workspace, but the repo's build directory: a second one costs 1.6 GB of the same
+# artifacts. The gates run in sequence, so nothing else is writing there.
+( cd "$WORK" && CARGO_TARGET_DIR="$ROOT/target" RUSTFLAGS="-D warnings" cargo run --quiet )

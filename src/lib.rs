@@ -27,7 +27,7 @@ pub use adapter::{
     Audio, Citation, Citations, Code, Document, File, Formatted, History, Image, MediaType,
     ToolCall, ToolCallResult, ToolCallResults, ToolCalls, Type,
 };
-pub use dsrust_derive::Module;
+pub use dsrust_derive::{Module, main};
 pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
 pub use example::{Completions, Example, Prediction};
 pub use lm::Capabilities;
@@ -42,6 +42,9 @@ pub use react::{
 
 /// Items the macros expand into so a caller does not have to depend on them directly.
 #[doc(hidden)]
+/// The async runtime, re-exported so a caller needs no `tokio` line of their own.
+pub use tokio;
+
 #[path = "macro_support.rs"]
 pub mod __macro_support;
 pub use interpreter::{

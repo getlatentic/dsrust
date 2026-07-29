@@ -16,13 +16,13 @@ VENV="$ROOT/.venv"
 echo "==> Building and installing the Rust bridge"
 # maturin supplies the platform's extension-module link arguments; build.rs keeps them scoped
 # to this crate. Install the wheel rather than develop-mode, so a stale .so cannot linger.
-( cd "$ROOT/bridge" && PYO3_PYTHON="$VENV/bin/python" "$VENV/bin/maturin" build --release 2>&1 | tail -1 )
+( cd "$ROOT/crates/bridge" && PYO3_PYTHON="$VENV/bin/python" "$VENV/bin/maturin" build --release 2>&1 | tail -1 )
 WHEEL=$(ls -t "$ROOT"/target/wheels/dsrs_bridge-*.whl | head -1)
 "$VENV/bin/python" -m pip install --force-reinstall --quiet --no-deps "$WHEEL" 2>/dev/null \
   || uv pip install --python "$VENV/bin/python" --force-reinstall -q --no-deps "$WHEEL"
 
 mkdir -p "$WORK"
-cp "$ROOT"/bridge/python/{rust_adapter,rust_signature,rust_module,crossings,reflect,conftest}.py "$WORK/"
+cp "$ROOT"/crates/bridge/python/{rust_adapter,rust_signature,rust_module,crossings,reflect,conftest}.py "$WORK/"
 
 # The upstream files this crate is held to. Adding one here is how coverage grows: it will
 # arrive with failures, and each becomes a named entry in conftest.py's to-do list or a fix.

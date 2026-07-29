@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 890
+rust_tests = 892
 upstream_tests_passing = 858
 upstream_tests_crossing = 441
 upstream_tests_deciding_signatures = 529
@@ -902,7 +902,7 @@ new bound and no `#[BamlType]`-style annotation — which is what the other Rust
 Only outputs carry it. `output_type` takes an `OutField`, and requiring `JsonSchema` of every
 *input* type would be a bound no caller owes today.
 
-`derive/src/annotate.rs` supplies the other half, the annotation itself: `list[Gift]`,
+`crates/derive/src/annotate.rs` supplies the other half, the annotation itself: `list[Gift]`,
 `dict[str, int]`, `Union[str, NoneType]`. Every spelling was read off dspy 3.2.1 rather than
 guessed — `Optional[str]` prints as `Union[str, NoneType]`, which is neither spelling a reader
 would reach for.

@@ -21,7 +21,7 @@ import sys
 
 import status
 
-CONFTEST = pathlib.Path(__file__).parent.parent / "bridge" / "python" / "conftest.py"
+CONFTEST = pathlib.Path(__file__).parent.parent / "crates" / "bridge" / "python" / "conftest.py"
 
 #: Each status key, and the pattern that finds its value in a pytest run's output.
 #:

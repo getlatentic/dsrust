@@ -18,7 +18,7 @@ from gepa.core.state import GEPAState, ValsetEvaluation
 
 from pins import require
 
-OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "gepa" / "tests" / "conformance"
 PINNED = require("gepa")
 
 # Each case: the seed program's per-testcase scores, then the scores of programs added in turn.
