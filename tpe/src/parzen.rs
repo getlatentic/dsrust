@@ -28,7 +28,10 @@ impl Parzen {
                 categorical_kernel(observations, param, cardinality, prior_weight)
             })
             .collect();
-        Self { mixture, categorical }
+        Self {
+            mixture,
+            categorical,
+        }
     }
 
     /// Draw `n` candidates — optuna `_MixtureOfProductDistribution.sample`. First one kernel is
@@ -41,7 +44,8 @@ impl Parzen {
         for (param, kernels) in self.categorical.iter().enumerate() {
             let quantiles = rng.random_sample_n(n);
             for (candidate, &kernel) in active.iter().enumerate() {
-                candidates[candidate][param] = pick_category(&kernels[kernel], quantiles[candidate]);
+                candidates[candidate][param] =
+                    pick_category(&kernels[kernel], quantiles[candidate]);
             }
         }
         candidates
@@ -94,7 +98,11 @@ fn default_weights(n: usize) -> Vec<f64> {
     let ramp = n - 25;
     let mut weights = Vec::with_capacity(n);
     for i in 0..ramp {
-        let fraction = if ramp == 1 { 0.0 } else { i as f64 / (ramp - 1) as f64 };
+        let fraction = if ramp == 1 {
+            0.0
+        } else {
+            i as f64 / (ramp - 1) as f64
+        };
         weights.push(1.0 / n as f64 + (1.0 - 1.0 / n as f64) * fraction);
     }
     weights.extend(std::iter::repeat_n(1.0, 25));
@@ -144,4 +152,3 @@ fn pick_category(weights: &[f64], quantile: f64) -> usize {
     }
     category
 }
-

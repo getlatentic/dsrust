@@ -53,7 +53,11 @@ fn read_request(stream: &mut TcpStream) -> Request {
     let mut reader = BufReader::new(stream);
     let mut start = String::new();
     reader.read_line(&mut start).expect("a request line");
-    let path = start.split_whitespace().nth(1).unwrap_or_default().to_owned();
+    let path = start
+        .split_whitespace()
+        .nth(1)
+        .unwrap_or_default()
+        .to_owned();
 
     let mut authorization = None;
     let mut length = 0usize;
@@ -88,7 +92,9 @@ fn write_response(stream: &mut TcpStream, body: &str) {
         "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
         body.len()
     );
-    stream.write_all(response.as_bytes()).expect("a written response");
+    stream
+        .write_all(response.as_bytes())
+        .expect("a written response");
     stream.flush().expect("a flushed response");
 }
 
@@ -114,7 +120,10 @@ async fn the_probe_asks_the_configured_host_and_carries_its_credential() {
     assert_eq!(asked.path, "/api/show");
     assert_eq!(asked.authorization.as_deref(), Some("Bearer hosted-secret"));
     // The name is sent without the provider prefix, as litellm strips it.
-    assert_eq!(asked.body["name"], json!(unlisted("carries").trim_start_matches("ollama_chat/")));
+    assert_eq!(
+        asked.body["name"],
+        json!(unlisted("carries").trim_start_matches("ollama_chat/"))
+    );
 }
 
 /// A local server wants no credential, and sending one to a server that did not ask is its own
@@ -154,7 +163,11 @@ async fn a_model_the_registry_lists_is_never_asked_about() {
         .with_ollama_host(&stub.host);
 
     // `llama2` is in litellm's registry crediting nothing; the stub would say otherwise if asked.
-    assert!(!lm.capabilities(&reqwest::Client::new()).await.function_calling);
+    assert!(
+        !lm.capabilities(&reqwest::Client::new())
+            .await
+            .function_calling
+    );
     drop(stub);
 }
 
@@ -166,8 +179,15 @@ async fn a_model_the_registry_lists_is_never_asked_about() {
 #[ignore = "needs a live ollama with qwen2.5:7b-instruct and gemma3:4b pulled"]
 async fn a_live_daemon_answers_the_way_litellm_reads_it() {
     let http = reqwest::Client::new();
-    for (model, tools) in [("ollama_chat/qwen2.5:7b-instruct", true), ("ollama_chat/gemma3:4b", false)] {
+    for (model, tools) in [
+        ("ollama_chat/qwen2.5:7b-instruct", true),
+        ("ollama_chat/gemma3:4b", false),
+    ] {
         let lm = LM::new(model).expect("a valid reference");
-        assert_eq!(lm.capabilities(&http).await.function_calling, tools, "{model}");
+        assert_eq!(
+            lm.capabilities(&http).await.function_calling,
+            tools,
+            "{model}"
+        );
     }
 }

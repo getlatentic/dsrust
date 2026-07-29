@@ -31,12 +31,18 @@ const DEFAULT_LANGUAGE: &str = "python";
 impl Code {
     /// Code in the default language, `python`.
     pub fn new(code: impl Into<String>) -> Self {
-        Self { code: code.into(), language: DEFAULT_LANGUAGE.to_owned() }
+        Self {
+            code: code.into(),
+            language: DEFAULT_LANGUAGE.to_owned(),
+        }
     }
 
     /// Code in a named language — dspy's `Code["java"]`.
     pub fn in_language(code: impl Into<String>, language: impl Into<String>) -> Self {
-        Self { code: code.into(), language: language.into() }
+        Self {
+            code: code.into(),
+            language: language.into(),
+        }
     }
 
     /// dspy `Code.description` for a given language: prose stating the `code` field and, for an
@@ -88,9 +94,13 @@ impl<'de> Deserialize<'de> for Code {
                 Some(other) => Err(de::Error::custom(format!(
                     "`code` field must be a string, but received type: {other}"
                 ))),
-                None => Err(de::Error::custom("`code` field is required for `dspy.Code`")),
+                None => Err(de::Error::custom(
+                    "`code` field is required for `dspy.Code`",
+                )),
             },
-            other => Err(de::Error::custom(format!("Received invalid value for `dspy.Code`: {other}"))),
+            other => Err(de::Error::custom(format!(
+                "Received invalid value for `dspy.Code`: {other}"
+            ))),
         }
     }
 }
@@ -141,7 +151,10 @@ mod tests {
     fn it_renders_as_the_code_itself() {
         let code = Code::new("print('hi')");
         assert_eq!(code.format(), Formatted::Text("print('hi')".to_owned()));
-        assert_eq!(serde_json::to_value(&code).expect("serializes"), json!("print('hi')"));
+        assert_eq!(
+            serde_json::to_value(&code).expect("serializes"),
+            json!("print('hi')")
+        );
     }
 
     /// dspy `_filter_code`: a fenced block reads back as the code inside it, language line dropped.
@@ -175,7 +188,11 @@ mod tests {
         assert_eq!(description.name, "Code");
         assert!(description.replaces_schema);
         assert!(description.text.contains("Programming language: python"));
-        assert!(Code::description_for("Java").text.contains("Programming language: Java"));
+        assert!(
+            Code::description_for("Java")
+                .text
+                .contains("Programming language: Java")
+        );
         assert!(Code::description_for("Java").text.contains("```java\n"));
     }
 }

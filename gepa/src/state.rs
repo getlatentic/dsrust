@@ -79,7 +79,11 @@ impl GepaState {
         discovered_at: usize,
     ) -> usize {
         let new_idx = self.candidates.len();
-        let inherited = parents.iter().map(|&p| self.next_predictor[p]).max().unwrap_or(0);
+        let inherited = parents
+            .iter()
+            .map(|&p| self.next_predictor[p])
+            .max()
+            .unwrap_or(0);
         self.front.add_program(new_idx, &val_scores);
         self.candidates.push(candidate);
         self.parents.push(parents.to_vec());
@@ -95,7 +99,11 @@ impl GepaState {
         let mut best = (0usize, f64::NEG_INFINITY, 0usize);
         for (idx, scores) in self.subscores.iter().enumerate() {
             let coverage = scores.len();
-            let avg = if coverage == 0 { f64::NEG_INFINITY } else { mean(scores) };
+            let avg = if coverage == 0 {
+                f64::NEG_INFINITY
+            } else {
+                mean(scores)
+            };
             if avg > best.1 || (avg == best.1 && coverage > best.2) {
                 best = (idx, avg, coverage);
             }

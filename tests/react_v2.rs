@@ -18,7 +18,12 @@ fn lookup() -> Box<dyn Tool> {
         "lookup",
         "look something up",
         json!({ "query": { "type": "string" } }),
-        |args: &Value| Ok(format!("found {}", args["query"].as_str().unwrap_or_default())),
+        |args: &Value| {
+            Ok(format!(
+                "found {}",
+                args["query"].as_str().unwrap_or_default()
+            ))
+        },
     ))
 }
 
@@ -37,7 +42,8 @@ fn agent(tools: Vec<Box<dyn Tool>>, lm: Arc<DummyLM>) -> ReActV2 {
 }
 
 fn history_of(prediction: &dsrust::Prediction) -> History {
-    serde_json::from_value(prediction.get("history").cloned().expect("a history")).expect("a History")
+    serde_json::from_value(prediction.get("history").cloned().expect("a history"))
+        .expect("a History")
 }
 
 fn calls_in(message: &serde_json::Map<String, Value>) -> ToolCalls {
@@ -48,28 +54,49 @@ fn calls_in(message: &serde_json::Map<String, Value>) -> ToolCalls {
 #[tokio::test]
 async fn a_text_loop_records_its_inputs_once_and_answers() {
     let lm = Arc::new(DummyLM::new([
-        turn("I should look this up.", json!({ "tool_calls": [{ "name": "lookup", "args": { "query": "cats" } }] })),
-        turn("I can answer now.", json!({ "tool_calls": [{ "name": "submit", "args": { "answer": "found cats" } }] })),
+        turn(
+            "I should look this up.",
+            json!({ "tool_calls": [{ "name": "lookup", "args": { "query": "cats" } }] }),
+        ),
+        turn(
+            "I can answer now.",
+            json!({ "tool_calls": [{ "name": "submit", "args": { "answer": "found cats" } }] }),
+        ),
     ]));
     let prediction = agent(vec![lookup()], lm)
         .forward(Example::new([("question", json!("cats"))]))
         .await
         .expect("the loop runs");
 
-    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("found cats"));
-    assert_eq!(prediction.get("termination_reason").and_then(Value::as_str), Some("submit"));
+    assert_eq!(
+        prediction.get("answer").and_then(Value::as_str),
+        Some("found cats")
+    );
+    assert_eq!(
+        prediction.get("termination_reason").and_then(Value::as_str),
+        Some("submit")
+    );
 
     let history = history_of(&prediction);
     assert_eq!(
-        history.messages.iter().filter(|message| message.contains_key("question")).count(),
+        history
+            .messages
+            .iter()
+            .filter(|message| message.contains_key("question"))
+            .count(),
         1,
         "the original inputs are recorded once, on the first turn"
     );
     let first = calls_in(&history.messages[0]);
     assert_eq!(first.tool_calls[0].id.as_deref(), Some("call_0_0"));
-    assert!(!history.messages[0].contains_key("tool_call_results"), "results ride on the calls");
+    assert!(
+        !history.messages[0].contains_key("tool_call_results"),
+        "results ride on the calls"
+    );
     assert_eq!(
-        first.tool_call_results.expect("results").tool_call_results[0].call_id.as_deref(),
+        first.tool_call_results.expect("results").tool_call_results[0]
+            .call_id
+            .as_deref(),
         Some("call_0_0")
     );
 }
@@ -79,14 +106,23 @@ async fn a_text_loop_records_its_inputs_once_and_answers() {
 #[tokio::test]
 async fn a_continuation_turn_omits_the_original_inputs() {
     let lm = Arc::new(DummyLM::new([
-        turn("I should look this up.", json!({ "tool_calls": [{ "name": "lookup", "args": { "query": "cats" } }] })),
-        turn("I can answer now.", json!({ "tool_calls": [{ "name": "submit", "args": { "answer": "found cats" } }] })),
+        turn(
+            "I should look this up.",
+            json!({ "tool_calls": [{ "name": "lookup", "args": { "query": "cats" } }] }),
+        ),
+        turn(
+            "I can answer now.",
+            json!({ "tool_calls": [{ "name": "submit", "args": { "answer": "found cats" } }] }),
+        ),
     ]));
     let prediction = agent(vec![lookup()], lm.clone())
         .forward(Example::new([("question", json!("cats"))]))
         .await
         .expect("the loop runs");
-    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("found cats"));
+    assert_eq!(
+        prediction.get("answer").and_then(Value::as_str),
+        Some("found cats")
+    );
 
     let asked = lm.asked();
     let second = &asked[1];
@@ -96,10 +132,11 @@ async fn a_continuation_turn_omits_the_original_inputs() {
         second.last_message()
     );
     assert!(
-        second
-            .turns
-            .iter()
-            .any(|turn| turn.content.text().unwrap_or_default().contains("[[ ## question ## ]]\ncats")),
+        second.turns.iter().any(|turn| turn
+            .content
+            .text()
+            .unwrap_or_default()
+            .contains("[[ ## question ## ]]\ncats")),
         "but the replayed history still carries it"
     );
 }
@@ -109,8 +146,14 @@ async fn a_continuation_turn_omits_the_original_inputs() {
 #[tokio::test]
 async fn a_top_level_tool_call_is_accepted() {
     let lm = Arc::new(DummyLM::new([
-        turn("I should look this up.", json!({ "name": "lookup", "arguments": { "query": "cats" } })),
-        turn("I can answer now.", json!({ "tool_calls": [{ "name": "submit", "args": { "answer": "found cats" } }] })),
+        turn(
+            "I should look this up.",
+            json!({ "name": "lookup", "arguments": { "query": "cats" } }),
+        ),
+        turn(
+            "I can answer now.",
+            json!({ "tool_calls": [{ "name": "submit", "args": { "answer": "found cats" } }] }),
+        ),
     ]));
     let prediction = agent(vec![lookup()], lm)
         .with_adapter(ChatAdapter::default())
@@ -118,10 +161,16 @@ async fn a_top_level_tool_call_is_accepted() {
         .await
         .expect("the loop runs");
 
-    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("found cats"));
+    assert_eq!(
+        prediction.get("answer").and_then(Value::as_str),
+        Some("found cats")
+    );
     let history = history_of(&prediction);
     let first = calls_in(&history.messages[0]);
-    assert_eq!(first.tool_calls[0].args, *json!({ "query": "cats" }).as_object().unwrap());
+    assert_eq!(
+        first.tool_calls[0].args,
+        *json!({ "query": "cats" }).as_object().unwrap()
+    );
 }
 
 /// dspy `test_react_v2_text_mode_accepts_wrapped_submit_arguments`: `submit` stated as a wrapped
@@ -138,8 +187,14 @@ async fn a_wrapped_submit_call_is_accepted() {
         .await
         .expect("the loop runs");
 
-    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("done"));
-    assert_eq!(prediction.get("termination_reason").and_then(Value::as_str), Some("submit"));
+    assert_eq!(
+        prediction.get("answer").and_then(Value::as_str),
+        Some("done")
+    );
+    assert_eq!(
+        prediction.get("termination_reason").and_then(Value::as_str),
+        Some("submit")
+    );
 }
 
 /// dspy `test_react_v2_unknown_tool_observation_can_continue`: an unknown tool is an error
@@ -147,8 +202,14 @@ async fn a_wrapped_submit_call_is_accepted() {
 #[tokio::test]
 async fn an_unknown_tool_becomes_an_observation_and_the_loop_continues() {
     let lm = Arc::new(DummyLM::new([
-        turn("Try a missing tool.", json!({ "tool_calls": [{ "name": "missing_tool", "args": { "query": "cats" } }] })),
-        turn("Recover with a final answer.", json!({ "tool_calls": [{ "name": "submit", "args": { "answer": "done" } }] })),
+        turn(
+            "Try a missing tool.",
+            json!({ "tool_calls": [{ "name": "missing_tool", "args": { "query": "cats" } }] }),
+        ),
+        turn(
+            "Recover with a final answer.",
+            json!({ "tool_calls": [{ "name": "submit", "args": { "answer": "done" } }] }),
+        ),
     ]));
     let prediction = agent(vec![], lm)
         .forward(Example::new([("question", json!("cats"))]))
@@ -156,12 +217,24 @@ async fn an_unknown_tool_becomes_an_observation_and_the_loop_continues() {
         .expect("the loop runs");
 
     let history = history_of(&prediction);
-    let first_result =
-        calls_in(&history.messages[0]).tool_call_results.expect("results").tool_call_results.remove(0);
+    let first_result = calls_in(&history.messages[0])
+        .tool_call_results
+        .expect("results")
+        .tool_call_results
+        .remove(0);
     assert!(first_result.is_error);
     assert_eq!(first_result.call_id.as_deref(), Some("call_0_0"));
-    assert!(first_result.value.as_str().unwrap_or_default().contains("Unknown tool"));
-    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("done"));
+    assert!(
+        first_result
+            .value
+            .as_str()
+            .unwrap_or_default()
+            .contains("Unknown tool")
+    );
+    assert_eq!(
+        prediction.get("answer").and_then(Value::as_str),
+        Some("done")
+    );
 }
 
 /// dspy `test_react_v2_accepts_serialized_history_input`: a history handed in as a plain mapping is
@@ -173,13 +246,22 @@ async fn a_serialized_history_input_is_accepted() {
         json!({ "tool_calls": [{ "name": "submit", "args": { "answer": "done" } }] }),
     )]));
     let prediction = agent(vec![], lm)
-        .forward(Example::new([("history", json!({ "messages": [{ "question": "old" }] }))]))
+        .forward(Example::new([(
+            "history",
+            json!({ "messages": [{ "question": "old" }] }),
+        )]))
         .await
         .expect("the loop runs");
 
-    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("done"));
+    assert_eq!(
+        prediction.get("answer").and_then(Value::as_str),
+        Some("done")
+    );
     let history = history_of(&prediction);
-    assert_eq!(history.messages[0], *json!({ "question": "old" }).as_object().unwrap());
+    assert_eq!(
+        history.messages[0],
+        *json!({ "question": "old" }).as_object().unwrap()
+    );
     assert!(history.messages.iter().all(|message| !message.is_empty()));
 }
 
@@ -189,15 +271,24 @@ async fn a_serialized_history_input_is_accepted() {
 async fn empty_tool_calls_force_a_final_submit() {
     let lm = Arc::new(DummyLM::new([
         turn("No action.", json!({ "tool_calls": [] })),
-        turn("Forced final.", json!({ "tool_calls": [{ "name": "submit", "args": { "answer": "forced" } }] })),
+        turn(
+            "Forced final.",
+            json!({ "tool_calls": [{ "name": "submit", "args": { "answer": "forced" } }] }),
+        ),
     ]));
     let prediction = agent(vec![], lm)
         .forward(Example::new([("question", json!("cats"))]))
         .await
         .expect("the loop runs");
 
-    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("forced"));
-    assert_eq!(prediction.get("termination_reason").and_then(Value::as_str), Some("forced_submit"));
+    assert_eq!(
+        prediction.get("answer").and_then(Value::as_str),
+        Some("forced")
+    );
+    assert_eq!(
+        prediction.get("termination_reason").and_then(Value::as_str),
+        Some("forced_submit")
+    );
 }
 
 // --- Native function calling: the provider calls the tools itself. -----------------------------
@@ -210,7 +301,10 @@ struct NativeToolLM {
 
 impl NativeToolLM {
     fn new(replies: Vec<api::LmResponse>) -> Arc<Self> {
-        Arc::new(Self { replies, seen: Mutex::new(Vec::new()) })
+        Arc::new(Self {
+            replies,
+            seen: Mutex::new(Vec::new()),
+        })
     }
 }
 
@@ -230,7 +324,10 @@ impl ChatModel for NativeToolLM {
         &'a self,
         _http: &'a reqwest::Client,
     ) -> impl std::future::Future<Output = Capabilities> + Send + 'a {
-        std::future::ready(Capabilities { function_calling: true, ..Default::default() })
+        std::future::ready(Capabilities {
+            function_calling: true,
+            ..Default::default()
+        })
     }
 }
 
@@ -254,7 +351,10 @@ fn native_call(id: &str, name: &str, args: Value) -> api::LmResponse {
 /// A native reply that made no tool call — the turn that ends the loop into a forced submit.
 fn no_call() -> api::LmResponse {
     api::LmResponse {
-        outputs: vec![api::LmOutput { finish_reason: Some("stop".into()), ..Default::default() }],
+        outputs: vec![api::LmOutput {
+            finish_reason: Some("stop".into()),
+            ..Default::default()
+        }],
         ..Default::default()
     }
 }
@@ -290,16 +390,24 @@ async fn a_native_loop_replays_results_with_the_providers_id() {
         .await
         .expect("the loop runs");
 
-    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("found cats"));
+    assert_eq!(
+        prediction.get("answer").and_then(Value::as_str),
+        Some("found cats")
+    );
     let history = history_of(&prediction);
     let first = calls_in(&history.messages[0]);
     assert_eq!(first.tool_calls[0].id.as_deref(), Some("call_provider_1"));
     assert!(!history.messages[0].contains_key("tool_call_results"));
     assert_eq!(
-        first.tool_call_results.expect("results").tool_call_results[0].call_id.as_deref(),
+        first.tool_call_results.expect("results").tool_call_results[0]
+            .call_id
+            .as_deref(),
         Some("call_provider_1")
     );
-    assert_eq!(tool_message_ids(&lm.seen.lock().unwrap()[1]), ["call_provider_1"]);
+    assert_eq!(
+        tool_message_ids(&lm.seen.lock().unwrap()[1]),
+        ["call_provider_1"]
+    );
 }
 
 /// dspy `_forced_submit` steers the last ask with `tool_choice={"function":{"name":"submit"}}`: a
@@ -317,14 +425,34 @@ async fn a_forced_submit_pins_the_provider_to_submit() {
         .await
         .expect("the loop runs");
 
-    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("forced"));
-    assert_eq!(prediction.get("termination_reason").and_then(Value::as_str), Some("forced_submit"));
+    assert_eq!(
+        prediction.get("answer").and_then(Value::as_str),
+        Some("forced")
+    );
+    assert_eq!(
+        prediction.get("termination_reason").and_then(Value::as_str),
+        Some("forced_submit")
+    );
 
     let seen = lm.seen.lock().unwrap();
-    let forced = seen[1].config.tool_choice.as_ref().expect("the forced ask states a tool choice");
-    assert_eq!(forced.allowed, Some(vec!["submit".to_owned()]), "pinned to submit");
+    let forced = seen[1]
+        .config
+        .tool_choice
+        .as_ref()
+        .expect("the forced ask states a tool choice");
+    assert_eq!(
+        forced.allowed,
+        Some(vec!["submit".to_owned()]),
+        "pinned to submit"
+    );
     // The normal turn before it was not steered.
-    assert!(seen[0].config.tool_choice.as_ref().is_none_or(|choice| choice.allowed.is_none()));
+    assert!(
+        seen[0]
+            .config
+            .tool_choice
+            .as_ref()
+            .is_none_or(|choice| choice.allowed.is_none())
+    );
 }
 
 /// dspy `test_react_v2_native_parallel_tool_calls_are_requested_and_replayed`: several calls come
@@ -356,23 +484,41 @@ async fn native_parallel_calls_replay_in_order() {
     };
     let lm = NativeToolLM::new(vec![
         parallel,
-        native_call("call_submit", "submit", json!({ "answer": "found cats and found dogs" })),
+        native_call(
+            "call_submit",
+            "submit",
+            json!({ "answer": "found cats and found dogs" }),
+        ),
     ]);
     let prediction = ReActV2::new("question -> answer".parse().unwrap(), vec![lookup()])
-        .with_adapter(ChatAdapter::default().with_native_function_calling(true).with_parallel_tool_calls(Some(true)))
+        .with_adapter(
+            ChatAdapter::default()
+                .with_native_function_calling(true)
+                .with_parallel_tool_calls(Some(true)),
+        )
         .with_lm(lm.clone() as Arc<dyn DynChatModel>)
         .forward(Example::new([("question", json!("cats and dogs"))]))
         .await
         .expect("the loop runs");
 
-    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("found cats and found dogs"));
+    assert_eq!(
+        prediction.get("answer").and_then(Value::as_str),
+        Some("found cats and found dogs")
+    );
     let history = history_of(&prediction);
     let first = calls_in(&history.messages[0]);
-    let ids: Vec<&str> = first.tool_calls.iter().filter_map(|call| call.id.as_deref()).collect();
+    let ids: Vec<&str> = first
+        .tool_calls
+        .iter()
+        .filter_map(|call| call.id.as_deref())
+        .collect();
     assert_eq!(ids, ["call_provider_1", "call_provider_2"]);
     let results = first.tool_call_results.expect("results");
-    let result_ids: Vec<&str> =
-        results.tool_call_results.iter().filter_map(|result| result.call_id.as_deref()).collect();
+    let result_ids: Vec<&str> = results
+        .tool_call_results
+        .iter()
+        .filter_map(|result| result.call_id.as_deref())
+        .collect();
     assert_eq!(result_ids, ["call_provider_1", "call_provider_2"]);
     assert_eq!(
         tool_message_ids(&lm.seen.lock().unwrap()[1]),

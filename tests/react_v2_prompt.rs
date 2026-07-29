@@ -15,12 +15,20 @@ fn lookup() -> Box<dyn Tool> {
         "lookup",
         "look something up",
         json!({ "query": { "type": "string" } }),
-        |args: &Value| Ok(format!("found {}", args["query"].as_str().unwrap_or_default())),
+        |args: &Value| {
+            Ok(format!(
+                "found {}",
+                args["query"].as_str().unwrap_or_default()
+            ))
+        },
     ))
 }
 
 fn agent() -> ReActV2 {
-    ReActV2::new("question -> answer".parse().expect("a signature"), vec![lookup()])
+    ReActV2::new(
+        "question -> answer".parse().expect("a signature"),
+        vec![lookup()],
+    )
 }
 
 /// The system message: the input and output field sections, the `ToolCalls` description and schema,
@@ -29,8 +37,9 @@ fn agent() -> ReActV2 {
 fn the_turn_signature_system_message_is_dspys_byte_for_byte() {
     let agent = agent();
     let inputs = [Input::new("question", json!("cats"))];
-    let (system, _turns) =
-        ChatAdapter::default().format(agent.turn_signature(), &[], &inputs).expect("formats");
+    let (system, _turns) = ChatAdapter::default()
+        .format(agent.turn_signature(), &[], &inputs)
+        .expect("formats");
     assert_eq!(system, include_str!("goldens/react_v2_turn_system.txt"));
 }
 
@@ -44,8 +53,14 @@ fn the_turn_signature_user_message_is_dspys_byte_for_byte() {
         Input::new("history", json!({ "messages": [] })),
         Input::new("tools", agent.turn_tools().clone()),
     ];
-    let (_system, turns) =
-        ChatAdapter::default().format(agent.turn_signature(), &[], &inputs).expect("formats");
-    let user = turns.last().expect("a user turn").content.text().expect("prose");
+    let (_system, turns) = ChatAdapter::default()
+        .format(agent.turn_signature(), &[], &inputs)
+        .expect("formats");
+    let user = turns
+        .last()
+        .expect("a user turn")
+        .content
+        .text()
+        .expect("prose");
     assert_eq!(user, include_str!("goldens/react_v2_turn_user.txt"));
 }

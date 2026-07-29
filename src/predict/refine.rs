@@ -549,7 +549,10 @@ mod tests {
         let mut returned = refine.into_inner();
         let predictors = returned.named_predictors();
         assert_eq!(predictors[0].config.clone(), resting);
-        assert_eq!(*predictors[0].hint, None, "the hint is cleared, not left set");
+        assert_eq!(
+            *predictors[0].hint, None,
+            "the hint is cleared, not left set"
+        );
     }
 
     /// A failed advisor call is an attempt failure the budget counts — it is inside dspy's one
@@ -565,7 +568,10 @@ mod tests {
         );
 
         let refused = refine.run(asked("capital of France?")).await;
-        assert!(refused.is_err(), "the advisor's failures exhausted the budget");
+        assert!(
+            refused.is_err(),
+            "the advisor's failures exhausted the budget"
+        );
     }
 
     /// dspy weighs *when* a failure lands, comparing the attempt index against a decrementing
@@ -619,4 +625,3 @@ mod tests {
         assert!(refine.run(asked("capital of France?")).await.is_err());
     }
 }
-

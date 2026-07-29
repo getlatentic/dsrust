@@ -122,8 +122,14 @@ mod tests {
             "is",
             "\n\n[[ ## completed ## ]]",
         ];
-        let streamed: String = deltas.iter().filter_map(|delta| listener.push(delta)).collect();
-        assert_eq!(streamed, "Paris", "only the answer field, no markers, no trailing newline");
+        let streamed: String = deltas
+            .iter()
+            .filter_map(|delta| listener.push(delta))
+            .collect();
+        assert_eq!(
+            streamed, "Paris",
+            "only the answer field, no markers, no trailing newline"
+        );
     }
 
     /// A marker split across two deltas is still recognised — the reason the watcher holds a tail
@@ -131,21 +137,35 @@ mod tests {
     #[test]
     fn a_marker_split_across_deltas_is_still_found() {
         let mut listener = FieldListener::new("answer");
-        let streamed: String = ["[[ ## ans", "wer ## ]]\nBer", "lin", "\n\n[[ ## completed ## ]]"]
-            .iter()
-            .filter_map(|delta| listener.push(delta))
-            .collect();
-        assert_eq!(streamed, "Berlin", "the marker split across two deltas still opened the field");
+        let streamed: String = [
+            "[[ ## ans",
+            "wer ## ]]\nBer",
+            "lin",
+            "\n\n[[ ## completed ## ]]",
+        ]
+        .iter()
+        .filter_map(|delta| listener.push(delta))
+        .collect();
+        assert_eq!(
+            streamed, "Berlin",
+            "the marker split across two deltas still opened the field"
+        );
     }
 
     #[tokio::test]
     async fn stream_field_pulls_the_field_from_an_event_stream() {
         let events = vec![
             Ok(LmStreamEvent::Start { model: None }),
-            Ok(LmStreamEvent::delta(0, LmDelta::text("[[ ## answer ## ]]\n"))),
+            Ok(LmStreamEvent::delta(
+                0,
+                LmDelta::text("[[ ## answer ## ]]\n"),
+            )),
             Ok(LmStreamEvent::delta(0, LmDelta::text("Par"))),
             Ok(LmStreamEvent::delta(0, LmDelta::text("is"))),
-            Ok(LmStreamEvent::delta(0, LmDelta::text("\n\n[[ ## completed ## ]]"))),
+            Ok(LmStreamEvent::delta(
+                0,
+                LmDelta::text("\n\n[[ ## completed ## ]]"),
+            )),
             Ok(LmStreamEvent::end()),
         ];
         let streamed: String = stream_field(stream::iter(events), "answer")

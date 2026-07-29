@@ -22,7 +22,10 @@ pub(super) fn ask_for_parallel_calls(request: &mut api::LmRequest, parallel: Opt
     let Some(parallel) = parallel else {
         return;
     };
-    let choice = request.config.tool_choice.get_or_insert_with(Default::default);
+    let choice = request
+        .config
+        .tool_choice
+        .get_or_insert_with(Default::default);
     if choice.parallel.is_none() {
         choice.parallel = Some(parallel);
     }
@@ -32,7 +35,10 @@ pub(super) fn ask_for_parallel_calls(request: &mut api::LmRequest, parallel: Opt
 /// it as the sole allowed tool under `required`, which every provider lowers to
 /// `{"type":"function","function":{"name": tool}}`.
 pub(super) fn force_tool(request: &mut api::LmRequest, tool: &str) {
-    let choice = request.config.tool_choice.get_or_insert_with(Default::default);
+    let choice = request
+        .config
+        .tool_choice
+        .get_or_insert_with(Default::default);
     choice.mode = api::ToolChoiceMode::Required;
     choice.allowed = Some(vec![tool.to_owned()]);
 }
@@ -44,9 +50,11 @@ pub(super) fn force_tool(request: &mut api::LmRequest, tool: &str) {
 /// do here. A part that is not a tool call is not one of these and is dropped.
 fn as_tool_call(part: &api::LmPart) -> Option<ToolCall> {
     match part {
-        api::LmPart::ToolCall { id, name, args, .. } => {
-            Some(ToolCall { id: id.clone(), name: name.clone(), args: args.clone() })
-        }
+        api::LmPart::ToolCall { id, name, args, .. } => Some(ToolCall {
+            id: id.clone(),
+            name: name.clone(),
+            args: args.clone(),
+        }),
         _ => None,
     }
 }
@@ -73,7 +81,13 @@ impl<S> Predict<S> {
             .signature
             .outputs
             .iter()
-            .filter(|field| !reply.rendered.outputs.iter().any(|kept| kept.name == field.name))
+            .filter(|field| {
+                !reply
+                    .rendered
+                    .outputs
+                    .iter()
+                    .any(|kept| kept.name == field.name)
+            })
             .collect();
         if removed.is_empty() {
             return Ok(None);
@@ -87,7 +101,9 @@ impl<S> Predict<S> {
                 .unwrap_or_else(|_| Value::Object(Map::new())),
             false => Value::Object(Map::new()),
         };
-        let object = value.as_object_mut().ok_or_else(|| anyhow!("a parsed reply is an object"))?;
+        let object = value
+            .as_object_mut()
+            .ok_or_else(|| anyhow!("a parsed reply is an object"))?;
         for field in &self.signature.outputs {
             object.entry(field.name.clone()).or_insert(Value::Null);
         }
@@ -103,7 +119,10 @@ impl<S> Predict<S> {
                 .filter_map(as_tool_call)
                 .collect();
             if !calls.is_empty() {
-                object.insert(tool_field.to_owned(), ToolCalls::new(calls).to_value_with_ids());
+                object.insert(
+                    tool_field.to_owned(),
+                    ToolCalls::new(calls).to_value_with_ids(),
+                );
             }
         }
 

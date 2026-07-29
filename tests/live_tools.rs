@@ -21,7 +21,8 @@ use dsrust::{ChatModel, LM};
 
 /// The model, provider config, and cache-off LM the env asks for.
 fn live_setup() -> (LM, String, LmConfig) {
-    let model = std::env::var("LIVE_LM").unwrap_or_else(|_| "ollama_chat/qwen2.5:7b-instruct".to_owned());
+    let model =
+        std::env::var("LIVE_LM").unwrap_or_else(|_| "ollama_chat/qwen2.5:7b-instruct".to_owned());
     let mut lm = LM::new(&model).expect("a valid model ref").without_cache();
     if let Ok(base_url) = std::env::var("LIVE_BASE_URL") {
         lm = lm.with_openai_base_url(base_url);
@@ -62,7 +63,9 @@ async fn turn(
     let request = api::LmRequest::new(model, messages)
         .with_tools(vec![tool.clone()])
         .configured(config.clone());
-    lm.forward(http, &request).await.expect("the provider answered")
+    lm.forward(http, &request)
+        .await
+        .expect("the provider answered")
 }
 
 /// The plainest round trip — a question in, some text out — so any OpenAI-compatible server (a local
@@ -74,7 +77,9 @@ async fn a_text_round_trip_runs_end_to_end() {
     let http = reqwest::Client::new();
     let request = api::LmRequest::new(
         &model,
-        vec![LmMessage::user(vec![LmPart::text("Reply with a one-sentence greeting.")])],
+        vec![LmMessage::user(vec![LmPart::text(
+            "Reply with a one-sentence greeting.",
+        )])],
     )
     .configured(config);
     let answer = lm
@@ -108,10 +113,21 @@ async fn a_tool_conversation_runs_end_to_end() {
         .iter()
         .find(|part| matches!(part, LmPart::ToolCall { .. }))
         .unwrap_or_else(|| panic!("expected a tool call from {model}, got: {:?}", output.parts));
-    let LmPart::ToolCall { id, name, args, .. } = call else { unreachable!() };
-    assert_eq!(name, "get_weather", "the model called the tool it was offered");
-    assert!(args.contains_key("city"), "the call carried its arguments, got: {args:?}");
-    println!("[{model}] turn 1 → tool call: {name}({})", serde_json::Value::Object(args.clone()));
+    let LmPart::ToolCall { id, name, args, .. } = call else {
+        unreachable!()
+    };
+    assert_eq!(
+        name, "get_weather",
+        "the model called the tool it was offered"
+    );
+    assert!(
+        args.contains_key("city"),
+        "the call carried its arguments, got: {args:?}"
+    );
+    println!(
+        "[{model}] turn 1 → tool call: {name}({})",
+        serde_json::Value::Object(args.clone())
+    );
 
     // Turn 2 — replay the assistant's call and a tool result, and let the model answer. This is the
     // multi-turn rendering under test: an assistant `ToolCall` part and a `ToolResult` message.
@@ -128,7 +144,9 @@ async fn a_tool_conversation_runs_end_to_end() {
         LmMessage::assistant(vec![call.clone()]),
         LmMessage::new("tool", vec![result]),
     ];
-    let answer = turn(&lm, &http, &model, conversation, &tool, &config).await.first_text();
+    let answer = turn(&lm, &http, &model, conversation, &tool, &config)
+        .await
+        .first_text();
     println!("[{model}] turn 2 → answer: {answer}");
     assert!(
         !answer.trim().is_empty(),

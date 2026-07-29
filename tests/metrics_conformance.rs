@@ -77,12 +77,22 @@ fn it_scores_the_answer_sets_dspy_scores() {
             .map(|answer| answer.as_str().expect("an answer").to_owned())
             .collect();
         let named = |metric| format!("{metric}({prediction:?}, {answers:?})");
-        assert_eq!(em(&prediction, &answers), case["em"].as_bool().expect("em"), "{}", named("EM"));
-        for (ours, key) in
-            [(f1(&prediction, &answers), "f1"), (hotpot_f1(&prediction, &answers), "hotpot_f1")]
-        {
+        assert_eq!(
+            em(&prediction, &answers),
+            case["em"].as_bool().expect("em"),
+            "{}",
+            named("EM")
+        );
+        for (ours, key) in [
+            (f1(&prediction, &answers), "f1"),
+            (hotpot_f1(&prediction, &answers), "hotpot_f1"),
+        ] {
             let theirs = case[key].as_f64().expect(key);
-            assert!((ours - theirs).abs() < 1e-12, "{}: {ours} != {theirs}", named(key));
+            assert!(
+                (ours - theirs).abs() < 1e-12,
+                "{}: {ours} != {theirs}",
+                named(key)
+            );
         }
     }
 }

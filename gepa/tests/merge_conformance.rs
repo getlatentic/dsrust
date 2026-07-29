@@ -5,23 +5,34 @@
 //! so what is compared is the merged candidate and the ids it came from, and the validation ids the
 //! subsample draw returns — both a function of the shared generator, whose draw order this pins.
 
-use gepa::merge::{MergesPerformed, sample_and_attempt_merge, select_eval_subsample};
 use gepa::Candidate;
+use gepa::merge::{MergesPerformed, sample_and_attempt_merge, select_eval_subsample};
 use pyrng::Random;
 use serde_json::Value;
 
 fn golden() -> Value {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/merge.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/merge.json");
     let text = std::fs::read_to_string(&path).expect("the merge golden is committed");
     serde_json::from_str(&text).expect("the golden parses")
 }
 
 fn floats(value: &Value) -> Vec<f64> {
-    value.as_array().expect("a list").iter().map(|v| v.as_f64().expect("a number")).collect()
+    value
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|v| v.as_f64().expect("a number"))
+        .collect()
 }
 
 fn usizes(value: &Value) -> Vec<usize> {
-    value.as_array().expect("a list").iter().map(|v| v.as_u64().expect("an int") as usize).collect()
+    value
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|v| v.as_u64().expect("an int") as usize)
+        .collect()
 }
 
 fn candidate_of(value: &Value) -> Candidate {
@@ -29,7 +40,12 @@ fn candidate_of(value: &Value) -> Candidate {
         .as_object()
         .expect("a candidate object")
         .iter()
-        .map(|(name, text)| (name.clone(), text.as_str().expect("an instruction").to_owned()))
+        .map(|(name, text)| {
+            (
+                name.clone(),
+                text.as_str().expect("an instruction").to_owned(),
+            )
+        })
         .collect()
 }
 
@@ -37,15 +53,27 @@ fn candidate_of(value: &Value) -> Candidate {
 fn merges_the_way_gepa_merges() {
     for case in golden()["merges"].as_array().expect("merge cases") {
         let name = case["name"].as_str().expect("a name");
-        let candidates: Vec<Candidate> =
-            case["candidates"].as_array().expect("candidates").iter().map(candidate_of).collect();
+        let candidates: Vec<Candidate> = case["candidates"]
+            .as_array()
+            .expect("candidates")
+            .iter()
+            .map(candidate_of)
+            .collect();
         // A `-1` sentinel is dspy's `None` parent (the seed); this crate's parents carry no such
         // entry, so it is dropped rather than represented.
         let parents: Vec<Vec<usize>> = case["parents"]
             .as_array()
             .expect("parents")
             .iter()
-            .map(|row| row.as_array().expect("a row").iter().filter_map(|p| p.as_i64()).filter(|&p| p >= 0).map(|p| p as usize).collect())
+            .map(|row| {
+                row.as_array()
+                    .expect("a row")
+                    .iter()
+                    .filter_map(|p| p.as_i64())
+                    .filter(|&p| p >= 0)
+                    .map(|p| p as usize)
+                    .collect()
+            })
             .collect();
         let scores = floats(&case["scores"]);
         let merge_candidates = usizes(&case["merge_candidates"]);
@@ -67,10 +95,23 @@ fn merges_the_way_gepa_merges() {
         match case["merged"].as_object() {
             None => assert!(attempt.is_none(), "{name}: expected no merge, got one"),
             Some(expected) => {
-                let attempt = attempt.unwrap_or_else(|| panic!("{name}: expected a merge, got none"));
-                assert_eq!(attempt.candidate, candidate_of(&expected["candidate"]), "{name}: candidate");
-                assert_eq!(attempt.id1, expected["id1"].as_u64().unwrap() as usize, "{name}: id1");
-                assert_eq!(attempt.id2, expected["id2"].as_u64().unwrap() as usize, "{name}: id2");
+                let attempt =
+                    attempt.unwrap_or_else(|| panic!("{name}: expected a merge, got none"));
+                assert_eq!(
+                    attempt.candidate,
+                    candidate_of(&expected["candidate"]),
+                    "{name}: candidate"
+                );
+                assert_eq!(
+                    attempt.id1,
+                    expected["id1"].as_u64().unwrap() as usize,
+                    "{name}: id1"
+                );
+                assert_eq!(
+                    attempt.id2,
+                    expected["id2"].as_u64().unwrap() as usize,
+                    "{name}: id2"
+                );
                 assert_eq!(
                     attempt.ancestor,
                     expected["ancestor"].as_u64().unwrap() as usize,

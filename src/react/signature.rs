@@ -124,7 +124,11 @@ pub(super) fn tool_name_set(tools: &[Box<dyn Tool>]) -> Vec<LiteralValue> {
     tools.iter().map(|tool| tool.name().into()).collect()
 }
 
-pub(super) fn out_field(name: &str, values: Option<Vec<LiteralValue>>, kind: FieldKind) -> OutField {
+pub(super) fn out_field(
+    name: &str,
+    values: Option<Vec<LiteralValue>>,
+    kind: FieldKind,
+) -> OutField {
     OutField {
         name: name.to_owned(),
         kind,
@@ -175,4 +179,3 @@ pub(super) fn extract_signature(signature: &Signature) -> Signature {
         outputs,
     }
 }
-

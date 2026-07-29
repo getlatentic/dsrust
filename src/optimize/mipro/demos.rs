@@ -41,17 +41,26 @@ where
         match seed {
             -3 => {} // zero-shot: the cleared program is the set.
             -2 if max_labeled > 0 => {
-                LabeledFewShot { k: max_labeled, sample: true, seed: 0 }.compile(student, trainset);
+                LabeledFewShot {
+                    k: max_labeled,
+                    sample: true,
+                    seed: 0,
+                }
+                .compile(student, trainset);
             }
             -1 => {
-                bootstrap(max_bootstrapped, max_labeled, metric).compile(student, trainset).await?;
+                bootstrap(max_bootstrapped, max_labeled, metric)
+                    .compile(student, trainset)
+                    .await?;
             }
             _ => {
                 // dspy shuffles a fresh copy of the trainset and draws a size, both off the shared RNG.
                 let mut shuffled = trainset.to_vec();
                 rng.shuffle(&mut shuffled);
                 let size = rng.randint(MIN_NUM_SAMPLES, max_bootstrapped as u64) as usize;
-                bootstrap(size, max_labeled, metric).compile(student, &shuffled).await?;
+                bootstrap(size, max_labeled, metric)
+                    .compile(student, &shuffled)
+                    .await?;
             }
         }
         for (index, predictor) in student.named_predictors().iter().enumerate() {
@@ -111,9 +120,17 @@ mod tests {
 
     /// The keyed model dspy bootstrapped against: each question answers with the table's answer.
     fn model(fixture: &Value) -> Arc<DummyLM> {
-        let pairs = fixture["answers"].as_object().expect("answers").iter().map(|(question, answer)| {
-            (question.clone(), example! { answer: answer.as_str().unwrap().to_owned() })
-        });
+        let pairs =
+            fixture["answers"]
+                .as_object()
+                .expect("answers")
+                .iter()
+                .map(|(question, answer)| {
+                    (
+                        question.clone(),
+                        example! { answer: answer.as_str().unwrap().to_owned() },
+                    )
+                });
         Arc::new(DummyLM::keyed(pairs))
     }
 
@@ -122,12 +139,21 @@ mod tests {
     fn answers(demos: &[Example]) -> Vec<String> {
         demos
             .iter()
-            .map(|demo| demo.get("answer").and_then(Value::as_str).unwrap_or_default().to_owned())
+            .map(|demo| {
+                demo.get("answer")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned()
+            })
             .collect()
     }
 
     fn expected(set: &Value) -> Vec<String> {
-        set.as_array().expect("a set").iter().map(|demo| demo["answer"].as_str().expect("answer").to_owned()).collect()
+        set.as_array()
+            .expect("a set")
+            .iter()
+            .map(|demo| demo["answer"].as_str().expect("answer").to_owned())
+            .collect()
     }
 
     #[tokio::test]
@@ -135,7 +161,9 @@ mod tests {
         let fixture = fixture();
         let train = trainset(&fixture);
         for case in fixture["cases"].as_array().expect("cases") {
-            let mut student = Predict::parse("question -> answer").expect("parses").with_lm(model(&fixture));
+            let mut student = Predict::parse("question -> answer")
+                .expect("parses")
+                .with_lm(model(&fixture));
             let mut rng = Rng::seeded(case["seed"].as_u64().expect("seed"));
             let sets = create_demo_sets(
                 &mut student,
@@ -150,7 +178,12 @@ mod tests {
             .expect("builds the sets");
 
             let built: Vec<Vec<String>> = sets[0].iter().map(|set| answers(set)).collect();
-            let want: Vec<Vec<String>> = case["sets"].as_array().expect("sets").iter().map(expected).collect();
+            let want: Vec<Vec<String>> = case["sets"]
+                .as_array()
+                .expect("sets")
+                .iter()
+                .map(expected)
+                .collect();
             assert_eq!(built, want, "case {case}");
         }
     }

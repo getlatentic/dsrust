@@ -198,7 +198,9 @@ mod tests {
             data: [DONE]\n\n";
 
         let mut builder = LmOutputBuilder::new();
-        builder.apply(LmStreamEvent::Start { model: None }).expect("start");
+        builder
+            .apply(LmStreamEvent::Start { model: None })
+            .expect("start");
         let mut response = None;
         for event in events_of(sse) {
             if let Some(assembled) = builder.apply(event).expect("applies") {
@@ -208,9 +210,12 @@ mod tests {
         let output = &response.expect("assembled").outputs[0];
         assert!(
             matches!(&output.parts[0], LmPart::Thinking { text, .. } if text == "2+2 = 4"),
-            "thinking is first, got {:?}", output.parts,
+            "thinking is first, got {:?}",
+            output.parts,
         );
-        assert!(matches!(&output.parts[1], LmPart::Text { text, .. } if text == "The answer is 4."));
+        assert!(
+            matches!(&output.parts[1], LmPart::Text { text, .. } if text == "The answer is 4.")
+        );
     }
 
     /// A streamed tool call arrives in fragments — id and name first, arguments a slice at a time
@@ -240,16 +245,24 @@ mod tests {
             panic!("expected a tool call, got {:?}", output.parts)
         };
         assert_eq!(name, "get_weather");
-        assert_eq!(args["city"], serde_json::json!("Paris"), "arguments reassembled whole");
+        assert_eq!(
+            args["city"],
+            serde_json::json!("Paris"),
+            "arguments reassembled whole"
+        );
     }
 
     #[test]
     fn a_finish_reason_of_length_marks_the_output_truncated() {
-        let events =
-            events_of("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"x\"},\"finish_reason\":\"length\"}]}\n\ndata: [DONE]\n\n");
+        let events = events_of(
+            "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"x\"},\"finish_reason\":\"length\"}]}\n\ndata: [DONE]\n\n",
+        );
         assert!(events.iter().any(|event| matches!(
             event,
-            LmStreamEvent::OutputEnd { truncated: true, .. }
+            LmStreamEvent::OutputEnd {
+                truncated: true,
+                ..
+            }
         )));
     }
 }

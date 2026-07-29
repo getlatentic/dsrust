@@ -28,11 +28,15 @@ fn text_of(formatted: Formatted) -> String {
 }
 
 fn str_at<'a>(case: &'a Value, key: &str) -> &'a str {
-    case[key].as_str().unwrap_or_else(|| panic!("{key} is a string"))
+    case[key]
+        .as_str()
+        .unwrap_or_else(|| panic!("{key} is a string"))
 }
 
 fn usize_at(case: &Value, key: &str) -> usize {
-    case[key].as_u64().unwrap_or_else(|| panic!("{key} is a number")) as usize
+    case[key]
+        .as_u64()
+        .unwrap_or_else(|| panic!("{key} is a number")) as usize
 }
 
 /// Every value dspy was shown a variable for, to the same type, length, preview and prose.
@@ -50,9 +54,21 @@ fn a_variable_describes_what_dspy_described() {
         variable.desc = str_at(case, "desc").to_owned();
         variable.constraints = str_at(case, "constraints").to_owned();
 
-        assert_eq!(variable.type_name, str_at(case, "type_name"), "type for {label}");
-        assert_eq!(variable.total_length, usize_at(case, "total_length"), "length for {label}");
-        assert_eq!(variable.preview, str_at(case, "preview"), "preview for {label}");
+        assert_eq!(
+            variable.type_name,
+            str_at(case, "type_name"),
+            "type for {label}"
+        );
+        assert_eq!(
+            variable.total_length,
+            usize_at(case, "total_length"),
+            "length for {label}"
+        );
+        assert_eq!(
+            variable.preview,
+            str_at(case, "preview"),
+            "preview for {label}"
+        );
         assert_eq!(
             text_of(variable.format()),
             str_at(case, "formatted"),
@@ -102,7 +118,11 @@ fn an_entry_renders_as_dspy_rendered_it() {
 #[test]
 fn a_history_renders_as_dspy_rendered_it() {
     let golden = golden();
-    let entries: Vec<&Value> = golden["entries"].as_array().expect("entries").iter().collect();
+    let entries: Vec<&Value> = golden["entries"]
+        .as_array()
+        .expect("entries")
+        .iter()
+        .collect();
     let entry_of = |label: &str| {
         let case = entries
             .iter()
@@ -127,7 +147,11 @@ fn a_history_renders_as_dspy_rendered_it() {
             case["truthy"].as_bool().expect("truthy"),
             "truthiness for {label}"
         );
-        assert_eq!(text_of(history.format()), str_at(case, "formatted"), "history for {label}");
+        assert_eq!(
+            text_of(history.format()),
+            str_at(case, "formatted"),
+            "history for {label}"
+        );
         assert_eq!(
             text_of(Type::format(&history)),
             str_at(case, "serialized"),

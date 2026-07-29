@@ -7,8 +7,10 @@
 #![allow(unused_imports)]
 
 // Modules and how a program is asked.
-use dsrust::{Ask, Forward, Module, NamedPredictor, Prediction, Predict, ChainOfThought, ReAct, ReActV2};
-use dsrust::{Example, History, Signature, Steering, ReasoningEffort, Tool, FnTool};
+use dsrust::{
+    Ask, ChainOfThought, Forward, Module, NamedPredictor, Predict, Prediction, ReAct, ReActV2,
+};
+use dsrust::{Example, FnTool, History, ReasoningEffort, Signature, Steering, Tool};
 
 // Every optimizer, all reachable from the root (this is the line GEPA was missing from).
 use dsrust::{BootstrapFewShot, COPRO, DynOptimizer, GEPA, LabeledFewShot, MIPROv2, Optimizer};
@@ -27,8 +29,8 @@ use dsrust::{PredictorState, ProgramState, TraceStep};
 /// crate root, this file would fail to compile. The body just keeps the intent legible.
 #[test]
 fn the_embeddable_surface_resolves_from_the_crate_root() {
-    fn _a_program_is_a_module(_: &dyn Module) {}          // Module is the object-safe seam
-    fn _erased_optimizer(_: &dyn DynOptimizer) {}          // DynOptimizer is the dyn form of Optimizer
+    fn _a_program_is_a_module(_: &dyn Module) {} // Module is the object-safe seam
+    fn _erased_optimizer(_: &dyn DynOptimizer) {} // DynOptimizer is the dyn form of Optimizer
     let _ = exact_match;
     let _: Option<TraceStep> = None;
     let _: Option<ProgramState> = None;

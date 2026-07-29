@@ -58,7 +58,11 @@ pub(crate) fn signatures(
 
     let inputs = backticked(signature.inputs.iter().map(|field| field.name.as_str()));
     // The names `SUBMIT()` takes are bare, unlike every other list in the template.
-    let submits: Vec<&str> = signature.outputs.iter().map(|field| field.name.as_str()).collect();
+    let submits: Vec<&str> = signature
+        .outputs
+        .iter()
+        .map(|field| field.name.as_str())
+        .collect();
     let output_fields = signature
         .outputs
         .iter()
@@ -79,13 +83,21 @@ pub(crate) fn signatures(
     let action = Signature {
         instructions: action_instructions,
         inputs: vec![
-            input("variables_info", "Metadata about the variables available in the REPL", FieldKind::Str),
+            input(
+                "variables_info",
+                "Metadata about the variables available in the REPL",
+                FieldKind::Str,
+            ),
             input(
                 "repl_history",
                 "Previous REPL code executions and their outputs",
                 FieldKind::Json(JsonType::plain("REPLHistory")),
             ),
-            input("iteration", "Current iteration number (1-indexed) out of max_iterations", FieldKind::Str),
+            input(
+                "iteration",
+                "Current iteration number (1-indexed) out of max_iterations",
+                FieldKind::Str,
+            ),
         ],
         outputs: vec![
             output(
@@ -109,7 +121,11 @@ pub(crate) fn signatures(
         instructions: format!("{objective}{EXTRACT_INSTRUCTIONS}"),
         // dspy prepends `repl_history` and then `variables_info`, so the second lands first.
         inputs: vec![
-            input("variables_info", "Metadata about the variables available in the REPL", FieldKind::Str),
+            input(
+                "variables_info",
+                "Metadata about the variables available in the REPL",
+                FieldKind::Str,
+            ),
             input(
                 "repl_history",
                 "Your REPL interactions so far",
@@ -128,9 +144,10 @@ fn tool_docs(tools: &[Arc<dyn Tool>]) -> String {
     if tools.is_empty() {
         return String::new();
     }
-    let mut lines =
-        vec!["\nAdditional tools available (use these instead of standard library equivalents):"
-            .to_owned()];
+    let mut lines = vec![
+        "\nAdditional tools available (use these instead of standard library equivalents):"
+            .to_owned(),
+    ];
     for tool in tools {
         let params = tool
             .args()
@@ -156,15 +173,27 @@ fn tool_docs(tools: &[Arc<dyn Tool>]) -> String {
 }
 
 fn input(name: &str, desc: &str, kind: FieldKind) -> InField {
-    InField { name: name.to_owned(), desc: desc.to_owned(), kind, ..Default::default() }
+    InField {
+        name: name.to_owned(),
+        desc: desc.to_owned(),
+        kind,
+        ..Default::default()
+    }
 }
 
 fn output(name: &str, desc: &str) -> OutField {
-    OutField { name: name.to_owned(), desc: desc.to_owned(), ..Default::default() }
+    OutField {
+        name: name.to_owned(),
+        desc: desc.to_owned(),
+        ..Default::default()
+    }
 }
 
 fn backticked<'a>(names: impl Iterator<Item = &'a str>) -> String {
-    names.map(|name| format!("`{name}`")).collect::<Vec<_>>().join(", ")
+    names
+        .map(|name| format!("`{name}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 #[cfg(test)]
@@ -210,16 +239,26 @@ mod conformance {
             )
         };
 
-        for case in super::super::golden()["signatures"].as_array().expect("cases") {
+        for case in super::super::golden()["signatures"]
+            .as_array()
+            .expect("cases")
+        {
             let label = case["label"].as_str().expect("label");
             // The task signature, with the instructions dspy recorded (a docstring is not in the
             // spelling) and the typed outputs the notes are built from.
             let mut task: Signature = match label {
                 "typed" => "context -> answer, count: int".parse().expect("parses"),
                 "described" => "context -> answer".parse().expect("parses"),
-                _ => case["task"].as_str().expect("task").parse().expect("parses"),
+                _ => case["task"]
+                    .as_str()
+                    .expect("task")
+                    .parse()
+                    .expect("parses"),
             };
-            task.instructions = case["task_instructions"].as_str().expect("instructions").to_owned();
+            task.instructions = case["task_instructions"]
+                .as_str()
+                .expect("instructions")
+                .to_owned();
             if label == "typed" {
                 task.outputs[1].desc = "how many".to_owned();
             }
@@ -241,21 +280,41 @@ mod conformance {
             let (action, extract) = signatures(&task, &tools, calls);
             assert_eq!(
                 action.instructions,
-                case["action"]["instructions"].as_str().expect("instructions"),
+                case["action"]["instructions"]
+                    .as_str()
+                    .expect("instructions"),
                 "action instructions for {label}"
             );
             let (inputs, outputs) = ours(&action);
-            assert_eq!(inputs, described(&case["action"]["inputs"]), "action inputs for {label}");
-            assert_eq!(outputs, described(&case["action"]["outputs"]), "action outputs for {label}");
+            assert_eq!(
+                inputs,
+                described(&case["action"]["inputs"]),
+                "action inputs for {label}"
+            );
+            assert_eq!(
+                outputs,
+                described(&case["action"]["outputs"]),
+                "action outputs for {label}"
+            );
 
             assert_eq!(
                 extract.instructions,
-                case["extract"]["instructions"].as_str().expect("instructions"),
+                case["extract"]["instructions"]
+                    .as_str()
+                    .expect("instructions"),
                 "extract instructions for {label}"
             );
             let (inputs, outputs) = ours(&extract);
-            assert_eq!(inputs, described(&case["extract"]["inputs"]), "extract inputs for {label}");
-            assert_eq!(outputs, described(&case["extract"]["outputs"]), "extract outputs for {label}");
+            assert_eq!(
+                inputs,
+                described(&case["extract"]["inputs"]),
+                "extract inputs for {label}"
+            );
+            assert_eq!(
+                outputs,
+                described(&case["extract"]["outputs"]),
+                "extract outputs for {label}"
+            );
         }
     }
 }

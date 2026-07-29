@@ -9,11 +9,19 @@
 use crate::signature::{InField, OutField, Signature};
 
 fn input(name: &str, desc: &str) -> InField {
-    InField { name: name.into(), desc: desc.into(), ..Default::default() }
+    InField {
+        name: name.into(),
+        desc: desc.into(),
+        ..Default::default()
+    }
 }
 
 fn output(name: &str, desc: &str) -> OutField {
-    OutField { name: name.into(), desc: desc.into(), ..Default::default() }
+    OutField {
+        name: name.into(),
+        desc: desc.into(),
+        ..Default::default()
+    }
 }
 
 /// dspy `DescribeProgram`: describe what task the whole program solves and how.
@@ -65,21 +73,36 @@ pub(crate) struct InstructionInputs {
 pub(crate) fn generate_module_instruction(inputs: InstructionInputs) -> Signature {
     let mut fields = Vec::new();
     if inputs.dataset_summary {
-        fields.push(input("dataset_description", "A description of the dataset that we are using."));
+        fields.push(input(
+            "dataset_description",
+            "A description of the dataset that we are using.",
+        ));
     }
     if inputs.program_aware {
-        fields.push(input("program_code", "Language model program designed to solve a particular task."));
+        fields.push(input(
+            "program_code",
+            "Language model program designed to solve a particular task.",
+        ));
         fields.push(input("program_description", "Summary of the task the program is designed to solve, and how it goes about solving it."));
         fields.push(input("module", "The module to create an instruction for."));
-        fields.push(input("module_description", "Description of the module to create an instruction for."));
+        fields.push(input(
+            "module_description",
+            "Description of the module to create an instruction for.",
+        ));
     }
     fields.push(input("task_demos", "Example inputs/outputs of our module."));
     if inputs.instruct_history {
-        fields.push(input("previous_instructions", "Previous instructions we've attempted, along with their associated scores."));
+        fields.push(input(
+            "previous_instructions",
+            "Previous instructions we've attempted, along with their associated scores.",
+        ));
     }
     fields.push(input("basic_instruction", "Basic instruction."));
     if inputs.tip {
-        fields.push(input("tip", "A suggestion for how to go about generating the new instruction."));
+        fields.push(input(
+            "tip",
+            "A suggestion for how to go about generating the new instruction.",
+        ));
     }
     Signature {
         instructions: "Use the information below to learn about a task that we are trying to solve using calls to an LM, then generate a new instruction that will be used to prompt a Language Model to better solve the task.".into(),
@@ -115,20 +138,38 @@ mod tests {
             fixture["instructions"].as_str().expect("instructions"),
             "{name} instructions"
         );
-        let inputs: Vec<(&str, &str)> = signature.inputs.iter().map(|f| (f.name.as_str(), f.desc.as_str())).collect();
+        let inputs: Vec<(&str, &str)> = signature
+            .inputs
+            .iter()
+            .map(|f| (f.name.as_str(), f.desc.as_str()))
+            .collect();
         let expected_inputs: Vec<(&str, &str)> = fixture["inputs"]
             .as_array()
             .expect("inputs")
             .iter()
-            .map(|f| (f["name"].as_str().unwrap(), f["desc"].as_str().unwrap_or_default()))
+            .map(|f| {
+                (
+                    f["name"].as_str().unwrap(),
+                    f["desc"].as_str().unwrap_or_default(),
+                )
+            })
             .collect();
         assert_eq!(inputs, expected_inputs, "{name} inputs");
-        let outputs: Vec<(&str, &str)> = signature.outputs.iter().map(|f| (f.name.as_str(), f.desc.as_str())).collect();
+        let outputs: Vec<(&str, &str)> = signature
+            .outputs
+            .iter()
+            .map(|f| (f.name.as_str(), f.desc.as_str()))
+            .collect();
         let expected_outputs: Vec<(&str, &str)> = fixture["outputs"]
             .as_array()
             .expect("outputs")
             .iter()
-            .map(|f| (f["name"].as_str().unwrap(), f["desc"].as_str().unwrap_or_default()))
+            .map(|f| {
+                (
+                    f["name"].as_str().unwrap(),
+                    f["desc"].as_str().unwrap_or_default(),
+                )
+            })
             .collect();
         assert_eq!(outputs, expected_outputs, "{name} outputs");
     }

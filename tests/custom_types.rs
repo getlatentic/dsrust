@@ -17,20 +17,28 @@ fn signature_with(custom_field: &str, annotation: &str) -> Signature {
     Signature {
         instructions: "Answer.".into(),
         inputs: vec![
-            InField { name: "question".into(), ..Default::default() },
+            InField {
+                name: "question".into(),
+                ..Default::default()
+            },
             InField {
                 name: custom_field.into(),
                 kind: FieldKind::Json(JsonType::plain(annotation)),
                 ..Default::default()
             },
         ],
-        outputs: vec![OutField { name: "answer".into(), ..Default::default() }],
+        outputs: vec![OutField {
+            name: "answer".into(),
+            ..Default::default()
+        }],
     }
 }
 
 /// The user turn a `ChatAdapter` renders for these inputs.
 fn user_content(signature: &Signature, inputs: &[Input<'_>]) -> Content {
-    let (_system, turns) = ChatAdapter::default().format(signature, &[], inputs).expect("formats");
+    let (_system, turns) = ChatAdapter::default()
+        .format(signature, &[], inputs)
+        .expect("formats");
     turns.into_iter().next_back().expect("a user turn").content
 }
 
@@ -41,7 +49,10 @@ fn an_image_field_becomes_an_image_url_block() {
     let signature = signature_with("photo", "Image");
     let inputs = [
         Input::new("question", json!("describe")),
-        Input::new("photo", serde_json::to_value(Image::new("https://example.com/a.jpg")).unwrap()),
+        Input::new(
+            "photo",
+            serde_json::to_value(Image::new("https://example.com/a.jpg")).unwrap(),
+        ),
     ];
     let Content::Blocks(blocks) = user_content(&signature, &inputs) else {
         panic!("an image field renders a multimodal message");
@@ -57,7 +68,10 @@ fn an_audio_field_becomes_an_input_audio_block() {
     let signature = signature_with("clip", "Audio");
     let inputs = [
         Input::new("question", json!("transcribe")),
-        Input::new("clip", serde_json::to_value(Audio::new("QUJD", "wav")).unwrap()),
+        Input::new(
+            "clip",
+            serde_json::to_value(Audio::new("QUJD", "wav")).unwrap(),
+        ),
     ];
     let Content::Blocks(blocks) = user_content(&signature, &inputs) else {
         panic!("an audio field renders a multimodal message");
@@ -73,7 +87,10 @@ fn a_file_field_becomes_a_file_block() {
     let signature = signature_with("doc", "File");
     let inputs = [
         Input::new("question", json!("summarize")),
-        Input::new("doc", serde_json::to_value(File::from_id("file-1").with_filename("a.txt")).unwrap()),
+        Input::new(
+            "doc",
+            serde_json::to_value(File::from_id("file-1").with_filename("a.txt")).unwrap(),
+        ),
     ];
     let Content::Blocks(blocks) = user_content(&signature, &inputs) else {
         panic!("a file field renders a multimodal message");
@@ -132,16 +149,29 @@ fn a_derived_signature_maps_custom_type_input_fields() {
             &[
                 Input::new("question", json!("what is this")),
                 Input::new("code", serde_json::to_value(Code::new("x = 1")).unwrap()),
-                Input::new("photo", serde_json::to_value(Image::new("https://x/a.jpg")).unwrap()),
+                Input::new(
+                    "photo",
+                    serde_json::to_value(Image::new("https://x/a.jpg")).unwrap(),
+                ),
             ],
         )
         .expect("renders");
     let Content::Blocks(blocks) = &rendered.1.last().expect("a user turn").content else {
         panic!("a derived image input renders a multimodal message");
     };
-    assert!(blocks.iter().any(|block| block.get("type").and_then(|t| t.as_str()) == Some("image_url")));
-    let text: String = blocks.iter().filter_map(|b| b.get("text").and_then(|t| t.as_str())).collect();
-    assert!(text.contains("[[ ## code ## ]]\nx = 1"), "the code renders inline: {text}");
+    assert!(
+        blocks
+            .iter()
+            .any(|block| block.get("type").and_then(|t| t.as_str()) == Some("image_url"))
+    );
+    let text: String = blocks
+        .iter()
+        .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
+        .collect();
+    assert!(
+        text.contains("[[ ## code ## ]]\nx = 1"),
+        "the code renders inline: {text}"
+    );
 }
 
 /// A custom type as a derived *output* field: dspy's `code: dspy.Code = OutputField()`. This needs
@@ -174,7 +204,10 @@ fn a_derived_code_output_carries_its_description_and_drops_the_schema() {
         "got: {system}"
     );
     // `replaces_schema` drops the schema note for the code field, as it does for dspy's `Code`.
-    assert!(!system.contains("must adhere to the JSON schema"), "got: {system}");
+    assert!(
+        !system.contains("must adhere to the JSON schema"),
+        "got: {system}"
+    );
 }
 
 /// A caller's own `Type` — not one of the built-ins — reaching a derived output field's prompt
@@ -212,7 +245,11 @@ struct Judge {
 #[test]
 fn a_callers_own_type_description_flows_through_the_derive() {
     let (system, _turns) = ChatAdapter::default()
-        .format(&Judge::signature(), &[], &[Input::new("answer", json!("42"))])
+        .format(
+            &Judge::signature(),
+            &[],
+            &[Input::new("answer", json!("42"))],
+        )
         .expect("formats");
     assert!(
         system.contains("Type description of Rating: A whole-number star rating from 0 to 5."),
@@ -220,5 +257,8 @@ fn a_callers_own_type_description_flows_through_the_derive() {
     );
     // No `replaces_schema`, so this type keeps its schema note — the seam carries prose, it does
     // not silence the schema.
-    assert!(system.contains("must adhere to the JSON schema"), "got: {system}");
+    assert!(
+        system.contains("must adhere to the JSON schema"),
+        "got: {system}"
+    );
 }

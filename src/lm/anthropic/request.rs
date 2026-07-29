@@ -108,7 +108,9 @@ fn content(content: &Value) -> Vec<Value> {
 /// The system prompt as Anthropic's top-level `system` field, a block list, or `None` when the call
 /// carries no system message.
 fn system(messages: &[Value]) -> Option<Value> {
-    let message = messages.iter().find(|message| message["role"] == "system")?;
+    let message = messages
+        .iter()
+        .find(|message| message["role"] == "system")?;
     Some(Value::Array(content(&message["content"])))
 }
 
@@ -127,7 +129,9 @@ fn parsed_args(arguments: &Value) -> Value {
 fn block(block: &Value) -> Value {
     match block["type"].as_str() {
         Some("text") => json!({ "type": "text", "text": block["text"] }),
-        Some("image_url") => json!({ "type": "image", "source": image_source(&block["image_url"]) }),
+        Some("image_url") => {
+            json!({ "type": "image", "source": image_source(&block["image_url"]) })
+        }
         _ => block.clone(),
     }
 }
@@ -144,7 +148,9 @@ fn image_source(image_url: &Value) -> Value {
         .strip_prefix("data:")
         .and_then(|rest| rest.split_once(";base64,"))
     {
-        Some((media_type, data)) => json!({ "type": "base64", "media_type": media_type, "data": data }),
+        Some((media_type, data)) => {
+            json!({ "type": "base64", "media_type": media_type, "data": data })
+        }
         None => json!({ "type": "url", "url": url }),
     }
 }

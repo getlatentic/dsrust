@@ -163,7 +163,12 @@ mod tests {
     fn drawn(demos: &[Example]) -> Vec<String> {
         demos
             .iter()
-            .map(|demo| demo.get("answer").and_then(|value| value.as_str()).unwrap_or_default().to_owned())
+            .map(|demo| {
+                demo.get("answer")
+                    .and_then(|value| value.as_str())
+                    .unwrap_or_default()
+                    .to_owned()
+            })
             .collect()
     }
 
@@ -204,8 +209,16 @@ mod tests {
                 _ => {
                     let mut student = Pair::new();
                     labeled.compile(&mut student, &trainset());
-                    assert_eq!(drawn(&student.first_demos), expected(case, 0), "first, case {case}");
-                    assert_eq!(drawn(&student.second_demos), expected(case, 1), "second, case {case}");
+                    assert_eq!(
+                        drawn(&student.first_demos),
+                        expected(case, 0),
+                        "first, case {case}"
+                    );
+                    assert_eq!(
+                        drawn(&student.second_demos),
+                        expected(case, 1),
+                        "second, case {case}"
+                    );
                 }
             }
         }

@@ -10,9 +10,9 @@ use std::sync::{Arc, Mutex};
 
 use dsrust::adapter::{ChatAdapter, Input, ToolCalls};
 use dsrust::example::Example;
-use dsrust::module::Module;
 use dsrust::lm::api::{self, LmToolSpec};
 use dsrust::lm::{Capabilities, ChatModel, DynChatModel};
+use dsrust::module::Module;
 use dsrust::predict::Predict;
 use dsrust::signature::{FieldKind, InField, JsonType, OutField, Signature};
 use serde_json::{Value, json};
@@ -26,13 +26,21 @@ struct Recorder {
 impl Recorder {
     fn able(function_calling: bool) -> Arc<Self> {
         Arc::new(Self {
-            capabilities: Capabilities { function_calling, ..Default::default() },
+            capabilities: Capabilities {
+                function_calling,
+                ..Default::default()
+            },
             seen: Mutex::new(Vec::new()),
         })
     }
 
     fn request(&self) -> api::LmRequest {
-        self.seen.lock().expect("not poisoned").first().cloned().expect("a request went out")
+        self.seen
+            .lock()
+            .expect("not poisoned")
+            .first()
+            .cloned()
+            .expect("a request went out")
     }
 }
 
@@ -42,8 +50,13 @@ impl ChatModel for Recorder {
         _http: &reqwest::Client,
         request: &api::LmRequest,
     ) -> anyhow::Result<api::LmResponse> {
-        self.seen.lock().expect("not poisoned").push(request.clone());
-        Ok(api::LmResponse::text("[[ ## tool_calls ## ]]\n{\"tool_calls\": []}"))
+        self.seen
+            .lock()
+            .expect("not poisoned")
+            .push(request.clone());
+        Ok(api::LmResponse::text(
+            "[[ ## tool_calls ## ]]\n{\"tool_calls\": []}",
+        ))
     }
 
     fn capabilities<'a>(
@@ -58,7 +71,10 @@ fn tool_signature() -> Signature {
     Signature {
         instructions: "Answer the question.".into(),
         inputs: vec![
-            InField { name: "question".into(), ..Default::default() },
+            InField {
+                name: "question".into(),
+                ..Default::default()
+            },
             InField {
                 name: "tools".into(),
                 kind: FieldKind::Json(JsonType {
@@ -100,7 +116,10 @@ async fn ask(adapter: ChatAdapter, model: Arc<Recorder>) -> api::LmRequest {
 
 /// The inputs every call in this file is made with.
 fn asked_example() -> Example {
-    Example::new([("question", json!("what is dspy")), ("tools", search_tool())])
+    Example::new([
+        ("question", json!("what is dspy")),
+        ("tools", search_tool()),
+    ])
 }
 
 fn prompt_of(request: &api::LmRequest) -> String {
@@ -114,7 +133,10 @@ async fn the_tools_ride_on_the_request_and_leave_the_prompt() {
 
     assert_eq!(request.tools.len(), 1, "the request carries the tool list");
     assert_eq!(request.tools[0].name, "search");
-    assert_eq!(request.tools[0].description.as_deref(), Some("look something up"));
+    assert_eq!(
+        request.tools[0].description.as_deref(),
+        Some("look something up")
+    );
     assert_eq!(
         Value::Object(request.tools[0].parameters.clone()),
         json!({
@@ -125,8 +147,14 @@ async fn the_tools_ride_on_the_request_and_leave_the_prompt() {
     );
     // Both fields left the signature, so neither is announced or filled in the conversation.
     let prompt = prompt_of(&request);
-    assert!(!prompt.contains("tool_calls"), "the output field is still rendered: {prompt}");
-    assert!(!prompt.contains("look something up"), "the tools are still in the prompt: {prompt}");
+    assert!(
+        !prompt.contains("tool_calls"),
+        "the output field is still rendered: {prompt}"
+    );
+    assert!(
+        !prompt.contains("look something up"),
+        "the tools are still in the prompt: {prompt}"
+    );
 }
 
 #[tokio::test]
@@ -134,10 +162,19 @@ async fn a_model_that_cannot_call_tools_gets_them_in_the_prompt() {
     let adapter = ChatAdapter::default().with_native_function_calling(true);
     let request = ask(adapter, Recorder::able(false)).await;
 
-    assert!(request.tools.is_empty(), "tools went to a model that cannot take them");
+    assert!(
+        request.tools.is_empty(),
+        "tools went to a model that cannot take them"
+    );
     let prompt = prompt_of(&request);
-    assert!(prompt.contains("tool_calls"), "the output field should still be asked for");
-    assert!(prompt.contains("look something up"), "the tools should still be rendered");
+    assert!(
+        prompt.contains("tool_calls"),
+        "the output field should still be asked for"
+    );
+    assert!(
+        prompt.contains("look something up"),
+        "the tools should still be rendered"
+    );
 }
 
 #[tokio::test]
@@ -158,12 +195,20 @@ async fn parallel_tool_calls_reaches_the_request_only_when_stated() {
         .with_native_function_calling(true)
         .with_parallel_tool_calls(Some(false));
     let request = ask(asked, Recorder::able(true)).await;
-    assert_eq!(request.config.tool_choice.expect("a tool choice").parallel, Some(false));
+    assert_eq!(
+        request.config.tool_choice.expect("a tool choice").parallel,
+        Some(false)
+    );
 
     // Unset is not the same as `Some(false)`: upstream leaves the provider option alone.
     let silent = ChatAdapter::default().with_native_function_calling(true);
     let request = ask(silent, Recorder::able(true)).await;
-    assert!(request.config.tool_choice.is_none_or(|choice| choice.parallel.is_none()));
+    assert!(
+        request
+            .config
+            .tool_choice
+            .is_none_or(|choice| choice.parallel.is_none())
+    );
 }
 
 /// A signature asking for calls it offers no tools for is refused before any request goes out —
@@ -180,10 +225,15 @@ async fn asking_for_calls_without_offering_tools_never_reaches_the_model() {
     let without_tools = Example::new([("question", json!("what is dspy"))]);
     let refused = predict.forward(without_tools).await.expect_err("refused");
     assert!(
-        refused.to_string().contains("did not provide any tools as the input"),
+        refused
+            .to_string()
+            .contains("did not provide any tools as the input"),
         "{refused}"
     );
-    assert!(model.seen.lock().expect("not poisoned").is_empty(), "a request went out anyway");
+    assert!(
+        model.seen.lock().expect("not poisoned").is_empty(),
+        "a request went out anyway"
+    );
 }
 
 /// A model that answers with a native tool call of its own — content and calls beside each other,
@@ -203,7 +253,10 @@ impl ChatModel for NativeReplier {
         &'a self,
         _http: &'a reqwest::Client,
     ) -> impl std::future::Future<Output = Capabilities> + Send + 'a {
-        std::future::ready(Capabilities { function_calling: true, ..Default::default() })
+        std::future::ready(Capabilities {
+            function_calling: true,
+            ..Default::default()
+        })
     }
 }
 
@@ -223,7 +276,11 @@ fn call_part(id: &str, name: &str, args: Value) -> api::LmPart {
 async fn a_native_reply_fills_the_output_field_with_the_providers_ids() {
     let reply = api::LmResponse {
         outputs: vec![api::LmOutput {
-            parts: vec![call_part("call_provider_1", "search", json!({ "query": "cats" }))],
+            parts: vec![call_part(
+                "call_provider_1",
+                "search",
+                json!({ "query": "cats" }),
+            )],
             finish_reason: Some("tool_calls".into()),
             ..Default::default()
         }],
@@ -233,16 +290,25 @@ async fn a_native_reply_fills_the_output_field_with_the_providers_ids() {
         .with_adapter(ChatAdapter::default().with_native_function_calling(true))
         .with_lm(Arc::new(NativeReplier(reply)) as Arc<dyn DynChatModel>);
 
-    let prediction = predict.forward(asked_example()).await.expect("a native reply parses");
+    let prediction = predict
+        .forward(asked_example())
+        .await
+        .expect("a native reply parses");
     let calls: ToolCalls = serde_json::from_value(
-        prediction.get("tool_calls").cloned().expect("the output field was filled"),
+        prediction
+            .get("tool_calls")
+            .cloned()
+            .expect("the output field was filled"),
     )
     .expect("a ToolCalls value");
 
     assert_eq!(calls.tool_calls.len(), 1);
     assert_eq!(calls.tool_calls[0].id.as_deref(), Some("call_provider_1"));
     assert_eq!(calls.tool_calls[0].name, "search");
-    assert_eq!(calls.tool_calls[0].args, *json!({ "query": "cats" }).as_object().unwrap());
+    assert_eq!(
+        calls.tool_calls[0].args,
+        *json!({ "query": "cats" }).as_object().unwrap()
+    );
 }
 
 /// Parallel native calls come back on the one reply, and both keep their ids and order.
@@ -263,10 +329,18 @@ async fn parallel_native_calls_all_reach_the_output_field() {
         .with_adapter(ChatAdapter::default().with_native_function_calling(true))
         .with_lm(Arc::new(NativeReplier(reply)) as Arc<dyn DynChatModel>);
 
-    let prediction = predict.forward(asked_example()).await.expect("a native reply parses");
+    let prediction = predict
+        .forward(asked_example())
+        .await
+        .expect("a native reply parses");
     let calls: ToolCalls =
-        serde_json::from_value(prediction.get("tool_calls").cloned().expect("filled")).expect("a ToolCalls");
-    let ids: Vec<&str> = calls.tool_calls.iter().filter_map(|c| c.id.as_deref()).collect();
+        serde_json::from_value(prediction.get("tool_calls").cloned().expect("filled"))
+            .expect("a ToolCalls");
+    let ids: Vec<&str> = calls
+        .tool_calls
+        .iter()
+        .filter_map(|c| c.id.as_deref())
+        .collect();
     assert_eq!(ids, ["call_provider_1", "call_provider_2"]);
 }
 
@@ -275,11 +349,17 @@ async fn parallel_native_calls_all_reach_the_output_field() {
 #[test]
 fn a_tool_with_no_arguments_still_states_an_object() {
     let signature = tool_signature();
-    let inputs = [Input::new("tools", json!([{ "name": "finish", "desc": "stop" }]))];
+    let inputs = [Input::new(
+        "tools",
+        json!([{ "name": "finish", "desc": "stop" }]),
+    )];
     let planned = dsrust::adapter::native_tools::plan(
         &signature,
         &inputs,
-        Capabilities { function_calling: true, ..Default::default() },
+        Capabilities {
+            function_calling: true,
+            ..Default::default()
+        },
     )
     .expect("plans")
     .expect("native");

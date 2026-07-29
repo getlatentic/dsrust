@@ -77,7 +77,10 @@ struct Canned {
 
 impl Canned {
     fn new(answer: Executed) -> Arc<Self> {
-        Arc::new(Self { answer, ran: Mutex::new(Vec::new()) })
+        Arc::new(Self {
+            answer,
+            ran: Mutex::new(Vec::new()),
+        })
     }
 
     fn wrote(&self) -> Vec<String> {
@@ -98,11 +101,13 @@ impl CodeInterpreter for Canned {
 
 /// Whatever a field came back as, for a human reading `--nocapture`.
 fn field(prediction: &dsrust::Prediction, name: &str) -> String {
-    prediction.get(name).map(|value| match value {
-        Value::String(text) => text.clone(),
-        other => other.to_string(),
-    })
-    .unwrap_or_default()
+    prediction
+        .get(name)
+        .map(|value| match value {
+            Value::String(text) => text.clone(),
+            other => other.to_string(),
+        })
+        .unwrap_or_default()
 }
 
 /// ProgramOfThought: the model writes code, is shown what it produced, and states the answer.
@@ -122,15 +127,24 @@ async fn program_of_thought_runs_against_a_real_model() {
         .expect("the loop completes against a real model");
 
     let wrote = interpreter.wrote();
-    println!("[{model}] ProgramOfThought wrote {} snippet(s)", wrote.len());
+    println!(
+        "[{model}] ProgramOfThought wrote {} snippet(s)",
+        wrote.len()
+    );
     for code in &wrote {
         println!("--- code ---\n{code}");
     }
     println!("--- answer ---\n{}", field(&prediction, "answer"));
 
     // The model's code parsed well enough to reach the interpreter, and the final ask answered.
-    assert!(!wrote.is_empty(), "the model's code never reached the interpreter");
-    assert!(!field(&prediction, "answer").is_empty(), "no answer came back");
+    assert!(
+        !wrote.is_empty(),
+        "the model's code never reached the interpreter"
+    );
+    assert!(
+        !field(&prediction, "answer").is_empty(),
+        "no answer came back"
+    );
 }
 
 /// CodeAct: the model writes a snippet per turn and marks itself finished.
@@ -159,8 +173,14 @@ async fn code_act_runs_against_a_real_model() {
     println!("--- answer ---\n{}", field(&prediction, "answer"));
     println!("--- trajectory ---\n{}", field(&prediction, "trajectory"));
 
-    assert!(!wrote.is_empty(), "the model's code never reached the interpreter");
-    assert!(!field(&prediction, "answer").is_empty(), "no answer came back");
+    assert!(
+        !wrote.is_empty(),
+        "the model's code never reached the interpreter"
+    );
+    assert!(
+        !field(&prediction, "answer").is_empty(),
+        "no answer came back"
+    );
 }
 
 /// RLM: the model drives a REPL over a long input, then submits or is extracted from.
@@ -171,7 +191,9 @@ async fn code_act_runs_against_a_real_model() {
 #[ignore = "needs a live model; set LIVE_LM or run a local ollama"]
 async fn rlm_drives_a_repl_against_a_real_model() {
     let model = configure_live();
-    let interpreter = Canned::new(Executed::Printed(json!("the document mentions Paris 3 times")));
+    let interpreter = Canned::new(Executed::Printed(json!(
+        "the document mentions Paris 3 times"
+    )));
     let rlm = Rlm::new(
         "context -> answer".parse::<Signature>().expect("parses"),
         interpreter.clone(),
@@ -189,9 +211,18 @@ async fn rlm_drives_a_repl_against_a_real_model() {
     for code in &wrote {
         println!("--- code ---\n{code}");
     }
-    println!("--- final_reasoning ---\n{}", field(&prediction, "final_reasoning"));
+    println!(
+        "--- final_reasoning ---\n{}",
+        field(&prediction, "final_reasoning")
+    );
     println!("--- answer ---\n{}", field(&prediction, "answer"));
 
-    assert!(!wrote.is_empty(), "the model's code never reached the interpreter");
-    assert!(!field(&prediction, "answer").is_empty(), "no answer came back");
+    assert!(
+        !wrote.is_empty(),
+        "the model's code never reached the interpreter"
+    );
+    assert!(
+        !field(&prediction, "answer").is_empty(),
+        "no answer came back"
+    );
 }

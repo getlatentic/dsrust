@@ -53,7 +53,10 @@ impl<A: Fn(&str) -> Result<String> + Send + Sync> Tool for LlmQuery<A> {
     }
 
     fn call(&self, args: &Value) -> Result<String> {
-        let prompt = args.get("prompt").and_then(Value::as_str).unwrap_or_default();
+        let prompt = args
+            .get("prompt")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         if prompt.is_empty() {
             bail!("prompt cannot be empty");
         }
@@ -127,7 +130,10 @@ pub fn llm_query_tools<A>(max_llm_calls: usize, ask: A) -> Vec<Arc<dyn Tool>>
 where
     A: Fn(&str) -> Result<String> + Send + Sync + 'static,
 {
-    let budget = Arc::new(CallBudget { spent: Mutex::new(0), max: max_llm_calls });
+    let budget = Arc::new(CallBudget {
+        spent: Mutex::new(0),
+        max: max_llm_calls,
+    });
     let ask = Arc::new(ask);
     vec![
         Arc::new(LlmQuery {
@@ -159,8 +165,14 @@ mod tests {
         let tools = tools(2);
         let query = &tools[0];
         assert_eq!(query.name(), "llm_query");
-        assert_eq!(query.call(&json!({ "prompt": "hi" })).expect("answers"), "answered: hi");
-        assert!(query.call(&json!({ "prompt": "" })).is_err(), "an empty prompt is refused");
+        assert_eq!(
+            query.call(&json!({ "prompt": "hi" })).expect("answers"),
+            "answered: hi"
+        );
+        assert!(
+            query.call(&json!({ "prompt": "" })).is_err(),
+            "an empty prompt is refused"
+        );
     }
 
     /// The two tools share one budget, and overrunning it says what to do instead.
@@ -170,12 +182,29 @@ mod tests {
         let (query, batched) = (&tools[0], &tools[1]);
         query.call(&json!({ "prompt": "one" })).expect("answers");
         // One spent, so a batch of two would overrun and is refused whole.
-        let error = batched.call_value(&json!({ "prompts": ["a", "b"] })).expect_err("refuses");
-        assert!(error.to_string().starts_with("LLM call limit exceeded: 1 + 2 > 2."), "got: {error}");
-        assert!(error.to_string().contains("Use Python code for aggregation"), "got: {error}");
+        let error = batched
+            .call_value(&json!({ "prompts": ["a", "b"] }))
+            .expect_err("refuses");
+        assert!(
+            error
+                .to_string()
+                .starts_with("LLM call limit exceeded: 1 + 2 > 2."),
+            "got: {error}"
+        );
+        assert!(
+            error
+                .to_string()
+                .contains("Use Python code for aggregation"),
+            "got: {error}"
+        );
         // The refused batch was not charged, so one call remains.
-        query.call(&json!({ "prompt": "two" })).expect("the last call");
-        assert!(query.call(&json!({ "prompt": "three" })).is_err(), "the budget is spent");
+        query
+            .call(&json!({ "prompt": "two" }))
+            .expect("the last call");
+        assert!(
+            query.call(&json!({ "prompt": "three" })).is_err(),
+            "the budget is spent"
+        );
     }
 
     /// A batch answers in the order it was given, and one failed prompt does not lose the rest.
@@ -183,15 +212,25 @@ mod tests {
     fn a_batch_keeps_its_order_and_reports_a_failure_in_place() {
         let tools = tools(10);
         let batched = &tools[1];
-        let answers = batched.call_value(&json!({ "prompts": ["a", "boom", "c"] })).expect("answers");
+        let answers = batched
+            .call_value(&json!({ "prompts": ["a", "boom", "c"] }))
+            .expect("answers");
         assert_eq!(answers[0], json!("answered: a"));
         assert_eq!(answers[2], json!("answered: c"));
         assert!(
-            answers[1].as_str().expect("an error").starts_with("[ERROR] "),
+            answers[1]
+                .as_str()
+                .expect("an error")
+                .starts_with("[ERROR] "),
             "got: {}",
             answers[1]
         );
         // An empty batch costs nothing and answers with nothing.
-        assert_eq!(batched.call_value(&json!({ "prompts": [] })).expect("answers"), json!([]));
+        assert_eq!(
+            batched
+                .call_value(&json!({ "prompts": [] }))
+                .expect("answers"),
+            json!([])
+        );
     }
 }

@@ -86,7 +86,10 @@ impl Evaluations {
             let candidate = ranked[rank];
             lines.push(format!("Instruction #{number}: {}", candidate.instruction));
             lines.push(format!("Prefix #{number}: {}", candidate.prefix));
-            lines.push(format!("Resulting Score #{number}: {}", score_text(candidate.score)));
+            lines.push(format!(
+                "Resulting Score #{number}: {}",
+                score_text(candidate.score)
+            ));
         }
         lines
     }

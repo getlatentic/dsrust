@@ -24,8 +24,11 @@ use crate::lm::ChatModel;
 use crate::lm::api::{self, LmResponse};
 use crate::predict::Predict;
 
-const TABLE: [(&str, &str); 3] =
-    [("capital of France?", "Paris"), ("capital of Germany?", "Berlin"), ("capital of Spain?", "Madrid")];
+const TABLE: [(&str, &str); 3] = [
+    ("capital of France?", "Paris"),
+    ("capital of Germany?", "Berlin"),
+    ("capital of Spain?", "Madrid"),
+];
 
 const PROPOSAL: &str = "Answer with GOOD precision.";
 
@@ -34,15 +37,25 @@ const PROPOSAL: &str = "Answer with GOOD precision.";
 struct TaskCoach;
 
 impl ChatModel for TaskCoach {
-    async fn forward(&self, _http: &reqwest::Client, request: &api::LmRequest) -> Result<LmResponse> {
+    async fn forward(
+        &self,
+        _http: &reqwest::Client,
+        request: &api::LmRequest,
+    ) -> Result<LmResponse> {
         let has_good = request.system().contains("GOOD");
-        let last = request.messages.last().and_then(|message| message.text()).unwrap_or_default();
+        let last = request
+            .messages
+            .last()
+            .and_then(|message| message.text())
+            .unwrap_or_default();
         let answer = TABLE
             .iter()
             .find(|(question, _)| last.contains(question))
             .map(|(_, correct)| if has_good { *correct } else { "wrong" })
             .unwrap_or("wrong");
-        Ok(LmResponse::text(format!("[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]")))
+        Ok(LmResponse::text(format!(
+            "[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]"
+        )))
     }
 }
 
@@ -51,7 +64,11 @@ impl ChatModel for TaskCoach {
 struct Reflector;
 
 impl ChatModel for Reflector {
-    async fn forward(&self, _http: &reqwest::Client, _request: &api::LmRequest) -> Result<LmResponse> {
+    async fn forward(
+        &self,
+        _http: &reqwest::Client,
+        _request: &api::LmRequest,
+    ) -> Result<LmResponse> {
         Ok(LmResponse::text(format!("```\n{PROPOSAL}\n```")))
     }
 }
@@ -67,7 +84,10 @@ fn metric(gold: &Example, pred: &Prediction) -> Feedback {
 }
 
 fn trainset() -> Vec<Example> {
-    TABLE.iter().map(|(q, a)| example! { question: *q, answer: *a }.with_inputs(["question"])).collect()
+    TABLE
+        .iter()
+        .map(|(q, a)| example! { question: *q, answer: *a }.with_inputs(["question"]))
+        .collect()
 }
 
 /// GEPA reflects the seed into the `GOOD` instruction, which scores 100% against the seed's 0%, so the
@@ -75,7 +95,9 @@ fn trainset() -> Vec<Example> {
 #[tokio::test]
 async fn gepa_evolves_the_instruction_that_scores() {
     let task = Arc::new(TaskCoach);
-    let mut student = Predict::parse("question -> answer").expect("parses").with_lm(task);
+    let mut student = Predict::parse("question -> answer")
+        .expect("parses")
+        .with_lm(task);
     student.signature.instructions = "Answer the question.".to_owned();
 
     GEPA::new(metric, Arc::new(Reflector))
@@ -92,7 +114,10 @@ async fn gepa_evolves_the_instruction_that_scores() {
 /// regex; the marker is always `GOOD-` followed by digits.
 fn marker(text: &str) -> Option<u64> {
     let start = text.find("GOOD-")? + "GOOD-".len();
-    let digits: String = text[start..].chars().take_while(char::is_ascii_digit).collect();
+    let digits: String = text[start..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
     digits.parse().ok()
 }
 
@@ -103,9 +128,17 @@ struct ProfileCoach {
 }
 
 impl ChatModel for ProfileCoach {
-    async fn forward(&self, _http: &reqwest::Client, request: &api::LmRequest) -> Result<LmResponse> {
+    async fn forward(
+        &self,
+        _http: &reqwest::Client,
+        request: &api::LmRequest,
+    ) -> Result<LmResponse> {
         let system = request.system();
-        let last = request.messages.last().and_then(|message| message.text()).unwrap_or_default();
+        let last = request
+            .messages
+            .last()
+            .and_then(|message| message.text())
+            .unwrap_or_default();
         let solved = marker(system)
             .and_then(|k| self.profiles.get(&k))
             .map(Vec::as_slice)
@@ -116,7 +149,9 @@ impl ChatModel for ProfileCoach {
             .filter(|(question, _)| solved.iter().any(|q| q == question))
             .map(|(_, correct)| *correct)
             .unwrap_or("wrong");
-        Ok(LmResponse::text(format!("[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]")))
+        Ok(LmResponse::text(format!(
+            "[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]"
+        )))
     }
 }
 
@@ -128,10 +163,17 @@ struct CountingReflector {
 }
 
 impl ChatModel for CountingReflector {
-    async fn forward(&self, _http: &reqwest::Client, _request: &api::LmRequest) -> Result<LmResponse> {
+    async fn forward(
+        &self,
+        _http: &reqwest::Client,
+        _request: &api::LmRequest,
+    ) -> Result<LmResponse> {
         let call = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
         let proposal = format!("Answer with GOOD-{call} precision.");
-        self.proposals.lock().expect("proposals lock").push(proposal.clone());
+        self.proposals
+            .lock()
+            .expect("proposals lock")
+            .push(proposal.clone());
         Ok(LmResponse::text(format!("```\n{proposal}\n```")))
     }
 }
@@ -154,15 +196,20 @@ fn profiles(fixture: &Value) -> HashMap<u64, Vec<String>> {
 }
 
 fn usizes(value: &Value) -> Vec<usize> {
-    value.as_array().expect("an array").iter().map(|v| v.as_u64().expect("an index") as usize).collect()
+    value
+        .as_array()
+        .expect("an array")
+        .iter()
+        .map(|v| v.as_u64().expect("an index") as usize)
+        .collect()
 }
 
 /// The evolution dspy's GEPA runs, replayed decision for decision: candidates in discovery order,
 /// their parents and validation scores, the eval bookkeeping, and the compiled winner.
 #[tokio::test]
 async fn gepa_makes_the_decisions_dspy_makes() {
-    let path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/optimize/gepa.json");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/conformance/optimize/gepa.json");
     let text = std::fs::read_to_string(&path).expect("the gepa golden is committed");
     let fixture: Value = serde_json::from_str(&text).expect("the golden parses");
     let profiles = profiles(&fixture);
@@ -173,9 +220,16 @@ async fn gepa_makes_the_decisions_dspy_makes() {
         .as_array()
         .expect("cases")
         .iter()
-        .map(|case| case["compiled_instruction"].as_str().expect("compiled_instruction"))
+        .map(|case| {
+            case["compiled_instruction"]
+                .as_str()
+                .expect("compiled_instruction")
+        })
         .collect();
-    assert!(distinct.len() > 1, "the golden is not discriminating: {distinct:?}");
+    assert!(
+        distinct.len() > 1,
+        "the golden is not discriminating: {distinct:?}"
+    );
 
     for case in fixture["cases"].as_array().expect("cases") {
         let seed = case["seed"].as_u64().expect("seed");
@@ -184,8 +238,13 @@ async fn gepa_makes_the_decisions_dspy_makes() {
 
         let mut student = Predict::parse("question -> answer")
             .expect("parses")
-            .with_lm(Arc::new(ProfileCoach { profiles: profiles.clone() }));
-        student.signature.instructions = case["seed_instruction"].as_str().expect("seed_instruction").to_owned();
+            .with_lm(Arc::new(ProfileCoach {
+                profiles: profiles.clone(),
+            }));
+        student.signature.instructions = case["seed_instruction"]
+            .as_str()
+            .expect("seed_instruction")
+            .to_owned();
 
         let reflector = Arc::new(CountingReflector {
             calls: AtomicUsize::new(0),
@@ -230,8 +289,12 @@ async fn gepa_makes_the_decisions_dspy_makes() {
             .collect();
         assert_eq!(candidates, recorded, "seed {seed}: candidates");
 
-        let parents: Vec<Vec<usize>> =
-            case["parents"].as_array().expect("parents").iter().map(usizes).collect();
+        let parents: Vec<Vec<usize>> = case["parents"]
+            .as_array()
+            .expect("parents")
+            .iter()
+            .map(usizes)
+            .collect();
         assert_eq!(outcome.parents, parents, "seed {seed}: parents");
 
         let scores: Vec<f64> = case["val_aggregate_scores"]
@@ -240,7 +303,10 @@ async fn gepa_makes_the_decisions_dspy_makes() {
             .iter()
             .map(|score| score.as_f64().expect("a score"))
             .collect();
-        assert_eq!(outcome.val_aggregate_scores, scores, "seed {seed}: val scores");
+        assert_eq!(
+            outcome.val_aggregate_scores, scores,
+            "seed {seed}: val scores"
+        );
 
         assert_eq!(
             outcome.best_idx,
@@ -254,18 +320,24 @@ async fn gepa_makes_the_decisions_dspy_makes() {
         );
         assert_eq!(
             outcome.num_full_ds_evals,
-            case["num_full_val_evals"].as_u64().expect("num_full_val_evals") as usize,
+            case["num_full_val_evals"]
+                .as_u64()
+                .expect("num_full_val_evals") as usize,
             "seed {seed}: full valset evals"
         );
         assert_eq!(
             outcome.total_num_evals,
-            case["total_metric_calls"].as_u64().expect("total_metric_calls") as usize,
+            case["total_metric_calls"]
+                .as_u64()
+                .expect("total_metric_calls") as usize,
             "seed {seed}: metric-call total"
         );
 
         assert_eq!(
             student.signature.instructions,
-            case["compiled_instruction"].as_str().expect("compiled_instruction"),
+            case["compiled_instruction"]
+                .as_str()
+                .expect("compiled_instruction"),
             "seed {seed}: compiled instruction"
         );
     }

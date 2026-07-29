@@ -213,7 +213,13 @@ mod tests {
                 .as_array()
                 .expect("a list")
                 .iter()
-                .map(|value| value.as_str().expect("a string").parse().expect("an integer"))
+                .map(|value| {
+                    value
+                        .as_str()
+                        .expect("a string")
+                        .parse()
+                        .expect("an integer")
+                })
                 .collect();
             let actual: Vec<u64> = expected.iter().map(|_| rng.0.getrandbits(bits)).collect();
             assert_eq!(actual, expected, "getrandbits({bits}) from seed {seed}");
@@ -239,7 +245,11 @@ mod tests {
             let size = number(&case, "population");
             let mut items: Vec<usize> = (0..size).collect();
             Random::seeded(seed).shuffle(&mut items);
-            assert_eq!(items, integers(&case, "result"), "shuffle({size}) from seed {seed}");
+            assert_eq!(
+                items,
+                integers(&case, "result"),
+                "shuffle({size}) from seed {seed}"
+            );
         }
     }
 
@@ -293,11 +303,23 @@ mod tests {
             .as_array()
             .expect("a list")
             .iter()
-            .map(|value| value.as_str().expect("a string").parse().expect("an integer"))
+            .map(|value| {
+                value
+                    .as_str()
+                    .expect("a string")
+                    .parse()
+                    .expect("an integer")
+            })
             .collect();
         let mut rng = Random::seeded(seed);
-        let drawn: Vec<u64> = expected.iter().map(|_| rng.0.random_double().to_bits()).collect();
-        assert_eq!(drawn, expected, "random() after Random({seed}), against CPython's own test");
+        let drawn: Vec<u64> = expected
+            .iter()
+            .map(|_| rng.0.random_double().to_bits())
+            .collect();
+        assert_eq!(
+            drawn, expected,
+            "random() after Random({seed}), against CPython's own test"
+        );
     }
 
     /// The canonical `mt19937ar.c` sequence: `init_by_array` over the key that implementation
@@ -316,11 +338,21 @@ mod tests {
             .as_array()
             .expect("a list")
             .iter()
-            .map(|value| value.as_str().expect("a string").parse().expect("an integer"))
+            .map(|value| {
+                value
+                    .as_str()
+                    .expect("a string")
+                    .parse()
+                    .expect("an integer")
+            })
             .collect();
         let mut generator = Mt19937::from_key(&key);
         let drawn: Vec<u64> = expected.iter().map(|_| generator.getrandbits(32)).collect();
-        assert_eq!(drawn.len(), 1000, "the reference publishes a thousand draws");
+        assert_eq!(
+            drawn.len(),
+            1000,
+            "the reference publishes a thousand draws"
+        );
         assert_eq!(drawn, expected, "mt19937ar.c reference sequence");
     }
 
@@ -331,7 +363,10 @@ mod tests {
             .map(|case| number(case, "population") <= setsize(number(case, "k")))
             .collect();
         assert!(branches.contains(&true), "no fixture takes the pool branch");
-        assert!(branches.contains(&false), "no fixture takes the drawn-index branch");
+        assert!(
+            branches.contains(&false),
+            "no fixture takes the drawn-index branch"
+        );
     }
 
     #[test]

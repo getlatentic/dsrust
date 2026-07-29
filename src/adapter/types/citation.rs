@@ -66,10 +66,18 @@ impl Citation {
         citation.insert("start_char_index".to_owned(), json!(self.start_char_index));
         citation.insert("end_char_index".to_owned(), json!(self.end_char_index));
         // dspy tests each for Python truth, so an empty string is dropped as well as a missing one.
-        if let Some(title) = self.document_title.as_deref().filter(|title| !title.is_empty()) {
+        if let Some(title) = self
+            .document_title
+            .as_deref()
+            .filter(|title| !title.is_empty())
+        {
             citation.insert("document_title".to_owned(), json!(title));
         }
-        if let Some(supported) = self.supported_text.as_deref().filter(|text| !text.is_empty()) {
+        if let Some(supported) = self
+            .supported_text
+            .as_deref()
+            .filter(|text| !text.is_empty())
+        {
             citation.insert("supported_text".to_owned(), json!(supported));
         }
         Value::Object(citation)
@@ -87,7 +95,9 @@ pub struct Citations {
 
 impl Citations {
     pub fn new(citations: impl IntoIterator<Item = Citation>) -> Self {
-        Self { citations: citations.into_iter().collect() }
+        Self {
+            citations: citations.into_iter().collect(),
+        }
     }
 
     pub fn len(&self) -> usize {
@@ -185,7 +195,8 @@ impl<'de> Deserialize<'de> for Citations {
 }
 
 fn has_cited_text(item: &Value) -> bool {
-    item.as_object().is_some_and(|fields| fields.contains_key("cited_text"))
+    item.as_object()
+        .is_some_and(|fields| fields.contains_key("cited_text"))
 }
 
 #[cfg(test)]
@@ -205,7 +216,9 @@ mod tests {
             serde_json::to_string(&quoted().format()).expect("serializes"),
             r#"{"type":"char_location","cited_text":"The sky is blue","document_index":0,"start_char_index":0,"end_char_index":15}"#
         );
-        let full = quoted().with_document_title("Weather").with_supported_text("It was blue.");
+        let full = quoted()
+            .with_document_title("Weather")
+            .with_supported_text("It was blue.");
         assert_eq!(
             serde_json::to_string(&full.format()).expect("serializes"),
             r#"{"type":"char_location","cited_text":"The sky is blue","document_index":0,"start_char_index":0,"end_char_index":15,"document_title":"Weather","supported_text":"It was blue."}"#
@@ -215,7 +228,10 @@ mod tests {
     #[test]
     fn it_renders_as_sentinel_wrapped_citation_blocks() {
         let citations = Citations::new([quoted()]);
-        assert_eq!(citations.format(), Formatted::Blocks(vec![quoted().format()]));
+        assert_eq!(
+            citations.format(),
+            Formatted::Blocks(vec![quoted().format()])
+        );
         let rendered = serde_json::to_value(&citations).expect("serializes");
         let rendered = rendered.as_str().expect("a string");
         assert!(rendered.starts_with(CUSTOM_TYPE_START) && rendered.ends_with(CUSTOM_TYPE_END));
@@ -274,6 +290,10 @@ mod tests {
         let description = Citations::description().expect("a description");
         assert_eq!(description.name, "Citations");
         assert!(!description.replaces_schema);
-        assert!(description.text.starts_with("Citations with quoted text and source references."));
+        assert!(
+            description
+                .text
+                .starts_with("Citations with quoted text and source references.")
+        );
     }
 }

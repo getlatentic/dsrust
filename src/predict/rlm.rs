@@ -183,7 +183,9 @@ impl Rlm {
             .iter()
             .filter(|field| !self.sandboxed.contains_key(&field.name))
             .filter_map(|field| {
-                inputs.get(&field.name).map(|value| (field.name.clone(), value.clone()))
+                inputs
+                    .get(&field.name)
+                    .map(|value| (field.name.clone(), value.clone()))
             })
             .collect();
         let mut history = ReplHistory::new(self.max_output_chars);
@@ -269,7 +271,8 @@ impl Rlm {
                 let mut variable = match self.sandboxed.get(&field.name) {
                     Some(held) => build_repl_variable(held.as_ref(), &field.name, &field.desc),
                     None => {
-                        let mut built = ReplVariable::from_value(&field.name, inputs.get(&field.name)?);
+                        let mut built =
+                            ReplVariable::from_value(&field.name, inputs.get(&field.name)?);
                         built.desc = field.desc.clone();
                         built
                     }
@@ -327,7 +330,11 @@ fn printed_output(printed: &Value) -> String {
 }
 
 fn string_field(example: &Example, name: &str) -> String {
-    example.get(name).and_then(Value::as_str).unwrap_or_default().to_owned()
+    example
+        .get(name)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
 }
 
 impl Module for Rlm {
@@ -376,7 +383,9 @@ mod loop_tests {
     }
 
     fn action(reasoning: &str, code: &str) -> String {
-        format!("[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## code ## ]]\n{code}\n\n[[ ## completed ## ]]")
+        format!(
+            "[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## code ## ]]\n{code}\n\n[[ ## completed ## ]]"
+        )
     }
 
     fn rlm(interpreter: Arc<ScriptedInterpreter>, replies: &[&'static str]) -> Rlm {
@@ -401,15 +410,25 @@ mod loop_tests {
             )],
         );
 
-        let prediction =
-            rlm.forward(example! { context: "a long document" }).await.expect("answers");
+        let prediction = rlm
+            .forward(example! { context: "a long document" })
+            .await
+            .expect("answers");
         assert_eq!(prediction.get("answer"), Some(&json!("42")));
         assert_eq!(prediction.get("final_reasoning"), Some(&json!("submit it")));
         // The fence was stripped before the code reached the interpreter.
-        assert_eq!(*interpreter.ran.lock().expect("ran"), ["SUBMIT(answer='42')"]);
+        assert_eq!(
+            *interpreter.ran.lock().expect("ran"),
+            ["SUBMIT(answer='42')"]
+        );
         let trajectory = prediction.get("trajectory").expect("a trajectory");
         assert_eq!(trajectory.as_array().expect("entries").len(), 1);
-        assert!(trajectory[0]["output"].as_str().expect("output").starts_with("FINAL: "));
+        assert!(
+            trajectory[0]["output"]
+                .as_str()
+                .expect("output")
+                .starts_with("FINAL: ")
+        );
     }
 
     /// Printed output becomes the next turn's history rather than ending anything, and silence is
@@ -428,10 +447,16 @@ mod loop_tests {
             Box::leak(action("finish", "```python\nSUBMIT(answer='done')\n```").into_boxed_str());
         let rlm = rlm(interpreter.clone(), &[look, quiet, finish]);
 
-        let prediction = rlm.forward(example! { context: "doc" }).await.expect("answers");
+        let prediction = rlm
+            .forward(example! { context: "doc" })
+            .await
+            .expect("answers");
         let trajectory = prediction.get("trajectory").expect("a trajectory");
         assert_eq!(trajectory[0]["output"], json!("1000 lines"));
-        assert_eq!(trajectory[1]["output"], json!("(no output - did you forget to print?)"));
+        assert_eq!(
+            trajectory[1]["output"],
+            json!("(no output - did you forget to print?)")
+        );
     }
 
     /// A failing run, and a fence the parser refuses, both reach the model as the turn's output
@@ -447,9 +472,15 @@ mod loop_tests {
             Box::leak(action("done", "```python\nSUBMIT(answer='ok')\n```").into_boxed_str());
         let rlm = rlm(interpreter, &[broken, finish]);
 
-        let prediction = rlm.forward(example! { context: "doc" }).await.expect("answers");
+        let prediction = rlm
+            .forward(example! { context: "doc" })
+            .await
+            .expect("answers");
         let trajectory = prediction.get("trajectory").expect("a trajectory");
-        assert_eq!(trajectory[0]["output"], json!("[Error] NameError: name 'x' is not defined"));
+        assert_eq!(
+            trajectory[0]["output"],
+            json!("[Error] NameError: name 'x' is not defined")
+        );
     }
 
     /// A submission missing a field is refused with dspy's wording and fed back, so the model can
@@ -457,7 +488,10 @@ mod loop_tests {
     #[tokio::test]
     async fn an_incomplete_submission_is_fed_back() {
         let mut signature = task();
-        signature.outputs.push(OutField { name: "count".to_owned(), ..Default::default() });
+        signature.outputs.push(OutField {
+            name: "count".to_owned(),
+            ..Default::default()
+        });
         let interpreter = Arc::new(ScriptedInterpreter::new([
             Ok(Executed::Submitted(json!({ "answer": "42" }))),
             Ok(Executed::Submitted(json!({ "answer": "42", "count": "1" }))),
@@ -472,7 +506,10 @@ mod loop_tests {
         rlm.generate_action = rlm.generate_action.with_lm(model.clone());
         rlm.extract = rlm.extract.with_lm(model);
 
-        let prediction = rlm.forward(example! { context: "doc" }).await.expect("answers");
+        let prediction = rlm
+            .forward(example! { context: "doc" })
+            .await
+            .expect("answers");
         let trajectory = prediction.get("trajectory").expect("a trajectory");
         assert_eq!(
             trajectory[0]["output"],
@@ -484,14 +521,21 @@ mod loop_tests {
     /// Out of iterations, the extract ask reads the outputs off the session instead.
     #[tokio::test]
     async fn it_extracts_when_the_iterations_run_out() {
-        let interpreter =
-            Arc::new(ScriptedInterpreter::new([Ok(Executed::Printed(json!("still looking")))]));
+        let interpreter = Arc::new(ScriptedInterpreter::new([Ok(Executed::Printed(json!(
+            "still looking"
+        )))]));
         let look = Box::leak(action("look", "```python\nprint(1)\n```").into_boxed_str());
         let extracted = "[[ ## answer ## ]]\nfrom the trajectory\n\n[[ ## completed ## ]]";
         let rlm = rlm(interpreter, &[look, extracted]).with_max_iterations(1);
 
-        let prediction = rlm.forward(example! { context: "doc" }).await.expect("answers");
-        assert_eq!(prediction.get("answer"), Some(&json!("from the trajectory")));
+        let prediction = rlm
+            .forward(example! { context: "doc" })
+            .await
+            .expect("answers");
+        assert_eq!(
+            prediction.get("answer"),
+            Some(&json!("from the trajectory"))
+        );
         assert_eq!(
             prediction.get("final_reasoning"),
             Some(&json!("Extract forced final output"))
@@ -511,7 +555,9 @@ mod loop_tests {
             Box::leak(action("done", "```python\nSUBMIT(answer='ok')\n```").into_boxed_str());
         let rlm = rlm(interpreter.clone(), &[look, finish]);
 
-        rlm.forward(example! { context: "a long document" }).await.expect("answers");
+        rlm.forward(example! { context: "a long document" })
+            .await
+            .expect("answers");
 
         let bound = interpreter.bound.lock().expect("bound").clone();
         assert_eq!(bound.len(), 2, "both turns bind");
@@ -540,7 +586,10 @@ mod loop_tests {
         rlm.generate_action = rlm.generate_action.with_lm(model.clone());
         rlm.extract = rlm.extract.with_lm(model);
 
-        let prediction = rlm.forward(example! { context: "doc" }).await.expect("answers");
+        let prediction = rlm
+            .forward(example! { context: "doc" })
+            .await
+            .expect("answers");
         let trajectory = prediction.get("trajectory").expect("a trajectory");
         assert_eq!(
             trajectory[0]["output"],
@@ -554,8 +603,14 @@ mod loop_tests {
     async fn it_refuses_missing_inputs() {
         let interpreter = Arc::new(ScriptedInterpreter::new([]));
         let rlm = rlm(interpreter, &[]);
-        let error = rlm.forward(Example::new([("other", json!(1))])).await.expect_err("refuses");
-        assert!(error.to_string().contains("Missing required inputs"), "got: {error}");
+        let error = rlm
+            .forward(Example::new([("other", json!(1))]))
+            .await
+            .expect_err("refuses");
+        assert!(
+            error.to_string().contains("Missing required inputs"),
+            "got: {error}"
+        );
     }
 }
 
@@ -591,7 +646,9 @@ mod sandbox_tests {
     }
 
     fn action(reasoning: &str, code: &str) -> String {
-        format!("[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## code ## ]]\n{code}\n\n[[ ## completed ## ]]")
+        format!(
+            "[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## code ## ]]\n{code}\n\n[[ ## completed ## ]]"
+        )
     }
 
     /// The value is rebuilt in the sandbox before the first turn, described rather than previewed,
@@ -605,17 +662,19 @@ mod sandbox_tests {
         let submit =
             Box::leak(action("finish", "```python\nSUBMIT(answer='done')\n```").into_boxed_str());
         let model = Arc::new(Scripted::new(&[submit]));
-        let rlm = Rlm::new("corpus -> answer".parse().expect("parses"), interpreter.clone())
-            .with_sandbox_input("corpus", Arc::new(Corpus(12)))
-            .with_lm(model);
+        let rlm = Rlm::new(
+            "corpus -> answer".parse().expect("parses"),
+            interpreter.clone(),
+        )
+        .with_sandbox_input("corpus", Arc::new(Corpus(12)))
+        .with_lm(model);
 
         let prediction = rlm.forward(Example::default()).await.expect("answers");
         assert_eq!(prediction.get("answer"), Some(&json!("done")));
 
         let ran = interpreter.ran.lock().expect("ran").clone();
         assert_eq!(
-            ran[0],
-            "import json\ncorpus = json.loads(_raw_corpus)",
+            ran[0], "import json\ncorpus = json.loads(_raw_corpus)",
             "the value is rebuilt before the first turn"
         );
         let bound = interpreter.bound.lock().expect("bound").clone();
@@ -634,13 +693,20 @@ mod sandbox_tests {
         let interpreter = Arc::new(ScriptedInterpreter::new([]));
         let mut signature: Signature = "corpus -> answer".parse().expect("parses");
         signature.inputs[0].desc = "everything we have".to_owned();
-        let rlm = Rlm::new(signature, interpreter).with_sandbox_input("corpus", Arc::new(Corpus(12)));
+        let rlm =
+            Rlm::new(signature, interpreter).with_sandbox_input("corpus", Arc::new(Corpus(12)));
 
         let described = rlm.variables(&Example::default());
         assert_eq!(described.len(), 1);
-        assert!(described[0].contains("Type: Corpus"), "got: {}", described[0]);
         assert!(
-            described[0].contains("Description: everything we have\nSandbox imports available:\nimport json"),
+            described[0].contains("Type: Corpus"),
+            "got: {}",
+            described[0]
+        );
+        assert!(
+            described[0].contains(
+                "Description: everything we have\nSandbox imports available:\nimport json"
+            ),
             "got: {}",
             described[0]
         );

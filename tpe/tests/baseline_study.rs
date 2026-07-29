@@ -17,8 +17,20 @@ fn objective(params: &[usize]) -> f64 {
 #[test]
 fn a_seeded_baseline_matches_optunas_add_trial() {
     let expected: [(usize, usize); 14] = [
-        (1, 2), (2, 1), (2, 1), (3, 1), (1, 0), (1, 1), (2, 2),
-        (1, 2), (0, 2), (2, 0), (2, 1), (2, 1), (0, 1), (2, 1),
+        (1, 2),
+        (2, 1),
+        (2, 1),
+        (3, 1),
+        (1, 0),
+        (1, 1),
+        (2, 2),
+        (1, 2),
+        (0, 2),
+        (2, 0),
+        (2, 1),
+        (2, 1),
+        (0, 1),
+        (2, 1),
     ];
 
     let mut sampler = TpeSampler::new(9, vec![4, 3]);

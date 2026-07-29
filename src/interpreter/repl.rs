@@ -151,7 +151,10 @@ impl Type for ReplVariable {
         if !self.constraints.is_empty() {
             lines.push(format!("Constraints: {}", self.constraints));
         }
-        lines.push(format!("Total length: {} characters", grouped(self.total_length)));
+        lines.push(format!(
+            "Total length: {} characters",
+            grouped(self.total_length)
+        ));
         lines.push(format!("Preview:\n```\n{}\n```", self.preview));
         Formatted::Text(lines.join("\n"))
     }
@@ -168,8 +171,16 @@ pub struct ReplEntry {
 }
 
 impl ReplEntry {
-    pub fn new(reasoning: impl Into<String>, code: impl Into<String>, output: impl Into<String>) -> Self {
-        Self { reasoning: reasoning.into(), code: code.into(), output: output.into() }
+    pub fn new(
+        reasoning: impl Into<String>,
+        code: impl Into<String>,
+        output: impl Into<String>,
+    ) -> Self {
+        Self {
+            reasoning: reasoning.into(),
+            code: code.into(),
+            output: output.into(),
+        }
     }
 
     /// dspy `REPLEntry.format_output`: the true length in the header, and a middle cut where the
@@ -218,13 +229,19 @@ pub struct ReplHistory {
 
 impl Default for ReplHistory {
     fn default() -> Self {
-        Self { entries: Vec::new(), max_output_chars: MAX_OUTPUT_CHARS }
+        Self {
+            entries: Vec::new(),
+            max_output_chars: MAX_OUTPUT_CHARS,
+        }
     }
 }
 
 impl ReplHistory {
     pub fn new(max_output_chars: usize) -> Self {
-        Self { entries: Vec::new(), max_output_chars }
+        Self {
+            entries: Vec::new(),
+            max_output_chars,
+        }
     }
 
     /// dspy's `append` answers with a new history rather than mutating: the value is frozen, and a
@@ -232,7 +249,10 @@ impl ReplHistory {
     pub fn append(&self, entry: ReplEntry) -> Self {
         let mut entries = self.entries.clone();
         entries.push(entry);
-        Self { entries, max_output_chars: self.max_output_chars }
+        Self {
+            entries,
+            max_output_chars: self.max_output_chars,
+        }
     }
 
     pub fn len(&self) -> usize {

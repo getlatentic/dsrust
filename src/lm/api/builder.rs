@@ -150,11 +150,9 @@ fn merged(current: Option<LmPart>, delta: LmDelta) -> Result<LmPart> {
             name,
             args_delta,
         } => tool_call(current, id, name, args_delta),
-        LmDelta::CitationDelta { citation } => {
-            replaced(current, citation, |part| {
-                matches!(part, LmPart::Citation { .. })
-            })
-        }
+        LmDelta::CitationDelta { citation } => replaced(current, citation, |part| {
+            matches!(part, LmPart::Citation { .. })
+        }),
         LmDelta::ImageDelta { image } => {
             replaced(current, image, |part| matches!(part, LmPart::Image { .. }))
         }
@@ -303,7 +301,11 @@ mod tests {
         let LmPart::ToolCall { id, name, args, .. } = &response.outputs[0].parts[0] else {
             panic!("expected a tool call")
         };
-        assert_eq!(id.as_deref(), Some("call_1"), "carried from the first frame");
+        assert_eq!(
+            id.as_deref(),
+            Some("call_1"),
+            "carried from the first frame"
+        );
         assert_eq!(name, "search");
         assert_eq!(args["q"], json!("Paris"));
     }

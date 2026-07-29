@@ -60,7 +60,10 @@ fn image(object: &serde_json::Map<String, Value>) -> LmPart {
 fn audio(object: &serde_json::Map<String, Value>) -> LmPart {
     let block = object.get("input_audio").and_then(Value::as_object);
     let read = |key: &str| {
-        block.and_then(|block| block.get(key)).and_then(Value::as_str).filter(|text| !text.is_empty())
+        block
+            .and_then(|block| block.get(key))
+            .and_then(Value::as_str)
+            .filter(|text| !text.is_empty())
     };
     // A format already carrying a slash is the media type itself, as upstream reads it.
     let format = read("format").unwrap_or("wav");
@@ -80,14 +83,21 @@ fn audio(object: &serde_json::Map<String, Value>) -> LmPart {
             _ => (media_type, LmSource::Data(String::new())),
         },
     };
-    LmPart::Audio { source, media_type, metadata: Metadata::new() }
+    LmPart::Audio {
+        source,
+        media_type,
+        metadata: Metadata::new(),
+    }
 }
 
 /// dspy `_media_dict_to_video_part`, which reads the same four sources.
 fn video(object: &serde_json::Map<String, Value>) -> LmPart {
     let block = object.get("video").and_then(Value::as_object);
     let read = |key: &str| {
-        block.and_then(|block| block.get(key)).and_then(Value::as_str).filter(|text| !text.is_empty())
+        block
+            .and_then(|block| block.get(key))
+            .and_then(Value::as_str)
+            .filter(|text| !text.is_empty())
     };
     let media_type = read("media_type").unwrap_or("video/mp4").to_owned();
     let (media_type, source) = match media_source(read("data"), media_type.clone()) {
@@ -99,7 +109,11 @@ fn video(object: &serde_json::Map<String, Value>) -> LmPart {
             _ => (media_type, LmSource::Data(String::new())),
         },
     };
-    LmPart::Video { source, media_type, metadata: Metadata::new() }
+    LmPart::Video {
+        source,
+        media_type,
+        metadata: Metadata::new(),
+    }
 }
 
 /// Inline data as a source, its media type taken from a `data:` URI where the value is one.
@@ -118,7 +132,8 @@ fn media_source(data: Option<&str>, media_type: String) -> Option<(String, LmSou
 /// url, not the document's text. Reading it as inline text loses the only thing saying where the
 /// document is.
 fn document(object: &serde_json::Map<String, Value>) -> LmPart {
-    let media_type = string_at(object, "media_type").unwrap_or_else(|| "application/pdf".to_owned());
+    let media_type =
+        string_at(object, "media_type").unwrap_or_else(|| "application/pdf".to_owned());
     let described = |source, citations, media_type| LmPart::Document {
         source,
         media_type,
@@ -131,7 +146,11 @@ fn document(object: &serde_json::Map<String, Value>) -> LmPart {
     // A source named on the block itself wins, in upstream's order.
     for (key, build) in named_sources() {
         if let Some(value) = string_at(object, key) {
-            return described(DocumentSource::Media(build(value)), Metadata::new(), media_type);
+            return described(
+                DocumentSource::Media(build(value)),
+                Metadata::new(),
+                media_type,
+            );
         }
     }
 
@@ -139,7 +158,11 @@ fn document(object: &serde_json::Map<String, Value>) -> LmPart {
         // A mapping is kept as written, and only this path carries the block's own citations.
         Some(Value::Object(source)) => described(
             DocumentSource::Source(source.clone()),
-            object.get("citations").and_then(Value::as_object).cloned().unwrap_or_default(),
+            object
+                .get("citations")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default(),
             media_type,
         ),
         Some(Value::String(source)) => {
@@ -148,7 +171,11 @@ fn document(object: &serde_json::Map<String, Value>) -> LmPart {
         }
         // Upstream raises on a block with no source; an empty one is what the rest of the crate
         // already reads as nothing to send.
-        _ => described(DocumentSource::Media(LmSource::Data(String::new())), Metadata::new(), media_type),
+        _ => described(
+            DocumentSource::Media(LmSource::Data(String::new())),
+            Metadata::new(),
+            media_type,
+        ),
     }
 }
 
@@ -169,7 +196,10 @@ fn classify(source: &str, default_media_type: String) -> (String, LmSource) {
         return (media_type, LmSource::Data(data));
     }
     match source.starts_with("http://") || source.starts_with("https://") {
-        true => (guessed_media_type(source).unwrap_or(default_media_type), LmSource::Url(source.to_owned())),
+        true => (
+            guessed_media_type(source).unwrap_or(default_media_type),
+            LmSource::Url(source.to_owned()),
+        ),
         false => (default_media_type, LmSource::FileId(source.to_owned())),
     }
 }

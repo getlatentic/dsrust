@@ -29,7 +29,11 @@ where
 {
     /// Every program answers, and `reduce` decides what that comes to.
     pub fn new(reduce: R) -> Self {
-        Self { reduce: Some(reduce), size: None, seed: 0 }
+        Self {
+            reduce: Some(reduce),
+            size: None,
+            seed: 0,
+        }
     }
 
     /// A subset of `size` programs answers each call, drawn without replacement.
@@ -98,7 +102,11 @@ where
     async fn run(&self, inputs: Example, trace: &mut Vec<TraceStep>) -> Result<Prediction> {
         let mut answers = Vec::new();
         for index in self.asked() {
-            answers.push(self.programs[index].forward_traced(inputs.clone(), trace).await?);
+            answers.push(
+                self.programs[index]
+                    .forward_traced(inputs.clone(), trace)
+                    .await?,
+            );
         }
         match &self.reduce {
             Some(reduce) => reduce(&answers),
@@ -185,7 +193,10 @@ mod tests {
     }
 
     fn programs(names: &[&'static str]) -> Vec<Box<dyn Module>> {
-        names.iter().map(|name| Box::new(Fixed(name)) as Box<dyn Module>).collect()
+        names
+            .iter()
+            .map(|name| Box::new(Fixed(name)) as Box<dyn Module>)
+            .collect()
     }
 
     fn first_answer(answers: &[Prediction]) -> Result<Prediction> {
@@ -199,25 +210,48 @@ mod tests {
         let recorded = seen.clone();
         let ensembled = Ensemble::new(move |answers: &[Prediction]| {
             recorded.lock().expect("seen").extend(
-                answers.iter().map(|a| a.get("answer").cloned().unwrap_or(json!(null))),
+                answers
+                    .iter()
+                    .map(|a| a.get("answer").cloned().unwrap_or(json!(null))),
             );
             first_answer(answers)
         })
         .compile(programs(&["a", "b", "c"]));
 
-        let answered = ensembled.forward(example! { q: "x" }).await.expect("answers");
-        assert_eq!(answered.get("answer"), Some(&json!("a")), "the reduction chose");
-        assert_eq!(*seen.lock().expect("seen"), vec![json!("a"), json!("b"), json!("c")]);
+        let answered = ensembled
+            .forward(example! { q: "x" })
+            .await
+            .expect("answers");
+        assert_eq!(
+            answered.get("answer"),
+            Some(&json!("a")),
+            "the reduction chose"
+        );
+        assert_eq!(
+            *seen.lock().expect("seen"),
+            vec![json!("a"), json!("b"), json!("c")]
+        );
     }
 
     /// With no reduction dspy hands back the raw list; a `Prediction` is one answer, so the list
     /// travels as a field.
     #[tokio::test]
     async fn no_reduction_hands_back_every_answer() {
-        let ensembled: Ensembled<fn(&[Prediction]) -> Result<Prediction>> =
-            Ensemble { reduce: None, size: None, seed: 0 }.compile(programs(&["a", "b"]));
-        let answered = ensembled.forward(example! { q: "x" }).await.expect("answers");
-        let outputs = answered.get("outputs").expect("the list").as_array().expect("an array");
+        let ensembled: Ensembled<fn(&[Prediction]) -> Result<Prediction>> = Ensemble {
+            reduce: None,
+            size: None,
+            seed: 0,
+        }
+        .compile(programs(&["a", "b"]));
+        let answered = ensembled
+            .forward(example! { q: "x" })
+            .await
+            .expect("answers");
+        let outputs = answered
+            .get("outputs")
+            .expect("the list")
+            .as_array()
+            .expect("an array");
         assert_eq!(outputs.len(), 2);
         assert_eq!(outputs[0]["answer"], json!("a"));
     }
@@ -228,17 +262,22 @@ mod tests {
         let seen = std::sync::Arc::new(Mutex::new(Vec::new()));
         let recorded = seen.clone();
         let ensembled = Ensemble::new(move |answers: &[Prediction]| {
-            recorded
-                .lock()
-                .expect("seen")
-                .push(answers.iter().filter_map(|a| a.get("answer").cloned()).collect::<Vec<_>>());
+            recorded.lock().expect("seen").push(
+                answers
+                    .iter()
+                    .filter_map(|a| a.get("answer").cloned())
+                    .collect::<Vec<_>>(),
+            );
             first_answer(answers)
         })
         .with_size(2)
         .compile(programs(&["a", "b", "c", "d"]));
 
         for _ in 0..3 {
-            ensembled.forward(example! { q: "x" }).await.expect("answers");
+            ensembled
+                .forward(example! { q: "x" })
+                .await
+                .expect("answers");
         }
         let draws = seen.lock().expect("seen").clone();
         for draw in &draws {

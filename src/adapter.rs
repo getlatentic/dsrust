@@ -72,8 +72,7 @@ mod exchange;
 pub mod types;
 pub use types::{
     Audio, Citation, Citations, Code, Document, File, Formatted, History, Image, MediaType,
-    Reasoning, ToolCall, ToolCallResult,
-    ToolCallResults, ToolCalls, Type,
+    Reasoning, ToolCall, ToolCallResult, ToolCallResults, ToolCalls, Type,
 };
 pub mod stream;
 pub use stream::{FieldListener, stream_field};

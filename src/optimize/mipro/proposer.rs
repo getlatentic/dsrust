@@ -71,13 +71,29 @@ fn without_label(text: &str) -> &str {
 /// every predictor a program holds is one.
 fn module_code(predictor: &Signature) -> String {
     let names = |fields: &[String]| fields.join(", ");
-    let inputs = names(&predictor.inputs.iter().map(|f| f.name.clone()).collect::<Vec<_>>());
-    let outputs = names(&predictor.outputs.iter().map(|f| f.name.clone()).collect::<Vec<_>>());
+    let inputs = names(
+        &predictor
+            .inputs
+            .iter()
+            .map(|f| f.name.clone())
+            .collect::<Vec<_>>(),
+    );
+    let outputs = names(
+        &predictor
+            .outputs
+            .iter()
+            .map(|f| f.name.clone())
+            .collect::<Vec<_>>(),
+    );
     format!("Predict({inputs}) -> {outputs}")
 }
 
 fn text_of(prediction: &crate::example::Prediction, field: &str) -> String {
-    prediction.get(field).and_then(Value::as_str).unwrap_or_default().to_owned()
+    prediction
+        .get(field)
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
 }
 
 /// dspy `GenerateModuleInstruction`: the three-call instruction proposer for one predictor.
@@ -128,7 +144,10 @@ impl GenerateModuleInstruction {
             fields.push(("dataset_description".into(), json!(data_summary)));
         }
         if self.inputs.program_aware {
-            fields.push(("program_code".into(), json!(self.program_code.as_deref().unwrap_or_default())));
+            fields.push((
+                "program_code".into(),
+                json!(self.program_code.as_deref().unwrap_or_default()),
+            ));
             fields.push(("program_description".into(), json!(program_description)));
             fields.push(("module".into(), json!(module)));
             fields.push(("module_description".into(), json!(module_description)));
@@ -149,7 +168,11 @@ impl GenerateModuleInstruction {
     /// The program-aware summaries. dspy strips a label from the program description but not the
     /// module one; both default to fixed strings when program code was not available.
     async fn describe(&self, task_demos: &str, module: &str) -> Result<(String, String)> {
-        let Some(program_code) = self.program_code.as_deref().filter(|_| self.inputs.program_aware) else {
+        let Some(program_code) = self
+            .program_code
+            .as_deref()
+            .filter(|_| self.inputs.program_aware)
+        else {
             return Ok(("Not available".into(), "Not provided".into()));
         };
         let described = self
@@ -169,7 +192,10 @@ impl GenerateModuleInstruction {
                 ("module".to_owned(), json!(module)),
             ]))
             .await?;
-        Ok((program_description, text_of(&described, "module_description")))
+        Ok((
+            program_description,
+            text_of(&described, "module_description"),
+        ))
     }
 }
 
@@ -215,7 +241,10 @@ mod tests {
             } else if system.contains("describe the purpose of one of the specified module") {
                 reply("module_description", "It answers the question.")
             } else {
-                reply("proposed_instruction", "Instruction: Answer precisely and briefly.")
+                reply(
+                    "proposed_instruction",
+                    "Instruction: Answer precisely and briefly.",
+                )
             };
             Ok(api::LmResponse::text(content))
         }
@@ -226,13 +255,24 @@ mod tests {
         let model = Arc::new(Proposer);
         let proposer = GenerateModuleInstruction::new(
             Some("class Program: ...".to_owned()),
-            InstructionInputs { dataset_summary: true, program_aware: true, instruct_history: true, tip: true },
+            InstructionInputs {
+                dataset_summary: true,
+                program_aware: true,
+                instruct_history: true,
+                tip: true,
+            },
             model,
         );
         let predictor: Signature = "question -> answer".parse().expect("parses");
 
         let proposed = proposer
-            .forward(&predictor, "No task demos provided.", "A QA dataset.", "", Some("Keep the instruction clear and concise."))
+            .forward(
+                &predictor,
+                "No task demos provided.",
+                "A QA dataset.",
+                "",
+                Some("Keep the instruction clear and concise."),
+            )
             .await
             .expect("proposes");
 

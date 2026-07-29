@@ -42,7 +42,10 @@ struct Coach {
 /// regex; the marker is always `GOOD-` followed by digits.
 fn marker(text: &str) -> Option<u64> {
     let start = text.find("GOOD-")? + "GOOD-".len();
-    let digits: String = text[start..].chars().take_while(char::is_ascii_digit).collect();
+    let digits: String = text[start..]
+        .chars()
+        .take_while(char::is_ascii_digit)
+        .collect();
     digits.parse().ok()
 }
 
@@ -53,11 +56,18 @@ impl ChatModel for Coach {
         request: &api::LmRequest,
     ) -> Result<api::LmResponse> {
         let system = request.system();
-        let last = request.messages.last().and_then(|message| message.text()).unwrap_or_default();
+        let last = request
+            .messages
+            .last()
+            .and_then(|message| message.text())
+            .unwrap_or_default();
         let content = if system.contains("generate a new instruction that will be used") {
             let call = self.proposal_calls.fetch_add(1, Ordering::SeqCst) + 1;
             let proposal = format!("Answer with GOOD-{call} precision.");
-            self.proposals.lock().expect("proposals lock").push(proposal.clone());
+            self.proposals
+                .lock()
+                .expect("proposals lock")
+                .push(proposal.clone());
             format!("[[ ## proposed_instruction ## ]]\n{proposal}\n\n[[ ## completed ## ]]")
         } else {
             let solved = marker(system)
@@ -123,7 +133,8 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
     let trainset: Vec<Example> = table
         .iter()
         .map(|(question, answer)| {
-            example! { question: question.clone(), answer: answer.clone() }.with_inputs(["question"])
+            example! { question: question.clone(), answer: answer.clone() }
+                .with_inputs(["question"])
         })
         .collect();
 
@@ -136,7 +147,10 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
         .iter()
         .map(|case| case["compiled"][0].as_str().expect("compiled"))
         .collect();
-    assert!(distinct.len() > 1, "the golden is not discriminating: {distinct:?}");
+    assert!(
+        distinct.len() > 1,
+        "the golden is not discriminating: {distinct:?}"
+    );
 
     for case in fixture["cases"].as_array().expect("cases") {
         let model = Arc::new(Coach {
@@ -145,7 +159,9 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
             proposal_calls: AtomicUsize::new(0),
             proposals: std::sync::Mutex::new(Vec::new()),
         });
-        let mut student = Predict::parse("question -> answer").expect("parses").with_lm(model.clone());
+        let mut student = Predict::parse("question -> answer")
+            .expect("parses")
+            .with_lm(model.clone());
 
         let trials = MIPROv2::new(exact_match, model.clone())
             .with_candidates(case["num_candidates"].as_u64().expect("num_candidates") as usize)
@@ -170,14 +186,21 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
         let recorded = case["trials"].as_array().expect("trials");
         assert_eq!(trials.len(), recorded.len(), "trial count for case {case}");
         for (index, (ours, theirs)) in trials.iter().zip(recorded).enumerate() {
-            let instruction =
-                theirs["params"]["0_predictor_instruction"].as_u64().expect("instruction") as usize;
-            assert_eq!(ours.params, vec![instruction], "trial {index} params for case {case}");
+            let instruction = theirs["params"]["0_predictor_instruction"]
+                .as_u64()
+                .expect("instruction") as usize;
+            assert_eq!(
+                ours.params,
+                vec![instruction],
+                "trial {index} params for case {case}"
+            );
             let score = theirs["score"].as_f64().expect("score");
             assert_eq!(ours.score, score, "trial {index} score for case {case}");
         }
 
-        let compiled = case["compiled"][0].as_str().expect("a compiled instruction");
+        let compiled = case["compiled"][0]
+            .as_str()
+            .expect("a compiled instruction");
         assert_eq!(
             student.signature.instructions, compiled,
             "compiled instruction for case {case}"

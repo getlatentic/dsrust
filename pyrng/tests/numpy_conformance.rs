@@ -35,7 +35,10 @@ fn random_sample_matches_numpy() {
     // Compared as raw IEEE-754 bits, not decimals: the draws must agree to the last bit, and a
     // decimal round-trip through JSON can shift that bit under a parser that rounds differently.
     let fixture = fixture();
-    for (seed, values) in fixture["random_sample_bits"].as_object().expect("random_sample_bits") {
+    for (seed, values) in fixture["random_sample_bits"]
+        .as_object()
+        .expect("random_sample_bits")
+    {
         let seed: u32 = seed.parse().expect("a seed");
         let mut generator = RandomState::new(seed);
         for (index, value) in values.as_array().expect("values").iter().enumerate() {

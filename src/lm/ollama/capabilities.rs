@@ -12,8 +12,8 @@
 //! natively still works.
 
 use std::collections::HashMap;
-use std::time::Duration;
 use std::sync::{Mutex, OnceLock};
+use std::time::Duration;
 
 use serde_json::{Value, json};
 
@@ -104,7 +104,9 @@ mod tests {
     #[test]
     fn a_template_that_mentions_tools_is_a_model_that_can_call_them() {
         // Both spellings ollama's own templates use, and the case litellm folds away.
-        assert!(supports_tools(&json!({ "template": "{{ if .Tools }}...{{ end }}" })));
+        assert!(supports_tools(
+            &json!({ "template": "{{ if .Tools }}...{{ end }}" })
+        ));
         assert!(supports_tools(&json!({ "template": "you may use tools" })));
         assert!(!supports_tools(&json!({ "template": "{{ .Prompt }}" })));
         // Nothing said is nothing granted, however the server phrased its silence.

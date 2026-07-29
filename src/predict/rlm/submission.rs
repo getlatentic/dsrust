@@ -11,7 +11,11 @@ use crate::signature::{FieldKind, LiteralValue, OutField, Signature, coerce_valu
 
 /// The submitted mapping, or the message the model is shown instead.
 pub(crate) fn process(signature: &Signature, value: &Value) -> Result<Map<String, Value>, String> {
-    let names: Vec<&str> = signature.outputs.iter().map(|field| field.name.as_str()).collect();
+    let names: Vec<&str> = signature
+        .outputs
+        .iter()
+        .map(|field| field.name.as_str())
+        .collect();
 
     let Some(fields) = value.as_object() else {
         return Err(format!(
@@ -20,8 +24,11 @@ pub(crate) fn process(signature: &Signature, value: &Value) -> Result<Map<String
         ));
     };
 
-    let mut missing: Vec<&str> =
-        names.iter().copied().filter(|name| !fields.contains_key(*name)).collect();
+    let mut missing: Vec<&str> = names
+        .iter()
+        .copied()
+        .filter(|name| !fields.contains_key(*name))
+        .collect();
     if !missing.is_empty() {
         missing.sort_unstable();
         return Err(format!(
@@ -82,18 +89,21 @@ fn member_of(members: &[LiteralValue], value: Value) -> Result<Value, String> {
             return Ok(unwrapped);
         }
     }
-    Err(format!("{} is not one of {}", repr(&value), tuple(&allowed)))
+    Err(format!(
+        "{} is not one of {}",
+        repr(&value),
+        tuple(&allowed)
+    ))
 }
 
 /// dspy strips a `Literal[…]`/`str[…]` wrapper and then one matched quote pair, in that order.
 fn unwrapped(text: &str) -> &str {
     let text = text.trim();
-    let inner = match text.ends_with(']')
-        && (text.starts_with("Literal[") || text.starts_with("str["))
-    {
-        true => &text[text.find('[').expect("a bracket") + 1..text.len() - 1],
-        false => text,
-    };
+    let inner =
+        match text.ends_with(']') && (text.starts_with("Literal[") || text.starts_with("str[")) {
+            true => &text[text.find('[').expect("a bracket") + 1..text.len() - 1],
+            false => text,
+        };
     let bytes = inner.as_bytes();
     match inner.len() > 1
         && bytes[0] == bytes[inner.len() - 1]
@@ -167,19 +177,28 @@ mod tests {
     }
 
     fn words(members: &[&str]) -> Vec<LiteralValue> {
-        members.iter().map(|m| LiteralValue::Str((*m).to_owned())).collect()
+        members
+            .iter()
+            .map(|m| LiteralValue::Str((*m).to_owned()))
+            .collect()
     }
 
     #[test]
     fn a_submission_that_is_not_a_mapping_names_what_it_was() {
         let refused = process(&signature("q -> answer"), &json!([1, 2])).expect_err("refuses");
-        assert_eq!(refused, "[Error] FINAL returned list, expected dict with fields: [\"answer\"]");
+        assert_eq!(
+            refused,
+            "[Error] FINAL returned list, expected dict with fields: [\"answer\"]"
+        );
     }
 
     #[test]
     fn a_missing_field_is_named_and_the_call_is_spelled_out() {
-        let refused = process(&signature("q -> answer, count: int"), &json!({ "answer": "a" }))
-            .expect_err("refuses");
+        let refused = process(
+            &signature("q -> answer, count: int"),
+            &json!({ "answer": "a" }),
+        )
+        .expect_err("refuses");
         assert_eq!(
             refused,
             "[Error] Missing output fields: [\"count\"]. Use SUBMIT(answer, count)"
@@ -225,7 +244,10 @@ mod tests {
             &json!({ "n": 3 }),
         )
         .expect_err("refuses");
-        assert!(numbers.ends_with("3 is not one of (1, 2)"), "got: {numbers}");
+        assert!(
+            numbers.ends_with("3 is not one of (1, 2)"),
+            "got: {numbers}"
+        );
     }
 
     /// Every failing field is reported, not just the first, joined the way dspy joins them.
@@ -246,7 +268,10 @@ mod tests {
     fn a_scalar_that_does_not_parse_names_its_annotation() {
         let refused = process(&signature("q -> count: int"), &json!({ "count": "many" }))
             .expect_err("refuses");
-        assert!(refused.starts_with("[Type Error] count: expected int, got str: "), "got: {refused}");
+        assert!(
+            refused.starts_with("[Type Error] count: expected int, got str: "),
+            "got: {refused}"
+        );
         // A string that does parse is coerced, as dspy's `parse_value` coerces it.
         let accepted =
             process(&signature("q -> count: int"), &json!({ "count": "42" })).expect("accepts");

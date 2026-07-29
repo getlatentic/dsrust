@@ -18,8 +18,8 @@ use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::predict::{Predict, Steering};
 use crate::signature::Signature;
 
-use super::tool::Tool;
 use super::as_dict;
+use super::tool::Tool;
 
 mod signature;
 use signature::{react_signature, submit_tool, tool_descriptor};
@@ -57,9 +57,19 @@ impl ReActV2 {
         ordered.push(submit_tool(&signature));
 
         let react = Predict::from_signature(react_signature(&signature, &ordered));
-        let tool_list =
-            Value::Array(ordered.iter().map(|tool| tool_descriptor(tool.as_ref())).collect());
-        Self { signature, tools: ordered, react, max_iters: 20, tool_list }
+        let tool_list = Value::Array(
+            ordered
+                .iter()
+                .map(|tool| tool_descriptor(tool.as_ref()))
+                .collect(),
+        );
+        Self {
+            signature,
+            tools: ordered,
+            react,
+            max_iters: 20,
+            tool_list,
+        }
     }
 
     pub fn with_max_iters(mut self, max_iters: usize) -> Self {
@@ -100,7 +110,10 @@ impl ReActV2 {
     }
 
     fn tool(&self, name: &str) -> Option<&dyn Tool> {
-        self.tools.iter().find(|tool| tool.name() == name).map(Box::as_ref)
+        self.tools
+            .iter()
+            .find(|tool| tool.name() == name)
+            .map(Box::as_ref)
     }
 
     /// The episode, written once because [`Module::forward`] and [`Module::forward_traced`] differ
@@ -115,7 +128,9 @@ impl ReActV2 {
 
         let mut break_reason = "max_iters";
         for turn_index in 0..max_iters {
-            let asked = self.ask_turn(&history, &pending, &Steering::default(), trace).await;
+            let asked = self
+                .ask_turn(&history, &pending, &Steering::default(), trace)
+                .await;
             let (pred, calls) = match asked {
                 Ok(pair) => pair,
                 // dspy catches a parse or validation failure and ends the loop, so a recoverable
@@ -141,14 +156,17 @@ impl ReActV2 {
             }
         }
 
-        self.forced_submit(history, pending, break_reason, max_iters, trace).await
+        self.forced_submit(history, pending, break_reason, max_iters, trace)
+            .await
     }
 
     /// The task's own input fields that were supplied. dspy carries these on the first turn only;
     /// once recorded into the history they are cleared, so a continuation omits them.
     fn pending_inputs(&self, input_args: &Example) -> Example {
         Example::new(self.signature.inputs.iter().filter_map(|field| {
-            input_args.get(&field.name).map(|value| (field.name.clone(), value.clone()))
+            input_args
+                .get(&field.name)
+                .map(|value| (field.name.clone(), value.clone()))
         }))
     }
 
@@ -166,7 +184,10 @@ impl ReActV2 {
         inputs.set("history", history.to_value());
         inputs.set("tools", self.tool_list.clone());
 
-        let pred = self.react.forward_with_steering(inputs.clone(), steering).await?;
+        let pred = self
+            .react
+            .forward_with_steering(inputs.clone(), steering)
+            .await?;
         trace.push(TraceStep {
             predictor: "react".to_owned(),
             inputs,
@@ -179,7 +200,10 @@ impl ReActV2 {
     /// dspy `_execute_tool_calls`: run each call, turning an unknown tool or a raised error into an
     /// observation the model reads rather than an abort. `submit` returning a mapping is the task's
     /// final output.
-    fn execute_tool_calls(&self, calls: &ToolCalls) -> (ToolCallResults, Option<Map<String, Value>>) {
+    fn execute_tool_calls(
+        &self,
+        calls: &ToolCalls,
+    ) -> (ToolCallResults, Option<Map<String, Value>>) {
         let mut values = Vec::new();
         let mut is_errors = Vec::new();
         let mut final_outputs = None;
@@ -199,7 +223,10 @@ impl ReActV2 {
                     is_errors.push(false);
                 }
                 Err(error) => {
-                    values.push(json!(format!("Execution error in {}: {error:#}", call.name)));
+                    values.push(json!(format!(
+                        "Execution error in {}: {error:#}",
+                        call.name
+                    )));
                     is_errors.push(true);
                 }
             }
@@ -222,8 +249,10 @@ impl ReActV2 {
         results: ToolCallResults,
         final_outputs: Option<&Map<String, Value>>,
     ) -> Map<String, Value> {
-        let mut event: Map<String, Value> =
-            pending.fields().map(|(name, value)| (name.to_owned(), value.clone())).collect();
+        let mut event: Map<String, Value> = pending
+            .fields()
+            .map(|(name, value)| (name.to_owned(), value.clone()))
+            .collect();
         if let Some(thought) = pred.get("next_thought").filter(|value| !value.is_null()) {
             event.insert("next_thought".to_owned(), thought.clone());
         }
@@ -263,14 +292,25 @@ impl ReActV2 {
             return Ok(failed(&history, break_reason));
         };
         let calls = ensure_ids(calls, turn_index);
-        let submit_calls =
-            ToolCalls::new(calls.tool_calls.into_iter().filter(|call| call.name == SUBMIT).collect());
+        let submit_calls = ToolCalls::new(
+            calls
+                .tool_calls
+                .into_iter()
+                .filter(|call| call.name == SUBMIT)
+                .collect(),
+        );
         if submit_calls.tool_calls.is_empty() {
             return Ok(failed(&history, break_reason));
         }
 
         let (results, final_outputs) = self.execute_tool_calls(&submit_calls);
-        let event = self.history_event(&pending, &pred, submit_calls, results, final_outputs.as_ref());
+        let event = self.history_event(
+            &pending,
+            &pred,
+            submit_calls,
+            results,
+            final_outputs.as_ref(),
+        );
         record(&mut history, event);
 
         match final_outputs {
@@ -384,7 +424,12 @@ mod tests {
             "lookup",
             "look something up",
             json!({ "query": { "type": "string" } }),
-            |args: &Value| Ok(format!("found {}", args["query"].as_str().unwrap_or_default())),
+            |args: &Value| {
+                Ok(format!(
+                    "found {}",
+                    args["query"].as_str().unwrap_or_default()
+                ))
+            },
         ))
     }
 
@@ -399,11 +444,17 @@ mod tests {
         let agent = ReActV2::new(task(), vec![]);
         let submit = agent.tool(SUBMIT).expect("submit exists");
         assert_eq!(
-            submit.call_value(&json!({ "answer": "Paris" })).expect("submits"),
+            submit
+                .call_value(&json!({ "answer": "Paris" }))
+                .expect("submits"),
             json!({ "answer": "Paris" })
         );
         assert!(
-            !agent.turn_signature().inputs.iter().any(|field| field.name == "tool_call_results")
+            !agent
+                .turn_signature()
+                .inputs
+                .iter()
+                .any(|field| field.name == "tool_call_results")
         );
     }
 
@@ -411,8 +462,16 @@ mod tests {
     #[test]
     fn the_submit_tool_refuses_a_missing_output() {
         let agent = ReActV2::new(task(), vec![]);
-        let error = agent.tool(SUBMIT).expect("submit").call_value(&json!({})).expect_err("refused");
-        assert!(error.to_string().contains("Missing required final output field(s): answer"));
+        let error = agent
+            .tool(SUBMIT)
+            .expect("submit")
+            .call_value(&json!({}))
+            .expect_err("refused");
+        assert!(
+            error
+                .to_string()
+                .contains("Missing required final output field(s): answer")
+        );
     }
 
     /// The per-turn signature carries the task's inputs, then `history` and `tools`, answering with
@@ -420,11 +479,19 @@ mod tests {
     #[test]
     fn the_turn_signature_has_dspys_fields() {
         let agent = ReActV2::new(task(), vec![lookup()]);
-        let inputs: Vec<&str> =
-            agent.turn_signature().inputs.iter().map(|field| field.name.as_str()).collect();
+        let inputs: Vec<&str> = agent
+            .turn_signature()
+            .inputs
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect();
         assert_eq!(inputs, ["question", "history", "tools"]);
-        let outputs: Vec<&str> =
-            agent.turn_signature().outputs.iter().map(|field| field.name.as_str()).collect();
+        let outputs: Vec<&str> = agent
+            .turn_signature()
+            .outputs
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect();
         assert_eq!(outputs, ["next_thought", "tool_calls"]);
         assert_eq!(agent.tool_names(), ["lookup", "submit"]);
     }
@@ -435,7 +502,9 @@ mod tests {
     fn the_instructions_name_the_task_and_the_tools() {
         let agent = ReActV2::new(task(), vec![lookup()]);
         let instructions = &agent.turn_signature().instructions;
-        assert!(instructions.starts_with("Given the fields `question`, produce the fields `answer`."));
+        assert!(
+            instructions.starts_with("Given the fields `question`, produce the fields `answer`.")
+        );
         assert!(instructions.contains("call `submit` with `answer`."));
         assert!(instructions.ends_with("The available tools are: `lookup`, `submit`."));
     }
@@ -444,8 +513,9 @@ mod tests {
     #[test]
     #[should_panic(expected = "`submit` is reserved")]
     fn a_user_submit_tool_is_refused() {
-        let clashing = Box::new(FnTool::new("submit", "no", json!({}), |_: &Value| Ok(String::new())))
-            as Box<dyn Tool>;
+        let clashing = Box::new(FnTool::new("submit", "no", json!({}), |_: &Value| {
+            Ok(String::new())
+        })) as Box<dyn Tool>;
         ReActV2::new(task(), vec![clashing]);
     }
 }

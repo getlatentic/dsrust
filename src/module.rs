@@ -19,10 +19,8 @@ use crate::signature::Signature;
 
 mod state;
 
-pub use state::{
-    DSPY_VERSION, FieldState, Metadata, PredictorState, ProgramState, SignatureState,
-};
 use state::demo_from_fields;
+pub use state::{DSPY_VERSION, FieldState, Metadata, PredictorState, ProgramState, SignatureState};
 
 /// One predictor inside a program: its signature and its demos, borrowed for inspection or
 /// mutation. An optimizer's whole job is reading these and writing back better ones.
@@ -157,9 +155,17 @@ pub trait Module: Send + Sync {
                 continue;
             };
             saved.signature.restore(predictor.signature);
-            let inputs: Vec<String> =
-                predictor.signature.inputs.iter().map(|field| field.name.clone()).collect();
-            *predictor.demos = saved.demos.iter().map(|fields| demo_from_fields(fields, &inputs)).collect();
+            let inputs: Vec<String> = predictor
+                .signature
+                .inputs
+                .iter()
+                .map(|field| field.name.clone())
+                .collect();
+            *predictor.demos = saved
+                .demos
+                .iter()
+                .map(|fields| demo_from_fields(fields, &inputs))
+                .collect();
         }
         Ok(())
     }
@@ -315,7 +321,10 @@ mod tests {
         trained.save(&path).expect("saves");
 
         let mut fresh = echo();
-        assert_eq!(fresh.signature.instructions, "Echo the request.", "fresh program is unoptimized");
+        assert_eq!(
+            fresh.signature.instructions, "Echo the request.",
+            "fresh program is unoptimized"
+        );
         fresh.load(&path).expect("loads");
         std::fs::remove_file(&path).ok();
 
@@ -326,7 +335,10 @@ mod tests {
             fresh.demos[0].is_input("request"),
             "the demo's input split was re-declared from the signature"
         );
-        assert!(!fresh.demos[0].is_input("answer"), "and its output stays a label");
+        assert!(
+            !fresh.demos[0].is_input("answer"),
+            "and its output stays a label"
+        );
     }
 
     /// A state that does not name every predictor this program has is refused, and refused before
@@ -339,7 +351,10 @@ mod tests {
         let refused = fresh
             .load_state(&ProgramState::new(Default::default()))
             .expect_err("a state naming no predictor at all does not fit");
-        assert!(refused.to_string().contains("has no entry for"), "got: {refused}");
+        assert!(
+            refused.to_string().contains("has no entry for"),
+            "got: {refused}"
+        );
         assert_eq!(
             fresh.signature.instructions, "Echo the request.",
             "the program is as it was, not half-loaded"

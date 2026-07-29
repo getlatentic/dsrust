@@ -57,7 +57,13 @@ impl Adapter for JsonAdapter {
         demos: &[Example],
         inputs: &[Input<'_>],
     ) -> Result<(String, Vec<ChatTurn>)> {
-        let (asked, mut turns) = conversation(signature, demos, inputs, JSON_STYLE, self.use_native_function_calling);
+        let (asked, mut turns) = conversation(
+            signature,
+            demos,
+            inputs,
+            JSON_STYLE,
+            self.use_native_function_calling,
+        );
         turns.push(ChatTurn::user(json_user(
             &asked,
             &live_inputs(&asked, inputs),
@@ -123,9 +129,7 @@ pub(super) fn json_output_requirements(signature: &Signature) -> String {
     let fields: Vec<String> = signature
         .outputs
         .iter()
-        .map(|field| {
-            format!("`{}`{}", field.name, super::output_hint(field))
-        })
+        .map(|field| format!("`{}`{}", field.name, super::output_hint(field)))
         .collect();
     format!(
         "Respond with a JSON object in the following order of fields: {}.",

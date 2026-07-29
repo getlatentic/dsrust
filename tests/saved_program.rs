@@ -29,11 +29,15 @@ fn scratch(name: &str) -> std::path::PathBuf {
 /// beside the predictors rather than under them.
 #[test]
 fn the_file_has_dspys_shape_key_for_key() {
-    let mut program = ChainOfThought::from_signature("question -> answer".parse().expect("a signature"));
+    let mut program =
+        ChainOfThought::from_signature("question -> answer".parse().expect("a signature"));
     let file = saved(&mut program, &scratch("shape"));
 
     let state = &file["predict"];
-    assert!(state.is_object(), "keyed by the predictor dspy names: {file}");
+    assert!(
+        state.is_object(),
+        "keyed by the predictor dspy names: {file}"
+    );
     assert_eq!(state["traces"], json!([]));
     assert_eq!(state["train"], json!([]));
     assert_eq!(state["demos"], json!([]));
@@ -47,7 +51,10 @@ fn the_file_has_dspys_shape_key_for_key() {
         ]),
         "inputs then outputs, in declaration order"
     );
-    assert_eq!(file["metadata"]["dependency_versions"]["dspy"], json!(dsrust::module::DSPY_VERSION));
+    assert_eq!(
+        file["metadata"]["dependency_versions"]["dspy"],
+        json!(dsrust::module::DSPY_VERSION)
+    );
 }
 
 /// What each optimizer leaves differs while the shape does not: demos for a bootstrap, rewritten
@@ -55,10 +62,15 @@ fn the_file_has_dspys_shape_key_for_key() {
 #[test]
 fn an_optimizers_work_is_visible_in_the_file() {
     let mut bootstrapped = Predict::parse("question -> answer").expect("a signature");
-    bootstrapped.demos =
-        vec![Example::new([("question", json!("2+2?")), ("answer", json!("4"))])];
+    bootstrapped.demos = vec![Example::new([
+        ("question", json!("2+2?")),
+        ("answer", json!("4")),
+    ])];
     let file = saved(&mut bootstrapped, &scratch("demos"));
-    assert_eq!(file["self"]["demos"], json!([{ "question": "2+2?", "answer": "4" }]));
+    assert_eq!(
+        file["self"]["demos"],
+        json!([{ "question": "2+2?", "answer": "4" }])
+    );
 
     let mut reflected = Predict::parse("question -> answer").expect("a signature");
     reflected.signature.instructions = "Answer with GOOD precision.".into();
@@ -96,7 +108,8 @@ fn a_rewritten_field_description_survives_the_round_trip() {
 #[ignore = "needs .dspy-venv, as the conformance suite does"]
 fn dspy_loads_and_runs_what_this_crate_saved() {
     let path = scratch("for-python");
-    let mut compiled = ChainOfThought::from_signature("question -> answer".parse().expect("a signature"));
+    let mut compiled =
+        ChainOfThought::from_signature("question -> answer".parse().expect("a signature"));
     for predictor in compiled.named_predictors() {
         predictor.signature.instructions = "Answer with GOOD precision.".into();
         *predictor.demos = vec![Example::new([
@@ -127,7 +140,8 @@ fn dspy_loads_and_runs_what_this_crate_saved() {
 /// The state parses back into its own types, so a file written by an older build still loads.
 #[test]
 fn a_saved_file_reads_back_into_the_state_it_was_written_from() {
-    let mut program = ChainOfThought::from_signature("question -> answer".parse().expect("a signature"));
+    let mut program =
+        ChainOfThought::from_signature("question -> answer".parse().expect("a signature"));
     let path = scratch("roundtrip");
     program.save(&path).expect("saves");
     let read: ProgramState =

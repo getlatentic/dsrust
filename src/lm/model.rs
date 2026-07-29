@@ -57,7 +57,6 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
     }
 }
 
-
 /// The typed 3.3 model boundary: dspy's `forward(request: LMRequest) -> LMResponse`.
 ///
 /// The one seam every model implements — a provider-backed [`LM`], a [`Cached`] wrapper, the
@@ -93,4 +92,3 @@ pub trait ChatModel {
         true
     }
 }
-

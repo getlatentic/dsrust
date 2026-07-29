@@ -9,8 +9,8 @@ use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
 use crate::adapter::ToolCalls;
-use crate::react::tool::Tool;
 use crate::react::backticked;
+use crate::react::tool::Tool;
 
 use super::SUBMIT;
 use crate::signature::{FieldKind, InField, JsonType, OutField, Signature, TypeDescription};
@@ -38,7 +38,11 @@ pub(super) fn react_signature(task: &Signature, tools: &[Box<dyn Tool>]) -> Sign
     inputs.push(input("tools", "list[Tool]"));
 
     let outputs = vec![
-        OutField { name: "next_thought".into(), kind: FieldKind::Reasoning, ..Default::default() },
+        OutField {
+            name: "next_thought".into(),
+            kind: FieldKind::Reasoning,
+            ..Default::default()
+        },
         OutField {
             name: "tool_calls".into(),
             // dspy carries `ToolCalls`'s own description on the field's line and its JSON schema in
@@ -57,7 +61,11 @@ pub(super) fn react_signature(task: &Signature, tools: &[Box<dyn Tool>]) -> Sign
             ..Default::default()
         },
     ];
-    Signature { instructions: react_instructions(task, tools), inputs, outputs }
+    Signature {
+        instructions: react_instructions(task, tools),
+        inputs,
+        outputs,
+    }
 }
 
 /// dspy `_optional_annotation`: each task input is widened to `X | None`, since a continuation turn
@@ -65,7 +73,10 @@ pub(super) fn react_signature(task: &Signature, tools: &[Box<dyn Tool>]) -> Sign
 /// change — the value still reads as its own type, so a scalar renders identically. (The rendering
 /// omits an absent input already, so the loop needs nothing more from the widening than its name.)
 fn widened(kind: &FieldKind) -> FieldKind {
-    FieldKind::Json(JsonType::plain(format!("UnionType[{}, NoneType]", kind.annotation())))
+    FieldKind::Json(JsonType::plain(format!(
+        "UnionType[{}, NoneType]",
+        kind.annotation()
+    )))
 }
 
 /// An input field carrying a custom type's annotation, which is how the history and tools fields
@@ -100,7 +111,11 @@ fn react_instructions(task: &Signature, tools: &[Box<dyn Tool>]) -> String {
 /// dspy `_make_submit_tool`: the reserved tool that ends the task, its arguments the signature's
 /// own output fields.
 pub(super) fn submit_tool(task: &Signature) -> Box<dyn Tool> {
-    let output_names = task.outputs.iter().map(|field| field.name.clone()).collect();
+    let output_names = task
+        .outputs
+        .iter()
+        .map(|field| field.name.clone())
+        .collect();
     let args = Value::Object(
         task.outputs
             .iter()
@@ -121,9 +136,10 @@ fn schema_for_kind(kind: &FieldKind) -> Value {
         FieldKind::Bool => json!({ "type": "boolean" }),
         FieldKind::Int => json!({ "type": "integer" }),
         FieldKind::Float => json!({ "type": "number" }),
-        FieldKind::Json(json_type) => {
-            json_type.reflection.clone().unwrap_or_else(|| json!({ "type": "string" }))
-        }
+        FieldKind::Json(json_type) => json_type
+            .reflection
+            .clone()
+            .unwrap_or_else(|| json!({ "type": "string" })),
         FieldKind::Str | FieldKind::Reasoning | FieldKind::Enum(_) => json!({ "type": "string" }),
     }
 }
@@ -164,7 +180,10 @@ impl Tool for Submit {
             .filter(|name| !given.contains_key(*name))
             .collect();
         if !missing.is_empty() {
-            return Err(anyhow!("Missing required final output field(s): {}", missing.join(", ")));
+            return Err(anyhow!(
+                "Missing required final output field(s): {}",
+                missing.join(", ")
+            ));
         }
         Ok(Value::Object(
             self.output_names
@@ -200,4 +219,3 @@ macro_rules! react_v2 {
         $crate::ReActV2::new($crate::signature!($signature), $tools).with_max_iters($max)
     };
 }
-

@@ -110,9 +110,10 @@ where
     fn shuffled(&self, seed: i64, trainset: &[Example]) -> (Vec<Example>, usize) {
         let mut shuffled = trainset.to_vec();
         Random::seeded(seed as u64).shuffle(&mut shuffled);
-        let size = Random::seeded(seed as u64)
-            .randint(self.min_num_samples as u64, self.max_bootstrapped_demos as u64)
-            as usize;
+        let size = Random::seeded(seed as u64).randint(
+            self.min_num_samples as u64,
+            self.max_bootstrapped_demos as u64,
+        ) as usize;
         (shuffled, size)
     }
 
@@ -149,7 +150,9 @@ where
                 -2 => LabeledFewShot::new(self.max_labeled_demos).compile(student, trainset),
                 // The unshuffled bootstrap, asking for the full demo budget rather than a draw.
                 -1 => {
-                    self.bootstrap(self.max_bootstrapped_demos).compile(student, trainset).await?;
+                    self.bootstrap(self.max_bootstrapped_demos)
+                        .compile(student, trainset)
+                        .await?;
                 }
                 _ => {
                     let (shuffled, demos) = self.shuffled(seed, trainset);
@@ -166,7 +169,11 @@ where
             .run()
             .await
             .score;
-            attempts.push(Attempt { seed, score: scored, state });
+            attempts.push(Attempt {
+                seed,
+                score: scored,
+                state,
+            });
             if self.stop_at_score.is_some_and(|bar| scored >= bar) {
                 break;
             }
@@ -188,7 +195,10 @@ where
         let mut ranked = attempts;
         // dspy sorts by score descending; a stable sort keeps ties in the order they were tried.
         ranked.sort_by(|left, right| {
-            right.score.partial_cmp(&left.score).unwrap_or(std::cmp::Ordering::Equal)
+            right
+                .score
+                .partial_cmp(&left.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
         Ok(ranked)
     }
@@ -204,9 +214,16 @@ mod tests {
     fn the_seeds_are_three_baselines_then_the_candidates() {
         let search = BootstrapRandomSearch::new(|_: &Example, _: &Prediction| 0.0);
         assert_eq!(search.seeds().collect::<Vec<_>>()[..4], [-3, -2, -1, 0]);
-        assert_eq!(search.seeds().count(), 19, "dspy's default 16 candidates plus 3 baselines");
         assert_eq!(
-            search.with_num_candidate_programs(2).seeds().collect::<Vec<_>>(),
+            search.seeds().count(),
+            19,
+            "dspy's default 16 candidates plus 3 baselines"
+        );
+        assert_eq!(
+            search
+                .with_num_candidate_programs(2)
+                .seeds()
+                .collect::<Vec<_>>(),
             [-3, -2, -1, 0, 1]
         );
     }
@@ -215,15 +232,19 @@ mod tests {
     /// ask for a different number of demos on every seed than dspy asks for.
     #[test]
     fn the_size_is_drawn_from_a_fresh_generator() {
-        let search =
-            BootstrapRandomSearch::new(|_: &Example, _: &Prediction| 0.0).with_max_bootstrapped_demos(8);
-        let trainset: Vec<Example> =
-            (0..20).map(|n| Example::new([("q", serde_json::json!(n))])).collect();
+        let search = BootstrapRandomSearch::new(|_: &Example, _: &Prediction| 0.0)
+            .with_max_bootstrapped_demos(8);
+        let trainset: Vec<Example> = (0..20)
+            .map(|n| Example::new([("q", serde_json::json!(n))]))
+            .collect();
 
         for seed in 0..5 {
             let (_, drawn) = search.shuffled(seed, &trainset);
             let expected = Random::seeded(seed as u64).randint(1, 8) as usize;
-            assert_eq!(drawn, expected, "seed {seed} draws from a generator of its own");
+            assert_eq!(
+                drawn, expected,
+                "seed {seed} draws from a generator of its own"
+            );
             assert!((1..=8).contains(&drawn), "and stays within the range");
         }
     }
@@ -233,8 +254,9 @@ mod tests {
     #[test]
     fn a_seed_shuffles_reproducibly() {
         let search = BootstrapRandomSearch::new(|_: &Example, _: &Prediction| 0.0);
-        let trainset: Vec<Example> =
-            (0..10).map(|n| Example::new([("q", serde_json::json!(n))])).collect();
+        let trainset: Vec<Example> = (0..10)
+            .map(|n| Example::new([("q", serde_json::json!(n))]))
+            .collect();
         let order = |seed| {
             search
                 .shuffled(seed, &trainset)
@@ -245,6 +267,10 @@ mod tests {
         };
         assert_eq!(order(1), order(1));
         assert_ne!(order(1), order(2));
-        assert_ne!(order(1), order(-1_i64.abs()), "and none of them is the original order");
+        assert_ne!(
+            order(1),
+            order(-1_i64.abs()),
+            "and none of them is the original order"
+        );
     }
 }

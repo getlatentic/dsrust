@@ -89,7 +89,10 @@ mod tests {
         };
 
         let merged = first.merge(second);
-        assert_eq!(merged.user_parts, vec![LmPart::text("one"), LmPart::text("two")]);
+        assert_eq!(
+            merged.user_parts,
+            vec![LmPart::text("one"), LmPart::text("two")]
+        );
         assert_eq!(merged.delete_input_fields, ["photo", "clip"]);
     }
 

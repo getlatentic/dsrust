@@ -20,10 +20,14 @@ impl Completions {
     /// The by-field form directly. Every field must carry one value per candidate, which is the
     /// pair of assertions upstream makes on construction.
     pub fn new(fields: impl IntoIterator<Item = (impl Into<String>, Vec<Value>)>) -> Result<Self> {
-        let fields: Vec<(String, Vec<Value>)> =
-            fields.into_iter().map(|(name, values)| (name.into(), values)).collect();
+        let fields: Vec<(String, Vec<Value>)> = fields
+            .into_iter()
+            .map(|(name, values)| (name.into(), values))
+            .collect();
         if let Some((_, first)) = fields.first()
-            && let Some((name, values)) = fields.iter().find(|(_, values)| values.len() != first.len())
+            && let Some((name, values)) = fields
+                .iter()
+                .find(|(_, values)| values.len() != first.len())
         {
             bail!(
                 "all fields must hold one value per candidate; `{name}` holds {} where the first \
@@ -61,7 +65,10 @@ impl Completions {
 
     /// Every candidate's value for one field. dspy reaches the same list by attribute or by key.
     pub fn get(&self, name: &str) -> Option<&[Value]> {
-        self.fields.iter().find(|(field, _)| field == name).map(|(_, values)| values.as_slice())
+        self.fields
+            .iter()
+            .find(|(field, _)| field == name)
+            .map(|(_, values)| values.as_slice())
     }
 
     pub fn contains(&self, name: &str) -> bool {
@@ -75,14 +82,18 @@ impl Completions {
             return None;
         }
         let example = Example::new(
-            self.fields.iter().map(|(name, values)| (name.clone(), values[index].clone())),
+            self.fields
+                .iter()
+                .map(|(name, values)| (name.clone(), values[index].clone())),
         );
         Some(Prediction::new(example, ""))
     }
 
     /// Each field with every candidate's value for it, in order.
     pub fn items(&self) -> impl Iterator<Item = (&str, &[Value])> {
-        self.fields.iter().map(|(name, values)| (name.as_str(), values.as_slice()))
+        self.fields
+            .iter()
+            .map(|(name, values)| (name.as_str(), values.as_slice()))
     }
 }
 
@@ -100,7 +111,10 @@ mod tests {
     fn it_holds_each_candidates_value_by_field() {
         let completions = two_candidates();
         assert_eq!(completions.len(), 2);
-        assert_eq!(completions.get("answer"), Some([json!("red"), json!("blue")].as_slice()));
+        assert_eq!(
+            completions.get("answer"),
+            Some([json!("red"), json!("blue")].as_slice())
+        );
         assert!(completions.contains("answer"));
         assert!(completions.get("missing").is_none());
     }
@@ -115,14 +129,20 @@ mod tests {
         let completions = Completions::from_candidates(&candidates).expect("even fields");
         let names: Vec<&str> = completions.items().map(|(name, _)| name).collect();
         assert_eq!(names, ["answer", "why"]);
-        assert_eq!(completions.get("why"), Some([json!("warm"), json!("cool")].as_slice()));
+        assert_eq!(
+            completions.get("why"),
+            Some([json!("warm"), json!("cool")].as_slice())
+        );
     }
 
     /// `completions[i]` is the i-th value of every field, as one prediction.
     #[test]
     fn it_reads_one_candidate_back_as_a_prediction() {
         let completions = two_candidates();
-        assert_eq!(completions.at(1).expect("a candidate").get("answer"), Some(&json!("blue")));
+        assert_eq!(
+            completions.at(1).expect("a candidate").get("answer"),
+            Some(&json!("blue"))
+        );
         assert!(completions.at(2).is_none());
     }
 

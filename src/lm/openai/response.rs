@@ -25,7 +25,11 @@ pub(super) fn reply(
         return Err(anyhow!("{label} {status}: {detail}"));
     }
     let response = completion_to_lm_response(body, model);
-    if response.outputs.iter().all(|output| output.parts.is_empty()) {
+    if response
+        .outputs
+        .iter()
+        .all(|output| output.parts.is_empty())
+    {
         // A reply with neither text, a tool call, nor reasoning is nothing to parse — surfaced as the
         // error it is rather than an empty answer a caller would read as a blank completion.
         return Err(anyhow!("{label} returned no content"));
@@ -56,7 +60,10 @@ fn completion_to_lm_response(body: &Value, fallback_model: &str) -> api::LmRespo
 fn choice_to_lm_output(choice: &Value) -> api::LmOutput {
     let message = &choice["message"];
     let mut parts = Vec::new();
-    if let Some(reasoning) = message["reasoning_content"].as_str().filter(|text| !text.is_empty()) {
+    if let Some(reasoning) = message["reasoning_content"]
+        .as_str()
+        .filter(|text| !text.is_empty())
+    {
         parts.push(api::LmPart::thinking(reasoning, false));
     }
     if let Some(content) = message["content"].as_str().filter(|text| !text.is_empty()) {
@@ -90,7 +97,10 @@ fn tool_call(call: &Value) -> api::LmPart {
         Ok(Value::Object(map)) => map,
         _ => {
             // dspy keeps the unparsed string beside the raw call and empties the args.
-            provider_data.insert("raw_arguments".to_owned(), Value::String(arguments.to_owned()));
+            provider_data.insert(
+                "raw_arguments".to_owned(),
+                Value::String(arguments.to_owned()),
+            );
             Metadata::new()
         }
     };
@@ -168,7 +178,9 @@ mod tests {
             // The fixture's fallback model is the request's, "openai/gpt-4o".
             let mut ours = completion_to_lm_response(&case["response"], "openai/gpt-4o");
             ours.provider_response = None;
-            ours.outputs.iter_mut().for_each(|output| output.provider_output = None);
+            ours.outputs
+                .iter_mut()
+                .for_each(|output| output.provider_output = None);
             assert_eq!(
                 ours, expected,
                 "{name}: our reply diverges from dspy's completion_to_lm_response"
@@ -179,10 +191,18 @@ mod tests {
     #[test]
     fn a_refused_call_carries_the_status_and_the_services_own_message() {
         let body = serde_json::json!({ "error": { "message": "Incorrect API key provided" } });
-        let error = reply("openai", "gpt-4o-mini", reqwest::StatusCode::UNAUTHORIZED, &body)
-            .expect_err("401 is a failure");
+        let error = reply(
+            "openai",
+            "gpt-4o-mini",
+            reqwest::StatusCode::UNAUTHORIZED,
+            &body,
+        )
+        .expect_err("401 is a failure");
         assert!(error.to_string().contains("openai 401"), "got: {error}");
-        assert!(error.to_string().contains("Incorrect API key provided"), "got: {error}");
+        assert!(
+            error.to_string().contains("Incorrect API key provided"),
+            "got: {error}"
+        );
     }
 
     #[test]
@@ -194,6 +214,9 @@ mod tests {
             &serde_json::json!({ "choices": [] }),
         )
         .expect_err("nothing to read");
-        assert!(error.to_string().contains("openai returned no content"), "got: {error}");
+        assert!(
+            error.to_string().contains("openai returned no content"),
+            "got: {error}"
+        );
     }
 }

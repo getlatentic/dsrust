@@ -15,13 +15,13 @@
 
 mod better_together;
 mod bootstrap;
-mod gepa;
-mod mipro;
 mod copro;
 mod earned;
 mod ensemble;
-mod random_search;
+mod gepa;
 mod labeled;
+mod mipro;
+mod random_search;
 mod rng;
 
 #[cfg(test)]
@@ -33,10 +33,10 @@ pub use better_together::{BetterTogether, Candidate};
 pub use bootstrap::BootstrapFewShot;
 pub use copro::COPRO;
 pub use ensemble::{Ensemble, Ensembled};
-pub use random_search::{Attempt, BootstrapRandomSearch};
 pub use gepa::{Feedback, GEPA, GepaOutcome};
-pub use mipro::MIPROv2;
 pub use labeled::LabeledFewShot;
+pub use mipro::MIPROv2;
+pub use random_search::{Attempt, BootstrapRandomSearch};
 
 use std::pin::Pin;
 

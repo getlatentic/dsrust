@@ -27,7 +27,10 @@ struct MirrorAdapter {
 
 impl MirrorAdapter {
     fn versions(candidate: &Candidate) -> Vec<usize> {
-        candidate.values().map(|text| text[1..].parse().expect("a vN component text")).collect()
+        candidate
+            .values()
+            .map(|text| text[1..].parse().expect("a vN component text"))
+            .collect()
     }
 
     fn score(&self, candidate: &Candidate, example_id: usize) -> f64 {
@@ -45,13 +48,26 @@ impl MirrorAdapter {
 }
 
 impl GepaAdapter for MirrorAdapter {
-    async fn evaluate_minibatch(&mut self, ids: &[usize], candidate: &Candidate, capture_traces: bool) -> EvalBatch {
+    async fn evaluate_minibatch(
+        &mut self,
+        ids: &[usize],
+        candidate: &Candidate,
+        capture_traces: bool,
+    ) -> EvalBatch {
         let scores = ids.iter().map(|&id| self.score(candidate, id)).collect();
-        if capture_traces { EvalBatch::traced(scores) } else { EvalBatch::scored(scores) }
+        if capture_traces {
+            EvalBatch::traced(scores)
+        } else {
+            EvalBatch::scored(scores)
+        }
     }
 
     async fn evaluate_valset(&mut self, candidate: &Candidate) -> EvalBatch {
-        EvalBatch::scored((0..self.valset_size).map(|id| self.score(candidate, id)).collect())
+        EvalBatch::scored(
+            (0..self.valset_size)
+                .map(|id| self.score(candidate, id))
+                .collect(),
+        )
     }
 
     async fn evaluate_valset_ids(&mut self, ids: &[usize], candidate: &Candidate) -> EvalBatch {
@@ -79,18 +95,29 @@ fn candidate_of(value: &Value) -> Candidate {
         .as_object()
         .expect("a candidate object")
         .iter()
-        .map(|(name, text)| (name.clone(), text.as_str().expect("component text").to_string()))
+        .map(|(name, text)| {
+            (
+                name.clone(),
+                text.as_str().expect("component text").to_string(),
+            )
+        })
         .collect()
 }
 
 /// A fixture parent list `[null]` (the seed) maps to no parents; `[0]`, `[1]`, ... to those indices.
 fn parents_of(value: &Value) -> Vec<usize> {
-    value.as_array().expect("a parent list").iter().filter_map(|p| p.as_u64().map(|n| n as usize)).collect()
+    value
+        .as_array()
+        .expect("a parent list")
+        .iter()
+        .filter_map(|p| p.as_u64().map(|n| n as usize))
+        .collect()
 }
 
 #[tokio::test]
 async fn reproduces_the_runs_gepa_produces() {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/engine.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/engine.json");
     let text = std::fs::read_to_string(&path).expect("the engine golden is committed");
     let fixture: Value = serde_json::from_str(&text).expect("the golden parses");
     let weight = fixture["weight"].as_f64().expect("weight");
@@ -120,15 +147,30 @@ async fn reproduces_the_runs_gepa_produces() {
         let outcome = engine.optimize(candidate_of(&case["seed_candidate"])).await;
         let result = &case["result"];
 
-        let want_candidates: Vec<Candidate> =
-            result["candidates"].as_array().expect("candidates").iter().map(candidate_of).collect();
-        assert_eq!(outcome.candidates, want_candidates, "{label}: candidate pool");
+        let want_candidates: Vec<Candidate> = result["candidates"]
+            .as_array()
+            .expect("candidates")
+            .iter()
+            .map(candidate_of)
+            .collect();
+        assert_eq!(
+            outcome.candidates, want_candidates,
+            "{label}: candidate pool"
+        );
 
-        let want_parents: Vec<Vec<usize>> =
-            result["parents"].as_array().expect("parents").iter().map(parents_of).collect();
+        let want_parents: Vec<Vec<usize>> = result["parents"]
+            .as_array()
+            .expect("parents")
+            .iter()
+            .map(parents_of)
+            .collect();
         assert_eq!(outcome.parents, want_parents, "{label}: parents");
 
-        assert_eq!(outcome.best_idx, result["best_idx"].as_u64().expect("best_idx") as usize, "{label}: best_idx");
+        assert_eq!(
+            outcome.best_idx,
+            result["best_idx"].as_u64().expect("best_idx") as usize,
+            "{label}: best_idx"
+        );
         assert_eq!(
             outcome.total_num_evals,
             result["total_metric_calls"].as_u64().expect("total") as usize,
@@ -146,11 +188,23 @@ async fn reproduces_the_runs_gepa_produces() {
             .iter()
             .map(|n| n.as_u64().unwrap() as usize)
             .collect();
-        assert_eq!(outcome.num_metric_calls_by_discovery, want_discovery, "{label}: discovery eval counts");
+        assert_eq!(
+            outcome.num_metric_calls_by_discovery, want_discovery,
+            "{label}: discovery eval counts"
+        );
 
         let want_scores = result["val_aggregate_scores"].as_array().expect("scores");
-        assert_eq!(outcome.val_aggregate_scores.len(), want_scores.len(), "{label}: score count");
-        for (idx, (got, want)) in outcome.val_aggregate_scores.iter().zip(want_scores).enumerate() {
+        assert_eq!(
+            outcome.val_aggregate_scores.len(),
+            want_scores.len(),
+            "{label}: score count"
+        );
+        for (idx, (got, want)) in outcome
+            .val_aggregate_scores
+            .iter()
+            .zip(want_scores)
+            .enumerate()
+        {
             assert!(
                 (got - want.as_f64().unwrap()).abs() < 1e-12,
                 "{label}: val_aggregate_scores[{idx}] {got} vs {want}"

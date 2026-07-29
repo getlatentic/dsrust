@@ -88,7 +88,12 @@ mod tests {
     #[test]
     fn a_render_raises_to_a_system_message_then_turns() {
         let turns = [ChatTurn::user("Why?"), ChatTurn::assistant("Because.")];
-        let raised = raise_request("Be concise.", &turns, OutputMode::Text, &CallConfig::default());
+        let raised = raise_request(
+            "Be concise.",
+            &turns,
+            OutputMode::Text,
+            &CallConfig::default(),
+        );
 
         assert_eq!(raised.messages.len(), 3);
         assert_eq!(raised.messages[0].role, "system");

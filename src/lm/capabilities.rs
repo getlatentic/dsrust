@@ -73,7 +73,14 @@ fn registry() -> &'static HashMap<String, Capabilities> {
             .models
             .into_iter()
             .map(|(model, [function_calling, reasoning, response_schema])| {
-                (model, Capabilities { function_calling, reasoning, response_schema })
+                (
+                    model,
+                    Capabilities {
+                        function_calling,
+                        reasoning,
+                        response_schema,
+                    },
+                )
             })
             .collect()
     })
@@ -93,7 +100,10 @@ mod tests {
     #[test]
     fn an_unknown_model_is_credited_with_nothing() {
         // Upstream's default too: what is not known is not assumed.
-        assert_eq!(Capabilities::of("openai/nothing-like-this"), Capabilities::default());
+        assert_eq!(
+            Capabilities::of("openai/nothing-like-this"),
+            Capabilities::default()
+        );
         assert_eq!(Capabilities::of("no-slash-at-all"), Capabilities::default());
     }
 

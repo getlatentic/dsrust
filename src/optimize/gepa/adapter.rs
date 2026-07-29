@@ -6,7 +6,10 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use gepa::{Candidate, EvalBatch, GepaAdapter, Reflective, ReflectiveSample, extract_new_instruction, render_prompt};
+use gepa::{
+    Candidate, EvalBatch, GepaAdapter, Reflective, ReflectiveSample, extract_new_instruction,
+    render_prompt,
+};
 
 use super::metric::Feedback;
 use crate::example::{Example, Prediction};
@@ -59,7 +62,16 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
         valset: &'a [Example],
         failure_score: f64,
     ) -> Self {
-        Self { student, metric, reflection, http, trainset, valset, failure_score, captured: Vec::new() }
+        Self {
+            student,
+            metric,
+            reflection,
+            http,
+            trainset,
+            valset,
+            failure_score,
+            captured: Vec::new(),
+        }
     }
 }
 
@@ -71,7 +83,12 @@ where
     /// Run the candidate program over `examples`, scoring each with the metric. When capturing, the
     /// per-example traces and feedback are stashed for the reflection step. dspy never raises for one
     /// example's failure — a failed run scores `failure_score` and contributes no trace.
-    async fn evaluate(&mut self, examples: &[Example], candidate: &Candidate, capture_traces: bool) -> EvalBatch {
+    async fn evaluate(
+        &mut self,
+        examples: &[Example],
+        candidate: &Candidate,
+        capture_traces: bool,
+    ) -> EvalBatch {
         set_instructions(self.student, candidate);
         if capture_traces {
             self.captured.clear();
@@ -84,7 +101,11 @@ where
                 self.captured.push(captured);
             }
         }
-        if capture_traces { EvalBatch::traced(scores) } else { EvalBatch::scored(scores) }
+        if capture_traces {
+            EvalBatch::traced(scores)
+        } else {
+            EvalBatch::scored(scores)
+        }
     }
 
     /// One example: run the (already-built) program with tracing, then score it. Returns the score and,
@@ -93,11 +114,17 @@ where
         let inputs = example.inputs().expect("a dataset row declares its inputs");
         let mut trace = Vec::new();
         let Ok(prediction) = self.student.forward_traced(inputs, &mut trace).await else {
-            let captured = capture_traces.then(|| Captured { trace: Vec::new(), feedback: String::new() });
+            let captured = capture_traces.then(|| Captured {
+                trace: Vec::new(),
+                feedback: String::new(),
+            });
             return (self.failure_score, captured);
         };
         let feedback = (self.metric)(example, &prediction);
-        let captured = capture_traces.then(|| Captured { trace, feedback: feedback.text() });
+        let captured = capture_traces.then(|| Captured {
+            trace,
+            feedback: feedback.text(),
+        });
         (feedback.score, captured)
     }
 
@@ -107,13 +134,20 @@ where
     fn reflective_dataset(&self, predictor: &str) -> Vec<ReflectiveSample> {
         let mut samples = Vec::new();
         for captured in &self.captured {
-            let Some(step) = captured.trace.iter().find(|step| step.predictor == predictor) else {
+            let Some(step) = captured
+                .trace
+                .iter()
+                .find(|step| step.predictor == predictor)
+            else {
                 continue;
             };
             samples.push(vec![
                 ("Inputs".to_owned(), rendered_map(&step.inputs)),
                 ("Generated Outputs".to_owned(), rendered_map(&step.outputs)),
-                ("Feedback".to_owned(), Reflective::Text(captured.feedback.clone())),
+                (
+                    "Feedback".to_owned(),
+                    Reflective::Text(captured.feedback.clone()),
+                ),
             ]);
         }
         samples
@@ -122,8 +156,15 @@ where
     /// Call the reflection model with the rendered prompt and return its raw completion, from which
     /// [`extract_new_instruction`] pulls the fenced instruction.
     async fn reflect(&self, prompt: &str) -> Option<String> {
-        let request = LmRequest::new(REFLECTION_MODEL, vec![LmMessage::user(vec![LmPart::text(prompt)])]);
-        let response = self.reflection.forward_dyn(&self.http, &request).await.ok()?;
+        let request = LmRequest::new(
+            REFLECTION_MODEL,
+            vec![LmMessage::user(vec![LmPart::text(prompt)])],
+        );
+        let response = self
+            .reflection
+            .forward_dyn(&self.http, &request)
+            .await
+            .ok()?;
         Some(response.first_text())
     }
 }
@@ -133,7 +174,12 @@ where
     S: Module + ?Sized + Send,
     M: Fn(&Example, &Prediction) -> Feedback + Send + Sync,
 {
-    async fn evaluate_minibatch(&mut self, ids: &[usize], candidate: &Candidate, capture_traces: bool) -> EvalBatch {
+    async fn evaluate_minibatch(
+        &mut self,
+        ids: &[usize],
+        candidate: &Candidate,
+        capture_traces: bool,
+    ) -> EvalBatch {
         let examples: Vec<Example> = ids.iter().map(|&id| self.trainset[id].clone()).collect();
         self.evaluate(&examples, candidate, capture_traces).await
     }
@@ -175,5 +221,11 @@ where
 /// An example's fields as a GEPA reflective map: field name → its rendered value, in declaration
 /// order (dspy's `{k: str(v) for k, v in inputs.items()}`).
 fn rendered_map(example: &Example) -> Reflective {
-    Reflective::Map(example.rendered().into_iter().map(|(name, value)| (name, Reflective::Text(value))).collect())
+    Reflective::Map(
+        example
+            .rendered()
+            .into_iter()
+            .map(|(name, value)| (name, Reflective::Text(value)))
+            .collect(),
+    )
 }

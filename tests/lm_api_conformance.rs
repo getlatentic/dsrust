@@ -23,14 +23,17 @@ fn round_trip<T>(raw: &Value, label: &str)
 where
     T: serde::de::DeserializeOwned + serde::Serialize + PartialEq + std::fmt::Debug,
 {
-    let parsed: T = serde_json::from_value(raw.clone())
-        .unwrap_or_else(|error| panic!("{label} does not parse into its Rust type: {error}\n  upstream sent: {raw}"));
+    let parsed: T = serde_json::from_value(raw.clone()).unwrap_or_else(|error| {
+        panic!("{label} does not parse into its Rust type: {error}\n  upstream sent: {raw}")
+    });
     let written = serde_json::to_value(&parsed).expect("serializes");
     let again: T = serde_json::from_value(written.clone())
         .unwrap_or_else(|error| panic!("{label} does not survive its own serialization: {error}"));
     assert_eq!(parsed, again, "{label} changed on the way through");
     if let Some(lost) = dropped(raw, &written, String::new()) {
-        panic!("{label} drops what upstream sent at `{lost}`\n  upstream: {raw}\n  ours: {written}");
+        panic!(
+            "{label} drops what upstream sent at `{lost}`\n  upstream: {raw}\n  ours: {written}"
+        );
     }
 }
 
@@ -48,7 +51,9 @@ fn dropped(upstream: &Value, ours: &Value, at: String) -> Option<String> {
             };
             match mine.get(key) {
                 Some(mine) => dropped(value, mine, at),
-                None => says_nothing(value).then_some(()).map_or(Some(at), |()| None),
+                None => says_nothing(value)
+                    .then_some(())
+                    .map_or(Some(at), |()| None),
             }
         }),
         (Value::Array(theirs), Value::Array(mine)) if theirs.len() == mine.len() => theirs

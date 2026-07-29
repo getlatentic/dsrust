@@ -57,10 +57,19 @@ fn it_still_earns_the_output_requirement_hint() {
         .format(
             &Explain::signature(),
             &[],
-            &[dsrust::adapter::Input::new("question", serde_json::json!("Q"))],
+            &[dsrust::adapter::Input::new(
+                "question",
+                serde_json::json!("Q"),
+            )],
         )
         .expect("renders");
-    let last = turns.last().expect("a user turn").content.text().unwrap_or_default().to_owned();
+    let last = turns
+        .last()
+        .expect("a user turn")
+        .content
+        .text()
+        .unwrap_or_default()
+        .to_owned();
     // dspy asks `annotation is not str`; Reasoning is not, so the hint stays — named "str".
     assert!(
         last.contains("`[[ ## reasoning ## ]]` (must be formatted as a valid Python str)"),

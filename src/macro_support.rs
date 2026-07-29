@@ -62,10 +62,18 @@ mod tests {
         assert!(code[0].replaces_schema);
 
         // `Image` is a `Type` but states no description.
-        assert!(TypeProbe::<Image>(PhantomData).field_descriptions().is_empty());
+        assert!(
+            TypeProbe::<Image>(PhantomData)
+                .field_descriptions()
+                .is_empty()
+        );
 
         // A plain struct is not a `Type`; the fallback answers.
         struct Plain;
-        assert!(TypeProbe::<Plain>(PhantomData).field_descriptions().is_empty());
+        assert!(
+            TypeProbe::<Plain>(PhantomData)
+                .field_descriptions()
+                .is_empty()
+        );
     }
 }

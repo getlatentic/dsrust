@@ -165,7 +165,9 @@ mod tests {
     /// this these tests' unscoped `record` calls leaked into a concurrent scope's tracker — a
     /// stray 70 tokens once landing in [`each_model_is_totalled_on_its_own`].
     fn exclusive() -> MutexGuard<'static, ()> {
-        let held = scope().lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let held = scope()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         *installed().lock().expect("not poisoned") = None;
         held
     }

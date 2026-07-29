@@ -96,7 +96,10 @@ pub struct ProgramState {
 impl ProgramState {
     /// The state for these named predictors, with the metadata dspy expects.
     pub fn new(predictors: BTreeMap<String, PredictorState>) -> Self {
-        Self { predictors, metadata: Metadata::default() }
+        Self {
+            predictors,
+            metadata: Metadata::default(),
+        }
     }
 
     pub fn get(&self, name: &str) -> Option<&PredictorState> {
@@ -139,8 +142,14 @@ impl SignatureState {
     /// program has since gained a field restores what it can rather than failing.
     pub fn restore(&self, signature: &mut Signature) {
         signature.instructions = self.instructions.clone();
-        let inputs = signature.inputs.iter_mut().map(|field| (&mut field.desc, &mut field.prefix));
-        let outputs = signature.outputs.iter_mut().map(|field| (&mut field.desc, &mut field.prefix));
+        let inputs = signature
+            .inputs
+            .iter_mut()
+            .map(|field| (&mut field.desc, &mut field.prefix));
+        let outputs = signature
+            .outputs
+            .iter_mut()
+            .map(|field| (&mut field.desc, &mut field.prefix));
         for ((desc, prefix), saved) in inputs.chain(outputs).zip(&self.fields) {
             *desc = saved.description.clone();
             *prefix = Some(saved.prefix.clone());
@@ -165,14 +174,20 @@ impl FieldState {
 /// A demo as its ordered field map, for saving; `serde_json`'s `preserve_order` keeps signature
 /// order so a reloaded demo renders exactly as it did.
 fn demo_fields(demo: &Example) -> Map<String, Value> {
-    demo.fields().map(|(name, value)| (name.to_owned(), value.clone())).collect()
+    demo.fields()
+        .map(|(name, value)| (name.to_owned(), value.clone()))
+        .collect()
 }
 
 /// A saved demo back as an [`Example`], its input split re-declared from the signature — which is
 /// where dspy keeps it too, so it need not be stored.
 pub(super) fn demo_from_fields(fields: &Map<String, Value>, inputs: &[String]) -> Example {
-    Example::new(fields.iter().map(|(name, value)| (name.clone(), value.clone())))
-        .with_inputs(inputs.iter().cloned())
+    Example::new(
+        fields
+            .iter()
+            .map(|(name, value)| (name.clone(), value.clone())),
+    )
+    .with_inputs(inputs.iter().cloned())
 }
 
 #[cfg(test)]
@@ -186,7 +201,10 @@ mod tests {
                            `the_answer`."
                 .into(),
             inputs: vec![
-                InField { name: "plain_question".into(), ..Default::default() },
+                InField {
+                    name: "plain_question".into(),
+                    ..Default::default()
+                },
                 InField {
                     name: "with_desc".into(),
                     desc: "a described one".into(),
@@ -209,9 +227,18 @@ mod tests {
         assert_eq!(
             state.fields,
             vec![
-                FieldState { prefix: "Plain Question:".into(), description: "${plain_question}".into() },
-                FieldState { prefix: "With Desc:".into(), description: "a described one".into() },
-                FieldState { prefix: "The Answer:".into(), description: "what came out".into() },
+                FieldState {
+                    prefix: "Plain Question:".into(),
+                    description: "${plain_question}".into()
+                },
+                FieldState {
+                    prefix: "With Desc:".into(),
+                    description: "a described one".into()
+                },
+                FieldState {
+                    prefix: "The Answer:".into(),
+                    description: "what came out".into()
+                },
             ]
         );
     }
@@ -227,7 +254,10 @@ mod tests {
         saved.restore(&mut restored);
         assert_eq!(restored.instructions, "Answer with GOOD precision.");
         assert_eq!(restored.inputs[0].desc, "the question, rewritten");
-        assert_eq!(restored.inputs[0].prefix.as_deref(), Some("Plain Question:"));
+        assert_eq!(
+            restored.inputs[0].prefix.as_deref(),
+            Some("Plain Question:")
+        );
         assert_eq!(SignatureState::of(&restored), saved);
     }
 
@@ -236,7 +266,10 @@ mod tests {
     #[test]
     fn the_metadata_names_the_dspy_release_this_is_a_port_of() {
         let written = serde_json::to_value(Metadata::default()).expect("serializes");
-        assert_eq!(written, serde_json::json!({ "dependency_versions": { "dspy": DSPY_VERSION } }));
+        assert_eq!(
+            written,
+            serde_json::json!({ "dependency_versions": { "dspy": DSPY_VERSION } })
+        );
     }
 
     /// The predictors sit at the top level beside `metadata`, which is the shape dspy's loader
@@ -249,7 +282,12 @@ mod tests {
         )]));
         let written = serde_json::to_value(&state).expect("serializes");
         assert!(written["predict"]["signature"]["instructions"].is_string());
-        assert!(written["predict"]["traces"].as_array().expect("traces").is_empty());
+        assert!(
+            written["predict"]["traces"]
+                .as_array()
+                .expect("traces")
+                .is_empty()
+        );
         assert_eq!(written["predict"]["lm"], Value::Null);
         assert!(written["metadata"]["dependency_versions"]["dspy"].is_string());
         assert_eq!(

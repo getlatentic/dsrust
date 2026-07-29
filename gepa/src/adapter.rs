@@ -22,12 +22,18 @@ pub struct EvalBatch {
 impl EvalBatch {
     /// An evaluation carrying scores and (for a `capture_traces=true` call) captured traces.
     pub fn traced(scores: Vec<f64>) -> Self {
-        Self { scores, captured_traces: true }
+        Self {
+            scores,
+            captured_traces: true,
+        }
     }
 
     /// A plain scoring evaluation (`capture_traces=false`), as the valset and new-candidate evals do.
     pub fn scored(scores: Vec<f64>) -> Self {
-        Self { scores, captured_traces: false }
+        Self {
+            scores,
+            captured_traces: false,
+        }
     }
 }
 

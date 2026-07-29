@@ -33,7 +33,8 @@ impl DynChatModel for NotOnThisSide {
         &'a self,
         _http: &'a reqwest::Client,
         _request: &'a dsrust::lm::api::LmRequest,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<dsrust::lm::api::LmResponse>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<dsrust::lm::api::LmResponse>> + Send + 'a>>
+    {
         Box::pin(async {
             Err(anyhow::anyhow!(
                 "the bridge does not call models; Python runs the extraction"
@@ -85,7 +86,9 @@ impl PyLM {
             // lets the crate's decision about one — a predicted output lifted off the inputs —
             // reach litellm, rather than the Python side having decided it before Rust ran.
             for (key, value) in &request.config.extensions {
-                let crossed = py.import("json")?.call_method1("loads", (value.to_string(),))?;
+                let crossed = py
+                    .import("json")?
+                    .call_method1("loads", (value.to_string(),))?;
                 kwargs.set_item(key.as_str(), crossed)?;
             }
             let replies = self
@@ -118,7 +121,8 @@ impl DynChatModel for PyLM {
         &'a self,
         _http: &'a reqwest::Client,
         request: &'a dsrust::lm::api::LmRequest,
-    ) -> Pin<Box<dyn Future<Output = anyhow::Result<dsrust::lm::api::LmResponse>> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<dsrust::lm::api::LmResponse>> + Send + 'a>>
+    {
         Box::pin(std::future::ready(self.answer(request)))
     }
 
@@ -315,7 +319,9 @@ fn adapter_named(adapter: &str) -> PyResult<Box<dyn Adapter>> {
 /// setting read it; the rest render as an adapter with it off, which is upstream's default.
 fn configured_adapter(adapter: &str, native: bool) -> PyResult<Box<dyn Adapter>> {
     match adapter {
-        "chat" => Ok(Box::new(ChatAdapter::default().with_native_function_calling(native))),
+        "chat" => Ok(Box::new(
+            ChatAdapter::default().with_native_function_calling(native),
+        )),
         "json" => Ok(Box::new(JsonAdapter {
             use_native_function_calling: native,
             parallel_tool_calls: None,
@@ -370,7 +376,8 @@ fn majority_index(values: Vec<String>, mode: &str) -> PyResult<usize> {
         .iter()
         .map(|value| dsrust::Example::new([("value", Value::String(value.clone()))]))
         .collect();
-    let winner = dsrust::predict::majority(&completions, &normalize, None).map_err(to_value_error)?;
+    let winner =
+        dsrust::predict::majority(&completions, &normalize, None).map_err(to_value_error)?;
     let won = winner
         .get("value")
         .and_then(Value::as_str)
@@ -503,7 +510,13 @@ fn predict_forward(
     let demos: Vec<Example> = demos
         .unwrap_or_default()
         .into_iter()
-        .map(|fields| Example::new(fields.into_iter().map(|(name, value)| (name, Value::String(value)))))
+        .map(|fields| {
+            Example::new(
+                fields
+                    .into_iter()
+                    .map(|(name, value)| (name, Value::String(value))),
+            )
+        })
         .collect();
     // The module-level config spells the completion count `completions`; it becomes the wire
     // request's `n`, which is the kwarg a `DummyLM` reads.
@@ -528,8 +541,10 @@ fn predict_forward(
     let predictions = if n.unwrap_or(1) > 1 {
         pollster::block_on(predict.forward_completions(example)).map_err(to_value_error)?
     } else {
-        vec![pollster::block_on(dsrust::module::Module::forward(&predict, example))
-            .map_err(to_value_error)?]
+        vec![
+            pollster::block_on(dsrust::module::Module::forward(&predict, example))
+                .map_err(to_value_error)?,
+        ]
     };
     let completions: Vec<serde_json::Map<String, Value>> = predictions
         .iter()
@@ -543,7 +558,10 @@ fn predict_forward(
         .collect();
     let output_json = serde_json::to_string(&completions)
         .map_err(|error| PyValueError::new_err(format!("bad prediction: {error}")))?;
-    let raw = predictions.first().map(|prediction| prediction.raw.clone()).unwrap_or_default();
+    let raw = predictions
+        .first()
+        .map(|prediction| prediction.raw.clone())
+        .unwrap_or_default();
     Ok((output_json, raw))
 }
 
@@ -584,9 +602,9 @@ impl dsrust::Tool for PyTool {
         Python::attach(|py| {
             let args_json = serde_json::to_string(args)?;
             let kwargs = py.import("json")?.call_method1("loads", (args_json,))?;
-            let kwargs = kwargs
-                .cast::<pyo3::types::PyDict>()
-                .map_err(|error| anyhow::anyhow!("tool `{}` args are not an object: {error}", self.name))?;
+            let kwargs = kwargs.cast::<pyo3::types::PyDict>().map_err(|error| {
+                anyhow::anyhow!("tool `{}` args are not an object: {error}", self.name)
+            })?;
             let result = self
                 .func
                 .bind(py)
@@ -606,17 +624,29 @@ pub(crate) fn py_tool(py: Python<'_>, tool: &Py<PyAny>) -> PyResult<PyTool> {
     let bound = tool.bind(py);
     let name: String = bound.getattr("name")?.extract()?;
     // A tool built from a function with no docstring carries `desc = None`.
-    let description: String =
-        bound.getattr("desc")?.extract::<Option<String>>()?.unwrap_or_default();
-    let args_json: String =
-        py.import("json")?.call_method1("dumps", (bound.getattr("args")?,))?.extract()?;
+    let description: String = bound
+        .getattr("desc")?
+        .extract::<Option<String>>()?
+        .unwrap_or_default();
+    let args_json: String = py
+        .import("json")?
+        .call_method1("dumps", (bound.getattr("args")?,))?
+        .extract()?;
     let args: Value = serde_json::from_str(&args_json)
         .map_err(|error| PyValueError::new_err(format!("tool `{name}` args: {error}")))?;
-    Ok(PyTool { name, description, args, func: tool.clone_ref(py) })
+    Ok(PyTool {
+        name,
+        description,
+        args,
+        func: tool.clone_ref(py),
+    })
 }
 
 /// Every tool in the list, in order.
-pub(crate) fn py_tools(py: Python<'_>, tools: &[Py<PyAny>]) -> PyResult<Vec<Arc<dyn dsrust::Tool>>> {
+pub(crate) fn py_tools(
+    py: Python<'_>,
+    tools: &[Py<PyAny>],
+) -> PyResult<Vec<Arc<dyn dsrust::Tool>>> {
     tools
         .iter()
         .map(|tool| py_tool(py, tool).map(|built| Arc::new(built) as Arc<dyn dsrust::Tool>))
@@ -649,7 +679,8 @@ fn react_forward(
         }
     }
 
-    let mut react = dsrust::ReAct::new(signature, rust_tools).with_lm(Arc::new(PyLM { inner: py_lm }));
+    let mut react =
+        dsrust::ReAct::new(signature, rust_tools).with_lm(Arc::new(PyLM { inner: py_lm }));
     if let Some(max_iters) = max_iters {
         react = react.with_max_iters(max_iters);
     }
@@ -661,8 +692,8 @@ fn react_forward(
         fields.push((name.clone(), value));
     }
     let example = Example::new(fields);
-    let prediction =
-        pollster::block_on(dsrust::module::Module::forward(&react, example)).map_err(to_value_error)?;
+    let prediction = pollster::block_on(dsrust::module::Module::forward(&react, example))
+        .map_err(to_value_error)?;
     let output: serde_json::Map<String, Value> = prediction
         .example
         .fields()
@@ -781,9 +812,12 @@ fn json_fallback_settings(
             use_native_function_calling,
             parallel_tool_calls,
         };
-        return Ok(chat
-            .json_fallback_adapter()
-            .map(|fallback| (fallback.use_native_function_calling, fallback.parallel_tool_calls)));
+        return Ok(chat.json_fallback_adapter().map(|fallback| {
+            (
+                fallback.use_native_function_calling,
+                fallback.parallel_tool_calls,
+            )
+        }));
     }
     // Every other wire format states only whether it re-asks; none carries these settings.
     Ok(adapter_named(adapter)?
@@ -798,12 +832,18 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(predict_forward, module)?)?;
     module.add_function(wrap_pyfunction!(react_forward, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::rlm_forward, module)?)?;
-    module.add_function(wrap_pyfunction!(code_modules::program_of_thought_forward, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        code_modules::program_of_thought_forward,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(code_modules::code_act_forward, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::answer_exact_match, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::normalize_message, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::cache_key, module)?)?;
-    module.add_function(wrap_pyfunction!(code_modules::is_openai_reasoning_model, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        code_modules::is_openai_reasoning_model,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(code_modules::responses_body, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::merge_usage, module)?)?;
     module.add_function(wrap_pyfunction!(format_system_message, module)?)?;

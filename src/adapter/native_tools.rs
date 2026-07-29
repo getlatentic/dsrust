@@ -112,16 +112,16 @@ fn spec(tool: &Value) -> Option<LmToolSpec> {
         .and_then(Value::as_object)
         .cloned()
         .unwrap_or_default();
-    let required: Vec<Value> = args.keys().map(|name| Value::String(name.clone())).collect();
+    let required: Vec<Value> = args
+        .keys()
+        .map(|name| Value::String(name.clone()))
+        .collect();
     let parameters = serde_json::json!({
         "type": "object",
         "properties": Value::Object(args),
         "required": Value::Array(required),
     });
-    let mut spec = LmToolSpec::new(
-        name,
-        parameters.as_object().cloned().unwrap_or_default(),
-    );
+    let mut spec = LmToolSpec::new(name, parameters.as_object().cloned().unwrap_or_default());
     spec.description = tool.get("desc").and_then(Value::as_str).map(str::to_owned);
     Some(spec)
 }
@@ -136,7 +136,10 @@ mod tests {
         Signature {
             instructions: "Answer the question.".into(),
             inputs: vec![
-                InField { name: "question".into(), ..Default::default() },
+                InField {
+                    name: "question".into(),
+                    ..Default::default()
+                },
                 InField {
                     name: "tools".into(),
                     kind: FieldKind::Json(JsonType {
@@ -166,19 +169,28 @@ mod tests {
     }
 
     fn able() -> Capabilities {
-        Capabilities { function_calling: true, ..Default::default() }
+        Capabilities {
+            function_calling: true,
+            ..Default::default()
+        }
     }
 
     #[test]
     fn the_tools_move_onto_the_request_and_both_fields_leave_the_signature() {
         let value = json!([search()]);
-        let inputs = [Input::new("question", json!("what is dspy")), Input::new("tools", value)];
+        let inputs = [
+            Input::new("question", json!("what is dspy")),
+            Input::new("tools", value),
+        ];
         let planned = plan(&tool_signature(), &inputs, able())
             .expect("plans")
             .expect("native function calling");
         assert_eq!(planned.tools.len(), 1);
         assert_eq!(planned.tools[0].name, "search");
-        assert_eq!(planned.tools[0].description.as_deref(), Some("look something up"));
+        assert_eq!(
+            planned.tools[0].description.as_deref(),
+            Some("look something up")
+        );
         assert_eq!(
             Value::Object(planned.tools[0].parameters.clone()),
             json!({
@@ -188,7 +200,12 @@ mod tests {
             })
         );
         // Neither field is rendered: the provider is being asked, not told.
-        let names: Vec<&str> = planned.signature.inputs.iter().map(|f| f.name.as_str()).collect();
+        let names: Vec<&str> = planned
+            .signature
+            .inputs
+            .iter()
+            .map(|f| f.name.as_str())
+            .collect();
         assert_eq!(names, ["question"]);
         assert!(planned.signature.outputs.is_empty());
     }
@@ -214,7 +231,12 @@ mod tests {
         let mut signature = tool_signature();
         signature.inputs.retain(|field| field.name != "tools");
         let error = plan(&signature, &[], able()).expect_err("refused");
-        assert!(error.to_string().contains("did not provide any tools as the input"), "{error}");
+        assert!(
+            error
+                .to_string()
+                .contains("did not provide any tools as the input"),
+            "{error}"
+        );
         // And refused the same way when the model could not have called them anyway.
         assert!(plan(&signature, &[], Capabilities::default()).is_err());
     }
@@ -228,7 +250,9 @@ mod tests {
             ..Default::default()
         });
         let inputs = [Input::new("tools", search())];
-        let planned = plan(&signature, &inputs, able()).expect("plans").expect("native");
+        let planned = plan(&signature, &inputs, able())
+            .expect("plans")
+            .expect("native");
         assert_eq!(planned.tools.len(), 1);
         assert_eq!(planned.tools[0].name, "search");
     }

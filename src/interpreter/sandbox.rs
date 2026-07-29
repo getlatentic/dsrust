@@ -112,13 +112,15 @@ pub fn injection(value: &dyn SandboxSerializable, name: &str) -> (String, Map<St
 
 /// Standard base64, which is what Python's `b64encode` writes.
 fn base64(bytes: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] =
-        b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {
-        let packed = chunk.iter().enumerate().fold(0u32, |packed, (position, byte)| {
-            packed | (u32::from(*byte) << (16 - 8 * position))
-        });
+        let packed = chunk
+            .iter()
+            .enumerate()
+            .fold(0u32, |packed, (position, byte)| {
+                packed | (u32::from(*byte) << (16 - 8 * position))
+            });
         for slot in 0..4 {
             match slot <= chunk.len() {
                 true => out.push(ALPHABET[(packed >> (18 - 6 * slot)) as usize & 0x3f] as char),
@@ -163,7 +165,10 @@ mod tests {
     }
 
     fn frame() -> Frame {
-        Frame { rows: 3, payload: b"col_a,col_b".to_vec() }
+        Frame {
+            rows: 3,
+            payload: b"col_a,col_b".to_vec(),
+        }
     }
 
     /// The preview is the value's own description, and the length counts *that* rather than the
@@ -172,7 +177,10 @@ mod tests {
     fn the_description_stands_in_for_the_preview_and_its_length() {
         let variable = build_repl_variable(&frame(), "sales", "");
         assert_eq!(variable.preview, "DataFrame: 3 rows x 2 columns");
-        assert_eq!(variable.total_length, "DataFrame: 3 rows x 2 columns".chars().count());
+        assert_eq!(
+            variable.total_length,
+            "DataFrame: 3 rows x 2 columns".chars().count()
+        );
         assert_eq!(variable.type_name, "DataFrame");
     }
 
@@ -185,7 +193,11 @@ mod tests {
             "Sandbox imports available:\nimport pandas as pd\nimport base64\nimport io"
         );
         let after = build_repl_variable(&frame(), "sales", "last quarter");
-        assert!(after.desc.starts_with("last quarter\nSandbox imports available:\n"));
+        assert!(
+            after
+                .desc
+                .starts_with("last quarter\nSandbox imports available:\n")
+        );
         // And it reaches the prompt, since the description is a line of the rendered variable.
         let Formatted::Text(rendered) = Type::format(&after) else {
             panic!("a variable renders as text");
@@ -231,12 +243,25 @@ mod tests {
     /// Bytes that are not text cross base64'd, with the two lines that decode them prepended.
     #[test]
     fn binary_bytes_cross_base64_encoded() {
-        let binary = Frame { rows: 1, payload: vec![0x50, 0x41, 0x52, 0xff, 0xfe] };
+        let binary = Frame {
+            rows: 1,
+            payload: vec![0x50, 0x41, 0x52, 0xff, 0xfe],
+        };
         let (code, variables) = injection(&binary, "sales");
-        assert!(variables.contains_key("_raw_sales_base64"), "the encoded name is bound");
-        assert!(!variables.contains_key("_raw_sales"), "the raw name is built in the sandbox");
-        assert!(code.starts_with("import base64\n_raw_sales = base64.b64decode(_raw_sales_base64)\n"));
-        assert!(code.ends_with("sales = pd.read_parquet(io.BytesIO(base64.b64decode(_raw_sales)))"));
+        assert!(
+            variables.contains_key("_raw_sales_base64"),
+            "the encoded name is bound"
+        );
+        assert!(
+            !variables.contains_key("_raw_sales"),
+            "the raw name is built in the sandbox"
+        );
+        assert!(
+            code.starts_with("import base64\n_raw_sales = base64.b64decode(_raw_sales_base64)\n")
+        );
+        assert!(
+            code.ends_with("sales = pd.read_parquet(io.BytesIO(base64.b64decode(_raw_sales)))")
+        );
     }
 
     /// The encoder is Python's, padding and all.

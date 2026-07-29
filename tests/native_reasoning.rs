@@ -24,14 +24,22 @@ struct Recorder {
 impl Recorder {
     fn new(reasoning: bool, reply: api::LmResponse) -> Arc<Self> {
         Arc::new(Self {
-            capabilities: Capabilities { reasoning, ..Default::default() },
+            capabilities: Capabilities {
+                reasoning,
+                ..Default::default()
+            },
             reply,
             seen: Mutex::new(Vec::new()),
         })
     }
 
     fn request(&self) -> api::LmRequest {
-        self.seen.lock().expect("not poisoned").first().cloned().expect("a request went out")
+        self.seen
+            .lock()
+            .expect("not poisoned")
+            .first()
+            .cloned()
+            .expect("a request went out")
     }
 }
 
@@ -41,7 +49,10 @@ impl ChatModel for Recorder {
         _http: &reqwest::Client,
         request: &api::LmRequest,
     ) -> anyhow::Result<api::LmResponse> {
-        self.seen.lock().expect("not poisoned").push(request.clone());
+        self.seen
+            .lock()
+            .expect("not poisoned")
+            .push(request.clone());
         Ok(self.reply.clone())
     }
 
@@ -57,11 +68,18 @@ impl ChatModel for Recorder {
 fn reasoning_signature() -> Signature {
     let mut signature = Signature::single_input(
         "Answer the question.",
-        vec![OutField { name: "answer".into(), ..Default::default() }],
+        vec![OutField {
+            name: "answer".into(),
+            ..Default::default()
+        }],
     );
     signature.outputs.insert(
         0,
-        OutField { name: "reasoning".into(), kind: FieldKind::Reasoning, ..Default::default() },
+        OutField {
+            name: "reasoning".into(),
+            kind: FieldKind::Reasoning,
+            ..Default::default()
+        },
     );
     signature
 }
@@ -104,7 +122,10 @@ async fn a_reasoning_model_carries_the_effort_and_drops_the_field_from_the_promp
         "the default effort rides on the request"
     );
     let prompt = serde_json::to_string(&request.messages).expect("messages serialize");
-    assert!(!prompt.contains("[[ ## reasoning ## ]]"), "the field is not rendered: {prompt}");
+    assert!(
+        !prompt.contains("[[ ## reasoning ## ]]"),
+        "the field is not rendered: {prompt}"
+    );
 }
 
 /// dspy `parse_lm_response`: the reply's thinking fills the reasoning field, and the answer is read
@@ -112,9 +133,12 @@ async fn a_reasoning_model_carries_the_effort_and_drops_the_field_from_the_promp
 #[tokio::test]
 async fn the_reply_thinking_fills_the_reasoning_field() {
     let model = Recorder::new(true, reply_with_thinking("six sevens are forty-two"));
-    let predict = Predict::from_signature(reasoning_signature())
-        .with_lm(model as Arc<dyn DynChatModel>);
-    let prediction = predict.forward(asked()).await.expect("a reasoning reply parses");
+    let predict =
+        Predict::from_signature(reasoning_signature()).with_lm(model as Arc<dyn DynChatModel>);
+    let prediction = predict
+        .forward(asked())
+        .await
+        .expect("a reasoning reply parses");
 
     assert_eq!(
         prediction.get("reasoning").and_then(Value::as_str),
@@ -133,11 +157,20 @@ async fn a_model_that_cannot_reason_renders_the_field() {
     let model = Recorder::new(false, reply);
     let predict = Predict::from_signature(reasoning_signature())
         .with_lm(model.clone() as Arc<dyn DynChatModel>);
-    let prediction = predict.forward(asked()).await.expect("a prose reply parses");
+    let prediction = predict
+        .forward(asked())
+        .await
+        .expect("a prose reply parses");
 
-    assert!(model.request().config.reasoning.is_none(), "no effort for a non-reasoning model");
+    assert!(
+        model.request().config.reasoning.is_none(),
+        "no effort for a non-reasoning model"
+    );
     let prompt = serde_json::to_string(&model.request().messages).expect("serializes");
-    assert!(prompt.contains("[[ ## reasoning ## ]]"), "the field is rendered as prose");
+    assert!(
+        prompt.contains("[[ ## reasoning ## ]]"),
+        "the field is rendered as prose"
+    );
     assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("42"));
     assert_eq!(
         prediction.get("reasoning").and_then(Value::as_str),

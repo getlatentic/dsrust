@@ -14,10 +14,13 @@ use futures_util::Stream;
 use serde_json::{Value, json};
 
 use super::{JsonFormat, apply_tool_choice, response, tool_json};
-use crate::lm::api::{self, LmDelta, LmStreamEvent, Metadata};
-use crate::lm::streaming::{Framed, Framing, StreamState};
+use crate::lm::api::{self, Metadata};
+use crate::lm::streaming::Framing;
 
 mod media;
+mod stream;
+
+use stream::frame;
 
 // -------- request: LmRequest -> Responses body --------
 
@@ -129,7 +132,10 @@ fn content_block(block: &Value) -> Value {
         Some("text") => json!({ "type": "input_text", "text": block["text"] }),
         Some("image_url") => {
             let mut out = json!({ "type": "input_image", "image_url": block["image_url"]["url"] });
-            if let Some(detail) = block["image_url"].get("detail").filter(|detail| !detail.is_null()) {
+            if let Some(detail) = block["image_url"]
+                .get("detail")
+                .filter(|detail| !detail.is_null())
+            {
                 out["detail"] = detail.clone();
             }
             out
@@ -159,10 +165,7 @@ fn function_call(call: &Value) -> Value {
         "name": function["name"],
         "arguments": function["arguments"],
     });
-    if let Some(id) = call["id"]
-        .as_str()
-        .or_else(|| call["call_id"].as_str())
-    {
+    if let Some(id) = call["id"].as_str().or_else(|| call["call_id"].as_str()) {
         item["call_id"] = json!(id);
     }
     item
@@ -172,7 +175,10 @@ fn function_call(call: &Value) -> Value {
 fn output_text(content: &Value) -> String {
     match content {
         Value::String(text) => text.clone(),
-        Value::Array(blocks) => blocks.iter().filter_map(|block| block["text"].as_str()).collect(),
+        Value::Array(blocks) => blocks
+            .iter()
+            .filter_map(|block| block["text"].as_str())
+            .collect(),
         _ => String::new(),
     }
 }
@@ -240,63 +246,6 @@ pub(super) fn stream<'h>(
     )
 }
 
-/// One Responses SSE frame as the events it carries. The reply's items each stream their own delta;
-/// `response.completed` closes with the whole reply, `response.failed`/`incomplete` with an error.
-fn frame(frame: &str, _state: &mut StreamState) -> Framed {
-    let Some(data) = frame.lines().find_map(|line| line.trim().strip_prefix("data:")) else {
-        return Framed::of(Vec::new());
-    };
-    let Ok(event) = serde_json::from_str::<Value>(data.trim()) else {
-        return Framed::of(Vec::new());
-    };
-    let delta = |delta| Framed::of(vec![at(&event, delta)]);
-    match event["type"].as_str() {
-        Some("response.output_text.delta") => delta(LmDelta::text(event_delta(&event))),
-        Some("response.reasoning_summary_text.delta" | "response.reasoning_text.delta") => {
-            delta(LmDelta::thinking(event_delta(&event)))
-        }
-        Some("response.function_call_arguments.delta") => delta(LmDelta::ToolCallDelta {
-            id: None,
-            name: None,
-            args_delta: event["delta"].as_str().map(str::to_owned),
-        }),
-        Some("response.output_item.added") if event["item"]["type"] == "function_call" => {
-            let item = &event["item"];
-            delta(LmDelta::ToolCallDelta {
-                id: item["call_id"].as_str().or_else(|| item["id"].as_str()).map(str::to_owned),
-                name: item["name"].as_str().map(str::to_owned),
-                args_delta: None,
-            })
-        }
-        Some("response.completed") => {
-            Framed::complete(Vec::new(), responses_to_lm_response(&event["response"], ""))
-        }
-        Some("response.failed" | "response.incomplete") => {
-            let detail = event["response"]["error"]["message"]
-                .as_str()
-                .unwrap_or("the responses stream did not complete");
-            Framed::closing(vec![LmStreamEvent::Error { error: detail.to_owned() }])
-        }
-        _ => Framed::of(Vec::new()),
-    }
-}
-
-/// One output item's delta, under its own part index so reasoning, text and a tool call accumulate
-/// separately. There is a single candidate, so the output index is always zero.
-fn at(event: &Value, delta: LmDelta) -> LmStreamEvent {
-    LmStreamEvent::Delta {
-        output_index: 0,
-        part_index: event["output_index"].as_u64().unwrap_or(0) as usize,
-        delta,
-    }
-}
-
-fn event_delta(event: &Value) -> &str {
-    event["delta"].as_str().unwrap_or_default()
-}
-
-// -------- reply: Responses body -> LmResponse --------
-
 /// The reply as a typed response, or the message the service itself gave for refusing the call.
 pub(super) fn reply(
     label: &str,
@@ -312,7 +261,11 @@ pub(super) fn reply(
         return Err(anyhow!("{label} {status}: {detail}"));
     }
     let response = responses_to_lm_response(body, model);
-    if response.outputs.iter().all(|output| output.parts.is_empty()) {
+    if response
+        .outputs
+        .iter()
+        .all(|output| output.parts.is_empty())
+    {
         return Err(anyhow!("{label} returned no content"));
     }
     Ok(response)
@@ -334,7 +287,9 @@ fn responses_to_lm_response(body: &Value, fallback_model: &str) -> api::LmRespon
             }
             Some("function_call") => parts.push(function_call_part(item)),
             Some("reasoning") => {
-                let source = item["content"].as_array().or_else(|| item["summary"].as_array());
+                let source = item["content"]
+                    .as_array()
+                    .or_else(|| item["summary"].as_array());
                 for entry in source.into_iter().flatten() {
                     if let Some(text) = entry["text"].as_str().filter(|text| !text.is_empty()) {
                         parts.push(api::LmPart::thinking(text, false));
@@ -414,13 +369,18 @@ fn function_call_part(item: &Value) -> api::LmPart {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::lm::api::{LmDelta, LmStreamEvent};
+    use crate::lm::streaming::{Framed, StreamState};
 
     /// Faithfulness to dspy 3.3's Responses request: our body equals `to_openai_responses_request`'s
     /// for the same typed request — the `input` list, `input_text`/`input_image` blocks, function
     /// call items, `max_output_tokens`, `reasoning`. Generated by running dspy.
     #[test]
     fn our_body_matches_dspy_33_to_openai_responses_request() {
-        for case in request_fixture()["request_cases"].as_array().expect("request cases") {
+        for case in request_fixture()["request_cases"]
+            .as_array()
+            .expect("request cases")
+        {
             let name = case["name"].as_str().expect("a case name");
             let call: api::LmRequest = serde_json::from_value(case["lm_request"].clone())
                 .unwrap_or_else(|error| panic!("{name}: the typed request did not parse: {error}"));
@@ -437,14 +397,22 @@ mod tests {
     /// id and cache flag kept. Structural compare; runtime-only provider fields cleared.
     #[test]
     fn our_reply_matches_dspy_33_responses_to_lm_response() {
-        for case in request_fixture()["reply_cases"].as_array().expect("reply cases") {
+        for case in request_fixture()["reply_cases"]
+            .as_array()
+            .expect("reply cases")
+        {
             let name = case["name"].as_str().expect("a case name");
             let expected: api::LmResponse = serde_json::from_value(case["lm_response"].clone())
                 .unwrap_or_else(|error| panic!("{name}: dspy's LMResponse did not parse: {error}"));
             let mut ours = responses_to_lm_response(&case["response"], "openai/gpt-5");
             ours.provider_response = None;
-            ours.outputs.iter_mut().for_each(|output| output.provider_output = None);
-            assert_eq!(ours, expected, "{name}: our Responses reply diverges from dspy's");
+            ours.outputs
+                .iter_mut()
+                .for_each(|output| output.provider_output = None);
+            assert_eq!(
+                ours, expected,
+                "{name}: our Responses reply diverges from dspy's"
+            );
         }
     }
 
@@ -521,8 +489,14 @@ mod tests {
         let mut expected = responses_to_lm_response(&completed, "");
         for response in [&mut carried, &mut expected] {
             response.provider_response = None;
-            response.outputs.iter_mut().for_each(|output| output.provider_output = None);
+            response
+                .outputs
+                .iter_mut()
+                .for_each(|output| output.provider_output = None);
         }
-        assert_eq!(carried, expected, "the streamed reply equals the non-streamed one");
+        assert_eq!(
+            carried, expected,
+            "the streamed reply equals the non-streamed one"
+        );
     }
 }

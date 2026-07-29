@@ -103,7 +103,10 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             // selection either way.
             if self.use_merge && merge.due > 0 && merge.last_iter_found_new_program {
                 merge.last_iter_found_new_program = false;
-                match self.try_merge(&mut state, &mut rng, &mut merge.performed).await {
+                match self
+                    .try_merge(&mut state, &mut rng, &mut merge.performed)
+                    .await
+                {
                     MergeOutcome::Accepted => {
                         merge.due -= 1;
                         merge.total_tested += 1;
@@ -115,7 +118,9 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             }
             merge.last_iter_found_new_program = false;
 
-            let Some(proposal) = self.propose(&mut state, &mut rng, &mut sampler).await else { continue };
+            let Some(proposal) = self.propose(&mut state, &mut rng, &mut sampler).await else {
+                continue;
+            };
             let before: f64 = proposal.scores_before.iter().sum();
             let after: f64 = proposal.scores_after.iter().sum();
             if after <= before {
@@ -173,13 +178,19 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             return MergeOutcome::NoMerge;
         }
 
-        let eval = self.adapter.evaluate_valset_ids(&subsample, &attempt.candidate).await;
+        let eval = self
+            .adapter
+            .evaluate_valset_ids(&subsample, &attempt.candidate)
+            .await;
         state.total_num_evals += subsample.len();
 
         // dspy compares the merged candidate's subsample sum against the better parent's over the
         // same ids: it is accepted only if it is at least as good as both.
         let parent_sum = |id: usize| -> f64 {
-            subsample.iter().map(|&val_id| state.subscores(id)[val_id]).sum()
+            subsample
+                .iter()
+                .map(|&val_id| state.subscores(id)[val_id])
+                .sum()
         };
         let best_parent = parent_sum(attempt.id1).max(parent_sum(attempt.id2));
         if eval.scores.iter().sum::<f64>() < best_parent {
@@ -190,7 +201,12 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         let full = self.adapter.evaluate_valset(&attempt.candidate).await;
         state.total_num_evals += self.valset_size;
         state.num_full_ds_evals += 1;
-        state.add_program(&[attempt.id1, attempt.id2], attempt.candidate, full.scores, discovered_at);
+        state.add_program(
+            &[attempt.id1, attempt.id2],
+            attempt.candidate,
+            full.scores,
+            discovered_at,
+        );
         MergeOutcome::Accepted
     }
 
@@ -208,7 +224,10 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         let subsample = sampler.next_minibatch_ids(self.trainset_size, state.i as usize, rng);
         let parent_candidate = state.candidates[parent].clone();
 
-        let eval_parent = self.adapter.evaluate_minibatch(&subsample, &parent_candidate, true).await;
+        let eval_parent = self
+            .adapter
+            .evaluate_minibatch(&subsample, &parent_candidate, true)
+            .await;
         state.total_num_evals += subsample.len();
         if !eval_parent.captured_traces {
             return None;
@@ -218,14 +237,25 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         }
 
         let components = vec![state.select_component(parent)];
-        let new_texts = self.adapter.propose_new_texts(&parent_candidate, &components, &eval_parent).await;
+        let new_texts = self
+            .adapter
+            .propose_new_texts(&parent_candidate, &components, &eval_parent)
+            .await;
         let mut candidate = parent_candidate;
         candidate.extend(new_texts);
 
-        let eval_new = self.adapter.evaluate_minibatch(&subsample, &candidate, false).await;
+        let eval_new = self
+            .adapter
+            .evaluate_minibatch(&subsample, &candidate, false)
+            .await;
         state.total_num_evals += subsample.len();
 
-        Some(Proposal { candidate, parent, scores_before: eval_parent.scores, scores_after: eval_new.scores })
+        Some(Proposal {
+            candidate,
+            parent,
+            scores_before: eval_parent.scores,
+            scores_after: eval_new.scores,
+        })
     }
 
     /// dspy `_run_full_eval_and_add`: an accepted proposal is re-scored on the whole valset (recording
@@ -235,7 +265,12 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         let eval = self.adapter.evaluate_valset(&proposal.candidate).await;
         state.total_num_evals += self.valset_size;
         state.num_full_ds_evals += 1;
-        state.add_program(&[proposal.parent], proposal.candidate, eval.scores, discovered_at);
+        state.add_program(
+            &[proposal.parent],
+            proposal.candidate,
+            eval.scores,
+            discovered_at,
+        );
     }
 
     /// Assemble the outcome: the best program is the highest mean valset score (dspy's `GEPAResult`).

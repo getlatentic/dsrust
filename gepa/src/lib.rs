@@ -9,11 +9,13 @@ pub mod adapter;
 pub mod batch;
 pub mod engine;
 pub mod instruction_proposal;
-pub mod pareto;
 pub mod merge;
+pub mod pareto;
 pub mod pyset;
 pub mod state;
 
 pub use adapter::{Candidate, EvalBatch, GepaAdapter};
 pub use engine::{GepaEngine, GepaOutcome};
-pub use instruction_proposal::{Reflective, ReflectiveSample, extract_new_instruction, render_prompt};
+pub use instruction_proposal::{
+    Reflective, ReflectiveSample, extract_new_instruction, render_prompt,
+};

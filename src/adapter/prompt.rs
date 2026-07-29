@@ -61,7 +61,11 @@ impl Described<'_> {
     /// spells the same absence as an empty string, so both read as no description — which is what
     /// COPRO's `attempted_instructions` relies on, declared with no desc yet rendered blank.
     fn description(&self) -> &str {
-        match self.desc.strip_prefix("${").and_then(|rest| rest.strip_suffix('}')) {
+        match self
+            .desc
+            .strip_prefix("${")
+            .and_then(|rest| rest.strip_suffix('}'))
+        {
             Some(inner) if inner == self.name => "",
             _ => self.desc,
         }
@@ -155,7 +159,10 @@ pub(super) fn output_hint(field: &OutField) -> String {
     }
     match field.kind.is_plain_str() && field.values.is_none() {
         true => String::new(),
-        false => format!(" (must be formatted as a valid Python {})", field.annotation()),
+        false => format!(
+            " (must be formatted as a valid Python {})",
+            field.annotation()
+        ),
     }
 }
 

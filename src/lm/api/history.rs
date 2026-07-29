@@ -40,14 +40,17 @@ impl LmHistoryEntry {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::message::LmMessage;
     use super::super::part::LmPart;
+    use super::*;
     use serde_json::json;
 
     fn entry() -> LmHistoryEntry {
         LmHistoryEntry::new(
-            LmRequest::new("openai/gpt-4o", vec![LmMessage::user(vec![LmPart::text("Why?")])]),
+            LmRequest::new(
+                "openai/gpt-4o",
+                vec![LmMessage::user(vec![LmPart::text("Why?")])],
+            ),
             LmResponse::text("Because."),
             "2026-07-21T10:00:00Z",
             "01J0000000000000000000",

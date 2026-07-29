@@ -28,7 +28,11 @@ pub struct ContextWindowExceeded {
 
 impl std::fmt::Display for ContextWindowExceeded {
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(out, "context window exceeded for {}: {}", self.model, self.message)
+        write!(
+            out,
+            "context window exceeded for {}: {}",
+            self.model, self.message
+        )
     }
 }
 
@@ -40,14 +44,24 @@ impl ContextWindowExceeded {
         let error = body.get("error").unwrap_or(body);
         let message = match error {
             Value::String(text) => text.clone(),
-            _ => error.get("message").and_then(Value::as_str).unwrap_or_default().to_owned(),
+            _ => error
+                .get("message")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
         };
         // OpenAI's machine-readable code. litellm has no equivalent branch — its message for this
         // code contains "this model's maximum context length is", so the substring catches it
         // there. Reading the code as well costs nothing and does not depend on prose.
-        let code = error.get("code").and_then(Value::as_str).unwrap_or_default();
+        let code = error
+            .get("code")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
         let says_so = code == "context_length_exceeded" || names_the_limit(&message);
-        says_so.then(|| Self { model: model.to_owned(), message })
+        says_so.then(|| Self {
+            model: model.to_owned(),
+            message,
+        })
     }
 }
 
@@ -122,7 +136,10 @@ mod tests {
             "Current length is 9000 while limit is 8192",
             "The maximum input length is 4096 tokens",
         ] {
-            assert!(detected(message), "litellm matches this and so must we: {message}");
+            assert!(
+                detected(message),
+                "litellm matches this and so must we: {message}"
+            );
         }
     }
 
@@ -130,8 +147,12 @@ mod tests {
     /// trimming a trajectory cannot fix one — it would spend three more calls first.
     #[test]
     fn a_parameter_that_is_too_long_is_not_this() {
-        assert!(!detected("Invalid 'user': string too long. Expected a string with maximum length 64"));
-        assert!(!detected("string_above_max_length: expected a string with maximum length 256"));
+        assert!(!detected(
+            "Invalid 'user': string too long. Expected a string with maximum length 64"
+        ));
+        assert!(!detected(
+            "string_above_max_length: expected a string with maximum length 256"
+        ));
     }
 
     /// OpenAI's machine-readable code, which litellm has no branch for — its message carries a

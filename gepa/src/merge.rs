@@ -173,15 +173,24 @@ pub fn sample_and_attempt_merge(
         if merges.triples.contains(&(id1, id2, ancestor)) {
             continue;
         }
-        let (candidate, description) = merged_candidate(candidates, ancestor, id1, id2, agg_scores, rng);
-        if merges.descriptions.contains(&(id1, id2, description.clone())) {
+        let (candidate, description) =
+            merged_candidate(candidates, ancestor, id1, id2, agg_scores, rng);
+        if merges
+            .descriptions
+            .contains(&(id1, id2, description.clone()))
+        {
             continue;
         }
         if !overlap(id1, id2) {
             continue;
         }
         merges.descriptions.push((id1, id2, description));
-        return Some(MergeAttempt { candidate, id1, id2, ancestor });
+        return Some(MergeAttempt {
+            candidate,
+            id1,
+            id2,
+            ancestor,
+        });
     }
     None
 }
@@ -235,7 +244,11 @@ pub fn select_eval_subsample(
     num: usize,
 ) -> Vec<usize> {
     let bucket = |keep: &dyn Fn(f64, f64) -> bool| -> Vec<usize> {
-        common_ids.iter().copied().filter(|&id| keep(scores1[id], scores2[id])).collect()
+        common_ids
+            .iter()
+            .copied()
+            .filter(|&id| keep(scores1[id], scores2[id]))
+            .collect()
     };
     let buckets = [
         bucket(&|a, b| a > b),
@@ -249,8 +262,11 @@ pub fn select_eval_subsample(
         if selected.len() >= num {
             break;
         }
-        let available: Vec<usize> =
-            bucket.iter().copied().filter(|id| !selected.contains(id)).collect();
+        let available: Vec<usize> = bucket
+            .iter()
+            .copied()
+            .filter(|id| !selected.contains(id))
+            .collect();
         let take = available.len().min(n_each).min(num - selected.len());
         if take > 0 {
             selected.extend(rng.sample(&available, take));
@@ -259,8 +275,11 @@ pub fn select_eval_subsample(
 
     let remaining = num.saturating_sub(selected.len());
     if remaining > 0 {
-        let unused: Vec<usize> =
-            common_ids.iter().copied().filter(|id| !selected.contains(id)).collect();
+        let unused: Vec<usize> = common_ids
+            .iter()
+            .copied()
+            .filter(|id| !selected.contains(id))
+            .collect();
         if unused.len() >= remaining {
             selected.extend(rng.sample(&unused, remaining));
         } else if !common_ids.is_empty() {
@@ -303,8 +322,12 @@ mod tests {
     fn a_component_one_descendant_changed_comes_from_that_descendant() {
         let candidates = [candidate("A"), candidate("B"), candidate("A")]; // ancestor 0, id1 1, id2 2
         let mut rng = Random::seeded(0);
-        let (merged, description) = merged_candidate(&candidates, 0, 1, 2, &[0.5, 0.6, 0.5], &mut rng);
-        assert_eq!(merged["self"], "B", "id1 changed it, id2 kept the ancestor's");
+        let (merged, description) =
+            merged_candidate(&candidates, 0, 1, 2, &[0.5, 0.6, 0.5], &mut rng);
+        assert_eq!(
+            merged["self"], "B",
+            "id1 changed it, id2 kept the ancestor's"
+        );
         assert_eq!(description, vec![1]);
     }
 

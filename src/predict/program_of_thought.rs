@@ -46,7 +46,10 @@ impl ProgramOfThought {
     pub fn new(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
         Self {
             generate: ChainOfThought::from_signature(mode_signature(&signature, Mode::Generate)),
-            regenerate: ChainOfThought::from_signature(mode_signature(&signature, Mode::Regenerate)),
+            regenerate: ChainOfThought::from_signature(mode_signature(
+                &signature,
+                Mode::Regenerate,
+            )),
             answer: ChainOfThought::from_signature(mode_signature(&signature, Mode::Answer)),
             signature,
             max_iters: 3,
@@ -87,7 +90,10 @@ impl ProgramOfThought {
             return (None, Some("Error: Empty code before execution.".to_owned()));
         }
         match self.interpreter.execute(code, &Map::new()) {
-            Ok(executed) => (Some(crate::adapter::python_json::json_dumps(executed.value())), None),
+            Ok(executed) => (
+                Some(crate::adapter::python_json::json_dumps(executed.value())),
+                None,
+            ),
             Err(error) => (None, Some(format!("{error}"))),
         }
     }
@@ -137,7 +143,9 @@ impl ProgramOfThought {
     /// The task's own input fields, dropping anything the caller passed beside them.
     fn task_inputs(&self, inputs: &Example) -> Example {
         Example::new(self.signature.inputs.iter().filter_map(|field| {
-            inputs.get(&field.name).map(|value| (field.name.clone(), value.clone()))
+            inputs
+                .get(&field.name)
+                .map(|value| (field.name.clone(), value.clone()))
         }))
     }
 }
@@ -183,22 +191,41 @@ fn mode_signature(signature: &Signature, mode: Mode) -> Signature {
     let outputs = match mode {
         Mode::Generate => vec![generated_code()],
         Mode::Regenerate => {
-            inputs.push(input_field("previous_code", "previously-generated python code that errored"));
-            inputs.push(input_field("error", "error message from previously-generated python code"));
+            inputs.push(input_field(
+                "previous_code",
+                "previously-generated python code that errored",
+            ));
+            inputs.push(input_field(
+                "error",
+                "error message from previously-generated python code",
+            ));
             vec![generated_code()]
         }
         Mode::Answer => {
-            inputs
-                .push(input_field("final_generated_code", "python code that answers the question"));
-            inputs.push(input_field("code_output", "output of previously-generated python code"));
+            inputs.push(input_field(
+                "final_generated_code",
+                "python code that answers the question",
+            ));
+            inputs.push(input_field(
+                "code_output",
+                "output of previously-generated python code",
+            ));
             signature.outputs.clone()
         }
     };
-    Signature { instructions: instructions(signature, mode, &inputs, &outputs), inputs, outputs }
+    Signature {
+        instructions: instructions(signature, mode, &inputs, &outputs),
+        inputs,
+        outputs,
+    }
 }
 
 fn input_field(name: &str, desc: &str) -> InField {
-    InField { name: name.to_owned(), desc: desc.to_owned(), ..Default::default() }
+    InField {
+        name: name.to_owned(),
+        desc: desc.to_owned(),
+        ..Default::default()
+    }
 }
 
 fn generated_code() -> OutField {
@@ -211,7 +238,12 @@ fn generated_code() -> OutField {
 }
 
 /// dspy `_generate_instruction`: what each of the three asks is told to do.
-fn instructions(signature: &Signature, mode: Mode, inputs: &[InField], outputs: &[OutField]) -> String {
+fn instructions(
+    signature: &Signature,
+    mode: Mode,
+    inputs: &[InField],
+    outputs: &[OutField],
+) -> String {
     let mode_inputs = backticked(inputs.iter().map(|field| field.name.as_str()));
     let mode_outputs = backticked(outputs.iter().map(|field| field.name.as_str()));
     let lines = match mode {
@@ -219,7 +251,9 @@ fn instructions(signature: &Signature, mode: Mode, inputs: &[InField], outputs: 
             let final_outputs =
                 backticked(signature.outputs.iter().map(|field| field.name.as_str()));
             vec![
-                format!("You will be given {mode_inputs} and you will respond with {mode_outputs}."),
+                format!(
+                    "You will be given {mode_inputs} and you will respond with {mode_outputs}."
+                ),
                 format!(
                     "Generating executable Python code that programmatically computes the correct \
                      {mode_outputs}."
@@ -238,14 +272,19 @@ fn instructions(signature: &Signature, mode: Mode, inputs: &[InField], outputs: 
             "Your task is to correct the error and provide the new `generated_code`.".to_owned(),
         ],
         Mode::Answer => {
-            vec![format!("Given the final code {mode_inputs}, provide the final {mode_outputs}.")]
+            vec![format!(
+                "Given the final code {mode_inputs}, provide the final {mode_outputs}."
+            )]
         }
     };
     lines.join("\n")
 }
 
 fn backticked<'a>(names: impl Iterator<Item = &'a str>) -> String {
-    names.map(|name| format!("`{name}`")).collect::<Vec<_>>().join(", ")
+    names
+        .map(|name| format!("`{name}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// dspy `_parse_code`: the runnable code out of the field the model wrote, or why it is not
@@ -255,15 +294,24 @@ fn backticked<'a>(names: impl Iterator<Item = &'a str>) -> String {
 /// block if there is one, and — where the last line assigns a name — appends that name so the
 /// value becomes the program's result.
 pub(super) fn parse_generated_code(written: &Example) -> (String, Option<String>) {
-    let code = written.get("generated_code").and_then(Value::as_str).unwrap_or_default();
+    let code = written
+        .get("generated_code")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let code = code.split("---").next().unwrap_or_default();
     let code = code.split("\n\n\n").next().unwrap_or_default();
     let block = fenced_python(code).unwrap_or(code);
     if block.is_empty() {
-        return (code.to_owned(), Some("Error: Empty code after parsing.".to_owned()));
+        return (
+            code.to_owned(),
+            Some("Error: Empty code after parsing.".to_owned()),
+        );
     }
     if !block.contains('\n') && block.matches('=').count() > 1 {
-        return (code.to_owned(), Some("Error: Code format is not correct.".to_owned()));
+        return (
+            code.to_owned(),
+            Some("Error: Code format is not correct.".to_owned()),
+        );
     }
     let lines: Vec<&str> = block.split('\n').collect();
     let mut block = block.to_owned();
@@ -311,11 +359,11 @@ fn assigned_name(line: &str) -> Option<&str> {
 
 #[cfg(test)]
 mod tests {
+    use super::super::scripted::Scripted;
     use super::*;
     use crate::example;
     use crate::interpreter::Executed;
     use crate::interpreter::tests::Scripted as ScriptedInterpreter;
-    use super::super::scripted::Scripted;
     use serde_json::json;
 
     fn task() -> Signature {
@@ -336,11 +384,17 @@ mod tests {
         assert_eq!(names(&generate, false), ["generated_code"]);
 
         let regenerate = mode_signature(&task(), Mode::Regenerate);
-        assert_eq!(names(&regenerate, true), ["question", "previous_code", "error"]);
+        assert_eq!(
+            names(&regenerate, true),
+            ["question", "previous_code", "error"]
+        );
         assert_eq!(names(&regenerate, false), ["generated_code"]);
 
         let answer = mode_signature(&task(), Mode::Answer);
-        assert_eq!(names(&answer, true), ["question", "final_generated_code", "code_output"]);
+        assert_eq!(
+            names(&answer, true),
+            ["question", "final_generated_code", "code_output"]
+        );
         assert_eq!(names(&answer, false), ["answer"]);
     }
 
@@ -348,15 +402,22 @@ mod tests {
     /// interpreter is shut down on the way out.
     #[tokio::test]
     async fn it_writes_runs_and_answers() {
-        let interpreter =
-            Arc::new(ScriptedInterpreter::new([Ok(Executed::Submitted(json!({ "answer": "2" })))]));
+        let interpreter = Arc::new(ScriptedInterpreter::new([Ok(Executed::Submitted(
+            json!({ "answer": "2" }),
+        ))]));
         let model = Scripted::new(&[
             "[[ ## reasoning ## ]]\nadd\n\n[[ ## generated_code ## ]]\nSUBMIT({'answer': '2'})\n\n[[ ## completed ## ]]",
             "[[ ## reasoning ## ]]\nread it\n\n[[ ## answer ## ]]\n2\n\n[[ ## completed ## ]]",
         ]);
-        let pot = with_model(ProgramOfThought::new(task(), interpreter.clone()), Arc::new(model));
+        let pot = with_model(
+            ProgramOfThought::new(task(), interpreter.clone()),
+            Arc::new(model),
+        );
 
-        let prediction = pot.forward(example! { question: "1+1?" }).await.expect("answers");
+        let prediction = pot
+            .forward(example! { question: "1+1?" })
+            .await
+            .expect("answers");
         assert_eq!(prediction.get("answer"), Some(&json!("2")));
         assert_eq!(interpreter.ran.lock().expect("ran").len(), 1);
         assert_eq!(*interpreter.shutdowns.lock().expect("shutdowns"), 1);
@@ -374,11 +435,20 @@ mod tests {
             "[[ ## reasoning ## ]]\nfix\n\n[[ ## generated_code ## ]]\nprint(2)\n\n[[ ## completed ## ]]",
             "[[ ## reasoning ## ]]\nread\n\n[[ ## answer ## ]]\n2\n\n[[ ## completed ## ]]",
         ]);
-        let pot = with_model(ProgramOfThought::new(task(), interpreter.clone()), Arc::new(model));
+        let pot = with_model(
+            ProgramOfThought::new(task(), interpreter.clone()),
+            Arc::new(model),
+        );
 
-        let prediction = pot.forward(example! { question: "1+1?" }).await.expect("answers");
+        let prediction = pot
+            .forward(example! { question: "1+1?" })
+            .await
+            .expect("answers");
         assert_eq!(prediction.get("answer"), Some(&json!("2")));
-        assert_eq!(*interpreter.ran.lock().expect("ran"), ["print(x)", "print(2)"]);
+        assert_eq!(
+            *interpreter.ran.lock().expect("ran"),
+            ["print(x)", "print(2)"]
+        );
     }
 
     /// dspy gives up at `max_iters` and says so, shutting the interpreter down first.
@@ -396,8 +466,14 @@ mod tests {
             Arc::new(model),
         );
 
-        let error = pot.forward(example! { question: "1+1?" }).await.expect_err("gives up");
-        assert!(error.to_string().starts_with("Max hops reached."), "got: {error}");
+        let error = pot
+            .forward(example! { question: "1+1?" })
+            .await
+            .expect_err("gives up");
+        assert!(
+            error.to_string().starts_with("Max hops reached."),
+            "got: {error}"
+        );
         assert_eq!(*interpreter.shutdowns.lock().expect("shutdowns"), 1);
     }
 
@@ -453,10 +529,16 @@ mod conformance {
     #[test]
     fn it_derives_the_signatures_dspy_derives() {
         for case in golden()["signatures"].as_array().expect("cases") {
-            let task: Signature = case["task"].as_str().expect("a task").parse().expect("parses");
-            for (name, mode) in
-                [("generate", Mode::Generate), ("regenerate", Mode::Regenerate), ("answer", Mode::Answer)]
-            {
+            let task: Signature = case["task"]
+                .as_str()
+                .expect("a task")
+                .parse()
+                .expect("parses");
+            for (name, mode) in [
+                ("generate", Mode::Generate),
+                ("regenerate", Mode::Regenerate),
+                ("answer", Mode::Answer),
+            ] {
                 let ours = mode_signature(&task, mode);
                 let theirs = &case["modes"][name];
                 let named = format!("{} / {name}", case["task"]);
@@ -465,12 +547,22 @@ mod conformance {
                     theirs["instructions"].as_str().expect("instructions"),
                     "instructions for {named}"
                 );
-                let inputs: Vec<(String, String)> =
-                    ours.inputs.iter().map(|f| (f.name.clone(), f.desc.clone())).collect();
+                let inputs: Vec<(String, String)> = ours
+                    .inputs
+                    .iter()
+                    .map(|f| (f.name.clone(), f.desc.clone()))
+                    .collect();
                 assert_eq!(inputs, described(&theirs["inputs"]), "inputs for {named}");
-                let outputs: Vec<(String, String)> =
-                    ours.outputs.iter().map(|f| (f.name.clone(), f.desc.clone())).collect();
-                assert_eq!(outputs, described(&theirs["outputs"]), "outputs for {named}");
+                let outputs: Vec<(String, String)> = ours
+                    .outputs
+                    .iter()
+                    .map(|f| (f.name.clone(), f.desc.clone()))
+                    .collect();
+                assert_eq!(
+                    outputs,
+                    described(&theirs["outputs"]),
+                    "outputs for {named}"
+                );
             }
         }
     }
@@ -481,7 +573,11 @@ mod conformance {
         for case in golden()["parse_code"].as_array().expect("cases") {
             let written = case["written"].as_str().expect("written");
             let (code, error) = parse_generated_code(&example! { generated_code: written });
-            assert_eq!(code, case["code"].as_str().expect("code"), "code for {written:?}");
+            assert_eq!(
+                code,
+                case["code"].as_str().expect("code"),
+                "code for {written:?}"
+            );
             assert_eq!(
                 error.as_deref(),
                 case["error"].as_str(),

@@ -21,9 +21,9 @@ use futures_util::Stream;
 use serde_json::{Map, Value, json};
 
 use super::{authorized, provider_data, usage};
+use crate::lm::ChatModel;
 use crate::lm::api::{self, LmConfig, LmDelta, LmStreamEvent};
 use crate::lm::streaming::{Framed, Framing, StreamState};
-use crate::lm::ChatModel;
 
 /// An ollama server reached over `/api/generate`, the model and host beside it.
 pub(crate) struct Generate<'a> {
@@ -49,7 +49,10 @@ impl ChatModel for Generate<'_> {
                 .await
                 .context("ollama request failed")?;
             let status = response.status();
-            let body: Value = response.json().await.context("ollama response was not JSON")?;
+            let body: Value = response
+                .json()
+                .await
+                .context("ollama response was not JSON")?;
             if !status.is_success() {
                 if let Some(too_long) =
                     crate::lm::ContextWindowExceeded::detected(self.model, &body)
@@ -76,7 +79,9 @@ pub(crate) fn stream<'h>(
     let mut body = request(model, call);
     body["stream"] = json!(true);
     let connect = authorized(
-        http.post(format!("{host}/api/generate")).timeout(timeout).json(&body),
+        http.post(format!("{host}/api/generate"))
+            .timeout(timeout)
+            .json(&body),
         api_key,
     )
     .send();
@@ -84,7 +89,10 @@ pub(crate) fn stream<'h>(
         connect,
         "ollama".to_owned(),
         model.to_owned(),
-        Framing { separator: b"\n", frame },
+        Framing {
+            separator: b"\n",
+            frame,
+        },
     )
 }
 
@@ -120,7 +128,9 @@ fn flatten(messages: &[Value]) -> Prompt {
     let mut i = 0;
     while i < messages.len() {
         let start = i;
-        let user = merge(messages, &mut i, is_user, |message| content_and_images(message, &mut images));
+        let user = merge(messages, &mut i, is_user, |message| {
+            content_and_images(message, &mut images)
+        });
         push_section(&mut text, "User", &user);
         let system = merge(messages, &mut i, is_system, content_str);
         push_section(&mut text, "System", &system);
@@ -209,7 +219,10 @@ fn content_str(message: &Value) -> String {
 /// list of `{id, type, function:{name, arguments}}`, pretty-printed under a `Tool Calls:` label.
 fn assistant_str(message: &Value) -> String {
     let mut text = content_str(message);
-    let Some(calls) = message["tool_calls"].as_array().filter(|calls| !calls.is_empty()) else {
+    let Some(calls) = message["tool_calls"]
+        .as_array()
+        .filter(|calls| !calls.is_empty())
+    else {
         return text;
     };
     let rendered = Value::Array(calls.iter().map(ollama_tool_call).collect());
@@ -242,7 +255,9 @@ fn ollama_tool_call(call: &Value) -> Value {
 /// one — the same reading the chat route does.
 fn image_url(image_url: &Value) -> String {
     let url = image_url["url"].as_str().unwrap_or_default();
-    url.split_once(";base64,").map_or(url, |(_, data)| data).to_owned()
+    url.split_once(";base64,")
+        .map_or(url, |(_, data)| data)
+        .to_owned()
 }
 
 /// Sampling under `options`, only the keys the caller set — litellm defaults none, and the cap is
@@ -277,10 +292,13 @@ fn reply(model: &str, body: &Value) -> Result<api::LmResponse> {
         finish_reason: reason.map(str::to_owned),
         ..api::LmOutput::default()
     };
-    Ok(api::LmResponse { outputs: vec![output], ..api::LmResponse::default() }
-        .with_usage(usage(body))
-        .with_provider_response(provider_data(body))
-        .with_model(model))
+    Ok(api::LmResponse {
+        outputs: vec![output],
+        ..api::LmResponse::default()
+    }
+    .with_usage(usage(body))
+    .with_provider_response(provider_data(body))
+    .with_model(model))
 }
 
 /// One `/api/generate` line as its events: a piece of `response` as a text delta, the `done` line

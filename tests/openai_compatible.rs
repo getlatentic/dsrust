@@ -164,7 +164,8 @@ fn probe_request(mode: &OutputMode<'_>) -> api::LmRequest {
 }
 
 async fn ask(lm: &LM, mode: &OutputMode<'_>) -> anyhow::Result<api::LmResponse> {
-    lm.forward(&reqwest::Client::new(), &probe_request(mode)).await
+    lm.forward(&reqwest::Client::new(), &probe_request(mode))
+        .await
 }
 
 /// The same, naming a token cap — what the key-routing tests need, now that a bare call sends
@@ -248,8 +249,8 @@ async fn the_schema_envelope_is_opt_in_and_carries_the_schema() {
 /// is the request flag and the chunk→event→text mapping.
 #[tokio::test]
 async fn forward_stream_reads_sse_into_typed_events() {
-    use futures_util::StreamExt;
     use dsrust::lm::api::{LmDelta, LmStreamEvent};
+    use futures_util::StreamExt;
 
     let sse = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Par\"}}]}\n\n\
                data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"is\"}}]}\n\n\

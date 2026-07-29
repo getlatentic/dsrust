@@ -20,12 +20,18 @@ pub struct File {
 impl File {
     /// A file by its data URI.
     pub fn from_data(file_data: impl Into<String>) -> Self {
-        Self { file_data: Some(file_data.into()), ..Self::default() }
+        Self {
+            file_data: Some(file_data.into()),
+            ..Self::default()
+        }
     }
 
     /// A file by a provider-side id.
     pub fn from_id(file_id: impl Into<String>) -> Self {
-        Self { file_id: Some(file_id.into()), ..Self::default() }
+        Self {
+            file_id: Some(file_id.into()),
+            ..Self::default()
+        }
     }
 
     pub fn with_filename(mut self, filename: impl Into<String>) -> Self {
@@ -123,9 +129,13 @@ mod tests {
 
     #[test]
     fn it_requires_at_least_one_field() {
-        let one: File = serde_json::from_value(json!({ "file_data": "data:text/plain;base64,QQ==" }))
-            .expect("parses");
-        assert_eq!(one.file_data.as_deref(), Some("data:text/plain;base64,QQ=="));
+        let one: File =
+            serde_json::from_value(json!({ "file_data": "data:text/plain;base64,QQ==" }))
+                .expect("parses");
+        assert_eq!(
+            one.file_data.as_deref(),
+            Some("data:text/plain;base64,QQ==")
+        );
         assert!(serde_json::from_value::<File>(json!({})).is_err());
         assert!(serde_json::from_value::<File>(json!({ "other": "x" })).is_err());
     }

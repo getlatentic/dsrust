@@ -68,4 +68,3 @@ impl ModelRef {
         format!("{prefix}/{}", self.id)
     }
 }
-

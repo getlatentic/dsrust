@@ -98,7 +98,10 @@ fn output_of(body: &Value) -> api::LmOutput {
                 }
             }
             Some("redacted_thinking") => {
-                parts.push(api::LmPart::thinking(block["data"].as_str().unwrap_or_default(), true));
+                parts.push(api::LmPart::thinking(
+                    block["data"].as_str().unwrap_or_default(),
+                    true,
+                ));
             }
             Some("text") => {
                 if let Some(text) = block["text"].as_str().filter(|text| !text.is_empty()) {
@@ -238,12 +241,17 @@ mod tests {
             ],
             "stop_reason": "end_turn",
         });
-        let output = &reply("claude-3-5-sonnet", reqwest::StatusCode::OK, &body).expect("parses").outputs[0];
+        let output = &reply("claude-3-5-sonnet", reqwest::StatusCode::OK, &body)
+            .expect("parses")
+            .outputs[0];
         assert!(
             matches!(&output.parts[0], api::LmPart::Thinking { text, redacted: false, .. } if text == "Let me consider the sources."),
-            "thinking is first, got {:?}", output.parts,
+            "thinking is first, got {:?}",
+            output.parts,
         );
-        assert!(matches!(&output.parts[1], api::LmPart::Text { text, .. } if text == "Paris is the capital."));
+        assert!(
+            matches!(&output.parts[1], api::LmPart::Text { text, .. } if text == "Paris is the capital.")
+        );
         let api::LmPart::Citation { text, title, .. } = &output.parts[2] else {
             panic!("expected a citation last, got {:?}", output.parts)
         };

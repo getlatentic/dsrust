@@ -39,7 +39,6 @@ pub(super) fn field_name(signature: &Signature) -> Option<&str> {
         .map(|field| field.name.as_str())
 }
 
-
 /// The exchanges a history value carries, in order.
 ///
 /// dspy's `History.messages` is a list of dicts keyed by the signature's own field names, so an
@@ -94,7 +93,10 @@ fn replay(stripped: &Signature, exchange: &Example, style: Style, native: bool) 
         return turns;
     }
     let answered = called.as_ref().and_then(|(name, calls)| {
-        calls.tool_call_results.as_ref().map(|results| (name.as_str(), results.clone()))
+        calls
+            .tool_call_results
+            .as_ref()
+            .map(|results| (name.as_str(), results.clone()))
     });
     // The calls replay without their results, so the assistant turn reads as the model wrote it.
     let mut stated = exchange.clone();
@@ -103,7 +105,10 @@ fn replay(stripped: &Signature, exchange: &Example, style: Style, native: bool) 
     {
         stated.set(name.clone(), without);
     }
-    push_non_empty(&mut turns, (style.answer)(stripped, &stated, Some(NOT_SUPPLIED)));
+    push_non_empty(
+        &mut turns,
+        (style.answer)(stripped, &stated, Some(NOT_SUPPLIED)),
+    );
 
     if let Some((_, results)) = answered {
         let rendered = json_dumps(&serde_json::to_value(&results).unwrap_or(Value::Null));
@@ -167,7 +172,12 @@ fn native_replay(
     if !answered {
         return;
     }
-    for result in &calls.tool_call_results.iter().flat_map(|r| r.tool_call_results.clone()).collect::<Vec<_>>() {
+    for result in &calls
+        .tool_call_results
+        .iter()
+        .flat_map(|r| r.tool_call_results.clone())
+        .collect::<Vec<_>>()
+    {
         turns.push(ChatTurn {
             role: Role::Tool,
             content: Content::Parts(vec![LmPart::ToolResult {
@@ -269,7 +279,12 @@ mod tests {
     #[test]
     fn each_exchange_becomes_a_user_and_an_assistant_turn() {
         let stripped = signature().delete("history");
-        let turns = turns(&stripped, &history(), crate::adapter::chat::MARKER_STYLE, false);
+        let turns = turns(
+            &stripped,
+            &history(),
+            crate::adapter::chat::MARKER_STYLE,
+            false,
+        );
 
         assert_eq!(turns.len(), 4);
         assert_eq!(
@@ -295,7 +310,12 @@ mod tests {
         // Rendering it would show the model a transcript inside one request, which is the thing
         // replaying the exchanges exists to avoid.
         let stripped = signature().delete("history");
-        let turns = turns(&stripped, &history(), crate::adapter::chat::MARKER_STYLE, false);
+        let turns = turns(
+            &stripped,
+            &history(),
+            crate::adapter::chat::MARKER_STYLE,
+            false,
+        );
         assert!(
             !turns
                 .iter()
@@ -330,6 +350,14 @@ mod tests {
             )
             .is_empty()
         );
-        assert!(turns(&stripped, &json!({}), crate::adapter::chat::MARKER_STYLE, false).is_empty());
+        assert!(
+            turns(
+                &stripped,
+                &json!({}),
+                crate::adapter::chat::MARKER_STYLE,
+                false
+            )
+            .is_empty()
+        );
     }
 }

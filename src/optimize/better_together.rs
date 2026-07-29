@@ -63,7 +63,10 @@ where
     ) -> Self {
         Self {
             metric,
-            optimizers: optimizers.into_iter().map(|(name, o)| (name.into(), o)).collect(),
+            optimizers: optimizers
+                .into_iter()
+                .map(|(name, o)| (name.into(), o))
+                .collect(),
             valset_ratio: 0.1,
             shuffle_trainset_between_steps: true,
             seed: 0,
@@ -103,7 +106,10 @@ where
         let mut rng = Rng::seeded(self.seed);
         let mut candidates = Vec::new();
         // dspy scores the program as it arrived first, so "no optimization" is a candidate too.
-        candidates.push(self.candidate(student, String::new(), valset.as_deref()).await);
+        candidates.push(
+            self.candidate(student, String::new(), valset.as_deref())
+                .await,
+        );
 
         for (index, step) in steps.iter().enumerate() {
             if self.shuffle_trainset_between_steps {
@@ -151,7 +157,11 @@ where
             None => None,
             Some(valset) => Some(self.score(student, valset).await),
         };
-        Candidate { score, strategy, state: student.dump_state() }
+        Candidate {
+            score,
+            strategy,
+            state: student.dump_state(),
+        }
     }
 
     async fn score(&self, student: &dyn Module, valset: &[Example]) -> f64 {
@@ -170,8 +180,10 @@ where
         if strategy.trim().is_empty() {
             bail!("strategy cannot be empty");
         }
-        let steps: Vec<String> =
-            strategy.split(STRATEGY_SEPARATOR).map(str::to_owned).collect();
+        let steps: Vec<String> = strategy
+            .split(STRATEGY_SEPARATOR)
+            .map(str::to_owned)
+            .collect();
         let unknown: Vec<&str> = steps
             .iter()
             .filter(|step| !self.optimizers.contains_key(*step))
@@ -197,7 +209,10 @@ where
             bail!("trainset cannot be empty");
         }
         if !(0.0..1.0).contains(&self.valset_ratio) {
-            bail!("valset_ratio must be in range [0, 1), got {}", self.valset_ratio);
+            bail!(
+                "valset_ratio must be in range [0, 1), got {}",
+                self.valset_ratio
+            );
         }
         if let Some(valset) = valset {
             return Ok((trainset.to_vec(), Some(valset.to_vec())));
@@ -214,9 +229,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::evaluate::exact_match;
     use crate::optimize::scripted::{Answers, Solver, trainset};
     use crate::optimize::{LabeledFewShot, Optimizer};
-    use crate::evaluate::exact_match;
 
     /// An optimizer that writes a known instruction, so which step ran is readable off the result.
     struct Writes(&'static str);
@@ -253,7 +268,12 @@ mod tests {
 
     /// The instruction the student's one predictor is holding.
     fn instructions(student: &mut Solver) -> String {
-        student.named_predictors().remove(0).signature.instructions.clone()
+        student
+            .named_predictors()
+            .remove(0)
+            .signature
+            .instructions
+            .clone()
     }
 
     fn optimizers(
@@ -276,8 +296,10 @@ mod tests {
             .await
             .expect("compiles");
 
-        let strategies: Vec<&str> =
-            candidates.iter().map(|candidate| candidate.strategy.as_str()).collect();
+        let strategies: Vec<&str> = candidates
+            .iter()
+            .map(|candidate| candidate.strategy.as_str())
+            .collect();
         assert_eq!(strategies, ["", "p", "p -> w", "p -> w -> p"]);
         // No validation set, so nothing was scored and the latest program is what is kept.
         assert!(candidates.iter().all(|candidate| candidate.score.is_none()));
@@ -292,8 +314,14 @@ mod tests {
         let together = BetterTogether::new(
             exact_match as fn(&Example, &Prediction) -> f64,
             vec![
-                ("good", Box::new(LabeledFewShot::new(2)) as Box<dyn DynOptimizer>),
-                ("noop", Box::new(Writes("unchanged")) as Box<dyn DynOptimizer>),
+                (
+                    "good",
+                    Box::new(LabeledFewShot::new(2)) as Box<dyn DynOptimizer>,
+                ),
+                (
+                    "noop",
+                    Box::new(Writes("unchanged")) as Box<dyn DynOptimizer>,
+                ),
             ],
         );
         let mut student = Solver::new(Answers::Correctly);
@@ -305,8 +333,14 @@ mod tests {
         assert_eq!(candidates.len(), 3);
         assert!(candidates.iter().all(|candidate| candidate.score.is_some()));
         // Sorted best first, and a tie keeps whichever was found earlier.
-        let scores: Vec<f64> = candidates.iter().map(|c| c.score.expect("a score")).collect();
-        assert!(scores.windows(2).all(|pair| pair[0] >= pair[1]), "sorted: {scores:?}");
+        let scores: Vec<f64> = candidates
+            .iter()
+            .map(|c| c.score.expect("a score"))
+            .collect();
+        assert!(
+            scores.windows(2).all(|pair| pair[0] >= pair[1]),
+            "sorted: {scores:?}"
+        );
     }
 
     /// A failing step stops the run and leaves the best found so far, rather than erroring out.
@@ -323,7 +357,11 @@ mod tests {
             .expect("does not surface the step's error");
 
         let strategies: Vec<&str> = candidates.iter().map(|c| c.strategy.as_str()).collect();
-        assert_eq!(strategies, ["", "p"], "the failed step recorded no candidate");
+        assert_eq!(
+            strategies,
+            ["", "p"],
+            "the failed step recorded no candidate"
+        );
         assert_eq!(instructions(&mut student), "from p");
     }
 
@@ -336,9 +374,15 @@ mod tests {
             .compile(&mut student, &trainset(), None, "p -> w")
             .await
             .expect_err("refuses");
-        assert!(error.to_string().contains("invalid optimizer keys"), "got: {error}");
         assert!(
-            together.compile(&mut student, &trainset(), None, "  ").await.is_err(),
+            error.to_string().contains("invalid optimizer keys"),
+            "got: {error}"
+        );
+        assert!(
+            together
+                .compile(&mut student, &trainset(), None, "  ")
+                .await
+                .is_err(),
             "an empty strategy is refused too"
         );
     }
@@ -351,6 +395,9 @@ mod tests {
         let (train, val) = together.split(&examples, None).expect("splits");
         assert_eq!(val.expect("a valset").len(), examples.len() / 2);
         assert_eq!(train.len(), examples.len() - examples.len() / 2);
-        assert!(together.split(&[], None).is_err(), "an empty trainset is refused");
+        assert!(
+            together.split(&[], None).is_err(),
+            "an empty trainset is refused"
+        );
     }
 }

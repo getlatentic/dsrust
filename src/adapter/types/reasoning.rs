@@ -26,7 +26,9 @@ pub struct Reasoning {
 
 impl Reasoning {
     pub fn new(content: impl Into<String>) -> Self {
-        Self { content: content.into() }
+        Self {
+            content: content.into(),
+        }
     }
 
     /// dspy `Reasoning.format`: the content itself, which is what a prompt renders for this field.
@@ -125,7 +127,9 @@ impl<'de> Deserialize<'de> for Reasoning {
                 Some(other) => Err(de::Error::custom(format!(
                     "`content` field must be a string, but received type: {other}"
                 ))),
-                None => Err(de::Error::custom("`content` field is required for `Reasoning`")),
+                None => Err(de::Error::custom(
+                    "`content` field is required for `Reasoning`",
+                )),
             },
             other => Err(de::Error::custom(format!(
                 "Received invalid value for `Reasoning`: {other}"

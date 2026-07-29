@@ -13,17 +13,28 @@ pub struct Feedback {
 impl Feedback {
     /// A score with explicit feedback text for GEPA to reflect on.
     pub fn new(score: f64, feedback: impl Into<String>) -> Self {
-        Self { score, feedback: Some(feedback.into()) }
+        Self {
+            score,
+            feedback: Some(feedback.into()),
+        }
     }
 
     /// A bare score; GEPA fills the default feedback (dspy's metric returning a plain float).
     pub fn score_only(score: f64) -> Self {
-        Self { score, feedback: None }
+        Self {
+            score,
+            feedback: None,
+        }
     }
 
     /// The feedback text GEPA reflects on, defaulting to dspy's score sentence.
     pub(super) fn text(&self) -> String {
-        self.feedback.clone().unwrap_or_else(|| format!("This trajectory got a score of {}.", python_float(self.score)))
+        self.feedback.clone().unwrap_or_else(|| {
+            format!(
+                "This trajectory got a score of {}.",
+                python_float(self.score)
+            )
+        })
     }
 }
 

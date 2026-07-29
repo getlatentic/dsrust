@@ -128,11 +128,7 @@ impl<'a> Endpoint<'a> {
     /// OpenRouter: its own host and credential, on the envelope it has always been sent.
     /// It accepts `max_tokens` for every model it hosts, OpenAI's reasoning models included,
     /// so the model name never moves the cap to another field here.
-    pub(crate) fn openrouter(
-        model: &'a str,
-        api_key: Option<&'a str>,
-        timeout: Duration,
-    ) -> Self {
+    pub(crate) fn openrouter(model: &'a str, api_key: Option<&'a str>, timeout: Duration) -> Self {
         Self {
             model,
             label: "openrouter",
@@ -148,11 +144,7 @@ impl<'a> Endpoint<'a> {
 
     /// Whatever the configuration names: OpenAI itself by default, or any other service
     /// exposing the same route.
-    pub(crate) fn configured(
-        model: &'a str,
-        config: &'a OpenAiConfig,
-        timeout: Duration,
-    ) -> Self {
+    pub(crate) fn configured(model: &'a str, config: &'a OpenAiConfig, timeout: Duration) -> Self {
         Self {
             model,
             label: "openai",
@@ -228,9 +220,10 @@ impl ChatModel for Endpoint<'_> {
                     chat_completions_url(self.base_url),
                     request(self.model, call, self.json_format, self.token_limit_rule),
                 ),
-                OpenAiWire::Responses => {
-                    (responses_url(self.base_url), responses::request(self.model, call, self.json_format))
-                }
+                OpenAiWire::Responses => (
+                    responses_url(self.base_url),
+                    responses::request(self.model, call, self.json_format),
+                ),
             };
             let response = http
                 .post(url)
@@ -414,7 +407,12 @@ mod tests {
 
     /// The same body, with the caller naming how the reply should be sampled.
     fn sampled_request(model: &str, token_limit_rule: TokenLimitRule, config: LmConfig) -> Value {
-        let call = raise_request("be helpful", &[ChatTurn::user("hi")], OutputMode::Text, &config);
+        let call = raise_request(
+            "be helpful",
+            &[ChatTurn::user("hi")],
+            OutputMode::Text,
+            &config,
+        );
         request(model, &call, JsonFormat::Object, token_limit_rule)
     }
 
@@ -441,7 +439,10 @@ mod tests {
             wire: OpenAiWire::Responses,
             ..OpenAiConfig::default()
         };
-        assert_eq!(Endpoint::configured("gpt-5", &responses, DEFAULT_PROVIDER_TIMEOUT).wire, OpenAiWire::Responses);
+        assert_eq!(
+            Endpoint::configured("gpt-5", &responses, DEFAULT_PROVIDER_TIMEOUT).wire,
+            OpenAiWire::Responses
+        );
     }
 
     #[test]
@@ -612,7 +613,12 @@ mod tests {
             ..LmConfig::default()
         };
         for model in ["openai/gpt-5", "openai/o3", "openai/gpt-oss-120b"] {
-            let call = raise_request("be helpful", &[ChatTurn::user("hi")], OutputMode::Text, &capped);
+            let call = raise_request(
+                "be helpful",
+                &[ChatTurn::user("hi")],
+                OutputMode::Text,
+                &capped,
+            );
             let body = request(
                 model,
                 &call,

@@ -33,7 +33,10 @@ pub(super) fn advise_inputs(
         ("modules_defn", json!(modules_defn)),
         ("program_inputs", dumped(&object_of(program_inputs))),
         ("program_trajectory", dumped(&trajectory(trace))),
-        ("program_outputs", dumped(&object_of(&program_outputs.example))),
+        (
+            "program_outputs",
+            dumped(&object_of(&program_outputs.example)),
+        ),
         ("reward_code", json!(reward_code)),
         ("target_threshold", dumped(&json!(threshold))),
         ("reward_value", dumped(&json!(reward_value))),
@@ -133,7 +136,9 @@ mod tests {
             "reward_value",
             "module_names",
         ] {
-            let value = inputs.get(field).unwrap_or_else(|| panic!("{field} is missing"));
+            let value = inputs
+                .get(field)
+                .unwrap_or_else(|| panic!("{field} is missing"));
             assert!(value.is_string(), "{field} reaches the advisor as a string");
         }
     }
@@ -142,8 +147,14 @@ mod tests {
     #[test]
     fn the_code_fields_travel_verbatim() {
         let inputs = inputs();
-        assert_eq!(inputs.get("program_code").unwrap(), &json!("class Program: ..."));
-        assert_eq!(inputs.get("reward_code").unwrap(), &json!("def reward(...): ..."));
+        assert_eq!(
+            inputs.get("program_code").unwrap(),
+            &json!("class Program: ...")
+        );
+        assert_eq!(
+            inputs.get("reward_code").unwrap(),
+            &json!("def reward(...): ...")
+        );
     }
 
     /// A float reaches the prompt as its own digits, not quoted twice — dumping `1.0` is `1.0`.
@@ -180,8 +191,14 @@ mod tests {
 
         assert_eq!(parsed.as_array().expect("an array").len(), 1);
         assert_eq!(parsed[0]["module_name"], json!("predict"));
-        assert_eq!(parsed[0]["inputs"]["question"], json!("Why is the sky blue?"));
-        assert_eq!(parsed[0]["outputs"]["answer"], json!("Rayleigh scattering."));
+        assert_eq!(
+            parsed[0]["inputs"]["question"],
+            json!("Why is the sky blue?")
+        );
+        assert_eq!(
+            parsed[0]["outputs"]["answer"],
+            json!("Rayleigh scattering.")
+        );
     }
 
     /// The names arrive as a JSON array, which the `list[str]` field renders straight.

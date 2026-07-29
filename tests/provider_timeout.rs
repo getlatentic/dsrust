@@ -16,8 +16,8 @@ use std::net::{TcpListener, TcpStream};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use dsrust::lm::{ChatModel, LM, api};
 use dsrust::DEFAULT_PROVIDER_TIMEOUT;
+use dsrust::lm::{ChatModel, LM, api};
 use futures_util::StreamExt;
 use serde_json::json;
 
@@ -177,7 +177,10 @@ async fn a_short_timeout_abandons_every_slow_route() {
             .without_cache()
             .with_timeout(TOO_SHORT);
 
-        let error = lm.forward(&http, &asking()).await.expect_err("the bound fires");
+        let error = lm
+            .forward(&http, &asking())
+            .await
+            .expect_err("the bound fires");
         assert!(
             format!("{error:#}").contains("timed out") || format!("{error:#}").contains("timeout"),
             "{route} failed for another reason: {error:#}"
@@ -246,7 +249,10 @@ async fn the_bound_reaches_the_capability_probe() {
     let started = std::time::Instant::now();
     let found = lm.capabilities(&reqwest::Client::new()).await;
     assert!(started.elapsed() < DELAY, "the probe waited past its bound");
-    assert!(!found.function_calling, "a probe that timed out offers nothing");
+    assert!(
+        !found.function_calling,
+        "a probe that timed out offers nothing"
+    );
     stub.done();
 }
 
@@ -255,7 +261,9 @@ async fn the_bound_reaches_the_capability_probe() {
 fn the_default_is_the_documented_twenty_seconds() {
     assert_eq!(DEFAULT_PROVIDER_TIMEOUT, Duration::from_secs(20));
     assert_eq!(
-        LM::new("openai/gpt-4o-mini").expect("a valid reference").timeout,
+        LM::new("openai/gpt-4o-mini")
+            .expect("a valid reference")
+            .timeout,
         DEFAULT_PROVIDER_TIMEOUT
     );
 }

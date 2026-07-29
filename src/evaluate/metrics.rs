@@ -19,7 +19,10 @@ const LABELS: [&str; 3] = ["yes", "no", "noanswer"];
 /// then collapse whitespace — in that order, which is the order upstream nests the steps in.
 pub fn normalize_text(text: &str) -> String {
     let folded: String = text.nfd().collect::<String>().to_lowercase();
-    let unpunctuated: String = folded.chars().filter(|c| !is_ascii_punctuation(*c)).collect();
+    let unpunctuated: String = folded
+        .chars()
+        .filter(|c| !is_ascii_punctuation(*c))
+        .collect();
     collapse_whitespace(&remove_articles(&unpunctuated))
 }
 
@@ -51,7 +54,10 @@ fn remove_articles(text: &str) -> String {
             ARTICLES.into_iter().find(|article| {
                 let length = article.chars().count();
                 index + length <= chars.len()
-                    && chars[index..index + length].iter().copied().eq(article.chars())
+                    && chars[index..index + length]
+                        .iter()
+                        .copied()
+                        .eq(article.chars())
                     && (index + length == chars.len() || !is_word(chars[index + length]))
             })
         });
@@ -131,9 +137,14 @@ pub fn hotpot_f1_score(prediction: &str, truth: &str) -> f64 {
 
 /// dspy `precision_score`: the share of the prediction's tokens that the reference also has.
 pub fn precision_score(prediction: &str, truth: &str) -> f64 {
-    let prediction: Vec<String> =
-        normalize_text(prediction).split_whitespace().map(str::to_owned).collect();
-    let truth: Vec<String> = normalize_text(truth).split_whitespace().map(str::to_owned).collect();
+    let prediction: Vec<String> = normalize_text(prediction)
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect();
+    let truth: Vec<String> = normalize_text(truth)
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect();
     let borrowed: Vec<&str> = prediction.iter().map(String::as_str).collect();
     let truth: Vec<&str> = truth.iter().map(String::as_str).collect();
     let same = overlap(&borrowed, &truth);
@@ -145,17 +156,27 @@ pub fn precision_score(prediction: &str, truth: &str) -> f64 {
 
 /// dspy `EM`: whether any reference answer matches exactly, after normalisation.
 pub fn em(prediction: &str, answers: &[impl AsRef<str>]) -> bool {
-    answers.iter().any(|answer| em_score(prediction, answer.as_ref()))
+    answers
+        .iter()
+        .any(|answer| em_score(prediction, answer.as_ref()))
 }
 
 /// dspy `F1`: the best token F1 across the reference answers.
 pub fn f1(prediction: &str, answers: &[impl AsRef<str>]) -> f64 {
-    best(answers.iter().map(|answer| f1_score(prediction, answer.as_ref())))
+    best(
+        answers
+            .iter()
+            .map(|answer| f1_score(prediction, answer.as_ref())),
+    )
 }
 
 /// dspy `HotPotF1`: the best HotPotQA-style F1 across the reference answers.
 pub fn hotpot_f1(prediction: &str, answers: &[impl AsRef<str>]) -> f64 {
-    best(answers.iter().map(|answer| hotpot_f1_score(prediction, answer.as_ref())))
+    best(
+        answers
+            .iter()
+            .map(|answer| hotpot_f1_score(prediction, answer.as_ref())),
+    )
 }
 
 /// Python's `max` over the scores, and 0 for no answers at all — where upstream would raise on an
@@ -168,15 +189,21 @@ fn best(scores: impl Iterator<Item = f64>) -> f64 {
 fn answers_of(example: &Example) -> Vec<String> {
     match example.get("answer") {
         Some(Value::String(answer)) => vec![answer.clone()],
-        Some(Value::Array(answers)) => {
-            answers.iter().filter_map(Value::as_str).map(str::to_owned).collect()
-        }
+        Some(Value::Array(answers)) => answers
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect(),
         _ => Vec::new(),
     }
 }
 
 fn answered(prediction: &Prediction) -> String {
-    prediction.get("answer").and_then(Value::as_str).unwrap_or_default().to_owned()
+    prediction
+        .get("answer")
+        .and_then(Value::as_str)
+        .unwrap_or_default()
+        .to_owned()
 }
 
 /// dspy `answer_exact_match`: whether the prediction's answer matches any reference exactly.
@@ -259,7 +286,10 @@ mod tests {
     /// golden records, since what upstream does is the contract and what it documents is not.
     #[test]
     fn precision_is_the_share_of_predicted_tokens_that_land() {
-        assert_eq!(precision_score("eiffel tower in paris", "eiffel tower"), 0.5);
+        assert_eq!(
+            precision_score("eiffel tower in paris", "eiffel tower"),
+            0.5
+        );
         assert_eq!(precision_score("berlin", "paris"), 0.0);
     }
 
@@ -273,16 +303,25 @@ mod tests {
     #[test]
     fn answer_exact_match_reads_either_answer_shape() {
         let prediction = Prediction::new(example! { answer: "The Eiffel Tower" }, "");
-        assert_eq!(answer_exact_match(&example! { answer: "Eiffel Tower" }, &prediction), 1.0);
-        let listed = Example::new([(
-            "answer",
-            serde_json::json!(["Eiffel Tower", "Louvre"]),
-        )]);
+        assert_eq!(
+            answer_exact_match(&example! { answer: "Eiffel Tower" }, &prediction),
+            1.0
+        );
+        let listed = Example::new([("answer", serde_json::json!(["Eiffel Tower", "Louvre"]))]);
         assert_eq!(answer_exact_match(&listed, &prediction), 1.0);
-        assert_eq!(answer_exact_match(&example! { answer: "Louvre" }, &prediction), 0.0);
+        assert_eq!(
+            answer_exact_match(&example! { answer: "Louvre" }, &prediction),
+            0.0
+        );
         // Below 1.0 the threshold is on token F1 instead, so a partial answer passes.
         let partial = Prediction::new(example! { answer: "Eiffel Tower is in Paris" }, "");
-        assert_eq!(answer_match(&example! { answer: "Paris" }, &partial, 0.3), 1.0);
-        assert_eq!(answer_match(&example! { answer: "Paris" }, &partial, 0.5), 0.0);
+        assert_eq!(
+            answer_match(&example! { answer: "Paris" }, &partial, 0.3),
+            1.0
+        );
+        assert_eq!(
+            answer_match(&example! { answer: "Paris" }, &partial, 0.5),
+            0.0
+        );
     }
 }

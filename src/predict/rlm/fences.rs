@@ -37,9 +37,15 @@ pub(crate) fn strip_code_fences(code: &str) -> Result<String> {
     };
 
     // The first word of the language line, lowercased; a line of only whitespace reads as bare.
-    let language = language_line.split_whitespace().next().unwrap_or_default().to_lowercase();
+    let language = language_line
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+        .to_lowercase();
     if !PYTHON_FENCE_LANGS.contains(&language.as_str()) {
-        bail!("Expected Python code but got ```{language} fence. Write Python code, not {language}.");
+        bail!(
+            "Expected Python code but got ```{language} fence. Write Python code, not {language}."
+        );
     }
 
     Ok(match body.find("```") {
@@ -59,12 +65,19 @@ mod conformance {
     /// where a reimplementation guesses rather than agrees.
     #[test]
     fn it_strips_the_fences_dspy_strips() {
-        for case in super::super::golden()["strip_code_fences"].as_array().expect("cases") {
+        for case in super::super::golden()["strip_code_fences"]
+            .as_array()
+            .expect("cases")
+        {
             let written = case["written"].as_str().expect("written");
             match case["error"].as_str() {
                 None => {
                     let code = strip_code_fences(written).expect("parses");
-                    assert_eq!(code, case["code"].as_str().expect("code"), "code for {written:?}");
+                    assert_eq!(
+                        code,
+                        case["code"].as_str().expect("code"),
+                        "code for {written:?}"
+                    );
                 }
                 Some(error) => {
                     let refused = strip_code_fences(written).expect_err("refuses");

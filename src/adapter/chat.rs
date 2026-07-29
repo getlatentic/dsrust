@@ -95,7 +95,13 @@ impl Adapter for ChatAdapter {
         demos: &[Example],
         inputs: &[Input<'_>],
     ) -> Result<(String, Vec<ChatTurn>)> {
-        let (asked, mut turns) = conversation(signature, demos, inputs, MARKER_STYLE, self.use_native_function_calling);
+        let (asked, mut turns) = conversation(
+            signature,
+            demos,
+            inputs,
+            MARKER_STYLE,
+            self.use_native_function_calling,
+        );
         turns.push(ChatTurn::user(chat_user(
             &asked,
             &live_inputs(&asked, inputs),
@@ -184,9 +190,7 @@ fn output_requirements(signature: &Signature) -> String {
     let fields: Vec<String> = signature
         .outputs
         .iter()
-        .map(|field| {
-            format!("`{}`{}", marker(&field.name), super::output_hint(field))
-        })
+        .map(|field| format!("`{}`{}", marker(&field.name), super::output_hint(field)))
         .collect();
     format!(
         "Respond with the corresponding output fields, starting with the field {}, and then \

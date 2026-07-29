@@ -287,7 +287,10 @@ mod tests {
 
         let answered = futures_lite_block_on(lm.forward(&reqwest::Client::new(), &typed))
             .expect("the dummy answers a typed request");
-        assert_eq!(answered.first_text(), "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]");
+        assert_eq!(
+            answered.first_text(),
+            "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]"
+        );
 
         let seen = lm.asked();
         let seen = seen.last().expect("one call was recorded");

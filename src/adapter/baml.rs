@@ -393,7 +393,9 @@ mod tests {
         let raw = r#"{"answer": "a fever"}"#;
         assert_eq!(
             BamlAdapter.parse(&signature, raw).expect("parses"),
-            JsonAdapter::default().parse(&signature, raw).expect("parses")
+            JsonAdapter::default()
+                .parse(&signature, raw)
+                .expect("parses")
         );
         assert!(BamlAdapter.parse(&signature, r#"{"other": 1}"#).is_err());
     }

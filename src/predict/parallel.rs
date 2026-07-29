@@ -114,7 +114,11 @@ impl Parallel {
         let mut answers = stream::iter(asked.into_iter().enumerate())
             .map(|(at, (module, example))| async move {
                 // `access_examples`: the whole example, or only the fields it marked as inputs.
-                let prepared = if access { example.inputs() } else { Ok(example) };
+                let prepared = if access {
+                    example.inputs()
+                } else {
+                    Ok(example)
+                };
                 let answer = match prepared {
                     Ok(inputs) => module.forward(inputs).await,
                     Err(error) => Err(error),
@@ -239,7 +243,10 @@ mod tests {
                 .to_string()
                 .contains("provider is down")
         );
-        assert!(answers.failure(0).is_none(), "a branch that worked has none");
+        assert!(
+            answers.failure(0).is_none(),
+            "a branch that worked has none"
+        );
     }
 
     /// The failures are withheld by default, which is upstream returning results alone, and the
@@ -248,8 +255,7 @@ mod tests {
     async fn failures_are_withheld_unless_asked_for() {
         let good = Solver::new(Answers::Correctly);
         let bad = Solver::new(Answers::Failing);
-        let work: Vec<(&dyn Module, Example)> =
-            vec![(&good, asked("q")), (&bad, asked("q"))];
+        let work: Vec<(&dyn Module, Example)> = vec![(&good, asked("q")), (&bad, asked("q"))];
 
         let answers = Parallel::default().run(work).await.expect("runs");
         assert!(answers.results[1].is_none(), "the hole is still there");
@@ -264,8 +270,8 @@ mod tests {
     #[tokio::test]
     async fn access_examples_asks_with_the_input_fields_alone() {
         let seen = FieldsSeen::default();
-        let carrying = example! { question: "capital of France?", gold: "Paris" }
-            .with_inputs(["question"]);
+        let carrying =
+            example! { question: "capital of France?", gold: "Paris" }.with_inputs(["question"]);
         let work: Vec<(&dyn Module, Example)> = vec![(&seen, carrying.clone())];
 
         // Default (true): only `question` reaches the module.
@@ -302,7 +308,10 @@ mod tests {
         }
         .run(work)
         .await;
-        assert!(refused.is_err(), "two failures should have abandoned the call");
+        assert!(
+            refused.is_err(),
+            "two failures should have abandoned the call"
+        );
     }
 
     /// One in flight is still every branch, just one at a time — the bound is a bill, not a plan.
@@ -324,7 +333,12 @@ mod tests {
 
     impl FieldsSeen {
         fn last(&self) -> Vec<String> {
-            self.0.lock().expect("not poisoned").last().cloned().unwrap_or_default()
+            self.0
+                .lock()
+                .expect("not poisoned")
+                .last()
+                .cloned()
+                .unwrap_or_default()
         }
     }
 

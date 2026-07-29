@@ -86,7 +86,11 @@ pub fn blocks_of(part: &LmPart) -> Result<Vec<Value>> {
         // `binary_to_openai`, taking the filename from a local path when there is one.
         LmPart::Video {
             source, media_type, ..
-        } => vec![binary_block(source, media_type, video_filename(source).as_deref())?],
+        } => vec![binary_block(
+            source,
+            media_type,
+            video_filename(source).as_deref(),
+        )?],
         LmPart::Binary {
             source,
             media_type,
@@ -141,7 +145,10 @@ fn audio_block(source: &LmSource, media_type: &str) -> Result<Value> {
 /// none — a url or base64 video is a file block without a filename.
 fn video_filename(source: &LmSource) -> Option<String> {
     match source {
-        LmSource::Path(path) => path.file_name().and_then(|name| name.to_str()).map(str::to_owned),
+        LmSource::Path(path) => path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .map(str::to_owned),
         _ => None,
     }
 }
@@ -153,7 +160,10 @@ fn binary_block(source: &LmSource, media_type: &str, filename: Option<&str>) -> 
             file.insert("file_id".to_owned(), json!(id));
         }
         source => {
-            file.insert("file_data".to_owned(), json!(media_source(source, media_type)?));
+            file.insert(
+                "file_data".to_owned(),
+                json!(media_source(source, media_type)?),
+            );
         }
     }
     if let Some(filename) = filename {
@@ -236,7 +246,9 @@ fn media_type_for(path: &std::path::Path, fallback: &str) -> String {
 
 /// The bare format name, with the two spellings providers disagree on folded.
 fn media_format(media_type: &str) -> String {
-    let format = media_type.split_once('/').map_or(media_type, |(_, rest)| rest);
+    let format = media_type
+        .split_once('/')
+        .map_or(media_type, |(_, rest)| rest);
     match format {
         "x-wav" => "wav",
         "mpeg" => "mp3",
@@ -268,7 +280,10 @@ mod tests {
     #[test]
     fn one_plain_text_part_travels_as_a_bare_string() {
         let content = content_of(&[LmPart::text("[[ ## question ## ]]\nWhy?")]).expect("renders");
-        assert_eq!(content, Content::Text("[[ ## question ## ]]\nWhy?".to_owned()));
+        assert_eq!(
+            content,
+            Content::Text("[[ ## question ## ]]\nWhy?".to_owned())
+        );
     }
 
     /// A block-carrying part is not prose, so a message holding only one still renders as a list.
@@ -305,14 +320,20 @@ mod tests {
     #[test]
     fn a_block_nobody_modelled_comes_back_exactly_as_it_went_in() {
         let block = json!({ "type": "wildcard_v9", "payload": { "k": [1, 2] } });
-        assert_eq!(blocks_of(&LmPart::legacy(block.clone())).expect("renders"), vec![block]);
+        assert_eq!(
+            blocks_of(&LmPart::legacy(block.clone())).expect("renders"),
+            vec![block]
+        );
     }
 
     #[test]
     fn base64_data_becomes_a_data_uri_and_a_url_stays_a_url() {
-        let from_data = image_block(&LmSource::Data("aGk=".to_owned()), "image/jpeg", None)
-            .expect("renders");
-        assert_eq!(from_data["image_url"]["url"], json!("data:image/jpeg;base64,aGk="));
+        let from_data =
+            image_block(&LmSource::Data("aGk=".to_owned()), "image/jpeg", None).expect("renders");
+        assert_eq!(
+            from_data["image_url"]["url"],
+            json!("data:image/jpeg;base64,aGk=")
+        );
 
         let already = image_block(
             &LmSource::Data("data:image/png;base64,aGk=".to_owned()),
@@ -321,7 +342,8 @@ mod tests {
         )
         .expect("renders");
         assert_eq!(
-            already["image_url"]["url"], json!("data:image/png;base64,aGk="),
+            already["image_url"]["url"],
+            json!("data:image/png;base64,aGk="),
             "an encoded URI is not encoded a second time"
         );
     }
@@ -331,8 +353,12 @@ mod tests {
         let plain = image_block(&LmSource::Url("u".to_owned()), "image/png", None).expect("ok");
         assert_eq!(plain["image_url"].get("detail"), None);
 
-        let detailed =
-            image_block(&LmSource::Url("u".to_owned()), "image/png", Some(Detail::High)).expect("ok");
+        let detailed = image_block(
+            &LmSource::Url("u".to_owned()),
+            "image/png",
+            Some(Detail::High),
+        )
+        .expect("ok");
         assert_eq!(detailed["image_url"]["detail"], json!("high"));
     }
 
@@ -340,8 +366,16 @@ mod tests {
     #[test]
     fn audio_carries_the_bare_format_name_and_refuses_a_url() {
         let block = audio_block(&LmSource::Data("YQ==".to_owned()), "audio/x-wav").expect("ok");
-        assert_eq!(block["input_audio"]["format"], json!("wav"), "x-wav folds to wav");
-        assert_eq!(block["input_audio"]["data"], json!("YQ=="), "not a data uri");
+        assert_eq!(
+            block["input_audio"]["format"],
+            json!("wav"),
+            "x-wav folds to wav"
+        );
+        assert_eq!(
+            block["input_audio"]["data"],
+            json!("YQ=="),
+            "not a data uri"
+        );
 
         assert!(audio_block(&LmSource::Url("u".to_owned()), "audio/wav").is_err());
     }

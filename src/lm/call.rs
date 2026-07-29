@@ -352,7 +352,10 @@ mod usage_merge_tests {
         }));
         let merged = LmUsage::merge(Some(first), Some(second)).expect("merges");
         assert_eq!(merged.prompt_tokens, Some(150));
-        let details = merged.extra.get("prompt_tokens_details").expect("the breakdown");
+        let details = merged
+            .extra
+            .get("prompt_tokens_details")
+            .expect("the breakdown");
         assert_eq!(details["cached_tokens"], json!(50));
         assert_eq!(details["audio_tokens"], json!(3));
     }
@@ -406,12 +409,12 @@ mod usage_order_tests {
     /// controls.
     #[test]
     fn a_null_breakdown_does_not_erase_a_real_one() {
-        let reported = json!({ "prompt_tokens": 100, "prompt_tokens_details": { "cached_tokens": 50 } });
+        let reported =
+            json!({ "prompt_tokens": 100, "prompt_tokens_details": { "cached_tokens": 50 } });
         let silent = json!({ "prompt_tokens": 50, "prompt_tokens_details": null });
         for (left, right) in [(&reported, &silent), (&silent, &reported)] {
-            let merged =
-                LmUsage::merge(Some(counted(left.clone())), Some(counted(right.clone())))
-                    .expect("merges");
+            let merged = LmUsage::merge(Some(counted(left.clone())), Some(counted(right.clone())))
+                .expect("merges");
             assert_eq!(merged.prompt_tokens, Some(150));
             assert_eq!(
                 merged.extra["prompt_tokens_details"]["cached_tokens"],

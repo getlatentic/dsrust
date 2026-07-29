@@ -65,10 +65,10 @@ impl<E: Iterator<Item = LmStreamEvent>> Iterator for LmStream<E> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::delta::LmDelta;
     use super::super::message::LmMessage;
     use super::super::part::LmPart;
+    use super::*;
 
     fn request() -> LmRequest {
         LmRequest::new(

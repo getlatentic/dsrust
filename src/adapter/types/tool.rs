@@ -25,7 +25,11 @@ pub struct ToolCall {
 
 impl ToolCall {
     pub fn new(name: impl Into<String>, args: Map<String, Value>) -> Self {
-        Self { id: None, name: name.into(), args }
+        Self {
+            id: None,
+            name: name.into(),
+            args,
+        }
     }
 
     /// The same call carrying the provider's id.
@@ -66,9 +70,9 @@ impl<'de> Deserialize<'de> for ToolCalls {
 fn validated(data: &Value) -> Result<ToolCalls> {
     match data {
         // A bare list, every item a call.
-        Value::Array(items) if items.iter().all(is_tool_call_value) => {
-            Ok(ToolCalls::new(items.iter().map(normalized_call).collect::<Result<_>>()?))
-        }
+        Value::Array(items) if items.iter().all(is_tool_call_value) => Ok(ToolCalls::new(
+            items.iter().map(normalized_call).collect::<Result<_>>()?,
+        )),
         Value::Object(fields) => match fields.get("tool_calls") {
             // The wrapper the model is shown, its results carried alongside when present.
             Some(Value::Array(list)) => Ok(ToolCalls {
@@ -83,9 +87,13 @@ fn validated(data: &Value) -> Result<ToolCalls> {
             }),
             // A single call stated at the top level.
             _ if is_tool_call_dict(fields) => Ok(ToolCalls::new(vec![normalized_call(data)?])),
-            _ => Err(anyhow!("Received invalid value for `dspy.ToolCalls`: {data}")),
+            _ => Err(anyhow!(
+                "Received invalid value for `dspy.ToolCalls`: {data}"
+            )),
         },
-        _ => Err(anyhow!("Received invalid value for `dspy.ToolCalls`: {data}")),
+        _ => Err(anyhow!(
+            "Received invalid value for `dspy.ToolCalls`: {data}"
+        )),
     }
 }
 
@@ -96,7 +104,8 @@ fn is_tool_call_value(value: &Value) -> bool {
 }
 
 fn is_tool_call_dict(fields: &Map<String, Value>) -> bool {
-    (fields.contains_key("name") && (fields.contains_key("args") || fields.contains_key("arguments")))
+    (fields.contains_key("name")
+        && (fields.contains_key("args") || fields.contains_key("arguments")))
         || fields.contains_key("function")
 }
 
@@ -107,7 +116,10 @@ impl ToolCalls {
     pub const ANNOTATION: &'static str = "ToolCalls";
 
     pub fn new(tool_calls: Vec<ToolCall>) -> Self {
-        Self { tool_calls, tool_call_results: None }
+        Self {
+            tool_calls,
+            tool_call_results: None,
+        }
     }
 
     /// The same calls carrying what running them returned.
@@ -162,13 +174,18 @@ impl ToolCalls {
     /// Each entry may be shaped as the provider sends one — a `function` holding the name and the
     /// arguments as text — or as this type writes one, with `args` already structured.
     pub fn from_dict_list(values: &[Value]) -> Result<Self> {
-        Ok(Self::new(values.iter().map(normalized_call).collect::<Result<_>>()?))
+        Ok(Self::new(
+            values.iter().map(normalized_call).collect::<Result<_>>()?,
+        ))
     }
 
     /// The calls with their results dropped, which is how dspy renders the assistant turn of a
     /// replayed conversation — the turn states what was asked for, and the results follow it.
     pub fn without_results(&self) -> Self {
-        Self { tool_calls: self.tool_calls.clone(), tool_call_results: None }
+        Self {
+            tool_calls: self.tool_calls.clone(),
+            tool_call_results: None,
+        }
     }
 
     /// The value a program keeps between turns: every call whole, ids included, results appended.
@@ -208,9 +225,15 @@ impl ToolCalls {
             return false;
         };
         let ids: Vec<&Option<String>> = self.tool_calls.iter().map(|call| &call.id).collect();
-        let answered: Vec<&Option<String>> =
-            results.tool_call_results.iter().map(|result| &result.call_id).collect();
-        ids == answered && ids.iter().all(|id| id.as_ref().is_some_and(|id| !id.is_empty()))
+        let answered: Vec<&Option<String>> = results
+            .tool_call_results
+            .iter()
+            .map(|result| &result.call_id)
+            .collect();
+        ids == answered
+            && ids
+                .iter()
+                .all(|id| id.as_ref().is_some_and(|id| !id.is_empty()))
     }
 }
 
@@ -238,7 +261,9 @@ impl Serialize for ToolCalls {
 /// either `id` or `call_id`.
 fn normalized_call(data: &Value) -> Result<ToolCall> {
     let Some(fields) = data.as_object() else {
-        return Err(anyhow!("Received invalid tool call value for `ToolCalls`: {data}"));
+        return Err(anyhow!(
+            "Received invalid tool call value for `ToolCalls`: {data}"
+        ));
     };
     let (arguments, name) = match fields.get("function") {
         // dspy's `data.get("function") or {}`: a null function states nothing rather than
@@ -248,7 +273,9 @@ fn normalized_call(data: &Value) -> Result<ToolCall> {
                 Value::Object(function) => Some(function),
                 Value::Null => None,
                 other => {
-                    return Err(anyhow!("Received invalid function value for `ToolCalls`: {other}"));
+                    return Err(anyhow!(
+                        "Received invalid function value for `ToolCalls`: {other}"
+                    ));
                 }
             };
             let name = written(function.and_then(|f| f.get("name")))
@@ -289,7 +316,10 @@ fn structured_args(arguments: &Value) -> Map<String, Value> {
 /// all reach the next spelling; `Option::or_else` alone only falls through the absent one, which
 /// would keep a provider's `"id": null` and lose the `call_id` beside it.
 fn written(value: Option<&Value>) -> Option<String> {
-    value.and_then(Value::as_str).filter(|text| !text.is_empty()).map(str::to_owned)
+    value
+        .and_then(Value::as_str)
+        .filter(|text| !text.is_empty())
+        .map(str::to_owned)
 }
 
 /// dspy `ToolCallResults.ToolCallResult`: what one call returned.
@@ -319,7 +349,9 @@ impl ToolCallResults {
         is_errors: Option<Vec<bool>>,
     ) -> Result<Self> {
         if tool_calls.len() != values.len() {
-            return Err(anyhow!("`tool_calls` and `values` must have the same length."));
+            return Err(anyhow!(
+                "`tool_calls` and `values` must have the same length."
+            ));
         }
         let is_errors = match is_errors {
             None => vec![false; tool_calls.len()],
@@ -371,7 +403,10 @@ fn python_repr(value: &Value) -> String {
         Value::Bool(false) => "False".to_owned(),
         Value::String(text) => format!("'{}'", text.replace('\\', "\\\\").replace('\'', "\\'")),
         Value::Array(items) => {
-            format!("[{}]", items.iter().map(python_repr).collect::<Vec<_>>().join(", "))
+            format!(
+                "[{}]",
+                items.iter().map(python_repr).collect::<Vec<_>>().join(", ")
+            )
         }
         Value::Object(fields) => format!(
             "{{{}}}",
@@ -400,12 +435,21 @@ mod tests {
 
     #[test]
     fn a_tool_with_no_description_drops_the_desc_tags() {
-        assert_eq!(format_tool("bare", "", &json!({})), "bare. It takes arguments {}.");
+        assert_eq!(
+            format_tool("bare", "", &json!({})),
+            "bare. It takes arguments {}."
+        );
     }
 
     fn search_call() -> ToolCall {
-        ToolCall::new("search", json!({ "query": "cats" }).as_object().expect("object").clone())
-            .with_id("call_1")
+        ToolCall::new(
+            "search",
+            json!({ "query": "cats" })
+                .as_object()
+                .expect("object")
+                .clone(),
+        )
+        .with_id("call_1")
     }
 
     /// dspy `ToolCall.format` states the name and args; the provider's id is transport and is
@@ -438,9 +482,12 @@ mod tests {
             json!({ "tool_calls": [{ "name": "search", "args": { "query": "cats" } }] })
         );
 
-        let results =
-            ToolCallResults::from_tool_calls_and_values(&calls.tool_calls, vec![json!("cat")], None)
-                .expect("pairs up");
+        let results = ToolCallResults::from_tool_calls_and_values(
+            &calls.tool_calls,
+            vec![json!("cat")],
+            None,
+        )
+        .expect("pairs up");
         // The results dump as their own model, so they nest under a second `tool_call_results`.
         // Checked against dspy 3.3.0b1's `ToolCalls.model_dump()` rather than assumed.
         assert_eq!(
@@ -471,14 +518,20 @@ mod tests {
         );
 
         let with_results = calls.clone().with_results(
-            ToolCallResults::from_tool_calls_and_values(&calls.tool_calls, vec![json!("cat")], None)
-                .expect("pairs"),
+            ToolCallResults::from_tool_calls_and_values(
+                &calls.tool_calls,
+                vec![json!("cat")],
+                None,
+            )
+            .expect("pairs"),
         );
         let back: ToolCalls =
             serde_json::from_value(with_results.to_value_with_ids()).expect("reads back");
         assert_eq!(back.tool_calls[0].id.as_deref(), Some("call_1"));
         assert_eq!(
-            back.tool_call_results.expect("results").tool_call_results[0].call_id.as_deref(),
+            back.tool_call_results.expect("results").tool_call_results[0]
+                .call_id
+                .as_deref(),
             Some("call_1")
         );
     }
@@ -486,8 +539,8 @@ mod tests {
     #[test]
     fn results_are_paired_with_the_calls_that_produced_them() {
         let calls = vec![search_call()];
-        let results =
-            ToolCallResults::from_tool_calls_and_values(&calls, vec![json!("cat")], None).expect("pairs");
+        let results = ToolCallResults::from_tool_calls_and_values(&calls, vec![json!("cat")], None)
+            .expect("pairs");
         assert_eq!(
             results.tool_call_results[0],
             ToolCallResult {
@@ -517,8 +570,14 @@ mod tests {
         })])
         .expect("reads back");
         assert_eq!(calls.tool_calls[0].name, "search");
-        assert_eq!(calls.tool_calls[0].id.as_deref(), Some("call_from_responses"));
-        assert_eq!(calls.tool_calls[0].args, *json!({ "query": "cats" }).as_object().unwrap());
+        assert_eq!(
+            calls.tool_calls[0].id.as_deref(),
+            Some("call_from_responses")
+        );
+        assert_eq!(
+            calls.tool_calls[0].args,
+            *json!({ "query": "cats" }).as_object().unwrap()
+        );
     }
 
     /// The spelling dspy did not use is often *written* rather than absent — a provider object
@@ -534,7 +593,10 @@ mod tests {
             "name": "search",
         })])
         .expect("reads back");
-        assert_eq!(calls.tool_calls[0].id.as_deref(), Some("call_from_responses"));
+        assert_eq!(
+            calls.tool_calls[0].id.as_deref(),
+            Some("call_from_responses")
+        );
         assert_eq!(calls.tool_calls[0].name, "search");
         // Empty is falsy to Python too, so it falls through the same way.
         let calls = ToolCalls::from_dict_list(&[json!({ "id": "", "call_id": "call_1" })])
@@ -551,7 +613,10 @@ mod tests {
             "id": "call_1",
         })])
         .expect("reads back");
-        assert_eq!(calls.tool_calls[0].args, *json!({ "query": "cats" }).as_object().unwrap());
+        assert_eq!(
+            calls.tool_calls[0].args,
+            *json!({ "query": "cats" }).as_object().unwrap()
+        );
     }
 
     /// Arguments that are neither text nor a mapping state nothing, and this type's own spelling
@@ -564,7 +629,10 @@ mod tests {
             json!({ "function": null, "name": "bare" }),
         ])
         .expect("reads back");
-        assert_eq!(calls.tool_calls[0].args, *json!({ "query": "cats" }).as_object().unwrap());
+        assert_eq!(
+            calls.tool_calls[0].args,
+            *json!({ "query": "cats" }).as_object().unwrap()
+        );
         assert!(calls.tool_calls[1].args.is_empty());
         assert_eq!(calls.tool_calls[2].name, "bare");
         // A call that is not a mapping at all is refused rather than guessed at.
@@ -578,8 +646,13 @@ mod tests {
     fn results_only_replay_when_they_answer_the_calls_made() {
         let calls = vec![search_call()];
         let matching =
-            ToolCallResults::from_tool_calls_and_values(&calls, vec![json!("cat")], None).expect("pairs");
-        assert!(ToolCalls::new(calls.clone()).with_results(matching).results_match_calls());
+            ToolCallResults::from_tool_calls_and_values(&calls, vec![json!("cat")], None)
+                .expect("pairs");
+        assert!(
+            ToolCalls::new(calls.clone())
+                .with_results(matching)
+                .results_match_calls()
+        );
 
         // No results at all: nothing to replay.
         assert!(!ToolCalls::new(calls.clone()).results_match_calls());
@@ -592,11 +665,20 @@ mod tests {
                 is_error: false,
             }],
         };
-        assert!(!ToolCalls::new(calls).with_results(mismatched).results_match_calls());
+        assert!(
+            !ToolCalls::new(calls)
+                .with_results(mismatched)
+                .results_match_calls()
+        );
         // A call with no id cannot be answered by name alone.
         let anonymous = vec![ToolCall::new("search", Map::new())];
         let results =
-            ToolCallResults::from_tool_calls_and_values(&anonymous, vec![json!("cat")], None).expect("pairs");
-        assert!(!ToolCalls::new(anonymous).with_results(results).results_match_calls());
+            ToolCallResults::from_tool_calls_and_values(&anonymous, vec![json!("cat")], None)
+                .expect("pairs");
+        assert!(
+            !ToolCalls::new(anonymous)
+                .with_results(results)
+                .results_match_calls()
+        );
     }
 }

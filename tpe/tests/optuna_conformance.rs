@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use tpe::TpeSampler;
 
 fn fixture() -> serde_json::Value {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/conformance/optuna_tpe.json");
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/optuna_tpe.json");
     let text = std::fs::read_to_string(&path).expect("the optuna golden is committed");
     serde_json::from_str(&text).expect("the golden parses")
 }
@@ -20,8 +20,14 @@ fn fixture() -> serde_json::Value {
 /// The objective as a lookup: the table is keyed by the trial's categories joined with commas, which
 /// is how the fixture stores what optuna optimized.
 fn score(table: &HashMap<String, f64>, params: &[usize]) -> f64 {
-    let key = params.iter().map(usize::to_string).collect::<Vec<_>>().join(",");
-    *table.get(&key).expect("every category combination is in the table")
+    let key = params
+        .iter()
+        .map(usize::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
+    *table
+        .get(&key)
+        .expect("every category combination is in the table")
 }
 
 #[test]

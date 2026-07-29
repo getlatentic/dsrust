@@ -66,10 +66,14 @@ fn example(object: &Value) -> Example {
 
 /// The keyed model dspy was run against: each key answers whichever call carries it.
 fn model(case: &Value) -> Arc<DummyLM> {
-    let pairs = case["keyed"].as_array().expect("keyed").iter().map(|entry| {
-        let key = entry["key"].as_str().expect("key").to_owned();
-        (key, example(&entry["fields"]))
-    });
+    let pairs = case["keyed"]
+        .as_array()
+        .expect("keyed")
+        .iter()
+        .map(|entry| {
+            let key = entry["key"].as_str().expect("key").to_owned();
+            (key, example(&entry["fields"]))
+        });
     Arc::new(DummyLM::keyed(pairs))
 }
 
@@ -154,7 +158,12 @@ async fn copro_makes_the_decisions_dspy_makes() {
     assert!(!cases.is_empty(), "the golden records no cases");
     for case in cases {
         let model = model(case);
-        let trainset: Vec<Example> = case["trainset"].as_array().expect("trainset").iter().map(example).collect();
+        let trainset: Vec<Example> = case["trainset"]
+            .as_array()
+            .expect("trainset")
+            .iter()
+            .map(example)
+            .collect();
         let mut module = build(case, model.clone());
 
         COPRO::new(exact_match)

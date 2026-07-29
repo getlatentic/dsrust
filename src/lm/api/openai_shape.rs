@@ -201,7 +201,13 @@ mod tests {
             "content": "found it",
         }));
         assert_eq!(message.name, None, "the name went to the result");
-        let LmPart::ToolResult { call_id, name, content, .. } = &message.parts[0] else {
+        let LmPart::ToolResult {
+            call_id,
+            name,
+            content,
+            ..
+        } = &message.parts[0]
+        else {
             panic!("a tool message is one result: {:?}", message.parts[0]);
         };
         assert_eq!(call_id.as_deref(), Some("call_1"));

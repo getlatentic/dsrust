@@ -32,7 +32,9 @@ fn json_defaults_to_native_function_calling_as_dspy_does() {
 fn a_chat_fallback_carries_the_chat_adapters_settings_not_the_json_defaults() {
     // dspy `_make_json_adapter_fallback` passes its own settings down, so a re-ask from a plain
     // ChatAdapter must not silently pick up JSONAdapter's native-on default.
-    let fallback = ChatAdapter::default().json_fallback_adapter().expect("falls back");
+    let fallback = ChatAdapter::default()
+        .json_fallback_adapter()
+        .expect("falls back");
     assert!(!fallback.use_native_function_calling);
 
     let native = ChatAdapter::default()
@@ -42,5 +44,9 @@ fn a_chat_fallback_carries_the_chat_adapters_settings_not_the_json_defaults() {
     assert!(fallback.use_native_function_calling);
     assert_eq!(fallback.parallel_tool_calls, Some(true));
 
-    assert!(ChatAdapter::without_json_fallback().json_fallback_adapter().is_none());
+    assert!(
+        ChatAdapter::without_json_fallback()
+            .json_fallback_adapter()
+            .is_none()
+    );
 }

@@ -6,10 +6,10 @@ mod parse;
 mod prefix;
 mod reflect;
 
+use field_type::annotation_of;
+pub(crate) use field_type::coerce_value;
 pub(crate) use field_type::wire_forms;
 pub use field_type::{FieldKind, JsonType, LiteralValue, TypeDescription};
-pub(crate) use field_type::coerce_value;
-use field_type::annotation_of;
 pub use parse::parse;
 pub use prefix::infer_prefix;
 pub use reflect::json_field_reflection;
@@ -925,19 +925,34 @@ mod edit_tests {
         Signature {
             instructions: "Translate.".to_owned(),
             inputs: vec![
-                InField { name: "input_text".into(), ..Default::default() },
-                InField { name: "context".into(), ..Default::default() },
+                InField {
+                    name: "input_text".into(),
+                    ..Default::default()
+                },
+                InField {
+                    name: "context".into(),
+                    ..Default::default()
+                },
             ],
-            outputs: vec![OutField { name: "output_text".into(), ..Default::default() }],
+            outputs: vec![OutField {
+                name: "output_text".into(),
+                ..Default::default()
+            }],
         }
     }
 
     fn input(name: &str) -> Side {
-        Side::Input(InField { name: name.to_owned(), ..Default::default() })
+        Side::Input(InField {
+            name: name.to_owned(),
+            ..Default::default()
+        })
     }
 
     fn output(name: &str) -> Side {
-        Side::Output(OutField { name: name.to_owned(), ..Default::default() })
+        Side::Output(OutField {
+            name: name.to_owned(),
+            ..Default::default()
+        })
     }
 
     fn names(signature: &Signature) -> (Vec<&str>, Vec<&str>) {
@@ -971,11 +986,23 @@ mod edit_tests {
     fn a_negative_index_counts_past_the_end() {
         let inserted = |at| {
             let edited = sig().insert(at, input("n")).expect("in range");
-            edited.inputs.iter().map(|f| f.name.clone()).collect::<Vec<_>>()
+            edited
+                .inputs
+                .iter()
+                .map(|f| f.name.clone())
+                .collect::<Vec<_>>()
         };
         assert_eq!(inserted(1), vec!["input_text", "n", "context"]);
-        assert_eq!(inserted(2), vec!["input_text", "context", "n"], "one past the end is allowed");
-        assert_eq!(inserted(-1), vec!["input_text", "context", "n"], "-1 appends");
+        assert_eq!(
+            inserted(2),
+            vec!["input_text", "context", "n"],
+            "one past the end is allowed"
+        );
+        assert_eq!(
+            inserted(-1),
+            vec!["input_text", "context", "n"],
+            "-1 appends"
+        );
         assert_eq!(inserted(-2), vec!["input_text", "n", "context"]);
     }
 
@@ -1027,9 +1054,15 @@ mod edit_tests {
     #[test]
     fn updating_a_field_that_is_not_there_is_refused() {
         assert_eq!(
-            sig().with_updated_field("nope", |field| field.set_desc("x")).expect_err("no such field"),
+            sig()
+                .with_updated_field("nope", |field| field.set_desc("x"))
+                .expect_err("no such field"),
             "\"nope\""
         );
-        assert_eq!(names(&sig().delete("nope")), names(&sig()), "delete stays forgiving");
+        assert_eq!(
+            names(&sig().delete("nope")),
+            names(&sig()),
+            "delete stays forgiving"
+        );
     }
 }

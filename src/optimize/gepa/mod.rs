@@ -160,11 +160,19 @@ where
         trainset: &[Example],
         valset: &[Example],
     ) -> Result<GepaOutcome> {
-        assert!(self.max_metric_calls > 0, "GEPA needs a metric-call budget; set it with with_max_metric_calls");
+        assert!(
+            self.max_metric_calls > 0,
+            "GEPA needs a metric-call budget; set it with with_max_metric_calls"
+        );
         let seed_candidate: Candidate = student
             .named_predictors()
             .into_iter()
-            .map(|predictor| (predictor.name.clone(), predictor.signature.instructions.clone()))
+            .map(|predictor| {
+                (
+                    predictor.name.clone(),
+                    predictor.signature.instructions.clone(),
+                )
+            })
             .collect();
 
         let engine = GepaEngine {
@@ -231,7 +239,9 @@ mod budget_tests {
     }
 
     fn field(case: &Value, name: &str) -> usize {
-        case[name].as_u64().unwrap_or_else(|| panic!("{name} is a number")) as usize
+        case[name]
+            .as_u64()
+            .unwrap_or_else(|| panic!("{name} is a number")) as usize
     }
 
     #[test]

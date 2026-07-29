@@ -87,8 +87,7 @@ impl CodeAct {
             let written = self.codeact.forward_traced(asked, trace).await?;
             relabel(trace, mark, "codeact");
 
-            let (code, error) =
-                super::program_of_thought::parse_generated_code(&written.example);
+            let (code, error) = super::program_of_thought::parse_generated_code(&written.example);
             if let Some(error) = error {
                 trajectory.insert(
                     format!("observation_{turn}"),
@@ -111,7 +110,12 @@ impl CodeAct {
                 }
             }
 
-            if written.example.get("finished").and_then(Value::as_bool).unwrap_or_default() {
+            if written
+                .example
+                .get("finished")
+                .and_then(Value::as_bool)
+                .unwrap_or_default()
+            {
                 break;
             }
         }
@@ -171,7 +175,10 @@ impl Module for CodeAct {
 /// next snippet and whether the agent is done.
 fn codeact_signature(signature: &Signature, tools: &[Arc<dyn Tool>]) -> Signature {
     let mut inputs = signature.inputs.clone();
-    inputs.push(InField { name: "trajectory".to_owned(), ..Default::default() });
+    inputs.push(InField {
+        name: "trajectory".to_owned(),
+        ..Default::default()
+    });
     Signature {
         instructions: instructions(signature, tools),
         inputs,
@@ -196,8 +203,15 @@ fn codeact_signature(signature: &Signature, tools: &[Arc<dyn Tool>]) -> Signatur
 /// The final ask: the task's own signature, plus the trajectory to read the answer out of.
 fn extract_signature(signature: &Signature) -> Signature {
     let mut inputs = signature.inputs.clone();
-    inputs.push(InField { name: "trajectory".to_owned(), ..Default::default() });
-    Signature { instructions: signature.instructions.clone(), inputs, outputs: signature.outputs.clone() }
+    inputs.push(InField {
+        name: "trajectory".to_owned(),
+        ..Default::default()
+    });
+    Signature {
+        instructions: signature.instructions.clone(),
+        inputs,
+        outputs: signature.outputs.clone(),
+    }
 }
 
 /// dspy `_build_instructions`: what the agent is told, and the tools it may call.
@@ -233,7 +247,10 @@ fn instructions(signature: &Signature, tools: &[Arc<dyn Tool>]) -> String {
 }
 
 fn backticked<'a>(names: impl Iterator<Item = &'a str>) -> String {
-    names.map(|name| format!("`{name}`")).collect::<Vec<_>>().join(", ")
+    names
+        .map(|name| format!("`{name}`"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 #[cfg(test)]
@@ -289,7 +306,9 @@ mod tests {
     /// `finished` flag ends the loop.
     #[tokio::test]
     async fn it_records_each_turn_and_stops_when_finished() {
-        let interpreter = Arc::new(ScriptedInterpreter::new([Ok(Executed::Printed(json!("120")))]));
+        let interpreter = Arc::new(ScriptedInterpreter::new([Ok(Executed::Printed(json!(
+            "120"
+        )))]));
         let model = super::super::scripted::Scripted::new(&[
             "[[ ## generated_code ## ]]\nprint(factorial(5))\n\n[[ ## finished ## ]]\ntrue\n\n[[ ## completed ## ]]",
             "[[ ## reasoning ## ]]\nread it\n\n[[ ## answer ## ]]\n120\n\n[[ ## completed ## ]]",
@@ -299,7 +318,10 @@ mod tests {
         act.codeact = act.codeact.with_lm(model.clone());
         act.extractor = act.extractor.with_lm(model);
 
-        let prediction = act.forward(example! { question: "5!" }).await.expect("answers");
+        let prediction = act
+            .forward(example! { question: "5!" })
+            .await
+            .expect("answers");
         assert_eq!(prediction.get("answer"), Some(&json!("120")));
         let trajectory = prediction.get("trajectory").expect("a trajectory");
         assert_eq!(trajectory["generated_code_0"], json!("print(factorial(5))"));
@@ -328,7 +350,10 @@ mod tests {
         act.codeact = act.codeact.with_lm(model.clone());
         act.extractor = act.extractor.with_lm(model);
 
-        let prediction = act.forward(example! { question: "5!" }).await.expect("answers");
+        let prediction = act
+            .forward(example! { question: "5!" })
+            .await
+            .expect("answers");
         let trajectory = prediction.get("trajectory").expect("a trajectory");
         assert_eq!(
             trajectory["observation_0"],
@@ -401,8 +426,16 @@ mod conformance {
 
     fn ours(signature: &Signature) -> (Vec<(String, String)>, Vec<(String, String)>) {
         (
-            signature.inputs.iter().map(|f| (f.name.clone(), f.desc.clone())).collect(),
-            signature.outputs.iter().map(|f| (f.name.clone(), f.desc.clone())).collect(),
+            signature
+                .inputs
+                .iter()
+                .map(|f| (f.name.clone(), f.desc.clone()))
+                .collect(),
+            signature
+                .outputs
+                .iter()
+                .map(|f| (f.name.clone(), f.desc.clone()))
+                .collect(),
         )
     }
 
@@ -416,7 +449,10 @@ mod conformance {
                 "Described" => "question -> answer".parse().expect("parses"),
                 spelling => spelling.parse().expect("parses"),
             };
-            task.instructions = case["task_instructions"].as_str().expect("instructions").to_owned();
+            task.instructions = case["task_instructions"]
+                .as_str()
+                .expect("instructions")
+                .to_owned();
             let tools: Vec<Arc<dyn Tool>> = case["tools"]
                 .as_array()
                 .expect("tools")
@@ -439,11 +475,17 @@ mod conformance {
             let codeact = codeact_signature(&task, &tools);
             assert_eq!(
                 codeact.instructions,
-                case["codeact"]["instructions"].as_str().expect("instructions"),
+                case["codeact"]["instructions"]
+                    .as_str()
+                    .expect("instructions"),
                 "codeact instructions for {label}"
             );
             let (inputs, outputs) = ours(&codeact);
-            assert_eq!(inputs, described(&case["codeact"]["inputs"]), "codeact inputs for {label}");
+            assert_eq!(
+                inputs,
+                described(&case["codeact"]["inputs"]),
+                "codeact inputs for {label}"
+            );
             assert_eq!(
                 outputs,
                 described(&case["codeact"]["outputs"]),
@@ -455,11 +497,17 @@ mod conformance {
             let extract = ChainOfThought::from_signature(extract_signature(&task));
             assert_eq!(
                 extract.signature().instructions,
-                case["extract"]["instructions"].as_str().expect("instructions"),
+                case["extract"]["instructions"]
+                    .as_str()
+                    .expect("instructions"),
                 "extract instructions for {label}"
             );
             let (inputs, outputs) = ours(extract.signature());
-            assert_eq!(inputs, described(&case["extract"]["inputs"]), "extract inputs for {label}");
+            assert_eq!(
+                inputs,
+                described(&case["extract"]["inputs"]),
+                "extract inputs for {label}"
+            );
             assert_eq!(
                 outputs,
                 described(&case["extract"]["outputs"]),

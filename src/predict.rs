@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use anyhow::Result;
-use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
 
 use crate::adapter::native_reasoning::{self, ReasoningEffort};
@@ -69,29 +68,30 @@ struct Reply {
 mod aggregation;
 mod best_of_n;
 mod building;
-pub mod code_act;
 mod chain_of_thought;
+pub mod code_act;
 mod completions;
 mod derived;
 mod hint;
 mod multi_chain_comparison;
 mod native;
 mod parallel;
-mod recovery;
 pub mod program_of_thought;
+mod recovery;
 pub mod refine;
 pub mod rlm;
+mod shorthand;
 pub use aggregation::{Normalize, majority, normalize_text};
 pub use best_of_n::BestOfN;
-pub use code_act::CodeAct;
 pub use chain_of_thought::{ChainOfThought, TypedChainOfThought};
-pub use refine::Refine;
+pub use code_act::CodeAct;
 pub use derived::TypedPredict;
 use derived::typed;
-use native::{ask_for_parallel_calls, force_tool};
 pub use multi_chain_comparison::MultiChainComparison;
+use native::{ask_for_parallel_calls, force_tool};
 pub use parallel::{Answered, Parallel};
 pub use program_of_thought::ProgramOfThought;
+pub use refine::Refine;
 pub use rlm::Rlm;
 
 #[cfg(test)]
@@ -145,7 +145,6 @@ struct Validated {
     usage: Option<LmUsage>,
 }
 
-
 impl<S> Predict<S> {
     /// One attempt: render through the adapter, ask the model, hand back the raw reply.
     /// dspy's `Adapter.__call__` in the module rather than the adapter, because a Rust trait
@@ -183,7 +182,9 @@ impl<S> Predict<S> {
             &steering.reasoning_effort,
             lm.native_reasoning_usable_dyn(),
         );
-        let asked = reasoning.as_ref().map_or(asked, |plan| plan.signature.clone());
+        let asked = reasoning
+            .as_ref()
+            .map_or(asked, |plan| plan.signature.clone());
         let schema = asked.schema();
         let (system, opening) = adapter.format(&asked, &self.demos, &hinted)?;
         let mode = adapter.output_mode(&schema);
@@ -196,21 +197,31 @@ impl<S> Predict<S> {
             ask_for_parallel_calls(&mut request, asking.parallel);
         }
         if let Some(reasoning) = reasoning {
-            request.config.reasoning =
-                Some(api::LmReasoningConfig { effort: Some(reasoning.effort), ..Default::default() });
+            request.config.reasoning = Some(api::LmReasoningConfig {
+                effort: Some(reasoning.effort),
+                ..Default::default()
+            });
         }
         // dspy drops `tool_choice` unless the adapter asks natively, so a forced tool is sent only
         // then; a rendered-tools exchange has no provider-side choice to steer.
-        if asking.enabled && let Some(tool) = &steering.forced_tool {
+        if asking.enabled
+            && let Some(tool) = &steering.forced_tool
+        {
             force_tool(&mut request, tool);
         }
         // Predicted Outputs is not a field the normalized config models, upstream's included — it
         // rides in `extensions`, which every provider flattens back onto the call it makes.
         if let Some(predicted) = &steering.predicted_output {
-            request.config.extensions.insert("prediction".to_owned(), predicted.clone());
+            request
+                .config
+                .extensions
+                .insert("prediction".to_owned(), predicted.clone());
         }
         let response = lm.forward_dyn(http, &request).await?;
-        Ok(Reply { response, rendered: asked })
+        Ok(Reply {
+            response,
+            rendered: asked,
+        })
     }
 
     async fn ask(
@@ -306,8 +317,9 @@ impl<S> Predict<S> {
                     previous: raw,
                     error: error.to_string(),
                 };
-                let (raw, value, retried) =
-                    self.feedback_ask(http, lm, inputs, &feedback, steering).await?;
+                let (raw, value, retried) = self
+                    .feedback_ask(http, lm, inputs, &feedback, steering)
+                    .await?;
                 Ok(Validated {
                     raw,
                     value,
@@ -315,53 +327,6 @@ impl<S> Predict<S> {
                 })
             }
         }
-    }
-}
-
-impl Predict<Dynamic> {
-    /// Ask through the globally configured LM; see [`crate::lm::configure`].
-    pub async fn call(&self, input: &str) -> Result<Value> {
-        let (http, lm) = self.asking()?;
-        self.call_with(&http, lm.as_ref(), input).await
-    }
-
-    /// Ask through an explicit client and model: the per-call override, and the seam tests
-    /// script with a canned [`ChatModel`](crate::lm::ChatModel).
-    pub async fn call_with(
-        &self,
-        http: &reqwest::Client,
-        lm: &dyn DynChatModel,
-        input: &str,
-    ) -> Result<Value> {
-        let name = self
-            .signature
-            .inputs
-            .first()
-            .map_or("request", |f| f.name.as_str());
-        Ok(self
-            .call_with_inputs(
-                http,
-                lm,
-                &[Input::new(name, Value::String(input.to_owned()))],
-                &Steering::default(),
-            )
-            .await?
-            .value)
-    }
-
-    /// The validated reply as a caller-owned struct instead of loose JSON.
-    pub async fn call_typed<T: DeserializeOwned>(&self, input: &str) -> Result<T> {
-        typed(self.call(input).await?)
-    }
-
-    /// [`Self::call_typed`] through an explicit client and model.
-    pub async fn call_typed_with<T: DeserializeOwned>(
-        &self,
-        http: &reqwest::Client,
-        lm: &dyn DynChatModel,
-        input: &str,
-    ) -> Result<T> {
-        typed(self.call_with(http, lm, input).await?)
     }
 }
 
@@ -407,7 +372,9 @@ mod tests {
             _http: &reqwest::Client,
             _request: &api::LmRequest,
         ) -> Result<api::LmResponse> {
-            Ok(api::LmResponse::completions(self.0.iter().map(|reply| reply.to_string())))
+            Ok(api::LmResponse::completions(
+                self.0.iter().map(|reply| reply.to_string()),
+            ))
         }
     }
 
@@ -432,7 +399,12 @@ mod tests {
         let model = std::sync::Arc::new(Captured::default());
         let predict = Predict::parse(spec).expect("parses").with_lm(model.clone());
         predict.forward(inputs).await.expect("answers");
-        model.0.lock().expect("captured").clone().expect("a request reached the model")
+        model
+            .0
+            .lock()
+            .expect("captured")
+            .clone()
+            .expect("a request reached the model")
     }
 
     fn rendered(request: &api::LmRequest) -> String {
@@ -447,12 +419,18 @@ mod tests {
         let offered = json!({ "type": "content", "content": "a room that is red" });
         let sent = sent_by(
             "request -> color, why",
-            Example::new([("request", json!("pick a colour")), ("prediction", offered.clone())]),
+            Example::new([
+                ("request", json!("pick a colour")),
+                ("prediction", offered.clone()),
+            ]),
         )
         .await;
 
         assert_eq!(sent.config.extensions.get("prediction"), Some(&offered));
-        assert!(!rendered(&sent).contains("a room that is red"), "and never reached the prompt");
+        assert!(
+            !rendered(&sent).contains("a room that is red"),
+            "and never reached the prompt"
+        );
     }
 
     /// The quirk, reproduced on purpose: upstream tests the *value*, never the field list, so a
@@ -463,12 +441,18 @@ mod tests {
         let offered = json!({ "type": "content", "content": "a room that is red" });
         let sent = sent_by(
             "request, prediction -> color, why",
-            Example::new([("request", json!("pick a colour")), ("prediction", offered.clone())]),
+            Example::new([
+                ("request", json!("pick a colour")),
+                ("prediction", offered.clone()),
+            ]),
         )
         .await;
 
         assert_eq!(sent.config.extensions.get("prediction"), Some(&offered));
-        assert!(!rendered(&sent).contains("a room that is red"), "declared, and still not rendered");
+        assert!(
+            !rendered(&sent).contains("a room that is red"),
+            "declared, and still not rendered"
+        );
     }
 
     /// The other half of upstream's test: a `prediction` input holding anything else is an
@@ -484,8 +468,14 @@ mod tests {
         )
         .await;
 
-        assert!(sent.config.extensions.is_empty(), "nothing was lifted out of the inputs");
-        assert!(rendered(&sent).contains("to get to the other side"), "it rendered as an input");
+        assert!(
+            sent.config.extensions.is_empty(),
+            "nothing was lifted out of the inputs"
+        );
+        assert!(
+            rendered(&sent).contains("to get to the other side"),
+            "it rendered as an input"
+        );
     }
 
     /// An instruction optimizer proposes `n` candidates in one call; `forward_completions` reads
@@ -511,7 +501,10 @@ mod tests {
             .expect("candidates");
 
         assert_eq!(candidates.len(), 3, "every completion is read");
-        let colors: Vec<_> = candidates.iter().filter_map(|c| c.get("color").cloned()).collect();
+        let colors: Vec<_> = candidates
+            .iter()
+            .filter_map(|c| c.get("color").cloned())
+            .collect();
         assert_eq!(colors, [json!("red"), json!("blue"), json!("green")]);
     }
 
@@ -965,9 +958,13 @@ impl<S: Send + Sync> Predict<S> {
         if lifted.is_some() {
             steering.predicted_output = lifted;
         }
-        let validated = self.call_with_inputs(&http, lm.as_ref(), &pairs, &steering).await?;
-        Ok(Prediction::new(prediction_example(&validated.value), validated.raw)
-            .with_usage(validated.usage))
+        let validated = self
+            .call_with_inputs(&http, lm.as_ref(), &pairs, &steering)
+            .await?;
+        Ok(
+            Prediction::new(prediction_example(&validated.value), validated.raw)
+                .with_usage(validated.usage),
+        )
     }
 }
 
@@ -976,7 +973,10 @@ impl<S: Send + Sync> Module for Predict<S> {
         &'a self,
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
-        Box::pin(async move { self.forward_with_steering(inputs, &Steering::default()).await })
+        Box::pin(async move {
+            self.forward_with_steering(inputs, &Steering::default())
+                .await
+        })
     }
 
     fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {

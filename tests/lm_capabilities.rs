@@ -33,9 +33,11 @@ fn every_model_resolves_to_what_litellm_says_it_can_do() {
 /// trip through `ModelRef` — which takes the reference apart and this puts back together.
 #[tokio::test]
 async fn a_configured_model_answers_for_the_reference_it_was_built_from() {
-    for (reference, function_calling) in
-        [("openai/gpt-4o", true), ("anthropic/claude-2.1", false), ("ollama/llama3.2", false)]
-    {
+    for (reference, function_calling) in [
+        ("openai/gpt-4o", true),
+        ("anthropic/claude-2.1", false),
+        ("ollama/llama3.2", false),
+    ] {
         let lm = LM::new(reference).expect("a valid reference");
         assert_eq!(lm.model.reference(), reference);
         let found = lm.capabilities(&reqwest::Client::new()).await;
@@ -58,7 +60,10 @@ async fn a_model_that_says_nothing_grants_nothing() {
             async { unreachable!("not called") }
         }
     }
-    assert_eq!(Silent.capabilities(&reqwest::Client::new()).await, Capabilities::default());
+    assert_eq!(
+        Silent.capabilities(&reqwest::Client::new()).await,
+        Capabilities::default()
+    );
 }
 
 /// `response_format` is supported by every model this crate can hold, which is why
@@ -80,7 +85,9 @@ fn every_model_this_crate_can_hold_takes_a_response_format() {
         .join("tests/conformance/lm_api/capabilities.json");
     let raw = std::fs::read_to_string(&path).expect("fixture is readable");
     let fixture: Value = serde_json::from_str(&raw).expect("fixture is valid json");
-    let cases = fixture["response_format"].as_array().expect("response_format cases");
+    let cases = fixture["response_format"]
+        .as_array()
+        .expect("response_format cases");
     assert!(!cases.is_empty(), "no cases to check");
 
     for case in cases {
@@ -92,6 +99,9 @@ fn every_model_this_crate_can_hold_takes_a_response_format() {
         );
         // And every one of them is a reference this crate accepts, which is the other half of the
         // premise: a bare `gpt-4` would answer differently and cannot be given to `LM::new`.
-        assert!(LM::new(model).is_ok(), "{model} should be a reference this crate accepts");
+        assert!(
+            LM::new(model).is_ok(),
+            "{model} should be a reference this crate accepts"
+        );
     }
 }

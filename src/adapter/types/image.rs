@@ -25,7 +25,9 @@ impl Image {
 impl Type for Image {
     /// dspy `Image.format`: one `image_url` block carrying the URL.
     fn format(&self) -> Formatted {
-        Formatted::Blocks(vec![json!({ "type": "image_url", "image_url": { "url": self.url } })])
+        Formatted::Blocks(vec![
+            json!({ "type": "image_url", "image_url": { "url": self.url } }),
+        ])
     }
 }
 
@@ -42,9 +44,13 @@ impl<'de> Deserialize<'de> for Image {
             Value::String(url) => Ok(Self::new(url)),
             Value::Object(mut map) => match map.remove("url") {
                 Some(Value::String(url)) => Ok(Self::new(url)),
-                _ => Err(de::Error::custom("`url` field is required for `dspy.Image`")),
+                _ => Err(de::Error::custom(
+                    "`url` field is required for `dspy.Image`",
+                )),
             },
-            other => Err(de::Error::custom(format!("Received invalid value for `dspy.Image`: {other}"))),
+            other => Err(de::Error::custom(format!(
+                "Received invalid value for `dspy.Image`: {other}"
+            ))),
         }
     }
 }
@@ -88,7 +94,8 @@ mod tests {
 
     #[test]
     fn it_reads_a_bare_url_or_a_url_mapping() {
-        let bare: Image = serde_json::from_value(json!("data:image/png;base64,AAAA")).expect("parses");
+        let bare: Image =
+            serde_json::from_value(json!("data:image/png;base64,AAAA")).expect("parses");
         assert_eq!(bare.url, "data:image/png;base64,AAAA");
         let mapped: Image = serde_json::from_value(json!({ "url": "u" })).expect("parses");
         assert_eq!(mapped.url, "u");

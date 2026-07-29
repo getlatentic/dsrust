@@ -44,7 +44,10 @@ fn source(
 /// dspy's `split_data_uri`: `data:<media_type>;base64,<data>` → its media type and payload; anything
 /// that is not a data uri is left whole under a generic media type.
 fn split_data_uri(value: &str) -> (String, String) {
-    match value.strip_prefix("data:").and_then(|rest| rest.split_once(',')) {
+    match value
+        .strip_prefix("data:")
+        .and_then(|rest| rest.split_once(','))
+    {
         Some((header, data)) => (
             header.split(';').next().unwrap_or_default().to_owned(),
             data.to_owned(),
@@ -67,25 +70,54 @@ fn image(item: &Value) -> Option<api::LmPart> {
     let media = media_type_of(item, "image/png");
     let (source, media_type) = source(b64, url, item["file_id"].as_str(), &media)?;
     let detail = serde_json::from_value::<Option<Detail>>(item["detail"].clone()).unwrap_or(None);
-    Some(api::LmPart::Image { source, media_type, detail, metadata: Metadata::new() })
+    Some(api::LmPart::Image {
+        source,
+        media_type,
+        detail,
+        metadata: Metadata::new(),
+    })
 }
 
 fn audio(item: &Value) -> Option<api::LmPart> {
-    let audio = if item["audio"].is_object() { &item["audio"] } else { item };
-    let b64 = audio["data"].as_str().or_else(|| audio["b64_json"].as_str());
+    let audio = if item["audio"].is_object() {
+        &item["audio"]
+    } else {
+        item
+    };
+    let b64 = audio["data"]
+        .as_str()
+        .or_else(|| audio["b64_json"].as_str());
     let media = media_type_of(audio, "audio/wav");
-    let (source, media_type) = source(b64, audio["url"].as_str(), audio["file_id"].as_str(), &media)?;
-    Some(api::LmPart::Audio { source, media_type, metadata: Metadata::new() })
+    let (source, media_type) = source(
+        b64,
+        audio["url"].as_str(),
+        audio["file_id"].as_str(),
+        &media,
+    )?;
+    Some(api::LmPart::Audio {
+        source,
+        media_type,
+        metadata: Metadata::new(),
+    })
 }
 
 fn file(item: &Value) -> Option<api::LmPart> {
-    let file = if item["file"].is_object() { &item["file"] } else { item };
+    let file = if item["file"].is_object() {
+        &item["file"]
+    } else {
+        item
+    };
     let b64 = file["file_data"].as_str().or_else(|| file["data"].as_str());
     let file_id = file["file_id"].as_str().or_else(|| file["id"].as_str());
     let media = media_type_of(file, "application/octet-stream");
     let (source, media_type) = source(b64, file["url"].as_str(), file_id, &media)?;
     let filename = file["filename"].as_str().map(str::to_owned);
-    Some(api::LmPart::Binary { source, media_type, filename, metadata: Metadata::new() })
+    Some(api::LmPart::Binary {
+        source,
+        media_type,
+        filename,
+        metadata: Metadata::new(),
+    })
 }
 
 /// The media type a media item names under either spelling, or the type's own default.
@@ -109,8 +141,11 @@ mod tests {
     #[test]
     fn a_real_image_generation_call_reads_its_base64_from_result() {
         let item = json!({ "type": "image_generation_call", "status": "completed", "result": "iVBORw0KGgo=" });
-        let Some(api::LmPart::Image { source: LmSource::Data(data), media_type, .. }) =
-            part("image_generation_call", &item)
+        let Some(api::LmPart::Image {
+            source: LmSource::Data(data),
+            media_type,
+            ..
+        }) = part("image_generation_call", &item)
         else {
             panic!("expected an image part with base64 data")
         };
@@ -122,9 +157,13 @@ mod tests {
     /// `_extract_base64_from_data_url` does.
     #[test]
     fn a_data_url_result_splits_into_media_type_and_payload() {
-        let item = json!({ "type": "image_generation_call", "result": "data:image/webp;base64,UklGRg==" });
-        let Some(api::LmPart::Image { source: LmSource::Data(data), media_type, .. }) =
-            part("image_generation_call", &item)
+        let item =
+            json!({ "type": "image_generation_call", "result": "data:image/webp;base64,UklGRg==" });
+        let Some(api::LmPart::Image {
+            source: LmSource::Data(data),
+            media_type,
+            ..
+        }) = part("image_generation_call", &item)
         else {
             panic!("expected an image part")
         };
@@ -137,6 +176,12 @@ mod tests {
     /// forgiving than dspy, whose image parser raises on a shape it cannot read.
     #[test]
     fn an_unknown_output_item_type_contributes_no_part() {
-        assert_eq!(part("some_future_item", &json!({ "type": "some_future_item", "payload": 1 })), None);
+        assert_eq!(
+            part(
+                "some_future_item",
+                &json!({ "type": "some_future_item", "payload": 1 })
+            ),
+            None
+        );
     }
 }

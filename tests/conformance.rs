@@ -7,8 +7,8 @@
 //! codebases. A divergence here is a bug in this crate until upstream is shown to be wrong.
 
 use dsrust::adapter::Input;
-use dsrust::signature::{FieldKind, InField, JsonType, OutField, Signature};
 use dsrust::lm::Content;
+use dsrust::signature::{FieldKind, InField, JsonType, OutField, Signature};
 use dsrust::{Adapter, ChainOfThought, ChatAdapter, Example, ReAct};
 use serde_json::Value;
 
@@ -200,11 +200,9 @@ fn assert_content(fixture: &Fixture, index: usize, expected: &Value, actual: &Co
             );
             for (at, (expected, actual)) in expected.iter().zip(actual).enumerate() {
                 assert_eq!(
-                    expected,
-                    actual,
+                    expected, actual,
                     "{label} block {at} of fixture `{}`\n  source: {}",
-                    fixture.name,
-                    fixture.source
+                    fixture.name, fixture.source
                 );
             }
         }

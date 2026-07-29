@@ -109,7 +109,10 @@ impl LmResponse {
 
     /// The candidate an adapter parses, which is the only one unless several were asked for.
     pub fn first_text(&self) -> String {
-        self.outputs.first().map(LmOutput::as_text).unwrap_or_default()
+        self.outputs
+            .first()
+            .map(LmOutput::as_text)
+            .unwrap_or_default()
     }
 
     /// A replay is not billed, so anything totalling spend reads this rather than `usage`.

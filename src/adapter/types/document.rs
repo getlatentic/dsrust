@@ -10,7 +10,9 @@ use super::base::{Formatted, Type, serialized};
 
 /// The content types a [`Document`] may carry. dspy spells it `Literal["text/plain",
 /// "application/pdf"]`, so a value outside the pair is refused rather than passed on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
+)]
 pub enum MediaType {
     #[default]
     #[serde(rename = "text/plain")]
@@ -44,7 +46,10 @@ pub struct Document {
 impl Document {
     /// Plain-text source material.
     pub fn new(data: impl Into<String>) -> Self {
-        Self { data: data.into(), ..Self::default() }
+        Self {
+            data: data.into(),
+            ..Self::default()
+        }
     }
 
     pub fn with_title(mut self, title: impl Into<String>) -> Self {
@@ -78,7 +83,11 @@ impl Type for Document {
         if let Some(title) = self.title.as_deref().filter(|title| !title.is_empty()) {
             block.insert("title".to_owned(), json!(title));
         }
-        if let Some(context) = self.context.as_deref().filter(|context| !context.is_empty()) {
+        if let Some(context) = self
+            .context
+            .as_deref()
+            .filter(|context| !context.is_empty())
+        {
             block.insert("context".to_owned(), json!(context));
         }
         Formatted::Blocks(vec![Value::Object(block)])
@@ -142,7 +151,11 @@ impl std::fmt::Display for Document {
             None => String::new(),
         };
         // dspy counts Python characters, which are code points rather than bytes.
-        write!(formatter, "Document({title}{} chars)", self.data.chars().count())
+        write!(
+            formatter,
+            "Document({title}{} chars)",
+            self.data.chars().count()
+        )
     }
 }
 
@@ -181,19 +194,31 @@ mod tests {
     fn it_reads_a_bare_string_or_a_mapping_and_refuses_the_rest() {
         let bare: Document = serde_json::from_value(json!("Just text")).expect("parses");
         assert_eq!(bare, Document::new("Just text"));
-        let mapped: Document =
-            serde_json::from_value(json!({ "data": "Body", "title": "T", "media_type": "application/pdf" }))
-                .expect("parses");
-        assert_eq!(mapped, Document::new("Body").with_title("T").with_media_type(MediaType::Pdf));
+        let mapped: Document = serde_json::from_value(
+            json!({ "data": "Body", "title": "T", "media_type": "application/pdf" }),
+        )
+        .expect("parses");
+        assert_eq!(
+            mapped,
+            Document::new("Body")
+                .with_title("T")
+                .with_media_type(MediaType::Pdf)
+        );
         assert!(serde_json::from_value::<Document>(json!({ "title": "no data" })).is_err());
         // Outside the pair dspy's `Literal` allows.
-        assert!(serde_json::from_value::<Document>(json!({ "data": "x", "media_type": "text/html" })).is_err());
+        assert!(
+            serde_json::from_value::<Document>(json!({ "data": "x", "media_type": "text/html" }))
+                .is_err()
+        );
         assert!(serde_json::from_value::<Document>(json!(3)).is_err());
     }
 
     #[test]
     fn its_string_form_names_the_title_and_counts_the_content() {
         assert_eq!(Document::new("abcd").to_string(), "Document(4 chars)");
-        assert_eq!(Document::new("abcd").with_title("T").to_string(), "Document('T': 4 chars)");
+        assert_eq!(
+            Document::new("abcd").with_title("T").to_string(),
+            "Document('T': 4 chars)"
+        );
     }
 }

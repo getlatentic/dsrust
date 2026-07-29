@@ -326,8 +326,14 @@ impl LmPart {
     /// used — OpenAI's litellm channel and Anthropic's own blocks disagree — every other field kept
     /// as metadata.
     pub fn citation(value: &Value) -> Self {
-        const KNOWN: [&str; 6] =
-            ["cited_text", "text", "supported_text", "document_title", "title", "url"];
+        const KNOWN: [&str; 6] = [
+            "cited_text",
+            "text",
+            "supported_text",
+            "document_title",
+            "title",
+            "url",
+        ];
         let first = |keys: &[&str]| {
             keys.iter()
                 .find_map(|key| value[*key].as_str())
@@ -428,7 +434,10 @@ mod tests {
         else {
             panic!("got {part:?}")
         };
-        assert_eq!(*source, LmSource::Url("https://example.com/a.jpg".to_owned()));
+        assert_eq!(
+            *source,
+            LmSource::Url("https://example.com/a.jpg".to_owned())
+        );
         assert_eq!(media_type, "image/jpeg");
         assert_eq!(*detail, Some(Detail::High));
     }

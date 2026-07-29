@@ -90,7 +90,9 @@ mod tests {
     struct Marker;
     impl Type for Marker {
         fn format(&self) -> Formatted {
-            Formatted::Blocks(vec![json!({ "type": "image_url", "image_url": { "url": "u" } })])
+            Formatted::Blocks(vec![
+                json!({ "type": "image_url", "image_url": { "url": "u" } }),
+            ])
         }
     }
 

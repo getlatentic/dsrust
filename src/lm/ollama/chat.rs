@@ -16,8 +16,8 @@ use serde_json::Value;
 
 use super::request::request;
 use super::{authorized, provider_data, usage};
-use crate::lm::api;
 use crate::lm::ChatModel;
+use crate::lm::api;
 
 /// An ollama server reached over `/api/chat`, the model and host beside it.
 pub(crate) struct Chat<'a> {
@@ -43,7 +43,10 @@ impl ChatModel for Chat<'_> {
                 .await
                 .context("ollama request failed")?;
             let status = response.status();
-            let body: Value = response.json().await.context("ollama response was not JSON")?;
+            let body: Value = response
+                .json()
+                .await
+                .context("ollama response was not JSON")?;
             if !status.is_success() {
                 if let Some(too_long) =
                     crate::lm::ContextWindowExceeded::detected(self.model, &body)
@@ -64,10 +67,13 @@ fn reply(model: &str, body: &Value) -> Result<api::LmResponse> {
     if output.parts.is_empty() {
         return Err(anyhow!("ollama returned no content"));
     }
-    Ok(api::LmResponse { outputs: vec![output], ..api::LmResponse::default() }
-        .with_usage(usage(body))
-        .with_provider_response(provider_data(body))
-        .with_model(model))
+    Ok(api::LmResponse {
+        outputs: vec![output],
+        ..api::LmResponse::default()
+    }
+    .with_usage(usage(body))
+    .with_provider_response(provider_data(body))
+    .with_model(model))
 }
 
 /// The message as a typed output: a reasoning model's `thinking` as a thinking part first, its
@@ -99,8 +105,14 @@ fn output_of(body: &Value) -> api::LmOutput {
 fn tool_call(call: &Value) -> api::LmPart {
     api::LmPart::ToolCall {
         id: None,
-        name: call["function"]["name"].as_str().unwrap_or_default().to_owned(),
-        args: call["function"]["arguments"].as_object().cloned().unwrap_or_default(),
+        name: call["function"]["name"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned(),
+        args: call["function"]["arguments"]
+            .as_object()
+            .cloned()
+            .unwrap_or_default(),
         provider_data: api::Metadata::new(),
         metadata: api::Metadata::new(),
     }
@@ -143,9 +155,12 @@ mod tests {
         let output = &reply("qwen3:4b", &body).expect("a reply").outputs[0];
         assert!(
             matches!(&output.parts[0], api::LmPart::Thinking { text, .. } if text == "2 + 2 = 4"),
-            "thinking is first, got {:?}", output.parts,
+            "thinking is first, got {:?}",
+            output.parts,
         );
-        assert!(matches!(&output.parts[1], api::LmPart::Text { text, .. } if text == "The answer is 4."));
+        assert!(
+            matches!(&output.parts[1], api::LmPart::Text { text, .. } if text == "The answer is 4.")
+        );
     }
 
     /// A tool-calling reply carries its calls as `ToolCall` parts — the arguments read straight from
@@ -172,12 +187,16 @@ mod tests {
     #[test]
     fn a_reply_reporting_no_counts_reports_no_usage() {
         let body = json!({ "message": { "content": "the reply" } });
-        assert_eq!(reply("qwen2.5:7b-instruct", &body).expect("a reply").usage, None);
+        assert_eq!(
+            reply("qwen2.5:7b-instruct", &body).expect("a reply").usage,
+            None
+        );
     }
 
     #[test]
     fn a_reply_carrying_no_content_is_an_error() {
-        let error = reply("qwen2.5:7b-instruct", &json!({ "message": {} })).expect_err("no content");
+        let error =
+            reply("qwen2.5:7b-instruct", &json!({ "message": {} })).expect_err("no content");
         assert!(error.to_string().contains("no content"));
     }
 }

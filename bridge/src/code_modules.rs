@@ -36,7 +36,10 @@ impl PyInterpreter {
             .import("dspy.primitives.code_interpreter")?
             .getattr("FinalOutput")?;
         if result.is_instance(&final_output)? {
-            return Ok(Executed::Submitted(jsonable(py, &result.getattr("output")?)?));
+            return Ok(Executed::Submitted(jsonable(
+                py,
+                &result.getattr("output")?,
+            )?));
         }
         Ok(Executed::Printed(jsonable(py, result)?))
     }
@@ -153,7 +156,8 @@ pub(crate) fn program_of_thought_forward(
     max_iters: Option<usize>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let mut pot = dsrust::ProgramOfThought::new(signature, Arc::new(PyInterpreter { inner: interpreter }));
+    let mut pot =
+        dsrust::ProgramOfThought::new(signature, Arc::new(PyInterpreter { inner: interpreter }));
     if let Some(max_iters) = max_iters {
         pot = pot.with_max_iters(max_iters);
     }
@@ -182,8 +186,11 @@ pub(crate) fn code_act_forward(
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
     let rust_tools = crate::py_tools(py, &tools)?;
-    let mut act =
-        dsrust::CodeAct::new(signature, rust_tools, Arc::new(PyInterpreter { inner: interpreter }));
+    let mut act = dsrust::CodeAct::new(
+        signature,
+        rust_tools,
+        Arc::new(PyInterpreter { inner: interpreter }),
+    );
     if let Some(max_iters) = max_iters {
         act = act.with_max_iters(max_iters);
     }
@@ -204,7 +211,12 @@ fn answered<M: dsrust::module::Module>(
     }
     // Released while the loop runs, so the interpreter and the LM can be called back into Python.
     let prediction = py
-        .detach(|| pollster::block_on(dsrust::module::Module::forward(&module, dsrust::Example::new(fields))))
+        .detach(|| {
+            pollster::block_on(dsrust::module::Module::forward(
+                &module,
+                dsrust::Example::new(fields),
+            ))
+        })
         .map_err(to_value_error)?;
     let output: serde_json::Map<String, Value> = prediction
         .example
@@ -236,8 +248,8 @@ pub(crate) fn answer_exact_match(answers: Vec<String>, answered: &str) -> f64 {
 /// on that.
 #[pyfunction]
 pub(crate) fn normalize_message(written: &str) -> PyResult<String> {
-    let message: dsrust::lm::api::LmMessage = serde_json::from_str(written)
-        .map_err(|error| PyValueError::new_err(format!("{error}")))?;
+    let message: dsrust::lm::api::LmMessage =
+        serde_json::from_str(written).map_err(|error| PyValueError::new_err(format!("{error}")))?;
     serde_json::to_string(&message).map_err(|error| PyValueError::new_err(format!("{error}")))
 }
 
@@ -251,7 +263,10 @@ pub(crate) fn normalize_message(written: &str) -> PyResult<String> {
 pub(crate) fn cache_key(request: &str, ignored: Option<Vec<String>>) -> PyResult<String> {
     let value: Value =
         serde_json::from_str(request).map_err(|error| PyValueError::new_err(format!("{error}")))?;
-    Ok(dsrust::lm::cache::key_ignoring(&value, &ignored.unwrap_or_default()))
+    Ok(dsrust::lm::cache::key_ignoring(
+        &value,
+        &ignored.unwrap_or_default(),
+    ))
 }
 
 /// dspy `_is_openai_reasoning_model`, decided by the crate.
@@ -277,7 +292,10 @@ pub(crate) fn responses_body(request: &str) -> PyResult<String> {
 
     let written: Value =
         serde_json::from_str(request).map_err(|error| PyValueError::new_err(format!("{error}")))?;
-    let model = written.get("model").and_then(Value::as_str).unwrap_or_default();
+    let model = written
+        .get("model")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let messages: Vec<LmMessage> = written
         .get("messages")
         .cloned()
@@ -303,8 +321,8 @@ pub(crate) fn responses_body(request: &str) -> PyResult<String> {
 pub(crate) fn merge_usage(left: &str, right: &str) -> PyResult<String> {
     use dsrust::lm::LmUsage;
     let parse = |written: &str| -> PyResult<Option<LmUsage>> {
-        let value: Value =
-            serde_json::from_str(written).map_err(|error| PyValueError::new_err(format!("{error}")))?;
+        let value: Value = serde_json::from_str(written)
+            .map_err(|error| PyValueError::new_err(format!("{error}")))?;
         match value.as_object().is_some_and(serde_json::Map::is_empty) || value.is_null() {
             true => Ok(None),
             false => serde_json::from_value(value)

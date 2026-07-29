@@ -18,8 +18,8 @@ use crate::example::{Example, Prediction};
 use crate::lm::ContextWindowExceeded;
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::predict::Predict;
-use signature::{Finish, extract_signature, react_signature};
 use crate::signature::Signature;
+use signature::{Finish, extract_signature, react_signature};
 
 /// dspy tries three times before giving up on a trajectory that will not fit.
 const TRUNCATION_ATTEMPTS: usize = 3;
@@ -464,9 +464,9 @@ mod tests {
 mod truncation_tests {
     use super::tests::{task, weather};
     use super::*;
-    use anyhow::anyhow;
     use crate::lm::api::{LmRequest, LmResponse};
     use crate::lm::{Capabilities, DynChatModel};
+    use anyhow::anyhow;
     use serde_json::json;
     use std::sync::Mutex;
 
@@ -489,8 +489,7 @@ mod truncation_tests {
             _http: &'a reqwest::Client,
             request: &'a LmRequest,
         ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>> {
-            let asked: String =
-                request.messages.iter().filter_map(|m| m.text()).collect();
+            let asked: String = request.messages.iter().filter_map(|m| m.text()).collect();
             let too_long = asked.contains(&format!("thought_{}", self.budget));
             Box::pin(std::future::ready(match too_long {
                 true => {
@@ -534,17 +533,27 @@ mod truncation_tests {
     #[test]
     fn truncating_drops_the_oldest_step() {
         let mut trajectory = long_trajectory(3);
-        trajectory.truncate_oldest().expect("three steps can lose one");
+        trajectory
+            .truncate_oldest()
+            .expect("three steps can lose one");
         assert_eq!(trajectory.steps.len(), 2);
-        assert!(trajectory.steps[0].thought.contains("step 1"), "the oldest went");
+        assert!(
+            trajectory.steps[0].thought.contains("step 1"),
+            "the oldest went"
+        );
     }
 
     /// A trajectory of one cannot be shortened, and says so rather than emptying itself — an empty
     /// one would ask again with nothing learned and fail the same way, three times over.
     #[test]
     fn a_single_step_cannot_be_truncated() {
-        let refused = long_trajectory(1).truncate_oldest().expect_err("nothing to drop");
-        assert!(refused.to_string().contains("only has one tool call"), "got: {refused}");
+        let refused = long_trajectory(1)
+            .truncate_oldest()
+            .expect_err("nothing to drop");
+        assert!(
+            refused.to_string().contains("only has one tool call"),
+            "got: {refused}"
+        );
     }
 
     /// The recovery end to end: a prompt too long is trimmed and asked again, and the run finishes.
@@ -562,13 +571,26 @@ mod truncation_tests {
         let mut trace = Vec::new();
 
         let answered = react
-            .asked(&react.extract, Example::default(), &mut trajectory, &mut trace)
+            .asked(
+                &react.extract,
+                Example::default(),
+                &mut trajectory,
+                &mut trace,
+            )
             .await
             .expect("the trimmed trajectory fits");
 
         assert_eq!(answered.get("answer"), Some(&json!("sunny")));
-        assert_eq!(*model.refusals.lock().expect("refusals"), 2, "it really did refuse first");
-        assert_eq!(trajectory.steps.len(), 3, "and the trajectory really was trimmed");
+        assert_eq!(
+            *model.refusals.lock().expect("refusals"),
+            2,
+            "it really did refuse first"
+        );
+        assert_eq!(
+            trajectory.steps.len(),
+            3,
+            "and the trajectory really was trimmed"
+        );
     }
 
     /// Three refusals is the end of it, with dspy's wording.
@@ -583,14 +605,25 @@ mod truncation_tests {
         let mut trajectory = long_trajectory(8);
 
         let refused = react
-            .asked(&react.extract, Example::default(), &mut trajectory, &mut Vec::new())
+            .asked(
+                &react.extract,
+                Example::default(),
+                &mut trajectory,
+                &mut Vec::new(),
+            )
             .await
             .expect_err("nothing fits");
         assert!(
-            refused.to_string().contains("even after 3 attempts to truncate"),
+            refused
+                .to_string()
+                .contains("even after 3 attempts to truncate"),
             "got: {refused}"
         );
-        assert_eq!(*model.refusals.lock().expect("refusals"), 3, "three tries, not more");
+        assert_eq!(
+            *model.refusals.lock().expect("refusals"),
+            3,
+            "three tries, not more"
+        );
     }
 
     /// Any other refusal is passed straight up. Trimming does not fix an expired key, and trying
@@ -603,8 +636,11 @@ mod truncation_tests {
                 &'a self,
                 _http: &'a reqwest::Client,
                 _request: &'a LmRequest,
-            ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>> {
-                Box::pin(std::future::ready(Err(anyhow!("Incorrect API key provided"))))
+            ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>>
+            {
+                Box::pin(std::future::ready(Err(anyhow!(
+                    "Incorrect API key provided"
+                ))))
             }
             fn capabilities_dyn<'a>(
                 &'a self,
@@ -620,10 +656,18 @@ mod truncation_tests {
         let react = ReAct::new(task(), vec![weather()]).with_lm(std::sync::Arc::new(Broken));
         let mut trajectory = long_trajectory(4);
         let refused = react
-            .asked(&react.extract, Example::default(), &mut trajectory, &mut Vec::new())
+            .asked(
+                &react.extract,
+                Example::default(),
+                &mut trajectory,
+                &mut Vec::new(),
+            )
             .await
             .expect_err("the key is wrong");
-        assert!(refused.to_string().contains("Incorrect API key"), "got: {refused}");
+        assert!(
+            refused.to_string().contains("Incorrect API key"),
+            "got: {refused}"
+        );
         assert_eq!(trajectory.steps.len(), 4, "and nothing was trimmed over it");
     }
 }

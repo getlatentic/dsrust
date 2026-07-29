@@ -177,7 +177,10 @@ fn canonical(value: &serde_json::Value) -> String {
             format!("{{{}}}", members.join(","))
         }
         Value::Array(items) => {
-            format!("[{}]", items.iter().map(canonical).collect::<Vec<_>>().join(","))
+            format!(
+                "[{}]",
+                items.iter().map(canonical).collect::<Vec<_>>().join(",")
+            )
         }
         scalar => scalar.to_string(),
     }

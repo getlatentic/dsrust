@@ -32,7 +32,11 @@ pub struct PyIntSet {
 
 impl PyIntSet {
     pub fn new() -> Self {
-        Self { table: vec![None; MINSIZE], mask: MINSIZE - 1, fill: 0 }
+        Self {
+            table: vec![None; MINSIZE],
+            mask: MINSIZE - 1,
+            fill: 0,
+        }
     }
 
     /// The set of `keys`, inserted in order — CPython's `set(iterable)`.
@@ -45,7 +49,8 @@ impl PyIntSet {
     }
 
     pub fn contains(&self, key: usize) -> bool {
-        self.slot_of(key).is_none_or(|slot| self.table[slot].is_some())
+        self.slot_of(key)
+            .is_none_or(|slot| self.table[slot].is_some())
     }
 
     /// `a & b`: CPython iterates the smaller operand — the right one on a size tie — and keeps the
@@ -128,7 +133,9 @@ impl PyIntSet {
         self.mask = size - 1;
         self.fill = 0;
         for key in old.into_iter().flatten() {
-            let slot = self.slot_of(key).expect("a fresh table has room for every old key");
+            let slot = self
+                .slot_of(key)
+                .expect("a fresh table has room for every old key");
             self.table[slot] = Some(key);
             self.fill += 1;
         }
@@ -147,14 +154,19 @@ mod tests {
     use serde_json::Value;
 
     fn golden() -> Value {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/conformance/pyset.json");
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/pyset.json");
         let text = std::fs::read_to_string(&path).expect("the pyset golden is committed");
         serde_json::from_str(&text).expect("the golden parses")
     }
 
     fn ints(value: &Value) -> Vec<usize> {
-        value.as_array().expect("a list").iter().map(|v| v.as_u64().expect("an int") as usize).collect()
+        value
+            .as_array()
+            .expect("a list")
+            .iter()
+            .map(|v| v.as_u64().expect("an int") as usize)
+            .collect()
     }
 
     #[test]
@@ -172,7 +184,10 @@ mod tests {
 
     #[test]
     fn intersects_the_way_cpython_intersects() {
-        for case in golden()["intersection"].as_array().expect("intersection cases") {
+        for case in golden()["intersection"]
+            .as_array()
+            .expect("intersection cases")
+        {
             let a = PyIntSet::from_keys(ints(&case["a"]));
             let b = PyIntSet::from_keys(ints(&case["b"]));
             assert_eq!(

@@ -62,4 +62,3 @@ pub enum OutputMode<'a> {
     Text,
     Json { schema: &'a Value },
 }
-

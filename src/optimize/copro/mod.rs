@@ -105,12 +105,17 @@ where
         let originals = originals(student);
         let mut latest = self.seed(&originals).await?;
         let mut all = latest.clone();
-        let mut evaluated: Vec<Evaluations> = (0..predictors).map(|_| Evaluations::default()).collect();
+        let mut evaluated: Vec<Evaluations> =
+            (0..predictors).map(|_| Evaluations::default()).collect();
         let mut current: Vec<String> = originals.iter().map(|o| o.instruction.clone()).collect();
 
         for round in 0..self.depth {
             for predictor in 0..predictors {
-                let pool = if predictors > 1 { &all[predictor] } else { &latest[predictor] };
+                let pool = if predictors > 1 {
+                    &all[predictor]
+                } else {
+                    &latest[predictor]
+                };
                 for candidate in pool {
                     let outcome = self
                         .try_candidate(student, predictor, candidate, trainset, &mut current)
@@ -168,10 +173,11 @@ where
         let mut seeded = Vec::with_capacity(originals.len());
         for original in originals {
             let mut proposals = self
-                .propose(signatures::basic_generate_instruction(), self.breadth - 1, [(
-                    "basic_instruction",
-                    json!(original.instruction),
-                )])
+                .propose(
+                    signatures::basic_generate_instruction(),
+                    self.breadth - 1,
+                    [("basic_instruction", json!(original.instruction))],
+                )
                 .await?;
             proposals.push(original.clone());
             seeded.push(proposals);
@@ -290,7 +296,9 @@ where
     ) -> impl Future<Output = Result<()>> + Send + 'a {
         async move {
             if teacher.is_some() {
-                bail!("COPRO optimizes instructions from a metric and has no teacher to learn from");
+                bail!(
+                    "COPRO optimizes instructions from a metric and has no teacher to learn from"
+                );
             }
             COPRO::compile(self, student, trainset).await
         }
@@ -322,7 +330,11 @@ mod tests {
                      [[ ## proposed_prefix_for_output_field ## ]]\nAnswer:\n\n[[ ## completed ## ]]";
                 return Ok(api::LmResponse::completions([proposal.to_owned()]));
             }
-            let answer = if system.contains("GOOD") { "Paris" } else { "London" };
+            let answer = if system.contains("GOOD") {
+                "Paris"
+            } else {
+                "London"
+            };
             Ok(api::LmResponse::text(format!(
                 "[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]"
             )))
@@ -335,8 +347,9 @@ mod tests {
         let mut student = Predict::parse("question -> answer")
             .expect("parses")
             .with_lm(model.clone());
-        let trainset =
-            vec![example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"])];
+        let trainset = vec![
+            example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"]),
+        ];
 
         COPRO::new(exact_match)
             .with_breadth(2)
@@ -358,6 +371,9 @@ mod tests {
         let mut teacher = Predict::parse("question -> answer").expect("parses");
         let optimizer = COPRO::new(exact_match).with_prompt_model(model);
         let refused = Optimizer::compile(&optimizer, &mut student, Some(&mut teacher), &[]).await;
-        assert!(refused.is_err(), "a teacher COPRO cannot use is an error, not silently ignored");
+        assert!(
+            refused.is_err(),
+            "a teacher COPRO cannot use is an error, not silently ignored"
+        );
     }
 }

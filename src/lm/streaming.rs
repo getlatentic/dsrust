@@ -209,7 +209,11 @@ mod tests {
         let mut buffer = b"a\n\nbc\n\nd".to_vec();
         assert_eq!(next_frame(&mut buffer, b"\n\n").as_deref(), Some("a"));
         assert_eq!(next_frame(&mut buffer, b"\n\n").as_deref(), Some("bc"));
-        assert_eq!(next_frame(&mut buffer, b"\n\n"), None, "d is still arriving");
+        assert_eq!(
+            next_frame(&mut buffer, b"\n\n"),
+            None,
+            "d is still arriving"
+        );
         assert_eq!(buffer, b"d", "the partial frame is kept");
     }
 

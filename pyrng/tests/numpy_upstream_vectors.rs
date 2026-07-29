@@ -64,5 +64,9 @@ fn matches_numpys_own_random_sample_vector() {
 fn matches_numpys_own_choice_vector() {
     let mut generator = RandomState::new(1234567890);
     let drawn = generator.choice(&[0.4, 0.4, 0.1, 0.1], 4);
-    assert_eq!(drawn, vec![1, 1, 2, 2], "numpy expects choice -> [1, 1, 2, 2]");
+    assert_eq!(
+        drawn,
+        vec![1, 1, 2, 2],
+        "numpy expects choice -> [1, 1, 2, 2]"
+    );
 }

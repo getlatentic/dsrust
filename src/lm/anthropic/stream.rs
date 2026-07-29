@@ -49,7 +49,10 @@ pub(crate) fn stream<'h>(
 
 /// One Anthropic SSE frame — an `event:`/`data:` pair — as the events it carries.
 fn frame(frame: &str, state: &mut StreamState) -> Framed {
-    let Some(data) = frame.lines().find_map(|line| line.trim().strip_prefix("data:")) else {
+    let Some(data) = frame
+        .lines()
+        .find_map(|line| line.trim().strip_prefix("data:"))
+    else {
         return Framed::of(Vec::new());
     };
     let Ok(event) = serde_json::from_str::<Value>(data.trim()) else {
@@ -64,21 +67,26 @@ fn frame(frame: &str, state: &mut StreamState) -> Framed {
         // A tool-use block opens with its id and name, its arguments arriving as later deltas.
         Some("content_block_start") if event["content_block"]["type"] == "tool_use" => {
             let block = &event["content_block"];
-            Framed::of(vec![block_delta(&event, LmDelta::ToolCallDelta {
-                id: block["id"].as_str().map(str::to_owned),
-                name: block["name"].as_str().map(str::to_owned),
-                args_delta: None,
-            })])
+            Framed::of(vec![block_delta(
+                &event,
+                LmDelta::ToolCallDelta {
+                    id: block["id"].as_str().map(str::to_owned),
+                    name: block["name"].as_str().map(str::to_owned),
+                    args_delta: None,
+                },
+            )])
         }
         // A block's increment, under its own index: text, extended-thinking text, or a slice of a
         // tool call's json arguments. A signature delta carries nothing to reassemble.
         Some("content_block_delta") => {
             let delta = &event["delta"];
             let mapped = match delta["type"].as_str() {
-                Some("text_delta") => Some(LmDelta::text(delta["text"].as_str().unwrap_or_default())),
-                Some("thinking_delta") => {
-                    Some(LmDelta::thinking(delta["thinking"].as_str().unwrap_or_default()))
+                Some("text_delta") => {
+                    Some(LmDelta::text(delta["text"].as_str().unwrap_or_default()))
                 }
+                Some("thinking_delta") => Some(LmDelta::thinking(
+                    delta["thinking"].as_str().unwrap_or_default(),
+                )),
                 Some("input_json_delta") => Some(LmDelta::ToolCallDelta {
                     id: None,
                     name: None,
@@ -86,7 +94,12 @@ fn frame(frame: &str, state: &mut StreamState) -> Framed {
                 }),
                 _ => None,
             };
-            Framed::of(mapped.into_iter().map(|delta| block_delta(&event, delta)).collect())
+            Framed::of(
+                mapped
+                    .into_iter()
+                    .map(|delta| block_delta(&event, delta))
+                    .collect(),
+            )
         }
         // The final output count, and why generation stopped.
         Some("message_delta") => {
@@ -148,7 +161,9 @@ mod tests {
             data: {\"type\":\"message_stop\"}\n\n";
 
         let mut builder = LmOutputBuilder::new();
-        builder.apply(LmStreamEvent::Start { model: None }).expect("start");
+        builder
+            .apply(LmStreamEvent::Start { model: None })
+            .expect("start");
         let mut state = StreamState::default();
         let mut response = None;
         for block in sse.split("\n\n") {
@@ -159,7 +174,11 @@ mod tests {
                 }
             }
             if framed.done {
-                let end = LmStreamEvent::End { usage: state.usage.take(), cost: None, response: None };
+                let end = LmStreamEvent::End {
+                    usage: state.usage.take(),
+                    cost: None,
+                    response: None,
+                };
                 if let Some(assembled) = builder.apply(end).expect("end") {
                     response = Some(assembled);
                 }
@@ -168,7 +187,8 @@ mod tests {
         let output = &response.expect("assembled").outputs[0];
         assert!(
             matches!(&output.parts[0], LmPart::Thinking { text, .. } if text == "Paris is in France."),
-            "thinking at index 0, got {:?}", output.parts,
+            "thinking at index 0, got {:?}",
+            output.parts,
         );
         let LmPart::ToolCall { id, name, args, .. } = &output.parts[1] else {
             panic!("expected a tool call at index 1, got {:?}", output.parts)
@@ -216,7 +236,11 @@ mod tests {
         assert!(closed, "message_stop closed the stream");
         let usage = state.usage.expect("usage arrived across two events");
         assert_eq!(usage.input_tokens, Some(10), "from message_start");
-        assert_eq!(usage.output_tokens, Some(4), "from message_delta, not the opener's 1");
+        assert_eq!(
+            usage.output_tokens,
+            Some(4),
+            "from message_delta, not the opener's 1"
+        );
         assert_eq!(usage.total(), Some(14));
     }
 }

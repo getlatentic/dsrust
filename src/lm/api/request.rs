@@ -119,7 +119,11 @@ fn wire_message(message: &LmMessage) -> Value {
     }
 
     if message.role == "assistant" {
-        let tool_calls: Vec<Value> = message.parts.iter().filter_map(assistant_tool_call).collect();
+        let tool_calls: Vec<Value> = message
+            .parts
+            .iter()
+            .filter_map(assistant_tool_call)
+            .collect();
         if !tool_calls.is_empty() {
             let content_parts: Vec<LmPart> = message
                 .parts
@@ -139,7 +143,14 @@ fn wire_message(message: &LmMessage) -> Value {
     }
 
     if message.role == "tool"
-        && let [LmPart::ToolResult { call_id, name, content, .. }] = message.parts.as_slice()
+        && let [
+            LmPart::ToolResult {
+                call_id,
+                name,
+                content,
+                ..
+            },
+        ] = message.parts.as_slice()
     {
         output.insert("content".to_owned(), content_value(content));
         if let Some(call_id) = call_id {
@@ -165,7 +176,14 @@ fn content_value(parts: &[LmPart]) -> Value {
 /// the args — spaced the way Python writes it, which [`json_dumps`] matches — the id kept when
 /// present, the provider's own data merged on. `None` for any part that is not a tool call.
 fn assistant_tool_call(part: &LmPart) -> Option<Value> {
-    let LmPart::ToolCall { id, name, args, provider_data, .. } = part else {
+    let LmPart::ToolCall {
+        id,
+        name,
+        args,
+        provider_data,
+        ..
+    } = part
+    else {
         return None;
     };
     let mut call = json!({
@@ -239,7 +257,10 @@ mod cache_key_tests {
     use crate::lm::api::{LmPart, LmToolSpec, RolloutId};
 
     fn asking() -> LmRequest {
-        LmRequest::new("openai/gpt-4o", vec![LmMessage::user(vec![LmPart::text("Why?")])])
+        LmRequest::new(
+            "openai/gpt-4o",
+            vec![LmMessage::user(vec![LmPart::text("Why?")])],
+        )
     }
 
     fn key(request: &LmRequest) -> String {
@@ -277,7 +298,10 @@ mod cache_key_tests {
 
         // A provider knob the crate does not model still reaches the wire, so it still counts.
         let mut extended = asking();
-        extended.config.extensions.insert("seed".to_owned(), json!(11));
+        extended
+            .config
+            .extensions
+            .insert("seed".to_owned(), json!(11));
         assert_ne!(key(&extended), plain, "an extension changes the call");
     }
 
@@ -299,7 +323,10 @@ mod cache_key_tests {
     #[test]
     fn two_models_do_not_share_an_entry() {
         let request = asking();
-        assert_ne!(request.cache_key("openai/gpt-4o"), request.cache_key("openai/gpt-4o-mini"));
+        assert_ne!(
+            request.cache_key("openai/gpt-4o"),
+            request.cache_key("openai/gpt-4o-mini")
+        );
     }
 
     /// The crate builds serde_json with `preserve_order`, so equal requests assembled by different

@@ -228,7 +228,9 @@ where
             tip_aware: self.tip_aware,
             prompt_model: self.prompt_model.clone(),
         };
-        let candidates = proposer.propose(&predictors, self.num_candidates, &mut rng).await?;
+        let candidates = proposer
+            .propose(&predictors, self.num_candidates, &mut rng)
+            .await?;
 
         // Step 3: search the instruction combinations.
         Ok(self.search(student, &candidates, trainset).await)
@@ -250,14 +252,20 @@ where
         let mut sampler = tpe::TpeSampler::new(self.seed as u32, cardinalities);
         sampler.tell(baseline.clone(), default_score);
         let mut best = (default_score, baseline.clone());
-        let mut trials = vec![Trial { params: baseline, score: default_score }];
+        let mut trials = vec![Trial {
+            params: baseline,
+            score: default_score,
+        }];
 
         for _ in 0..self.num_trials {
             let params = sampler.ask();
             apply(student, candidates, &params);
             let score = self.score(student, valset).await;
             sampler.tell(params.clone(), score);
-            trials.push(Trial { params: params.clone(), score });
+            trials.push(Trial {
+                params: params.clone(),
+                score,
+            });
             if score > best.0 {
                 best = (score, params);
             }
@@ -302,7 +310,9 @@ where
     ) -> impl Future<Output = Result<()>> + Send + 'a {
         async move {
             if teacher.is_some() {
-                bail!("MIPROv2 proposes instructions from a metric and has no teacher to learn from");
+                bail!(
+                    "MIPROv2 proposes instructions from a metric and has no teacher to learn from"
+                );
             }
             MIPROv2::compile(self, student, trainset).await
         }
@@ -332,7 +342,11 @@ mod tests {
             let content = if system.contains("generate a new instruction that will be used") {
                 "[[ ## proposed_instruction ## ]]\nAnswer with GOOD precision.\n\n[[ ## completed ## ]]".to_owned()
             } else {
-                let answer = if system.contains("GOOD") { "Paris" } else { "London" };
+                let answer = if system.contains("GOOD") {
+                    "Paris"
+                } else {
+                    "London"
+                };
                 format!("[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]")
             };
             Ok(api::LmResponse::text(content))
@@ -345,8 +359,9 @@ mod tests {
         let mut student = Predict::parse("question -> answer")
             .expect("parses")
             .with_lm(model.clone());
-        let trainset =
-            vec![example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"])];
+        let trainset = vec![
+            example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"]),
+        ];
 
         MIPROv2::new(exact_match, model.clone())
             .with_candidates(2)
@@ -357,6 +372,9 @@ mod tests {
 
         // Candidate 1 (the proposal) scores 100 against the original's 0, so the search leaves the
         // student holding it.
-        assert_eq!(student.signature.instructions, "Answer with GOOD precision.");
+        assert_eq!(
+            student.signature.instructions,
+            "Answer with GOOD precision."
+        );
     }
 }

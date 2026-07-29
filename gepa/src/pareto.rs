@@ -30,7 +30,10 @@ impl ParetoFront {
     pub fn seeded(seed_scores: &[f64]) -> Self {
         Self {
             best: seed_scores.to_vec(),
-            fronts: seed_scores.iter().map(|_| PyIntSet::from_keys([0])).collect(),
+            fronts: seed_scores
+                .iter()
+                .map(|_| PyIntSet::from_keys([0]))
+                .collect(),
         }
     }
 
@@ -100,8 +103,11 @@ fn remove_dominated(fronts: &[PyIntSet], scores: &[f64]) -> Vec<PyIntSet> {
             if dominated.contains(&y) {
                 continue;
             }
-            let others: BTreeSet<usize> =
-                programs.iter().copied().filter(|p| *p != y && !dominated.contains(p)).collect();
+            let others: BTreeSet<usize> = programs
+                .iter()
+                .copied()
+                .filter(|p| *p != y && !dominated.contains(p))
+                .collect();
             if is_dominated(y, &others, fronts) {
                 dominated.insert(y);
                 removing = true;
@@ -172,7 +178,11 @@ mod tests {
             .iter()
             .map(|front| {
                 PyIntSet::from_keys(
-                    front.as_array().expect("a front").iter().map(|p| p.as_u64().unwrap() as usize),
+                    front
+                        .as_array()
+                        .expect("a front")
+                        .iter()
+                        .map(|p| p.as_u64().unwrap() as usize),
                 )
             })
             .collect()
@@ -183,17 +193,31 @@ mod tests {
     /// domination sweep, the ascending set/dict ordering, and the CPython `choice` draw together.
     #[test]
     fn selects_the_candidate_gepa_selects() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/pareto.json");
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/pareto.json");
         let text = std::fs::read_to_string(&path).expect("the pareto golden is committed");
         let fixture: Value = serde_json::from_str(&text).expect("the golden parses");
-        let seeds: Vec<u64> = fixture["seeds"].as_array().expect("seeds").iter().map(|s| s.as_u64().unwrap()).collect();
+        let seeds: Vec<u64> = fixture["seeds"]
+            .as_array()
+            .expect("seeds")
+            .iter()
+            .map(|s| s.as_u64().unwrap())
+            .collect();
 
         for case in fixture["cases"].as_array().expect("cases") {
             let fronts = fronts_of(case);
-            let scores: Vec<f64> =
-                case["scores"].as_array().expect("scores").iter().map(|s| s.as_f64().unwrap()).collect();
-            let picks: Vec<usize> =
-                case["picks"].as_array().expect("picks").iter().map(|p| p.as_u64().unwrap() as usize).collect();
+            let scores: Vec<f64> = case["scores"]
+                .as_array()
+                .expect("scores")
+                .iter()
+                .map(|s| s.as_f64().unwrap())
+                .collect();
+            let picks: Vec<usize> = case["picks"]
+                .as_array()
+                .expect("picks")
+                .iter()
+                .map(|p| p.as_u64().unwrap() as usize)
+                .collect();
             for (seed, &expected) in seeds.iter().zip(&picks) {
                 let mut rng = Random::seeded(*seed);
                 assert_eq!(
@@ -210,23 +234,38 @@ mod tests {
     /// strictly-better-replaces, ties-join, worse-ignored update over every testcase.
     #[test]
     fn maintains_the_front_gepa_maintains() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/front.json");
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/front.json");
         let text = std::fs::read_to_string(&path).expect("the front golden is committed");
         let fixture: Value = serde_json::from_str(&text).expect("the golden parses");
 
         for case in fixture["cases"].as_array().expect("cases") {
             let scores = |value: &Value| -> Vec<f64> {
-                value.as_array().unwrap().iter().map(|s| s.as_f64().unwrap()).collect()
+                value
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|s| s.as_f64().unwrap())
+                    .collect()
             };
             let seed = scores(&case["seed"]);
-            let programs: Vec<Vec<f64>> = case["programs"].as_array().unwrap().iter().map(scores).collect();
+            let programs: Vec<Vec<f64>> = case["programs"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(scores)
+                .collect();
             let snapshots = case["fronts"].as_array().expect("fronts");
 
             let mut front = ParetoFront::seeded(&seed);
             assert_front(&front, &snapshots[0], "after seed");
             for (index, program) in programs.iter().enumerate() {
                 front.add_program(index + 1, program);
-                assert_front(&front, &snapshots[index + 1], &format!("after program {}", index + 1));
+                assert_front(
+                    &front,
+                    &snapshots[index + 1],
+                    &format!("after program {}", index + 1),
+                );
             }
         }
     }

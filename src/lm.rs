@@ -1,18 +1,18 @@
-pub mod api;
 mod anthropic;
+pub mod api;
 pub mod cache;
-mod capabilities;
 mod call;
+mod capabilities;
 pub mod dummy;
 pub mod error;
 pub mod global;
-mod ollama;
 mod model;
-mod routing;
-mod turn;
+mod ollama;
 pub mod openai;
+mod routing;
 mod streaming;
 mod token_limit;
+mod turn;
 pub mod usage;
 
 use std::time::Duration;
@@ -20,17 +20,19 @@ use std::time::Duration;
 use anyhow::Result;
 use futures_util::Stream;
 
-pub use cache::{Cached, ResponseCache};
-pub use capabilities::Capabilities;
-pub use model::{ChatModel, DynChatModel};
-pub use routing::{ModelRef, Provider};
-pub use turn::{ChatTurn, OutputMode, Role};
-pub use error::ContextWindowExceeded;
-pub use call::{LmConfig, LmUsage};
-pub use global::{configure, configure_with_client};
 pub use api::{Content, Detail, LmPart, LmSource};
-pub use openai::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig, OpenAiWire};
+pub use cache::{Cached, ResponseCache};
+pub use call::{LmConfig, LmUsage};
+pub use capabilities::Capabilities;
+pub use error::ContextWindowExceeded;
+pub use global::{configure, configure_with_client};
+pub use model::{ChatModel, DynChatModel};
+pub use openai::{
+    DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig, OpenAiWire,
+};
+pub use routing::{ModelRef, Provider};
 pub use token_limit::{TokenLimitField, TokenLimitRule};
+pub use turn::{ChatTurn, OutputMode, Role};
 pub use usage::{UsageTracker, track as track_usage};
 
 /// What bounds a provider call unless the caller says otherwise, so one slow upstream cannot hold
@@ -328,13 +330,15 @@ impl LM {
                 .forward(http, request)
                 .await
             }
-            Provider::OpenRouter => openai::Endpoint::openrouter(
-                &self.model.id,
-                self.openrouter_api_key.as_deref(),
-                self.timeout,
-            )
-            .forward(http, request)
-            .await,
+            Provider::OpenRouter => {
+                openai::Endpoint::openrouter(
+                    &self.model.id,
+                    self.openrouter_api_key.as_deref(),
+                    self.timeout,
+                )
+                .forward(http, request)
+                .await
+            }
             Provider::OpenAiCompatible => {
                 openai::Endpoint::configured(&self.model.id, &self.openai, self.timeout)
                     .forward(http, request)
@@ -372,7 +376,11 @@ mod tests {
     #[test]
     fn native_reasoning_is_suppressed_only_for_gpt5_on_the_chat_route() {
         // gpt-5 on the chat-completions route: litellm 1.79.0 loses the reasoning content.
-        assert!(!LM::new("openai/gpt-5-mini").expect("an LM").native_reasoning_usable());
+        assert!(
+            !LM::new("openai/gpt-5-mini")
+                .expect("an LM")
+                .native_reasoning_usable()
+        );
         // The Responses API is unaffected.
         assert!(
             LM::new("openai/gpt-5-mini")
@@ -381,9 +389,17 @@ mod tests {
                 .native_reasoning_usable()
         );
         // A non-gpt-5 model on the chat route is fine.
-        assert!(LM::new("openai/gpt-4o").expect("an LM").native_reasoning_usable());
+        assert!(
+            LM::new("openai/gpt-4o")
+                .expect("an LM")
+                .native_reasoning_usable()
+        );
         // Another provider is not the OpenAI chat API, so the caveat never applies.
-        assert!(LM::new("anthropic/claude-opus-4-1").expect("an LM").native_reasoning_usable());
+        assert!(
+            LM::new("anthropic/claude-opus-4-1")
+                .expect("an LM")
+                .native_reasoning_usable()
+        );
     }
 
     /// Drive every `litellm_chat.json` case for one provider through its request builder and hold
@@ -405,7 +421,10 @@ mod tests {
                 .unwrap_or_else(|error| panic!("{name}: the typed request did not parse: {error}"));
             // The prefix before the first `/` is the wire format, which litellm strips off the
             // model before sending — `ModelRef` does the same, so the builder is given the bare id.
-            let model = call.model.split_once('/').map_or(call.model.as_str(), |(_, id)| id);
+            let model = call
+                .model
+                .split_once('/')
+                .map_or(call.model.as_str(), |(_, id)| id);
             assert_eq!(
                 build(model, &call),
                 case["expected"],

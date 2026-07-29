@@ -37,7 +37,10 @@ impl Mt19937 {
     ///
     /// The key is never empty: CPython spends one word on a seed of zero rather than none.
     pub fn from_key(key: &[u32]) -> Self {
-        debug_assert!(!key.is_empty(), "CPython spends a word even on a seed of zero");
+        debug_assert!(
+            !key.is_empty(),
+            "CPython spends a word even on a seed of zero"
+        );
         let mut this = Self::from_word(19_650_218);
         let (mut at, mut key_at) = (1usize, 0usize);
         // CPython walks the longer of the state and the key. A seed narrower than 624 words can
@@ -45,9 +48,10 @@ impl Mt19937 {
         // written as upstream writes it because the seed type is what makes that true.
         for _ in 0..N.max(key.len()) {
             let previous = this.state[at - 1];
-            this.state[at] = (this.state[at] ^ (previous ^ (previous >> 30)).wrapping_mul(1_664_525))
-                .wrapping_add(key[key_at])
-                .wrapping_add(key_at as u32);
+            this.state[at] = (this.state[at]
+                ^ (previous ^ (previous >> 30)).wrapping_mul(1_664_525))
+            .wrapping_add(key[key_at])
+            .wrapping_add(key_at as u32);
             at = step(&mut this.state, at);
             key_at = (key_at + 1) % key.len();
         }
@@ -94,7 +98,10 @@ impl Mt19937 {
     /// Stops at 64 bits, where Python would carry on into an arbitrary-width integer. Callers ask
     /// for the bit width of a population size, so nothing here reaches that far.
     pub fn getrandbits(&mut self, bits: u32) -> u64 {
-        debug_assert!(bits <= 64, "wider than a u64 needs Python's arbitrary-width integer");
+        debug_assert!(
+            bits <= 64,
+            "wider than a u64 needs Python's arbitrary-width integer"
+        );
         let mut drawn = 0u64;
         let mut shift = 0u32;
         let mut owed = bits;

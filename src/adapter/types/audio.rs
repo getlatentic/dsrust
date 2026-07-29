@@ -17,7 +17,10 @@ pub struct Audio {
 
 impl Audio {
     pub fn new(data: impl Into<String>, audio_format: impl Into<String>) -> Self {
-        Self { data: data.into(), audio_format: audio_format.into() }
+        Self {
+            data: data.into(),
+            audio_format: audio_format.into(),
+        }
     }
 }
 
@@ -74,8 +77,8 @@ mod tests {
 
     #[test]
     fn it_reads_back_from_its_data_and_format() {
-        let audio: Audio =
-            serde_json::from_value(json!({ "data": "QUJD", "audio_format": "mp3" })).expect("parses");
+        let audio: Audio = serde_json::from_value(json!({ "data": "QUJD", "audio_format": "mp3" }))
+            .expect("parses");
         assert_eq!(audio, Audio::new("QUJD", "mp3"));
     }
 }

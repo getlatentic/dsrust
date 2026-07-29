@@ -14,8 +14,8 @@
 //! scores the whole trial sequence reproduces. It is the one place exact reproduction meets the
 //! limit of cross-language floating point.
 
-use pyrng::RandomState;
 use crate::parzen::Parzen;
+use pyrng::RandomState;
 
 const N_STARTUP_TRIALS: usize = 10;
 const N_EI_CANDIDATES: usize = 24;
@@ -96,7 +96,12 @@ impl TpeSampler {
         let mut above: Vec<usize> = order[n_below..].to_vec();
         below.sort_unstable();
         above.sort_unstable();
-        let params = |indices: Vec<usize>| indices.iter().map(|&i| self.trials[i].params.clone()).collect();
+        let params = |indices: Vec<usize>| {
+            indices
+                .iter()
+                .map(|&i| self.trials[i].params.clone())
+                .collect()
+        };
         (params(below), params(above))
     }
 }

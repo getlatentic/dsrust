@@ -45,9 +45,15 @@ fn resolve_refs(value: &Value, defs: &Value) -> Value {
                 let name = reference.rsplit('/').next().unwrap_or_default();
                 return resolve_refs(&defs[name], defs);
             }
-            Value::Object(map.iter().map(|(key, value)| (key.clone(), resolve_refs(value, defs))).collect())
+            Value::Object(
+                map.iter()
+                    .map(|(key, value)| (key.clone(), resolve_refs(value, defs)))
+                    .collect(),
+            )
         }
-        Value::Array(items) => Value::Array(items.iter().map(|item| resolve_refs(item, defs)).collect()),
+        Value::Array(items) => {
+            Value::Array(items.iter().map(|item| resolve_refs(item, defs)).collect())
+        }
         other => other.clone(),
     }
 }
@@ -57,7 +63,10 @@ fn resolve_refs(value: &Value, defs: &Value) -> Value {
 /// their list; content with no text is returned as it stands. An error result is an `Err` carrying
 /// the same message dspy raises.
 pub fn mcp_tool_result(result: &Value) -> Result<String> {
-    let content = result["content"].as_array().map(Vec::as_slice).unwrap_or_default();
+    let content = result["content"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or_default();
     let texts: Vec<&str> = content
         .iter()
         .filter(|item| item["type"] == "text")
@@ -66,7 +75,10 @@ pub fn mcp_tool_result(result: &Value) -> Result<String> {
     let observation = match texts.as_slice() {
         [only] => (*only).to_owned(),
         [] => {
-            let non_text: Vec<&Value> = content.iter().filter(|item| item["type"] != "text").collect();
+            let non_text: Vec<&Value> = content
+                .iter()
+                .filter(|item| item["type"] != "text")
+                .collect();
             serde_json::to_string(&non_text).unwrap_or_default()
         }
         many => serde_json::to_string(many).unwrap_or_default(),
@@ -93,7 +105,9 @@ where
     T: Fn(&Value) -> Result<Value> + Send + Sync,
 {
     let args = mcp_tool_args(input_schema);
-    FnTool::new(name, description, args, move |args| mcp_tool_result(&transport(args)?))
+    FnTool::new(name, description, args, move |args| {
+        mcp_tool_result(&transport(args)?)
+    })
 }
 
 #[cfg(test)]
@@ -126,9 +140,14 @@ mod tests {
         let ok = json!({ "content": [{ "type": "text", "text": "sunny, 22C" }], "isError": false });
         assert_eq!(mcp_tool_result(&ok).expect("ok"), "sunny, 22C");
 
-        let failed = json!({ "content": [{ "type": "text", "text": "no such city" }], "isError": true });
+        let failed =
+            json!({ "content": [{ "type": "text", "text": "no such city" }], "isError": true });
         let error = mcp_tool_result(&failed).expect_err("an error result is an Err");
-        assert!(error.to_string().contains("Failed to call a MCP tool: no such city"));
+        assert!(
+            error
+                .to_string()
+                .contains("Failed to call a MCP tool: no such city")
+        );
     }
 
     /// An MCP tool reaches the agent as any other [`Tool`] does: the schema becomes its arguments, and
@@ -142,6 +161,9 @@ mod tests {
         });
         assert_eq!(tool.name(), "get_weather");
         assert_eq!(tool.args(), &json!({ "city": { "type": "string" } }));
-        assert_eq!(tool.call(&json!({ "city": "Paris" })).expect("calls"), "sunny in Paris");
+        assert_eq!(
+            tool.call(&json!({ "city": "Paris" })).expect("calls"),
+            "sunny in Paris"
+        );
     }
 }

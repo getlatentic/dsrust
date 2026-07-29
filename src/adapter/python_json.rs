@@ -76,9 +76,12 @@ fn indented(value: &Value, level: usize) -> String {
         // An empty container stays on one line, whatever the indent.
         Value::Array(items) if items.is_empty() => "[]".to_owned(),
         Value::Object(fields) if fields.is_empty() => "{}".to_owned(),
-        Value::Array(items) => {
-            block('[', ']', level, items.iter().map(|item| indented(item, level + 1)))
-        }
+        Value::Array(items) => block(
+            '[',
+            ']',
+            level,
+            items.iter().map(|item| indented(item, level + 1)),
+        ),
         Value::Object(fields) => block(
             '{',
             '}',
@@ -95,7 +98,10 @@ fn indented(value: &Value, level: usize) -> String {
 /// One bracketed run: an entry per line two spaces deeper, and the closer back at this level.
 fn block(open: char, close: char, level: usize, entries: impl Iterator<Item = String>) -> String {
     let inner = "  ".repeat(level + 1);
-    let body = entries.map(|entry| format!("{inner}{entry}")).collect::<Vec<_>>().join(",\n");
+    let body = entries
+        .map(|entry| format!("{inner}{entry}"))
+        .collect::<Vec<_>>()
+        .join(",\n");
     format!("{open}\n{body}\n{}{close}", "  ".repeat(level))
 }
 
@@ -251,8 +257,7 @@ mod tests {
     #[test]
     fn a_list_of_tools_renders_from_descriptors_or_from_ready_strings() {
         let kind = FieldKind::Json(crate::signature::JsonType::plain("list[Tool]"));
-        let rendered =
-            r#"["search, whose description is <desc>look it up</desc>. It takes arguments {'q': {'type': 'string'}}."]"#;
+        let rendered = r#"["search, whose description is <desc>look it up</desc>. It takes arguments {'q': {'type': 'string'}}."]"#;
 
         let objects = json!([
             { "name": "search", "desc": "look it up", "args": { "q": { "type": "string" } } }
