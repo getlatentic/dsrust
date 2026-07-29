@@ -34,7 +34,7 @@ from dspy.teleprompt.gepa.gepa import GEPA
 
 from pins import require
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "optimize"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "optimize"
 # Both libraries produce these bytes: dspy's teleprompter drives the engine that gepa ships.
 PINNED = require("dspy")
 GEPA_PINNED = require("gepa")

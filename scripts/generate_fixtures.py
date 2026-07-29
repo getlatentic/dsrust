@@ -49,7 +49,7 @@ GENERATE_MODULE_INSTRUCTION = generate_instruction_class(
 ).signature
 
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance"
 
 # Each case: the signature DSPy will build, and the input values to render with.
 # `kind` names the Rust FieldKind the harness maps this annotation to.

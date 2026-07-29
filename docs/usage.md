@@ -1,6 +1,6 @@
 # Declaring a task, and asking it
 
-Every Rust shape here is compiled and run by [`tests/every_spelling.rs`](../tests/every_spelling.rs).
+Every Rust shape here is compiled and run by [`crates/dsrust/tests/every_spelling.rs`](../crates/dsrust/tests/every_spelling.rs).
 If one of them stops being true, that test fails rather than this page quietly going stale.
 
 A task is declared one of two ways — its field names in a string, or a struct — and asked by one

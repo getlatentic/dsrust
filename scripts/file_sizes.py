@@ -42,7 +42,7 @@ def end_of_module(lines: list[str], index: int) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("root", nargs="?", default="src", type=pathlib.Path)
+    parser.add_argument("root", nargs="?", default="crates/dsrust/src", type=pathlib.Path)
     parser.add_argument(
         "--limit",
         type=int,

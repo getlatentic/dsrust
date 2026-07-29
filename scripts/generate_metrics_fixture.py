@@ -29,7 +29,7 @@ from dspy.evaluate.metrics import (
 
 from pins import require
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "evaluate"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "evaluate"
 PINNED = require("dspy")
 
 #: Inputs picked for where a normalisation drifts, not where it agrees.

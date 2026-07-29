@@ -39,7 +39,7 @@ import optuna
 from dspy.clients.base_lm import BaseLM
 from dspy.dsp.utils.utils import dotdict
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "optimize"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "optimize"
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
 
 TRAINSET = [("capital of France?", "Paris"), ("capital of Germany?", "Berlin"), ("capital of Spain?", "Madrid")]

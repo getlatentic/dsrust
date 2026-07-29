@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn refuses_exactly_what_dspy_refuses() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/conformance/signature/signature.json");
+            .join("../dsrust/tests/conformance/signature/signature.json");
         let text = std::fs::read_to_string(&path).expect("the signature golden is committed");
         let golden: serde_json::Value = serde_json::from_str(&text).expect("the golden parses");
         let cases = golden["parse"].as_array().expect("parse cases");

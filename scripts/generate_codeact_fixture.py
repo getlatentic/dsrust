@@ -19,7 +19,7 @@ from dspy.predict.code_act import CodeAct
 
 from pins import require
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "predict"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "predict"
 PINNED = require("dspy")
 
 

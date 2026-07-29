@@ -21,7 +21,7 @@ from dspy.predict.rlm import RLM, _strip_code_fences
 
 from pins import require
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "predict"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "predict"
 PINNED = require("dspy")
 
 WRITTEN = [

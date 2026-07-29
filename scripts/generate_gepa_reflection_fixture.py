@@ -23,7 +23,7 @@ from gepa.strategies.instruction_proposal import InstructionProposalSignature
 
 from pins import require
 
-OUT = pathlib.Path(__file__).parent.parent / "crates" / "gepa" / "tests" / "conformance"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust-gepa" / "tests" / "conformance"
 PINNED = require("gepa")
 
 

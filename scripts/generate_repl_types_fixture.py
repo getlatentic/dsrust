@@ -21,7 +21,7 @@ from dspy.primitives.repl_types import REPLEntry, REPLHistory, REPLVariable
 
 from pins import require
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "primitives"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "primitives"
 PINNED = require("dspy")
 
 

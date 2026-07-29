@@ -29,7 +29,13 @@ from api_surface import PORTED_MODULES, full_surface
 ROOT = pathlib.Path(__file__).parent.parent
 LEDGER = ROOT / "scripts" / "api_ledger.toml"
 #: Where a Rust counterpart may live — the crate plus its workspace members.
-RUST_TREES = ["src", "derive/src", "tpe/src", "gepa/src", "pyrng/src"]
+RUST_TREES = [
+    "crates/dsrust/src",
+    "crates/dsrust-derive/src",
+    "crates/dsrust-tpe/src",
+    "crates/dsrust-gepa/src",
+    "crates/pyrng/src",
+]
 #: What counts as *defining* an identifier, so a passing reference to a common word (`Type`, `Code`)
 #: is not mistaken for the thing existing.
 DEFINES = ("struct", "enum", "trait", "type", "fn", "mod", "const", "static")

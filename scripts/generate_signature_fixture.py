@@ -22,7 +22,7 @@ import sys
 import dspy
 from dspy.signatures.signature import infer_prefix
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "signature"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "signature"
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
 
 NAMES = [

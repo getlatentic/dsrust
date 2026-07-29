@@ -21,7 +21,7 @@ import dspy
 from dspy.teleprompt.utils import create_n_fewshot_demo_sets
 from dspy.utils.dummies import DummyLM
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "optimize"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "optimize"
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
 
 TRAINSET = [

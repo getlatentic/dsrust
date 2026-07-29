@@ -22,7 +22,7 @@ import dspy.core.types as t
 from dspy.clients.openai_format import completion_to_lm_response
 
 PINNED = "3.3.0b1"
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "lm_api" / "openai_response.json"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "lm_api" / "openai_response.json"
 
 # The request only supplies the model fallback when a response omits its own; every case here sets one.
 REQUEST = t.LMRequest(model="openai/gpt-4o", messages=[t.LMMessage(role="user", parts=[t.LMTextPart(text="hi")])])

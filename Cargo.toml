@@ -1,48 +1,13 @@
-[package]
-name = "dsrust"
-version = "0.1.0-alpha.2"
-edition = "2024"
-license = "MIT OR Apache-2.0"
-description = "A faithful, byte-for-byte Rust port of DSPy: signatures, adapters, modules, providers, and optimizers, tested against DSPy itself."
-readme = "README.md"
-authors = ["Tosin Amuda"]
-keywords = ["dspy", "llm", "prompt", "ai", "agents"]
-categories = ["science", "api-bindings"]
-exclude = [
-    "/third_party", "/local-compare", "/tests", "/scripts", "/docs", "/bridge",
-    "/backlog.toml", "/HANDOFF.md", "/.claude-tooling.md", "/pyproject.toml", "/uv.lock",
-]
-repository = "https://github.com/getlatentic/dsrust"
-
-[lib]
-name = "dsrust"
-path = "src/lib.rs"
-
+# A virtual workspace: every crate lives under crates/, named for the package it publishes as.
 [workspace]
-members = ["crates/derive", "crates/bridge", "crates/tpe", "crates/pyrng", "crates/gepa"]
-default-members = [".", "crates/derive", "crates/tpe", "crates/pyrng", "crates/gepa"]
-
-[dependencies]
-anyhow = "1"
-base64 = "0.22.1"
-dsrust-derive = { version = "0.1.0-alpha.1", path = "crates/derive" }
-gepa = { version = "0.1.0-alpha.1", path = "crates/gepa", package = "dsrust-gepa" }
-pyrng = { version = "0.1.0-alpha.1", path = "crates/pyrng" }
-bytes = "1"
-futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
-lru = { version = "0.18.1", default-features = false }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
-schemars = "1"
-serde = { version = "1", features = ["derive"] }
-# preserve_order keeps schemas in pydantic's insertion order; sorting keys would break byte-conformance.
-serde_json = { version = "1", features = ["preserve_order"] }
-sha2 = "0.11.0"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-tpe = { version = "0.1.0-alpha.1", path = "crates/tpe", package = "dsrust-tpe" }
-tracing = "0.1"
-unicode-general-category = "1.1.0"
-unicode-normalization = "0.1.25"
-
-[dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+resolver = "3"
+members = ["crates/*"]
+# The bridge is a PyO3 extension module and is never published; it builds through maturin, which
+# run_upstream_tests.sh drives, so a plain `cargo build` leaves it out.
+default-members = [
+    "crates/dsrust",
+    "crates/dsrust-derive",
+    "crates/dsrust-gepa",
+    "crates/dsrust-tpe",
+    "crates/pyrng",
+]

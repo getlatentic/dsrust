@@ -147,7 +147,7 @@ def main() -> None:
     print("==> dsrust")
     subprocess.run(
         ["cargo", "run", "--release", "--quiet", "--example", "trajectory"],
-        cwd=ROOT, check=True,
+        cwd=ROOT / "crates" / "dsrust", check=True,
         env={**__import__("os").environ, "TRAJECTORY_BASE_URL": through, "TRAJECTORY_MODEL": args.model},
     )
     print("\n==> dspy")

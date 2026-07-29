@@ -23,7 +23,7 @@ version = "0.0.0"
 edition = "2024"
 
 [dependencies]
-dsrust = { path = "$ROOT" }
+dsrust = { path = "$ROOT/crates/dsrust" }
 
 # Its own workspace, so the repo's does not lend it dependencies it never declared.
 [workspace]

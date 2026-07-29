@@ -19,7 +19,7 @@ import dspy
 from dspy.adapters.types.tool import convert_input_schema_to_tool_args
 
 PINNED = "3.3.0b1"
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "react" / "mcp_tool_args.json"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "react" / "mcp_tool_args.json"
 
 CASES = {
     "flat": {

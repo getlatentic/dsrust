@@ -20,7 +20,7 @@ import dspy
 import dspy.core.types as t
 
 PINNED = "3.3.0b1"
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "lm_api" / "dspy_3_3.json"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "lm_api" / "dspy_3_3.json"
 
 CITATION = t.LMCitationPart(text="the quote", title="The Paper", url="https://example.com")
 IMAGE = t.LMImagePart(url="https://example.com/a.jpg", detail="high")

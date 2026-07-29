@@ -25,7 +25,7 @@ import sys
 import dspy
 from dspy.utils.dummies import DummyLM
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "optimize"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "optimize"
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
 
 # `scripted::trainset()`: two the table solves and four it does not, so a validation set is left

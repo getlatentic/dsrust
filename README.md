@@ -152,7 +152,7 @@ cargo run --example quickstart
 Two layers, both against the pinned upstream (`dspy==3.3.0b1`, `gepa==0.1.1`, `optuna==4.9.0`),
 never against a transcription of it:
 
-1. **Committed goldens** (`tests/conformance/**`), the exact bytes and decisions captured from
+1. **Committed goldens** (`crates/dsrust/tests/conformance/**`), the exact bytes and decisions captured from
    *running* the pinned Python. `cargo test` checks against them with no Python needed.
 2. **DSPy's own pytest suite, over DsRust**: a PyO3 bridge runs DSPy's actual tests (pinned in
    `third_party/dspy` as a submodule) with DsRust underneath. A crossing-counter fails any test

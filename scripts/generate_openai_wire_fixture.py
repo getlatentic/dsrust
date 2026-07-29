@@ -21,7 +21,7 @@ import dspy.core.types as t
 from dspy.clients.openai_format import to_openai_chat_request
 
 PINNED = "3.3.0b1"
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "lm_api" / "openai_chat.json"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "lm_api" / "openai_chat.json"
 
 
 def text(value: str) -> t.LMTextPart:

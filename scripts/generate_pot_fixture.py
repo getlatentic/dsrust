@@ -21,7 +21,7 @@ from dspy.predict.program_of_thought import ProgramOfThought
 
 from pins import require
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "predict"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "predict"
 PINNED = require("dspy")
 
 #: The signatures to derive the three asks from — one plain, one with several fields either side.

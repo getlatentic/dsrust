@@ -23,7 +23,7 @@ import warnings
 import dspy
 from dspy.predict.multi_chain_comparison import MultiChainComparison
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "predict"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "predict"
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
 
 # Passing `prefix=` to a field is deprecated in 3.2.1 and MultiChainComparison still does it, so

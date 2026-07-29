@@ -30,7 +30,7 @@ from dspy.clients.openai_format import to_openai_chat_request
 from litellm.llms.custom_httpx.http_handler import HTTPHandler
 
 PINNED = "3.3.0b1"
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "lm_api" / "litellm_chat.json"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "lm_api" / "litellm_chat.json"
 
 # The litellm route for each dsrs provider. dsrs mirrors litellm's own split: `ollama` here is
 # the `/api/chat` route (litellm's `ollama_chat`), and `ollama_generate` is the `/api/generate`

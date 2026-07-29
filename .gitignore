@@ -1,6 +1,6 @@
 # Rust build output
 /target/
-derive/target/
+crates/*/target/
 **/*.rs.bk
 
 # uv-managed Python env (built by `uv sync`; .dspy-venv* are older spellings)

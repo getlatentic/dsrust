@@ -23,7 +23,7 @@ import dspy.core.types as t
 from dspy.clients.openai_format import responses_to_lm_response, to_openai_responses_request
 
 PINNED = "3.3.0b1"
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "lm_api" / "openai_responses.json"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "lm_api" / "openai_responses.json"
 
 
 def text(value: str) -> t.LMTextPart:

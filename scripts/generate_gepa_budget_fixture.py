@@ -18,7 +18,7 @@ from dspy.teleprompt.gepa.gepa import GEPA
 
 from pins import require
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "optimize"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "optimize"
 PINNED = require("dspy")
 
 #: (num_preds, num_candidates, valset_size, minibatch_size, full_eval_steps)
