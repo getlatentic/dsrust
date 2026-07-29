@@ -28,7 +28,7 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 892 passing |
+| Rust tests | 890 passing |
 | Upstream dspy tests | 858 passing, 441 crossing into Rust, 529 deciding a signature |
 | Upstream files run | 51 of 86, every other one excused by name |
 | Strict-xfail backlog | 0 entries in `conftest.py` |
@@ -146,11 +146,11 @@ src/                the dsrust crate itself
   lm/               ChatModel/DynChatModel, call (request/response), cache (+disk),
                     usage, anthropic, ollama, openai, dummy
 crates/             the workspace members, each published on its own
-  derive/           #[derive(Signature)], #[derive(Module)], predict!, #[dsrust::main]
-  gepa/             the gepa engine reproduced, byte for byte (dsrust-gepa)
-  tpe/              optuna's TPE sampler reproduced (dsrust-tpe)
+  dsrust-derive/    #[derive(Signature)], #[derive(Module)], predict!, chain_of_thought!
+  dsrust-gepa/      the gepa engine reproduced, byte for byte
+  dsrust-tpe/       optuna's TPE sampler reproduced
   pyrng/            CPython's and numpy's RNGs reproduced
-  bridge/           the PyO3 harness; never published
+  dsrs-bridge/      the PyO3 harness; never published
 ```
 
 **Adapters share everything but three seams:** the structure block, the user trailer, and

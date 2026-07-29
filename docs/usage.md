@@ -11,11 +11,12 @@ dspy gives by having one `Predict` class and one `Signature` base.
 
 ```bash
 cargo add dsrust@0.1.0-alpha.2
+cargo add tokio
 ```
 
-One dependency. Asking a model is a network call, so every call is `async`. `#[dsrust::main]`
-starts the runtime, which is why tokio is not a second line. A program that already has tokio
-keeps `#[tokio::main]` and loses nothing.
+Asking a model is a network call, so every call is `async` and the program needs a runtime. Tokio
+is the only crate you add beside this one, with no feature flags: DsRust depends on tokio itself
+and asks for `macros` and `rt-multi-thread`, which cargo unifies into the caller's plain `tokio`.
 
 Every snippet below is a fragment. Here is one inside a whole program:
 
@@ -32,7 +33,7 @@ struct QA {
     answer: String,
 }
 
-#[dsrust::main]
+#[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     configure(LM::new("openai/gpt-4o-mini")?);   // reads OPENAI_API_KEY
 

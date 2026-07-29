@@ -8,7 +8,7 @@ readme = "../../README.md"
 authors = ["Tosin Amuda"]
 keywords = ["dspy", "llm", "prompt", "ai", "agents"]
 categories = ["science", "api-bindings"]
-exclude = ["/tests"]
+exclude = ["/tests", "/examples/trajectory.rs"]
 repository = "https://github.com/getlatentic/dsrust"
 
 [lib]
@@ -30,6 +30,9 @@ serde = { version = "1", features = ["derive"] }
 # preserve_order keeps schemas in pydantic's insertion order; sorting keys would break byte-conformance.
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.11.0"
+# A provider call runs on a reactor: reqwest needs one, and every entry point here is async. Naming
+# it makes the requirement explicit, and cargo's feature unification means a caller who writes a
+# bare `tokio = "1"` still gets the `macros` and `rt-multi-thread` their `#[tokio::main]` needs.
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tpe = { version = "0.1.0-alpha.1", path = "../dsrust-tpe", package = "dsrust-tpe" }
 tracing = "0.1"
@@ -37,5 +40,4 @@ unicode-general-category = "1.1.0"
 unicode-normalization = "0.1.25"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
