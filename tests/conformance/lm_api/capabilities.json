@@ -143,5 +143,43 @@
         false
       ]
     }
+  ],
+  "response_format": [
+    {
+      "model": "openai/gpt-4",
+      "supported": true
+    },
+    {
+      "model": "openai/gpt-3.5-turbo-16k",
+      "supported": true
+    },
+    {
+      "model": "openai/o1",
+      "supported": true
+    },
+    {
+      "model": "openai/a-model-litellm-has-never-heard-of",
+      "supported": true
+    },
+    {
+      "model": "anthropic/claude-2.1",
+      "supported": true
+    },
+    {
+      "model": "anthropic/claude-opus-4-1",
+      "supported": true
+    },
+    {
+      "model": "openrouter/openai/gpt-4o",
+      "supported": true
+    },
+    {
+      "model": "ollama/llama2",
+      "supported": true
+    },
+    {
+      "model": "ollama_chat/qwen2.5:7b-instruct",
+      "supported": true
+    }
   ]
 }

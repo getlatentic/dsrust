@@ -464,7 +464,7 @@
 "clients/base_lm.py::BaseLM.forward" = { status = "mapped", rust = "forward" }
 "clients/base_lm.py::BaseLM.inspect_history" = { status = "divergence", reason = "Python REPL history printing" }
 "clients/base_lm.py::BaseLM.load_state" = { status = "divergence", reason = "as `dump_state`" }
-"clients/base_lm.py::BaseLM.supported_params" = { status = "todo", reason = "which config keys a model accepts is not answered yet" }
+"clients/base_lm.py::BaseLM.supported_params" = { status = "divergence", reason = "dspy's only consumer is JSONAdapter checking whether response_format is in lm.supported_params, and that branch is unreachable here: litellm answers this per *provider* once a model carries a prefix, and `ModelRef` refuses anything but `provider/model-id`. `gpt-4` lacks it; `openai/gpt-4` has it, and only the second is a model this crate can hold. The premise is pinned by `tests/lm_capabilities.rs::every_model_this_crate_can_hold_takes_a_response_format`, so it cannot quietly stop being true. The other predicate that adapter reads, supports_response_schema, is on `Capabilities`" }
 "clients/base_lm.py::BaseLM.supports_function_calling" = { status = "mapped", rust = "capabilities" }
 "clients/base_lm.py::BaseLM.supports_reasoning" = { status = "mapped", rust = "capabilities" }
 "clients/base_lm.py::BaseLM.supports_response_schema" = { status = "mapped", rust = "capabilities" }
@@ -480,7 +480,7 @@
 "clients/lm.py::LM.launch" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
 "clients/lm.py::LM.load_state" = { status = "divergence", reason = "as `BaseLM.dump_state`" }
 "clients/lm.py::LM.reinforce" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
-"clients/lm.py::LM.supported_params" = { status = "todo", reason = "as `BaseLM.supported_params`" }
+"clients/lm.py::LM.supported_params" = { status = "divergence", reason = "dspy's only consumer is JSONAdapter checking whether response_format is in lm.supported_params, and that branch is unreachable here: litellm answers this per *provider* once a model carries a prefix, and `ModelRef` refuses anything but `provider/model-id`. `gpt-4` lacks it; `openai/gpt-4` has it, and only the second is a model this crate can hold. The premise is pinned by `tests/lm_capabilities.rs::every_model_this_crate_can_hold_takes_a_response_format`, so it cannot quietly stop being true. The other predicate that adapter reads, supports_response_schema, is on `Capabilities`" }
 "clients/lm.py::LM.supports_function_calling" = { status = "mapped", rust = "capabilities" }
 "clients/lm.py::LM.supports_reasoning" = { status = "mapped", rust = "capabilities" }
 "clients/lm.py::LM.supports_response_schema" = { status = "mapped", rust = "capabilities" }

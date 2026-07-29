@@ -49,6 +49,26 @@ FLAGS = ("supports_function_calling", "supports_reasoning", "supports_response_s
 #: litellm keeps a documentation template under this key rather than a model.
 TEMPLATE = "sample_spec"
 
+#: The one member of `supported_params` anything in dspy branches on: its JSONAdapter sends *no*
+#: `response_format` to a model whose `supported_params` lacks one, rather than falling back to
+#: JSON mode.
+#:
+#: It is recorded as a probe rather than a per-model flag because litellm answers it per
+#: *provider* once a model carries a prefix — `gpt-4` lacks it, `openai/gpt-4` has it — and
+#: `ModelRef` refuses anything but `provider/model-id`. So the answer is the same for every model
+#: this crate can hold, and what is worth pinning is that it stays that way.
+RESPONSE_FORMAT_PROBES = [
+    "openai/gpt-4",
+    "openai/gpt-3.5-turbo-16k",
+    "openai/o1",
+    "openai/a-model-litellm-has-never-heard-of",
+    "anthropic/claude-2.1",
+    "anthropic/claude-opus-4-1",
+    "openrouter/openai/gpt-4o",
+    "ollama/llama2",
+    "ollama_chat/qwen2.5:7b-instruct",
+]
+
 #: Model strings whose resolution the Rust lookup is held to. Spread across every provider this
 #: crate speaks, and deliberately including pairs that differ — a rule fitted to one member of a
 #: pair gets the other wrong.
@@ -93,6 +113,15 @@ def table() -> dict[str, list[bool]]:
     return dict(sorted(rows.items()))
 
 
+def takes_response_format(model: str) -> bool:
+    """Whether litellm credits `model` with a `response_format` parameter, asked as dspy asks."""
+    try:
+        params = litellm.get_supported_openai_params(model=model)
+    except Exception:
+        return False
+    return params is not None and "response_format" in params
+
+
 def probe(model: str) -> list[bool]:
     """litellm's own answers for one model string, asked exactly as dspy asks."""
     answers = []
@@ -126,6 +155,10 @@ def main() -> None:
                 "litellm_version": LITELLM,
                 "flags": list(FLAGS),
                 "cases": [{"model": model, "capabilities": probe(model)} for model in PROBES],
+            "response_format": [
+                {"model": model, "supported": takes_response_format(model)}
+                for model in RESPONSE_FORMAT_PROBES
+            ],
             },
             indent=2,
         )
