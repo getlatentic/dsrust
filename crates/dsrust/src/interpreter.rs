@@ -27,7 +27,7 @@ pub mod repl;
 pub mod sandbox;
 mod variables;
 
-pub use deno::{DenoInterpreter, Permissions};
+pub use deno::{DenoInterpreter, OutputField, Permissions};
 pub use repl::{ReplEntry, ReplHistory, ReplVariable};
 pub use sandbox::{SandboxSerializable, build_repl_variable};
 

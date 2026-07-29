@@ -11,6 +11,7 @@ orchestration, and everything above the wire stays dspy's own code rather than a
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 import json
 
@@ -284,6 +285,56 @@ class RustRLM(dspy.RLM):
         )
 
 
+#: The JSON-schema spelling of each Python type dspy's `SIMPLE_TYPES` covers. Anything else goes
+#: over without a type, which is upstream's own rule: an annotation it cannot write into a
+#: generated signature is dropped rather than guessed at.
+_SCHEMA_TYPES = {
+    str: "string",
+    int: "integer",
+    float: "number",
+    bool: "boolean",
+    list: "array",
+    dict: "object",
+    type(None): "null",
+}
+
+
+def _synchronous(fn):
+    """A tool the sandbox can call, whether or not the caller wrote it `async`.
+
+    Awaiting a Python coroutine is Python's job — upstream does it in `_await_in_sync` — so the
+    callable is wrapped here rather than making the Rust side reason about an event loop.
+    """
+    if not inspect.iscoroutinefunction(fn):
+        return fn
+
+    def awaited(**kwargs):
+        return asyncio.run(fn(**kwargs))
+
+    awaited.__signature__ = inspect.signature(fn)
+    return awaited
+
+
+def _tool_arguments(fn):
+    """One callable's arguments, in the shape `Tool::args` reads.
+
+    Reflection over a Python signature is Python's job; what the sandbox is *told* about it is the
+    crate's, in `interpreter::deno::register`. A default travels because it is what makes the
+    generated `def` optional.
+    """
+    described = {}
+    for name, parameter in inspect.signature(fn).parameters.items():
+        schema = {}
+        if parameter.annotation is not inspect.Parameter.empty:
+            spelled = _SCHEMA_TYPES.get(parameter.annotation)
+            if spelled is not None:
+                schema["type"] = spelled
+        if parameter.default is not inspect.Parameter.empty:
+            schema["default"] = parameter.default
+        described[name] = schema
+    return described
+
+
 class RustPythonInterpreter(dspy.primitives.python_interpreter.PythonInterpreter):
     """A `PythonInterpreter` whose `execute` is this crate's `DenoInterpreter`.
 
@@ -299,6 +350,11 @@ class RustPythonInterpreter(dspy.primitives.python_interpreter.PythonInterpreter
             read=[str(p) for p in (self.enable_read_paths or [])],
             write=[str(p) for p in (self.enable_write_paths or [])],
             network=[str(h) for h in (self.enable_network_access or [])],
+            tools=[
+                (name, json.dumps(_tool_arguments(fn)), _synchronous(fn))
+                for name, fn in (self.tools or {}).items()
+            ],
+            outputs=json.dumps(self.output_fields) if self.output_fields else None,
         )
 
     def execute(self, code, variables=None):

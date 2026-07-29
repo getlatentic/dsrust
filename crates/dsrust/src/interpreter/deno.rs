@@ -11,6 +11,7 @@
 //! whether it is there, so a program can say so itself rather than failing at the first ask.
 
 mod command;
+mod register;
 mod rpc;
 
 use std::process::{Child, Command, Stdio};
@@ -20,6 +21,7 @@ use anyhow::{Context, Result, bail};
 use serde_json::{Map, Value, json};
 
 pub use command::Permissions;
+pub use register::OutputField;
 
 use super::{CodeInterpreter, Executed};
 use crate::react::Tool;
@@ -39,12 +41,18 @@ pub struct DenoInterpreter {
     /// the child is inherently sequential — the same reason a `Tool` holding a subprocess does.
     session: Mutex<Option<Session>>,
     tools: Mutex<Vec<Arc<dyn Tool>>>,
+    /// dspy's `output_fields`: the names a typed `SUBMIT` takes. Empty leaves the sandbox on its
+    /// default single-argument one.
+    outputs: Mutex<Vec<OutputField>>,
 }
 
 /// One live child and the pipes to it.
 struct Session {
     child: Child,
     rpc: Rpc,
+    /// Whether this child has been told about the tools and outputs. A restart clears it with the
+    /// rest of the session, which is what replays the registration upstream replays.
+    registered: bool,
 }
 
 impl Default for DenoInterpreter {
@@ -66,7 +74,17 @@ impl DenoInterpreter {
             permissions,
             session: Mutex::new(None),
             tools: Mutex::new(Vec::new()),
+            outputs: Mutex::new(Vec::new()),
         }
+    }
+
+    /// The output fields a typed `SUBMIT` takes, in order — dspy's `output_fields`.
+    ///
+    /// `CodeAct` and `RLM` set this so the model calls `SUBMIT(answer=…, confidence=…)` rather
+    /// than passing one positional value; without it the sandbox keeps its single-argument default.
+    pub fn with_output_fields(self, outputs: impl IntoIterator<Item = OutputField>) -> Self {
+        *self.outputs.lock().expect("the output fields") = outputs.into_iter().collect();
+        self
     }
 
     /// Whether `deno` is on the path, so a program can refuse early and say why.
@@ -105,7 +123,27 @@ impl DenoInterpreter {
         *session = Some(Session {
             child,
             rpc: Rpc::new(writer, reader),
+            registered: false,
         });
+        Ok(())
+    }
+
+    /// Tell the sandbox about the tools and the shape of `SUBMIT`, once per child.
+    ///
+    /// `runner.js` writes a Python `def` per entry, so this has to happen before any code runs and
+    /// again after a restart — a new child knows nothing about either.
+    fn register(&self, session: &mut Session) -> Result<()> {
+        if session.registered {
+            return Ok(());
+        }
+        let tools = self.tools.lock().expect("the tool list").clone();
+        let outputs = self.outputs.lock().expect("the output fields").clone();
+        if let Some(params) = register::params(&tools, &outputs) {
+            let id = session.rpc.request("register", params)?;
+            let answer = session.rpc.receive("while registering tools and outputs")?;
+            rpc::answered(&answer, id, "while registering tools and outputs")?;
+        }
+        session.registered = true;
         Ok(())
     }
 
@@ -175,6 +213,7 @@ impl CodeInterpreter for DenoInterpreter {
         let mut session = self.session.lock().expect("the sandbox session");
         self.started(&mut session)?;
         let live = session.as_mut().expect("a session was started");
+        self.register(live)?;
         self.ask(live, &prepared)
     }
 

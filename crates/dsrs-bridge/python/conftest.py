@@ -96,46 +96,11 @@ dspy.adapters.base._provider_tool_call_to_tool_call_dict = _rust_provider_tool_c
 # A run may report xfails this list is empty of: dspy marks two of its own image cases xfail
 # inside the test body, for a gap upstream has rather than one this port has.
 NOT_YET_IMPLEMENTED = {
-    # the sandbox's host-callback tools are not wired through the bridge yet
-    "test_tool_all_positional_args": (
-        "the sandbox's host-callback tools are not wired through the bridge yet"
-    ),
-    "test_tool_async_def_function": (
-        "the sandbox's host-callback tools are not wired through the bridge yet"
-    ),
-    "test_tool_async_def_raises_propagates": (
-        "the sandbox's host-callback tools are not wired through the bridge yet"
-    ),
-    "test_tool_default_args": (
-        "the sandbox's host-callback tools are not wired through the bridge yet"
-    ),
-    "test_tool_error_surfaces_as_runtime_error": (
-        "the sandbox's host-callback tools are not wired through the bridge yet"
-    ),
-    "test_tool_keyword_args": (
-        "the sandbox's host-callback tools are not wired through the bridge yet"
-    ),
-    "test_tool_positional_args": (
-        "the sandbox's host-callback tools are not wired through the bridge yet"
-    ),
-    "test_tool_with_typed_signature": (
-        "the sandbox's host-callback tools are not wired through the bridge yet"
-    ),
+    # The restart itself works — `DenoInterpreter` notices a dead child and starts another, which
+    # re-registers. What this asserts on is `interpreter.deno_process.pid`, and the Rust sandbox
+    # owns its own child rather than dspy's, so there is no handle here to kill or compare.
     "test_tools_re_register_after_process_restart": (
-        "the sandbox's host-callback tools are not wired through the bridge yet"
-    ),
-    # a typed SUBMIT built from the signature's output fields
-    "test_submit_multi_output": (
-        "a typed SUBMIT built from the signature's output fields"
-    ),
-    "test_submit_positional_args": (
-        "a typed SUBMIT built from the signature's output fields"
-    ),
-    "test_submit_with_typed_signature": (
-        "a typed SUBMIT built from the signature's output fields"
-    ),
-    "test_submit_wrong_arg_count": (
-        "a typed SUBMIT built from the signature's output fields"
+        "the test kills dspy's own subprocess handle, which the Rust sandbox does not own"
     ),
     # file mounting and the write-back sync upstream does around a run
     "test_enable_read_paths_multiple_files": (

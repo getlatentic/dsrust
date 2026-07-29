@@ -36,14 +36,14 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 902
-upstream_tests_passing = 879
+rust_tests = 908
+upstream_tests_passing = 891
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
 # Gaps this port has declared, counted from conftest.py's NOT_YET_IMPLEMENTED. Not the same as the
 # xfails pytest reports: dspy marks two of its own image cases xfail for a gap upstream has.
-xfail_backlog = 23
-upstream_tests_xfailed = 25
+xfail_backlog = 11
+upstream_tests_xfailed = 13
 suites_run = 52
 release_stage = "alpha"
 
@@ -435,7 +435,7 @@ captures source at compile time.
 id = "s9"
 name = "The modules that run code"
 state = "planned"
-still_pending = "23 of upstream's 44 interpreter tests are declared gaps: tools, typed SUBMIT, file sync, large variables"
+still_pending = "11 declared gaps in the interpreter suite: file mounting with write-back, and the >100MB variable path"
 outcome = """
 A program can write code, run it in a sandbox, and use the result. The modules landed under r3 and
 RLM. The sandbox landed as `DenoInterpreter`: b7's decision built, with dspy's own `runner.js`
@@ -444,12 +444,12 @@ uses rather than a reimplementation of it. Five live tests cover printed output,
 variables, session state and a failure's wording.
 
 `tests/primitives/test_python_interpreter.py` runs against it now — the file is no longer excused,
-and `RustPythonInterpreter` replaces only `execute` so the rest stays dspy's own class. 21 of its 44
-pass on the sandbox and 38 crossings come from it. The remaining 23 are declared, in four groups
-that are features rather than divergences: the host-callback tools the sandboxed code calls into, a
-typed `SUBMIT` built from the signature's output fields, file mounting with the write-back sync
-around a run, and the >100MB variable path upstream injects through the filesystem. A fifth group
-is not a gap: a Python set or a nested tuple has no JSON form to cross as.
+and `RustPythonInterpreter` replaces only `execute` so the rest stays dspy's own class. 33 of its 44
+pass on the sandbox. The host-callback tools and the typed `SUBMIT` built from a signature's output
+fields both landed with it. The 11 declared are two features — file mounting with the write-back
+sync around a run, and the >100MB variable path upstream injects through the filesystem — plus
+three that are not gaps: a Python set or nested tuple has no JSON form to cross as, and one test
+kills dspy's own subprocess handle, which the Rust sandbox does not own.
 """
 suites = [
   "predict/test_program_of_thought.py", "predict/test_code_act.py", "predict/test_rlm.py",
