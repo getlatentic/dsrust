@@ -9,6 +9,7 @@
 //! the only things the renderer needs.
 
 mod code_modules;
+mod sandbox;
 
 use dsrust::adapter::Input;
 use dsrust::adapter::parse::FieldMismatch;
@@ -846,6 +847,7 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     module.add_function(wrap_pyfunction!(code_modules::responses_body, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::merge_usage, module)?)?;
+    module.add_class::<sandbox::RustSandbox>()?;
     module.add_function(wrap_pyfunction!(format_system_message, module)?)?;
     module.add_function(wrap_pyfunction!(baml_field_structure, module)?)?;
     module.add_function(wrap_pyfunction!(parse_reply, module)?)?;

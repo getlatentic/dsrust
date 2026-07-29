@@ -39,7 +39,7 @@ SUITES=(
   predict/test_multi_chain_comparison.py predict/test_aggregation.py
   predict/test_refine.py predict/test_best_of_n.py predict/test_parallel.py
   predict/test_rlm.py predict/test_program_of_thought.py predict/test_code_act.py
-  primitives/test_sandbox_serializable.py
+  primitives/test_sandbox_serializable.py primitives/test_python_interpreter.py
   evaluate/test_metrics.py evaluate/test_evaluate.py
   teleprompt/test_teleprompt.py teleprompt/test_copro_optimizer.py
   core/test_types.py clients/test_cache.py

@@ -32,6 +32,7 @@ from rust_module import (  # noqa: E402
     RustCodeAct,
     RustPredict,
     RustProgramOfThought,
+    RustPythonInterpreter,
     RustReAct,
     RustRLM,
 )
@@ -94,7 +95,82 @@ dspy.adapters.base._provider_tool_call_to_tool_call_dict = _rust_provider_tool_c
 #
 # A run may report xfails this list is empty of: dspy marks two of its own image cases xfail
 # inside the test body, for a gap upstream has rather than one this port has.
-NOT_YET_IMPLEMENTED = {}
+NOT_YET_IMPLEMENTED = {
+    # the sandbox's host-callback tools are not wired through the bridge yet
+    "test_tool_all_positional_args": (
+        "the sandbox's host-callback tools are not wired through the bridge yet"
+    ),
+    "test_tool_async_def_function": (
+        "the sandbox's host-callback tools are not wired through the bridge yet"
+    ),
+    "test_tool_async_def_raises_propagates": (
+        "the sandbox's host-callback tools are not wired through the bridge yet"
+    ),
+    "test_tool_default_args": (
+        "the sandbox's host-callback tools are not wired through the bridge yet"
+    ),
+    "test_tool_error_surfaces_as_runtime_error": (
+        "the sandbox's host-callback tools are not wired through the bridge yet"
+    ),
+    "test_tool_keyword_args": (
+        "the sandbox's host-callback tools are not wired through the bridge yet"
+    ),
+    "test_tool_positional_args": (
+        "the sandbox's host-callback tools are not wired through the bridge yet"
+    ),
+    "test_tool_with_typed_signature": (
+        "the sandbox's host-callback tools are not wired through the bridge yet"
+    ),
+    "test_tools_re_register_after_process_restart": (
+        "the sandbox's host-callback tools are not wired through the bridge yet"
+    ),
+    # a typed SUBMIT built from the signature's output fields
+    "test_submit_multi_output": (
+        "a typed SUBMIT built from the signature's output fields"
+    ),
+    "test_submit_positional_args": (
+        "a typed SUBMIT built from the signature's output fields"
+    ),
+    "test_submit_with_typed_signature": (
+        "a typed SUBMIT built from the signature's output fields"
+    ),
+    "test_submit_wrong_arg_count": (
+        "a typed SUBMIT built from the signature's output fields"
+    ),
+    # file mounting and the write-back sync upstream does around a run
+    "test_enable_read_paths_multiple_files": (
+        "file mounting and the write-back sync upstream does around a run"
+    ),
+    "test_enable_read_paths_symlink": (
+        "file mounting and the write-back sync upstream does around a run"
+    ),
+    "test_enable_write_flag": (
+        "file mounting and the write-back sync upstream does around a run"
+    ),
+    "test_mounts_replay_after_process_restart": (
+        "file mounting and the write-back sync upstream does around a run"
+    ),
+    "test_read_file_access_control": (
+        "file mounting and the write-back sync upstream does around a run"
+    ),
+    # the >100MB variable path, which upstream injects through the filesystem
+    "test_large_list_variable": (
+        "the >100MB variable path, which upstream injects through the filesystem"
+    ),
+    "test_multiple_large_variables": (
+        "the >100MB variable path, which upstream injects through the filesystem"
+    ),
+    # a Python value with no JSON form — a set, or a tuple nested inside one
+    "test_nested_sets_and_tuples": (
+        "a Python value with no JSON form — a set, or a tuple nested inside one"
+    ),
+    "test_serialize_set": (
+        "a Python value with no JSON form — a set, or a tuple nested inside one"
+    ),
+    "test_serialize_set_mixed_types": (
+        "a Python value with no JSON form — a set, or a tuple nested inside one"
+    ),
+}
 
 
 # Upstream tests that pass without the crate rendering or parsing anything, with the reason.
@@ -102,6 +178,15 @@ NOT_YET_IMPLEMENTED = {}
 # would read as green whatever this crate did. Naming them keeps the passing count honest, and
 # anything not named here must cross into Rust or the run fails.
 DOES_NOT_EXERCISE_RUST = {
+    # The interpreter's own constructor and its reflection over Python callables. These reach no
+    # sandbox at all: they assert on what `PythonInterpreter.__init__` stored and on what
+    # `inspect.signature` reports, both of which stay dspy's own code under the shim.
+    "test_deno_command_dict_raises_type_error": "the constructor's own type check",
+    "test_tools_dict_is_copied": "the constructor copying the tools dict",
+    "test_extract_parameters": "inspect.signature over a Python callable",
+    "test_extract_parameters_complex_types": "inspect.signature over a Python callable",
+    "test_small_variable_not_using_filesystem": "dspy's own `_pending_large_vars` bookkeeping",
+    "test_large_variable_threshold_boundary": "dspy's own `_pending_large_vars` bookkeeping",
     # dspy's optimizer reads its own constructor back; nothing is rendered.
     "test_bootstrap_initialization": "an optimizer's own constructor",
     # The student raises before a prompt exists, so no rendering is reached. The crate's own
@@ -753,6 +838,22 @@ def _use_rust_code_modules(request, monkeypatch):
     monkeypatch.setattr(dspy, name, rust)
     monkeypatch.setattr(path, rust, raising=False)
     monkeypatch.setattr(f"dspy.predict.{name}", rust, raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _rust_python_interpreter(monkeypatch, request):
+    """dspy's own interpreter suite, driving this crate's sandbox.
+
+    Scoped to that one file. A blanket swap would put the Rust sandbox under every module suite at
+    once, and those already run against dspy's interpreter on purpose — that is what proves the
+    modules, while this proves the sandbox.
+    """
+    if request.node.module.__name__ != "upstream_test_python_interpreter":
+        return
+    monkeypatch.setattr(request.node.module, "PythonInterpreter", RustPythonInterpreter)
+    monkeypatch.setattr(
+        "dspy.primitives.python_interpreter.PythonInterpreter", RustPythonInterpreter
+    )
 
 
 def _rust_answer_exact_match(example, pred, trace=None, frac=1.0):

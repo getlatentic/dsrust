@@ -15,8 +15,10 @@ import inspect
 import json
 
 import dspy
+import dspy.primitives.python_interpreter
 import pydantic
 from dspy.adapters.utils import format_field_value, parse_value
+from dspy.primitives.code_interpreter import CodeInterpreterError, FinalOutput
 
 import crossings
 import dsrs_bridge
@@ -280,3 +282,40 @@ class RustRLM(dspy.RLM):
                 for name, value in json.loads(output_json).items()
             }
         )
+
+
+class RustPythonInterpreter(dspy.primitives.python_interpreter.PythonInterpreter):
+    """A `PythonInterpreter` whose `execute` is this crate's `DenoInterpreter`.
+
+    Only that one method is replaced. Everything else — the constructor's grants, the context
+    manager, `__call__` — stays dspy's own code, so a test that reaches for `deno_process` or
+    `_inject_variables` is still testing Python and is declared as such.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._rust = dsrs_bridge.RustSandbox(
+            env=[str(v) for v in (self.enable_env_vars or [])],
+            read=[str(p) for p in (self.enable_read_paths or [])],
+            write=[str(p) for p in (self.enable_write_paths or [])],
+            network=[str(h) for h in (self.enable_network_access or [])],
+        )
+
+    def execute(self, code, variables=None):
+        crossings.record_render()
+        payload = json.dumps(variables or {})
+        try:
+            kind, value_json = self._rust.execute(code, payload)
+        except ValueError as error:
+            # anyhow has no class to cross as, so the crate's message — which is dspy's own
+            # wording — is what picks the exception here, exactly as the code modules do.
+            said = str(error)
+            if said.startswith("Invalid Python syntax"):
+                raise SyntaxError(said) from None
+            raise CodeInterpreterError(said) from None
+        value = json.loads(value_json)
+        return FinalOutput(value) if kind == "submitted" else value
+
+    def shutdown(self):
+        self._rust.shutdown()
+        super().shutdown()

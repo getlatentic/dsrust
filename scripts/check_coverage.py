@@ -55,7 +55,6 @@ EXCUSED = {
     "tests/clients/test_disk_serialization.py": "Python pickling policy",
     "tests/clients/test_inspect_global_history.py": "dspy's history printing",
     "tests/clients/test_lm_local.py": "launching a locally-served model",
-    "tests/primitives/test_python_interpreter.py": "upstream's Deno sandbox; the crate ships none",
     "tests/streaming/test_streaming.py": "dspy's streaming listeners over its own async plumbing",
     "tests/teleprompt/test_bootstrap_trace.py": "dspy's trace-collection helpers",
     "tests/teleprompt/test_utils.py": "dspy's optimizer helper functions",

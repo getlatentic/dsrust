@@ -37,14 +37,14 @@ updated = "2026-07-28"
 # behind while every generated number beside it stayed true.
 [status]
 rust_tests = 902
-upstream_tests_passing = 858
-upstream_tests_crossing = 441
+upstream_tests_passing = 879
+upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
 # Gaps this port has declared, counted from conftest.py's NOT_YET_IMPLEMENTED. Not the same as the
 # xfails pytest reports: dspy marks two of its own image cases xfail for a gap upstream has.
-xfail_backlog = 0
-upstream_tests_xfailed = 2
-suites_run = 51
+xfail_backlog = 23
+upstream_tests_xfailed = 25
+suites_run = 52
 release_stage = "alpha"
 
 # ---------------------------------------------------------------------------
@@ -435,7 +435,7 @@ captures source at compile time.
 id = "s9"
 name = "The modules that run code"
 state = "planned"
-still_pending = "upstream's 44 interpreter tests do not run against DenoInterpreter yet"
+still_pending = "23 of upstream's 44 interpreter tests are declared gaps: tools, typed SUBMIT, file sync, large variables"
 outcome = """
 A program can write code, run it in a sandbox, and use the result. The modules landed under r3 and
 RLM. The sandbox landed as `DenoInterpreter`: b7's decision built, with dspy's own `runner.js`
@@ -443,9 +443,13 @@ vendored and run unchanged under deno and pyodide, so generated code lands in th
 uses rather than a reimplementation of it. Five live tests cover printed output, `SUBMIT`, injected
 variables, session state and a failure's wording.
 
-What is outstanding is the conformance half. `tests/primitives/test_python_interpreter.py` is 44
-tests and still excused; running them against `DenoInterpreter` through the bridge is what turns
-"it runs Python" into "it agrees with dspy", and it is the only evidence that counts here.
+`tests/primitives/test_python_interpreter.py` runs against it now — the file is no longer excused,
+and `RustPythonInterpreter` replaces only `execute` so the rest stays dspy's own class. 21 of its 44
+pass on the sandbox and 38 crossings come from it. The remaining 23 are declared, in four groups
+that are features rather than divergences: the host-callback tools the sandboxed code calls into, a
+typed `SUBMIT` built from the signature's output fields, file mounting with the write-back sync
+around a run, and the >100MB variable path upstream injects through the filesystem. A fifth group
+is not a gap: a Python set or a nested tuple has no JSON form to cross as.
 """
 suites = [
   "predict/test_program_of_thought.py", "predict/test_code_act.py", "predict/test_rlm.py",
