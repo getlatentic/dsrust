@@ -1,6 +1,13 @@
 //! Items the derive macro expands into, referenced through `::dsrust::__macro_support::…`. Not a
 //! public API — hidden from docs and exempt from semver.
+//!
+//! The two crates below are re-exported because the derive builds companion structs of its own and
+//! has to derive `Serialize`/`Deserialize` on them. Naming `::serde` there would resolve in the
+//! *caller's* crate root, so a caller who depends only on `dsrust` could not use the derive at all
+//! — reported from a real project, and reproduced as a crate depending on nothing else.
 
+pub use serde;
+pub use serde_json;
 pub use serde_json::json;
 
 use core::marker::PhantomData;

@@ -32,3 +32,7 @@ cargo doc --no-deps
 
 echo "==> file sizes"
 ./scripts/file_sizes.py
+
+# Last, because it builds against the crate the gates above just proved. It is the only check here
+# that runs from outside the workspace, which is the only place a leaked dependency is visible.
+./scripts/check_external_consumer.sh

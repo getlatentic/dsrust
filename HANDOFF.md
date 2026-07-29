@@ -28,7 +28,7 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 888 passing |
+| Rust tests | 890 passing |
 | Upstream dspy tests | 858 passing, 441 crossing into Rust, 529 deciding a signature |
 | Upstream files run | 51 of 86, every other one excused by name |
 | Strict-xfail backlog | 0 entries in `conftest.py` |
@@ -45,7 +45,7 @@ reason; every sprint either names the suites that prove it or says why it has no
 Two scripts, both of which must pass. The second only runs in the main checkout.
 
 ```sh
-./scripts/run_rust_gates.sh     # cargo test, build, fmt, doc, and the file-size rule
+./scripts/run_rust_gates.sh     # cargo test, build, fmt, doc, file sizes, and an outside caller
 ```
 
 ```sh
@@ -64,7 +64,15 @@ cargo build --all-targets       # 0 warnings
 cargo fmt --check               # 0 diffs
 cargo doc --no-deps             # 0 warnings
 ./scripts/file_sizes.py         # no file over ~400 non-test lines
+./scripts/check_external_consumer.sh   # a crate depending on dsrust and nothing else
 ```
+
+The last one is the only check that runs from *outside* the workspace, and it exists because
+nothing inside can see what a caller sees: `extern crate self as dsrust` makes `::dsrust` resolve
+here, and every test in the repo already has serde and schemars. A derive expanding to
+`::serde::Serialize` therefore compiled in every test and broke for everyone else — reported from a
+real project, not found here. Warnings are failures in that crate, since the ones it catches land in
+the caller's own build.
 
 `.dspy-venv/` is gitignored and lives only in the main checkout, so **the upstream suite cannot
 run in a git worktree.** An agent working in one cannot verify it. Run it after merging.

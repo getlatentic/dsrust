@@ -10,10 +10,34 @@ pub fn expand(model: &Model) -> TokenStream {
     let companions = companions(model);
     let spec = spec_impl(model);
     let constructors = constructor_impl(model);
+    let declared = fields_are_read(model);
     quote! {
         #companions
         #spec
         #constructors
+        #declared
+    }
+}
+
+/// A declared signature is a *declaration*: a caller writes the struct to state the task and then
+/// never constructs it — `predict!(Task { … })` builds the generated `TaskInputs` instead. So every
+/// field of every signature warns as dead code, in the caller's own crate, for writing the thing
+/// the derive asked them to write. Reading each field once here is what makes the declaration count
+/// as the use it is.
+fn fields_are_read(model: &Model) -> TokenStream {
+    let name = &model.name;
+    let idents = model
+        .inputs
+        .iter()
+        .chain(&model.outputs)
+        .map(|field| &field.ident);
+    quote! {
+        const _: () = {
+            #[allow(dead_code)]
+            fn declared_fields_are_used(declared: &#name) {
+                #( let _ = &declared.#idents; )*
+            }
+        };
     }
 }
 
@@ -44,13 +68,24 @@ fn companions(model: &Model) -> TokenStream {
     let outputs_name = format_ident!("{}Outputs", model.name);
     let input_fields = model.inputs.iter().map(|f| companion_field(vis, f));
     let output_fields = model.outputs.iter().map(|f| companion_field(vis, f));
+    // Through the library's own re-export, not `::serde`: these are structs this macro writes, and
+    // `::serde` would resolve in the caller's crate root — so a caller depending only on `dsrust`
+    // could not use the derive. `serde(crate = …)` is what points the derived code at the same
+    // re-export for its runtime.
     quote! {
-        #[derive(Debug, Clone, ::serde::Serialize)]
+        #[derive(Debug, Clone, ::dsrust::__macro_support::serde::Serialize)]
+        #[serde(crate = "::dsrust::__macro_support::serde")]
         #vis struct #inputs_name {
             #( #input_fields, )*
         }
 
-        #[derive(Debug, Clone, ::serde::Serialize, ::serde::Deserialize)]
+        #[derive(
+            Debug,
+            Clone,
+            ::dsrust::__macro_support::serde::Serialize,
+            ::dsrust::__macro_support::serde::Deserialize,
+        )]
+        #[serde(crate = "::dsrust::__macro_support::serde")]
         #vis struct #outputs_name {
             #( #output_fields, )*
         }
@@ -101,7 +136,7 @@ fn spec_impl(model: &Model) -> TokenStream {
 fn pair_value(field: &Field) -> TokenStream {
     let ident = &field.ident;
     let message = format!("input `{ident}` must serialize to JSON");
-    quote! { ::serde_json::to_value(&inputs.#ident).expect(#message) }
+    quote! { ::dsrust::__macro_support::serde_json::to_value(&inputs.#ident).expect(#message) }
 }
 
 /// One input as the adapters receive it, carrying whether it came from one of the caller's own
@@ -237,5 +272,100 @@ fn out_field(field: &Field) -> TokenStream {
             schema: #schema,
             ..::std::default::Default::default()
         }
+    }
+}
+
+/// A caller's `Cargo.toml` is the derive's real interface: whatever crate the expansion names has
+/// to be one they already depend on. Reported from a real project — a crate depending on `dsrust`
+/// alone could not use the derive at all, because the companion structs derived `::serde::…`,
+/// which resolves in *their* crate root.
+#[cfg(test)]
+mod tests {
+    use crate::parse::model;
+    use syn::parse_quote;
+
+    /// The crates the expansion may name. `dsrust` is the library itself and `std`/`core` are the
+    /// language; anything else is a dependency the derive would be silently demanding.
+    const OWED: [&str; 3] = ["dsrust", "std", "core"];
+
+    fn expanded(item: syn::DeriveInput) -> String {
+        super::expand(&model(&item).expect("parses")).to_string()
+    }
+
+    /// Every leading `::name` in the expansion, which is the shape that resolves at a crate root.
+    fn crates_named(expansion: &str) -> Vec<String> {
+        let mut named = Vec::new();
+        for at in expansion.match_indices(":: ").map(|(at, _)| at) {
+            let before = expansion[..at].trim_end();
+            // A leading `::` is one not preceded by an identifier — `::serde`, never `foo :: bar`.
+            if before.ends_with(':') || before.chars().next_back().is_some_and(is_pathish) {
+                continue;
+            }
+            let rest = expansion[at + 3..].trim_start();
+            let name: String = rest
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            if !name.is_empty() && !named.contains(&name) {
+                named.push(name);
+            }
+        }
+        named
+    }
+
+    fn is_pathish(character: char) -> bool {
+        character.is_alphanumeric() || character == '_' || character == '>'
+    }
+
+    #[test]
+    fn the_expansion_names_no_crate_a_caller_does_not_already_have() {
+        let expansion = expanded(parse_quote! {
+            #[signature(instructions = "Do the task.")]
+            struct Task {
+                #[input]
+                text: String,
+                #[input]
+                count: u32,
+                #[output]
+                answer: String,
+                #[output]
+                steps: Vec<String>,
+            }
+        });
+        let named = crates_named(&expansion);
+        assert!(
+            named.contains(&"dsrust".to_owned()),
+            "the library itself is named: {named:?}"
+        );
+        let owed: Vec<&String> = named
+            .iter()
+            .filter(|name| !OWED.contains(&name.as_str()))
+            .collect();
+        assert!(
+            owed.is_empty(),
+            "the expansion demands {owed:?} of the caller; go through ::dsrust::__macro_support"
+        );
+    }
+
+    /// serde's derive needs telling where its runtime lives, or the code *it* generates names
+    /// `::serde` itself and the leak reopens one level down.
+    #[test]
+    fn the_companions_point_serde_at_the_re_export() {
+        let expansion = expanded(parse_quote! {
+            #[signature(instructions = "Do the task.")]
+            struct Task {
+                #[input]
+                text: String,
+                #[output]
+                answer: String,
+            }
+        });
+        assert_eq!(
+            expansion
+                .matches("crate = \"::dsrust::__macro_support::serde\"")
+                .count(),
+            2,
+            "both companion structs say where serde is: {expansion}"
+        );
     }
 }
