@@ -47,7 +47,13 @@ EXCUSED = {
     "tests/utils/test_annotation.py": "Python decorators",
     "tests/utils/test_unbatchify.py": "a Python batching helper",
     "tests/utils/test_langchain_tool.py": "a LangChain adapter",
-    "tests/callback/test_callback.py": "dspy's Python callback protocol",
+    "tests/callback/test_callback.py": (
+        "dspy's callback protocol is a BaseCallback subclass registered through "
+        "dspy.configure(callbacks=[...]); all six of its points exist here as tracing spans "
+        "(src/observe.rs) and are held by tests/observe.rs, but a subscriber is not that protocol "
+        "and these tests assert against it. Whether the protocol itself should be ported as a trait "
+        "is the callback-trait story — if it is, this file runs"
+    ),
     # The taxonomy stayed small on purpose: upstream branches on error *identity* in one place,
     # and that one — ContextWindowExceeded, which ReAct catches to truncate — is built and tested.
     # What this file tests is the other ~17 classes existing, which is Python's class hierarchy.
@@ -74,7 +80,11 @@ EXCUSED = {
     "tests/examples/test_baleen.py": "an end-to-end example needing a live retriever",
     "tests/reliability/test_generated.py": "upstream's generated reliability corpus",
     "tests/reliability/test_pydantic_models.py": "upstream's reliability corpus",
-    "tests/predict/test_retry.py": "dspy's retry wrapper over litellm",
+    "tests/predict/test_retry.py": (
+        "nothing to run: every test in the file is commented out upstream, since dspy.Retry and "
+        "dspy.primitives.assertions were removed. Not a feature this crate skips — the retry it "
+        "names is ported (src/lm/retry.rs) and held by tests/lm_retry.rs"
+    ),
 }
 
 

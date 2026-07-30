@@ -268,6 +268,59 @@ the provider contract untouched.
 """
 
 [[story]]
+id = "callback-trait"
+sprint = "api"
+title = "BaseCallback is a base class with no-op methods, which is a Rust trait, and spans were chosen without weighing it"
+state = "todo"
+size = "M"
+suites = ["tests/callback/test_callback.py"]
+plan = """
+`lm-callbacks` shipped all six of dspy's points as `tracing` spans, and the reasoning it inherited
+was "the Rust shape is `tracing` rather than a callback list". That was never argued against the
+obvious alternative, and the alternative is close to a transcription:
+
+    class MyCallback(BaseCallback):
+        def on_module_start(self, call_id, instance, inputs): ...
+        def on_lm_end(self, call_id, outputs, exception): ...
+
+    dspy.configure(callbacks=[MyCallback()])
+
+is, in Rust,
+
+    pub trait Callback: Send + Sync {
+        fn on_module_start(&self, call_id: &str, kind: &str, inputs: &Example) {}
+        fn on_module_end(&self, call_id: &str, outputs: Option<&Prediction>, error: Option<&Error>) {}
+        // …ten more, all defaulted
+    }
+
+    configure_callbacks(vec![Arc::new(MyCallback::default())]);
+
+A base class whose methods are no-ops *is* a trait with defaulted methods. There is no impedance
+here to justify a different shape.
+
+What the spans genuinely buy, and it is not nothing: a span carries the call id, the parent linkage,
+the start and the end at once, where upstream needs a uuid plus a context variable plus paired
+handlers; a subscriber cannot mutate what it is shown, which upstream's own documentation warns
+readers not to do; and a broken subscriber cannot break the run, which upstream needs a `try/except`
+around every handler to guarantee.
+
+**But these are not exclusive, and that is the point this story exists to act on.** The trait can be
+the API and a built-in implementation of it can emit the spans. Then `dspy.configure(callbacks=[…])`
+has a real counterpart, `tests/callback/test_callback.py` — 8 tests, currently excused as "dspy's
+Python callback protocol" — can run, and nothing that exists today is lost.
+
+The six call sites already exist and are held by `tests/observe.rs`; what changes is that each fires
+a dispatch list as well as opening a span. The nesting a span gives free would have to be carried
+explicitly for the callback path, which is what upstream's `ACTIVE_CALL_ID` does and what
+`utils/callback_context.py` on main is refining — see the ledger note beside the ambient-configuration
+section.
+
+**What proves it.** `tests/callback/test_callback.py` runs, and its 8 tests arrive as a failure list
+to triage. That is the honest measure of whether the trait is really a transcription, since the tests
+assert on handler order and on what each handler is passed.
+"""
+
+[[story]]
 id = "lm-context"
 sprint = "api"
 title = "dspy.context scopes a model to a block; nothing here does"
