@@ -4,12 +4,14 @@ pub mod builder;
 pub mod cache;
 mod call;
 mod capabilities;
+mod dispatch;
 pub mod dummy;
 mod error;
 pub mod global;
 mod model;
 mod ollama;
 pub mod openai;
+pub mod retry;
 mod routing;
 mod streaming;
 mod token_limit;
@@ -19,7 +21,6 @@ pub mod usage;
 use std::time::Duration;
 
 use anyhow::Result;
-use futures_util::Stream;
 
 pub use api::{Content, Detail, LmPart, LmSource};
 pub use builder::LmBuilder;
@@ -32,6 +33,7 @@ pub use model::{ChatModel, DynChatModel};
 pub use openai::{
     DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig, OpenAiWire,
 };
+pub use retry::Retry;
 pub use routing::{ModelRef, Provider};
 pub use token_limit::{TokenLimitField, TokenLimitRule};
 pub use turn::{ChatTurn, OutputMode, Role};
@@ -62,15 +64,18 @@ pub struct LM {
     /// wants none, so this is normally unset.
     pub ollama_api_key: Option<String>,
     pub openai: OpenAiConfig,
+    /// dspy's `lm.kwargs`: what `dspy.LM(model, temperature=…, max_tokens=…)` keeps on the
+    /// instance and merges beneath every call. A module's own config overrides it field by field.
+    pub config: api::LmConfig,
     /// Whether a repeated request is replayed from [`cache::shared`] rather than paid for again.
     ///
     /// dspy's `LM(cache=True)`, on for the same reason: a program asked the same thing twice
     /// almost never means to buy the answer twice, and every retry-shaped module depends on
     /// `rollout_id` having a cache to miss. [`Self::with_cache`] turns it off.
-    /// dspy's `lm.kwargs`: what `dspy.LM(model, temperature=…, max_tokens=…)` keeps on the
-    /// instance and merges beneath every call. A module's own config overrides it field by field.
-    pub config: api::LmConfig,
     pub cache: bool,
+    /// How many times a transiently failing call is asked, dspy's `LM(num_retries=3)`. See
+    /// [`retry`].
+    pub retry: Retry,
     /// How long any one call to this model may take. See [`Self::with_timeout`].
     pub timeout: Duration,
     /// What this model can be asked for natively, where the caller has stated it rather than
@@ -96,17 +101,12 @@ impl LM {
             ollama_api_key: env_nonempty("OLLAMA_API_KEY"),
             openai: OpenAiConfig::from_env(),
             cache: true,
+            retry: Retry::default(),
             timeout: DEFAULT_PROVIDER_TIMEOUT,
             capabilities: None,
         })
     }
 
-    /// How long any one call to this model may take, replacing
-    /// [`DEFAULT_PROVIDER_TIMEOUT`]. dspy's `LM(..., timeout=…)`, which litellm applies the same
-    /// way: to the whole request rather than to the idle gaps within it.
-    ///
-    /// Raise it for a local model reading a long prompt — the cost of a low bound is a call that
-    /// would have answered being abandoned, not a slow one being made faster.
     /// Build a model, naming the required part first.
     ///
     /// dspy's own signature is `LM(model, temperature=None, max_tokens=None, …)`: one required
@@ -133,8 +133,21 @@ impl LM {
         }
     }
 
+    /// How long any one call to this model may take, replacing [`DEFAULT_PROVIDER_TIMEOUT`]. dspy's
+    /// `LM(..., timeout=…)`, which litellm applies the same way: to the whole request rather than to
+    /// the idle gaps within it.
+    ///
+    /// Raise it for a local model reading a long prompt — the cost of a low bound is a call that
+    /// would have answered being abandoned, not a slow one being made faster.
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
+        self
+    }
+
+    /// How many times a transiently failing call is asked before the failure is handed back — dspy's
+    /// `LM(num_retries=3)`, counting asks rather than retries. See [`retry`].
+    pub fn with_retry(mut self, retry: Retry) -> Self {
+        self.retry = retry;
         self
     }
 
@@ -226,192 +239,6 @@ impl LM {
 /// An unset variable and an empty one mean the same thing: not configured.
 fn env_nonempty(key: &str) -> Option<String> {
     std::env::var(key).ok().filter(|value| !value.is_empty())
-}
-
-impl ChatModel for LM {
-    async fn forward(
-        &self,
-        http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<api::LmResponse> {
-        // dspy's `kwargs = {**self.kwargs, **kwargs}`, and in the same place: the LM applies its
-        // own settings, so every caller inherits them without having to know they exist. Before
-        // the cache key is taken, since two calls differing only in an inherited setting are two
-        // different requests.
-        let request = &self.with_defaults(request);
-        if !self.cache {
-            let answered = self.ask_provider(http, request).await?;
-            usage::record(&self.model.id, answered.spend());
-            return Ok(answered);
-        }
-        let key = request.cache_key(&self.model.id);
-        if let Some(replayed) = cache::shared().replay(&key) {
-            return Ok(replayed);
-        }
-        let answered = self.ask_provider(http, request).await?;
-        usage::record(&self.model.id, answered.spend());
-        cache::shared().keep(key, answered.clone());
-        Ok(answered)
-    }
-
-    /// What this model's provider will honour natively: what the caller stated, else the registry
-    /// dspy consults, else — for an ollama model the registry does not list — the server itself.
-    fn capabilities<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-    ) -> impl Future<Output = Capabilities> + Send + 'a {
-        async move {
-            if let Some(stated) = self.capabilities {
-                return stated;
-            }
-            match self.model.provider {
-                // The `/api/generate` wire cannot carry a native tool call — litellm renders tools
-                // into the prompt on this route rather than sending them — so this configured LM
-                // has no native feature to offer, whatever the registry says about the model.
-                Provider::Ollama => Capabilities::default(),
-                // The chat route can. litellm keeps ollama's rows under an `ollama/` key and falls
-                // through to the server for a model it does not list; so does this.
-                Provider::OllamaChat => Capabilities::listed(&format!("ollama/{}", self.model.id))
-                    .unwrap_or(
-                        ollama::capabilities(
-                            http,
-                            &self.ollama_host,
-                            self.ollama_api_key.as_deref(),
-                            self.timeout,
-                            &self.model.id,
-                        )
-                        .await,
-                    ),
-                _ => Capabilities::listed(&self.model.reference()).unwrap_or_default(),
-            }
-        }
-    }
-
-    /// dspy `Reasoning.adapt_to_native_lm_feature`'s caveat: `"gpt-5" in lm.model and lm.model_type
-    /// == "chat"`. The chat-completions route is [`OpenAiWire::Chat`] for a compatible endpoint and
-    /// the only route OpenRouter speaks; the Responses API, and every non-OpenAI provider, is
-    /// unaffected.
-    fn native_reasoning_usable(&self) -> bool {
-        let on_chat_completions = match self.model.provider {
-            Provider::OpenAiCompatible => matches!(self.openai.wire, OpenAiWire::Chat),
-            Provider::OpenRouter => true,
-            _ => false,
-        };
-        !(on_chat_completions && self.model.id.contains("gpt-5"))
-    }
-}
-
-impl LM {
-    /// The typed streaming boundary — dspy's stream of `LMStreamEvent`s.
-    ///
-    /// An OpenAI-shaped service streams real Server-Sent Events; a provider that does not stream
-    /// answers once, and its reply is handed back as the events it would have arrived as, so a
-    /// caller consuming a stream need not know which kind it asked. Streaming bypasses the
-    /// response cache, as upstream's does — a stream is not a value to store and replay.
-    ///
-    /// The boxed stream is the same factory the non-streaming dispatch is: the arms return
-    /// different stream types, and a `dyn Stream` is what makes them one return type.
-    pub fn forward_stream<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-        request: &'a api::LmRequest,
-    ) -> std::pin::Pin<Box<dyn Stream<Item = Result<api::LmStreamEvent>> + Send + 'a>> {
-        match self.model.provider {
-            // `Endpoint::stream` already boxes — it picks the chat or Responses wire, whose stream
-            // types differ — so these arms hand its stream straight back rather than box it again.
-            Provider::OpenAiCompatible => {
-                openai::Endpoint::configured(&self.model.id, &self.openai, self.timeout)
-                    .stream(http, request)
-            }
-            Provider::OpenRouter => openai::Endpoint::openrouter(
-                &self.model.id,
-                self.openrouter_api_key.as_deref(),
-                self.timeout,
-            )
-            .stream(http, request),
-            Provider::Anthropic => Box::pin(anthropic::stream(
-                http,
-                &self.model.id,
-                self.anthropic_api_key.as_deref(),
-                self.timeout,
-                request,
-            )),
-            Provider::Ollama => Box::pin(ollama::generate_stream(
-                http,
-                &self.model.id,
-                &self.ollama_host,
-                self.ollama_api_key.as_deref(),
-                self.timeout,
-                request,
-            )),
-            Provider::OllamaChat => Box::pin(ollama::chat_stream(
-                http,
-                &self.model.id,
-                &self.ollama_host,
-                self.ollama_api_key.as_deref(),
-                self.timeout,
-                request,
-            )),
-        }
-    }
-
-    /// The call itself, on whichever wire format this model's provider speaks.
-    async fn ask_provider(
-        &self,
-        http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<api::LmResponse> {
-        // Every arm resolves the model reference and this LM's credentials into a provider — each
-        // its own [`ChatModel`] — then makes the one uniform call. The match is the factory that
-        // maps a model string to its provider, which is inherent: dspy does the same in
-        // `infer_provider`, and litellm does it inside its own dispatch. The trait is what makes
-        // the four interchangeable, and a caller's own provider indistinguishable from these.
-        match self.model.provider {
-            Provider::Anthropic => {
-                anthropic::Anthropic {
-                    model: &self.model.id,
-                    api_key: self.anthropic_api_key.as_deref(),
-                    timeout: self.timeout,
-                }
-                .forward(http, request)
-                .await
-            }
-            Provider::OpenRouter => {
-                openai::Endpoint::openrouter(
-                    &self.model.id,
-                    self.openrouter_api_key.as_deref(),
-                    self.timeout,
-                )
-                .forward(http, request)
-                .await
-            }
-            Provider::OpenAiCompatible => {
-                openai::Endpoint::configured(&self.model.id, &self.openai, self.timeout)
-                    .forward(http, request)
-                    .await
-            }
-            Provider::Ollama => {
-                ollama::Generate {
-                    api_key: self.ollama_api_key.as_deref(),
-                    model: &self.model.id,
-                    host: &self.ollama_host,
-                    timeout: self.timeout,
-                }
-                .forward(http, request)
-                .await
-            }
-            Provider::OllamaChat => {
-                ollama::Chat {
-                    api_key: self.ollama_api_key.as_deref(),
-                    model: &self.model.id,
-                    host: &self.ollama_host,
-                    timeout: self.timeout,
-                }
-                .forward(http, request)
-                .await
-            }
-        }
-    }
 }
 
 #[cfg(test)]

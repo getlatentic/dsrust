@@ -575,7 +575,7 @@
 "clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "with_max_tokens", reason = "LM::with_max_tokens" }
 "clients/base_lm.py::BaseLM.model" = { status = "mapped", rust = "LM", reason = "LM::new, positional" }
 "clients/base_lm.py::BaseLM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "the wire enum LM routes on" }
-"clients/base_lm.py::BaseLM.num_retries" = { status = "todo", reason = "as clients/lm.py: dspy's default is 3 retries with backoff, and there is no loop here" }
+"clients/base_lm.py::BaseLM.num_retries" = { status = "mapped", rust = "with_retry", reason = "LM::with_retry / LmBuilder::num_retries; the policy itself is lm::Retry" }
 "clients/base_lm.py::BaseLM.temperature" = { status = "mapped", rust = "with_temperature", reason = "LM::with_temperature" }
 "clients/cache.py::Cache.disk_cache_dir" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new's root" }
 "clients/cache.py::Cache.disk_size_limit_bytes" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new takes the byte ceiling as its second argument" }
@@ -591,7 +591,7 @@
 "clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "with_max_tokens", reason = "LM::with_max_tokens / LmBuilder::max_tokens" }
 "clients/lm.py::LM.model" = { status = "mapped", rust = "new", reason = "LM::new / LM::builder, positional" }
 "clients/lm.py::LM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "OpenAiWire / ModelRef routing decides chat vs responses" }
-"clients/lm.py::LM.num_retries" = { status = "todo", reason = "dspy retries a transient failure 3 times with exponential backoff by default; this crate retries zero times and hands the caller LmFailure::is_retryable, so a program moving from Python silently loses the retry" }
+"clients/lm.py::LM.num_retries" = { status = "mapped", rust = "with_retry", reason = "LM::with_retry / LmBuilder::num_retries; three asks and two retries, as upstream's stop_after_attempt counts" }
 "clients/lm.py::LM.provider" = { status = "todo", reason = "dspy's `provider=` overrides the inference the model prefix would give; the prefix is the only route here" }
 "clients/lm.py::LM.temperature" = { status = "mapped", rust = "with_temperature", reason = "LM::with_temperature / LmBuilder::temperature" }
 "clients/lm.py::LM.train_kwargs" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }

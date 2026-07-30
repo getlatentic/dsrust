@@ -1,14 +1,16 @@
-//! Every way a task can be declared and asked, so the shapes in the README are ones that compile.
+//! Every way a task can be declared and asked, *run* against a scripted model.
 //!
 //! Two ways to declare a signature (field names in a string, or a struct), two modules that ask
 //! it (`Predict`, `ChainOfThought`), and both the long spelling and the macro. A change that
 //! makes one of them read differently fails here rather than in someone's editor.
+//!
+//! Whether the guides say the same thing is `scripts/check_docs.py`'s job: it compiles their blocks
+//! as written. This file answers the other half — that a shape does what the page says it does.
 
 use std::sync::Arc;
 
 use dsrust::{
     Ask, ChainOfThought, DummyLM, Forward, Module, Predict, Signature, call, example, input,
-    predict,
 };
 
 /// One in, one out.

@@ -51,6 +51,7 @@ impl ChatModel for Generate<'_> {
                     crate::lm::LmFailure::from_transport(&error, self.model, "ollama")
                 })?;
             let status = response.status();
+            let headers = response.headers().clone();
             let body: Value = response
                 .json()
                 .await
@@ -65,6 +66,7 @@ impl ChatModel for Generate<'_> {
                     crate::lm::LmFailure::from_status(status.as_u16(), refusal(&body))
                         .on_model(self.model)
                         .from_provider("ollama")
+                        .with_headers(&headers)
                         .into(),
                 );
             }

@@ -31,9 +31,10 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 [workspace]
 EOF
 
-# The program README.md and docs/usage.md both open with, so the dependency list they print is the
-# one that compiles rather than the one someone remembered. It never reaches a provider — building
-# a module makes no call — so this stays a build with no network in it.
+# What the guides themselves say is `scripts/check_docs.py`'s job: it extracts their blocks and
+# compiles them, so no transcription can drift. This program is the part a guide does not print — a
+# derived signature *run* rather than type-checked, and a non-scalar output field, which is where a
+# caller would otherwise owe `schemars`. It never reaches a provider, so there is no network in it.
 cat > "$WORK/src/main.rs" <<'EOF'
 use dsrust::lm::{LM, configure};
 use dsrust::signature::SignatureSpec;

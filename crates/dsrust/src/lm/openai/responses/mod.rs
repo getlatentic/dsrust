@@ -251,13 +251,18 @@ pub(super) fn reply(
     label: &str,
     model: &str,
     status: reqwest::StatusCode,
+    headers: &reqwest::header::HeaderMap,
     body: &Value,
 ) -> Result<api::LmResponse> {
     if !status.is_success() {
         if let Some(too_long) = crate::lm::ContextWindowExceeded::detected(model, body) {
             return Err(too_long.into());
         }
-        return Err(crate::lm::LmFailure::from_body(status.as_u16(), model, label, body).into());
+        return Err(
+            crate::lm::LmFailure::from_body(status.as_u16(), model, label, body)
+                .with_headers(headers)
+                .into(),
+        );
     }
     let response = responses_to_lm_response(body, model);
     if response

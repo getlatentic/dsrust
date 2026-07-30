@@ -1,7 +1,9 @@
 # Declaring a task, and asking it
 
-Every Rust shape here is compiled and run by [`crates/dsrust/tests/every_spelling.rs`](../crates/dsrust/tests/every_spelling.rs).
-If one of them stops being true, that test fails rather than this page quietly going stale.
+Every Rust block on this page is extracted and compiled by
+[`scripts/check_docs.py`](../scripts/check_docs.py), from a crate outside this repository with only
+the two dependencies named below. [`crates/dsrust/tests/every_spelling.rs`](../crates/dsrust/tests/every_spelling.rs)
+then *runs* the shapes against a scripted model. So a page that goes stale fails a gate.
 
 A task is declared one of two ways — its field names in a string, or a struct — and asked by one
 of two modules. Both declarations produce the same type and are asked the same way, which is what
@@ -23,7 +25,7 @@ Every snippet below is a fragment. Here is one inside a whole program:
 
 ```rust
 use dsrust::lm::{LM, configure};
-use dsrust::{Signature, call, predict};
+use dsrust::{Predict, Signature, call};
 
 #[derive(Signature)]
 /// Answer the question.
@@ -97,7 +99,7 @@ out.answer
 let signature: Signature = "question -> answer".parse()?;
 let qa = Predict::from_signature(signature);
 let out = qa.forward(input! { question: "capital of France?" }).await?;
-out.get("answer").unwrap()
+let answer = out.get("answer").unwrap();
 
 // the short way
 let qa = Predict!("question -> answer");
@@ -155,12 +157,12 @@ out.answer
 // the whole way — the task's own inputs struct in, its own outputs struct back
 let qa = Predict::<QA>::new();
 let out = qa.call_inputs(&QAInputs { question: "capital of France?".into() }).await?;
-out.answer
+let answer = out.answer;
 
 // the short way — the same spelling a string signature is asked with
 let qa = Predict!(QA);
 let out = call!(qa, question = "capital of France?").await?;
-out.answer
+let answer = out.answer;
 ```
 
 `out.answer` rather than a lookup: a derived task knows its outputs, so the field is checked when
@@ -240,6 +242,15 @@ struct Outline {
     write: Predict,
 }
 
+impl Outline {
+    fn new() -> Self {
+        Self {
+            plan: Predict!("subject -> angle"),
+            write: Predict!("angle -> haiku"),
+        }
+    }
+}
+
 impl Forward for Outline {
     async fn forward(&self, inputs: Example) -> Result<Prediction> {
         let angle = self.plan.forward(inputs).await?;
@@ -306,7 +317,7 @@ struct MyProvider {
 impl ChatModel for MyProvider {
     fn forward<'a>(
         &'a self,
-        http: &'a reqwest::Client,
+        http: &'a dsrust::reqwest::Client,
         request: &'a dsrust::lm::api::LmRequest,
     ) -> impl Future<Output = Result<dsrust::lm::api::LmResponse>> + Send + 'a {
         async move {
@@ -359,15 +370,28 @@ LM::builder("openai/gpt-4o-mini").cache(false).build()?
 DSRS_CACHEDIR=$(mktemp -d) cargo run    # or a throwaway directory
 ```
 
+### A transient failure is asked again
+
+A rate limit or a 5xx is retried before you see it — DSPy's `LM(num_retries=3)`, which counts *asks*
+rather than retries, so the default is three asks and two retries. A rate limit backs off 1s then 2s
+(and honours `Retry-After` when the provider sends one); anything else is asked again immediately.
+
+```rust
+LM::builder("openai/gpt-4o-mini").num_retries(5).build()?   // or 1, to never ask twice
+```
+
+Only the four kinds DSPy 3.3 calls retryable are asked again — rate limit, timeout, server,
+transport. A rejected key or a malformed request fails the same way twice, so it comes straight back.
+
 ### When a call fails
 
-Provider failures arrive as a typed `LmFailure`, DSPy 3.3's normalized LM errors:
+What survives the retry arrives as a typed `LmFailure`, DSPy 3.3's normalized LM errors:
 
 ```rust
 match extractor.forward(inputs).await {
     Ok(out) => …,
     Err(error) => match error.downcast_ref::<LmFailure>() {
-        // rate limit, timeout, server, transport — and honour `retry_after` when it is set
+        // Retryable and still here, so the budget ran out. Waiting longer is the caller's call.
         Some(failed) if failed.is_retryable() => back_off(failed.retry_after).await,
         Some(failed) => eprintln!("{}: {}", failed.kind, failed.message),
         // Not a provider failure: a reply that would not parse or coerce.

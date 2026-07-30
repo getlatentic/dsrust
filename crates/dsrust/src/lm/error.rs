@@ -22,6 +22,7 @@
 //! parameter-validation error says "string too long" and is not this.
 
 mod failure;
+pub mod headers;
 mod kind;
 
 pub use failure::LmFailure;

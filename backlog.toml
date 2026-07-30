@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 940
+rust_tests = 962
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -360,9 +360,50 @@ is what actually holds it.
 id = "lm-retry"
 sprint = "api"
 title = "num_retries: dspy retries three times with backoff and this crate retries zero"
-state = "todo"
+state = "done"
 size = "M"
 suites = ["tests/clients/test_lm.py"]
+done = """
+`src/lm/retry.rs`, with `LM.retry` defaulting to dspy's `num_retries=3` and `LmBuilder::num_retries`
+setting it. `tests/lm_retry.rs` drives it over a real socket against a stub that refuses a fixed
+number of times, because a policy that is stored and never reaches the wire looks identical to one
+that works.
+
+The oracle is not dspy — dspy has no retry code. It passes `num_retries` and
+`retry_strategy="exponential_backoff_retry"` to litellm, which builds a tenacity policy, so litellm
+1.93.0 and tenacity are what this was read off. Three things in there are easy to get wrong and are
+reproduced deliberately: `stop_after_attempt` counts *asks*, so the default is three asks and two
+retries (dspy's own docstring says "the number of times to retry", which is off by one); the wait is
+`min(2^(n-1), 10)` with no jitter; and litellm overwrites the strategy dspy asked for, keeping
+exponential backoff only for a rate limit and downgrading every other provider error to
+`constant_retry`, whose tenacity default is no wait at all.
+
+Two things are this crate's own and named where they happen. **Which** failures are retried comes
+from dspy 3.3's `_RETRYABLE_LM_ERRORS` rather than from litellm, which retries every exception it
+sees including a rejected key — `tests/lm_retry.rs` asserts a 401 is asked exactly once, and without
+that case the suite would pass for a policy that retried everything. And `retry-after` is honoured.
+
+The two questions the plan said to read upstream for, answered:
+
+* **A retry does not vary the cache key, and a replayed failure is not a retry.** `request_cache`
+  wraps the function carrying `num_retries`, so upstream's cache is outside its retry.
+  `ask_provider_retrying` sits in the same place — inside the cache lookup in `LM::forward` — so a
+  replayed answer is never retried and an answer a retry finally won is kept.
+* **The bound is on attempts, not on total time.** `wait_exponential(max=10)` caps each wait, not
+  their sum. A provider naming a large `retry-after` can therefore outlive a caller's patience, which
+  is what `num_retries(1)` is for.
+
+It also closed a defect the socket test found rather than the reading did: `LmFailure::retry_after`
+and `request_id` were fields nothing ever populated. The headers were read nowhere, so a provider
+saying "wait 0.25s" got the 1s curve. `src/lm/error/headers.rs` now reads dspy's
+`_exception_retry_after` and `_exception_request_id` — including its four vendor spellings of a
+request id — and all three providers apply them.
+"""
+remaining = """
+Streaming is not retried. `forward_stream` bypasses the cache and the retry both, and a failure part
+way through a stream is not a request that can simply be made again — the caller has already been
+handed events. Upstream is in the same position and does no better.
+"""
 plan = """
 `dspy.LM(model, num_retries=3)` is the default, and its docstring says what it covers: "retry a
 request if it fails transiently due to network error, rate limiting, etc. Requests are retried with
@@ -384,6 +425,11 @@ outlive the caller's patience.
 
 **What proves it.** Already in SUITES, and the file names `num_retries`. Triage which of its tests turn red once a
 retry loop exists — that list is the specification for the loop's shape.
+
+That triage came back empty, which is the honest answer and worth recording: every `num_retries`
+assertion in `tests/clients/test_lm.py` is about the default being 3, the value reaching litellm, and
+the value appearing in `dump_state()`. None of them drives a retry, because upstream has no retry to
+drive. So the upstream suite cannot prove this one and `tests/lm_retry.rs` is what does.
 """
 
 [[story]]

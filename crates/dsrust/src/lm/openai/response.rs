@@ -15,13 +15,18 @@ pub(super) fn reply(
     label: &str,
     model: &str,
     status: reqwest::StatusCode,
+    headers: &reqwest::header::HeaderMap,
     body: &Value,
 ) -> Result<api::LmResponse> {
     if !status.is_success() {
         if let Some(too_long) = crate::lm::ContextWindowExceeded::detected(model, body) {
             return Err(too_long.into());
         }
-        return Err(crate::lm::LmFailure::from_body(status.as_u16(), model, label, body).into());
+        return Err(
+            crate::lm::LmFailure::from_body(status.as_u16(), model, label, body)
+                .with_headers(headers)
+                .into(),
+        );
     }
     let response = completion_to_lm_response(body, model);
     if response
@@ -194,6 +199,7 @@ mod tests {
             "openai",
             "gpt-4o-mini",
             reqwest::StatusCode::UNAUTHORIZED,
+            &reqwest::header::HeaderMap::new(),
             &body,
         )
         .expect_err("401 is a failure");
@@ -215,12 +221,41 @@ mod tests {
         );
     }
 
+    /// A refusal's headers reach the failure, which is what lets the retry wait for what the
+    /// provider asked for rather than guessing — dspy's `_exception_retry_after` and
+    /// `_exception_request_id`, from the response instead of from a litellm exception.
+    #[test]
+    fn a_refusals_headers_reach_the_failure() {
+        let mut headers = reqwest::header::HeaderMap::new();
+        headers.insert("retry-after", "30".parse().expect("a header value"));
+        headers.insert(
+            "x-request-id",
+            "req_abc123".parse().expect("a header value"),
+        );
+
+        let error = reply(
+            "openai",
+            "gpt-4o-mini",
+            reqwest::StatusCode::TOO_MANY_REQUESTS,
+            &headers,
+            &serde_json::json!({ "error": { "message": "slow down" } }),
+        )
+        .expect_err("429 is a failure");
+        let failed = error
+            .downcast_ref::<crate::lm::LmFailure>()
+            .expect("a typed LM failure");
+        assert_eq!(failed.retry_after, Some(30.0));
+        assert_eq!(failed.request_id.as_deref(), Some("req_abc123"));
+        assert!(failed.is_retryable());
+    }
+
     #[test]
     fn a_success_carrying_no_content_is_an_error_rather_than_an_empty_reply() {
         let error = reply(
             "openai",
             "gpt-4o-mini",
             reqwest::StatusCode::OK,
+            &reqwest::header::HeaderMap::new(),
             &serde_json::json!({ "choices": [] }),
         )
         .expect_err("nothing to read");

@@ -30,6 +30,10 @@ serde = { version = "1", features = ["derive"] }
 # preserve_order keeps schemas in pydantic's insertion order; sorting keys would break byte-conformance.
 serde_json = { version = "1", features = ["preserve_order"] }
 sha2 = "0.11.0"
+# Just the timer, for the backoff between retries. `reqwest` already puts tokio in the tree with
+# `time` on, so this adds nothing a caller was not already compiling — and, unlike `rt-multi-thread`,
+# it hands nobody a scheduler they did not ask for. A program still brings its own runtime.
+tokio = { version = "1", default-features = false, features = ["time"] }
 tpe = { version = "0.1.0-alpha.1", path = "../dsrust-tpe", package = "dsrust-tpe" }
 tracing = "0.1"
 unicode-general-category = "1.1.0"

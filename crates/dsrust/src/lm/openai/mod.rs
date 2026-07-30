@@ -236,13 +236,20 @@ impl ChatModel for Endpoint<'_> {
                     crate::lm::LmFailure::from_transport(&error, self.model, self.label)
                 })?;
             let status = response.status();
+            // Taken before the body, which consumes the response — and needed for a failure, where
+            // `retry-after` is what the retry waits for rather than guessing.
+            let headers = response.headers().clone();
             let body: Value = response
                 .json()
                 .await
                 .with_context(|| format!("{} response was not JSON", self.label))?;
             match self.wire {
-                OpenAiWire::Chat => response::reply(self.label, self.model, status, &body),
-                OpenAiWire::Responses => responses::reply(self.label, self.model, status, &body),
+                OpenAiWire::Chat => {
+                    response::reply(self.label, self.model, status, &headers, &body)
+                }
+                OpenAiWire::Responses => {
+                    responses::reply(self.label, self.model, status, &headers, &body)
+                }
             }
         }
     }

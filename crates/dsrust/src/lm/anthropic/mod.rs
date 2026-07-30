@@ -51,11 +51,14 @@ impl ChatModel for Anthropic<'_> {
                     crate::lm::LmFailure::from_transport(&error, self.model, "anthropic")
                 })?;
             let status = response.status();
+            // Before the body, which consumes the response: a failure's `retry-after` is what the
+            // retry waits for rather than guessing.
+            let headers = response.headers().clone();
             let body: Value = response
                 .json()
                 .await
                 .context("anthropic response was not JSON")?;
-            reply(self.model, status, &body)
+            reply(self.model, status, &headers, &body)
         }
     }
 }
@@ -63,13 +66,20 @@ impl ChatModel for Anthropic<'_> {
 /// The reply as a typed response, or the message Anthropic itself gave for refusing the call. A
 /// reply with no readable block stands in as a missing-content error rather than a panic, which the
 /// JSON adapters surface as the empty answer it is.
-fn reply(model: &str, status: reqwest::StatusCode, body: &Value) -> Result<api::LmResponse> {
+fn reply(
+    model: &str,
+    status: reqwest::StatusCode,
+    headers: &reqwest::header::HeaderMap,
+    body: &Value,
+) -> Result<api::LmResponse> {
     if !status.is_success() {
         if let Some(too_long) = crate::lm::ContextWindowExceeded::detected(model, body) {
             return Err(too_long.into());
         }
         return Err(
-            crate::lm::LmFailure::from_body(status.as_u16(), model, "anthropic", body).into(),
+            crate::lm::LmFailure::from_body(status.as_u16(), model, "anthropic", body)
+                .with_headers(headers)
+                .into(),
         );
     }
     let output = output_of(body);
@@ -186,6 +196,7 @@ mod tests {
         let error = reply(
             "claude-opus-4-8",
             reqwest::StatusCode::BAD_REQUEST,
+            &reqwest::header::HeaderMap::new(),
             &json!({ "error": { "message": "credit balance is too low" } }),
         )
         .expect_err("a 400 is an error");
@@ -199,9 +210,14 @@ mod tests {
             { "type": "text", "text": "the reply" },
         ]});
         assert_eq!(
-            reply("claude-opus-4-8", reqwest::StatusCode::OK, &body)
-                .expect("a text block")
-                .first_text(),
+            reply(
+                "claude-opus-4-8",
+                reqwest::StatusCode::OK,
+                &reqwest::header::HeaderMap::new(),
+                &body
+            )
+            .expect("a text block")
+            .first_text(),
             "the reply"
         );
     }
@@ -219,7 +235,13 @@ mod tests {
             }],
             "stop_reason": "tool_use",
         });
-        let response = reply("claude-3-5-sonnet", reqwest::StatusCode::OK, &body).expect("parses");
+        let response = reply(
+            "claude-3-5-sonnet",
+            reqwest::StatusCode::OK,
+            &reqwest::header::HeaderMap::new(),
+            &body,
+        )
+        .expect("parses");
         let output = &response.outputs[0];
         assert_eq!(output.finish_reason.as_deref(), Some("tool_use"));
         let api::LmPart::ToolCall { id, name, args, .. } = &output.parts[0] else {
@@ -244,9 +266,14 @@ mod tests {
             ],
             "stop_reason": "end_turn",
         });
-        let output = &reply("claude-3-5-sonnet", reqwest::StatusCode::OK, &body)
-            .expect("parses")
-            .outputs[0];
+        let output = &reply(
+            "claude-3-5-sonnet",
+            reqwest::StatusCode::OK,
+            &reqwest::header::HeaderMap::new(),
+            &body,
+        )
+        .expect("parses")
+        .outputs[0];
         assert!(
             matches!(&output.parts[0], api::LmPart::Thinking { text, redacted: false, .. } if text == "Let me consider the sources."),
             "thinking is first, got {:?}",
@@ -275,7 +302,13 @@ mod tests {
             }],
             "stop_reason": "tool_use",
         });
-        let response = reply("claude-3-5-sonnet", reqwest::StatusCode::OK, &body).expect("parses");
+        let response = reply(
+            "claude-3-5-sonnet",
+            reqwest::StatusCode::OK,
+            &reqwest::header::HeaderMap::new(),
+            &body,
+        )
+        .expect("parses");
         assert_eq!(
             serde_json::from_str::<Value>(&response.first_text()).expect("the reply is json"),
             json!({ "answer": "Paris" }),
@@ -296,10 +329,15 @@ mod tests {
                 "output_tokens": 7,
             },
         });
-        let usage = reply("claude-opus-4-8", reqwest::StatusCode::OK, &body)
-            .expect("a reply")
-            .usage
-            .expect("a usage block");
+        let usage = reply(
+            "claude-opus-4-8",
+            reqwest::StatusCode::OK,
+            &reqwest::header::HeaderMap::new(),
+            &body,
+        )
+        .expect("a reply")
+        .usage
+        .expect("a usage block");
         assert_eq!(usage.input_tokens, Some(114));
         assert_eq!(usage.output_tokens, Some(7));
     }
@@ -309,9 +347,14 @@ mod tests {
     fn a_reply_with_no_usage_block_reports_none() {
         let body = json!({ "content": [{ "type": "text", "text": "hi" }] });
         assert_eq!(
-            reply("claude-opus-4-8", reqwest::StatusCode::OK, &body)
-                .expect("a reply")
-                .usage,
+            reply(
+                "claude-opus-4-8",
+                reqwest::StatusCode::OK,
+                &reqwest::header::HeaderMap::new(),
+                &body
+            )
+            .expect("a reply")
+            .usage,
             None
         );
     }
@@ -324,10 +367,15 @@ mod tests {
             "content": [{ "type": "text", "text": "hi" }],
             "stop_reason": "max_tokens",
         });
-        let data = reply("claude-opus-4-8", reqwest::StatusCode::OK, &body)
-            .expect("a reply")
-            .provider_response
-            .expect("a stop reason");
+        let data = reply(
+            "claude-opus-4-8",
+            reqwest::StatusCode::OK,
+            &reqwest::header::HeaderMap::new(),
+            &body,
+        )
+        .expect("a reply")
+        .provider_response
+        .expect("a stop reason");
         assert_eq!(data["stop_reason"], "max_tokens");
     }
 
@@ -339,9 +387,14 @@ mod tests {
             "stop_reason": "max_tokens",
         });
         assert!(
-            reply("claude-opus-4-8", reqwest::StatusCode::OK, &body)
-                .expect("a reply")
-                .outputs[0]
+            reply(
+                "claude-opus-4-8",
+                reqwest::StatusCode::OK,
+                &reqwest::header::HeaderMap::new(),
+                &body
+            )
+            .expect("a reply")
+            .outputs[0]
                 .truncated
         );
     }

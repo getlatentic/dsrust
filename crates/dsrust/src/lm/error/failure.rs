@@ -114,6 +114,17 @@ impl LmFailure {
         self
     }
 
+    /// What the failed response's headers said about it — dspy's `_exception_retry_after` and
+    /// `_exception_request_id`, applied together because every provider reads the same two.
+    ///
+    /// Not folded into [`from_body`](Self::from_body): the body is parsed after the response has
+    /// been consumed, so the headers have to be taken before that and handed in.
+    pub fn with_headers(mut self, headers: &reqwest::header::HeaderMap) -> Self {
+        self.retry_after = super::headers::retry_after(headers);
+        self.request_id = super::headers::request_id(headers);
+        self
+    }
+
     pub fn with_provider_code(mut self, code: impl Into<String>) -> Self {
         self.provider_code = Some(code.into());
         self

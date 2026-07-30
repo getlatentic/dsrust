@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 
-use super::{LM, api};
+use super::{LM, Retry, api};
 
 /// The settings an LM carries for every call through it — dspy's `lm.kwargs`.
 impl LM {
@@ -113,6 +113,16 @@ impl LmBuilder {
     /// switch writes `.cache(measuring_the_model)` rather than branching around a method call.
     pub fn cache(mut self, cache: bool) -> Self {
         self.settings.push(Box::new(move |lm| lm.with_cache(cache)));
+        self
+    }
+
+    /// How many times a transiently failing call is asked before the failure is handed back.
+    ///
+    /// dspy's `LM(model, num_retries=3)`, and it counts asks the way upstream's does: three means
+    /// two retries. `1` never asks twice, which is what a test measuring one call wants.
+    pub fn num_retries(mut self, attempts: usize) -> Self {
+        self.settings
+            .push(Box::new(move |lm| lm.with_retry(Retry::attempts(attempts))));
         self
     }
 

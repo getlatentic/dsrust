@@ -129,17 +129,12 @@ impl Default for ResponseCache {
 
 static SHARED: OnceLock<ResponseCache> = OnceLock::new();
 
-/// The process-wide store every [`LM`](super::LM) reads, dspy's module-level `DSPY_CACHE`.
-///
-/// Shared rather than per-model so that two `LM` values built for the same model — which is what
-/// a program that constructs one per call ends up with — answer each other's repeated requests.
-/// Backed by disk as well as memory when there is a directory to use, which is upstream's
-/// default and what makes a repeated compile cheap.
-/// dspy `Cache.cache_key`: the request hashed, with any argument the caller excluded left out.
+/// dspy `Cache.cache_key`: the request, hashed.
 ///
 /// The *whole* request goes in, as upstream's whole kwargs dict does. Hashing a chosen subset is
 /// the dangerous kind of wrong — two calls differing only in a missed field share an entry, and the
 /// second is answered with the first's reply.
+///
 pub fn key_of(request: &serde_json::Value) -> String {
     use sha2::Digest;
     let digest = sha2::Sha256::digest(canonical(request).as_bytes());
@@ -147,7 +142,12 @@ pub fn key_of(request: &serde_json::Value) -> String {
 }
 
 /// As [`key_of`], with `ignored` keys dropped from the top level first — dspy's
-/// `ignored_args_for_cache_key`, which is how `api_key` stays out of a key.
+/// `ignored_args_for_cache_key`, which its `LM` sets to `api_key`, `api_base` and `base_url`.
+///
+/// Those three travel *in* a litellm request, so upstream has to exclude them. Here they belong to
+/// the model rather than the request and never reach [`LmRequest`](super::api::LmRequest), so an
+/// `LM` of this crate's own has nothing to pass. What needs this is dspy's own cache suite, which
+/// hands its kwargs dict across the bridge to be keyed by this crate.
 pub fn key_ignoring(request: &serde_json::Value, ignored: &[String]) -> String {
     let Some(fields) = request.as_object() else {
         return key_of(request);
@@ -186,6 +186,12 @@ fn canonical(value: &serde_json::Value) -> String {
     }
 }
 
+/// The process-wide store every [`LM`](super::LM) reads, dspy's module-level `DSPY_CACHE`.
+///
+/// Shared rather than per-model so that two `LM` values built for the same model — which is what a
+/// program constructing one per call ends up with — answer each other's repeated requests. Backed by
+/// disk as well as memory when there is a directory to use, which is upstream's default and what
+/// makes a repeated compile cheap.
 pub fn shared() -> &'static ResponseCache {
     SHARED.get_or_init(|| match DiskCache::from_env() {
         Some(disk) => ResponseCache::default().with_disk(disk),

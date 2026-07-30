@@ -28,7 +28,7 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 940 passing |
+| Rust tests | 962 passing |
 | Upstream dspy tests | 897 passing, 479 crossing into Rust, 529 deciding a signature |
 | Upstream files run | 52 of 86, every other one excused by name |
 | Strict-xfail backlog | 5 entries in `conftest.py` |
@@ -45,7 +45,7 @@ reason; every sprint either names the suites that prove it or says why it has no
 Two scripts, both of which must pass. The second only runs in the main checkout.
 
 ```sh
-./scripts/run_rust_gates.sh     # cargo test, build, fmt, doc, file sizes, and an outside caller
+./scripts/run_rust_gates.sh     # cargo test, build, fmt, doc, file sizes, an outside caller, the guides
 ```
 
 ```sh
@@ -65,14 +65,23 @@ cargo fmt --check               # 0 diffs
 cargo doc --no-deps             # 0 warnings
 ./scripts/file_sizes.py         # no file over ~400 non-test lines
 ./scripts/check_external_consumer.sh   # a crate depending on dsrust and nothing else
+./scripts/check_docs.py         # every Rust block in README.md and docs/usage.md, compiled
 ```
 
-The last one is the only check that runs from *outside* the workspace, and it exists because
+The last two run from *outside* the workspace. `check_external_consumer.sh` exists because
 nothing inside can see what a caller sees: `extern crate self as dsrust` makes `::dsrust` resolve
 here, and every test in the repo already has serde and schemars. A derive expanding to
 `::serde::Serialize` therefore compiled in every test and broke for everyone else — reported from a
 real project, not found here. Warnings are failures in that crate, since the ones it catches land in
 the caller's own build.
+
+`check_docs.py` exists because both of the checks that were supposed to hold the guides held a
+*transcription* of them instead — written alongside the prose, then drifting from it. The README told
+a reader to write `use dsrust::{call, predict};` for four commits after `predict!` became `Predict!`,
+while the gate whose stated job was compiling the README's opening program compiled the corrected
+import and passed. So this one reads the markdown: it extracts every ```` ```rust ```` block and
+compiles it, and there is nothing to keep in sync. A block that genuinely cannot compile is tagged
+```` ```rust,ignore ````, which renders the same and shows up in a diff.
 
 `.dspy-venv/` is gitignored and lives only in the main checkout, so **the upstream suite cannot
 run in a git worktree.** An agent working in one cannot verify it. Run it after merging.
@@ -133,7 +142,7 @@ per wire format, over a shared `_RustBacked` mixin.
 ## Architecture
 
 ```
-src/                the dsrust crate itself
+crates/dsrust/src/  the library itself
   signature/        Signature, InField/OutField, FieldKind, LiteralValue
                     reflect.rs (a declared type's shape, from its schemars schema)
   adapter/          prompt.rs (shared frame) + chat, json, xml, baml, two_step
@@ -143,10 +152,10 @@ src/                the dsrust crate itself
   react/            ReAct, Trajectory, Tool
   optimize/         rng, labeled, bootstrap, copro, mipro, gepa
   interpreter/      the CodeInterpreter seam, and deno/ — dspy's runner.js under pyodide
-  lm/               ChatModel/DynChatModel, call (request/response), cache (+disk),
-                    usage, anthropic, ollama, openai, dummy
-crates/             the workspace members, each published on its own
-  dsrust-derive/    #[derive(Signature)], #[derive(Module)], predict!, chain_of_thought!
+  lm/               ChatModel/DynChatModel, api (request/response), builder, cache (+disk),
+                    error, usage, anthropic, ollama, openai, dummy
+crates/             every member, each published under its own name
+  dsrust-derive/    #[derive(Signature)], #[derive(Module)], Predict!, ChainOfThought!
   dsrust-gepa/      the gepa engine reproduced, byte for byte
   dsrust-tpe/       optuna's TPE sampler reproduced
   pyrng/            CPython's and numpy's RNGs reproduced
@@ -171,12 +180,13 @@ upstream's pickle — nothing else reads the directory, so the format is ours, a
 not dspy's because the same path holding two formats would be worse than two paths.
 
 Two things about it are worth knowing before writing a test against a stub. The store is shared and
-keyed on the request, and `base_url` is deliberately **not** in the key (upstream's
-`ignored_args_for_cache_key`), so two tests asking the same model the same question collide however
-different their stub servers are — and because a stub blocks waiting to be connected to, the second
-one *hangs* rather than failing. Any test that inspects what reached the wire wants
-`LM::without_cache`. `DummyLM` and the other scripted models are unaffected: they are not `LM`, and
-upstream draws the same line by extending `BaseLM`.
+keyed on the whole request, and the base URL is not part of a request here — it belongs to the
+model, which is also why upstream's `ignored_args_for_cache_key` has nothing to exclude — so
+two tests asking the same model the same question collide however different their stub servers are,
+and because a stub blocks waiting to be connected to, the second one *hangs* rather than failing.
+Any test that inspects what reached the wire wants `LM::builder(model).cache(false)`. `DummyLM` and
+the other scripted models are unaffected: they are not `LM`, and upstream draws the same line by
+extending `BaseLM`.
 
 **BAML carries a type's shape, and where it comes from differs by side.** An output field's
 structure is read off its `schemars` schema by `src/signature/reflect.rs`; the derive emits it, so

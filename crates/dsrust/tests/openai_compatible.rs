@@ -131,8 +131,16 @@ fn write_response(stream: &mut TcpStream, status: u16, body: &str) {
 /// of that key — so two tests asking the same model the same thing collide however different
 /// their stubs are. The second would be replayed, its stub would wait forever for a connection,
 /// and the test would hang rather than fail.
+/// The probe every case here asks through: one ask, so what the stub answered is what is asserted.
+///
+/// Asking once rather than three times is what makes a refusal readable. Every stub in this file
+/// serves a fixed number of connections, so a retried 429 would arrive at a closed listener and be
+/// reported as the transport failure that followed it rather than the rate limit that caused it.
+/// `tests/lm_retry.rs` is where the retry itself is held.
 fn probe_lm_for(stub: &Stub, model: &str) -> LM {
-    caching_lm_for(stub, model).with_cache(false)
+    caching_lm_for(stub, model)
+        .with_cache(false)
+        .with_retry(dsrust::lm::Retry::once())
 }
 
 /// The same probe with the cache left on, for the one test that is about the cache.
