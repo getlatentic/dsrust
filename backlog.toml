@@ -273,8 +273,29 @@ the public surface. `configure_with_client` already exists and becomes how a cal
 own, so the capability is preserved rather than dropped.
 
 Why it is not free: 157 mentions of `reqwest::Client` across 37 files, every provider, every scripted
-double in `src/` and `tests/`, and the PyO3 bridge. Mechanical, but not small, and it is one breaking
-change to `ChatModel` — so it should land alone rather than riding along with a feature.
+double in `src/` and `tests/`, and the PyO3 bridge. One breaking change to `ChatModel`, so it should
+land alone rather than riding along with a feature.
+
+**Attempted 2026-07-30 and abandoned; read this before trying again.** The trait change itself is
+twenty minutes and the 36 `impl ChatModel` sites are genuinely mechanical — most take `_http` and
+ignore it, so the parameter just goes. What is *not* in the 157 is the second chain: `Predict` threads
+the client down through `ask_through`, `ask`, `extract`, `recovery`, `derived`, `completions` and
+`shorthand`, and `global::current()` returns a `(Client, Arc<dyn DynChatModel>)` pair that every
+caller destructures. Removing the parameter from the trait makes all of that dead, and unpicking it
+is hand work on a call graph, not a search and replace. Scripted regex turned two errors into fifty.
+
+Do it in this order, compiling green between each, and by hand:
+
+1. `global::current()` returns the model alone; `client()` stays for streaming. Fix its callers first,
+   while the trait is unchanged — they compile either way, so this step is independently landable.
+2. `Predict`'s internal chain drops the client, top down from `Predict::forward`.
+3. Only then the trait, `DynChatModel`, and the 36 impls.
+4. The four providers reach `global::client()` in their own `forward`.
+
+`forward_stream` is the one that cannot follow. It returns a stream borrowing the client for `'a`,
+so the client has to outlive the call — the streaming helpers would need to take it by value first.
+Either do that as step 5 or leave `forward_stream(&http, request)` and say so in the guide; it is not
+the seam a caller implements.
 
 Read before starting: whether anything actually depends on the *caller's* client rather than a shared
 one. `Parallel` and `Evaluate` run many calls at once and want one connection pool; a `OnceLock`
