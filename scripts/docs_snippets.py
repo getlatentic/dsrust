@@ -50,6 +50,7 @@ PROSE = (
     "qa",
     "f",
     "url",
+    "devset",
 )
 
 FENCE = re.compile(r"^```(\w[\w,]*)\s*$")
