@@ -22,8 +22,8 @@ use crate::adapter::python_json::json_dumps;
 use crate::adapter::types::base::{Formatted, to_field_value};
 use crate::example::{Example, Prediction};
 use crate::interpreter::{
-    CodeInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable, SandboxSerializable, sandbox,
-    with_constraints,
+    CodeInterpreter, DenoInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable,
+    SandboxSerializable, sandbox, with_constraints,
 };
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::react::Tool;
@@ -68,7 +68,13 @@ pub struct Rlm {
 }
 
 impl Rlm {
-    pub fn new(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
+    /// dspy's `interpreter=None`: the Deno/Pyodide sandbox, which is what upstream defaults to.
+    pub fn new(signature: Signature) -> Self {
+        Self::with_interpreter(signature, Arc::new(DenoInterpreter::new()))
+    }
+
+    /// The same, running code somewhere the caller chose.
+    pub fn with_interpreter(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
         Self::with_tools(signature, Vec::new(), interpreter)
     }
 
@@ -393,7 +399,7 @@ mod loop_tests {
 
     fn rlm(interpreter: Arc<ScriptedInterpreter>, replies: &[&'static str]) -> Rlm {
         let model = Arc::new(Scripted::new(replies));
-        let mut rlm = Rlm::new(task(), interpreter);
+        let mut rlm = Rlm::with_interpreter(task(), interpreter);
         rlm.generate_action = rlm.generate_action.with_lm(model.clone());
         rlm.extract = rlm.extract.with_lm(model);
         rlm
@@ -505,7 +511,7 @@ mod loop_tests {
             action("full", "```python\nSUBMIT(answer='42', count=1)\n```").into_boxed_str(),
         );
         let model = Arc::new(Scripted::new(&[first, second]));
-        let mut rlm = Rlm::new(signature, interpreter);
+        let mut rlm = Rlm::with_interpreter(signature, interpreter);
         rlm.generate_action = rlm.generate_action.with_lm(model.clone());
         rlm.extract = rlm.extract.with_lm(model);
 
@@ -585,7 +591,7 @@ mod loop_tests {
         let right =
             Box::leak(action("fix", "```python\nSUBMIT(answer='yes')\n```").into_boxed_str());
         let model = Arc::new(Scripted::new(&[wrong, right]));
-        let mut rlm = Rlm::new(signature, interpreter);
+        let mut rlm = Rlm::with_interpreter(signature, interpreter);
         rlm.generate_action = rlm.generate_action.with_lm(model.clone());
         rlm.extract = rlm.extract.with_lm(model);
 
@@ -665,7 +671,7 @@ mod sandbox_tests {
         let submit =
             Box::leak(action("finish", "```python\nSUBMIT(answer='done')\n```").into_boxed_str());
         let model = Arc::new(Scripted::new(&[submit]));
-        let rlm = Rlm::new(
+        let rlm = Rlm::with_interpreter(
             "corpus -> answer".parse().expect("parses"),
             interpreter.clone(),
         )
@@ -696,8 +702,8 @@ mod sandbox_tests {
         let interpreter = Arc::new(ScriptedInterpreter::new([]));
         let mut signature: Signature = "corpus -> answer".parse().expect("parses");
         signature.inputs[0].desc = "everything we have".to_owned();
-        let rlm =
-            Rlm::new(signature, interpreter).with_sandbox_input("corpus", Arc::new(Corpus(12)));
+        let rlm = Rlm::with_interpreter(signature, interpreter)
+            .with_sandbox_input("corpus", Arc::new(Corpus(12)));
 
         let described = rlm.variables(&Example::default());
         assert_eq!(described.len(), 1);

@@ -15,7 +15,7 @@ use anyhow::{Result, bail};
 use serde_json::{Map, Value};
 
 use crate::example::{Example, Prediction};
-use crate::interpreter::CodeInterpreter;
+use crate::interpreter::{CodeInterpreter, DenoInterpreter};
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::signature::{FieldKind, InField, OutField, Signature};
 
@@ -43,7 +43,16 @@ pub struct ProgramOfThought {
 }
 
 impl ProgramOfThought {
-    pub fn new(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
+    /// dspy's `interpreter=None`: the Deno/Pyodide sandbox, which is what upstream defaults to.
+    ///
+    /// Ask for another with [`Self::with_interpreter`] — a caller who wants their own environment,
+    /// or a test that scripts one.
+    pub fn new(signature: Signature) -> Self {
+        Self::with_interpreter(signature, Arc::new(DenoInterpreter::new()))
+    }
+
+    /// The same, running code somewhere the caller chose.
+    pub fn with_interpreter(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
         Self {
             generate: ChainOfThought::from_signature(mode_signature(&signature, Mode::Generate)),
             regenerate: ChainOfThought::from_signature(mode_signature(
@@ -410,7 +419,7 @@ mod tests {
             "[[ ## reasoning ## ]]\nread it\n\n[[ ## answer ## ]]\n2\n\n[[ ## completed ## ]]",
         ]);
         let pot = with_model(
-            ProgramOfThought::new(task(), interpreter.clone()),
+            ProgramOfThought::with_interpreter(task(), interpreter.clone()),
             Arc::new(model),
         );
 
@@ -436,7 +445,7 @@ mod tests {
             "[[ ## reasoning ## ]]\nread\n\n[[ ## answer ## ]]\n2\n\n[[ ## completed ## ]]",
         ]);
         let pot = with_model(
-            ProgramOfThought::new(task(), interpreter.clone()),
+            ProgramOfThought::with_interpreter(task(), interpreter.clone()),
             Arc::new(model),
         );
 
@@ -462,7 +471,7 @@ mod tests {
         let reply = "[[ ## reasoning ## ]]\nr\n\n[[ ## generated_code ## ]]\nprint(x)\n\n[[ ## completed ## ]]";
         let model = Scripted::new(&[reply, reply, reply, reply]);
         let pot = with_model(
-            ProgramOfThought::new(task(), interpreter.clone()).with_max_iters(2),
+            ProgramOfThought::with_interpreter(task(), interpreter.clone()).with_max_iters(2),
             Arc::new(model),
         );
 

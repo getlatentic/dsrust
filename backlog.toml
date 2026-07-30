@@ -448,6 +448,10 @@ and `RustPythonInterpreter` replaces only `execute` so the rest stays dspy's own
 pass on the sandbox. Host-callback tools, the typed `SUBMIT` built from a signature's output fields,
 and file mounting with the write-back sync all landed with it.
 
+`ProgramOfThought`, `CodeAct` and `Rlm` default to it now, as upstream's three constructors default
+to `PythonInterpreter()`; `with_interpreter` is the explicit form. `live_sandbox_modules.rs` runs
+the loop end to end — a real model writes Python, Pyodide runs it, the answer comes back.
+
 Two of the 7 declared are a feature: the >100MB variable path, which upstream injects through the
 filesystem rather than as a literal. The other five are not gaps. Three want a Python set or a
 nested tuple, which have no JSON form to cross as. Two kill `interpreter.deno_process` and compare

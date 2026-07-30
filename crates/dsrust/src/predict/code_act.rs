@@ -16,7 +16,7 @@ use serde_json::{Map, Value, json};
 
 use crate::adapter::types::tool::format_tool;
 use crate::example::{Example, Prediction};
-use crate::interpreter::CodeInterpreter;
+use crate::interpreter::{CodeInterpreter, DenoInterpreter};
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::react::Tool;
 use crate::signature::{FieldKind, InField, OutField, Signature};
@@ -37,7 +37,13 @@ pub struct CodeAct {
 }
 
 impl CodeAct {
-    pub fn new(
+    /// dspy's `interpreter=None`: the Deno/Pyodide sandbox, which is what upstream defaults to.
+    pub fn new(signature: Signature, tools: Vec<Arc<dyn Tool>>) -> Self {
+        Self::with_interpreter(signature, tools, Arc::new(DenoInterpreter::new()))
+    }
+
+    /// The same, running code somewhere the caller chose.
+    pub fn with_interpreter(
         signature: Signature,
         tools: Vec<Arc<dyn Tool>>,
         interpreter: Arc<dyn CodeInterpreter>,
@@ -314,7 +320,7 @@ mod tests {
             "[[ ## reasoning ## ]]\nread it\n\n[[ ## answer ## ]]\n120\n\n[[ ## completed ## ]]",
         ]);
         let model = Arc::new(model);
-        let mut act = CodeAct::new(task(), tools(), interpreter.clone());
+        let mut act = CodeAct::with_interpreter(task(), tools(), interpreter.clone());
         act.codeact = act.codeact.with_lm(model.clone());
         act.extractor = act.extractor.with_lm(model);
 
@@ -346,7 +352,7 @@ mod tests {
             done,
             "[[ ## reasoning ## ]]\nr\n\n[[ ## answer ## ]]\n120\n\n[[ ## completed ## ]]",
         ]));
-        let mut act = CodeAct::new(task(), tools(), interpreter.clone());
+        let mut act = CodeAct::with_interpreter(task(), tools(), interpreter.clone());
         act.codeact = act.codeact.with_lm(model.clone());
         act.extractor = act.extractor.with_lm(model);
 

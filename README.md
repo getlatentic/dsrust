@@ -13,9 +13,9 @@ and the library writes the prompt, calls the model, and hands back typed values.
   parsing and the retry. No template, no JSON handling.
 - **Reuse a proven prompting technique** rather than reimplementing it: `ChainOfThought`, `ReAct`,
   `ReActV2`, `ProgramOfThought`, `CodeAct`, `RLM`, `BestOfN`, `Refine`.
-- **Code-writing modules get a sandbox that ships.** `DenoInterpreter` runs DSPy's own `runner.js`
-  under Deno and Pyodide, so generated code lands where DSPy's does. `deno` is the one prerequisite,
-  as it is for DSPy.
+- **Code-writing modules get a sandbox that ships.** `ProgramOfThought::new(sig)` runs the model's
+  Python in DSPy's own `runner.js` under Deno and Pyodide — the same sandbox, defaulted the same
+  way. `deno` is the one prerequisite, as it is for DSPy.
 - **Optimize against your own metric.** MIPROv2 and GEPA, each reproduced down to its RNG and search
   order, so a compile here makes the choices a compile there makes.
 - **Compiled programs cross the language line.** `dspy.load` opens what DsRust saves, and DsRust
