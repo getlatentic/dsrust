@@ -30,7 +30,7 @@ use crate::predict::Predict;
 /// anything else — the advisor it asks for feedback is deliberately not part of that walk, since
 /// dspy builds one per call rather than holding it as a parameter.
 ///
-/// Reach for [`Refine!`](crate::refine) rather than `new`: dspy names all its arguments at the
+/// Reach for [`Refine!`](crate::Refine) rather than `new`: dspy names all its arguments at the
 /// call site, and `Refine::new(qa, 3, one_word, 1.0)` leaves a reader guessing which number is
 /// which.
 ///
@@ -334,7 +334,7 @@ where
 /// `Refine!(module, n = 3, reward = f, threshold = 1.0)` — upstream's call, named.
 ///
 /// dspy passes its arguments by keyword; Rust has none, so this supplies them, the same reason
-/// [`call!`](crate::call) and [`BestOfN!`](crate::best_of_n) exist. `fail_count` is optional
+/// [`call!`](crate::call) and [`BestOfN!`](crate::BestOfN) exist. `fail_count` is optional
 /// here as it is there, and `threshold` accepts `1.0` or an `Option<f64>`.
 ///
 /// ```

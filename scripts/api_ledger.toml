@@ -504,7 +504,7 @@
 "core/types.py::LMMessage.text" = { status = "mapped", rust = "text" }
 
 # LMRequest
-"core/types.py::LMRequest.from_call" = { status = "mapped", rust = "new" }
+"core/types.py::LMRequest.from_call" = { status = "todo", reason = "normalises three input shapes — a message list, a bare prompt, or variadic items that may mix LMMessage and LMResponse; LmRequest::new takes the message list only. See lm-from-call" }
 "core/types.py::LMRequest.from_prompt_or_messages" = { status = "divergence", reason = "builds a request from dspy's legacy prompt/messages pair; the crate's boundary is typed-only" }
 "core/types.py::LMRequest.with_config_overrides" = { status = "mapped", rust = "configured" }
 

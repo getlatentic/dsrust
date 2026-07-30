@@ -90,6 +90,47 @@ This is the sprint that closed the project's one known blind spot.
 """
 
 [[story]]
+id = "lm-from-call"
+sprint = "api"
+title = "LMRequest.from_call normalises three input shapes; this crate takes one"
+state = "todo"
+size = "M"
+suites = ["tests/clients/test_lm.py"]
+plan = """
+`dspy.LMRequest.from_call` is the constructor the migration guide tells adapter authors to use, and
+it exists at the pinned tag rather than being part of the plan. Kw-only, three mutually exclusive
+input shapes plus config:
+
+    from_call(*, model, items=(), prompt=None, messages=None, tools=None, **kwargs)
+
+`messages` is a list of dicts or `LMMessage`s. `prompt` is a bare string. `items` is the variadic
+direct-call form, and `_messages_from_items` accepts a single message sequence, a run of `LMMessage`s,
+*or a run mixing `LMMessage` and `LMResponse`* — which is what lets a caller pass a previous response
+straight back into the next turn. Passing `messages` alongside either of the others raises rather
+than picking one. `**kwargs` becomes config through `LMConfig.from_kwargs`.
+
+`LmRequest::new(model, messages).configured(config)` covers the `messages` path and nothing else. A
+caller with a string writes the `LmMessage` themselves, and a caller continuing from a previous
+response has no route at all — the response would have to be taken apart and rebuilt by hand.
+
+Two decisions rather than transcriptions. Rust has no `*items`, so the variadic form is either a slice
+of an enum over `LmMessage | LmResponse` or a small builder; the enum is closer to what the Python
+accepts and reads worse at a call site. And `from_call` raising on `messages` plus `items` is a
+runtime check Rust can make impossible instead, by giving each shape its own constructor — more
+faithful to the intent than to the signature, and worth saying which was chosen.
+
+Read `_messages_from_items` before starting: this plan comes from its branches, not from the guide.
+The guide describes stages for 3.4 through 4.0 that do not exist yet — `dspy.context(experimental=True)`,
+the `forward_contract` warning, the default flip. Do not port those. `forward_contract` itself is
+correctly a divergence: it exists so a Python subclass can choose between two `forward` shapes, and
+this crate has one.
+
+**What proves it.** `tests/clients/test_lm.py` is already in SUITES and exercises the direct-call
+forms. The three `test_base_lm_forward_contract_*` tests in it stay declared, since a class-attribute
+switch between two shapes has no counterpart where there is one shape.
+"""
+
+[[story]]
 id = "api-6"
 sprint = "api"
 title = "A caller needs serde_json the moment they build anything, and nothing says so"
@@ -191,6 +232,16 @@ for the grep to be evidence.
 **What proves it.** A reading pass over a ledger, so nothing green proves it. What can be gated is the result: every
 reason that asserts a capability names a Rust identifier the gate greps for, and the thirty-four
 asserting one today become zero unverified.
+
+**A third pattern, found while filing lm-from-call.** `LMRequest.from_call` was mapped to `new`, and
+`LmRequest::new` implements one of its three input shapes. The gate passed because `new` exists — the
+most generic identifier in Rust. Sixteen mapped entries name one from that class: `new`, `get`,
+`items`, `args`, `name`, `metric`, `score`, `timeout`, `message`. For each, the grep proves the word
+appears somewhere in the tree and nothing more.
+
+That one is mechanisable rather than a reading pass: refuse a bare generic name as a `rust` value and
+require `Type::method`, so the grep has something specific to find. Do it first — it turns a
+sixteen-entry reading list into a gate, and it is how `from_call` was caught.
 """
 
 [[story]]
