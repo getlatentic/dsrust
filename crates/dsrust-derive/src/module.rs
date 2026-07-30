@@ -18,6 +18,7 @@ use syn::{Data, DeriveInput, Fields};
 
 pub(crate) fn expand(item: &DeriveInput) -> Result<proc_macro2::TokenStream, syn::Error> {
     let name = &item.ident;
+    let label = name.to_string();
     let steps = steps(item)?;
 
     // Each child's predictors are renamed after the field holding it, so a demo says which step
@@ -44,7 +45,18 @@ pub(crate) fn expand(item: &DeriveInput) -> Result<proc_macro2::TokenStream, syn
                         + 'a,
                 >,
             > {
-                ::std::boxed::Box::pin(::dsrust::Forward::forward(self, inputs))
+                ::std::boxed::Box::pin(async move {
+                    // dspy's `on_module_start`/`on_module_end`, which upstream gets by decorating
+                    // `Module.__call__`. Here the derive is that entry, so a module of the caller's
+                    // own is watched without their having to ask.
+                    let span = ::dsrust::observe::module_shown(#label, &inputs);
+                    ::dsrust::observe::watching(
+                        span,
+                        ::dsrust::observe::prediction,
+                        ::dsrust::Forward::forward(self, inputs),
+                    )
+                    .await
+                })
             }
 
             fn named_predictors(&mut self) -> ::std::vec::Vec<::dsrust::NamedPredictor<'_>> {

@@ -150,8 +150,14 @@ impl Module for CodeAct {
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
+            let span = crate::observe::module_shown("CodeAct", &inputs);
             let mut discarded = Vec::new();
-            self.run(inputs, &mut discarded).await
+            crate::observe::watching(
+                span,
+                crate::observe::prediction,
+                self.run(inputs, &mut discarded),
+            )
+            .await
         })
     }
 

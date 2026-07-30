@@ -37,6 +37,10 @@ edition = "2024"
 dsrust = {{ path = "{root}/crates/dsrust" }}
 tokio = {{ version = "1", features = ["macros", "rt-multi-thread"] }}
 anyhow = "1"
+# Every crate here is one a guide tells the reader to install, in the same place they would look for
+# it. `tracing-subscriber` is docs/usage.md's "Watching a run"; adding one without the guide printing
+# it is how a snippet compiles here and not for anyone else.
+tracing-subscriber = {{ version = "0.3", features = ["env-filter"] }}
 
 # Its own workspace, so this repository's does not lend it what it never declared.
 [workspace]

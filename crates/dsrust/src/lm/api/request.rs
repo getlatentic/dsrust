@@ -84,6 +84,20 @@ impl LmRequest {
         self.config.response_format.as_ref()
     }
 
+    /// This request as the `inputs` dspy's `on_lm_start` is handed: the messages, and the settings
+    /// they are being asked under.
+    ///
+    /// The messages whole, because the prompt is the thing a reader opened a trace to see. Not the
+    /// credentials — they are on the model rather than the request, so there is nothing here to
+    /// redact, and that is worth knowing before anyone adds a field.
+    pub fn watchable(&self) -> String {
+        serde_json::json!({
+            "messages": self.wire_messages(),
+            "config": self.config,
+        })
+        .to_string()
+    }
+
     /// What two identical calls share, and what [`rollout_id`](super::LmCacheConfig::rollout_id)
     /// exists to break. Everything the provider is sent is in here — `model` included, since the
     /// store is shared across every model in the process — so no call can be answered with

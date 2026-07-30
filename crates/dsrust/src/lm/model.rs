@@ -37,12 +37,24 @@ pub trait DynChatModel: Send + Sync {
 }
 
 impl<T: ChatModel + Send + Sync> DynChatModel for T {
+    /// dspy `on_lm_start`/`on_lm_end` happens here, because this is the only place it cannot be
+    /// forgotten.
+    ///
+    /// Upstream decorates `BaseLM.__call__`, so every model it ships *and* every model a caller
+    /// writes fires the point. `ChatModel::forward` is a required method and an implementor could
+    /// always leave the span out of it; this blanket impl has no second version, and it is the
+    /// boundary every module crosses to reach its model. A scripted double is watched here for the
+    /// same reason upstream's `DummyLM` is.
     fn forward_dyn<'a>(
         &'a self,
         http: &'a reqwest::Client,
         request: &'a api::LmRequest,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>> {
-        Box::pin(self.forward(http, request))
+        Box::pin(async move {
+            let span = crate::observe::lm(&request.model);
+            crate::observe::shown(&span, &request.watchable());
+            crate::observe::watching(span, crate::observe::spent, self.forward(http, request)).await
+        })
     }
 
     fn capabilities_dyn<'a>(

@@ -30,20 +30,11 @@ impl ChatModel for LM {
         // own settings, so every caller inherits them without having to know they exist. Before
         // the cache key is taken, since two calls differing only in an inherited setting are two
         // different requests.
-        let request = &self.with_defaults(request);
-        if !self.cache {
-            let answered = self.ask_provider_retrying(http, request).await?;
-            usage::record(&self.model.id, answered.spend());
-            return Ok(answered);
-        }
-        let key = request.cache_key(&self.model.id);
-        if let Some(replayed) = cache::shared().replay(&key) {
-            return Ok(replayed);
-        }
-        let answered = self.ask_provider_retrying(http, request).await?;
-        usage::record(&self.model.id, answered.spend());
-        cache::shared().keep(key, answered.clone());
-        Ok(answered)
+        // dspy's `kwargs = {**self.kwargs, **kwargs}`, and in the same place: the LM applies its own
+        // settings, so every caller inherits them without having to know they exist. Before the cache
+        // key is taken, since two calls differing only in an inherited setting are two different
+        // requests.
+        self.answer(http, &self.with_defaults(request)).await
     }
 
     /// What this model's provider will honour natively: what the caller stated, else the registry
@@ -145,6 +136,27 @@ impl LM {
                 request,
             )),
         }
+    }
+
+    /// The reply, from the cache or from the provider — everything [`ChatModel::forward`] watches.
+    async fn answer(
+        &self,
+        http: &reqwest::Client,
+        request: &api::LmRequest,
+    ) -> Result<api::LmResponse> {
+        if !self.cache {
+            let answered = self.ask_provider_retrying(http, request).await?;
+            usage::record(&self.model.id, answered.spend());
+            return Ok(answered);
+        }
+        let key = request.cache_key(&self.model.id);
+        if let Some(replayed) = cache::shared().replay(&key) {
+            return Ok(replayed);
+        }
+        let answered = self.ask_provider_retrying(http, request).await?;
+        usage::record(&self.model.id, answered.spend());
+        cache::shared().keep(key, answered.clone());
+        Ok(answered)
     }
 
     /// The call, asked again while it fails the way dspy retries — see [`retry`].

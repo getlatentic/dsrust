@@ -20,6 +20,7 @@ pub mod example;
 pub mod interpreter;
 pub mod lm;
 pub mod module;
+pub mod observe;
 pub mod optimize;
 pub mod predict;
 pub mod react;

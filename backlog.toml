@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 962
+rust_tests = 970
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -326,9 +326,45 @@ judgement, and it found a bad entry on its first use.
 id = "lm-callbacks"
 sprint = "api"
 title = "Nothing observes a run: dspy's six callback points have no counterpart"
-state = "todo"
+state = "doing"
 size = "L"
 suites = ["tests/clients/test_lm.py", "tests/utils/test_settings.py"]
+done = """
+**Two of the six exist: module and lm**, which is the pair the plan says to do first. `src/observe.rs`
+holds them and `tests/observe.rs` holds *them* — by running programs under a recording subscriber and
+asserting on the spans that arrived, never by reading the source. That is the whole point: the entry
+this story replaces claimed these points "emit tracing spans here" when the tree had no span at all,
+and a test that collects them is the only claim that cannot be written ahead of the code.
+
+What the pair gives a caller: `RUST_LOG=dsrust::observe=info`, a span per module nested as the program
+is nested, an `lm` span inside whichever module made the call, and on each one the values dspy hands
+its handlers — the inputs dict on the way in, and either the outputs or the failure on the way out.
+`watching` is one function rather than a start call and an end call, because an end a `?` can skip is
+an end that will be skipped.
+
+Where the lm point sits was decided by a failing test rather than by reasoning. It was first put in
+`impl ChatModel for LM`, which looked right and left `DummyLM` and every caller-written model
+unwatched — upstream decorates `BaseLM.__call__`, so it fires for a scripted double too. It now lives
+in the blanket `DynChatModel::forward_dyn`, which has no second version and is the boundary every
+module crosses to reach its model. The module point has no such single place, since `Module::forward`
+is a required method: eight call sites carry it, the derive carries it so a caller's own module is
+watched without asking, and `every_module_is_watched` is what stops the ninth from being added
+without one.
+
+Verified by mutation, not by reading: removing the span from `Predict` turns four named cases in
+`tests/observe.rs` red.
+"""
+remaining = """
+**Four points are not wired: adapter format, adapter parse, tool, evaluate.** There is deliberately no
+span constructor sitting unused for them in `src/observe.rs` either — an uncalled function is exactly
+what let the old ledger entry read as resolved.
+
+`tool` is the one worth doing next, because it is what upstream's own documentation example prints. It
+needs a decision this story did not make: `Tool::call_value` is defaulted and two tools in the tree
+override it (ReActV2's `submit`, RLM's), so a span in the default body would miss them. The
+un-forgettable place is a free `invoke(tool, args)` that the three production call sites go through —
+`react/v2.rs`, `react/mod.rs` and `interpreter/deno.rs` — rather than the trait.
+"""
 plan = """
 `dspy.configure(callbacks=[MyCallback()])` fires a `BaseCallback` at six points, each with a start
 and an end: module, lm, adapter format, adapter parse, tool, evaluate. Upstream's own documentation

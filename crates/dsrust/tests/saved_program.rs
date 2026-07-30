@@ -19,8 +19,15 @@ fn saved(program: &mut dyn Module, path: &std::path::Path) -> Value {
     serde_json::from_str(&std::fs::read_to_string(path).expect("readable")).expect("valid json")
 }
 
+/// A file of this test run's own.
+///
+/// The process id is in the name because the name alone is not unique enough: two runs of this
+/// binary at once — a gate and an editor, or two people — write and read the same path, and a reader
+/// that arrives between `fs::write`'s truncate and its write sees an empty file and reports invalid
+/// JSON. Observed exactly that way.
 fn scratch(name: &str) -> std::path::PathBuf {
-    let path = std::env::temp_dir().join(format!("dsrust-saved-{name}.json"));
+    let path =
+        std::env::temp_dir().join(format!("dsrust-saved-{name}-{}.json", std::process::id()));
     let _ = std::fs::remove_file(&path);
     path
 }

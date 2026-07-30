@@ -548,16 +548,16 @@
 
 [constructors]
 
-"adapters/base.py::Adapter.callbacks" = { status = "todo", reason = "dspy fires a BaseCallback at six points — module, lm, adapter format, adapter parse, tool, evaluate — and `dspy.configure(callbacks=[...])` applies them program-wide; this crate emits no span at any of them, so there is nothing here to observe a run with" }
+"adapters/base.py::Adapter.callbacks" = { status = "todo", reason = "dspy fires a BaseCallback at six points; module and lm exist here as `tracing` spans (src/observe.rs) and adapter format, adapter parse, tool and evaluate do not, so nothing observes this one. See lm-callbacks" }
 "adapters/base.py::Adapter.native_response_types" = { status = "todo", reason = "dspy's list of types answered natively rather than rendered; Citations and Reasoning are decided per-adapter here" }
 "adapters/base.py::Adapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "the same field on each adapter" }
 "adapters/base.py::Adapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "the same field on each adapter" }
-"adapters/chat_adapter.py::ChatAdapter.callbacks" = { status = "todo", reason = "dspy fires a BaseCallback at six points — module, lm, adapter format, adapter parse, tool, evaluate — and `dspy.configure(callbacks=[...])` applies them program-wide; this crate emits no span at any of them, so there is nothing here to observe a run with" }
+"adapters/chat_adapter.py::ChatAdapter.callbacks" = { status = "todo", reason = "dspy fires a BaseCallback at six points; module and lm exist here as `tracing` spans (src/observe.rs) and adapter format, adapter parse, tool and evaluate do not, so nothing observes this one. See lm-callbacks" }
 "adapters/chat_adapter.py::ChatAdapter.native_response_types" = { status = "todo", reason = "as adapters/base.py" }
 "adapters/chat_adapter.py::ChatAdapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "ChatAdapter::parallel_tool_calls" }
 "adapters/chat_adapter.py::ChatAdapter.use_json_adapter_fallback" = { status = "mapped", rust = "use_json_adapter_fallback", reason = "ChatAdapter::use_json_adapter_fallback" }
 "adapters/chat_adapter.py::ChatAdapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "ChatAdapter::use_native_function_calling" }
-"adapters/json_adapter.py::JSONAdapter.callbacks" = { status = "todo", reason = "dspy fires a BaseCallback at six points — module, lm, adapter format, adapter parse, tool, evaluate — and `dspy.configure(callbacks=[...])` applies them program-wide; this crate emits no span at any of them, so there is nothing here to observe a run with" }
+"adapters/json_adapter.py::JSONAdapter.callbacks" = { status = "todo", reason = "dspy fires a BaseCallback at six points; module and lm exist here as `tracing` spans (src/observe.rs) and adapter format, adapter parse, tool and evaluate do not, so nothing observes this one. See lm-callbacks" }
 "adapters/json_adapter.py::JSONAdapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "JsonAdapter::parallel_tool_calls" }
 "adapters/json_adapter.py::JSONAdapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "JsonAdapter::use_native_function_calling" }
 "adapters/two_step_adapter.py::TwoStepAdapter.extraction_model" = { status = "mapped", rust = "extraction_model", reason = "TwoStepAdapter::extraction_model" }
@@ -571,7 +571,7 @@
 "adapters/types/tool.py::Tool.func" = { status = "mapped", rust = "FnTool", reason = "FnTool's closure, or an impl of the Tool trait" }
 "adapters/types/tool.py::Tool.name" = { status = "mapped", rust = "name", reason = "Tool::name" }
 "clients/base_lm.py::BaseLM.cache" = { status = "mapped", rust = "with_cache", reason = "LM::with_cache / LmBuilder::cache" }
-"clients/base_lm.py::BaseLM.callbacks" = { status = "todo", reason = "dspy fires a BaseCallback at six points — module, lm, adapter format, adapter parse, tool, evaluate — and `dspy.configure(callbacks=[...])` applies them program-wide; this crate emits no span at any of them, so there is nothing here to observe a run with" }
+"clients/base_lm.py::BaseLM.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and this point is one of the two that exist here — as a `tracing` span from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. A span nests and cannot mutate what it sees, which is upstream's own stated worry about callbacks. tests/observe.rs collects them" }
 "clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "with_max_tokens", reason = "LM::with_max_tokens" }
 "clients/base_lm.py::BaseLM.model" = { status = "mapped", rust = "LM", reason = "LM::new, positional" }
 "clients/base_lm.py::BaseLM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "the wire enum LM routes on" }
@@ -585,7 +585,7 @@
 "clients/cache.py::Cache.restrict_pickle" = { status = "divergence", reason = "dspy guards against unpickling arbitrary types; nothing here pickles, and the disk cache is JSON" }
 "clients/cache.py::Cache.safe_types" = { status = "divergence", reason = "the allowlist for dspy's pickle guard, which has no counterpart in a JSON cache" }
 "clients/lm.py::LM.cache" = { status = "mapped", rust = "with_cache", reason = "LM::with_cache / LmBuilder::cache" }
-"clients/lm.py::LM.callbacks" = { status = "todo", reason = "dspy fires a BaseCallback at six points — module, lm, adapter format, adapter parse, tool, evaluate — and `dspy.configure(callbacks=[...])` applies them program-wide; this crate emits no span at any of them, so there is nothing here to observe a run with" }
+"clients/lm.py::LM.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and this point is one of the two that exist here — as a `tracing` span from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. A span nests and cannot mutate what it sees, which is upstream's own stated worry about callbacks. tests/observe.rs collects them" }
 "clients/lm.py::LM.finetuning_model" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.launch_kwargs" = { status = "deferred", reason = "provider launch for finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "with_max_tokens", reason = "LM::with_max_tokens / LmBuilder::max_tokens" }
@@ -631,7 +631,7 @@
 "predict/parallel.py::Parallel.return_failed_examples" = { status = "mapped", rust = "return_failed_examples", reason = "Parallel::return_failed_examples" }
 "predict/parallel.py::Parallel.straggler_limit" = { status = "mapped", rust = "straggler_limit", reason = "Parallel::straggler_limit" }
 "predict/parallel.py::Parallel.timeout" = { status = "mapped", rust = "timeout", reason = "Parallel::timeout" }
-"predict/predict.py::Predict.callbacks" = { status = "todo", reason = "dspy fires a BaseCallback at six points — module, lm, adapter format, adapter parse, tool, evaluate — and `dspy.configure(callbacks=[...])` applies them program-wide; this crate emits no span at any of them, so there is nothing here to observe a run with" }
+"predict/predict.py::Predict.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and this point is one of the two that exist here — as a `tracing` span from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. A span nests and cannot mutate what it sees, which is upstream's own stated worry about callbacks. tests/observe.rs collects them" }
 "predict/predict.py::Predict.signature" = { status = "mapped", rust = "from_signature", reason = "Predict::from_signature / the predict! macro" }
 "predict/program_of_thought.py::ProgramOfThought.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "ProgramOfThought::with_interpreter" }
 "predict/program_of_thought.py::ProgramOfThought.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "ProgramOfThought::with_max_iters" }
@@ -657,7 +657,7 @@
 "predict/rlm.py::RLM.verbose" = { status = "divergence", reason = "dspy prints its trajectory; tracing spans carry the same events here" }
 "primitives/code_interpreter.py::FinalOutput.output" = { status = "mapped", rust = "Executed", reason = "Executed::Submitted carries the submitted value" }
 "primitives/example.py::Example.base" = { status = "mapped", rust = "with_inputs", reason = "Example's Clone plus with_inputs, which is what dspy's base= copies" }
-"primitives/module.py::Module.callbacks" = { status = "todo", reason = "dspy fires a BaseCallback at six points — module, lm, adapter format, adapter parse, tool, evaluate — and `dspy.configure(callbacks=[...])` applies them program-wide; this crate emits no span at any of them, so there is nothing here to observe a run with" }
+"primitives/module.py::Module.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and this point is one of the two that exist here — as a `tracing` span from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. A span nests and cannot mutate what it sees, which is upstream's own stated worry about callbacks. tests/observe.rs collects them" }
 "primitives/prediction.py::Completions.list_or_dict" = { status = "divergence", reason = "dspy accepts either shape; LmResponse::outputs is always a list" }
 "primitives/prediction.py::Completions.signature" = { status = "divergence", reason = "dspy's Completions keeps the signature to render itself; LmResponse carries the outputs and the adapter holds the signature" }
 "teleprompt/bettertogether.py::BetterTogether.metric" = { status = "mapped", rust = "BetterTogether", reason = "BetterTogether::new, positional" }

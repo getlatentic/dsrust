@@ -1020,8 +1020,13 @@ impl<S: Send + Sync> Module for Predict<S> {
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
-            self.forward_with_steering(inputs, &Steering::default())
-                .await
+            let span = crate::observe::module_shown("Predict", &inputs);
+            crate::observe::watching(
+                span,
+                crate::observe::prediction,
+                self.forward_with_steering(inputs, &Steering::default()),
+            )
+            .await
         })
     }
 

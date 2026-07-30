@@ -383,6 +383,35 @@ LM::builder("openai/gpt-4o-mini").num_retries(5).build()?   // or 1, to never as
 Only the four kinds DSPy 3.3 calls retryable are asked again — rate limit, timeout, server,
 transport. A rejected key or a malformed request fails the same way twice, so it comes straight back.
 
+### Watching a run
+
+Every module's run and every model call happens inside a `tracing` span, which is DSPy's
+`on_module_start`/`on_lm_start` pair in the shape a Rust program already collects. A composed program
+nests, so the span tree is the program's shape and an `lm` span sits inside whichever module made the
+call. Each carries the values DSPy hands its handlers: the inputs on the way in, and either the
+outputs or the failure on the way out.
+
+```bash
+cargo add tracing-subscriber --features env-filter
+```
+
+```rust
+tracing_subscriber::fmt()
+    .with_env_filter("dsrust::observe=info")
+    .init();
+```
+
+```bash
+RUST_LOG=dsrust::observe=info cargo run
+```
+
+Nothing is rendered when nothing is listening, so a program with no subscriber pays an atomic load
+per point. DSPy's other four points — adapter format, adapter parse, tool, evaluate — are not here
+yet.
+
+A span cannot change what it sees, which is the one way this is not DSPy's shape: upstream's
+`BaseCallback` is handed the values and its own documentation warns against mutating them.
+
 ### When a call fails
 
 What survives the retry arrives as a typed `LmFailure`, DSPy 3.3's normalized LM errors:

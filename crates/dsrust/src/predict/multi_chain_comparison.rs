@@ -182,7 +182,15 @@ impl Module for MultiChainComparison {
         &'a self,
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
-        self.predict.forward(inputs)
+        Box::pin(async move {
+            let span = crate::observe::module_shown("MultiChainComparison", &inputs);
+            crate::observe::watching(
+                span,
+                crate::observe::prediction,
+                self.predict.forward(inputs),
+            )
+            .await
+        })
     }
 
     fn forward_traced<'a>(
