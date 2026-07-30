@@ -1079,6 +1079,16 @@ Order, leaves first, so nothing is half-typed at any point:
          `Vec<ChatTurn>`, so every adapter and every caller of one speaks the older type and the
          typed message is converted to at the provider edge rather than produced at the source.
          This is the last slice, and the only one that touches all five adapters.
+
+         `ChatTurn` is not the whole of it, and saying so understated the slice. `call::LmConfig`
+         is the same pre-3.3 layer — the sampling config every module varies and `Predict` stores —
+         and `lm/api/interop.rs` bridges it to `api::LmConfig` as `CallConfig` -> `ApiConfig`, which
+         is the same edge conversion `ChatTurn` gets. s13-4 marked the *typed* config done and left
+         its predecessor in place. Measured 2026-07-30: `ChatTurn` is 83 mentions across 20 files,
+         `LmConfig` 160 across 27, and the second is ambiguous at every one of them because both
+         types are called `LmConfig` — which is how a test came to record the wrong one today.
+         Whichever of the two goes first, the rename is the cheap half: one of them should not be
+         called `LmConfig` while the other exists.
   s13-4  DONE. `lm/api/config.rs`: the typed fields, the nested configs, `extensions` catching
          anything unrecognised, and the flat aliases folded on construction. `rollout_id` lives at
          `cache.rollout_id` and is int-or-string.
