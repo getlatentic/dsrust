@@ -90,6 +90,34 @@ This is the sprint that closed the project's one known blind spot.
 """
 
 [[story]]
+id = "lm-callbacks"
+sprint = "api"
+title = "Nothing observes a run: dspy's six callback points have no counterpart"
+state = "todo"
+plan = """
+`dspy.configure(callbacks=[MyCallback()])` fires a `BaseCallback` at six points, each with a start
+and an end: module, lm, adapter format, adapter parse, tool, evaluate. Upstream's own documentation
+uses it to print a ReAct agent's reasoning and acting steps as they happen.
+
+This crate has none of them. The ledger said the points "emit tracing spans here", which was not
+true when it was written: there are sixteen `tracing::` calls in the tree, every one a `debug!` or
+`warn!` event, none of them a span, and none at any of the six. A caller who wants to watch a run
+has nothing to attach to.
+
+The Rust shape is `tracing` rather than a callback list, and that part of the reasoning stands — a
+subscriber is what a Rust caller already knows how to write, and it composes with whatever else the
+program is instrumented with. What has to exist first is the spans, entered and exited at the six
+places upstream fires, carrying the same values: the module's outputs, the rendered prompt, the
+parsed fields, the tool's arguments and result.
+
+Do the module and lm pair first. Those two are what a caller reaches for when a run does something
+they did not expect, and they are what upstream's own example uses.
+
+Upstream's warning is worth carrying across: a callback that mutates what it is shown corrupts the
+run. A span takes values by reference and cannot, which is a real argument for the shape.
+"""
+
+[[story]]
 id = "lm-retry"
 sprint = "api"
 title = "num_retries: dspy retries three times with backoff and this crate retries zero"
