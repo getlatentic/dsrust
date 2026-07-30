@@ -29,6 +29,48 @@ mod conformance;
 #[cfg(test)]
 pub(crate) mod scripted;
 
+/// What an optimizer's scoring passes are bounded by — dspy's `num_threads` and `max_errors`, which
+/// every teleprompter takes and hands to the `Evaluate` it builds.
+///
+/// One type rather than two fields per optimizer: four of them build an `Evaluate`, and a fifth
+/// would otherwise inherit neither setting by simply not knowing to. [`apply`](Self::apply) is the
+/// only way an optimizer wires it, so there is one place to read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Scoring {
+    /// Rows in flight per pass. dspy's `num_threads`, `None` for one at a time as upstream defaults.
+    pub num_threads: Option<usize>,
+    /// Failed rows a pass tolerates before giving up. dspy's `max_errors`, default 10.
+    pub max_errors: usize,
+}
+
+impl Default for Scoring {
+    fn default() -> Self {
+        Self {
+            num_threads: None,
+            max_errors: crate::evaluate::DEFAULT_MAX_ERRORS,
+        }
+    }
+}
+
+impl Scoring {
+    /// These settings on one scoring pass.
+    pub fn apply<P, M, F>(
+        self,
+        evaluate: crate::evaluate::Evaluate<P, M>,
+    ) -> crate::evaluate::Evaluate<P, M>
+    where
+        P: Fn(crate::Example) -> F,
+        F: std::future::Future<Output = anyhow::Result<crate::Prediction>>,
+        M: Fn(&crate::Example, &crate::Prediction) -> f64,
+    {
+        let evaluate = evaluate.max_errors(self.max_errors);
+        match self.num_threads {
+            Some(threads) => evaluate.num_threads(threads),
+            None => evaluate,
+        }
+    }
+}
+
 pub use better_together::{BetterTogether, Candidate};
 pub use bootstrap::BootstrapFewShot;
 pub use copro::COPRO;

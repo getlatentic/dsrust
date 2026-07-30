@@ -132,6 +132,8 @@ pub struct MIPROv2<M> {
     num_candidates: usize,
     num_trials: usize,
     seed: u64,
+    /// What a scoring pass is bounded by. See [`Scoring`](super::Scoring).
+    scoring: super::Scoring,
     program_code: Option<String>,
     tip_aware: bool,
 }
@@ -149,6 +151,7 @@ where
             num_candidates: 10,
             num_trials: 20,
             seed: 9,
+            scoring: super::Scoring::default(),
             program_code: None,
             tip_aware: true,
         }
@@ -163,6 +166,13 @@ where
     /// How many instruction combinations the search evaluates.
     pub fn with_trials(mut self, num_trials: usize) -> Self {
         self.num_trials = num_trials;
+        self
+    }
+
+    /// What each scoring pass is bounded by — dspy's `num_threads` and `max_errors`, which its
+    /// teleprompters take and hand to the `Evaluate` they build.
+    pub fn scoring(mut self, scoring: super::Scoring) -> Self {
+        self.scoring = scoring;
         self
     }
 
@@ -277,13 +287,15 @@ where
 
     /// dspy Evaluate's headline for one candidate: the metric's mean over the valset, as a percentage.
     async fn score<S: Module + ?Sized>(&self, student: &S, valset: &[Example]) -> f64 {
-        let evaluation = Evaluate::new(
-            valset.to_vec(),
-            |inputs| student.forward(inputs),
-            |example: &Example, prediction: &Prediction| (self.metric)(example, prediction),
-        )
-        .run()
-        .await;
+        let evaluation = self
+            .scoring
+            .apply(Evaluate::new(
+                valset.to_vec(),
+                |inputs| student.forward(inputs),
+                |example: &Example, prediction: &Prediction| (self.metric)(example, prediction),
+            ))
+            .run()
+            .await;
         percent(evaluation.score)
     }
 }

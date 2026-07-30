@@ -39,6 +39,8 @@ pub struct BootstrapRandomSearch<M> {
     /// dspy's `min_num_samples`, fixed at 1 on the instance and never exposed as a constructor
     /// argument — kept here because the size draw reads it.
     min_num_samples: usize,
+    /// What a scoring pass is bounded by. See [`Scoring`](super::Scoring).
+    scoring: super::Scoring,
 }
 
 impl<M> BootstrapRandomSearch<M>
@@ -56,42 +58,49 @@ where
             stop_at_score: None,
             metric_threshold: None,
             min_num_samples: 1,
+            scoring: super::Scoring::default(),
         }
     }
 
     /// The upper end of the per-attempt demo draw — dspy's `max_bootstrapped_demos`, which it
     /// stores as `max_num_samples`.
-    pub fn with_max_bootstrapped_demos(mut self, demos: usize) -> Self {
+    /// What each scoring pass is bounded by — dspy's `num_threads` and `max_errors`.
+    pub fn scoring(mut self, scoring: super::Scoring) -> Self {
+        self.scoring = scoring;
+        self
+    }
+
+    pub fn max_bootstrapped_demos(mut self, demos: usize) -> Self {
         self.max_bootstrapped_demos = demos;
         self
     }
 
-    pub fn with_max_labeled_demos(mut self, demos: usize) -> Self {
+    pub fn max_labeled_demos(mut self, demos: usize) -> Self {
         self.max_labeled_demos = demos;
         self
     }
 
-    pub fn with_max_rounds(mut self, rounds: usize) -> Self {
+    pub fn max_rounds(mut self, rounds: usize) -> Self {
         self.max_rounds = rounds;
         self
     }
 
     /// How many *shuffled* attempts to make. The three baselines run regardless, so a search of
     /// `n` candidate programs makes `n + 3` attempts — as upstream's `range(-3, n)` does.
-    pub fn with_num_candidate_programs(mut self, programs: usize) -> Self {
+    pub fn num_candidate_programs(mut self, programs: usize) -> Self {
         self.num_candidate_programs = programs;
         self
     }
 
     /// Stop as soon as an attempt scores at least this. dspy compares with `>=`.
-    pub fn with_stop_at_score(mut self, score: f64) -> Self {
+    pub fn stop_at_score(mut self, score: f64) -> Self {
         self.stop_at_score = Some(score);
         self
     }
 
     /// Read the bootstrap metric as a number against this bar rather than as a yes/no. See
     /// [`BootstrapFewShot::metric_threshold`].
-    pub fn with_metric_threshold(mut self, threshold: f64) -> Self {
+    pub fn metric_threshold(mut self, threshold: f64) -> Self {
         self.metric_threshold = Some(threshold);
         self
     }
@@ -161,14 +170,16 @@ where
             }
 
             let state = student.dump_state();
-            let scored = crate::evaluate::Evaluate::new(
-                valset.to_vec(),
-                |example| student.forward(example),
-                &self.metric,
-            )
-            .run()
-            .await
-            .score;
+            let scored = self
+                .scoring
+                .apply(crate::evaluate::Evaluate::new(
+                    valset.to_vec(),
+                    |example| student.forward(example),
+                    &self.metric,
+                ))
+                .run()
+                .await
+                .score;
             attempts.push(Attempt {
                 seed,
                 score: scored,
@@ -220,10 +231,7 @@ mod tests {
             "dspy's default 16 candidates plus 3 baselines"
         );
         assert_eq!(
-            search
-                .with_num_candidate_programs(2)
-                .seeds()
-                .collect::<Vec<_>>(),
+            search.num_candidate_programs(2).seeds().collect::<Vec<_>>(),
             [-3, -2, -1, 0, 1]
         );
     }
@@ -232,8 +240,8 @@ mod tests {
     /// ask for a different number of demos on every seed than dspy asks for.
     #[test]
     fn the_size_is_drawn_from_a_fresh_generator() {
-        let search = BootstrapRandomSearch::new(|_: &Example, _: &Prediction| 0.0)
-            .with_max_bootstrapped_demos(8);
+        let search =
+            BootstrapRandomSearch::new(|_: &Example, _: &Prediction| 0.0).max_bootstrapped_demos(8);
         let trainset: Vec<Example> = (0..20)
             .map(|n| Example::new([("q", serde_json::json!(n))]))
             .collect();
