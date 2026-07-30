@@ -317,7 +317,10 @@ mod tests {
         trained.signature.instructions = "Answer in one word.".to_owned();
         trained.demos = vec![example! { request: "hi", answer: "hello" }.with_inputs(["request"])];
 
-        let path = std::env::temp_dir().join("dsrs_program_state_roundtrip.json");
+        let path = std::env::temp_dir().join(format!(
+            "dsrs_program_state_roundtrip-{}.json",
+            std::process::id()
+        ));
         trained.save(&path).expect("saves");
 
         let mut fresh = echo();

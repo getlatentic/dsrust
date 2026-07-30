@@ -447,7 +447,10 @@ async fn an_identical_request_is_replayed_rather_than_sent_again() {
     //
     // Every other test in this binary asks with the cache off, so nothing has initialised
     // the shared cache yet and this is the value it takes.
-    let scratch = std::env::temp_dir().join("dsrust-openai-compatible-cache");
+    let scratch = std::env::temp_dir().join(format!(
+        "dsrust-openai-compatible-cache-{}",
+        std::process::id()
+    ));
     let _ = std::fs::remove_dir_all(&scratch);
     // SAFETY: set before this binary's first use of the cache, and read only through it.
     unsafe { std::env::set_var("DSRS_CACHEDIR", &scratch) };

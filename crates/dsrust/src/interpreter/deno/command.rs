@@ -51,8 +51,11 @@ fn deno_dir() -> Option<PathBuf> {
 ///
 /// It ships inside the binary, so there is no file to find at runtime and no install step for a
 /// caller — which is the difference between a sandbox this crate has and one it describes.
+///
+/// The directory carries the process id because the write is a truncate: a second process sharing
+/// the path could hand deno an empty runner to execute.
 pub fn runner_path() -> Result<PathBuf> {
-    let directory = std::env::temp_dir().join("dsrust-sandbox");
+    let directory = std::env::temp_dir().join(format!("dsrust-sandbox-{}", std::process::id()));
     std::fs::create_dir_all(&directory).context("making a place for the sandbox runner")?;
     let path = directory.join("runner.js");
     let current = std::fs::read_to_string(&path).unwrap_or_default();
