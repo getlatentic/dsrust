@@ -90,6 +90,25 @@ This is the sprint that closed the project's one known blind spot.
 """
 
 [[story]]
+id = "api-4"
+sprint = "api"
+title = "An error's cause should be in its message, not only in its chain"
+state = "todo"
+plan = """
+Reported by an outside project, and it cost them a debugging cycle: `{e}` prints
+"validated reply did not fit the requested type" and `{e:#}` prints ``missing field `name` ``. The
+sentence a caller sees first names the category and not the cause, so the useful half is only
+reachable by knowing to ask for the alternate format.
+
+`LmFailure` was fixed this way already — `from_transport` walks `source()` and folds the chain into
+the message, because reqwest's Display names the url and stops. The coercion and validation errors
+want the same treatment: whatever `serde` or the signature said belongs in the message.
+
+Audit every `anyhow::Error` this crate returns to a caller for the same shape. A context line that
+categorises is worth having; one that *replaces* the cause is not.
+"""
+
+[[story]]
 id = "api-3"
 sprint = "api"
 title = "Audit the 166 constructor parameters the API gate now counts"

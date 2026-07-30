@@ -66,6 +66,20 @@ That run used a local `llama-server`; point `LM::new` at any OpenAI-compatible h
 A field arrives as JSON, so `as_str` is what turns `"Paris"` into `Paris`. Declare the task as a
 struct and the field is a `String` already.
 
+### Replies are cached, as DSPy caches them
+
+An identical request is answered from disk rather than asked again — DSPy's `cache=True` default,
+under `~/.dsrs_cache`. **Measuring a model means turning it off**, or a second run reads the first
+run's answer and reports it as a fresh one:
+
+```rust
+LM::builder("openai/gpt-4o-mini").no_cache().build()?   // per model
+```
+
+```bash
+DSRS_CACHEDIR=$(mktemp -d) cargo run                    # or a throwaway directory
+```
+
 ## Documentation
 
 [`docs/usage.md`](docs/usage.md) is the full guide: every module, every declaration spelling, and
