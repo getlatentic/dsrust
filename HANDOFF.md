@@ -120,7 +120,20 @@ One real exception: a **bug fix** on main that the pin still has. Reproducing th
 there means reproducing a bug upstream has already disowned, and byte-conformance to a fixed
 mistake is not the point. Port the fix and say which commit it came from.
 
-What moving the pin would cost, measured 2026-07-30:
+Which ported modules have moved on main, and in what:
+
+```sh
+./scripts/check_pin_drift.py --detail
+```
+
+It compares the *public surface* — every class, function and method with its parameter list — of the
+pin against main. Parameters and not just names, because names alone said `clients/base_lm.py` was
+unchanged while `__call__` went from `(prompt, messages, **kwargs)` to
+`(*items, prompt, messages, request, **kwargs)`, which is precisely what `ChatModel::call` was built
+against without anyone noticing. It never fails a build: main moves, and a red gate tracking someone
+else's branch is one people learn to ignore.
+
+What moving the pin would cost in bulk, measured 2026-07-30:
 
 ```sh
 git -C third_party/dspy diff --stat 3.3.0b1..origin/main -- dspy/

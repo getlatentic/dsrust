@@ -80,6 +80,9 @@ python3 "$ROOT/scripts/check_api_surface.py"
 # The same question from the module's own side: `__all__` names things the AST walk cannot see,
 # because an alias is a binding rather than a definition. It found `LMPart` and `ToolCall`.
 python3 "$ROOT/scripts/check_pinned_all.py"
+# Reports rather than gates: which ported modules moved on main, so a porter knows what is a moving
+# target before building it. Never fails — main is someone else's branch.
+python3 "$ROOT/scripts/check_pin_drift.py" || true
 
 # The whole tests/ tree is needed, not just the run files: every shared helper a suite imports
 # (tests.adapters.conftest's format_messages_and_lm_kwargs, tests.test_utils, …) has to be an

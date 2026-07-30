@@ -153,7 +153,12 @@ def _toplevel(node: ast.Module):
 
 
 def surface_of(path: pathlib.Path) -> dict:
-    tree = ast.parse(path.read_text(), filename=str(path))
+    return surface_of_source(path.read_text(), str(path))
+
+
+def surface_of_source(source: str, where: str = "<pinned>") -> dict:
+    """The same, from text — so a module can be read out of a git object rather than the worktree."""
+    tree = ast.parse(source, filename=where)
     declared = _literal_all(tree)
     classes: dict[str, list[str]] = {}
     constructors: dict[str, list[str]] = {}
