@@ -310,6 +310,109 @@ fn every_module_is_watched() {
     }
 }
 
+/// dspy `on_tool_start`/`on_tool_end`: an agent's tool calls are spans inside the module's, which is
+/// what upstream's own documentation example prints.
+#[test]
+fn a_react_agent_records_a_span_per_tool_call() {
+    let (recorded, answered) = recording(async {
+        let tools: Vec<Box<dyn dsrust::Tool>> = vec![Box::new(dsrust::FnTool::new(
+            "get_weather",
+            "look up the weather for a city",
+            serde_json::json!({ "city": { "type": "string" } }),
+            |args: &serde_json::Value| {
+                Ok(format!(
+                    "sunny in {}",
+                    args["city"].as_str().unwrap_or_default()
+                ))
+            },
+        ))];
+        let agent =
+            dsrust::ReAct!("question -> answer", tools, max_iters = 2).with_lm(scripted(vec![
+                example! {
+                    next_thought: "check the weather",
+                    next_tool_name: "get_weather",
+                    next_tool_args: serde_json::json!({ "city": "Paris" })
+                },
+                example! {
+                    next_thought: "done",
+                    next_tool_name: "finish",
+                    next_tool_args: serde_json::json!({})
+                },
+                example! { reasoning: "it said so", answer: "sunny" },
+            ]));
+        agent
+            .forward(input! { question: "weather in Paris?" })
+            .await
+    });
+    answered.expect("the agent finishes");
+
+    let tools = recorded.named("tool");
+    assert!(
+        !tools.is_empty(),
+        "no tool span — dspy fires on_tool_start for every call an agent makes"
+    );
+    let weather = tools
+        .iter()
+        .find(|span| span.inputs.as_deref().is_some_and(|i| i.contains("Paris")))
+        .expect("the get_weather call was recorded with its arguments");
+    assert_eq!(
+        weather.parent.as_deref(),
+        Some("module"),
+        "a tool call happens inside the agent that made it"
+    );
+    assert!(
+        weather
+            .outputs
+            .as_deref()
+            .is_some_and(|o| o.contains("sunny")),
+        "what the tool returned: {:?}",
+        weather.outputs
+    );
+}
+
+/// A tool that refuses records why, and records no outputs. dspy hands the exception to
+/// `on_tool_end`; ReAct puts it in the trajectory and carries on, so the span is the only place a
+/// reader sees it as a failure rather than as an observation.
+#[test]
+fn a_refusing_tool_records_its_error() {
+    let (recorded, answered) = recording(async {
+        let tools: Vec<Box<dyn dsrust::Tool>> = vec![Box::new(dsrust::FnTool::new(
+            "always_fails",
+            "a tool that refuses",
+            serde_json::json!({}),
+            |_: &serde_json::Value| anyhow::bail!("the service is down"),
+        ))];
+        let agent =
+            dsrust::ReAct!("question -> answer", tools, max_iters = 2).with_lm(scripted(vec![
+                example! {
+                    next_thought: "try it",
+                    next_tool_name: "always_fails",
+                    next_tool_args: serde_json::json!({})
+                },
+                example! {
+                    next_thought: "give up",
+                    next_tool_name: "finish",
+                    next_tool_args: serde_json::json!({})
+                },
+                example! { reasoning: "it failed", answer: "unknown" },
+            ]));
+        agent.forward(input! { question: "anything?" }).await
+    });
+    answered.expect("the agent finishes despite the tool");
+
+    let failed = recorded
+        .named("tool")
+        .into_iter()
+        .find(|span| span.error.is_some())
+        .expect("the refusal was recorded as an error");
+    assert_eq!(failed.outputs, None, "a refusal produced no outputs");
+    assert!(
+        failed.error.as_deref().is_some_and(|e| e.contains("down")),
+        "{:?}",
+        failed.error
+    );
+}
+
 /// Nothing is serialized when nothing is listening. A program with no subscriber must not pay for
 /// rendering a prompt into a span field it will never reach.
 #[test]

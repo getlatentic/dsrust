@@ -264,7 +264,7 @@ impl DenoInterpreter {
         let Some(tool) = tools.iter().find(|tool| tool.name() == name) else {
             bail!("Unknown tool: {name}");
         };
-        let answered = tool.call_value(arguments)?;
+        let answered = crate::observe::tool_call(tool.as_ref(), arguments)?;
         Ok(match answered.is_array() || answered.is_object() {
             true => json!({ "value": answered.to_string(), "type": "json" }),
             false => json!({

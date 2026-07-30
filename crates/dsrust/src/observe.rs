@@ -13,16 +13,18 @@
 //! Nothing is serialized unless something is listening. `tracing`'s macros check subscriber interest
 //! before evaluating a field, and [`shown`] and [`finished`] return immediately on a disabled span.
 //!
-//! **Two of the six points exist: module and lm.** Adapter format, adapter parse, tool and evaluate
-//! have no span, and no unused constructor here either — a function nothing calls is what let the
-//! ledger claim these existed while the tree had none. `tests/observe.rs` decides which exist, and
-//! it can only see spans a run produced.
+//! **Three of the six points exist: module, lm and tool.** Adapter format, adapter parse and
+//! evaluate have no span, and no unused constructor here either — a function nothing calls is what
+//! let the ledger claim these existed while the tree had none. `tests/observe.rs` decides which
+//! exist, and it can only see spans a run produced.
 
 use std::fmt::Write as _;
 use std::future::Future;
 
 use anyhow::Result;
 use tracing::{Instrument, Span, field};
+
+use serde_json::Value;
 
 use crate::example::{Example, Prediction};
 
@@ -66,6 +68,34 @@ pub fn lm(model: &str) -> Span {
         outputs = field::Empty,
         error = field::Empty,
     )
+}
+
+/// dspy `on_tool_start`/`on_tool_end`: one tool call an agent made, with its arguments and either
+/// what the tool returned or why it refused.
+///
+/// Synchronous, unlike the other points, because [`Tool::call_value`](crate::Tool::call_value) is —
+/// a tool is a Rust closure, not a network call. So this runs the call rather than wrapping a
+/// future, and the span opens and closes around it.
+///
+/// Every agent goes through here rather than through the trait, and that is deliberate:
+/// `call_value` is defaulted and two tools in the tree override it, so a span in the default body
+/// would miss exactly the tools most worth watching — ReActV2's `submit` and RLM's.
+pub fn tool_call(tool: &dyn crate::Tool, args: &serde_json::Value) -> anyhow::Result<Value> {
+    let span = tracing::info_span!(
+        target: TARGET,
+        "tool",
+        tool = tool.name(),
+        inputs = field::Empty,
+        outputs = field::Empty,
+        error = field::Empty,
+    );
+    let _entered = span.enter();
+    if !span.is_disabled() {
+        span.record("inputs", args.to_string().as_str());
+    }
+    let answered = tool.call_value(args);
+    finished(&span, Value::to_string, &answered);
+    answered
 }
 
 /// What dspy's `on_*_start` was shown, recorded on the span.

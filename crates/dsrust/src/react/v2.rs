@@ -214,7 +214,7 @@ impl ReActV2 {
                 is_errors.push(true);
                 continue;
             };
-            match tool.call_value(&Value::Object(call.args.clone())) {
+            match crate::observe::tool_call(tool, &Value::Object(call.args.clone())) {
                 Ok(value) => {
                     if call.name == SUBMIT && value.is_object() {
                         final_outputs = value.as_object().cloned();

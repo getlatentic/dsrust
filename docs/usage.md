@@ -458,9 +458,12 @@ tracing_subscriber::fmt()
 RUST_LOG=dsrust::observe=info cargo run
 ```
 
+An agent's tool calls are spans too, nested inside the module that made them — the arguments on the
+way in, and either what the tool returned or why it refused on the way out. That is what DSPy's own
+documentation example prints.
+
 Nothing is rendered when nothing is listening, so a program with no subscriber pays an atomic load
-per point. DSPy's other four points — adapter format, adapter parse, tool, evaluate — are not here
-yet.
+per point. DSPy's other three points — adapter format, adapter parse, evaluate — are not here yet.
 
 A span cannot change what it sees, which is the one way this is not DSPy's shape: upstream's
 `BaseCallback` is handed the values and its own documentation warns against mutating them.

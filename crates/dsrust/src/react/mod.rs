@@ -103,7 +103,7 @@ impl ReAct {
     fn observe(&self, name: &str, args: &Value) -> Value {
         match self.tool(name) {
             None => json!(format!("Execution error in {name}: no such tool")),
-            Some(tool) => match tool.call_value(args) {
+            Some(tool) => match crate::observe::tool_call(tool, args) {
                 Ok(observation) => observation,
                 Err(error) => json!(format!("Execution error in {name}: {error:#}")),
             },
