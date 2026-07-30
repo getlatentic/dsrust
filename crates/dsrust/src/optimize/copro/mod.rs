@@ -41,6 +41,8 @@ pub struct COPRO<M> {
     depth: usize,
     init_temperature: f64,
     prompt_model: Option<Arc<dyn DynChatModel>>,
+    /// What a scoring pass is bounded by. See [`Scoring`](crate::optimize::Scoring).
+    scoring: crate::optimize::Scoring,
 }
 
 impl<M> COPRO<M>
@@ -56,6 +58,7 @@ where
             depth: 3,
             init_temperature: 1.4,
             prompt_model: None,
+            scoring: crate::optimize::Scoring::default(),
         }
     }
 
@@ -227,13 +230,15 @@ where
     /// dspy Evaluate's headline: the metric's mean over the trainset, scaled to a percentage and
     /// rounded, which is the number COPRO compares and writes into its next prompt.
     async fn score<S: Module + ?Sized>(&self, student: &S, trainset: &[Example]) -> f64 {
-        let evaluation = Evaluate::new(
-            trainset.to_vec(),
-            |inputs| student.forward(inputs),
-            |example: &Example, prediction: &Prediction| (self.metric)(example, prediction),
-        )
-        .run()
-        .await;
+        let evaluation = self
+            .scoring
+            .apply(Evaluate::new(
+                trainset.to_vec(),
+                |inputs| student.forward(inputs),
+                |example: &Example, prediction: &Prediction| (self.metric)(example, prediction),
+            ))
+            .run()
+            .await;
         dspy_score(evaluation.score)
     }
 }

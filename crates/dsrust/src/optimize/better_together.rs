@@ -49,6 +49,8 @@ pub struct BetterTogether<M> {
     pub valset_ratio: f64,
     /// dspy shuffles the trainset before each step so a run cannot overfit the example order.
     pub shuffle_trainset_between_steps: bool,
+    /// What a scoring pass is bounded by. See [`Scoring`](crate::optimize::Scoring).
+    pub scoring: crate::optimize::Scoring,
     pub seed: u64,
 }
 
@@ -69,6 +71,7 @@ where
                 .collect(),
             valset_ratio: 0.1,
             shuffle_trainset_between_steps: true,
+            scoring: crate::optimize::Scoring::default(),
             seed: 0,
         }
     }
@@ -165,13 +168,15 @@ where
     }
 
     async fn score(&self, student: &dyn Module, valset: &[Example]) -> f64 {
-        let evaluation = Evaluate::new(
-            valset.to_vec(),
-            |inputs| student.forward(inputs),
-            |example: &Example, prediction: &Prediction| (self.metric)(example, prediction),
-        )
-        .run()
-        .await;
+        let evaluation = self
+            .scoring
+            .apply(Evaluate::new(
+                valset.to_vec(),
+                |inputs| student.forward(inputs),
+                |example: &Example, prediction: &Prediction| (self.metric)(example, prediction),
+            ))
+            .run()
+            .await;
         percent(evaluation.score)
     }
 
