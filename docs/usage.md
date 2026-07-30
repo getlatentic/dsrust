@@ -323,12 +323,66 @@ not a subclass. A provider that shares the OpenAI wire but changes a header or t
 wraps the OpenAI request and reply pieces in its own `ChatModel`. It holds what it reuses rather
 than inheriting it.
 
+### Settings that apply to every call
+
+DSPy keeps `temperature` and `max_tokens` on the LM and merges them beneath each call —
+`kwargs = {**self.kwargs, **kwargs}`. So does this:
+
+```rust
+configure(
+    LM::builder("openai/gpt-4o-mini")   // the model is positional: it cannot be forgotten
+        .temperature(0.2)
+        .max_tokens(512)
+        .build()?,
+);
+```
+
+A single call still overrides them; the model's settings fill in only what the call left unset.
+
+### Replies are cached
+
+An identical request is answered from disk rather than asked again — DSPy's `cache=True` default,
+under `~/.dsrs_cache`. **Measuring a model means turning it off**, or a second run reads the first
+run's answer and reports it as fresh:
+
+```rust
+LM::builder("openai/gpt-4o-mini").cache(false).build()?
+```
+
+```bash
+DSRS_CACHEDIR=$(mktemp -d) cargo run    # or a throwaway directory
+```
+
+### When a call fails
+
+Provider failures arrive as a typed `LmFailure`, DSPy 3.3's normalized LM errors:
+
+```rust
+match extractor.forward(inputs).await {
+    Ok(out) => …,
+    Err(error) => match error.downcast_ref::<LmFailure>() {
+        // rate limit, timeout, server, transport — and honour `retry_after` when it is set
+        Some(failed) if failed.is_retryable() => back_off(failed.retry_after).await,
+        Some(failed) => eprintln!("{}: {}", failed.kind, failed.message),
+        // Not a provider failure: a reply that would not parse or coerce.
+        None => eprintln!("{error:#}"),
+    },
+}
+```
+
+`{error:#}` and not `{error}`: a parse or coercion failure keeps its cause in the chain, so the
+short form names the category and the alternate form names the field.
+
+A reply that parses but is missing a field is re-asked through the JSON adapter, as DSPy does it.
+`Predict::with_feedback_retry` swaps that for a second ask in the original format, carrying the
+error. That recovery is this crate's own and DSPy has no equivalent, so it is off by default.
+
 ## Every module, and what it takes
 
 dspy's modules split into two families, and the split decides how you build one.
 
-**A module that takes a signature** is declared like `Predict` — a field-name string or a task
-type — and each has a macro of the same name.
+**A module that takes a signature** is declared like `Predict`: a field-name string, or a task
+type. Each has a macro of the same name.
 
 **A wrapper takes another module.** There is no signature to hand it; the signature lives in
 whatever it wraps, so it is built with `::new` and has no macro.
@@ -337,13 +391,41 @@ whatever it wraps, so it is built with `::new` and has no macro.
 |---|---|---|---|
 | `Predict` | a signature | `dspy.Predict("q -> a")` | `predict!("q -> a")` |
 | `ChainOfThought` | a signature | `dspy.ChainOfThought("q -> a")` | `chain_of_thought!("q -> a")` |
-| `ReAct` | a signature + tools | `dspy.ReAct("q -> a", tools=[…])` | `ReAct::new(signature!("q -> a"), tools)` |
-| `MultiChainComparison` | a signature | `dspy.MultiChainComparison("q -> a")` | `MultiChainComparison::new(…)` |
-| `BestOfN` | **a module** | `dspy.BestOfN(module=qa, N=3, reward_fn=f, threshold=1.0)` | `BestOfN::new(qa, 3, f, 1.0)` |
+| `ReAct` | a signature + tools | `dspy.ReAct("q -> a", tools=[…])` | `react!("q -> a", tools)` |
+| `ReActV2` | a signature + tools | `dspy.ReActV2("q -> a", tools=[…])` | `react_v2!("q -> a", tools)` |
+| `ProgramOfThought` | a signature | `dspy.ProgramOfThought("q -> a")` | `program_of_thought!("q -> a")` |
+| `CodeAct` | a signature + tools | `dspy.CodeAct("q -> a", tools=[…])` | `code_act!("q -> a", tools)` |
+| `RLM` | a signature | `dspy.RLM("q -> a")` | `rlm!("q -> a")` |
+| `MultiChainComparison` | a signature | `dspy.MultiChainComparison("q -> a")` | `MultiChainComparison::with_attempts(…)` |
+| `BestOfN` | **a module** | `dspy.BestOfN(module=qa, N=3, reward_fn=f, threshold=1.0)` | `best_of_n!(qa, n = 3, reward = f, threshold = 1.0)` |
+| `Refine` | **a module** | `dspy.Refine(module=qa, N=3, …)` | `refine!(qa, n = 3, reward = f, threshold = 1.0)` |
 | `Parallel` | branches per call | `dspy.Parallel(num_threads=8)` | `Parallel::new(8)` |
 
-`Refine`, `ProgramOfThought`, `CodeAct` and `RLM` are not built yet. The first is a wrapper like
-`BestOfN`; the other three take a signature and will get macros.
+Every signature-taking macro accepts **either spelling** — a string, or a task declared with
+`#[derive(Signature)]`:
+
+```rust
+let quick   = predict!("question -> answer");
+let declared = predict!(Investigate);          // carries its doc comment as instructions
+let agent    = react!(Investigate, tools, max_iters = 4);
+let reader   = rlm!(Investigate, max_iterations = 6);
+```
+
+Each keeps the cap keyword its own module uses: `max_iters` for most, `max_iterations` for `RLM`.
+A uniform name would be one none of them actually have.
+
+### Code-writing modules run real Python
+
+`ProgramOfThought`, `CodeAct` and `RLM` default to a Deno/Pyodide sandbox running DSPy's own
+`runner.js`, exactly as `dspy.ProgramOfThought(...)` defaults to `PythonInterpreter()`. **`deno`
+must be on the path**, which is what DSPy asks of its users too:
+
+```bash
+curl -fsSL https://deno.land/install.sh | sh    # or: brew install deno
+```
+
+Supply your own environment with `with_interpreter`, which is also how a test scripts one without
+needing deno at all.
 
 ### Asking one, side by side
 

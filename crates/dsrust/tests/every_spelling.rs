@@ -419,3 +419,33 @@ fn the_code_writing_macros_take_both_spellings() {
             .contains("Compute the answer in Python")
     );
 }
+
+/// The shapes `docs/usage.md` shows for configuring a model and reading a failure.
+///
+/// The guide opens by saying every Rust shape in it is compiled here, which is only true if the
+/// ones added to it are added here too.
+#[test]
+fn the_guides_model_and_error_shapes_compile() {
+    use dsrust::lm::{LM, LmErrorKind, LmFailure};
+
+    let configured = LM::builder("openai/gpt-4o-mini")
+        .temperature(0.2)
+        .max_tokens(512)
+        .cache(false)
+        .build()
+        .expect("a model id");
+    assert_eq!(configured.config.temperature, Some(0.2));
+    assert_eq!(configured.config.max_tokens, Some(512));
+    assert!(!configured.cache, "the guide's cache(false)");
+
+    // The match arms the guide shows, over a failure a provider would produce.
+    let error =
+        anyhow::Error::new(LmFailure::from_status(429, "slow down").on_model("openai/gpt-4o-mini"));
+    let described = match error.downcast_ref::<LmFailure>() {
+        Some(failed) if failed.is_retryable() => format!("retry after {:?}", failed.retry_after),
+        Some(failed) => format!("{}: {}", failed.kind, failed.message),
+        None => format!("{error:#}"),
+    };
+    assert_eq!(described, "retry after None");
+    assert_eq!(LmErrorKind::from_status(Some(429)), LmErrorKind::RateLimit);
+}
