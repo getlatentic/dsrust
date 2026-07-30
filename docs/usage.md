@@ -534,8 +534,13 @@ A failing row still scores `failure_score` rather than aborting, but a devset ru
 that is simply down should say so instead of reporting a confident zero.
 
 ```rust
-Evaluate::new(devset, program, exact_match).num_threads(8).max_errors(25)
+Evaluate::new(devset, |inputs| program.forward(inputs), exact_match)
+    .num_threads(8)
+    .max_errors(25)
 ```
+
+The program is a closure rather than the module itself, because what is scored need not be a
+`Module` at all — a metric run over anything that answers an `Example` is still an evaluation.
 
 Every signature-taking macro accepts **either spelling** — a string, or a task declared with
 `#[derive(Signature)]`:
