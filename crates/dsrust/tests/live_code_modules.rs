@@ -56,7 +56,9 @@ fn live_timeout() -> Option<Duration> {
 
 fn configure_live() -> String {
     let model = live_model();
-    let mut lm = LM::new(&model).expect("a valid model ref").without_cache();
+    let mut lm = LM::new(&model)
+        .expect("a valid model ref")
+        .with_cache(false);
     if let Some(timeout) = live_timeout() {
         lm = lm.with_timeout(timeout);
     }

@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         LM::new(&format!("openai/{model}"))?
             .with_openai_base_url(&base)
             .with_openai_key("x")
-            .without_cache(),
+            .with_cache(false),
     );
 
     let asked = Predict::from_signature("question -> answer".parse::<Signature>()?)

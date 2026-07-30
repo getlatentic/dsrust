@@ -132,7 +132,7 @@ fn write_response(stream: &mut TcpStream, status: u16, body: &str) {
 /// their stubs are. The second would be replayed, its stub would wait forever for a connection,
 /// and the test would hang rather than fail.
 fn probe_lm_for(stub: &Stub, model: &str) -> LM {
-    caching_lm_for(stub, model).without_cache()
+    caching_lm_for(stub, model).with_cache(false)
 }
 
 /// The same probe with the cache left on, for the one test that is about the cache.
@@ -210,7 +210,7 @@ async fn a_base_url_with_a_trailing_slash_reaches_the_same_route() {
         .expect("valid model ref")
         .with_openai_key("sk-test")
         .with_openai_base_url(format!("{}/", stub.base_url))
-        .without_cache();
+        .with_cache(false);
     ask(&lm, &OutputMode::Text).await.expect("the stub answers");
     assert_eq!(stub.received().path, "/v1/chat/completions");
 }
@@ -416,7 +416,7 @@ async fn a_missing_key_names_the_variable_the_endpoint_was_told_to_read() {
     let lm = LM::new("openai/llama-3.3-70b")
         .expect("valid model ref")
         .with_openai_key_env("DSRS_TEST_KEY_THAT_IS_NOT_SET")
-        .without_cache();
+        .with_cache(false);
     let error = ask(&lm, &OutputMode::Text)
         .await
         .expect_err("no credential is configured");
@@ -437,7 +437,7 @@ async fn an_identical_request_is_replayed_rather_than_sent_again() {
     // Pointing it at a scratch path also keeps a test run from writing into the developer's own
     // cache, which is a 30 GB directory nobody asked us to fill.
     //
-    // Every other test in this binary asks through `without_cache`, so nothing has initialised
+    // Every other test in this binary asks with the cache off, so nothing has initialised
     // the shared cache yet and this is the value it takes.
     let scratch = std::env::temp_dir().join("dsrust-openai-compatible-cache");
     let _ = std::fs::remove_dir_all(&scratch);
@@ -478,7 +478,7 @@ async fn a_refused_connection_is_a_retryable_transport_failure() {
         // Port 9 is discard: nothing listens, so the connect fails before any HTTP happens.
         .with_openai_base_url("http://127.0.0.1:9/v1")
         .with_openai_key("x")
-        .without_cache();
+        .with_cache(false);
 
     let error = ask(&lm, &OutputMode::Text)
         .await
@@ -511,7 +511,7 @@ async fn the_models_own_settings_reach_a_call_that_did_not_state_them() {
         .api_key("x")
         .temperature(0.25)
         .max_tokens(321)
-        .no_cache()
+        .cache(false)
         .build()
         .expect("a model id");
 
@@ -534,7 +534,7 @@ async fn a_calls_own_setting_overrides_the_models() {
         .api_key("x")
         .temperature(0.25)
         .max_tokens(321)
-        .no_cache()
+        .cache(false)
         .build()
         .expect("a model id");
 

@@ -73,7 +73,7 @@ under `~/.dsrs_cache`. **Measuring a model means turning it off**, or a second r
 run's answer and reports it as a fresh one:
 
 ```rust
-LM::builder("openai/gpt-4o-mini").no_cache().build()?   // per model
+LM::builder("openai/gpt-4o-mini").cache(false).build()?  // per model
 ```
 
 ```bash

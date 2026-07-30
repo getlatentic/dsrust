@@ -92,9 +92,12 @@ impl LmBuilder {
         self
     }
 
-    /// Ask the provider every time rather than replaying an identical earlier answer.
-    pub fn no_cache(mut self) -> Self {
-        self.settings.push(Box::new(LM::without_cache));
+    /// Whether an identical earlier answer is replayed instead of asking again.
+    ///
+    /// dspy's `LM(model, cache=True)`, and a boolean for the same reason: a caller with a runtime
+    /// switch writes `.cache(measuring_the_model)` rather than branching around a method call.
+    pub fn cache(mut self, cache: bool) -> Self {
+        self.settings.push(Box::new(move |lm| lm.with_cache(cache)));
         self
     }
 

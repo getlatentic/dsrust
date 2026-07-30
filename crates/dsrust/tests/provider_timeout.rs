@@ -174,7 +174,7 @@ async fn a_short_timeout_abandons_every_slow_route() {
             .find(|(name, _)| *name == route)
             .expect("the route")
             .1
-            .without_cache()
+            .with_cache(false)
             .with_timeout(TOO_SHORT);
 
         let error = lm
@@ -203,7 +203,7 @@ async fn a_raised_timeout_waits_for_every_slow_route() {
             .find(|(name, _)| *name == route)
             .expect("the route")
             .1
-            .without_cache()
+            .with_cache(false)
             .with_timeout(LONG_ENOUGH);
 
         let answered = lm

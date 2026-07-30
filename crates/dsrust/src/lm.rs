@@ -66,7 +66,7 @@ pub struct LM {
     ///
     /// dspy's `LM(cache=True)`, on for the same reason: a program asked the same thing twice
     /// almost never means to buy the answer twice, and every retry-shaped module depends on
-    /// `rollout_id` having a cache to miss. [`Self::without_cache`] turns it off.
+    /// `rollout_id` having a cache to miss. [`Self::with_cache`] turns it off.
     /// dspy's `lm.kwargs`: what `dspy.LM(model, temperature=…, max_tokens=…)` keeps on the
     /// instance and merges beneath every call. A module's own config overrides it field by field.
     pub config: api::LmConfig,
@@ -148,9 +148,12 @@ impl LM {
         self
     }
 
-    /// Reach the provider every time, replaying nothing. dspy's `LM(cache=False)`.
-    pub fn without_cache(mut self) -> Self {
-        self.cache = false;
+    /// Whether an identical earlier answer is replayed instead of asking again.
+    ///
+    /// dspy's `cache=` argument, and on by default as upstream has it. Turn it off to measure a
+    /// model: with it on, a second run reads the first run's reply and reports it as fresh.
+    pub fn with_cache(mut self, cache: bool) -> Self {
+        self.cache = cache;
         self
     }
 

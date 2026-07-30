@@ -4,7 +4,9 @@ use dsrust::lm::{ChatModel, LM, api};
 #[tokio::test]
 #[ignore = "needs a live ollama with llama3.2:1b pulled"]
 async fn the_generate_route_answers() {
-    let lm = LM::new("ollama/llama3.2:1b").expect("ref").without_cache();
+    let lm = LM::new("ollama/llama3.2:1b")
+        .expect("ref")
+        .with_cache(false);
     let req = api::LmRequest::new(
         "llama3.2:1b",
         vec![api::LmMessage::new(

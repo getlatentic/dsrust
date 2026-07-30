@@ -42,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
         LM::new(format!("openai/{model}"))?
             .with_openai_base_url(&base_url)
             .with_openai_key("rust-dsrust")
-            .without_cache(),
+            .with_cache(false),
     );
 
     let inputs = || PracticeForStepInputs {
