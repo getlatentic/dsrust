@@ -5,6 +5,7 @@
 
 mod builder;
 mod config;
+pub(crate) mod defaults;
 mod delta;
 mod event;
 mod history;

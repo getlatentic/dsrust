@@ -1,10 +1,11 @@
 mod anthropic;
 pub mod api;
+pub mod builder;
 pub mod cache;
 mod call;
 mod capabilities;
 pub mod dummy;
-pub mod error;
+mod error;
 pub mod global;
 mod model;
 mod ollama;
@@ -21,6 +22,7 @@ use anyhow::Result;
 use futures_util::Stream;
 
 pub use api::{Content, Detail, LmPart, LmSource};
+pub use builder::LmBuilder;
 pub use cache::{Cached, ResponseCache};
 pub use call::{LmConfig, LmUsage};
 pub use capabilities::Capabilities;
@@ -65,6 +67,9 @@ pub struct LM {
     /// dspy's `LM(cache=True)`, on for the same reason: a program asked the same thing twice
     /// almost never means to buy the answer twice, and every retry-shaped module depends on
     /// `rollout_id` having a cache to miss. [`Self::without_cache`] turns it off.
+    /// dspy's `lm.kwargs`: what `dspy.LM(model, temperature=…, max_tokens=…)` keeps on the
+    /// instance and merges beneath every call. A module's own config overrides it field by field.
+    pub config: api::LmConfig,
     pub cache: bool,
     /// How long any one call to this model may take. See [`Self::with_timeout`].
     pub timeout: Duration,
@@ -83,6 +88,7 @@ impl LM {
     /// `&format!(…)` is a borrow it should not have to think about.
     pub fn new(model: impl AsRef<str>) -> Result<Self> {
         Ok(Self {
+            config: api::LmConfig::default(),
             model: ModelRef::parse(model.as_ref())?,
             anthropic_api_key: env_nonempty("ANTHROPIC_API_KEY"),
             openrouter_api_key: env_nonempty("OPENROUTER_API_KEY"),
@@ -101,6 +107,32 @@ impl LM {
     ///
     /// Raise it for a local model reading a long prompt — the cost of a low bound is a call that
     /// would have answered being abandoned, not a slow one being made faster.
+    /// Build a model, naming the required part first.
+    ///
+    /// dspy's own signature is `LM(model, temperature=None, max_tokens=None, …)`: one required
+    /// argument, the rest optional. So the model is positional here too, and the compiler enforces
+    /// it — there is no state in which `build` can be reached without one. A builder that made the
+    /// model just another optional field would move that guarantee to runtime, or silently pick a
+    /// model on the caller's behalf.
+    ///
+    /// ```no_run
+    /// # use dsrust::lm::LM;
+    /// let lm = LM::builder("openai/gpt-4o-mini")
+    ///     .temperature(0.5)
+    ///     .max_tokens(512)
+    ///     .build()?;
+    /// # Ok::<(), anyhow::Error>(())
+    /// ```
+    ///
+    /// The same knobs are on [`LM`] itself as `with_*`, for a caller who already has one.
+    pub fn builder(model: impl AsRef<str>) -> LmBuilder {
+        LmBuilder {
+            model: model.as_ref().to_owned(),
+            config: api::LmConfig::default(),
+            settings: Vec::new(),
+        }
+    }
+
     pub fn with_timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
@@ -199,6 +231,11 @@ impl ChatModel for LM {
         http: &reqwest::Client,
         request: &api::LmRequest,
     ) -> Result<api::LmResponse> {
+        // dspy's `kwargs = {**self.kwargs, **kwargs}`, and in the same place: the LM applies its
+        // own settings, so every caller inherits them without having to know they exist. Before
+        // the cache key is taken, since two calls differing only in an inherited setting are two
+        // different requests.
+        let request = &self.with_defaults(request);
         if !self.cache {
             let answered = self.ask_provider(http, request).await?;
             usage::record(&self.model.id, answered.spend());

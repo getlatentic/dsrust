@@ -497,3 +497,57 @@ async fn a_refused_connection_is_a_retryable_transport_failure() {
     );
     assert_eq!(failed.provider.as_deref(), Some("openai"));
 }
+
+/// dspy's `dspy.LM(model, temperature=…, max_tokens=…)` keeps those on the instance and merges them
+/// beneath every call — `kwargs = {**self.kwargs, **kwargs}`. So must these.
+#[tokio::test]
+async fn the_models_own_settings_reach_a_call_that_did_not_state_them() {
+    let stub = Stub::answering(
+        200,
+        r#"{"choices":[{"message":{"content":"[[ ## answer ## ]]\nok"}}]}"#,
+    );
+    let lm = dsrust::lm::LM::builder("openai/gpt-4o-mini")
+        .base_url(&stub.base_url)
+        .api_key("x")
+        .temperature(0.25)
+        .max_tokens(321)
+        .no_cache()
+        .build()
+        .expect("a model id");
+
+    ask(&lm, &OutputMode::Text).await.expect("the stub answers");
+
+    let sent = stub.received();
+    assert_eq!(sent.body["temperature"], 0.25);
+    assert_eq!(sent.body["max_tokens"], 321);
+}
+
+/// And a call stating its own wins, which is what makes an LM-wide default overridable.
+#[tokio::test]
+async fn a_calls_own_setting_overrides_the_models() {
+    let stub = Stub::answering(
+        200,
+        r#"{"choices":[{"message":{"content":"[[ ## answer ## ]]\nok"}}]}"#,
+    );
+    let lm = dsrust::lm::LM::builder("openai/gpt-4o-mini")
+        .base_url(&stub.base_url)
+        .api_key("x")
+        .temperature(0.25)
+        .max_tokens(321)
+        .no_cache()
+        .build()
+        .expect("a model id");
+
+    let mut request = probe_request(&OutputMode::Text);
+    request.config.temperature = Some(0.9);
+    lm.forward(&reqwest::Client::new(), &request)
+        .await
+        .expect("the stub answers");
+
+    let sent = stub.received();
+    assert_eq!(sent.body["temperature"], 0.9, "the call's");
+    assert_eq!(
+        sent.body["max_tokens"], 321,
+        "and the model's, unstated by the call"
+    );
+}
