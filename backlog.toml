@@ -250,6 +250,49 @@ the provider contract untouched.
 """
 
 [[story]]
+id = "lm-context"
+sprint = "api"
+title = "dspy.context scopes a model to a block; nothing here does"
+state = "todo"
+size = "M"
+suites = ["tests/utils/test_settings.py"]
+plan = """
+`with dspy.context(lm=...):` overrides settings for the dynamic extent of a block — every module
+called inside it, however deeply nested — and restores them on exit. It is thread- and task-local,
+which upstream's own docstring calls out: "unlike `dspy.configure(...)`, you can call
+`dspy.context(...)` from any thread or async task."
+
+The ledger classifies `Settings` as a divergence whose members "map to explicit seams —
+`context(lm=..., adapter=...)` -> per-call parameters (Predict::with_lm / with_adapter)". That reason
+does not hold, and it is the audit's own failure shape: describing what exists instead of justifying
+the absence. `with_lm` is a *construction-time* choice on *one* module. `context` is a *runtime*
+scope over *any* program, including one already built and handed to you. A five-module pipeline
+cannot be pointed at a second model for one block without reaching into every predictor; `set_config`
+walks a program but mutates it permanently and carries config rather than the model.
+
+The second half of the reason — "ambient state is a concurrency hazard and un-idiomatic in Rust" —
+was also written before the crate had a counter-example. `tracing` spans are exactly this: a
+task-local value with dynamic extent, restored on exit, safe across threads and await points. The
+crate now uses them in `src/observe.rs`. `tokio::task_local!` is the same mechanism without the
+subscriber. So the shape is available and idiomatic; what is missing is the decision to have it.
+
+What it would take: a task-local holding the same thing `global::GLOBAL` holds, read by
+`global::current` in preference to the process-wide one, and a guard type whose `Drop` restores.
+`configure` stays what it is — the process-wide default — and `context` becomes the scoped one, which
+is upstream's own split.
+
+Worth deciding alongside lm-shared-client, since that story moves the HTTP client into the same
+global: if a scope ever overrides the model, the client should scope with it. Both should be read
+through one function so a task-local has exactly one place to hook — which is already true of
+`global::client()`.
+
+**What proves it.** `tests/utils/test_settings.py` is where `dspy.configure`/`dspy.context` are
+exercised program-wide, and it is not in SUITES. Adding it is the honest first step: it arrives as a
+failure list. A Rust test needs to show a nested program inside a scope reaching the scoped model
+without any module having been rebuilt, and reaching the process-wide one again after it.
+"""
+
+[[story]]
 id = "lm-shared-client"
 sprint = "api"
 title = "ChatModel takes an HTTP client dspy's signature has not, and it leaks reqwest into every caller"
