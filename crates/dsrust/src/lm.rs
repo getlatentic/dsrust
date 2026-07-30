@@ -24,7 +24,7 @@ pub use api::{Content, Detail, LmPart, LmSource};
 pub use cache::{Cached, ResponseCache};
 pub use call::{LmConfig, LmUsage};
 pub use capabilities::Capabilities;
-pub use error::ContextWindowExceeded;
+pub use error::{ContextWindowExceeded, LmErrorKind, LmFailure};
 pub use global::{configure, configure_with_client};
 pub use model::{ChatModel, DynChatModel};
 pub use openai::{

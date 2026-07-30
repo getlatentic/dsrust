@@ -8,14 +8,24 @@
 //! a long agent run finishing and failing.
 //!
 //! It travels as an `anyhow::Error` like everything else and is found by downcast, the way
-//! [`FieldMismatch`](crate::adapter::parse::FieldMismatch) already is. The rest of the taxonomy is
-//! issue #10.
+//! [`FieldMismatch`](crate::adapter::parse::FieldMismatch) already is.
+//!
+//! The rest of the taxonomy is [`LmFailure`] and [`LmErrorKind`], which reproduce dspy 3.3's
+//! normalized LM errors: fourteen exception classes as one enum plus the two ancestry questions
+//! the tree exists to answer, the HTTP-status map that decides which is which, and the four kinds
+//! upstream calls retryable.
 //!
 //! **What decides it.** dspy does not decide this itself: `_wrap_litellm_exception` asks
 //! `isinstance(error, litellm.ContextWindowExceededError)`, and litellm decides by matching the
 //! provider's error *string*. So litellm's list is the rule dspy actually acts on, and it is
 //! reproduced here rather than approximated — including the two exclusions, which exist because a
 //! parameter-validation error says "string too long" and is not this.
+
+mod failure;
+mod kind;
+
+pub use failure::LmFailure;
+pub use kind::LmErrorKind;
 
 use serde_json::Value;
 

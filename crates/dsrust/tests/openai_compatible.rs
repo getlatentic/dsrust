@@ -365,18 +365,46 @@ async fn a_host_pinned_to_max_tokens_sends_it_for_a_reasoning_model_too() {
     assert_eq!(request.body.get("max_completion_tokens"), None);
 }
 
+/// dspy 3.3 normalizes an LM failure rather than handing back a provider string. The status, the
+/// provider and the kind are fields a caller branches on; the rendered line is upstream's
+/// `[model] message`.
 #[tokio::test]
-async fn a_refused_call_carries_the_status_and_the_services_own_message() {
+async fn a_refused_call_arrives_as_a_typed_failure() {
     let stub = Stub::answering(401, r#"{"error":{"message":"Incorrect API key provided"}}"#);
     let error = ask(&probe_lm(&stub), &OutputMode::Text)
         .await
         .expect_err("401 is a failure");
-    let rendered = format!("{error:#}");
-    assert!(rendered.contains("openai 401"), "got: {rendered}");
+
+    let failed = error
+        .downcast_ref::<dsrust::lm::LmFailure>()
+        .unwrap_or_else(|| panic!("a typed LM failure, got: {error:#}"));
+    assert_eq!(failed.kind, dsrust::lm::LmErrorKind::Auth);
+    assert_eq!(failed.status, Some(401));
+    assert_eq!(failed.provider.as_deref(), Some("openai"));
+    assert_eq!(failed.message, "Incorrect API key provided");
     assert!(
-        rendered.contains("Incorrect API key provided"),
-        "got: {rendered}"
+        !failed.is_retryable(),
+        "a rejected key fails the same way twice"
     );
+}
+
+/// And a 429 is the one a caller may act on, which is the point of the taxonomy.
+#[tokio::test]
+async fn a_rate_limit_is_retryable_where_a_rejected_key_is_not() {
+    let stub = Stub::answering(
+        429,
+        r#"{"error":{"message":"Rate limit reached","code":"rate_limit_exceeded"}}"#,
+    );
+    let error = ask(&probe_lm(&stub), &OutputMode::Text)
+        .await
+        .expect_err("429 is a failure");
+
+    let failed = error
+        .downcast_ref::<dsrust::lm::LmFailure>()
+        .unwrap_or_else(|| panic!("a typed LM failure, got: {error:#}"));
+    assert_eq!(failed.kind, dsrust::lm::LmErrorKind::RateLimit);
+    assert!(failed.is_retryable());
+    assert_eq!(failed.provider_code.as_deref(), Some("rate_limit_exceeded"));
 }
 
 /// No stub: the call must fail on the missing credential before anything is sent.

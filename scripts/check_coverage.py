@@ -51,7 +51,10 @@ EXCUSED = {
     # The taxonomy stayed small on purpose: upstream branches on error *identity* in one place,
     # and that one — ContextWindowExceeded, which ReAct catches to truncate — is built and tested.
     # What this file tests is the other ~17 classes existing, which is Python's class hierarchy.
-    "tests/utils/test_exceptions.py": "dspy's exception classes, as a Python hierarchy",
+    # The portable half is ported and tested in `lm/error/`: the HTTP-status map, the four
+    # retryable kinds, and the provider/configuration split. What stays here is the part that is a
+    # Python class tree — `isinstance` against fourteen types, and `raise ... from`.
+    "tests/utils/test_exceptions.py": "dspy's exception classes, as a Python class hierarchy",
     "tests/clients/test_disk_serialization.py": "Python pickling policy",
     "tests/clients/test_inspect_global_history.py": "dspy's history printing",
     "tests/clients/test_lm_local.py": "launching a locally-served model",

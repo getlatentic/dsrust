@@ -59,7 +59,12 @@ impl ChatModel for Generate<'_> {
                 {
                     return Err(too_long.into());
                 }
-                return Err(anyhow!("ollama {status}: {}", refusal(&body)));
+                return Err(
+                    crate::lm::LmFailure::from_status(status.as_u16(), refusal(&body))
+                        .on_model(self.model)
+                        .from_provider("ollama")
+                        .into(),
+                );
             }
             reply(self.model, &body)
         }

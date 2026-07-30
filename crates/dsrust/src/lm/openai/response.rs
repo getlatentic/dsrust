@@ -21,8 +21,7 @@ pub(super) fn reply(
         if let Some(too_long) = crate::lm::ContextWindowExceeded::detected(model, body) {
             return Err(too_long.into());
         }
-        let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
-        return Err(anyhow!("{label} {status}: {detail}"));
+        return Err(crate::lm::LmFailure::from_body(status.as_u16(), model, label, body).into());
     }
     let response = completion_to_lm_response(body, model);
     if response
@@ -198,10 +197,21 @@ mod tests {
             &body,
         )
         .expect_err("401 is a failure");
-        assert!(error.to_string().contains("openai 401"), "got: {error}");
+        // dspy 3.3 normalizes an LM failure: `[model] message`, with everything else typed
+        // beside it rather than spelled into the text.
+        assert_eq!(
+            error.to_string(),
+            "[gpt-4o-mini] Incorrect API key provided"
+        );
+        let failed = error
+            .downcast_ref::<crate::lm::LmFailure>()
+            .expect("a typed LM failure");
+        assert_eq!(failed.kind, crate::lm::LmErrorKind::Auth);
+        assert_eq!(failed.status, Some(401));
+        assert_eq!(failed.provider.as_deref(), Some("openai"));
         assert!(
-            error.to_string().contains("Incorrect API key provided"),
-            "got: {error}"
+            !failed.is_retryable(),
+            "a rejected key fails the same way twice"
         );
     }
 

@@ -66,8 +66,9 @@ fn reply(model: &str, status: reqwest::StatusCode, body: &Value) -> Result<api::
         if let Some(too_long) = crate::lm::ContextWindowExceeded::detected(model, body) {
             return Err(too_long.into());
         }
-        let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
-        return Err(anyhow!("anthropic {status}: {detail}"));
+        return Err(
+            crate::lm::LmFailure::from_body(status.as_u16(), model, "anthropic", body).into(),
+        );
     }
     let output = output_of(body);
     if output.parts.is_empty() {

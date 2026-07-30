@@ -257,8 +257,7 @@ pub(super) fn reply(
         if let Some(too_long) = crate::lm::ContextWindowExceeded::detected(model, body) {
             return Err(too_long.into());
         }
-        let detail = body["error"]["message"].as_str().unwrap_or("unknown error");
-        return Err(anyhow!("{label} {status}: {detail}"));
+        return Err(crate::lm::LmFailure::from_body(status.as_u16(), model, label, body).into());
     }
     let response = responses_to_lm_response(body, model);
     if response
