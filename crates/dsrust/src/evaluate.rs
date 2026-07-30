@@ -17,6 +17,9 @@ use crate::example::{Example, Prediction};
 
 pub mod metrics;
 
+/// dspy `settings.max_errors`: how many rows may fail before a run gives up.
+pub const DEFAULT_MAX_ERRORS: usize = 10;
+
 /// What one example scored, and what produced that score.
 ///
 /// The prediction is kept alongside the number because a bare score cannot be debugged: when
@@ -69,6 +72,9 @@ pub struct Evaluate<P, M> {
     /// How many rows are in flight at once — dspy's `Evaluate(num_threads=…)`, and `None` for one
     /// at a time as upstream's default is. See [`num_threads`](Self::num_threads).
     pub num_threads: Option<usize>,
+    /// How many rows may fail before the run gives up — dspy's `Evaluate(max_errors=…)`, whose
+    /// default comes from `dspy.settings.max_errors = 10`. See [`max_errors`](Self::max_errors).
+    pub max_errors: usize,
 }
 
 impl<P, M, F> Evaluate<P, M>
@@ -84,6 +90,7 @@ where
             metric,
             failure_score: 0.0,
             num_threads: None,
+            max_errors: DEFAULT_MAX_ERRORS,
         }
     }
 
@@ -100,6 +107,17 @@ where
         self
     }
 
+    /// How many rows may fail before the run gives up — dspy's `Evaluate(max_errors=…)`.
+    ///
+    /// A scored failure is still a failure. Without a bound, a devset run against a provider that is
+    /// simply down scores `failure_score` five hundred times and reports the mean as a result, which
+    /// is the shape of a number that gets believed. `usize::MAX` restores the old behaviour of
+    /// scoring everything.
+    pub fn max_errors(mut self, max_errors: usize) -> Self {
+        self.max_errors = max_errors;
+        self
+    }
+
     /// Score every example, and report the rows in devset order however many ran at once.
     ///
     /// Order is `buffered` rather than `buffer_unordered`: a caller reads `results[i]` against
@@ -113,7 +131,19 @@ where
         // `collect` is the future, and instrumenting it is what keeps every row's spans inside this
         // one. A `span.enter()` guard held across an await would attribute whatever the runtime
         // polled next to this evaluation instead.
-        let results: Vec<Scored> = scoring.collect().instrument(span.clone()).await;
+        // dspy stops the run at `max_errors`, so the rows after the cap are never asked. `take_while`
+        // is that: it ends the stream on the row that reaches the cap, and `buffered` stops pulling.
+        // The failed rows up to and including it are kept, which is what makes the report readable.
+        let failures = std::sync::atomic::AtomicUsize::new(0);
+        let cap = self.max_errors;
+        let bounded = scoring.take_while(move |row| {
+            let seen = match row.failed() {
+                true => failures.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1,
+                false => failures.load(std::sync::atomic::Ordering::Relaxed),
+            };
+            std::future::ready(seen <= cap)
+        });
+        let results: Vec<Scored> = bounded.collect().instrument(span.clone()).await;
         let score = match results.is_empty() {
             true => 0.0,
             false => results.iter().map(|row| row.score).sum::<f64>() / results.len() as f64,
@@ -291,6 +321,68 @@ mod tests {
             .map(|row| row.get("question").cloned())
             .collect();
         assert_eq!(asked, expected);
+    }
+
+    /// dspy `max_errors`, default 10: a run against a provider that is simply down stops rather than
+    /// scoring five hundred zeroes and reporting the mean as a result.
+    #[tokio::test]
+    async fn a_run_gives_up_once_too_many_rows_fail() {
+        let asked = Arc::new(AtomicUsize::new(0));
+        let counting = Arc::clone(&asked);
+        let devset: Vec<Example> = (0..100)
+            .map(|n| example! { question: format!("q{n}"), answer: "x" }.with_inputs(["question"]))
+            .collect();
+
+        let evaluation = Evaluate::new(
+            devset,
+            move |_: Example| {
+                counting.fetch_add(1, Ordering::SeqCst);
+                std::future::ready(Err(anyhow::anyhow!("the provider is down")))
+            },
+            |_: &Example, _: &Prediction| 1.0,
+        )
+        .max_errors(3)
+        .run()
+        .await;
+
+        assert_eq!(
+            evaluation.failure_count(),
+            3,
+            "the failures up to the cap are kept"
+        );
+        assert!(
+            asked.load(Ordering::SeqCst) < 100,
+            "every row was still asked: {}",
+            asked.load(Ordering::SeqCst)
+        );
+    }
+
+    /// The default is dspy's own, from `settings.max_errors`.
+    #[test]
+    fn the_default_error_budget_is_dspys() {
+        assert_eq!(DEFAULT_MAX_ERRORS, 10);
+        let evaluation =
+            Evaluate::new(Vec::new(), answering("x"), |_: &Example, _: &Prediction| {
+                1.0
+            });
+        assert_eq!(evaluation.max_errors, 10);
+    }
+
+    /// A run whose rows merely score badly is not a run that failed, so the budget never fires.
+    #[tokio::test]
+    async fn a_low_scoring_run_is_not_a_failing_one() {
+        let devset: Vec<Example> = (0..40)
+            .map(|n| {
+                example! { question: format!("q{n}"), answer: "right" }.with_inputs(["question"])
+            })
+            .collect();
+        let evaluation = Evaluate::new(devset, answering("wrong"), exact_match)
+            .max_errors(1)
+            .run()
+            .await;
+        assert_eq!(evaluation.results.len(), 40, "every row ran");
+        assert_eq!(evaluation.score, 0.0);
+        assert_eq!(evaluation.failure_count(), 0);
     }
 
     #[tokio::test]

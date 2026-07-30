@@ -619,7 +619,7 @@
 "evaluate/evaluate.py::Evaluate.display_progress" = { status = "divergence", reason = "progress is the caller's to render; tracing spans carry the events" }
 "evaluate/evaluate.py::Evaluate.display_table" = { status = "divergence", reason = "dspy prints a pandas table; Outcome carries the rows for a caller to render" }
 "evaluate/evaluate.py::Evaluate.failure_score" = { status = "mapped", rust = "failure_score", reason = "Evaluate::failure_score" }
-"evaluate/evaluate.py::Evaluate.max_errors" = { status = "todo", reason = "dspy aborts a run after N failed rows; every row is scored here" }
+"evaluate/evaluate.py::Evaluate.max_errors" = { status = "mapped", rust = "Evaluate::max_errors" }
 "evaluate/evaluate.py::Evaluate.metric" = { status = "mapped", rust = "metric", reason = "Evaluate::metric" }
 "evaluate/evaluate.py::Evaluate.num_threads" = { status = "mapped", rust = "Evaluate::num_threads" }
 "evaluate/evaluate.py::Evaluate.provide_traceback" = { status = "divergence", reason = "a failed row keeps its error string in Scored::prediction" }
@@ -726,7 +726,7 @@
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.init_temperature" = { status = "todo", reason = "the temperature MIPRO proposes instructions at" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.log_dir" = { status = "divergence", reason = "dspy writes a run log to disk; tracing is the record here" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.max_bootstrapped_demos" = { status = "todo", reason = "this MIPROv2 is dspy's *zero-shot* configuration and says so at src/optimize/mipro/mod.rs:8 — instructions are searched, demos are not. So Step 1 runs with dspy's own zero-shot constants (BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT = 3) to ground the proposer and advance the RNG, and there is no demo dimension in Step 3 for a caller's cap to size. Not a missing setter: the few-shot half of MIPROv2" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_errors" = { status = "todo", reason = "dspy aborts a compile after N failed rows" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_errors" = { status = "todo", reason = "dspy stops a compile once this many rows have failed. Evaluate::max_errors exists and carries dspy's own default of 10; what is left is threading the setting into the Evaluate this optimizer builds — as with num_threads and metric_threshold" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.max_labeled_demos" = { status = "todo", reason = "as max_bootstrapped_demos — Step 1 uses LABELED_FEWSHOT_EXAMPLES_IN_CONTEXT = 0, dspy's own zero-shot value" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.metric" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new, positional" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.metric_threshold" = { status = "todo", reason = "the score a bootstrapped trace must beat to be kept. The machinery exists — BootstrapFewShot::metric_threshold is mapped, and Step 1 builds a BootstrapFewShot (src/optimize/mipro/demos.rs) — so what is left is threading the setting into it, as with num_threads. Not a missing capability" }
@@ -739,7 +739,7 @@
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.track_stats" = { status = "divergence", reason = "the outcome carries the run's record" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.verbose" = { status = "divergence", reason = "dspy prints its progress; tracing spans carry the events" }
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_bootstrapped_demos" = { status = "mapped", rust = "with_max_bootstrapped_demos", reason = "with_max_bootstrapped_demos" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_errors" = { status = "todo", reason = "dspy aborts a compile after N failed rows" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_errors" = { status = "todo", reason = "dspy stops a compile once this many rows have failed. Evaluate::max_errors exists and carries dspy's own default of 10; what is left is threading the setting into the Evaluate this optimizer builds — as with num_threads and metric_threshold" }
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_labeled_demos" = { status = "mapped", rust = "with_max_labeled_demos", reason = "with_max_labeled_demos" }
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_rounds" = { status = "mapped", rust = "with_max_rounds", reason = "with_max_rounds" }
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.metric" = { status = "mapped", rust = "BootstrapRandomSearch", reason = "BootstrapFewShotWithRandomSearch::new, positional" }
