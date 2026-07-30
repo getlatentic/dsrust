@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 908
+rust_tests = 912
 upstream_tests_passing = 891
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -435,7 +435,7 @@ captures source at compile time.
 id = "s9"
 name = "The modules that run code"
 state = "planned"
-still_pending = "11 declared gaps in the interpreter suite: file mounting with write-back, and the >100MB variable path"
+still_pending = "the >100MB variable path; sets and nested tuples have no JSON form to cross as"
 outcome = """
 A program can write code, run it in a sandbox, and use the result. The modules landed under r3 and
 RLM. The sandbox landed as `DenoInterpreter`: b7's decision built, with dspy's own `runner.js`
@@ -444,12 +444,15 @@ uses rather than a reimplementation of it. Five live tests cover printed output,
 variables, session state and a failure's wording.
 
 `tests/primitives/test_python_interpreter.py` runs against it now — the file is no longer excused,
-and `RustPythonInterpreter` replaces only `execute` so the rest stays dspy's own class. 33 of its 44
-pass on the sandbox. The host-callback tools and the typed `SUBMIT` built from a signature's output
-fields both landed with it. The 11 declared are two features — file mounting with the write-back
-sync around a run, and the >100MB variable path upstream injects through the filesystem — plus
-three that are not gaps: a Python set or nested tuple has no JSON form to cross as, and one test
-kills dspy's own subprocess handle, which the Rust sandbox does not own.
+and `RustPythonInterpreter` replaces only `execute` so the rest stays dspy's own class. 37 of its 44
+pass on the sandbox. Host-callback tools, the typed `SUBMIT` built from a signature's output fields,
+and file mounting with the write-back sync all landed with it.
+
+Two of the 7 declared are a feature: the >100MB variable path, which upstream injects through the
+filesystem rather than as a literal. The other five are not gaps. Three want a Python set or a
+nested tuple, which have no JSON form to cross as. Two kill `interpreter.deno_process` and compare
+pids — the restarts work and replay both the registration and the mounts, but the handle they assert
+on is dspy's own and the Rust sandbox owns its child.
 """
 suites = [
   "predict/test_program_of_thought.py", "predict/test_code_act.py", "predict/test_rlm.py",

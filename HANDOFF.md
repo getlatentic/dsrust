@@ -28,7 +28,7 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 908 passing |
+| Rust tests | 912 passing |
 | Upstream dspy tests | 891 passing, 479 crossing into Rust, 529 deciding a signature |
 | Upstream files run | 52 of 86, every other one excused by name |
 | Strict-xfail backlog | 11 entries in `conftest.py` |
@@ -105,11 +105,11 @@ Two layers.
 so a new fixture is exercised the moment it lands.
 
 **Upstream's own pytest.** `scripts/run_upstream_tests.sh` downloads dspy's unmodified test files
-at the pinned tag and runs them against the crate through a PyO3 bridge in `crates/bridge/`. Suites are
+at the pinned tag and runs them against the crate through a PyO3 bridge in `crates/dsrs-bridge/`. Suites are
 the `SUITES=(...)` array in that script, named relative to `tests/`. **Adding a file there is how
 coverage grows** — it arrives as a failure list to triage, which is the honest starting point.
 
-Gaps are `xfail(strict=True)` entries in `crates/bridge/python/conftest.py`: they never count as passes,
+Gaps are `xfail(strict=True)` entries in `crates/dsrs-bridge/python/conftest.py`: they never count as passes,
 and the run **fails** if one starts passing while still listed. That is what keeps the backlog
 from going stale. Never widen a shim to green a test — an `except Exception` there once silently
 passed five unimplemented cases.
@@ -119,7 +119,7 @@ running pytest there directly uses a stale list. Always go through the script.
 
 ## The bridge
 
-`crates/bridge/` is a PyO3 extension letting dspy's Python tests drive Rust. The division is deliberate:
+`crates/dsrs-bridge/` is a PyO3 extension letting dspy's Python tests drive Rust. The division is deliberate:
 
 > **Python reflects. Rust decides.**
 
@@ -127,7 +127,7 @@ Python does what only Python can — walk a pydantic annotation, ask whether a t
 `dspy.Code`, produce a JSON schema. Rust decides every byte the model reads. When a shim starts
 formatting text, the test has stopped testing the port.
 
-`crates/bridge/python/reflect.py` holds the reflection; `rust_adapter.py` holds the adapter shims, one
+`crates/dsrs-bridge/python/reflect.py` holds the reflection; `rust_adapter.py` holds the adapter shims, one
 per wire format, over a shared `_RustBacked` mixin.
 
 ## Architecture
@@ -142,7 +142,7 @@ src/                the dsrust crate itself
   predict.rs        Predict + the recovery engine; chain_of_thought.rs
   react/            ReAct, Trajectory, Tool
   optimize/         rng, labeled, bootstrap, copro, mipro, gepa
-  interpreter/      the CodeInterpreter seam and the REPL types (no sandbox ships)
+  interpreter/      the CodeInterpreter seam, and deno/ — dspy's runner.js under pyodide
   lm/               ChatModel/DynChatModel, call (request/response), cache (+disk),
                     usage, anthropic, ollama, openai, dummy
 crates/             the workspace members, each published on its own

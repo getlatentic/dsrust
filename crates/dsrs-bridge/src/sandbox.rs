@@ -82,7 +82,7 @@ pub(crate) struct RustSandbox {
 impl RustSandbox {
     /// Built from the same four grants `PythonInterpreter.__init__` takes.
     #[new]
-    #[pyo3(signature = (env=None, read=None, write=None, network=None, tools=None, outputs=None))]
+    #[pyo3(signature = (env=None, read=None, write=None, network=None, tools=None, outputs=None, sync_files=None))]
     fn new(
         env: Option<Vec<String>>,
         read: Option<Vec<String>>,
@@ -90,6 +90,7 @@ impl RustSandbox {
         network: Option<Vec<String>>,
         tools: Option<Vec<(String, String, Py<PyAny>)>>,
         outputs: Option<String>,
+        sync_files: Option<bool>,
     ) -> PyResult<Self> {
         let permissions = Permissions {
             env: env.unwrap_or_default(),
@@ -112,16 +113,20 @@ impl RustSandbox {
             Some(json) => serde_json::from_str(&json)
                 .map_err(|error| PyValueError::new_err(format!("output_fields: {error}")))?,
         };
-        let sandbox = DenoInterpreter::with_permissions(permissions).with_output_fields(
-            described.iter().map(|field| OutputField {
+        let mut sandbox = DenoInterpreter::with_permissions(permissions);
+        if sync_files == Some(false) {
+            sandbox = sandbox.without_write_back();
+        }
+        let sandbox = sandbox.with_output_fields(described.iter().map(|field| {
+            OutputField {
                 name: field
                     .get("name")
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .to_owned(),
                 python_type: field.get("type").and_then(Value::as_str).map(str::to_owned),
-            }),
-        );
+            }
+        }));
         let carried: Vec<Arc<dyn Tool>> = tools
             .unwrap_or_default()
             .into_iter()

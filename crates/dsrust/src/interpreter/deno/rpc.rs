@@ -52,6 +52,18 @@ impl Rpc {
         }))
     }
 
+    /// Tell the sandbox something with no reply expected — a JSON-RPC notification, which carries
+    /// no id. Upstream sends `sync_file` this way, and reading for an answer would block.
+    ///
+    /// `params` is omitted entirely when null, as upstream omits it: `shutdown` takes none.
+    pub(super) fn notify(&mut self, method: &str, params: Value) -> Result<()> {
+        let mut message = json!({ "jsonrpc": "2.0", "method": method });
+        if !params.is_null() {
+            message["params"] = params;
+        }
+        self.send(message)
+    }
+
     fn send(&mut self, message: Value) -> Result<()> {
         writeln!(self.writer, "{message}")?;
         self.writer.flush()?;

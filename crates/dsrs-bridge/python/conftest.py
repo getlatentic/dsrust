@@ -96,28 +96,16 @@ dspy.adapters.base._provider_tool_call_to_tool_call_dict = _rust_provider_tool_c
 # A run may report xfails this list is empty of: dspy marks two of its own image cases xfail
 # inside the test body, for a gap upstream has rather than one this port has.
 NOT_YET_IMPLEMENTED = {
-    # The restart itself works — `DenoInterpreter` notices a dead child and starts another, which
-    # re-registers. What this asserts on is `interpreter.deno_process.pid`, and the Rust sandbox
-    # owns its own child rather than dspy's, so there is no handle here to kill or compare.
+    # Both restarts work — `DenoInterpreter` notices a dead child, starts another, and replays the
+    # registration and the mounts. What these assert on is `interpreter.deno_process`, and the Rust
+    # sandbox owns its own child rather than dspy's, so there is no handle here to kill or compare.
     "test_tools_re_register_after_process_restart": (
         "the test kills dspy's own subprocess handle, which the Rust sandbox does not own"
     ),
-    # file mounting and the write-back sync upstream does around a run
-    "test_enable_read_paths_multiple_files": (
-        "file mounting and the write-back sync upstream does around a run"
-    ),
-    "test_enable_read_paths_symlink": (
-        "file mounting and the write-back sync upstream does around a run"
-    ),
-    "test_enable_write_flag": (
-        "file mounting and the write-back sync upstream does around a run"
-    ),
     "test_mounts_replay_after_process_restart": (
-        "file mounting and the write-back sync upstream does around a run"
+        "the test kills dspy's own subprocess handle, which the Rust sandbox does not own"
     ),
-    "test_read_file_access_control": (
-        "file mounting and the write-back sync upstream does around a run"
-    ),
+    # file mounting and the write-back sync upstream does around a run
     # the >100MB variable path, which upstream injects through the filesystem
     "test_large_list_variable": (
         "the >100MB variable path, which upstream injects through the filesystem"

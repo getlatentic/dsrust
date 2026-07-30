@@ -11,6 +11,7 @@
 //! whether it is there, so a program can say so itself rather than failing at the first ask.
 
 mod command;
+mod files;
 mod register;
 mod rpc;
 
@@ -30,6 +31,11 @@ use rpc::Rpc;
 /// dspy's `JSONRPC_APP_ERRORS["Unknown"]`, which a tool failure answers under.
 const UNKNOWN_ERROR: i64 = -32099;
 
+/// How long to let a child finish writing files back before killing it. Upstream waits without a
+/// bound; a bound is here so a wedged sandbox cannot hang the program that is done with it.
+const SHUTDOWN_POLL: std::time::Duration = std::time::Duration::from_millis(20);
+const SHUTDOWN_POLLS: u32 = 250;
+
 /// dspy `PythonInterpreter`: a Deno/Pyodide sandbox, one child process per interpreter.
 ///
 /// State persists between calls, as upstream's does — a name bound by one `execute` is in scope for
@@ -44,6 +50,9 @@ pub struct DenoInterpreter {
     /// dspy's `output_fields`: the names a typed `SUBMIT` takes. Empty leaves the sandbox on its
     /// default single-argument one.
     outputs: Mutex<Vec<OutputField>>,
+    /// dspy's `sync_files`, and its default: a writable file's sandbox copy is written back to the
+    /// host after each run. Off means the sandbox may write and the host never sees it.
+    write_back: bool,
 }
 
 /// One live child and the pipes to it.
@@ -53,6 +62,9 @@ struct Session {
     /// Whether this child has been told about the tools and outputs. A restart clears it with the
     /// rest of the session, which is what replays the registration upstream replays.
     registered: bool,
+    /// Whether the host's files are in this child's filesystem. Pyodide's is in memory, so a new
+    /// child starts empty and the mounts replay with the registration.
+    mounted: bool,
 }
 
 impl Default for DenoInterpreter {
@@ -75,7 +87,17 @@ impl DenoInterpreter {
             session: Mutex::new(None),
             tools: Mutex::new(Vec::new()),
             outputs: Mutex::new(Vec::new()),
+            write_back: true,
         }
+    }
+
+    /// Leave the host's files alone: the sandbox may still write, and nothing is copied back.
+    ///
+    /// dspy's `sync_files=False`. Worth reaching for when the sandbox writes scratch output that
+    /// would otherwise overwrite the file a caller handed in.
+    pub fn without_write_back(mut self) -> Self {
+        self.write_back = false;
+        self
     }
 
     /// The output fields a typed `SUBMIT` takes, in order — dspy's `output_fields`.
@@ -124,6 +146,7 @@ impl DenoInterpreter {
             child,
             rpc: Rpc::new(writer, reader),
             registered: false,
+            mounted: false,
         });
         Ok(())
     }
@@ -147,6 +170,38 @@ impl DenoInterpreter {
         Ok(())
     }
 
+    /// Copy the host's readable and writable files into the sandbox's own filesystem, once per
+    /// child. Pyodide's filesystem is in memory, so a granted path is still not an openable one.
+    fn mount(&self, session: &mut Session) -> Result<()> {
+        if session.mounted {
+            return Ok(());
+        }
+        for (host, virtual_at) in files::to_mount(&self.permissions.read, &self.permissions.write)?
+        {
+            let id = session
+                .rpc
+                .request("mount_file", files::mount_request(&host, &virtual_at))?;
+            let answer = session.rpc.receive("while mounting files")?;
+            rpc::answered(&answer, id, "while mounting files")?;
+        }
+        session.mounted = true;
+        Ok(())
+    }
+
+    /// Write each writable file's sandbox copy back to the host.
+    ///
+    /// A notification rather than a request, as upstream sends it: there is no reply to wait for,
+    /// and waiting for one would hang on the next execution's output.
+    fn sync(&self, session: &mut Session) -> Result<()> {
+        if !self.write_back {
+            return Ok(());
+        }
+        for params in files::to_sync(&self.permissions.write) {
+            session.rpc.notify("sync_file", params)?;
+        }
+        Ok(())
+    }
+
     /// Run the code and read the conversation to its end, answering tool calls on the way.
     fn ask(&self, session: &mut Session, code: &str) -> Result<Executed> {
         let id = session.rpc.request("execute", json!({ "code": code }))?;
@@ -158,6 +213,9 @@ impl DenoInterpreter {
                 continue;
             }
             let result = rpc::answered(&message, id, "during execution")?;
+            // Upstream syncs before reading `final`, so a run that submitted still writes its
+            // files back — the answer and the side effects are not either/or.
+            self.sync(session)?;
             // dspy encodes `SUBMIT(...)` as a success carrying `final`; anything else is whatever
             // the code printed, and `null` where it printed nothing.
             return Ok(match result.get("final") {
@@ -214,6 +272,7 @@ impl CodeInterpreter for DenoInterpreter {
         self.started(&mut session)?;
         let live = session.as_mut().expect("a session was started");
         self.register(live)?;
+        self.mount(live)?;
         self.ask(live, &prepared)
     }
 
@@ -224,11 +283,29 @@ impl CodeInterpreter for DenoInterpreter {
         Ok(())
     }
 
+    /// Ask the sandbox to stop, and let it finish before it does.
+    ///
+    /// Killing the child here loses whatever it had not read yet, and `sync_file` is exactly that:
+    /// a notification already written to the pipe. Upstream sends `shutdown`, closes stdin and
+    /// waits, which is what makes a file written in the sandbox appear on the host. A child that
+    /// will not exit is killed, because a caller dropping an interpreter should not hang.
     fn shutdown(&self) {
-        if let Some(mut session) = self.session.lock().expect("the sandbox session").take() {
-            let _ = session.child.kill();
-            let _ = session.child.wait();
+        let Some(session) = self.session.lock().expect("the sandbox session").take() else {
+            return;
+        };
+        let Session {
+            mut child, mut rpc, ..
+        } = session;
+        let _ = rpc.notify("shutdown", Value::Null);
+        drop(rpc);
+        for _ in 0..SHUTDOWN_POLLS {
+            if matches!(child.try_wait(), Ok(Some(_)) | Err(_)) {
+                return;
+            }
+            std::thread::sleep(SHUTDOWN_POLL);
         }
+        let _ = child.kill();
+        let _ = child.wait();
     }
 }
 

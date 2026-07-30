@@ -7,7 +7,7 @@
 //! cargo test --test deno_sandbox -- --ignored --nocapture --test-threads=1
 //! ```
 
-use dsrust::interpreter::{CodeInterpreter, DenoInterpreter, Executed};
+use dsrust::interpreter::{CodeInterpreter, DenoInterpreter, Executed, Permissions};
 use serde_json::{Map, json};
 
 fn sandbox() -> DenoInterpreter {
@@ -91,4 +91,64 @@ fn a_failure_carries_pythons_own_message() {
     let said = format!("{refused:#}");
     assert!(said.contains("undefined_name"), "{said}");
     deno.shutdown();
+}
+
+/// A file the sandbox writes appears on the host — but only after the sandbox is let go of.
+///
+/// `sync_file` is a notification already sitting in the pipe when the run returns, so a `shutdown`
+/// that kills the child loses it. This test failed on exactly that, with an empty file.
+#[test]
+#[ignore = "needs deno and, on the first run, a Pyodide download"]
+fn a_file_written_in_the_sandbox_reaches_the_host() {
+    let directory = std::env::temp_dir().join("dsrust-writeback-test");
+    std::fs::create_dir_all(&directory).expect("a place to write");
+    let path = directory.join("written-inside.txt");
+    std::fs::write(&path, "before").expect("the host's version");
+
+    let deno = DenoInterpreter::with_permissions(Permissions {
+        write: vec![path.clone()],
+        ..Permissions::default()
+    });
+    let ran = deno
+        .execute(
+            "open('/sandbox/written-inside.txt', 'w').write('from inside')\nSUBMIT('done')",
+            &Map::new(),
+        )
+        .expect("it runs");
+    assert!(ran.is_submitted(), "{ran:?}");
+    deno.shutdown();
+
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("readable"),
+        "from inside"
+    );
+    let _ = std::fs::remove_file(&path);
+}
+
+/// And stays on the host's version when write-back is off, which is the other half of the flag.
+#[test]
+#[ignore = "needs deno and, on the first run, a Pyodide download"]
+fn without_write_back_the_hosts_file_is_left_alone() {
+    let directory = std::env::temp_dir().join("dsrust-writeback-test");
+    std::fs::create_dir_all(&directory).expect("a place to write");
+    let path = directory.join("left-alone.txt");
+    std::fs::write(&path, "untouched").expect("the host's version");
+
+    let deno = DenoInterpreter::with_permissions(Permissions {
+        write: vec![path.clone()],
+        ..Permissions::default()
+    })
+    .without_write_back();
+    deno.execute(
+        "open('/sandbox/left-alone.txt', 'w').write('ignored')\nSUBMIT('done')",
+        &Map::new(),
+    )
+    .expect("it runs");
+    deno.shutdown();
+
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("readable"),
+        "untouched"
+    );
+    let _ = std::fs::remove_file(&path);
 }

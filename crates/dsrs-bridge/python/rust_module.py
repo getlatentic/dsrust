@@ -355,6 +355,7 @@ class RustPythonInterpreter(dspy.primitives.python_interpreter.PythonInterpreter
                 for name, fn in (self.tools or {}).items()
             ],
             outputs=json.dumps(self.output_fields) if self.output_fields else None,
+            sync_files=bool(self.sync_files),
         )
 
     def execute(self, code, variables=None):
