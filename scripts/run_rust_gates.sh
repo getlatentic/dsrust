@@ -28,6 +28,9 @@ echo "==> cargo fmt --check"
 cargo fmt --check
 
 echo "==> cargo doc --no-deps"
+# Fresh, because cargo caches rendered docs: seven unresolved intra-doc links sat at HEAD for as
+# long as nobody touched the files holding them, and this gate reported clean the whole time.
+rm -rf target/doc
 cargo doc --no-deps
 
 echo "==> file sizes"

@@ -143,6 +143,42 @@ where
         self
     }
 
+    /// The score a candidate must reach to count as perfect (dspy default 1.0).
+    ///
+    /// Only meaningful beside [`skipping_perfect_scores`](Self::skipping_perfect_scores), which
+    /// decides whether reaching it ends the search for that example.
+    pub fn with_perfect_score(mut self, score: f64) -> Self {
+        self.perfect_score = score;
+        self
+    }
+
+    /// Whether an example already scoring perfectly is left alone (dspy default true).
+    pub fn skipping_perfect_scores(mut self, skip: bool) -> Self {
+        self.skip_perfect_score = skip;
+        self
+    }
+
+    /// What an errored example scores (dspy default 0.0).
+    ///
+    /// The same choice `Evaluate` makes: one failing row should not discard the evidence from the
+    /// others, so it scores rather than aborting.
+    pub fn with_failure_score(mut self, score: f64) -> Self {
+        self.failure_score = score;
+        self
+    }
+
+    /// Whether the merge step runs at all (dspy default true).
+    pub fn with_merge(mut self, use_merge: bool) -> Self {
+        self.use_merge = use_merge;
+        self
+    }
+
+    /// How many times the merge step may be invoked (dspy default 5).
+    pub fn with_max_merge_invocations(mut self, invocations: usize) -> Self {
+        self.max_merge_invocations = invocations;
+        self
+    }
+
     /// The RNG seed shared by candidate selection and minibatch sampling (dspy default 0).
     pub fn with_seed(mut self, seed: u64) -> Self {
         self.seed = seed;

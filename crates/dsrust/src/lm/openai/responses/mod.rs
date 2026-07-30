@@ -25,7 +25,7 @@ use stream::frame;
 // -------- request: LmRequest -> Responses body --------
 
 /// The Responses request body for one call. A requested schema rides under `text.format`, built from
-/// the bare schema by [`text_format`] — this crate builds the envelope rather than carrying dspy's
+/// the bare schema by `text_format` — this crate builds the envelope rather than carrying dspy's
 /// whole one, the same split the chat wire makes.
 pub fn request(model: &str, call: &api::LmRequest, json_format: JsonFormat) -> Value {
     let config = &call.config;

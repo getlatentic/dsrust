@@ -197,7 +197,6 @@ impl ToolCalls {
     /// its id can no longer be paired to its result. The [history formatter] reads these ids back
     /// to replay a native tool exchange, so this keeps what the rendered form omits.
     ///
-    /// [history formatter]: crate::adapter::history
     pub fn to_value_with_ids(&self) -> Value {
         let mut data = json!({
             "tool_calls": self

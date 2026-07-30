@@ -1,7 +1,7 @@
 //! dspy `primitives/repl_types.py`: what a REPL session shows the model about itself.
 //!
 //! Three values, all of which reach a prompt: the variables the code can reach, one interaction,
-//! and the run so far. Each renders through the [`Type`](crate::adapter::Type) seam — upstream
+//! and the run so far. Each renders through the [`Type`] seam — upstream
 //! declares them as `dspy.Type`s whose `serialize_model` *is* their `format`, so a field holding
 //! one carries the prose rather than a JSON dump of its fields.
 

@@ -59,9 +59,9 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
 
 /// The typed 3.3 model boundary: dspy's `forward(request: LMRequest) -> LMResponse`.
 ///
-/// The one seam every model implements — a provider-backed [`LM`], a [`Cached`] wrapper, the
+/// The one seam every model implements — a provider-backed [`LM`](super::LM), a `Cached` wrapper, the
 /// scripted doubles a test installs — and the one method a module calls to reach its model. Unit
-/// tests script it with canned replies while production speaks to real providers through [`LM`].
+/// tests script it with canned replies while production speaks to real providers through [`LM`](super::LM).
 pub trait ChatModel {
     fn forward<'a>(
         &'a self,

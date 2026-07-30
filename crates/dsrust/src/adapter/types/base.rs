@@ -4,7 +4,7 @@
 //! string for a text-like one — and how it *reads back* from a reply. dspy keeps a live `Type`
 //! object and calls its methods; here a field carries a [`serde_json::Value`], so the same reach is
 //! a trait a type implements plus its own serde: [`serialized`] is dspy's `serialize_model`, and
-//! the value it produces is what [`split_custom_types`](crate::adapter::blocks) reads back into a
+//! the value it produces is what `split_custom_types` reads back into a
 //! multimodal message.
 
 use serde_json::Value;

@@ -2,7 +2,7 @@
 //!
 //! The one teleprompter that does not optimize anything. Every other takes a student and improves
 //! it; this takes a *list* of programs and hands back one that runs them all and reduces their
-//! answers — which is why its `compile` has a different shape from the [`Optimizer`] trait's, here
+//! answers — which is why its `compile` has a different shape from the [`Optimizer`](super::Optimizer) trait's, here
 //! as upstream.
 //!
 //! The reduction is the caller's: `dspy.majority` is the one its docstring names, and
@@ -55,7 +55,7 @@ where
 
     /// dspy `Ensemble.compile`: the ensembled program.
     ///
-    /// Takes the programs rather than a student, which is why this is not [`Optimizer`]. Upstream's
+    /// Takes the programs rather than a student, which is why this is not [`Optimizer`](super::Optimizer). Upstream's
     /// signature differs from every other teleprompter's in exactly the same way.
     pub fn compile(self, programs: Vec<Box<dyn Module>>) -> Ensembled<R> {
         Ensembled {

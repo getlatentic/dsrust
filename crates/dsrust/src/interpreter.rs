@@ -11,7 +11,7 @@
 //! arrangement dspy already asks of its users.
 //!
 //! The seam stays a trait — the same shape as [`ChatModel`](crate::lm::ChatModel) and
-//! [`Tool`](crate::react::Tool) — because what runs a model's code reaches a prompt: float
+//! [`Tool`] — because what runs a model's code reaches a prompt: float
 //! formatting, exception text and dict ordering all land in the next ask. A second interpreter is
 //! a documented divergence a caller opts into, not a swap.
 
@@ -86,7 +86,7 @@ impl OutputField {
 /// `&self` rather than `&mut self` because a module holds its interpreter behind a shared
 /// reference and [`Module::forward`](crate::module::Module::forward) takes `&self`; an
 /// implementation that owns a subprocess keeps it behind its own lock, exactly as
-/// [`Tool`](crate::react::Tool) does.
+/// [`Tool`] does.
 pub trait CodeInterpreter: Send + Sync {
     /// Run the code and answer with what it produced.
     ///

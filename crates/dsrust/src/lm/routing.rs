@@ -13,7 +13,7 @@ pub enum Provider {
     Anthropic,
     OpenRouter,
     /// Any service exposing OpenAI's `/v1/chat/completions`: OpenAI itself, Groq, Together,
-    /// vLLM, LM Studio. Which one is a matter of [`OpenAiConfig`] rather than of the model
+    /// vLLM, LM Studio. Which one is a matter of [`OpenAiConfig`](super::OpenAiConfig) rather than of the model
     /// prefix, since they are one wire format on different hosts.
     OpenAiCompatible,
     /// ollama's `/api/generate` route, litellm's `ollama/` — one flattened prompt, no native

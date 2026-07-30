@@ -549,34 +549,34 @@
 [constructors]
 
 "adapters/base.py::Adapter.callbacks" = { status = "divergence", reason = "dspy's callback list is Python-side instrumentation; tracing spans here" }
-"adapters/base.py::Adapter.native_response_types" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"adapters/base.py::Adapter.parallel_tool_calls" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"adapters/base.py::Adapter.use_native_function_calling" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/base.py::Adapter.native_response_types" = { status = "todo", reason = "dspy's list of types answered natively rather than rendered; Citations and Reasoning are decided per-adapter here" }
+"adapters/base.py::Adapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "the same field on each adapter" }
+"adapters/base.py::Adapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "the same field on each adapter" }
 "adapters/chat_adapter.py::ChatAdapter.callbacks" = { status = "divergence", reason = "dspy's callback list is Python-side instrumentation; tracing spans here" }
-"adapters/chat_adapter.py::ChatAdapter.native_response_types" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/chat_adapter.py::ChatAdapter.native_response_types" = { status = "todo", reason = "as adapters/base.py" }
 "adapters/chat_adapter.py::ChatAdapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "ChatAdapter::parallel_tool_calls" }
 "adapters/chat_adapter.py::ChatAdapter.use_json_adapter_fallback" = { status = "mapped", rust = "use_json_adapter_fallback", reason = "ChatAdapter::use_json_adapter_fallback" }
 "adapters/chat_adapter.py::ChatAdapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "ChatAdapter::use_native_function_calling" }
-"adapters/json_adapter.py::JSONAdapter.callbacks" = { status = "divergence", reason = "dspy's callback list is Python-side instrumentation; tracing spans here" }
-"adapters/json_adapter.py::JSONAdapter.parallel_tool_calls" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"adapters/json_adapter.py::JSONAdapter.use_native_function_calling" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/json_adapter.py::JSONAdapter.callbacks" = { status = "divergence", reason = "Python-side instrumentation; tracing spans here" }
+"adapters/json_adapter.py::JSONAdapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "JsonAdapter::parallel_tool_calls" }
+"adapters/json_adapter.py::JSONAdapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "JsonAdapter::use_native_function_calling" }
 "adapters/two_step_adapter.py::TwoStepAdapter.extraction_model" = { status = "mapped", rust = "extraction_model", reason = "TwoStepAdapter::extraction_model" }
-"adapters/types/image.py::Image.download" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"adapters/types/image.py::Image.url" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"adapters/types/image.py::Image.verify" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/types/image.py::Image.download" = { status = "divergence", reason = "dspy can fetch a url and inline it as base64; this crate sends the url or bytes the caller supplies and makes no request of its own" }
+"adapters/types/image.py::Image.url" = { status = "mapped", rust = "Image", reason = "Image::new takes the url or a data uri" }
+"adapters/types/image.py::Image.verify" = { status = "divergence", reason = "pydantic validator plumbing for dspy's own constructor" }
 "adapters/types/tool.py::Tool.arg_desc" = { status = "divergence", reason = "per-argument prose lives in the `args` schema's `description`, which is where it is rendered from" }
 "adapters/types/tool.py::Tool.arg_types" = { status = "divergence", reason = "the JSON Schema in `args` carries each argument's type; dspy keeps the Python annotations beside it for its own coercion" }
 "adapters/types/tool.py::Tool.args" = { status = "mapped", rust = "args", reason = "Tool::args" }
 "adapters/types/tool.py::Tool.desc" = { status = "mapped", rust = "description", reason = "Tool::description" }
 "adapters/types/tool.py::Tool.func" = { status = "mapped", rust = "FnTool", reason = "FnTool's closure, or an impl of the Tool trait" }
 "adapters/types/tool.py::Tool.name" = { status = "mapped", rust = "name", reason = "Tool::name" }
-"clients/base_lm.py::BaseLM.cache" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/base_lm.py::BaseLM.callbacks" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/base_lm.py::BaseLM.max_tokens" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/base_lm.py::BaseLM.model" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/base_lm.py::BaseLM.model_type" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/base_lm.py::BaseLM.num_retries" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/base_lm.py::BaseLM.temperature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/base_lm.py::BaseLM.cache" = { status = "mapped", rust = "without_cache", reason = "LM::without_cache" }
+"clients/base_lm.py::BaseLM.callbacks" = { status = "divergence", reason = "Python-side instrumentation; tracing spans here" }
+"clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "with_max_tokens", reason = "LM::with_max_tokens" }
+"clients/base_lm.py::BaseLM.model" = { status = "mapped", rust = "LM", reason = "LM::new, positional" }
+"clients/base_lm.py::BaseLM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "the wire enum LM routes on" }
+"clients/base_lm.py::BaseLM.num_retries" = { status = "divergence", reason = "dspy delegates provider retries to litellm; LmFailure::is_retryable leaves the loop to the caller" }
+"clients/base_lm.py::BaseLM.temperature" = { status = "mapped", rust = "with_temperature", reason = "LM::with_temperature" }
 "clients/cache.py::Cache.disk_cache_dir" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new's root" }
 "clients/cache.py::Cache.disk_size_limit_bytes" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new takes the byte ceiling as its second argument" }
 "clients/cache.py::Cache.enable_disk_cache" = { status = "mapped", rust = "with_disk", reason = "ResponseCache::with_disk, present or absent" }
@@ -606,13 +606,13 @@
 "evaluate/evaluate.py::Evaluate.provide_traceback" = { status = "divergence", reason = "a failed row keeps its error string in Scored::prediction" }
 "evaluate/evaluate.py::Evaluate.save_as_csv" = { status = "divergence", reason = "serialising the outcome is the caller's; Outcome::results is public" }
 "evaluate/evaluate.py::Evaluate.save_as_json" = { status = "divergence", reason = "serialising the outcome is the caller's; Outcome::results is public" }
-"evaluate/evaluate.py::EvaluationResult.results" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"evaluate/evaluate.py::EvaluationResult.score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/best_of_n.py::BestOfN.N" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/best_of_n.py::BestOfN.fail_count" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/best_of_n.py::BestOfN.module" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/best_of_n.py::BestOfN.reward_fn" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/best_of_n.py::BestOfN.threshold" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::EvaluationResult.results" = { status = "mapped", rust = "results", reason = "Outcome::results" }
+"evaluate/evaluate.py::EvaluationResult.score" = { status = "mapped", rust = "score", reason = "Outcome::score" }
+"predict/best_of_n.py::BestOfN.N" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's n" }
+"predict/best_of_n.py::BestOfN.fail_count" = { status = "mapped", rust = "with_fail_count", reason = "BestOfN::with_fail_count" }
+"predict/best_of_n.py::BestOfN.module" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new, positional" }
+"predict/best_of_n.py::BestOfN.reward_fn" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's reward" }
+"predict/best_of_n.py::BestOfN.threshold" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's threshold" }
 "predict/chain_of_thought.py::ChainOfThought.rationale_field" = { status = "todo", reason = "dspy lets a caller replace the prepended reasoning field; the name and prose are fixed here" }
 "predict/chain_of_thought.py::ChainOfThought.rationale_field_type" = { status = "todo", reason = "the reasoning field's declared type, which follows rationale_field" }
 "predict/chain_of_thought.py::ChainOfThought.signature" = { status = "mapped", rust = "ChainOfThought", reason = "ChainOfThought::new, positional" }
@@ -620,33 +620,33 @@
 "predict/code_act.py::CodeAct.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "CodeAct::with_max_iters" }
 "predict/code_act.py::CodeAct.signature" = { status = "mapped", rust = "new", reason = "CodeAct::new, positional" }
 "predict/code_act.py::CodeAct.tools" = { status = "mapped", rust = "new", reason = "CodeAct::new, positional" }
-"predict/multi_chain_comparison.py::MultiChainComparison.M" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/multi_chain_comparison.py::MultiChainComparison.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/multi_chain_comparison.py::MultiChainComparison.temperature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/parallel.py::Parallel.access_examples" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/parallel.py::Parallel.disable_progress_bar" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/parallel.py::Parallel.max_errors" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/parallel.py::Parallel.num_threads" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/parallel.py::Parallel.provide_traceback" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/parallel.py::Parallel.return_failed_examples" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/parallel.py::Parallel.straggler_limit" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/parallel.py::Parallel.timeout" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/predict.py::Predict.callbacks" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/predict.py::Predict.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/multi_chain_comparison.py::MultiChainComparison.M" = { status = "mapped", rust = "with_attempts", reason = "MultiChainComparison::with_attempts' attempts" }
+"predict/multi_chain_comparison.py::MultiChainComparison.signature" = { status = "mapped", rust = "with_attempts", reason = "MultiChainComparison::with_attempts, positional" }
+"predict/multi_chain_comparison.py::MultiChainComparison.temperature" = { status = "divergence", reason = "dspy raises the temperature for the comparison ask; set it on the module's config or the LM instead" }
+"predict/parallel.py::Parallel.access_examples" = { status = "mapped", rust = "access_examples", reason = "Parallel::access_examples" }
+"predict/parallel.py::Parallel.disable_progress_bar" = { status = "mapped", rust = "disable_progress_bar", reason = "Parallel::disable_progress_bar" }
+"predict/parallel.py::Parallel.max_errors" = { status = "mapped", rust = "max_errors", reason = "Parallel::max_errors" }
+"predict/parallel.py::Parallel.num_threads" = { status = "mapped", rust = "max_in_flight", reason = "Parallel::max_in_flight" }
+"predict/parallel.py::Parallel.provide_traceback" = { status = "mapped", rust = "provide_traceback", reason = "Parallel::provide_traceback" }
+"predict/parallel.py::Parallel.return_failed_examples" = { status = "mapped", rust = "return_failed_examples", reason = "Parallel::return_failed_examples" }
+"predict/parallel.py::Parallel.straggler_limit" = { status = "mapped", rust = "straggler_limit", reason = "Parallel::straggler_limit" }
+"predict/parallel.py::Parallel.timeout" = { status = "mapped", rust = "timeout", reason = "Parallel::timeout" }
+"predict/predict.py::Predict.callbacks" = { status = "divergence", reason = "Python-side instrumentation; tracing spans here" }
+"predict/predict.py::Predict.signature" = { status = "mapped", rust = "from_signature", reason = "Predict::from_signature / the predict! macro" }
 "predict/program_of_thought.py::ProgramOfThought.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "ProgramOfThought::with_interpreter" }
 "predict/program_of_thought.py::ProgramOfThought.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "ProgramOfThought::with_max_iters" }
 "predict/program_of_thought.py::ProgramOfThought.signature" = { status = "mapped", rust = "new", reason = "ProgramOfThought::new, positional" }
 "predict/react.py::ReAct.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "ReAct::with_max_iters" }
 "predict/react.py::ReAct.signature" = { status = "mapped", rust = "ReAct", reason = "ReAct::new, positional" }
 "predict/react.py::ReAct.tools" = { status = "mapped", rust = "ReAct", reason = "ReAct::new, positional" }
-"predict/react_v2.py::ReActV2.max_iters" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/react_v2.py::ReActV2.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/react_v2.py::ReActV2.tools" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/refine.py::Refine.N" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/refine.py::Refine.fail_count" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/refine.py::Refine.module" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/refine.py::Refine.reward_fn" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/refine.py::Refine.threshold" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/react_v2.py::ReActV2.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "ReActV2::with_max_iters" }
+"predict/react_v2.py::ReActV2.signature" = { status = "mapped", rust = "ReActV2", reason = "ReActV2::new, positional" }
+"predict/react_v2.py::ReActV2.tools" = { status = "mapped", rust = "ReActV2", reason = "ReActV2::new, positional" }
+"predict/refine.py::Refine.N" = { status = "mapped", rust = "Refine", reason = "Refine::new's n" }
+"predict/refine.py::Refine.fail_count" = { status = "mapped", rust = "with_fail_count", reason = "Refine::with_fail_count" }
+"predict/refine.py::Refine.module" = { status = "mapped", rust = "Refine", reason = "Refine::new, positional" }
+"predict/refine.py::Refine.reward_fn" = { status = "mapped", rust = "Refine", reason = "Refine::new's reward" }
+"predict/refine.py::Refine.threshold" = { status = "mapped", rust = "Refine", reason = "Refine::new's threshold" }
 "predict/rlm.py::RLM.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "Rlm::with_interpreter" }
 "predict/rlm.py::RLM.max_iterations" = { status = "mapped", rust = "with_max_iterations", reason = "Rlm::with_max_iterations" }
 "predict/rlm.py::RLM.max_llm_calls" = { status = "mapped", rust = "with_max_llm_calls", reason = "Rlm::with_max_llm_calls" }
@@ -655,12 +655,12 @@
 "predict/rlm.py::RLM.sub_lm" = { status = "mapped", rust = "with_action_lm", reason = "Rlm::with_action_lm / with_extract_lm" }
 "predict/rlm.py::RLM.tools" = { status = "mapped", rust = "with_tools", reason = "Rlm::with_tools" }
 "predict/rlm.py::RLM.verbose" = { status = "divergence", reason = "dspy prints its trajectory; tracing spans carry the same events here" }
-"primitives/code_interpreter.py::FinalOutput.output" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"primitives/example.py::Example.base" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"primitives/module.py::Module.callbacks" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"primitives/prediction.py::Completions.list_or_dict" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"primitives/prediction.py::Completions.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/bettertogether.py::BetterTogether.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"primitives/code_interpreter.py::FinalOutput.output" = { status = "mapped", rust = "Executed", reason = "Executed::Submitted carries the submitted value" }
+"primitives/example.py::Example.base" = { status = "mapped", rust = "with_inputs", reason = "Example's Clone plus with_inputs, which is what dspy's base= copies" }
+"primitives/module.py::Module.callbacks" = { status = "divergence", reason = "Python-side instrumentation; tracing spans here" }
+"primitives/prediction.py::Completions.list_or_dict" = { status = "divergence", reason = "dspy accepts either shape; LmResponse::outputs is always a list" }
+"primitives/prediction.py::Completions.signature" = { status = "divergence", reason = "dspy's Completions keeps the signature to render itself; LmResponse carries the outputs and the adapter holds the signature" }
+"teleprompt/bettertogether.py::BetterTogether.metric" = { status = "mapped", rust = "BetterTogether", reason = "BetterTogether::new, positional" }
 "teleprompt/bootstrap.py::BootstrapFewShot.max_bootstrapped_demos" = { status = "mapped", rust = "max_bootstrapped_demos", reason = "BootstrapFewShot::max_bootstrapped_demos" }
 "teleprompt/bootstrap.py::BootstrapFewShot.max_errors" = { status = "mapped", rust = "max_errors", reason = "BootstrapFewShot::max_errors" }
 "teleprompt/bootstrap.py::BootstrapFewShot.max_labeled_demos" = { status = "mapped", rust = "max_labeled_demos", reason = "BootstrapFewShot::max_labeled_demos" }
@@ -674,61 +674,61 @@
 "teleprompt/copro_optimizer.py::COPRO.metric" = { status = "mapped", rust = "COPRO", reason = "COPRO::new, positional" }
 "teleprompt/copro_optimizer.py::COPRO.prompt_model" = { status = "mapped", rust = "with_prompt_model", reason = "COPRO::with_prompt_model" }
 "teleprompt/copro_optimizer.py::COPRO.track_stats" = { status = "divergence", reason = "dspy accumulates per-round statistics onto the compiled program; the outcome carries them here" }
-"teleprompt/ensemble.py::Ensemble.deterministic" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/ensemble.py::Ensemble.reduce_fn" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/ensemble.py::Ensemble.size" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.add_format_failure_as_feedback" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.auto" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.candidate_selection_strategy" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.component_selector" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.failure_score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.gepa_kwargs" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.instruction_proposer" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.log_dir" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.max_full_evals" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.max_merge_invocations" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.max_metric_calls" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.num_threads" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.perfect_score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.reflection_lm" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.reflection_minibatch_size" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.seed" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.skip_perfect_score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.track_best_outputs" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.track_stats" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.use_merge" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.use_mlflow" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.use_wandb" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.wandb_api_key" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.wandb_init_kwargs" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/gepa/gepa.py::GEPA.warn_on_score_mismatch" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.auto" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.init_temperature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.log_dir" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_bootstrapped_demos" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_errors" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_labeled_demos" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.metric_threshold" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.num_candidates" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.num_threads" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.prompt_model" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.seed" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.task_model" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.teacher_settings" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.track_stats" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.verbose" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_bootstrapped_demos" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_errors" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_labeled_demos" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_rounds" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.metric_threshold" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.num_candidate_programs" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.num_threads" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.stop_at_score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.teacher_settings" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/vanilla.py::LabeledFewShot.k" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"utils/exceptions.py::ContextWindowExceededError.message" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"utils/exceptions.py::ContextWindowExceededError.model" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/ensemble.py::Ensemble.deterministic" = { status = "divergence", reason = "dspy raises on deterministic=True — it is unimplemented upstream; the seed is set with with_seed" }
+"teleprompt/ensemble.py::Ensemble.reduce_fn" = { status = "mapped", rust = "Ensemble", reason = "Ensemble::new, positional" }
+"teleprompt/ensemble.py::Ensemble.size" = { status = "mapped", rust = "with_size", reason = "Ensemble::with_size" }
+"teleprompt/gepa/gepa.py::GEPA.add_format_failure_as_feedback" = { status = "todo", reason = "dspy can feed a parse failure back as the reflection's feedback text" }
+"teleprompt/gepa/gepa.py::GEPA.auto" = { status = "mapped", rust = "auto_budget", reason = "GEPA::auto_budget / with_auto_budget" }
+"teleprompt/gepa/gepa.py::GEPA.candidate_selection_strategy" = { status = "todo", reason = "dspy chooses between pareto and current-best candidate selection; only pareto is built" }
+"teleprompt/gepa/gepa.py::GEPA.component_selector" = { status = "todo", reason = "dspy lets a caller choose which predictor a round mutates; round-robin here" }
+"teleprompt/gepa/gepa.py::GEPA.failure_score" = { status = "mapped", rust = "with_failure_score", reason = "GEPA::with_failure_score" }
+"teleprompt/gepa/gepa.py::GEPA.gepa_kwargs" = { status = "divergence", reason = "a passthrough to the gepa library's own optimizer; dsrust-gepa is called directly" }
+"teleprompt/gepa/gepa.py::GEPA.instruction_proposer" = { status = "todo", reason = "dspy's pluggable proposer; the reflection tree is fixed here" }
+"teleprompt/gepa/gepa.py::GEPA.log_dir" = { status = "divergence", reason = "dspy writes its run log to disk; tracing spans are the record here" }
+"teleprompt/gepa/gepa.py::GEPA.max_full_evals" = { status = "mapped", rust = "auto_budget", reason = "an arm of GEPA::auto_budget's arithmetic" }
+"teleprompt/gepa/gepa.py::GEPA.max_merge_invocations" = { status = "mapped", rust = "with_max_merge_invocations", reason = "GEPA::with_max_merge_invocations" }
+"teleprompt/gepa/gepa.py::GEPA.max_metric_calls" = { status = "mapped", rust = "with_max_metric_calls", reason = "GEPA::with_max_metric_calls" }
+"teleprompt/gepa/gepa.py::GEPA.metric" = { status = "mapped", rust = "GEPA", reason = "GEPA::new, positional" }
+"teleprompt/gepa/gepa.py::GEPA.num_threads" = { status = "todo", reason = "parallel evaluation, blocked on the same concurrency limit Evaluate::num_threads needs" }
+"teleprompt/gepa/gepa.py::GEPA.perfect_score" = { status = "mapped", rust = "with_perfect_score", reason = "GEPA::with_perfect_score" }
+"teleprompt/gepa/gepa.py::GEPA.reflection_lm" = { status = "mapped", rust = "GEPA", reason = "GEPA::new's second argument" }
+"teleprompt/gepa/gepa.py::GEPA.reflection_minibatch_size" = { status = "mapped", rust = "with_reflection_minibatch_size", reason = "GEPA::with_reflection_minibatch_size" }
+"teleprompt/gepa/gepa.py::GEPA.seed" = { status = "mapped", rust = "with_seed", reason = "GEPA::with_seed" }
+"teleprompt/gepa/gepa.py::GEPA.skip_perfect_score" = { status = "mapped", rust = "skipping_perfect_scores", reason = "GEPA::skipping_perfect_scores" }
+"teleprompt/gepa/gepa.py::GEPA.track_best_outputs" = { status = "divergence", reason = "GepaOutcome carries the best candidate's outputs" }
+"teleprompt/gepa/gepa.py::GEPA.track_stats" = { status = "divergence", reason = "GepaOutcome carries the run's record; dspy attaches it to the program" }
+"teleprompt/gepa/gepa.py::GEPA.use_merge" = { status = "mapped", rust = "with_merge", reason = "GEPA::with_merge" }
+"teleprompt/gepa/gepa.py::GEPA.use_mlflow" = { status = "divergence", reason = "experiment tracking, which is the caller's to wire" }
+"teleprompt/gepa/gepa.py::GEPA.use_wandb" = { status = "divergence", reason = "experiment tracking, which is the caller's to wire" }
+"teleprompt/gepa/gepa.py::GEPA.wandb_api_key" = { status = "divergence", reason = "experiment tracking, which is the caller's to wire" }
+"teleprompt/gepa/gepa.py::GEPA.wandb_init_kwargs" = { status = "divergence", reason = "experiment tracking, which is the caller's to wire" }
+"teleprompt/gepa/gepa.py::GEPA.warn_on_score_mismatch" = { status = "divergence", reason = "dspy warns when a re-evaluated score differs; tracing carries the event" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.auto" = { status = "todo", reason = "dspy's light/medium/heavy presets, which set num_candidates and num_trials together" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.init_temperature" = { status = "todo", reason = "the temperature MIPRO proposes instructions at" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.log_dir" = { status = "divergence", reason = "dspy writes a run log to disk; tracing is the record here" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_bootstrapped_demos" = { status = "todo", reason = "MIPRO's own bootstrap step is not wired to a caller-set cap yet" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_errors" = { status = "todo", reason = "dspy aborts a compile after N failed rows" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_labeled_demos" = { status = "todo", reason = "as max_bootstrapped_demos" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.metric" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new, positional" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.metric_threshold" = { status = "todo", reason = "the score a bootstrapped trace must beat to be kept" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.num_candidates" = { status = "mapped", rust = "with_candidates", reason = "MIPROv2::with_candidates" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.num_threads" = { status = "todo", reason = "parallel evaluation, blocked on the same concurrency limit Evaluate::num_threads needs" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.prompt_model" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new's second argument" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.seed" = { status = "mapped", rust = "with_seed", reason = "MIPROv2::with_seed" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.task_model" = { status = "todo", reason = "dspy asks the task model for bootstrapped demos and the prompt model for instructions; one model here" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.teacher_settings" = { status = "divergence", reason = "dspy's teacher config dict; the teacher's LM is set on the module with with_lm" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.track_stats" = { status = "divergence", reason = "the outcome carries the run's record" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.verbose" = { status = "divergence", reason = "dspy prints its progress; tracing spans carry the events" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_bootstrapped_demos" = { status = "mapped", rust = "with_max_bootstrapped_demos", reason = "with_max_bootstrapped_demos" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_errors" = { status = "todo", reason = "dspy aborts a compile after N failed rows" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_labeled_demos" = { status = "mapped", rust = "with_max_labeled_demos", reason = "with_max_labeled_demos" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_rounds" = { status = "mapped", rust = "with_max_rounds", reason = "with_max_rounds" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.metric" = { status = "mapped", rust = "BootstrapRandomSearch", reason = "BootstrapFewShotWithRandomSearch::new, positional" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.metric_threshold" = { status = "mapped", rust = "with_metric_threshold", reason = "with_metric_threshold" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.num_candidate_programs" = { status = "mapped", rust = "with_num_candidate_programs", reason = "with_num_candidate_programs" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.num_threads" = { status = "todo", reason = "parallel evaluation, blocked on the same concurrency limit Evaluate::num_threads needs" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.stop_at_score" = { status = "mapped", rust = "with_stop_at_score", reason = "with_stop_at_score" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.teacher_settings" = { status = "divergence", reason = "dspy's teacher config dict; the teacher's LM is set on the module with with_lm" }
+"teleprompt/vanilla.py::LabeledFewShot.k" = { status = "mapped", rust = "LabeledFewShot", reason = "LabeledFewShot::new, positional" }
+"utils/exceptions.py::ContextWindowExceededError.message" = { status = "mapped", rust = "ContextWindowExceeded", reason = "ContextWindowExceeded::message" }
+"utils/exceptions.py::ContextWindowExceededError.model" = { status = "mapped", rust = "ContextWindowExceeded", reason = "ContextWindowExceeded::model" }

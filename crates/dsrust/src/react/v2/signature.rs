@@ -194,7 +194,7 @@ impl Tool for Submit {
     }
 }
 
-/// `react_v2!("question -> answer", tools)` — a [`ReActV2`] agent over a signature and its tools,
+/// `react_v2!("question -> answer", tools)` — a [`ReActV2`](crate::ReActV2) agent over a signature and its tools,
 /// the module form of `ReActV2::new(signature!(...), tools)`. `max_iters = N` caps the loop.
 ///
 /// ```

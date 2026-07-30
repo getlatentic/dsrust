@@ -3,8 +3,8 @@
 //! An inference strategy for context too long to hand a model directly: the input stays in a REPL
 //! as a variable, and the model writes Python to explore it — printing samples, slicing, and
 //! calling sub-LLMs over the pieces it cares about — until it can submit an answer. What runs the
-//! code is the caller's [`CodeInterpreter`](crate::interpreter::CodeInterpreter), and what the
-//! model is shown of the session is [`ReplHistory`](crate::interpreter::ReplHistory).
+//! code is the caller's [`CodeInterpreter`], and what the
+//! model is shown of the session is [`ReplHistory`].
 
 mod fences;
 mod signatures;
@@ -124,7 +124,7 @@ impl Rlm {
     /// dspy decides this by type — an input that `isinstance`s as `SandboxSerializable` takes the
     /// other path. An [`Example`] holds JSON, so a Rust caller names the field instead, and the
     /// value is serialized, rebuilt in the sandbox before the first turn, and described to the
-    /// model by [`build_repl_variable`] rather than previewed.
+    /// model by [`build_repl_variable`](crate::interpreter::build_repl_variable) rather than previewed.
     pub fn with_sandbox_input(
         mut self,
         name: impl Into<String>,

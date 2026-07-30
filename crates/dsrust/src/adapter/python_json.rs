@@ -64,7 +64,7 @@ pub fn python_type_name(value: &Value) -> &'static str {
 }
 
 /// Python's `json.dumps(value, indent=2)`, the writer `REPLVariable.from_value` previews a value
-/// through. Two things separate it from [`json_dumps`]: an item per line at two spaces a level,
+/// through. Two things separate it from `json_dumps`: an item per line at two spaces a level,
 /// and `ensure_ascii` left at its default — so every character outside printable ASCII is escaped,
 /// which changes both the text and the length reported beside it.
 pub fn json_dumps_indented(value: &Value) -> String {

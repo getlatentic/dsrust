@@ -21,7 +21,7 @@ pub struct Steering {
     /// `tool_choice` for an adapter that renders the tools instead.
     pub forced_tool: Option<String>,
     /// OpenAI's Predicted Outputs: text the reply is expected to mostly repeat, which the provider
-    /// bills and generates against rather than writing again. See [`predicted_output`] for the
+    /// bills and generates against rather than writing again. See `predicted_output` for the
     /// other way in — an input field of the same shape, which takes precedence over this.
     pub predicted_output: Option<Value>,
 }

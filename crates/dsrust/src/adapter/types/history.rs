@@ -1,7 +1,7 @@
 //! dspy `adapters/types/history.py`: the `History` type a signature carries as an input.
 //!
 //! A `History` holds the exchanges that came before, each a mapping keyed by the signature's own
-//! field names. The [formatter](crate::adapter::history) is what turns those exchanges into the
+//! field names. The history formatter is what turns those exchanges into the
 //! user and assistant turns a model reads; this is the value the caller constructs and a module
 //! holds, mutates, and hands back.
 
@@ -37,7 +37,7 @@ impl History {
     }
 
     /// The value a history reaches a request as: `{"messages": [...]}`, which is what the
-    /// [formatter](crate::adapter::history) reads back. Serialization cannot fail for a value built
+    /// history formatter reads back. Serialization cannot fail for a value built
     /// from JSON objects, so the object form is returned directly.
     pub fn to_value(&self) -> Value {
         serde_json::to_value(self).unwrap_or_else(|_| Value::Object(Map::new()))

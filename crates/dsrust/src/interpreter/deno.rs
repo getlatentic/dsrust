@@ -292,7 +292,7 @@ impl CodeInterpreter for DenoInterpreter {
     }
 
     /// Upstream's interpreter dispatches host functions the sandboxed code calls back into. Holding
-    /// them is all this needs: `runner.js` asks by name, and [`Self::answer_tool_call`] answers.
+    /// them is all this needs: `runner.js` asks by name, and this answers.
     fn define_tools(&self, tools: &[Arc<dyn Tool>]) -> Result<()> {
         *self.tools.lock().expect("the tool list") = tools.to_vec();
         Ok(())
