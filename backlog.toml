@@ -128,6 +128,22 @@ this crate has one.
 **What proves it.** `tests/clients/test_lm.py` is already in SUITES and exercises the direct-call
 forms. The three `test_base_lm_forward_contract_*` tests in it stay declared, since a class-attribute
 switch between two shapes has no counterpart where there is one shape.
+
+**Checked against main.** `core/types.py` on the main branch has an identical class and method
+surface to the pinned 3.3.0b1 — the diff is docstrings plus one field. So the typed vocabulary this
+story builds on is not moving, and the whole nine-variant `LmPart` set is already ported: Text,
+Image, Audio, Video, Binary, Document, ToolCall, ToolResult, Thinking. Only the constructor is
+missing, which makes this cheaper than it reads.
+
+Main's docstrings are the planning signal. Where the beta documents
+`dspy.LanguageModel(...).normalize_request(...)`, main documents
+`LMRequest.from_call(model=..., items=(...))` — and `LanguageModel` is not a class at the beta at all,
+so those examples referenced something that did not exist. `from_call` is the surviving constructor,
+which is the one to build.
+
+One field arrived after the pin and is deliberately not in scope: `LMToolSpec.strict`, OpenAI's
+structured-output strict mode for function calling. Note it when the pin next moves; do not port it
+ahead of the pin.
 """
 
 [[story]]
