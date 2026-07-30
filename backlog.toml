@@ -363,10 +363,30 @@ That fits every observation a toolchain-regression story does not: the same `ld`
 the offset moves with the binary's content (3.12 and 3.13 give different ones), and no flag shifts
 it. A size- or symbol-count-dependent alignment bug in `ld` would look exactly like this.
 
-The test: build a *trimmed* bridge — comment out half the `#[pyfunction]`s — and see whether a
-smaller binary lands 8-aligned. If it does, this is an `ld` bug that the crate crossed a threshold
-into, and the workaround is whatever keeps the pool aligned (a padding symbol, `-Wl,-no_deduplicate`,
-or splitting the extension) rather than anything about rustc or Python.
+That test was run and the size hypothesis is **wrong**. `-C opt-level=z` gives 2.75 MB against
+2.89 MB and lands at `0x001F6034`, still misaligned.
+
+**The sharpest fact, and where the next person should start.** Three independent builds — 3.13,
+3.12, and opt-level=z — give three different offsets, and every one is exactly `4 mod 8`:
+
+    0x00256F7C = 2453372  mod 8 = 4
+    0x0025AF0C = 2469644  mod 8 = 4
+    0x001F6034 = 2056244  mod 8 = 4
+
+Chance would scatter the residue. A constant 4 means something emits a structure with a 4-byte
+element where the pool wants 8-byte alignment after it, every time, whatever the binary contains.
+That is a single structural defect, not a threshold — so look for what precedes the string pool in
+the LINKEDIT segment and is 4-aligned, rather than for a flag.
+
+`otool -l` on the failing `.so` against `.dspy-venv`'s working one, comparing the LINKEDIT load
+commands and what sits immediately before the pool in each, is the read that should settle it.
+
+**A retracted claim, recorded because it nearly shipped.** `target/release/libdsrs_bridge.dylib`
+appeared to load while the wheel's `.so` did not, which looked like maturin corrupting the file.
+It was a false positive: `.dylib` is not in `importlib.machinery.EXTENSION_SUFFIXES`, so
+`spec_from_file_location` chose a non-extension loader and never dlopen'd anything. The two files
+are byte-identical (`cmp` agrees), which should have made "one loads, one does not" impossible on
+its face. Copy to a `.so` name before testing.
 
 Note the two virtualenvs. `run_upstream_tests.sh` uses `$ROOT/.venv`; HANDOFF talks about
 `.dspy-venv`, which also exists. Only `.venv` has the broken bridge — `.dspy-venv` imports one
