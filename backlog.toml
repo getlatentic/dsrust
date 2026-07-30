@@ -144,6 +144,29 @@ which is the one to build.
 One field arrived after the pin and is deliberately not in scope: `LMToolSpec.strict`, OpenAI's
 structured-output strict mode for function calling. Note it when the pin next moves; do not port it
 ahead of the pin.
+
+**The constructors, not only the request.** Checking what a caller can *write* rather than what
+exists: `LmPart` is re-exported at `dsrust::lm::LmPart`, and `LmMessage` is not — it is reachable
+only as `dsrust::lm::api::LmMessage`. Nothing is at the crate root. And `LmMessage::user` takes
+`Vec<LmPart>` with no coercion, where dspy's is variadic and turns a bare string into an
+`LMTextPart` itself. So:
+
+    dspy.User("Describe this image.", dspy.Image(url))
+    LmMessage::user(vec![LmPart::Text { .. }, LmPart::Image { .. }])   // today
+
+Same capability, and not the same thing to write. Three parts to close, in this order:
+
+Re-export `LmMessage` beside `LmPart`, and both at the crate root, so a caller writes
+`dsrust::LmMessage` rather than reaching through `api`.
+
+Make the three role constructors take `impl IntoIterator<Item = impl Into<LmPart>>` with
+`From<&str> for LmPart` beside it, which is the coercion dspy does and the reason its call sites read
+as prose.
+
+Add the `Developer` role, which `Role` has no variant for. Tracked twice already —
+`core/types.py::Developer` and `clients/lm.py::LM.use_developer_role`, both todo.
+
+Then `from_call` on top of those, since its `items` branch is a list of exactly these.
 """
 
 [[story]]
