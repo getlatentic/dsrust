@@ -269,7 +269,7 @@ fn image_url(image_url: &Value) -> String {
         .to_owned()
 }
 
-/// Sampling under `options`, only the keys the caller set — litellm defaults none, and the cap is
+/// LmConfig under `options`, only the keys the caller set — litellm defaults none, and the cap is
 /// `num_predict`, exactly as on the chat route.
 fn options(config: &LmConfig) -> Value {
     let mut options = Map::new();

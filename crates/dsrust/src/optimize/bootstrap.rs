@@ -4,7 +4,7 @@
 use anyhow::{Result, anyhow};
 
 use crate::example::{Example, Prediction};
-use crate::lm::LmConfig;
+use crate::lm::Sampling;
 use crate::module::Module;
 
 use super::Optimizer;
@@ -153,7 +153,7 @@ where
                 // rollout id is what misses the cache, and the temperature is what makes the
                 // answer differ once it does; without both, a re-ask is the same ask.
                 if round > 0 {
-                    teacher.set_config(LmConfig::rollout(round as u64));
+                    teacher.set_config(Sampling::rollout(round as u64));
                 }
                 match self.attempt(teacher, example).await {
                     Ok(Some(demo)) => {
@@ -275,7 +275,7 @@ where
 }
 
 /// What each predictor asks for before a round overrides it, in `named_predictors` order.
-fn resting_config<T: Module + ?Sized>(teacher: &mut T) -> Vec<LmConfig> {
+fn resting_config<T: Module + ?Sized>(teacher: &mut T) -> Vec<Sampling> {
     teacher
         .named_predictors()
         .iter()
@@ -288,7 +288,7 @@ fn resting_config<T: Module + ?Sized>(teacher: &mut T) -> Vec<LmConfig> {
 /// A teacher outlives the compile that borrowed it, so leaving a rollout on it would silently
 /// change how it answers everything afterwards — and at `temperature = 1.0`, which is nobody's
 /// idea of a default.
-fn restore_config<T: Module + ?Sized>(teacher: &mut T, resting: &[LmConfig]) {
+fn restore_config<T: Module + ?Sized>(teacher: &mut T, resting: &[Sampling]) {
     for (predictor, was) in teacher.named_predictors().into_iter().zip(resting) {
         *predictor.config = was.clone();
     }
@@ -540,7 +540,7 @@ mod tests {
         .await
         .expect("compile succeeds");
 
-        let asks: Vec<LmConfig> = student
+        let asks: Vec<Sampling> = student
             .calls()
             .into_iter()
             .take(3)
@@ -548,11 +548,11 @@ mod tests {
             .collect();
         assert_eq!(
             asks[0],
-            LmConfig::default(),
+            Sampling::default(),
             "the first round is asked however the teacher already asks"
         );
-        assert_eq!(asks[1], LmConfig::rollout(1));
-        assert_eq!(asks[2], LmConfig::rollout(2));
+        assert_eq!(asks[1], Sampling::rollout(1));
+        assert_eq!(asks[2], Sampling::rollout(2));
         assert_ne!(asks[1], asks[2], "two rounds are two different asks");
     }
 
@@ -561,9 +561,9 @@ mod tests {
     #[tokio::test]
     async fn the_teacher_is_left_asking_the_way_it_was_found() {
         let mut student = Solver::new(Answers::Wrongly);
-        let resting = LmConfig {
+        let resting = Sampling {
             temperature: Some(0.2),
-            ..LmConfig::default()
+            ..Sampling::default()
         };
         student.set_config(resting.clone());
 

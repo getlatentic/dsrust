@@ -28,7 +28,7 @@ pub use api::{
 };
 pub use builder::LmBuilder;
 pub use cache::{Cached, ResponseCache};
-pub use call::{LmConfig, LmUsage};
+pub use call::{LmUsage, Sampling};
 pub use capabilities::Capabilities;
 pub use error::{ContextWindowExceeded, LmErrorKind, LmFailure};
 pub use global::{configure, configure_with_client};

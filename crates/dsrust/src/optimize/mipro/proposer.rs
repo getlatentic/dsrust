@@ -118,7 +118,7 @@ impl GenerateModuleInstruction {
         program_code: Option<String>,
         mut inputs: InstructionInputs,
         model: Arc<dyn DynChatModel>,
-        sampling: crate::lm::LmConfig,
+        sampling: crate::lm::Sampling,
     ) -> Self {
         inputs.program_aware = inputs.program_aware && program_code.is_some();
         let predict = |signature| Predict::from_signature(signature).with_lm(model.clone());
@@ -274,9 +274,9 @@ mod tests {
 
         let model = Arc::new(Recording::default());
         let asked = Arc::clone(&model);
-        let sampling = crate::lm::LmConfig {
+        let sampling = crate::lm::Sampling {
             temperature: Some(0.7),
-            ..crate::lm::LmConfig::rollout(4242)
+            ..crate::lm::Sampling::rollout(4242)
         };
         let proposer = GenerateModuleInstruction::new(
             None,
@@ -323,7 +323,7 @@ mod tests {
                 tip: true,
             },
             model,
-            crate::lm::LmConfig::default(),
+            crate::lm::Sampling::default(),
         );
         let predictor: Signature = "question -> answer".parse().expect("parses");
 

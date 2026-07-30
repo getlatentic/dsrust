@@ -517,7 +517,7 @@ fn predict_forward(
         .collect();
     // The module-level config spells the completion count `completions`; it becomes the wire
     // request's `n`, which is the kwarg a `DummyLM` reads.
-    let mut config = dsrust::lm::LmConfig::default();
+    let mut config = dsrust::lm::Sampling::default();
     config.completions = n;
     let predict = dsrust::predict::Predict::from_signature(signature)
         .with_config(config)

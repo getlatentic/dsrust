@@ -14,7 +14,7 @@ use std::path::Path;
 use anyhow::{Result, bail};
 
 use crate::example::{Example, Prediction};
-use crate::lm::LmConfig;
+use crate::lm::Sampling;
 use crate::signature::Signature;
 
 mod state;
@@ -34,7 +34,7 @@ pub struct NamedPredictor<'a> {
     /// duration of a round and then set back. It rides the same walk because reaching every
     /// predictor is the same problem, and dspy solves it the same way: `set_lm` on a program
     /// assigns to all of them.
-    pub config: &'a mut LmConfig,
+    pub config: &'a mut Sampling,
     /// Advice for this predictor from an earlier attempt, shown to it on the next one.
     ///
     /// `Refine` writes it and `Predict` renders it as one more input field. Per predictor rather
@@ -105,11 +105,11 @@ pub trait Module: Send + Sync {
     /// Ask every predictor in this program for its reply to be sampled this way.
     ///
     /// dspy's `set_lm`, which assigns one model to a whole program so `lm.copy(rollout_id=n,
-    /// temperature=1.0)` reaches every call an attempt makes. LmConfig travels on a request here
+    /// temperature=1.0)` reaches every call an attempt makes. Sampling travels on a request here
     /// rather than on a model, so this sets config instead — the effect is the one upstream
     /// relies on: a second attempt at a program differs from the first everywhere, not only at
     /// whichever predictor a caller remembered.
-    fn set_config(&mut self, config: LmConfig) {
+    fn set_config(&mut self, config: Sampling) {
         for predictor in self.named_predictors() {
             *predictor.config = config.clone();
         }
@@ -246,7 +246,7 @@ mod tests {
     struct Echo {
         signature: Signature,
         demos: Vec<Example>,
-        config: LmConfig,
+        config: Sampling,
         hint: Option<String>,
     }
 
@@ -279,7 +279,7 @@ mod tests {
         Echo {
             signature: Signature::single_input("Echo the request.", Vec::new()),
             demos: Vec::new(),
-            config: LmConfig::default(),
+            config: Sampling::default(),
             hint: None,
         }
     }

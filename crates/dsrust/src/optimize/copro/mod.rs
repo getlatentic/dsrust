@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 use super::Optimizer;
 use crate::evaluate::Evaluate;
 use crate::example::{Example, Prediction};
-use crate::lm::{DynChatModel, LmConfig};
+use crate::lm::{DynChatModel, Sampling};
 use crate::module::Module;
 use crate::predict::Predict;
 use crate::signature::{Signature, infer_prefix};
@@ -215,10 +215,10 @@ where
         n: usize,
         input: [(&str, Value); 1],
     ) -> Result<Vec<Proposal>> {
-        let mut predict = Predict::from_signature(signature).with_config(LmConfig {
+        let mut predict = Predict::from_signature(signature).with_config(Sampling {
             completions: Some(n as u32),
             temperature: Some(self.init_temperature),
-            ..LmConfig::default()
+            ..Sampling::default()
         });
         if let Some(model) = &self.prompt_model {
             predict = predict.with_lm(model.clone());

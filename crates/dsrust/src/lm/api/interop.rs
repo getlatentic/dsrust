@@ -8,7 +8,7 @@
 
 use super::{LmCacheConfig, LmConfig as ApiConfig, LmMessage, LmPart};
 use super::{LmRequest as ApiRequest, RolloutId, part_of_block};
-use crate::lm::{ChatTurn, Content, LmConfig as CallConfig, OutputMode};
+use crate::lm::{ChatTurn, Content, OutputMode, Sampling as CallConfig};
 use serde_json::Value;
 
 /// A rendered `(system, turns, mode, config)` raised to the typed request — what an adapter that

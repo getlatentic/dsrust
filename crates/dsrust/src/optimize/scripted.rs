@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use crate::example;
 use crate::example::{Example, Prediction};
-use crate::lm::LmConfig;
+use crate::lm::Sampling;
 use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::Signature;
 
@@ -24,7 +24,7 @@ pub(crate) struct Call {
     pub(crate) demos: Vec<Example>,
     /// What the predictor was asked to sample with at that moment, which is how a test sees a
     /// bootstrap round after the first arriving as a fresh rollout.
-    pub(crate) config: LmConfig,
+    pub(crate) config: Sampling,
     /// What the predictor was told to do differently, which is how a `Refine` test sees one
     /// attempt's advice arriving as the next attempt's hint.
     pub(crate) hint: Option<String>,
@@ -56,7 +56,7 @@ pub(crate) enum Answers {
 /// One predictor, one rule for answering it.
 pub(crate) struct Solver {
     signature: Signature,
-    config: LmConfig,
+    config: Sampling,
     hint: Option<String>,
     pub(crate) demos: Vec<Example>,
     answers: Answers,
@@ -67,7 +67,7 @@ impl Solver {
     pub(crate) fn new(answers: Answers) -> Self {
         Self {
             signature: Signature::single_input("Answer.", Vec::new()),
-            config: LmConfig::default(),
+            config: Sampling::default(),
             hint: None,
             demos: Vec::new(),
             answers,
@@ -146,9 +146,9 @@ impl Module for Solver {
 /// Two predictors, so the decisions `_train` makes per predictor are observable. It answers
 /// correctly and records nothing: what is under test is which demos each half ends up with.
 pub(crate) struct Pair {
-    first_sampling: LmConfig,
+    first_sampling: Sampling,
     first_hint: Option<String>,
-    second_sampling: LmConfig,
+    second_sampling: Sampling,
     second_hint: Option<String>,
     first: Signature,
     pub(crate) first_demos: Vec<Example>,
@@ -161,11 +161,11 @@ impl Pair {
         Self {
             first: Signature::single_input("Answer.", Vec::new()),
             first_demos: Vec::new(),
-            first_sampling: LmConfig::default(),
+            first_sampling: Sampling::default(),
             first_hint: None,
             second: Signature::single_input("Answer.", Vec::new()),
             second_demos: Vec::new(),
-            second_sampling: LmConfig::default(),
+            second_sampling: Sampling::default(),
             second_hint: None,
         }
     }
@@ -247,9 +247,9 @@ impl Module for Pair {
 /// an optimizer. dspy starts every predictor's traces at an empty list, so the idle half is
 /// taught by nothing rather than by its sibling's work.
 pub(crate) struct Lopsided {
-    ran_sampling: LmConfig,
+    ran_sampling: Sampling,
     ran_hint: Option<String>,
-    idle_sampling: LmConfig,
+    idle_sampling: Sampling,
     idle_hint: Option<String>,
     ran: Signature,
     pub(crate) ran_demos: Vec<Example>,
@@ -262,11 +262,11 @@ impl Lopsided {
         Self {
             ran: Signature::single_input("Answer.", Vec::new()),
             ran_demos: Vec::new(),
-            ran_sampling: LmConfig::default(),
+            ran_sampling: Sampling::default(),
             ran_hint: None,
             idle: Signature::single_input("Answer.", Vec::new()),
             idle_demos: Vec::new(),
-            idle_sampling: LmConfig::default(),
+            idle_sampling: Sampling::default(),
             idle_hint: None,
         }
     }

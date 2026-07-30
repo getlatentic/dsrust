@@ -12,7 +12,7 @@ use anyhow::Result;
 use super::{Dynamic, Predict};
 use crate::adapter::{Adapter, ChatAdapter};
 use crate::example::Example;
-use crate::lm::{DynChatModel, LmConfig, global};
+use crate::lm::{DynChatModel, Sampling, global};
 use crate::signature::{Signature, SignatureSpec};
 
 impl<S> Predict<S> {
@@ -53,14 +53,14 @@ impl<S> Predict<S> {
     /// dspy reaches the same setting through `lm.copy(temperature=...)`, which needs a model to
     /// copy; this is per call, so a module that defers to the configured model can still vary
     /// how it is asked.
-    pub fn with_config(mut self, config: LmConfig) -> Self {
+    pub fn with_config(mut self, config: Sampling) -> Self {
         self.config = config;
         self
     }
 
     /// The config this module asks for. An optimizer reads it to vary one field and leave
     /// the rest alone.
-    pub fn config(&self) -> &LmConfig {
+    pub fn config(&self) -> &Sampling {
         &self.config
     }
 
@@ -102,7 +102,7 @@ impl Predict<Dynamic> {
         Self {
             spec: PhantomData,
             lm: None,
-            config: LmConfig::default(),
+            config: Sampling::default(),
             hint: None,
             feedback_retry: false,
             signature,

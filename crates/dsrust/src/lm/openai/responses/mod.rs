@@ -429,7 +429,7 @@ mod tests {
             "be helpful",
             &[crate::lm::ChatTurn::user("hi")],
             crate::lm::OutputMode::Json { schema: &schema },
-            &crate::lm::LmConfig::default(),
+            &crate::lm::Sampling::default(),
         );
         assert_eq!(
             request("gpt-5", &call, JsonFormat::Object)["text"],

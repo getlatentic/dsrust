@@ -1087,8 +1087,12 @@ Order, leaves first, so nothing is half-typed at any point:
          its predecessor in place. Measured 2026-07-30: `ChatTurn` is 83 mentions across 20 files,
          `LmConfig` 160 across 27, and the second is ambiguous at every one of them because both
          types are called `LmConfig` — which is how a test came to record the wrong one today.
-         Whichever of the two goes first, the rename is the cheap half: one of them should not be
-         called `LmConfig` while the other exists.
+         The rename is done: `call::LmConfig` is `Sampling`, which is what it is — how one call is
+         sampled, varied per attempt by every retry-shaped module. `api::LmConfig` keeps the name,
+         because it is dspy's `LMConfig`. Only five files now name both, and each is a genuine
+         bridge: `lm.rs` re-exports them, `interop.rs` converts between them, and the other three
+         take a `Sampling` while asserting on the `api::LmConfig` that reached the wire. What is
+         left of this slice is the replacing itself.
   s13-4  DONE. `lm/api/config.rs`: the typed fields, the nested configs, `extensions` catching
          anything unrecognised, and the flat aliases folded on construction. `rollout_id` lives at
          `cache.rollout_id` and is int-or-string.

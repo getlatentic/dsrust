@@ -7,7 +7,7 @@ use crate::adapter::native_reasoning::{self, ReasoningEffort};
 use crate::adapter::parse::FieldMismatch;
 use crate::adapter::{Adapter, Feedback, Input, native_tools, turns_for};
 use crate::example::{Example, Prediction};
-use crate::lm::{Capabilities, DynChatModel, LmConfig, LmUsage, api};
+use crate::lm::{Capabilities, DynChatModel, LmUsage, Sampling, api};
 use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::Signature;
 
@@ -121,7 +121,7 @@ pub struct Predict<S = Dynamic> {
     /// The other half of the same seam: `BestOfN` and a bootstrap round after the first vary
     /// this rather than the model, since what they need to differ is one call's config and
     /// not which provider answers.
-    config: LmConfig,
+    config: Sampling,
     /// What an earlier attempt was told to do differently. See [`NamedPredictor::hint`].
     hint: Option<String>,
     /// Whether a reply that parsed but did not validate is re-asked with the error attached.
@@ -503,9 +503,9 @@ mod tests {
         let predict = Predict::parse("request -> color, why")
             .expect("parses")
             .with_lm(std::sync::Arc::new(ManyCompletions(replies)))
-            .with_config(LmConfig {
+            .with_config(Sampling {
                 completions: Some(3),
-                ..LmConfig::default()
+                ..Sampling::default()
             });
 
         let candidates = predict
@@ -930,7 +930,7 @@ mod tests {
             let predict = Predict {
                 spec: PhantomData,
                 lm: None,
-                config: LmConfig::default(),
+                config: Sampling::default(),
                 hint: None,
                 feedback_retry: false,
                 signature: typed_signature(),
@@ -1164,10 +1164,10 @@ mod per_call_model {
 
         let varied = Predict!("question -> answer")
             .with_lm(lm.clone())
-            .with_config(LmConfig {
+            .with_config(Sampling {
                 temperature: Some(1.0),
                 max_tokens: Some(64),
-                ..LmConfig::default()
+                ..Sampling::default()
             });
         varied
             .forward(input! { question: "q" })
@@ -1175,18 +1175,18 @@ mod per_call_model {
             .expect("asks");
 
         let asked = lm.asked();
-        assert_eq!(asked[0].config, LmConfig::default());
+        assert_eq!(asked[0].config, Sampling::default());
         assert_eq!(asked[1].config.temperature, Some(1.0));
         assert_eq!(asked[1].config.max_tokens, Some(64));
     }
 
-    /// LmConfig travels with the module the same way the model override does.
+    /// Sampling travels with the module the same way the model override does.
     #[test]
     fn the_sampling_survives_being_given_a_task() {
         let carried =
-            Predict::from_signature("q -> a".parse().expect("parses")).with_config(LmConfig {
+            Predict::from_signature("q -> a".parse().expect("parses")).with_config(Sampling {
                 temperature: Some(0.5),
-                ..LmConfig::default()
+                ..Sampling::default()
             });
         assert_eq!(carried.into_task::<()>().config().temperature, Some(0.5));
     }

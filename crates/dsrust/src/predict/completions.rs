@@ -10,7 +10,7 @@ use crate::example::{Example, Prediction};
 impl<S> Predict<S> {
     /// Ask the model for several candidate answers in one call and read every one, not just the
     /// first — dspy's `Predict(sig, n=N)(...)`. How many is
-    /// [`config.completions`](crate::lm::LmConfig) (set with [`with_config`](Self::with_config));
+    /// [`config.completions`](crate::lm::Sampling) (set with [`with_config`](Self::with_config));
     /// each candidate is parsed on its own, and one the model malformed is dropped rather than
     /// failing the batch, since a proposal step wants the candidates that came through, not all or
     /// nothing.

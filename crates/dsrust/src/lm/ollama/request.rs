@@ -96,7 +96,7 @@ fn image_data(image_url: &Value) -> String {
         .to_owned()
 }
 
-/// Sampling under `options`, only the keys the caller set. litellm defaults none, so an unnamed
+/// LmConfig under `options`, only the keys the caller set. litellm defaults none, so an unnamed
 /// temperature is left to ollama's own rather than one this crate invents; the cap is `num_predict`.
 fn options(config: &LmConfig) -> Value {
     let mut options = serde_json::Map::new();

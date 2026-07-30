@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use super::{Predict, Steering, Validated};
 use crate::adapter::{Extraction, Feedback, Input};
-use crate::lm::{DynChatModel, LmConfig, LmUsage, api};
+use crate::lm::{DynChatModel, LmUsage, Sampling, api};
 
 impl<S> Predict<S> {
     /// The second ask of a two-step adapter: hand the first reply to the extraction model and
@@ -33,7 +33,7 @@ impl<S> Predict<S> {
         // Left at the provider's defaults rather than given the module's config: this call
         // rewrites prose the model already produced into fields, so a temperature chosen to
         // vary the *answer* would only vary the transcription of one.
-        let request = api::interop::raise_request(&system, &turns, mode, &LmConfig::default());
+        let request = api::interop::raise_request(&system, &turns, mode, &Sampling::default());
         let extracted = extraction
             .model
             .forward_dyn(&request)

@@ -20,7 +20,7 @@ use futures_util::lock::Mutex;
 use serde_json::Value;
 
 use crate::example::{Example, Prediction};
-use crate::lm::{DynChatModel, LmConfig};
+use crate::lm::{DynChatModel, Sampling};
 use crate::module::{Ask, Module, NamedPredictor, TraceStep};
 use crate::predict::Predict;
 
@@ -193,7 +193,7 @@ where
         best: &mut Option<(f64, Prediction, Vec<TraceStep>)>,
         advice: Option<&serde_json::Map<String, Value>>,
     ) -> Result<Outcome> {
-        apply(module, &LmConfig::rollout(attempt as u64), advice);
+        apply(module, &Sampling::rollout(attempt as u64), advice);
 
         let mut trace = Vec::new();
         let answered = module.forward_traced(inputs.clone(), &mut trace).await?;
@@ -241,7 +241,7 @@ enum Outcome {
 /// one from the advice and the rest with `N/A`, which is upstream's `advice.get(name, "N/A")`.
 fn apply<M: Module + ?Sized>(
     module: &mut M,
-    config: &LmConfig,
+    config: &Sampling,
     advice: Option<&serde_json::Map<String, Value>>,
 ) {
     for predictor in module.named_predictors() {
@@ -268,7 +268,7 @@ fn describe_program<M: Module + ?Sized>(module: &mut M) -> (String, Vec<String>)
 
 /// Each predictor's config and hint before an attempt overrides them, so a caller's module is
 /// handed back the way it was found.
-fn resting_state<M: Module + ?Sized>(module: &mut M) -> Vec<(LmConfig, Option<String>)> {
+fn resting_state<M: Module + ?Sized>(module: &mut M) -> Vec<(Sampling, Option<String>)> {
     module
         .named_predictors()
         .iter()
@@ -276,7 +276,7 @@ fn resting_state<M: Module + ?Sized>(module: &mut M) -> Vec<(LmConfig, Option<St
         .collect()
 }
 
-fn restore_state<M: Module + ?Sized>(module: &mut M, resting: &[(LmConfig, Option<String>)]) {
+fn restore_state<M: Module + ?Sized>(module: &mut M, resting: &[(Sampling, Option<String>)]) {
     for (predictor, (config, hint)) in module.named_predictors().into_iter().zip(resting) {
         *predictor.config = config.clone();
         *predictor.hint = hint.clone();
@@ -490,7 +490,7 @@ mod tests {
             .run(asked("capital of France?"))
             .await
             .expect("an answer");
-        let config: Vec<LmConfig> = refine
+        let config: Vec<Sampling> = refine
             .into_inner()
             .calls()
             .into_iter()
@@ -499,9 +499,9 @@ mod tests {
         assert_eq!(
             config,
             [
-                LmConfig::rollout(0),
-                LmConfig::rollout(1),
-                LmConfig::rollout(2)
+                Sampling::rollout(0),
+                Sampling::rollout(1),
+                Sampling::rollout(2)
             ]
         );
     }
@@ -531,9 +531,9 @@ mod tests {
     #[tokio::test]
     async fn the_module_is_left_the_way_it_was_found() {
         let mut solver = Solver::new(Answers::Correctly);
-        let resting = LmConfig {
+        let resting = Sampling {
             temperature: Some(0.2),
-            ..LmConfig::default()
+            ..Sampling::default()
         };
         solver.set_config(resting.clone());
 

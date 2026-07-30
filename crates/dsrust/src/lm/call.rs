@@ -12,7 +12,7 @@ use serde_json::{Value, json};
 /// attempts differ only here. That is what lets `BestOfN` mean anything and what lets a bootstrap
 /// round after the first not repeat itself.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub struct LmConfig {
+pub struct Sampling {
     /// Unset leaves each provider on the default it is already sent.
     pub temperature: Option<f64>,
     pub max_tokens: Option<u32>,
@@ -29,7 +29,7 @@ pub struct LmConfig {
     pub rollout_id: Option<u64>,
 }
 
-impl LmConfig {
+impl Sampling {
     /// A fresh rollout at the temperature upstream re-asks with. dspy's
     /// `lm.copy(rollout_id=n, temperature=1.0)`, which is how every one of its retry-shaped
     /// modules makes attempt two differ from attempt one.

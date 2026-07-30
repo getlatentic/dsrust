@@ -382,7 +382,7 @@ mod tests {
     use super::super::token_limit::TokenLimitField;
     use super::*;
     use crate::lm::api::interop::raise_request;
-    use crate::lm::{ChatTurn, DEFAULT_PROVIDER_TIMEOUT, LmConfig, OutputMode};
+    use crate::lm::{ChatTurn, DEFAULT_PROVIDER_TIMEOUT, OutputMode, Sampling};
 
     fn schema() -> Value {
         json!({
@@ -399,7 +399,7 @@ mod tests {
             "be helpful",
             &[ChatTurn::user("hi")],
             OutputMode::Json { schema: &schema },
-            &LmConfig::default(),
+            &Sampling::default(),
         );
         request(
             "gpt-4o-mini",
@@ -411,11 +411,11 @@ mod tests {
 
     /// The body a text-mode call to `model` produces on OpenAI's own endpoint.
     fn text_request(model: &str, token_limit_rule: TokenLimitRule) -> Value {
-        sampled_request(model, token_limit_rule, LmConfig::default())
+        sampled_request(model, token_limit_rule, Sampling::default())
     }
 
     /// The same body, with the caller naming how the reply should be sampled.
-    fn sampled_request(model: &str, token_limit_rule: TokenLimitRule, config: LmConfig) -> Value {
+    fn sampled_request(model: &str, token_limit_rule: TokenLimitRule, config: Sampling) -> Value {
         let call = raise_request(
             "be helpful",
             &[ChatTurn::user("hi")],
@@ -576,9 +576,9 @@ mod tests {
     /// so the override has to follow the same rule the default does rather than pick a key.
     #[test]
     fn a_named_cap_replaces_the_default_on_whichever_key_carries_it() {
-        let capped = LmConfig {
+        let capped = Sampling {
             max_tokens: Some(64),
-            ..LmConfig::default()
+            ..Sampling::default()
         };
         let rule = TokenLimitRule::ByOpenAiModelFamily;
 
@@ -602,9 +602,9 @@ mod tests {
         let warmed = sampled_request(
             "gpt-4o-mini",
             rule,
-            LmConfig {
+            Sampling {
                 temperature: Some(1.0),
-                ..LmConfig::default()
+                ..Sampling::default()
             },
         );
         assert_eq!(warmed["temperature"], 1.0);
@@ -617,9 +617,9 @@ mod tests {
         let endpoint = Endpoint::openrouter("probe", Some("key"), DEFAULT_PROVIDER_TIMEOUT);
         // A named cap, so the routing this test is about has something to place; OpenRouter's
         // rule keeps every model on `max_tokens`, its reasoning-named ones included.
-        let capped = LmConfig {
+        let capped = Sampling {
             max_tokens: Some(1024),
-            ..LmConfig::default()
+            ..Sampling::default()
         };
         for model in ["openai/gpt-5", "openai/o3", "openai/gpt-oss-120b"] {
             let call = raise_request(
@@ -667,9 +667,9 @@ mod tests {
         let asked = sampled_request(
             "gpt-4o-mini",
             TokenLimitRule::ByOpenAiModelFamily,
-            LmConfig {
+            Sampling {
                 completions: Some(3),
-                ..LmConfig::default()
+                ..Sampling::default()
             },
         );
         assert_eq!(asked["n"], 3);

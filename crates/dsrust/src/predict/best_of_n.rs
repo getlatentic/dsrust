@@ -2,7 +2,7 @@
 //!
 //! Each attempt is a fresh rollout at `temperature = 1.0`, which is the whole mechanism — upstream
 //! runs `lm.copy(rollout_id=start+i, temperature=1.0)` so the second ask is a different ask rather
-//! than a replay of the first. [`LmConfig::rollout`] is that copy, and the response cache is what
+//! than a replay of the first. [`Sampling::rollout`] is that copy, and the response cache is what
 //! makes the rollout id matter.
 //!
 //! Stops early on an attempt that clears the threshold, because the point is a good answer rather
@@ -12,7 +12,7 @@ use anyhow::{Result, anyhow};
 use futures_util::lock::Mutex;
 
 use crate::example::{Example, Prediction};
-use crate::lm::LmConfig;
+use crate::lm::Sampling;
 use crate::module::{Ask, Module, NamedPredictor, TraceStep};
 
 /// Ask up to `n` times and answer with the best attempt.
@@ -124,7 +124,7 @@ where
         for attempt in 0..self.n {
             // dspy counts rollouts from whatever the module already carried, so a caller who set
             // one is continued rather than overwritten.
-            module.set_config(LmConfig::rollout(attempt as u64));
+            module.set_config(Sampling::rollout(attempt as u64));
             let answered = match module.forward(inputs.clone()).await {
                 Ok(prediction) => prediction,
                 Err(error) => {
@@ -193,7 +193,7 @@ where
             let mut best: Option<(f64, Prediction, Vec<TraceStep>)> = None;
 
             for attempt in 0..self.n {
-                module.set_config(LmConfig::rollout(attempt as u64));
+                module.set_config(Sampling::rollout(attempt as u64));
                 let mut attempted = Vec::new();
                 let Ok(answered) = module.forward_traced(inputs.clone(), &mut attempted).await
                 else {
@@ -273,7 +273,7 @@ macro_rules! BestOfN {
 }
 
 /// What each predictor asks for before an attempt overrides it.
-fn resting_config<M: Module + ?Sized>(module: &mut M) -> Vec<LmConfig> {
+fn resting_config<M: Module + ?Sized>(module: &mut M) -> Vec<Sampling> {
     module
         .named_predictors()
         .iter()
@@ -281,7 +281,7 @@ fn resting_config<M: Module + ?Sized>(module: &mut M) -> Vec<LmConfig> {
         .collect()
 }
 
-fn restore_config<M: Module + ?Sized>(module: &mut M, resting: &[LmConfig]) {
+fn restore_config<M: Module + ?Sized>(module: &mut M, resting: &[Sampling]) {
     for (predictor, was) in module.named_predictors().into_iter().zip(resting) {
         *predictor.config = was.clone();
     }
@@ -332,7 +332,7 @@ mod tests {
             .await
             .expect("an answer");
 
-        let config: Vec<LmConfig> = best
+        let config: Vec<Sampling> = best
             .into_inner()
             .calls()
             .into_iter()
@@ -341,9 +341,9 @@ mod tests {
         assert_eq!(
             config,
             [
-                LmConfig::rollout(0),
-                LmConfig::rollout(1),
-                LmConfig::rollout(2)
+                Sampling::rollout(0),
+                Sampling::rollout(1),
+                Sampling::rollout(2)
             ]
         );
     }
@@ -379,9 +379,9 @@ mod tests {
     #[tokio::test]
     async fn the_module_is_left_sampling_the_way_it_was_found() {
         let mut solver = Solver::new(Answers::Correctly);
-        let resting = LmConfig {
+        let resting = Sampling {
             temperature: Some(0.2),
-            ..LmConfig::default()
+            ..Sampling::default()
         };
         solver.set_config(resting.clone());
 

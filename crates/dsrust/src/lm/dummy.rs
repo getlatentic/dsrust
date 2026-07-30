@@ -15,7 +15,7 @@ use serde_json::Value;
 use crate::adapter::python_json::format_value;
 use crate::example::Example;
 use crate::lm::api::{self, RolloutId, content_of};
-use crate::lm::{ChatModel, ChatTurn, Content, LmConfig, Role};
+use crate::lm::{ChatModel, ChatTurn, Content, Role, Sampling};
 
 /// What the model was asked, kept so a test can assert on the prompt it produced.
 #[derive(Debug, Clone)]
@@ -25,7 +25,7 @@ pub struct Asked {
     pub json_mode: bool,
     /// How the caller asked for the reply to be sampled. A scripted model answers from its
     /// script regardless; recording it is what lets a test assert that a re-ask differed.
-    pub config: LmConfig,
+    pub config: Sampling,
 }
 
 impl Asked {
@@ -187,8 +187,8 @@ fn recorded_turns(request: &api::LmRequest) -> Vec<ChatTurn> {
 
 /// The four sampling fields a scripted model records for inspection, read back from the typed
 /// config the module handed it.
-fn recorded_config(config: &api::LmConfig) -> LmConfig {
-    LmConfig {
+fn recorded_config(config: &api::LmConfig) -> Sampling {
+    Sampling {
         temperature: config.temperature,
         max_tokens: config.max_tokens,
         completions: config.n,
@@ -215,7 +215,7 @@ mod tests {
             "system",
             &[ChatTurn::user(message)],
             OutputMode::Text,
-            &LmConfig::default(),
+            &Sampling::default(),
         );
         futures_lite_block_on(lm.forward(&request)).map(|answered| answered.first_text())
     }
@@ -319,7 +319,7 @@ mod tests {
             "system",
             &[ChatTurn::user("ask")],
             OutputMode::Json { schema: &schema },
-            &LmConfig::default(),
+            &Sampling::default(),
         );
         let reply = futures_lite_block_on(lm.forward(&request)).unwrap();
         assert_eq!(reply.first_text(), r#"{"answer":"red"}"#);

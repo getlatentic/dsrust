@@ -87,9 +87,9 @@ impl GroundedProposer {
                 // temperature=init_temperature)`. The draw also advances the shared generator, which
                 // is why it happens whether or not the id is used.
                 let rollout = rng.randint(0, 1_000_000_000);
-                let sampling = crate::lm::LmConfig {
+                let sampling = crate::lm::Sampling {
                     temperature: Some(self.init_temperature),
-                    ..crate::lm::LmConfig::rollout(rollout)
+                    ..crate::lm::Sampling::rollout(rollout)
                 };
                 let inputs = InstructionInputs {
                     dataset_summary: false,
