@@ -90,6 +90,29 @@ This is the sprint that closed the project's one known blind spot.
 """
 
 [[story]]
+id = "api-6"
+sprint = "api"
+title = "A caller needs serde_json the moment they build anything, and nothing says so"
+state = "todo"
+plan = """
+The public API takes and returns `serde_json::Value` — `JsonType::reflected(annotation, schema)`,
+`Tool::args`, `Prediction::get`. Reading an answer is fine, because the methods on `Value` need no
+import. Building one is not: a runtime-shaped signature or a tool's argument schema needs
+`json!`, and that means `cargo add serde_json` on top of the two the README names.
+
+Found running an outside project through the runtime-schema case, and it is the same shape as the
+`#[tokio::main]` problem: the crate leans on a dependency the docs never mention, and the caller
+discovers it as a compile error.
+
+`pub use serde_json;` fixes it, and unlike the tokio case it actually can — `json!` expands through
+`$crate`, so `dsrust::serde_json::json!` resolves wherever it is written. Check that claim before
+relying on it; the tokio one looked equally obvious and was wrong.
+
+Then `check_external_consumer.sh` should build a runtime-built signature with no `serde_json` line
+in its manifest, which is the only way this stays fixed.
+"""
+
+[[story]]
 id = "lm-streamify"
 sprint = "api"
 title = "Streaming reaches the provider and stops there: no streamify, listener or status"
