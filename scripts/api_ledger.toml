@@ -725,11 +725,11 @@
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.auto" = { status = "todo", reason = "dspy's light/medium/heavy presets, which set num_candidates and num_trials together" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.init_temperature" = { status = "todo", reason = "the temperature MIPRO proposes instructions at" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.log_dir" = { status = "divergence", reason = "dspy writes a run log to disk; tracing is the record here" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_bootstrapped_demos" = { status = "todo", reason = "MIPRO's own bootstrap step is not wired to a caller-set cap yet" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_bootstrapped_demos" = { status = "todo", reason = "this MIPROv2 is dspy's *zero-shot* configuration and says so at src/optimize/mipro/mod.rs:8 — instructions are searched, demos are not. So Step 1 runs with dspy's own zero-shot constants (BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT = 3) to ground the proposer and advance the RNG, and there is no demo dimension in Step 3 for a caller's cap to size. Not a missing setter: the few-shot half of MIPROv2" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.max_errors" = { status = "todo", reason = "dspy aborts a compile after N failed rows" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_labeled_demos" = { status = "todo", reason = "as max_bootstrapped_demos" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_labeled_demos" = { status = "todo", reason = "as max_bootstrapped_demos — Step 1 uses LABELED_FEWSHOT_EXAMPLES_IN_CONTEXT = 0, dspy's own zero-shot value" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.metric" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new, positional" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.metric_threshold" = { status = "todo", reason = "the score a bootstrapped trace must beat to be kept" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.metric_threshold" = { status = "todo", reason = "the score a bootstrapped trace must beat to be kept. The machinery exists — BootstrapFewShot::metric_threshold is mapped, and Step 1 builds a BootstrapFewShot (src/optimize/mipro/demos.rs) — so what is left is threading the setting into it, as with num_threads. Not a missing capability" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.num_candidates" = { status = "mapped", rust = "with_candidates", reason = "MIPROv2::with_candidates" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.num_threads" = { status = "todo", reason = "this optimizer evaluates sequentially. The blocker its reason used to name is gone — Evaluate::num_threads exists and a rate limit is retried with dspy's backoff — so what is left is threading the setting through to the Evaluate each optimizer builds" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.prompt_model" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new's second argument" }
