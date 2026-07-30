@@ -602,7 +602,7 @@
 "evaluate/evaluate.py::Evaluate.failure_score" = { status = "mapped", rust = "failure_score", reason = "Evaluate::failure_score" }
 "evaluate/evaluate.py::Evaluate.max_errors" = { status = "todo", reason = "dspy aborts a run after N failed rows; every row is scored here" }
 "evaluate/evaluate.py::Evaluate.metric" = { status = "mapped", rust = "metric", reason = "Evaluate::metric" }
-"evaluate/evaluate.py::Evaluate.num_threads" = { status = "todo", reason = "a parallel runner needs a concurrency limit and provider-aware backoff first; evaluate.rs says so" }
+"evaluate/evaluate.py::Evaluate.num_threads" = { status = "mapped", rust = "Evaluate::num_threads" }
 "evaluate/evaluate.py::Evaluate.provide_traceback" = { status = "divergence", reason = "a failed row keeps its error string in Scored::prediction" }
 "evaluate/evaluate.py::Evaluate.save_as_csv" = { status = "divergence", reason = "serialising the outcome is the caller's; Outcome::results is public" }
 "evaluate/evaluate.py::Evaluate.save_as_json" = { status = "divergence", reason = "serialising the outcome is the caller's; Outcome::results is public" }
@@ -689,7 +689,7 @@
 "teleprompt/gepa/gepa.py::GEPA.max_merge_invocations" = { status = "mapped", rust = "max_merge_invocations", reason = "GEPA::max_merge_invocations" }
 "teleprompt/gepa/gepa.py::GEPA.max_metric_calls" = { status = "mapped", rust = "max_metric_calls", reason = "GEPA::max_metric_calls" }
 "teleprompt/gepa/gepa.py::GEPA.metric" = { status = "mapped", rust = "GEPA", reason = "GEPA::new, positional" }
-"teleprompt/gepa/gepa.py::GEPA.num_threads" = { status = "todo", reason = "parallel evaluation, blocked on the same concurrency limit Evaluate::num_threads needs" }
+"teleprompt/gepa/gepa.py::GEPA.num_threads" = { status = "todo", reason = "this optimizer evaluates sequentially. The blocker its reason used to name is gone — Evaluate::num_threads exists and a rate limit is retried with dspy's backoff — so what is left is threading the setting through to the Evaluate each optimizer builds" }
 "teleprompt/gepa/gepa.py::GEPA.perfect_score" = { status = "mapped", rust = "perfect_score", reason = "GEPA::perfect_score" }
 "teleprompt/gepa/gepa.py::GEPA.reflection_lm" = { status = "mapped", rust = "GEPA", reason = "GEPA::new's second argument" }
 "teleprompt/gepa/gepa.py::GEPA.reflection_minibatch_size" = { status = "mapped", rust = "reflection_minibatch_size", reason = "GEPA::reflection_minibatch_size" }
@@ -712,7 +712,7 @@
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.metric" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new, positional" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.metric_threshold" = { status = "todo", reason = "the score a bootstrapped trace must beat to be kept" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.num_candidates" = { status = "mapped", rust = "with_candidates", reason = "MIPROv2::with_candidates" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.num_threads" = { status = "todo", reason = "parallel evaluation, blocked on the same concurrency limit Evaluate::num_threads needs" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.num_threads" = { status = "todo", reason = "this optimizer evaluates sequentially. The blocker its reason used to name is gone — Evaluate::num_threads exists and a rate limit is retried with dspy's backoff — so what is left is threading the setting through to the Evaluate each optimizer builds" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.prompt_model" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new's second argument" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.seed" = { status = "mapped", rust = "seed", reason = "MIPROv2::seed" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.task_model" = { status = "todo", reason = "dspy asks the task model for bootstrapped demos and the prompt model for instructions; one model here" }
@@ -726,7 +726,7 @@
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.metric" = { status = "mapped", rust = "BootstrapRandomSearch", reason = "BootstrapFewShotWithRandomSearch::new, positional" }
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.metric_threshold" = { status = "mapped", rust = "with_metric_threshold", reason = "with_metric_threshold" }
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.num_candidate_programs" = { status = "mapped", rust = "with_num_candidate_programs", reason = "with_num_candidate_programs" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.num_threads" = { status = "todo", reason = "parallel evaluation, blocked on the same concurrency limit Evaluate::num_threads needs" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.num_threads" = { status = "todo", reason = "this optimizer evaluates sequentially. The blocker its reason used to name is gone — Evaluate::num_threads exists and a rate limit is retried with dspy's backoff — so what is left is threading the setting through to the Evaluate each optimizer builds" }
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.stop_at_score" = { status = "mapped", rust = "with_stop_at_score", reason = "with_stop_at_score" }
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.teacher_settings" = { status = "divergence", reason = "dspy's teacher config dict; the teacher's LM is set on the module with with_lm" }
 "teleprompt/vanilla.py::LabeledFewShot.k" = { status = "mapped", rust = "LabeledFewShot", reason = "LabeledFewShot::new, positional" }

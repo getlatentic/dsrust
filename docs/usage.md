@@ -513,6 +513,9 @@ whatever it wraps, so it is built with `::new` and has no macro.
 | `Refine` | **a module** | `dspy.Refine(module=qa, N=3, …)` | `Refine!(qa, n = 3, reward = f, threshold = 1.0)` |
 | `Parallel` | branches per call | `dspy.Parallel(num_threads=8)` | `Parallel::new(8)` |
 
+Scoring a devset takes the same knob: `Evaluate::new(devset, program, metric).num_threads(8)` is
+DSPy's `Evaluate(num_threads=8)`, and rows come back in devset order however many ran at once.
+
 Every signature-taking macro accepts **either spelling** — a string, or a task declared with
 `#[derive(Signature)]`:
 

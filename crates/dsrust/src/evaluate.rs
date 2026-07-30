@@ -10,6 +10,8 @@
 
 use std::future::Future;
 
+use futures_util::StreamExt;
+
 use crate::example::{Example, Prediction};
 
 pub mod metrics;
@@ -63,6 +65,9 @@ pub struct Evaluate<P, M> {
     pub metric: M,
     /// What an errored row scores. dspy's default is 0.0.
     pub failure_score: f64,
+    /// How many rows are in flight at once — dspy's `Evaluate(num_threads=…)`, and `None` for one
+    /// at a time as upstream's default is. See [`num_threads`](Self::num_threads).
+    pub num_threads: Option<usize>,
 }
 
 impl<P, M, F> Evaluate<P, M>
@@ -77,50 +82,66 @@ where
             program,
             metric,
             failure_score: 0.0,
+            num_threads: None,
         }
     }
 
-    /// Score every example in order.
+    /// Run this many rows at once — dspy's `Evaluate(num_threads=…)`.
     ///
-    /// Sequential on purpose for now: a parallel runner is worth having, but it needs a
-    /// concurrency limit and a provider-aware backoff to be anything but a way to get rate
-    /// limited, and inventing that before the optimizer that needs it would be guesswork.
+    /// One at a time otherwise, which is upstream's default (`num_threads=None`). A devset of
+    /// hundreds against a hosted model is dominated by waiting, so this is most of the wall clock an
+    /// optimizer spends.
+    ///
+    /// Safe to raise now in a way it was not before: a rate limit is retried with dspy's own backoff
+    /// (see [`retry`](crate::lm::retry)), so a run that asks too fast slows down rather than failing.
+    pub fn num_threads(mut self, num_threads: usize) -> Self {
+        self.num_threads = Some(num_threads.max(1));
+        self
+    }
+
+    /// Score every example, and report the rows in devset order however many ran at once.
+    ///
+    /// Order is `buffered` rather than `buffer_unordered`: a caller reads `results[i]` against
+    /// `devset[i]`, and dspy's own results are aligned the same way.
     pub async fn run(&self) -> Evaluation {
-        let mut results = Vec::with_capacity(self.devset.len());
-        for example in &self.devset {
-            // An example whose split was never declared is a devset mistake, not a program
-            // failure. It scores like a failure but says so, rather than handing the program
-            // an empty input set and reporting the resulting zero as a model problem.
-            let inputs = match example.inputs() {
-                Ok(inputs) => inputs,
-                Err(error) => {
-                    results.push(Scored {
-                        example: example.clone(),
-                        prediction: Err(format!("{error:#}")),
-                        score: self.failure_score,
-                    });
-                    continue;
-                }
-            };
-            let outcome = (self.program)(inputs).await;
-            let (prediction, score) = match outcome {
-                Ok(prediction) => {
-                    let score = (self.metric)(example, &prediction);
-                    (Ok(prediction), score)
-                }
-                Err(error) => (Err(format!("{error:#}")), self.failure_score),
-            };
-            results.push(Scored {
-                example: example.clone(),
-                prediction,
-                score,
-            });
-        }
+        let scoring = futures_util::stream::iter(self.devset.clone())
+            .map(|example| self.score_row(example))
+            .buffered(self.num_threads.unwrap_or(1));
+        let results: Vec<Scored> = scoring.collect().await;
         let score = match results.is_empty() {
             true => 0.0,
             false => results.iter().map(|row| row.score).sum::<f64>() / results.len() as f64,
         };
         Evaluation { results, score }
+    }
+
+    /// One example, run and scored.
+    async fn score_row(&self, example: Example) -> Scored {
+        // An example whose split was never declared is a devset mistake, not a program failure. It
+        // scores like a failure but says so, rather than handing the program an empty input set and
+        // reporting the resulting zero as a model problem.
+        let inputs = match example.inputs() {
+            Ok(inputs) => inputs,
+            Err(error) => {
+                return Scored {
+                    example,
+                    prediction: Err(format!("{error:#}")),
+                    score: self.failure_score,
+                };
+            }
+        };
+        let (prediction, score) = match (self.program)(inputs).await {
+            Ok(prediction) => {
+                let score = (self.metric)(&example, &prediction);
+                (Ok(prediction), score)
+            }
+            Err(error) => (Err(format!("{error:#}")), self.failure_score),
+        };
+        Scored {
+            example,
+            prediction,
+            score,
+        }
     }
 }
 
@@ -157,6 +178,8 @@ mod tests {
     use super::*;
     use crate::example;
     use serde_json::json;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn devset() -> Vec<Example> {
         vec![
@@ -175,6 +198,89 @@ mod tests {
                 "raw",
             )))
         }
+    }
+
+    /// dspy `num_threads`: rows really do overlap, and a stored-but-unused knob would look the same
+    /// from the outside. The program records how many calls are in flight and the high-water mark is
+    /// what is asserted — a sequential runner never gets past one.
+    #[tokio::test]
+    async fn rows_run_concurrently_up_to_num_threads() {
+        let in_flight = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+        let (counting, highest) = (Arc::clone(&in_flight), Arc::clone(&peak));
+        let program = move |_: Example| {
+            let counting = Arc::clone(&counting);
+            let highest = Arc::clone(&highest);
+            async move {
+                let now = counting.fetch_add(1, Ordering::SeqCst) + 1;
+                highest.fetch_max(now, Ordering::SeqCst);
+                tokio::task::yield_now().await;
+                counting.fetch_sub(1, Ordering::SeqCst);
+                Ok(Prediction::new(
+                    Example::new([("answer", json!("Paris"))]),
+                    "raw",
+                ))
+            }
+        };
+
+        let devset: Vec<Example> = (0..8)
+            .map(|n| {
+                example! { question: format!("q{n}"), answer: "Paris" }.with_inputs(["question"])
+            })
+            .collect();
+        Evaluate::new(devset, program, |_: &Example, _: &Prediction| 1.0)
+            .num_threads(4)
+            .run()
+            .await;
+
+        assert!(
+            peak.load(Ordering::SeqCst) > 1,
+            "num_threads(4) ran one row at a time"
+        );
+        assert!(
+            peak.load(Ordering::SeqCst) <= 4,
+            "more rows in flight than asked for: {}",
+            peak.load(Ordering::SeqCst)
+        );
+    }
+
+    /// The rows come back in devset order however many ran at once, because a caller reads
+    /// `results[i]` against `devset[i]`.
+    #[tokio::test]
+    async fn concurrent_rows_are_still_reported_in_order() {
+        let devset: Vec<Example> = (0..6)
+            .map(|n| {
+                example! { question: format!("q{n}"), answer: "Paris" }.with_inputs(["question"])
+            })
+            .collect();
+        let evaluation = Evaluate::new(
+            devset.clone(),
+            |example: Example| async move {
+                // The later rows finish first if nothing preserves order.
+                for _ in 0..8 {
+                    tokio::task::yield_now().await;
+                }
+                Ok(Prediction::new(
+                    Example::new([("answer", json!(example.get("question").cloned()))]),
+                    "raw",
+                ))
+            },
+            |_: &Example, _: &Prediction| 1.0,
+        )
+        .num_threads(6)
+        .run()
+        .await;
+
+        let asked: Vec<_> = evaluation
+            .results
+            .iter()
+            .map(|row| row.example.get("question").cloned())
+            .collect();
+        let expected: Vec<_> = devset
+            .iter()
+            .map(|row| row.get("question").cloned())
+            .collect();
+        assert_eq!(asked, expected);
     }
 
     #[tokio::test]
