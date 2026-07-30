@@ -8,3 +8,13 @@ default-members = [
     "crates/dsrust-tpe",
     "crates/pyrng",
 ]
+
+# rustc's post-link LLVM strip leaves `LC_SYMTAB.stroff` at `4 mod 8`, and macOS 27's dyld refuses
+# the image: "mis-aligned LINKEDIT string pool". It rejects the PyO3 bridge, so the whole upstream
+# suite cannot run — see rust-lang/rust#157750 and llvm/llvm-project#203678. Fixed upstream for
+# Rust 1.98; drop this once the toolchain here is past it.
+#
+# `[profile.*]` in a workspace *member* is ignored, which is why an earlier attempt at this appeared
+# to change nothing. It has to live here, in the root.
+[profile.release]
+strip = "none"

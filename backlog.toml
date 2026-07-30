@@ -314,9 +314,31 @@ without any module having been rebuilt, and reaching the process-wide one again 
 id = "bridge-wont-load"
 sprint = "api"
 title = "The upstream suite cannot run: this toolchain emits a 4-aligned LINKEDIT pool and dyld wants 8"
-state = "todo"
+state = "done"
 size = "M"
 suites = []
+done = """
+`[profile.release] strip = "none"` in the **workspace root** Cargo.toml. rustc's post-link LLVM strip
+leaves `LC_SYMTAB.stroff` at `4 mod 8` and macOS 27's dyld refuses the image — rust-lang/rust#157750,
+llvm/llvm-project#203678, fixed upstream for Rust 1.98. Drop the profile once the toolchain is past it.
+
+Verified end to end rather than by the error going away: `stroff mod 8 = 0` from `otool -l`,
+`ctypes.CDLL` dlopens it, the built wheel imports with its 24 names, and the suite runs —
+**897 passed, 479 crossing into Rust**, which is the first time it has run at all in this session.
+
+**Why seven experiments missed it.** Every one of strip, clean, `-ld_classic`, `linker=/usr/bin/cc`,
+Python 3.12, `opt-level=z` and an older rustc passed through the same post-link strip, so none could
+move the residue — and the constant `4 mod 8` across three builds was the tell that they were all
+downstream of one defect. The first attempt at the actual fix was written to
+`crates/dsrs-bridge/Cargo.toml` because a preceding `cd` left the shell there, and Cargo **ignores
+`[profile.*]` in a workspace member**. It appeared to change nothing, so stripping was ruled out on
+evidence that never existed. `git checkout Cargo.toml` reporting "Updated 0 paths" while
+`git status` showed the member modified was on screen at the time and went unread.
+
+The lesson is narrower than "check your edits landed": an experiment whose *negative* result rules
+something out deserves a positive control. Nothing here confirmed the setting was in force, so a
+no-op read as a refutation.
+"""
 plan = """
 `./scripts/run_upstream_tests.sh` exits 1 without running a single upstream test. The bridge builds
 and installs, and then the dynamic loader refuses it:
