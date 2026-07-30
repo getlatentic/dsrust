@@ -1,0 +1,241 @@
+{
+  "_source": "dspy 3.3.0b1 utils/exceptions.py, via generate_exceptions_fixture.py",
+  "kinds": [
+    {
+      "code": "transport",
+      "class_code": "transport",
+      "retryable": true,
+      "from_provider": false,
+      "configuration": false
+    },
+    {
+      "code": "configuration",
+      "class_code": "configuration",
+      "retryable": false,
+      "from_provider": false,
+      "configuration": true
+    },
+    {
+      "code": "not_configured",
+      "class_code": "not_configured",
+      "retryable": false,
+      "from_provider": false,
+      "configuration": true
+    },
+    {
+      "code": "unsupported_feature",
+      "class_code": "unsupported_feature",
+      "retryable": false,
+      "from_provider": false,
+      "configuration": false
+    },
+    {
+      "code": "provider",
+      "class_code": "provider",
+      "retryable": false,
+      "from_provider": true,
+      "configuration": false
+    },
+    {
+      "code": "unexpected",
+      "class_code": "unexpected",
+      "retryable": false,
+      "from_provider": false,
+      "configuration": false
+    },
+    {
+      "code": "auth",
+      "class_code": "auth",
+      "retryable": false,
+      "from_provider": true,
+      "configuration": false
+    },
+    {
+      "code": "billing",
+      "class_code": "billing",
+      "retryable": false,
+      "from_provider": true,
+      "configuration": false
+    },
+    {
+      "code": "rate_limit",
+      "class_code": "rate_limit",
+      "retryable": true,
+      "from_provider": true,
+      "configuration": false
+    },
+    {
+      "code": "invalid_request",
+      "class_code": "invalid_request",
+      "retryable": false,
+      "from_provider": true,
+      "configuration": false
+    },
+    {
+      "code": "unsupported_model",
+      "class_code": "unsupported_model",
+      "retryable": false,
+      "from_provider": true,
+      "configuration": false
+    },
+    {
+      "code": "timeout",
+      "class_code": "timeout",
+      "retryable": true,
+      "from_provider": true,
+      "configuration": false
+    },
+    {
+      "code": "server",
+      "class_code": "server",
+      "retryable": true,
+      "from_provider": true,
+      "configuration": false
+    }
+  ],
+  "statuses": [
+    {
+      "status": null,
+      "code": "unexpected"
+    },
+    {
+      "status": 400,
+      "code": "invalid_request"
+    },
+    {
+      "status": 401,
+      "code": "auth"
+    },
+    {
+      "status": 402,
+      "code": "billing"
+    },
+    {
+      "status": 403,
+      "code": "auth"
+    },
+    {
+      "status": 404,
+      "code": "unsupported_model"
+    },
+    {
+      "status": 408,
+      "code": "timeout"
+    },
+    {
+      "status": 422,
+      "code": "invalid_request"
+    },
+    {
+      "status": 429,
+      "code": "rate_limit"
+    },
+    {
+      "status": 499,
+      "code": "invalid_request"
+    },
+    {
+      "status": 500,
+      "code": "server"
+    },
+    {
+      "status": 503,
+      "code": "server"
+    },
+    {
+      "status": 599,
+      "code": "server"
+    }
+  ],
+  "rendered": [
+    {
+      "label": "rate limit with a model",
+      "code": "rate_limit",
+      "model": "openai/gpt-4o",
+      "status": 429,
+      "retry_after": 2.5,
+      "request_id": "req-123",
+      "rendered": "[openai/gpt-4o] rate limited"
+    },
+    {
+      "label": "a message with no model",
+      "code": "auth",
+      "model": null,
+      "status": null,
+      "retry_after": null,
+      "request_id": null,
+      "rendered": "Incorrect API key provided"
+    },
+    {
+      "label": "context window, defaulted",
+      "code": "context_window_exceeded",
+      "model": null,
+      "status": null,
+      "retry_after": null,
+      "request_id": null,
+      "rendered": "Context window exceeded"
+    },
+    {
+      "label": "context window with a model",
+      "code": "context_window_exceeded",
+      "model": "openai/gpt-4o",
+      "status": null,
+      "retry_after": null,
+      "request_id": null,
+      "rendered": "[openai/gpt-4o] Context window exceeded"
+    },
+    {
+      "label": "context window with both",
+      "code": "context_window_exceeded",
+      "model": "openai/gpt-4o",
+      "status": null,
+      "retry_after": null,
+      "request_id": null,
+      "rendered": "[openai/gpt-4o] Input is 200k tokens, limit is 128k"
+    },
+    {
+      "label": "context window, message only",
+      "code": "context_window_exceeded",
+      "model": null,
+      "status": null,
+      "retry_after": null,
+      "request_id": null,
+      "rendered": "Too many tokens"
+    }
+  ],
+  "parse_errors": [
+    {
+      "label": "no message, no parsed result",
+      "code": "adapter_parse_error",
+      "adapter_name": "ChatAdapter",
+      "lm_response": "[[ ## answer1 ## ]]\nanswer1",
+      "expected_fields": [
+        "answer1",
+        "answer2"
+      ],
+      "rendered": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer1 ## ]]\nanswer1 \n\nExpected to find output fields in the LM response: [answer1, answer2] \n\n"
+    },
+    {
+      "label": "with a message",
+      "code": "adapter_parse_error",
+      "adapter_name": "ChatAdapter",
+      "lm_response": "[[ ## answer1 ## ]]\nanswer1",
+      "expected_fields": [
+        "answer1",
+        "answer2"
+      ],
+      "rendered": "Failed to parse\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer1 ## ]]\nanswer1 \n\nExpected to find output fields in the LM response: [answer1, answer2] \n\n"
+    },
+    {
+      "label": "with a parsed result",
+      "code": "adapter_parse_error",
+      "adapter_name": "ChatAdapter",
+      "lm_response": "[[ ## answer1 ## ]]\nanswer1",
+      "expected_fields": [
+        "answer1",
+        "answer2"
+      ],
+      "rendered": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer1 ## ]]\nanswer1 \n\nExpected to find output fields in the LM response: [answer1, answer2] \n\nActual output fields parsed from the LM response: [answer1] \n\n"
+    }
+  ]
+}

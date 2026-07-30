@@ -36,13 +36,27 @@ pub struct ContextWindowExceeded {
     pub message: String,
 }
 
+impl ContextWindowExceeded {
+    /// dspy's `default_code` for this class, which is not one [`LmErrorKind`] carries: upstream
+    /// makes it a subclass of `LMInvalidRequestError` rather than a sibling of the thirteen.
+    pub const CODE: &'static str = "context_window_exceeded";
+
+    /// dspy's default message, used when the provider gave none.
+    pub const DEFAULT_MESSAGE: &'static str = "Context window exceeded";
+}
+
 impl std::fmt::Display for ContextWindowExceeded {
+    /// dspy's `DSPyError.__str__`: `[model] message`, the model alone where there is no message,
+    /// and the message alone where there is no model. An empty message reads as the default.
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            out,
-            "context window exceeded for {}: {}",
-            self.model, self.message
-        )
+        let message = match self.message.is_empty() {
+            true => Self::DEFAULT_MESSAGE,
+            false => &self.message,
+        };
+        match self.model.is_empty() {
+            true => out.write_str(message),
+            false => write!(out, "[{}] {message}", self.model),
+        }
     }
 }
 

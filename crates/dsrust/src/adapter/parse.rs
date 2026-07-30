@@ -81,7 +81,7 @@ pub(super) fn parse_tags(signature: &Signature, raw: &str) -> Result<Value> {
         }
         rest = after;
     }
-    let mut value = declared_fields(signature, Value::Object(found))?;
+    let mut value = declared_fields(signature, Value::Object(found), "XMLAdapter", raw)?;
     // dspy casts each field inside `XMLAdapter.parse` and reports a value that will not fit as
     // a parse failure, rather than handing a caller a string where a number was declared.
     signature
@@ -125,11 +125,45 @@ fn next_tag(text: &str) -> Option<(&str, &str, &str)> {
 pub struct FieldMismatch {
     /// The declared fields the reply did carry, in signature order.
     pub parsed: Value,
+    /// dspy's `adapter_name`: which wire format was reading. Empty where the caller did not say.
+    pub adapter_name: String,
+    /// The reply as it arrived, which is the thing a reader needs to see to fix it.
+    pub lm_response: String,
+    /// Every field the signature declared, in order.
+    pub expected_fields: Vec<String>,
+}
+
+impl FieldMismatch {
+    /// dspy's `default_code`.
+    pub const CODE: &'static str = "adapter_parse_error";
 }
 
 impl std::fmt::Display for FieldMismatch {
+    /// dspy's `AdapterParseError.__str__`, whitespace included. The trailing space before each
+    /// blank line is upstream's and looks accidental; it is on the wire either way, and this is
+    /// the text a caller reads when a reply does not parse.
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(out, "reply is missing the signature's output fields")
+        write!(
+            out,
+            "Adapter {} failed to parse the LM response. \n\nLM Response: {} \n\n\
+             Expected to find output fields in the LM response: [{}] \n\n",
+            self.adapter_name,
+            self.lm_response,
+            self.expected_fields.join(", "),
+        )?;
+        // Upstream appends this only when something did parse, so an all-or-nothing failure does
+        // not end with an empty list that reads like a bug.
+        if let Some(parsed) = self.parsed.as_object()
+            && !parsed.is_empty()
+        {
+            let names: Vec<&str> = parsed.keys().map(String::as_str).collect();
+            write!(
+                out,
+                "Actual output fields parsed from the LM response: [{}] \n\n",
+                names.join(", ")
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -140,7 +174,12 @@ impl std::error::Error for FieldMismatch {}
 /// dspy drops anything the signature never asked for, then compares what is left against the
 /// declared set — a reply naming only fields the signature does not have is a failure, not an
 /// empty success.
-pub(super) fn declared_fields(signature: &Signature, parsed: Value) -> Result<Value> {
+pub(super) fn declared_fields(
+    signature: &Signature,
+    parsed: Value,
+    adapter_name: &str,
+    raw: &str,
+) -> Result<Value> {
     let Some(object) = parsed.as_object() else {
         return Err(anyhow!("model returned invalid JSON"));
     };
@@ -156,6 +195,9 @@ pub(super) fn declared_fields(signature: &Signature, parsed: Value) -> Result<Va
         true => Ok(Value::Object(kept)),
         false => Err(anyhow::Error::new(FieldMismatch {
             parsed: Value::Object(kept),
+            adapter_name: adapter_name.to_owned(),
+            lm_response: raw.to_owned(),
+            expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
         })),
     }
 }

@@ -78,7 +78,12 @@ impl Adapter for JsonAdapter {
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
-        super::parse::declared_fields(signature, super::parse::parse_json(raw)?)
+        super::parse::declared_fields(
+            signature,
+            super::parse::parse_json(raw)?,
+            "JSONAdapter",
+            raw,
+        )
     }
 
     fn output_mode<'a>(&self, schema: &'a Value) -> OutputMode<'a> {
