@@ -22,12 +22,12 @@ use crate::adapter::python_json::json_dumps;
 use crate::adapter::types::base::{Formatted, to_field_value};
 use crate::example::{Example, Prediction};
 use crate::interpreter::{
-    CodeInterpreter, DenoInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable,
+    CodeInterpreter, DenoInterpreter, Executed, OutputField, ReplEntry, ReplHistory, ReplVariable,
     SandboxSerializable, sandbox, with_constraints,
 };
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::react::Tool;
-use crate::signature::Signature;
+use crate::signature::{Signature, python_name};
 
 use fences::strip_code_fences;
 use signatures::signatures;
@@ -112,6 +112,19 @@ impl Rlm {
         self
     }
 
+    /// dspy `_get_output_fields_info`: the signature's outputs, as the sandbox's `SUBMIT` takes
+    /// them. The type travels only where Python can spell it in a generated signature.
+    fn output_fields(&self) -> Vec<OutputField> {
+        self.signature
+            .outputs
+            .iter()
+            .map(|field| OutputField {
+                name: field.name.clone(),
+                python_type: python_name(&field.kind).map(str::to_owned),
+            })
+            .collect()
+    }
+
     pub fn with_max_iterations(mut self, max_iterations: usize) -> Self {
         self.max_iterations = max_iterations;
         self
@@ -172,6 +185,10 @@ impl Rlm {
         }
 
         self.interpreter.define_tools(&self.tools)?;
+        // dspy passes `output_fields` when it builds the interpreter, so the sandbox gets a typed
+        // `SUBMIT(answer, …)`. Without it the default single-argument one answers under `output`
+        // and every declared field reads as missing — the model submits correctly and is refused.
+        self.interpreter.define_outputs(&self.output_fields())?;
         // dspy `_prepare_serializable_vars`: a sandbox-held value is rebuilt in the sandbox once,
         // before the first turn, and is not among the values bound on each `execute` after that.
         self.interpreter.start()?;
@@ -407,6 +424,44 @@ mod loop_tests {
 
     /// A `SUBMIT()` carrying every output field ends the run, and the trajectory records the turn
     /// that did it.
+    /// The sandbox must be told the signature's outputs, or it keeps a single-argument `SUBMIT`
+    /// whose result arrives under `output` — and every declared field then reads as missing.
+    ///
+    /// Found against a live model, not here: gemma answered `SUBMIT("Lagos")` correctly, was told
+    /// `Missing output fields: ["answer"]` twice, burned its iterations and fell through to the
+    /// forced extraction. Nothing in 51 passing upstream RLM tests noticed, because the bridge
+    /// builds dspy's own interpreter and dspy registers them itself.
+    #[tokio::test]
+    async fn the_signatures_outputs_are_registered_with_the_sandbox() {
+        let interpreter = Arc::new(ScriptedInterpreter::new([Ok(Executed::Submitted(
+            json!({ "answer": "Lagos", "count": 3 }),
+        ))]));
+        let rlm = Rlm::with_interpreter(
+            "question -> answer: str, count: int"
+                .parse()
+                .expect("parses"),
+            interpreter.clone(),
+        );
+        let model = Scripted::new(&[
+            "[[ ## reasoning ## ]]\nlook\n\n[[ ## code ## ]]\nSUBMIT(answer=\"Lagos\", count=3)\n\n[[ ## completed ## ]]",
+        ]);
+        let _ = rlm
+            .with_lm(Arc::new(model))
+            .forward(example! { question: "which city?" })
+            .await;
+
+        let registered = interpreter
+            .outputs
+            .lock()
+            .expect("the output fields")
+            .clone();
+        let named: Vec<(&str, Option<&str>)> = registered
+            .iter()
+            .map(|field| (field.name.as_str(), field.python_type.as_deref()))
+            .collect();
+        assert_eq!(named, vec![("answer", Some("str")), ("count", Some("int"))]);
+    }
+
     #[tokio::test]
     async fn a_submission_ends_the_run() {
         let interpreter = Arc::new(ScriptedInterpreter::new([Ok(Executed::Submitted(

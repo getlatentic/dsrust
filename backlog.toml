@@ -36,14 +36,14 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 913
-upstream_tests_passing = 891
+rust_tests = 914
+upstream_tests_passing = 895
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
 # Gaps this port has declared, counted from conftest.py's NOT_YET_IMPLEMENTED. Not the same as the
 # xfails pytest reports: dspy marks two of its own image cases xfail for a gap upstream has.
-xfail_backlog = 11
-upstream_tests_xfailed = 13
+xfail_backlog = 7
+upstream_tests_xfailed = 9
 suites_run = 52
 release_stage = "alpha"
 

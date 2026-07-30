@@ -9,7 +9,7 @@ mod reflect;
 use field_type::annotation_of;
 pub(crate) use field_type::coerce_value;
 pub(crate) use field_type::wire_forms;
-pub use field_type::{FieldKind, JsonType, LiteralValue, TypeDescription};
+pub use field_type::{FieldKind, JsonType, LiteralValue, TypeDescription, python_name};
 pub use parse::parse;
 pub use prefix::infer_prefix;
 pub use reflect::json_field_reflection;

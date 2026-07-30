@@ -444,3 +444,20 @@ mod tests {
         );
     }
 }
+
+/// dspy's `SIMPLE_TYPES`, as the sandbox's generated `SUBMIT` signature spells them.
+///
+/// Only these six can be written into a Python `def`. Anything else — an enum, a declared struct —
+/// goes over unannotated, which is what upstream does with a type it cannot spell.
+pub fn python_name(kind: &FieldKind) -> Option<&'static str> {
+    Some(match kind {
+        FieldKind::Str | FieldKind::Reasoning => "str",
+        FieldKind::Bool => "bool",
+        FieldKind::Int => "int",
+        FieldKind::Float => "float",
+        // The annotation is what a prompt carries, so it is what says list from dict.
+        FieldKind::Json(json) if json.annotation.starts_with("list") => "list",
+        FieldKind::Json(json) if json.annotation.starts_with("dict") => "dict",
+        _ => return None,
+    })
+}

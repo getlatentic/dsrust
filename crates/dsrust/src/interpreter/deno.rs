@@ -22,9 +22,8 @@ use anyhow::{Context, Result, bail};
 use serde_json::{Map, Value, json};
 
 pub use command::Permissions;
-pub use register::OutputField;
 
-use super::{CodeInterpreter, Executed};
+use super::{CodeInterpreter, Executed, OutputField};
 use crate::react::Tool;
 use rpc::Rpc;
 
@@ -289,6 +288,15 @@ impl CodeInterpreter for DenoInterpreter {
     /// a notification already written to the pipe. Upstream sends `shutdown`, closes stdin and
     /// waits, which is what makes a file written in the sandbox appear on the host. A child that
     /// will not exit is killed, because a caller dropping an interpreter should not hang.
+    /// Hold the fields, and clear the registration so a live child is told about them.
+    fn define_outputs(&self, outputs: &[OutputField]) -> Result<()> {
+        *self.outputs.lock().expect("the output fields") = outputs.to_vec();
+        if let Some(live) = self.session.lock().expect("the sandbox session").as_mut() {
+            live.registered = false;
+        }
+        Ok(())
+    }
+
     fn shutdown(&self) {
         let Some(session) = self.session.lock().expect("the sandbox session").take() else {
             return;

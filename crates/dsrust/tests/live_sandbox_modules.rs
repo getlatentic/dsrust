@@ -92,3 +92,68 @@ async fn code_act_calls_a_rust_tool_from_inside_the_sandbox() {
         "an answer field came back"
     );
 }
+
+/// RLM reads a value that never reaches the prompt: the model is told what it has and computes
+/// over it in the sandbox.
+///
+/// This is the shape `SandboxSerializable` exists for. The corpus below crosses as parquet-ish
+/// bytes rather than as text, so the prompt carries "1000 rows" and the code carries the data.
+#[tokio::test]
+#[ignore = "needs deno and a live model that holds the output format"]
+async fn rlm_computes_over_a_value_that_never_enters_the_prompt() {
+    let model = configure_live();
+
+    /// A CSV the model is told about but never shown.
+    struct Corpus {
+        rows: Vec<(String, u32)>,
+    }
+
+    impl dsrust::interpreter::SandboxSerializable for Corpus {
+        fn sandbox_setup(&self) -> String {
+            "import csv, io".to_owned()
+        }
+
+        fn to_sandbox(&self) -> Vec<u8> {
+            let mut out = String::from("city,population\n");
+            for (city, population) in &self.rows {
+                out.push_str(&format!("{city},{population}\n"));
+            }
+            out.into_bytes()
+        }
+
+        fn sandbox_assignment(&self, var_name: &str, data_expr: &str) -> String {
+            format!("{var_name} = list(csv.DictReader(io.StringIO({data_expr})))")
+        }
+
+        fn rlm_preview(&self, _max_chars: usize) -> String {
+            format!("CSV: {} rows, columns city and population", self.rows.len())
+        }
+
+        fn type_name(&self) -> &str {
+            "list"
+        }
+    }
+
+    let corpus = Arc::new(Corpus {
+        rows: vec![
+            ("Lagos".to_owned(), 15_400_000),
+            ("Kano".to_owned(), 4_100_000),
+            ("Ibadan".to_owned(), 3_600_000),
+        ],
+    });
+
+    let rlm = dsrust::Rlm::new("question -> answer".parse::<Signature>().expect("parses"))
+        .with_sandbox_input("cities", corpus)
+        .with_max_iterations(4);
+
+    let prediction = rlm
+        .forward(example! { question: "Which city in `cities` has the largest population? Answer with its name." })
+        .await
+        .expect("the loop completes");
+
+    println!("[{model}] RLM answered: {prediction:?}");
+    assert!(
+        prediction.get("answer").is_some(),
+        "an answer field came back"
+    );
+}

@@ -6,6 +6,7 @@
 
 use serde_json::{Map, Value, json};
 
+use crate::interpreter::OutputField;
 use crate::react::Tool;
 
 /// The Python names dspy's `SIMPLE_TYPES` covers, keyed by the JSON-schema type that means each.
@@ -51,31 +52,11 @@ fn parameters(args: &Value) -> Vec<Value> {
         .collect()
 }
 
-/// One field a typed `SUBMIT` takes.
-///
-/// dspy sends `{"name": …, "type": …}` per output, and `runner.js` writes the `def` from it — so a
-/// type is optional here for the same reason it is optional on a tool's argument: an annotation the
-/// generated signature cannot carry is left off rather than guessed at.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OutputField {
-    pub name: String,
-    pub python_type: Option<String>,
-}
-
-impl OutputField {
-    /// A field with no annotation, which is what a signature's own output names give.
-    pub fn named(name: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            python_type: None,
-        }
-    }
-
-    fn described(&self) -> Value {
-        match &self.python_type {
-            Some(spelled) => json!({ "name": self.name, "type": spelled }),
-            None => json!({ "name": self.name }),
-        }
+/// One output field as dspy sends it: a type only where the generated `def` can carry one.
+fn described(field: &OutputField) -> Value {
+    match &field.python_type {
+        Some(spelled) => json!({ "name": field.name, "type": spelled }),
+        None => json!({ "name": field.name }),
     }
 }
 
@@ -99,7 +80,7 @@ pub(super) fn params(tools: &[std::sync::Arc<dyn Tool>], outputs: &[OutputField]
     if !outputs.is_empty() {
         asked.insert(
             "outputs".to_owned(),
-            Value::Array(outputs.iter().map(OutputField::described).collect()),
+            Value::Array(outputs.iter().map(described).collect()),
         );
     }
     (!asked.is_empty()).then(|| Value::Object(asked))

@@ -27,7 +27,7 @@ pub mod repl;
 pub mod sandbox;
 mod variables;
 
-pub use deno::{DenoInterpreter, OutputField, Permissions};
+pub use deno::{DenoInterpreter, Permissions};
 pub use repl::{ReplEntry, ReplHistory, ReplVariable};
 pub use sandbox::{SandboxSerializable, build_repl_variable, with_constraints};
 
@@ -54,6 +54,27 @@ impl Executed {
 
     pub fn is_submitted(&self) -> bool {
         matches!(self, Executed::Submitted(_))
+    }
+}
+
+/// One field a typed `SUBMIT` takes.
+///
+/// dspy sends `{"name": …, "type": …}` per output, and `runner.js` writes the `def` from it — so a
+/// type is optional here for the same reason it is optional on a tool's argument: an annotation the
+/// generated signature cannot carry is left off rather than guessed at.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutputField {
+    pub name: String,
+    pub python_type: Option<String>,
+}
+
+impl OutputField {
+    /// A field with no annotation, which is what a signature's own output names give.
+    pub fn named(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            python_type: None,
+        }
     }
 }
 
@@ -93,6 +114,19 @@ pub trait CodeInterpreter: Send + Sync {
         Ok(())
     }
 
+    /// The fields a typed `SUBMIT` takes, in order — dspy's `output_fields`.
+    ///
+    /// A multi-output signature cannot submit without this: the sandbox keeps a single-argument
+    /// `SUBMIT(value)` whose result arrives under `output`, and every field the signature asked for
+    /// is then missing. Upstream builds its own interpreter to pass them, which is the same wiring
+    /// through the seam this crate has.
+    ///
+    /// Doing nothing is a valid answer for an interpreter that was built knowing its signature.
+    fn define_outputs(&self, outputs: &[OutputField]) -> Result<()> {
+        let _ = outputs;
+        Ok(())
+    }
+
     /// Allocate whatever the environment needs, ahead of the first [`execute`](Self::execute).
     /// Doing nothing is a valid answer, and calling it twice must be safe.
     fn start(&self) -> Result<()> {
@@ -117,6 +151,8 @@ pub(crate) mod tests {
         /// What each `execute` was asked to bind, so a module's variable passing is checkable.
         pub(crate) bound: Mutex<Vec<Map<String, Value>>>,
         pub(crate) shutdowns: Mutex<usize>,
+        /// What a module registered as its typed `SUBMIT`, so a test can see it was told.
+        pub(crate) outputs: Mutex<Vec<OutputField>>,
     }
 
     impl Scripted {
@@ -126,11 +162,17 @@ pub(crate) mod tests {
                 ran: Mutex::new(Vec::new()),
                 bound: Mutex::new(Vec::new()),
                 shutdowns: Mutex::new(0),
+                outputs: Mutex::new(Vec::new()),
             }
         }
     }
 
     impl CodeInterpreter for Scripted {
+        fn define_outputs(&self, outputs: &[OutputField]) -> Result<()> {
+            *self.outputs.lock().expect("the output fields") = outputs.to_vec();
+            Ok(())
+        }
+
         fn execute(&self, code: &str, variables: &Map<String, Value>) -> Result<Executed> {
             self.ran.lock().expect("ran").push(code.to_owned());
             self.bound.lock().expect("bound").push(variables.clone());
