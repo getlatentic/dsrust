@@ -420,6 +420,20 @@ LM::builder("openai/gpt-4o-mini").num_retries(5).build()?   // or 1, to never as
 Only the four kinds DSPy 3.3 calls retryable are asked again — rate limit, timeout, server,
 transport. A rejected key or a malformed request fails the same way twice, so it comes straight back.
 
+### The o1 family's `developer` role
+
+Those models take `developer` where everything else takes `system`. DSPy's
+`LM(use_developer_role=True)` renames the system message on the way out, and so does this — on the
+Responses wire only, as upstream has it:
+
+```rust
+LM::builder("openai/o1-mini")
+    .use_developer_role(true)
+    .build()?
+```
+
+Writing the turn yourself, `Developer(["…"])` is the constructor.
+
 ### Watching a run
 
 Every module's run and every model call happens inside a `tracing` span, which is DSPy's
@@ -592,6 +606,8 @@ through to the predictors inside it.
 | Constructor | `dspy.Predict(x)` | `Predict!(x)` — a string or a task |
 | Call | `m(field=…)` | `call!(m, field = …)` |
 | Reading a result | `out.answer` | `out.answer` typed, `out.get("answer")` from a string signature |
+| Asking the model directly | `lm(dspy.User("…"))` | `lm.call(items![User(["…"])])` |
+| A turn | `dspy.User(…)` | `User([…])`, or `LmMessage::user([…])` |
 | One module type | ✅ | ✅ `Predict<S = Dynamic>` |
 | Optimizable either way | ✅ | ✅ |
 | A malformed signature | raises when run | fails the build |

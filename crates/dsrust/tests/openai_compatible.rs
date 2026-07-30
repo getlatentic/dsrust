@@ -124,18 +124,17 @@ fn write_response(stream: &mut TcpStream, status: u16, body: &str) {
     stream.flush().expect("the reply is flushed");
 }
 
-/// A probe that always reaches its stub.
+/// The probe every case here asks through: one ask, uncached, so what the stub answered is what is
+/// asserted.
 ///
-/// Caching is off for every test that inspects the wire, and it has to be: the cache is shared
-/// across the process and keyed on the request, and upstream deliberately leaves `base_url` out
-/// of that key — so two tests asking the same model the same thing collide however different
-/// their stubs are. The second would be replayed, its stub would wait forever for a connection,
-/// and the test would hang rather than fail.
-/// The probe every case here asks through: one ask, so what the stub answered is what is asserted.
+/// Caching is off because the store is process-wide and keyed on the request, and the base URL is
+/// not part of a request — so two tests asking the same model the same thing collide however
+/// different their stubs are. The second would be replayed, its stub would wait forever for a
+/// connection, and the test would hang rather than fail.
 ///
-/// Asking once rather than three times is what makes a refusal readable. Every stub in this file
-/// serves a fixed number of connections, so a retried 429 would arrive at a closed listener and be
-/// reported as the transport failure that followed it rather than the rate limit that caused it.
+/// Asking once rather than three times is what makes a refusal readable. Every stub here serves a
+/// fixed number of connections, so a retried 429 would arrive at a closed listener and be reported
+/// as the transport failure that followed it rather than the rate limit that caused it.
 /// `tests/lm_retry.rs` is where the retry itself is held.
 fn probe_lm_for(stub: &Stub, model: &str) -> LM {
     caching_lm_for(stub, model)

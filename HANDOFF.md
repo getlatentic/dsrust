@@ -152,8 +152,10 @@ crates/dsrust/src/  the library itself
   react/            ReAct, Trajectory, Tool
   optimize/         rng, labeled, bootstrap, copro, mipro, gepa
   interpreter/      the CodeInterpreter seam, and deno/ — dspy's runner.js under pyodide
-  lm/               ChatModel/DynChatModel, api (request/response), builder, cache (+disk),
-                    error, usage, anthropic, ollama, openai, dummy
+  observe.rs        dspy's callback points as tracing spans — module and lm of the six
+  lm/               ChatModel (forward, and call for a direct ask), DynChatModel,
+                    api (request/response/items), builder, dispatch (which wire serves a model),
+                    retry, cache (+disk), error, usage, anthropic, ollama, openai, dummy
 crates/             every member, each published under its own name
   dsrust-derive/    #[derive(Signature)], #[derive(Module)], Predict!, ChainOfThought!
   dsrust-gepa/      the gepa engine reproduced, byte for byte
