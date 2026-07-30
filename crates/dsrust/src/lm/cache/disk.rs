@@ -176,12 +176,15 @@ mod tests {
     use super::*;
     use crate::lm::LmUsage;
 
-    /// A directory of this test's own, removed when the test ends however it ends.
+    /// A directory of this test's own, removed when the test ends however it ends. Named for the
+    /// process too, since it is emptied on the way in and a concurrent run of this binary would
+    /// otherwise empty it out from under the test holding it.
     struct Scratch(PathBuf);
 
     impl Scratch {
         fn new(name: &str) -> Self {
-            let path = std::env::temp_dir().join(format!("dsrust-cache-{name}"));
+            let path =
+                std::env::temp_dir().join(format!("dsrust-cache-{name}-{}", std::process::id()));
             let _ = fs::remove_dir_all(&path);
             Self(path)
         }

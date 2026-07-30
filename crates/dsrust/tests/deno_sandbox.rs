@@ -18,6 +18,15 @@ fn sandbox() -> DenoInterpreter {
     DenoInterpreter::new()
 }
 
+/// One directory for both write-back tests, named for this process so a concurrent run of this
+/// binary reads and writes its own copy rather than ours mid-assertion.
+fn writeback_directory() -> std::path::PathBuf {
+    let directory =
+        std::env::temp_dir().join(format!("dsrust-writeback-test-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).expect("a place to write");
+    directory
+}
+
 /// Printed output is what the code wrote, which is what a module feeds back to the model.
 #[test]
 #[ignore = "needs deno and, on the first run, a Pyodide download"]
@@ -100,8 +109,7 @@ fn a_failure_carries_pythons_own_message() {
 #[test]
 #[ignore = "needs deno and, on the first run, a Pyodide download"]
 fn a_file_written_in_the_sandbox_reaches_the_host() {
-    let directory = std::env::temp_dir().join("dsrust-writeback-test");
-    std::fs::create_dir_all(&directory).expect("a place to write");
+    let directory = writeback_directory();
     let path = directory.join("written-inside.txt");
     std::fs::write(&path, "before").expect("the host's version");
 
@@ -129,8 +137,7 @@ fn a_file_written_in_the_sandbox_reaches_the_host() {
 #[test]
 #[ignore = "needs deno and, on the first run, a Pyodide download"]
 fn without_write_back_the_hosts_file_is_left_alone() {
-    let directory = std::env::temp_dir().join("dsrust-writeback-test");
-    std::fs::create_dir_all(&directory).expect("a place to write");
+    let directory = writeback_directory();
     let path = directory.join("left-alone.txt");
     std::fs::write(&path, "untouched").expect("the host's version");
 

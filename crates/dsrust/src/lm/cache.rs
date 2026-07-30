@@ -393,7 +393,8 @@ mod tests {
     /// one is exactly what a restart loses.
     #[test]
     fn a_reply_kept_on_disk_outlives_the_cache_that_wrote_it() {
-        let dir = std::env::temp_dir().join("dsrust-cache-across-runs");
+        let dir =
+            std::env::temp_dir().join(format!("dsrust-cache-across-runs-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
 
         let first = ResponseCache::default().with_disk(DiskCache::new(&dir, 1_000_000));

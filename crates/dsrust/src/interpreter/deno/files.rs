@@ -95,7 +95,8 @@ mod tests {
     /// A writable one is created instead, so code told it may write does not have to check first.
     #[test]
     fn a_missing_writable_file_is_created() {
-        let directory = std::env::temp_dir().join("dsrust-mount-test");
+        let directory =
+            std::env::temp_dir().join(format!("dsrust-mount-test-{}", std::process::id()));
         std::fs::create_dir_all(&directory).expect("a place to write");
         let path = directory.join("created-on-mount.txt");
         let _ = std::fs::remove_file(&path);
