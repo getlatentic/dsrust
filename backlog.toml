@@ -313,7 +313,7 @@ without any module having been rebuilt, and reaching the process-wide one again 
 [[story]]
 id = "bridge-wont-load"
 sprint = "api"
-title = "The upstream suite cannot run: the bridge .so is malformed on this toolchain"
+title = "The upstream suite cannot run: this toolchain emits a 4-aligned LINKEDIT pool and dyld wants 8"
 state = "todo"
 size = "M"
 suites = []
@@ -324,17 +324,32 @@ and installs, and then the dynamic loader refuses it:
     ImportError: dlopen(.../dsrs_bridge.cpython-313-darwin.so):
       mis-aligned LINKEDIT string pool, fileOffset=0x00256F7C
 
-What is *not* wrong, checked rather than assumed:
+**Diagnosed, not fixed.** The offset is the whole of it: `0x00256F7C` is 2453372, which is 4-aligned
+and *not* 8-aligned. dyld on macOS 27 requires the LINKEDIT string pool to be 8-aligned and refuses
+the image when it is not. Every binary this toolchain produces lands on a 4-aligned offset.
 
-* Not the install. Extracting the freshly built wheel and importing the `.so` straight out of it
-  fails identically, so the binary is bad before pip ever sees it.
-* Not the signature. `codesign -f -s -` re-signs it and the error is unchanged.
-* Not stripping, as far as could be shown. Adding `[profile.release] strip = false` and rebuilding
-  produced the failure at the *same byte offset*, and the build finished in 3.5s without
-  recompiling — so the artifact was cached and the change was never actually tested. That is the
-  first thing to redo: `cargo clean -p dsrs-bridge` first, then rebuild.
+Ruled out, each by testing rather than reasoning:
 
-Toolchain: rustc 1.96.0 (2026-05-25), maturin 1.14.1, macOS 27, CPython 3.13, arm64.
+* **Not the install.** Importing the `.so` straight out of the freshly built wheel fails identically,
+  so it is bad before pip sees it.
+* **Not the signature.** `codesign -f -s -` re-signs it; the error is unchanged.
+* **Not maturin.** `target/release/libdsrs_bridge.dylib` — cargo's own artifact, which maturin only
+  copies — fails identically. This is the finding that moved it from a packaging problem to a
+  toolchain one.
+* **Not stripping.** `cargo clean -p dsrs-bridge` then a real rebuild (it recompiled, 4.05s):
+  same offset.
+* **Not the new linker.** `RUSTFLAGS="-C link-arg=-Wl,-ld_classic"`: same offset.
+* **Not the Python version.** Built against 3.12 instead of 3.13: a *different* offset,
+  `0x0025AF0C` = 2469644, and 2469644 % 8 = 4. Still misaligned. So the binary really does change
+  and every variant lands wrong.
+
+Toolchain: rustc 1.96.0 (2026-05-25), maturin 1.14.1, macOS 27 (Darwin 27.0.0), arm64.
+
+**The reference that works** is `.dspy-venv`'s cp312 `.so`, dated 24 July and 1.6 MB against the
+current 2.9 MB. It predates whatever changed. Whether that is a rustc update or a macOS update is
+the one question left, and `rustup toolchain install` of a 1.95 or earlier and rebuilding is the
+cheapest way to answer it — if an older rustc produces an 8-aligned pool, this is a rustc regression
+and the fix is a pinned toolchain in `rust-toolchain.toml`.
 
 Note the two virtualenvs. `run_upstream_tests.sh` uses `$ROOT/.venv`; HANDOFF talks about
 `.dspy-venv`, which also exists. Only `.venv` has the broken bridge — `.dspy-venv` imports one
