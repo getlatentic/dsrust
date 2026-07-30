@@ -36,14 +36,14 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 914
-upstream_tests_passing = 895
+rust_tests = 916
+upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
 # Gaps this port has declared, counted from conftest.py's NOT_YET_IMPLEMENTED. Not the same as the
 # xfails pytest reports: dspy marks two of its own image cases xfail for a gap upstream has.
-xfail_backlog = 7
-upstream_tests_xfailed = 9
+xfail_backlog = 5
+upstream_tests_xfailed = 7
 suites_run = 52
 release_stage = "alpha"
 
@@ -435,7 +435,7 @@ captures source at compile time.
 id = "s9"
 name = "The modules that run code"
 state = "planned"
-still_pending = "the >100MB variable path; sets and nested tuples have no JSON form to cross as"
+still_pending = "nothing portable — the 5 declared are a Python-only input type and dspy's own subprocess handle"
 outcome = """
 A program can write code, run it in a sandbox, and use the result. The modules landed under r3 and
 RLM. The sandbox landed as `DenoInterpreter`: b7's decision built, with dspy's own `runner.js`
@@ -452,11 +452,15 @@ and file mounting with the write-back sync all landed with it.
 to `PythonInterpreter()`; `with_interpreter` is the explicit form. `live_sandbox_modules.rs` runs
 the loop end to end — a real model writes Python, Pyodide runs it, the answer comes back.
 
-Two of the 7 declared are a feature: the >100MB variable path, which upstream injects through the
-filesystem rather than as a literal. The other five are not gaps. Three want a Python set or a
-nested tuple, which have no JSON form to cross as. Two kill `interpreter.deno_process` and compare
-pids — the restarts work and replay both the registration and the mounts, but the handle they assert
-on is dspy's own and the Rust sandbox owns its child.
+39 of 44 pass, and nothing portable is left. The >100MB path landed: a value whose Python literal
+would exceed 100MB crosses as JSON through `inject_var` into `/tmp/dspy_vars/<name>.json`, which the
+code reads back, because Pyodide's FFI dies at 128MB.
+
+The 5 declared are the boundary rather than the backlog. Three pass a Python `set` or `tuple` as an
+input variable, which `execute` cannot receive — it takes a `serde_json::Map` — so no Rust caller
+reaches that path; converting in the shim would also decide a byte the model reads, since dspy sorts
+a set on the way out. Two kill `interpreter.deno_process` and compare pids; both restarts work and
+replay the registration and the mounts, but the handle is dspy's own.
 """
 suites = [
   "predict/test_program_of_thought.py", "predict/test_code_act.py", "predict/test_rlm.py",

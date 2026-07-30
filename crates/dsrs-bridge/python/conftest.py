@@ -105,15 +105,14 @@ NOT_YET_IMPLEMENTED = {
     "test_mounts_replay_after_process_restart": (
         "the test kills dspy's own subprocess handle, which the Rust sandbox does not own"
     ),
-    # file mounting and the write-back sync upstream does around a run
-    # the >100MB variable path, which upstream injects through the filesystem
-    "test_large_list_variable": (
-        "the >100MB variable path, which upstream injects through the filesystem"
-    ),
-    "test_multiple_large_variables": (
-        "the >100MB variable path, which upstream injects through the filesystem"
-    ),
-    # a Python value with no JSON form — a set, or a tuple nested inside one
+    # These pass a Python `set` or `tuple` as an input *variable*. `CodeInterpreter::execute` takes
+    # a `serde_json::Map`, which has neither, so a Rust caller cannot reach this path at all — there
+    # is no crate behaviour here to be right or wrong about.
+    #
+    # Converting them in the shim would green all three and test the shim. The conversion is not
+    # pure reflection either: dspy sorts a set on the way out, so `{3,1,2}` reaches the sandbox as
+    # `[1, 2, 3]`, and that ordering is a byte the model reads. Deciding it in Python is the thing
+    # the bridge exists to prevent.
     "test_nested_sets_and_tuples": (
         "a Python value with no JSON form — a set, or a tuple nested inside one"
     ),

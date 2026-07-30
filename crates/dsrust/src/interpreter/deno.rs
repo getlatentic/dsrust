@@ -201,6 +201,21 @@ impl DenoInterpreter {
         Ok(())
     }
 
+    /// Write each oversized value into the sandbox's filesystem, where the code reads it back.
+    ///
+    /// Every execution, not once per child: the values belong to this call's variables, and the
+    /// previous call's are neither wanted nor still named by the code about to run.
+    fn inject(&self, session: &mut Session, large: &[(String, String)]) -> Result<()> {
+        for (name, payload) in large {
+            let id = session
+                .rpc
+                .request("inject_var", json!({ "name": name, "value": payload }))?;
+            let answer = session.rpc.receive("while injecting a large variable")?;
+            rpc::answered(&answer, id, "while injecting a large variable")?;
+        }
+        Ok(())
+    }
+
     /// Run the code and read the conversation to its end, answering tool calls on the way.
     fn ask(&self, session: &mut Session, code: &str) -> Result<Executed> {
         let id = session.rpc.request("execute", json!({ "code": code }))?;
@@ -266,13 +281,14 @@ impl DenoInterpreter {
 
 impl CodeInterpreter for DenoInterpreter {
     fn execute(&self, code: &str, variables: &Map<String, Value>) -> Result<Executed> {
-        let prepared = super::variables::prepended(code, variables)?;
+        let prepared = super::variables::prepared(code, variables)?;
         let mut session = self.session.lock().expect("the sandbox session");
         self.started(&mut session)?;
         let live = session.as_mut().expect("a session was started");
         self.register(live)?;
         self.mount(live)?;
-        self.ask(live, &prepared)
+        self.inject(live, &prepared.large)?;
+        self.ask(live, &prepared.code)
     }
 
     /// Upstream's interpreter dispatches host functions the sandboxed code calls back into. Holding

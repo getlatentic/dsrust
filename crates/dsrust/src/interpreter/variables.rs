@@ -59,21 +59,62 @@ fn literal(value: &Value) -> String {
     }
 }
 
+/// Pyodide's FFI dies at exactly 128MB, so upstream sends anything over 100MB through the
+/// sandbox's filesystem instead of through the code. The number is dspy's `LARGE_VAR_THRESHOLD`.
+const LARGE_VALUE: usize = 100 * 1024 * 1024;
+
+/// One execution's code, and whatever has to reach the sandbox before it runs.
+#[derive(Debug)]
+pub(super) struct Prepared {
+    pub(super) code: String,
+    /// dspy's `_pending_large_vars`: `(name, JSON)` pairs, each written to
+    /// `/tmp/dspy_vars/<name>.json` by an `inject_var` request the code then reads back.
+    pub(super) large: Vec<(String, String)>,
+}
+
 /// The code with each variable assigned above it, or the code unchanged when there are none.
-pub(super) fn prepended(code: &str, variables: &Map<String, Value>) -> Result<String> {
+pub(super) fn prepared(code: &str, variables: &Map<String, Value>) -> Result<Prepared> {
     if variables.is_empty() {
-        return Ok(code.to_owned());
+        return Ok(Prepared {
+            code: code.to_owned(),
+            large: Vec::new(),
+        });
     }
     for name in variables.keys() {
         if !is_identifier(name) || RESERVED.contains(&name.as_str()) {
             bail!("Invalid variable name: '{name}'");
         }
     }
-    let assignments: Vec<String> = variables
-        .iter()
-        .map(|(name, value)| format!("{name} = {}", literal(value)))
-        .collect();
-    Ok(format!("{}\n{code}", assignments.join("\n")))
+
+    let mut small = Vec::new();
+    let mut reads = Vec::new();
+    let mut large = Vec::new();
+    for (name, value) in variables {
+        // The threshold is measured against the *literal*, which is what would have gone into the
+        // code, while the payload crosses as JSON. Upstream uses the two encodings the same way.
+        let written = literal(value);
+        if written.len() > LARGE_VALUE {
+            reads.push(format!(
+                "{name} = json.loads(open('/tmp/dspy_vars/{name}.json').read())"
+            ));
+            large.push((name.clone(), value.to_string()));
+        } else {
+            small.push(format!("{name} = {written}"));
+        }
+    }
+
+    // `import json` only when something needs it, which is upstream's condition rather than a
+    // tidier unconditional one — an extra import would change the line numbers in a traceback.
+    let mut assignments = Vec::new();
+    if !large.is_empty() {
+        assignments.push("import json".to_owned());
+    }
+    assignments.extend(small);
+    assignments.extend(reads);
+    Ok(Prepared {
+        code: format!("{}\n{code}", assignments.join("\n")),
+        large,
+    })
 }
 
 #[cfg(test)]
@@ -82,7 +123,7 @@ mod tests {
     use serde_json::json;
 
     fn injected(pairs: Value) -> Result<String> {
-        prepended("print(x)", pairs.as_object().expect("an object"))
+        Ok(prepared("print(x)", pairs.as_object().expect("an object"))?.code)
     }
 
     /// JSON's three constants are not Python's, and a `true` reaching the sandbox is a `NameError`
@@ -110,7 +151,7 @@ mod tests {
     #[test]
     fn a_name_python_would_refuse_is_named_here() {
         for name in ["class", "not an identifier", "9lives", "json"] {
-            let refused = prepended("pass", json!({ name: 1 }).as_object().expect("an object"))
+            let refused = prepared("pass", json!({ name: 1 }).as_object().expect("an object"))
                 .expect_err("refused");
             assert_eq!(
                 refused.to_string(),
@@ -123,10 +164,9 @@ mod tests {
     /// would move every line number in a traceback the model reads.
     #[test]
     fn no_variables_leaves_the_code_alone() {
-        assert_eq!(
-            prepended("print(1)", &Map::new()).expect("injects"),
-            "print(1)"
-        );
+        let untouched = prepared("print(1)", &Map::new()).expect("injects");
+        assert_eq!(untouched.code, "print(1)");
+        assert!(untouched.large.is_empty());
     }
 
     /// Strings keep JSON's escaping, which Python reads the same way.
@@ -134,5 +174,47 @@ mod tests {
     fn a_string_keeps_its_escaping() {
         let written = injected(json!({ "s": "a\"b\nc" })).expect("injects");
         assert!(written.starts_with(r#"s = "a\"b\nc""#), "{written}");
+    }
+
+    /// A value too big for Pyodide's FFI goes through the sandbox's filesystem instead of through
+    /// the code, and the code reads it back. Sending it inline crashes the sandbox at 128MB.
+    #[test]
+    fn a_value_over_the_threshold_travels_as_a_file() {
+        let big = Value::String("x".repeat(LARGE_VALUE + 1));
+        let mut given = Map::new();
+        given.insert("small".to_owned(), json!(1));
+        given.insert("huge".to_owned(), big.clone());
+
+        let out = prepared("print(huge)", &given).expect("prepares");
+        assert_eq!(out.large.len(), 1, "only the big one");
+        assert_eq!(out.large[0].0, "huge");
+        assert_eq!(
+            out.large[0].1,
+            big.to_string(),
+            "the payload crosses as JSON"
+        );
+        assert!(out.code.starts_with("import json\n"), "{}", &out.code[..40]);
+        assert!(
+            out.code.contains("small = 1"),
+            "the small one is still inline"
+        );
+        assert!(
+            out.code
+                .contains("huge = json.loads(open('/tmp/dspy_vars/huge.json').read())"),
+            "the big one is read back"
+        );
+    }
+
+    /// And a small one brings no import with it, since an extra line moves every line number in a
+    /// traceback the model is shown.
+    #[test]
+    fn a_small_value_brings_no_import() {
+        let out = prepared(
+            "print(x)",
+            json!({ "x": 1 }).as_object().expect("an object"),
+        )
+        .expect("prepares");
+        assert_eq!(out.code, "x = 1\nprint(x)");
+        assert!(out.large.is_empty());
     }
 }
