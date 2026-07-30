@@ -81,7 +81,22 @@ impl LmBuilder {
     pub fn api_key(mut self, key: impl Into<String>) -> Self {
         let key = key.into();
         self.settings
-            .push(Box::new(move |lm| lm.with_openai_key(key)));
+            .push(Box::new(move |lm| match lm.model.provider {
+                crate::lm::Provider::Anthropic => lm.with_anthropic_key(key),
+                crate::lm::Provider::OpenRouter => lm.with_openrouter_key(key),
+                crate::lm::Provider::Ollama | crate::lm::Provider::OllamaChat => {
+                    lm.with_ollama_key(key)
+                }
+                crate::lm::Provider::OpenAiCompatible => lm.with_openai_key(key),
+            }));
+        self
+    }
+
+    /// Where ollama is listening, when it is not the default.
+    pub fn ollama_host(mut self, host: impl Into<String>) -> Self {
+        let host = host.into();
+        self.settings
+            .push(Box::new(move |lm| lm.with_ollama_host(host)));
         self
     }
 

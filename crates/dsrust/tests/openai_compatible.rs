@@ -551,3 +551,29 @@ async fn a_calls_own_setting_overrides_the_models() {
         "and the model's, unstated by the call"
     );
 }
+
+/// The builder's `api_key` follows the model's own prefix.
+///
+/// Routing it to OpenAI regardless would leave an `anthropic/` model's real credential unset and
+/// the call refused, with nothing in the error saying the key had gone to the wrong field.
+#[test]
+fn the_builders_key_goes_to_the_provider_the_model_names() {
+    let anthropic = dsrust::lm::LM::builder("anthropic/claude-sonnet-4-5")
+        .api_key("sk-ant-probe")
+        .build()
+        .expect("a model id");
+    assert_eq!(anthropic.anthropic_api_key.as_deref(), Some("sk-ant-probe"));
+    assert_ne!(anthropic.openai.api_key.as_deref(), Some("sk-ant-probe"));
+
+    let openai = dsrust::lm::LM::builder("openai/gpt-4o-mini")
+        .api_key("sk-openai-probe")
+        .build()
+        .expect("a model id");
+    assert_eq!(openai.openai.api_key.as_deref(), Some("sk-openai-probe"));
+
+    let routed = dsrust::lm::LM::builder("openrouter/openai/gpt-oss-120b")
+        .api_key("sk-or-probe")
+        .build()
+        .expect("a model id");
+    assert_eq!(routed.openrouter_api_key.as_deref(), Some("sk-or-probe"));
+}

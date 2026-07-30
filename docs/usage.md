@@ -274,12 +274,18 @@ by adding a prefix. `anthropic/…` and `ollama/…` are their own shapes.
 
 ```rust
 // OpenAI itself, from OPENAI_API_KEY in the environment.
-let lm = LM::new("openai/gpt-4o-mini")?;
+let lm = LM::builder("openai/gpt-4o-mini").build()?;
 
 // Groq, on the same wire, a different host and key.
-let lm = LM::new("openai/llama-3.3-70b")?
-    .with_openai_base_url("https://api.groq.com/openai/v1")
-    .with_openai_key(std::env::var("GROQ_API_KEY")?);
+let lm = LM::builder("openai/llama-3.3-70b")
+    .base_url("https://api.groq.com/openai/v1")
+    .api_key(std::env::var("GROQ_API_KEY")?)
+    .build()?;
+
+// Anthropic. `api_key` follows the model's prefix, so this reaches ANTHROPIC's field.
+let lm = LM::builder("anthropic/claude-sonnet-4-5")
+    .api_key(std::env::var("ANTHROPIC_API_KEY")?)
+    .build()?;
 
 dsrust::lm::configure(lm); // the process-wide default every module reaches
 ```
