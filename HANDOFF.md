@@ -28,7 +28,7 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 994 passing |
+| Rust tests | 996 passing |
 | Upstream dspy tests | 897 passing, 479 crossing into Rust, 529 deciding a signature |
 | Upstream files run | 52 of 86, every other one excused by name |
 | Strict-xfail backlog | 5 entries in `conftest.py` |
@@ -85,6 +85,24 @@ compiles it, and there is nothing to keep in sync. A block that genuinely cannot
 
 `.dspy-venv/` is gitignored and lives only in the main checkout, so **the upstream suite cannot
 run in a git worktree.** An agent working in one cannot verify it. Run it after merging.
+
+### Check main, not only the pin
+
+The submodule is 3.3.0b1 and every gate runs against it, which is right — a moving target cannot be
+byte-conformed to. But a *reason* written against the pin can be stale on main, and the pin moves
+eventually. So when porting a surface, read the same file on main as well:
+
+```sh
+curl -s https://raw.githubusercontent.com/stanfordnlp/dspy/main/dspy/<path>.py
+```
+
+Verified against main on 2026-07-30 and matching the pin: `clients/lm.py`'s retry (still delegated to
+litellm, `num_retries=3`, `exponential_backoff_retry`, no retry code of its own), `core/types.py`'s
+class and method surface, `adapters/base.py`'s `__init_subclass__` callback decoration and
+`_DEFAULT_NATIVE_RESPONSE_TYPES`, and `utils/callback.py`'s six start/end pairs.
+
+Where main is *ahead*, note it in the ledger and do not port ahead of the pin — `LMToolSpec.strict`
+is the standing example.
 
 ### Gates are necessary, not sufficient
 

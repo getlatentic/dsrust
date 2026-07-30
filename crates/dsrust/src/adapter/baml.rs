@@ -69,6 +69,10 @@ impl BamlAdapter {
 }
 
 impl Adapter for BamlAdapter {
+    fn name(&self) -> &'static str {
+        "BamlAdapter"
+    }
+
     fn system_message(&self, signature: &Signature) -> Result<String> {
         Ok(super::system_message(
             signature,

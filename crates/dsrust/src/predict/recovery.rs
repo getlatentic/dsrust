@@ -69,7 +69,9 @@ impl<S> Predict<S> {
     ) -> Result<(String, Value, Option<LmUsage>)> {
         let answered = self.ask(lm, inputs, Some(feedback), steering).await?;
         let answered_text = answered.response.first_text();
-        let mut value = self.adapter.parse(&self.signature, &answered_text)?;
+        let mut value = crate::observe::parsing(self.adapter.as_ref(), &answered_text, || {
+            self.adapter.parse(&self.signature, &answered_text)
+        })?;
         self.signature.coerce(&mut value)?;
         self.signature.ensure(&value)?;
         let usage = answered.response.spend();

@@ -462,8 +462,11 @@ An agent's tool calls are spans too, nested inside the module that made them —
 way in, and either what the tool returned or why it refused on the way out. That is what DSPy's own
 documentation example prints.
 
+Rendering the prompt and reading the reply back are their own spans too, so a parse failure shows
+the raw text beside the error — which is nearly always the next question.
+
 Nothing is rendered when nothing is listening, so a program with no subscriber pays an atomic load
-per point. DSPy's other three points — adapter format, adapter parse, evaluate — are not here yet.
+per point. Five of DSPy's six are here; `evaluate` is not yet.
 
 A span cannot change what it sees, which is the one way this is not DSPy's shape: upstream's
 `BaseCallback` is handed the values and its own documentation warns against mutating them.

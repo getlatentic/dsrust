@@ -44,6 +44,10 @@ impl Default for JsonAdapter {
 }
 
 impl Adapter for JsonAdapter {
+    fn name(&self) -> &'static str {
+        "JsonAdapter"
+    }
+
     fn native_function_calling(&self) -> super::NativeFunctionCalling {
         super::NativeFunctionCalling {
             enabled: self.use_native_function_calling,

@@ -13,8 +13,8 @@
 //! Nothing is serialized unless something is listening. `tracing`'s macros check subscriber interest
 //! before evaluating a field, and [`shown`] and [`finished`] return immediately on a disabled span.
 //!
-//! **Three of the six points exist: module, lm and tool.** Adapter format, adapter parse and
-//! evaluate have no span, and no unused constructor here either — a function nothing calls is what
+//! **Five of the six points exist**: module, lm, tool, adapter format and adapter parse. Only
+//! evaluate has no span, and no unused constructor here either — a function nothing calls is what
 //! let the ledger claim these existed while the tree had none. `tests/observe.rs` decides which
 //! exist, and it can only see spans a run produced.
 
@@ -96,6 +96,63 @@ pub fn tool_call(tool: &dyn crate::Tool, args: &serde_json::Value) -> anyhow::Re
     let answered = tool.call_value(args);
     finished(&span, Value::to_string, &answered);
     answered
+}
+
+/// dspy `on_adapter_format_start`/`on_adapter_format_end`: rendering the prompt.
+///
+/// A free function the callers go through, as [`tool_call`] is, and for the same reason `Module`
+/// needed an enumerating test: `Adapter::format` is a required trait method, so an implementor can
+/// always write one without the span. Upstream has no such problem — `__init_subclass__` decorates
+/// every subclass on its way into existence — so the Rust answer is to watch the caller instead.
+pub fn formatting<T>(
+    adapter: &dyn crate::Adapter,
+    rendering: impl FnOnce() -> Result<T>,
+    describe: fn(&T) -> String,
+) -> Result<T> {
+    watched("adapter.format", adapter.name(), rendering, describe)
+}
+
+/// dspy `on_adapter_parse_start`/`on_adapter_parse_end`: reading the reply back into fields.
+///
+/// The raw reply is the input, which is the value a reader opened a trace for: a parse failure is
+/// almost always a question about what the model actually said.
+pub fn parsing(
+    adapter: &dyn crate::Adapter,
+    raw: &str,
+    reading: impl FnOnce() -> Result<Value>,
+) -> Result<Value> {
+    let span = adapter_span("adapter.parse", adapter.name());
+    let _entered = span.enter();
+    shown(&span, raw);
+    let answered = reading();
+    finished(&span, Value::to_string, &answered);
+    answered
+}
+
+/// One synchronous adapter call, watched. Both points share everything but which value they show.
+fn watched<T>(
+    point: &'static str,
+    adapter: &'static str,
+    work: impl FnOnce() -> Result<T>,
+    describe: fn(&T) -> String,
+) -> Result<T> {
+    let span = adapter_span(point, adapter);
+    let _entered = span.enter();
+    let answered = work();
+    finished(&span, describe, &answered);
+    answered
+}
+
+fn adapter_span(point: &'static str, adapter: &'static str) -> Span {
+    tracing::info_span!(
+        target: TARGET,
+        "adapter",
+        point = point,
+        adapter = adapter,
+        inputs = field::Empty,
+        outputs = field::Empty,
+        error = field::Empty,
+    )
 }
 
 /// What dspy's `on_*_start` was shown, recorded on the span.

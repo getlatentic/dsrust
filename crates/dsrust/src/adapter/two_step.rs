@@ -159,6 +159,10 @@ pub fn extractor_signature(signature: &Signature) -> Signature {
 }
 
 impl Adapter for TwoStepAdapter {
+    fn name(&self) -> &'static str {
+        "TwoStepAdapter"
+    }
+
     fn format(
         &self,
         signature: &Signature,

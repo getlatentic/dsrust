@@ -103,6 +103,16 @@ use prompt::{marker, output_hint, output_slot, section, system_message};
 /// conversation. That split keeps this trait object-safe, so a caller can hold
 /// `Box<dyn Adapter>` and swap wire formats at run time.
 pub trait Adapter: Send + Sync {
+    /// Which wire format this is — dspy reads the same thing off `instance.__class__.__name__`.
+    ///
+    /// Reaches a caller in two places: the `adapter_name` on a
+    /// [`FieldMismatch`](parse::FieldMismatch), which is dspy's own field, and the
+    /// [observation spans](crate::observe). Defaulted rather than required so that adding it does
+    /// not break an adapter someone already wrote; the built-ins each name themselves.
+    fn name(&self) -> &'static str {
+        "Adapter"
+    }
+
     /// The whole conversation to send, with no model call: the system message, then the
     /// turns. Mirrors `Adapter.format`, which returns a message list for the same reason —
     /// a demo or a conversation history expands into several turns, not one.

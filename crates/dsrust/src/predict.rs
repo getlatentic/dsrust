@@ -193,7 +193,17 @@ impl<S> Predict<S> {
             .as_ref()
             .map_or(asked, |plan| plan.signature.clone());
         let schema = asked.schema();
-        let (system, opening) = adapter.format(&asked, &self.demos, &hinted)?;
+        let (system, opening) = crate::observe::formatting(
+            adapter,
+            || adapter.format(&asked, &self.demos, &hinted),
+            |(system, turns): &(String, Vec<crate::lm::ChatTurn>)| {
+                format!(
+                    "{{\"system_bytes\":{},\"turns\":{}}}",
+                    system.len(),
+                    turns.len()
+                )
+            },
+        )?;
         let mode = adapter.output_mode(&schema);
         let turns = turns_for(opening, feedback);
         // The typed 3.3 boundary: predict hands the model an `LMRequest`. Behind it the request
@@ -281,7 +291,10 @@ impl<S> Predict<S> {
         if let Some(extraction) = self.adapter.extraction(&self.signature) {
             return self.extract(extraction, raw, usage).await;
         }
-        let (raw, mut value, usage) = match self.adapter.parse(&self.signature, &raw) {
+        let parsed = crate::observe::parsing(self.adapter.as_ref(), &raw, || {
+            self.adapter.parse(&self.signature, &raw)
+        });
+        let (raw, mut value, usage) = match parsed {
             Ok(value) => (raw, value, usage),
             // A reply that spoke the format but left a field out. Upstream raises
             // `AdapterParseError` here and `ChatAdapter.__call__` re-asks through `JSONAdapter`,
@@ -302,7 +315,9 @@ impl<S> Predict<S> {
                         .ask_through(fallback.as_ref(), lm, inputs, None, steering)
                         .await?;
                     let answered_text = answered.response.first_text();
-                    let value = fallback.parse(&self.signature, &answered_text)?;
+                    let value = crate::observe::parsing(fallback.as_ref(), &answered_text, || {
+                        fallback.parse(&self.signature, &answered_text)
+                    })?;
                     let merged = LmUsage::merge(usage, answered.response.spend());
                     (answered_text, value, merged)
                 }

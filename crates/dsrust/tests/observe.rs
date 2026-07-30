@@ -413,6 +413,72 @@ fn a_refusing_tool_records_its_error() {
     );
 }
 
+/// dspy `on_adapter_format_start` and `on_adapter_parse_start`: rendering the prompt and reading the
+/// reply back are their own points, inside the module that asked.
+///
+/// Upstream decorates them in `__init_subclass__`, so every adapter it ships and every one a caller
+/// writes fires them. `Adapter::format` is a required trait method here, so the span sits at the
+/// caller instead — which is why this asserts on a whole run rather than on an adapter in isolation.
+#[test]
+fn rendering_and_parsing_are_their_own_spans() {
+    let (recorded, answered) = recording(async {
+        let qa = Predict!("question -> answer").with_lm(one_answer());
+        call!(qa, question = "capital of France?").await
+    });
+    answered.expect("the scripted model answers");
+
+    let adapters = recorded.named("adapter");
+    assert_eq!(adapters.len(), 2, "one format and one parse: {adapters:?}");
+    for span in &adapters {
+        assert_eq!(
+            span.parent.as_deref(),
+            Some("module"),
+            "an adapter call happens inside the module that asked: {span:?}"
+        );
+        assert_eq!(span.error, None);
+    }
+
+    let parse = adapters
+        .iter()
+        .find(|span| span.inputs.as_deref().is_some_and(|i| i.contains("Paris")))
+        .expect("the parse span shows the raw reply it was reading");
+    assert!(
+        parse
+            .outputs
+            .as_deref()
+            .is_some_and(|o| o.contains("Paris")),
+        "and the fields it read: {:?}",
+        parse.outputs
+    );
+}
+
+/// A reply the adapter refuses records the failure on the parse span, which is where a reader looks
+/// first: a parse failure is nearly always a question about what the model actually said, and the
+/// span carries both halves.
+#[test]
+fn a_refused_reply_records_the_raw_text_beside_the_failure() {
+    let (recorded, answered) = recording(async {
+        let qa = Predict!("question -> answer").with_lm(Arc::new(Unparseable));
+        call!(qa, question = "capital of France?").await
+    });
+    answered.expect_err("the reply does not parse");
+
+    let failed = recorded
+        .named("adapter")
+        .into_iter()
+        .find(|span| span.error.is_some())
+        .expect("the refusal was recorded on an adapter span");
+    assert_eq!(failed.outputs, None);
+    assert!(
+        failed
+            .inputs
+            .as_deref()
+            .is_some_and(|i| i.contains("nothing parseable")),
+        "the raw reply is beside the error: {:?}",
+        failed.inputs
+    );
+}
+
 /// Nothing is serialized when nothing is listening. A program with no subscriber must not pay for
 /// rendering a prompt into a span field it will never reach.
 #[test]

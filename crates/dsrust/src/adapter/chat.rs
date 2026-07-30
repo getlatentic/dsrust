@@ -82,6 +82,10 @@ impl ChatAdapter {
 }
 
 impl Adapter for ChatAdapter {
+    fn name(&self) -> &'static str {
+        "ChatAdapter"
+    }
+
     fn native_function_calling(&self) -> super::NativeFunctionCalling {
         super::NativeFunctionCalling {
             enabled: self.use_native_function_calling,

@@ -49,6 +49,10 @@ const STYLE: Style = Style {
 pub struct XmlAdapter;
 
 impl super::Adapter for XmlAdapter {
+    fn name(&self) -> &'static str {
+        "XmlAdapter"
+    }
+
     fn system_message(&self, signature: &Signature) -> Result<String> {
         let slots = signature
             .inputs

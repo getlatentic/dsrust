@@ -26,7 +26,10 @@ impl<S> Predict<S> {
         let mut predictions = Vec::new();
         for output in &answered.response.outputs {
             let text = output.as_text();
-            let Ok(mut value) = self.adapter.parse(&self.signature, &text) else {
+            let reading = crate::observe::parsing(self.adapter.as_ref(), &text, || {
+                self.adapter.parse(&self.signature, &text)
+            });
+            let Ok(mut value) = reading else {
                 continue;
             };
             let _ = self.signature.coerce(&mut value);
