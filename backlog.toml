@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 936
+rust_tests = 937
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -101,8 +101,11 @@ accepts, so a whole class of divergence never went red: every keyword argument d
 crate has no way to say.
 
 `check_api_surface.py` gates a third table now, `[constructors]`, over what each mapped class's
-`__init__` takes. 184 parameters, 18 classified — the ones this session read upstream for and
-checked against the tree. The other 166 are `todo` by name, which is the honest starting number.
+`__init__` takes. 184 parameters, 71 classified — the ones this session read upstream for and
+checked against the tree. The other 113 are `todo` by name. clients/lm.py, predict/rlm.py, evaluate/evaluate.py,
+adapters/types/tool.py, teleprompt/bootstrap.py, teleprompt/copro_optimizer.py, clients/cache.py,
+predict/react.py and predict/chain_of_thought.py are done; gepa, mipro, random_search, parallel and
+base_lm are the bulk of what is left.
 
 Each one resolves the same three ways as a symbol: `mapped` with a Rust identifier the gate greps
 for, `divergence` with a written reason, or `deferred`. A public struct field counts as a definition,

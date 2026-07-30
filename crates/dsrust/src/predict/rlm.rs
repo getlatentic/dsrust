@@ -40,6 +40,28 @@ use super::{Dynamic, Predict};
 const DEFAULT_MAX_LLM_CALLS: usize = 50;
 
 /// The recorded run of dspy's own RLM, which the fence and signature conformance tests are held to.
+/// `rlm!("question -> answer")` — the model explores a value in the sandbox rather than reading it in a prompt.
+///
+/// Takes a string signature or a task declared with `#[derive(Signature)]`, as every other module
+/// macro does; the declared form carries its doc comment as the signature's instructions.
+/// `max_iterations = N` caps the loop.
+#[macro_export]
+macro_rules! rlm {
+    ($signature:literal $(,)?) => {
+        $crate::Rlm::new($crate::signature!($signature))
+    };
+    ($signature:literal, max_iterations = $max:expr $(,)?) => {
+        $crate::Rlm::new($crate::signature!($signature)).with_max_iterations($max)
+    };
+    ($task:ty $(,)?) => {
+        $crate::Rlm::new(<$task as $crate::signature::SignatureSpec>::signature())
+    };
+    ($task:ty, max_iterations = $max:expr $(,)?) => {
+        $crate::Rlm::new(<$task as $crate::signature::SignatureSpec>::signature())
+            .with_max_iterations($max)
+    };
+}
+
 #[cfg(test)]
 fn golden() -> Value {
     let path =

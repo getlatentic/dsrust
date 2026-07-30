@@ -259,6 +259,34 @@ fn backticked<'a>(names: impl Iterator<Item = &'a str>) -> String {
         .join(", ")
 }
 
+/// `code_act!("question -> answer", tools)` — code that calls the tools you supply, run in the sandbox.
+///
+/// Takes a string signature or a task declared with `#[derive(Signature)]`, as every other module
+/// macro does; the declared form carries its doc comment as the signature's instructions.
+/// `max_iters = N` caps the loop.
+#[macro_export]
+macro_rules! code_act {
+    ($signature:literal, $tools:expr $(,)?) => {
+        $crate::CodeAct::new($crate::signature!($signature), $tools)
+    };
+    ($signature:literal, $tools:expr, max_iters = $max:expr $(,)?) => {
+        $crate::CodeAct::new($crate::signature!($signature), $tools).with_max_iters($max)
+    };
+    ($task:ty, $tools:expr $(,)?) => {
+        $crate::CodeAct::new(
+            <$task as $crate::signature::SignatureSpec>::signature(),
+            $tools,
+        )
+    };
+    ($task:ty, $tools:expr, max_iters = $max:expr $(,)?) => {
+        $crate::CodeAct::new(
+            <$task as $crate::signature::SignatureSpec>::signature(),
+            $tools,
+        )
+        .with_max_iters($max)
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

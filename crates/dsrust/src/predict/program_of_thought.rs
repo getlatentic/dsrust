@@ -366,6 +366,28 @@ fn assigned_name(line: &str) -> Option<&str> {
     rest.trim_start().starts_with('=').then_some(name)
 }
 
+/// `program_of_thought!("question -> answer")` — the model writes code, is shown what it produced, and states the answer.
+///
+/// Takes a string signature or a task declared with `#[derive(Signature)]`, as every other module
+/// macro does; the declared form carries its doc comment as the signature's instructions.
+/// `max_iters = N` caps the loop.
+#[macro_export]
+macro_rules! program_of_thought {
+    ($signature:literal $(,)?) => {
+        $crate::ProgramOfThought::new($crate::signature!($signature))
+    };
+    ($signature:literal, max_iters = $max:expr $(,)?) => {
+        $crate::ProgramOfThought::new($crate::signature!($signature)).with_max_iters($max)
+    };
+    ($task:ty $(,)?) => {
+        $crate::ProgramOfThought::new(<$task as $crate::signature::SignatureSpec>::signature())
+    };
+    ($task:ty, max_iters = $max:expr $(,)?) => {
+        $crate::ProgramOfThought::new(<$task as $crate::signature::SignatureSpec>::signature())
+            .with_max_iters($max)
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::scripted::Scripted;

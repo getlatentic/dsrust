@@ -363,3 +363,59 @@ fn the_react_macros_take_a_declared_task_as_well_as_a_string() {
             .contains("using tools where they help")
     );
 }
+
+/// Every signature-taking module macro accepts both spellings, and the code-writing three now have
+/// a macro at all — before this a caller wrote `ProgramOfThought::new(Task::signature())`.
+#[test]
+fn the_code_writing_macros_take_both_spellings() {
+    #[derive(dsrust::Signature)]
+    /// Compute the answer in Python.
+    struct Compute {
+        #[input]
+        question: String,
+        #[output]
+        answer: String,
+    }
+
+    fn tools() -> Vec<std::sync::Arc<dyn dsrust::Tool>> {
+        vec![std::sync::Arc::new(dsrust::FnTool::new(
+            "add",
+            "add two numbers",
+            serde_json::json!({ "a": { "type": "number" }, "b": { "type": "number" } }),
+            |_: &serde_json::Value| Ok("3".to_owned()),
+        ))]
+    }
+
+    let pot = dsrust::program_of_thought!("question -> answer", max_iters = 2);
+    let pot_typed = dsrust::program_of_thought!(Compute);
+    let act = dsrust::code_act!("question -> answer", tools(), max_iters = 3);
+    let act_typed = dsrust::code_act!(Compute, tools());
+    let reader = dsrust::rlm!("question -> answer", max_iterations = 6);
+    let reader_typed = dsrust::rlm!(Compute);
+
+    for signature in [
+        &pot.signature,
+        &pot_typed.signature,
+        &act.signature,
+        &act_typed.signature,
+        &reader.signature,
+        &reader_typed.signature,
+    ] {
+        assert_eq!(
+            signature.outputs[0].name, "answer",
+            "every spelling declares the same field"
+        );
+    }
+    // Only the declared spelling can carry instructions, which is the reason to write the struct.
+    assert!(
+        pot_typed
+            .signature
+            .instructions
+            .contains("Compute the answer in Python")
+    );
+    assert!(
+        !pot.signature
+            .instructions
+            .contains("Compute the answer in Python")
+    );
+}

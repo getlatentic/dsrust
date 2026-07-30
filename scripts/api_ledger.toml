@@ -529,7 +529,7 @@
 # RLM
 "predict/rlm.py::RLM.forward" = { status = "mapped", rust = "forward" }
 "predict/rlm.py::RLM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward` is the async method" }
-"predict/rlm.py::RLM.tools" = { status = "divergence", reason = "dspy's property merges the caller's tools with the built-in llm_query pair; the crate holds the caller's and states the built-ins in the instructions" }
+"predict/rlm.py::RLM.tools" = { status = "mapped", rust = "with_tools", reason = "Rlm::with_tools" }
 
 # the REPL types
 "primitives/repl_types.py::REPLVariable.format" = { status = "mapped", rust = "format" }
@@ -564,12 +564,12 @@
 "adapters/types/image.py::Image.download" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "adapters/types/image.py::Image.url" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "adapters/types/image.py::Image.verify" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"adapters/types/tool.py::Tool.arg_desc" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"adapters/types/tool.py::Tool.arg_types" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"adapters/types/tool.py::Tool.args" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"adapters/types/tool.py::Tool.desc" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"adapters/types/tool.py::Tool.func" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"adapters/types/tool.py::Tool.name" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/types/tool.py::Tool.arg_desc" = { status = "divergence", reason = "per-argument prose lives in the `args` schema's `description`, which is where it is rendered from" }
+"adapters/types/tool.py::Tool.arg_types" = { status = "divergence", reason = "the JSON Schema in `args` carries each argument's type; dspy keeps the Python annotations beside it for its own coercion" }
+"adapters/types/tool.py::Tool.args" = { status = "mapped", rust = "args", reason = "Tool::args" }
+"adapters/types/tool.py::Tool.desc" = { status = "mapped", rust = "description", reason = "Tool::description" }
+"adapters/types/tool.py::Tool.func" = { status = "mapped", rust = "FnTool", reason = "FnTool's closure, or an impl of the Tool trait" }
+"adapters/types/tool.py::Tool.name" = { status = "mapped", rust = "name", reason = "Tool::name" }
 "clients/base_lm.py::BaseLM.cache" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "clients/base_lm.py::BaseLM.callbacks" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "clients/base_lm.py::BaseLM.max_tokens" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
@@ -577,35 +577,35 @@
 "clients/base_lm.py::BaseLM.model_type" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "clients/base_lm.py::BaseLM.num_retries" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "clients/base_lm.py::BaseLM.temperature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/cache.py::Cache.disk_cache_dir" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/cache.py::Cache.disk_size_limit_bytes" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/cache.py::Cache.enable_disk_cache" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/cache.py::Cache.enable_memory_cache" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/cache.py::Cache.memory_max_entries" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/cache.py::Cache.restrict_pickle" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/cache.py::Cache.safe_types" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/cache.py::Cache.disk_cache_dir" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new's root" }
+"clients/cache.py::Cache.disk_size_limit_bytes" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new takes the byte ceiling as its second argument" }
+"clients/cache.py::Cache.enable_disk_cache" = { status = "mapped", rust = "with_disk", reason = "ResponseCache::with_disk, present or absent" }
+"clients/cache.py::Cache.enable_memory_cache" = { status = "mapped", rust = "ResponseCache", reason = "ResponseCache::new, always on; a caller opts out per LM with without_cache" }
+"clients/cache.py::Cache.memory_max_entries" = { status = "mapped", rust = "new", reason = "ResponseCache::new takes the cap" }
+"clients/cache.py::Cache.restrict_pickle" = { status = "divergence", reason = "dspy guards against unpickling arbitrary types; nothing here pickles, and the disk cache is JSON" }
+"clients/cache.py::Cache.safe_types" = { status = "divergence", reason = "the allowlist for dspy's pickle guard, which has no counterpart in a JSON cache" }
 "clients/lm.py::LM.cache" = { status = "mapped", rust = "without_cache", reason = "LM::without_cache / LmBuilder::no_cache" }
-"clients/lm.py::LM.callbacks" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/lm.py::LM.finetuning_model" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/lm.py::LM.launch_kwargs" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/lm.py::LM.callbacks" = { status = "divergence", reason = "dspy's callback list is Python-side instrumentation; tracing spans here" }
+"clients/lm.py::LM.finetuning_model" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
+"clients/lm.py::LM.launch_kwargs" = { status = "deferred", reason = "provider launch for finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "with_max_tokens", reason = "LM::with_max_tokens / LmBuilder::max_tokens" }
 "clients/lm.py::LM.model" = { status = "mapped", rust = "new", reason = "LM::new / LM::builder, positional" }
-"clients/lm.py::LM.model_type" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/lm.py::LM.num_retries" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/lm.py::LM.provider" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/lm.py::LM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "OpenAiWire / ModelRef routing decides chat vs responses" }
+"clients/lm.py::LM.num_retries" = { status = "divergence", reason = "dspy delegates provider retries to litellm; this crate returns LmFailure::is_retryable and leaves the loop to the caller" }
+"clients/lm.py::LM.provider" = { status = "divergence", reason = "dspy's Provider abstraction is for finetuning/launch, which is out of the 1.0 ceiling" }
 "clients/lm.py::LM.temperature" = { status = "mapped", rust = "with_temperature", reason = "LM::with_temperature / LmBuilder::temperature" }
-"clients/lm.py::LM.train_kwargs" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"clients/lm.py::LM.use_developer_role" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"evaluate/evaluate.py::Evaluate.devset" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"evaluate/evaluate.py::Evaluate.display_progress" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"evaluate/evaluate.py::Evaluate.display_table" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"evaluate/evaluate.py::Evaluate.failure_score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"evaluate/evaluate.py::Evaluate.max_errors" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"evaluate/evaluate.py::Evaluate.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"evaluate/evaluate.py::Evaluate.num_threads" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"evaluate/evaluate.py::Evaluate.provide_traceback" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"evaluate/evaluate.py::Evaluate.save_as_csv" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"evaluate/evaluate.py::Evaluate.save_as_json" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/lm.py::LM.train_kwargs" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
+"clients/lm.py::LM.use_developer_role" = { status = "todo", reason = "the o1-family `developer` role in place of `system`; nothing here sends it" }
+"evaluate/evaluate.py::Evaluate.devset" = { status = "mapped", rust = "devset", reason = "Evaluate::devset" }
+"evaluate/evaluate.py::Evaluate.display_progress" = { status = "divergence", reason = "progress is the caller's to render; tracing spans carry the events" }
+"evaluate/evaluate.py::Evaluate.display_table" = { status = "divergence", reason = "dspy prints a pandas table; Outcome carries the rows for a caller to render" }
+"evaluate/evaluate.py::Evaluate.failure_score" = { status = "mapped", rust = "failure_score", reason = "Evaluate::failure_score" }
+"evaluate/evaluate.py::Evaluate.max_errors" = { status = "todo", reason = "dspy aborts a run after N failed rows; every row is scored here" }
+"evaluate/evaluate.py::Evaluate.metric" = { status = "mapped", rust = "metric", reason = "Evaluate::metric" }
+"evaluate/evaluate.py::Evaluate.num_threads" = { status = "todo", reason = "a parallel runner needs a concurrency limit and provider-aware backoff first; evaluate.rs says so" }
+"evaluate/evaluate.py::Evaluate.provide_traceback" = { status = "divergence", reason = "a failed row keeps its error string in Scored::prediction" }
+"evaluate/evaluate.py::Evaluate.save_as_csv" = { status = "divergence", reason = "serialising the outcome is the caller's; Outcome::results is public" }
+"evaluate/evaluate.py::Evaluate.save_as_json" = { status = "divergence", reason = "serialising the outcome is the caller's; Outcome::results is public" }
 "evaluate/evaluate.py::EvaluationResult.results" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "evaluate/evaluate.py::EvaluationResult.score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "predict/best_of_n.py::BestOfN.N" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
@@ -613,9 +613,9 @@
 "predict/best_of_n.py::BestOfN.module" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "predict/best_of_n.py::BestOfN.reward_fn" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "predict/best_of_n.py::BestOfN.threshold" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/chain_of_thought.py::ChainOfThought.rationale_field" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/chain_of_thought.py::ChainOfThought.rationale_field_type" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/chain_of_thought.py::ChainOfThought.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/chain_of_thought.py::ChainOfThought.rationale_field" = { status = "todo", reason = "dspy lets a caller replace the prepended reasoning field; the name and prose are fixed here" }
+"predict/chain_of_thought.py::ChainOfThought.rationale_field_type" = { status = "todo", reason = "the reasoning field's declared type, which follows rationale_field" }
+"predict/chain_of_thought.py::ChainOfThought.signature" = { status = "mapped", rust = "ChainOfThought", reason = "ChainOfThought::new, positional" }
 "predict/code_act.py::CodeAct.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "CodeAct::with_interpreter" }
 "predict/code_act.py::CodeAct.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "CodeAct::with_max_iters" }
 "predict/code_act.py::CodeAct.signature" = { status = "mapped", rust = "new", reason = "CodeAct::new, positional" }
@@ -636,9 +636,9 @@
 "predict/program_of_thought.py::ProgramOfThought.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "ProgramOfThought::with_interpreter" }
 "predict/program_of_thought.py::ProgramOfThought.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "ProgramOfThought::with_max_iters" }
 "predict/program_of_thought.py::ProgramOfThought.signature" = { status = "mapped", rust = "new", reason = "ProgramOfThought::new, positional" }
-"predict/react.py::ReAct.max_iters" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/react.py::ReAct.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/react.py::ReAct.tools" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/react.py::ReAct.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "ReAct::with_max_iters" }
+"predict/react.py::ReAct.signature" = { status = "mapped", rust = "ReAct", reason = "ReAct::new, positional" }
+"predict/react.py::ReAct.tools" = { status = "mapped", rust = "ReAct", reason = "ReAct::new, positional" }
 "predict/react_v2.py::ReActV2.max_iters" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "predict/react_v2.py::ReActV2.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "predict/react_v2.py::ReActV2.tools" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
@@ -647,33 +647,33 @@
 "predict/refine.py::Refine.module" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "predict/refine.py::Refine.reward_fn" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "predict/refine.py::Refine.threshold" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/rlm.py::RLM.interpreter" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/rlm.py::RLM.max_iterations" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/rlm.py::RLM.max_llm_calls" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/rlm.py::RLM.max_output_chars" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/rlm.py::RLM.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/rlm.py::RLM.sub_lm" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/rlm.py::RLM.tools" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"predict/rlm.py::RLM.verbose" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/rlm.py::RLM.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "Rlm::with_interpreter" }
+"predict/rlm.py::RLM.max_iterations" = { status = "mapped", rust = "with_max_iterations", reason = "Rlm::with_max_iterations" }
+"predict/rlm.py::RLM.max_llm_calls" = { status = "mapped", rust = "with_max_llm_calls", reason = "Rlm::with_max_llm_calls" }
+"predict/rlm.py::RLM.max_output_chars" = { status = "mapped", rust = "max_output_chars", reason = "Rlm::max_output_chars" }
+"predict/rlm.py::RLM.signature" = { status = "mapped", rust = "Rlm", reason = "Rlm::new, positional" }
+"predict/rlm.py::RLM.sub_lm" = { status = "mapped", rust = "with_action_lm", reason = "Rlm::with_action_lm / with_extract_lm" }
+"predict/rlm.py::RLM.tools" = { status = "mapped", rust = "with_tools", reason = "Rlm::with_tools" }
+"predict/rlm.py::RLM.verbose" = { status = "divergence", reason = "dspy prints its trajectory; tracing spans carry the same events here" }
 "primitives/code_interpreter.py::FinalOutput.output" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "primitives/example.py::Example.base" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "primitives/module.py::Module.callbacks" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "primitives/prediction.py::Completions.list_or_dict" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "primitives/prediction.py::Completions.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "teleprompt/bettertogether.py::BetterTogether.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/bootstrap.py::BootstrapFewShot.max_bootstrapped_demos" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/bootstrap.py::BootstrapFewShot.max_errors" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/bootstrap.py::BootstrapFewShot.max_labeled_demos" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/bootstrap.py::BootstrapFewShot.max_rounds" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/bootstrap.py::BootstrapFewShot.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/bootstrap.py::BootstrapFewShot.metric_threshold" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/bootstrap.py::BootstrapFewShot.teacher_settings" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/copro_optimizer.py::COPRO.breadth" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/copro_optimizer.py::COPRO.depth" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/copro_optimizer.py::COPRO.init_temperature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/copro_optimizer.py::COPRO.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/copro_optimizer.py::COPRO.prompt_model" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
-"teleprompt/copro_optimizer.py::COPRO.track_stats" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/bootstrap.py::BootstrapFewShot.max_bootstrapped_demos" = { status = "mapped", rust = "max_bootstrapped_demos", reason = "BootstrapFewShot::max_bootstrapped_demos" }
+"teleprompt/bootstrap.py::BootstrapFewShot.max_errors" = { status = "mapped", rust = "max_errors", reason = "BootstrapFewShot::max_errors" }
+"teleprompt/bootstrap.py::BootstrapFewShot.max_labeled_demos" = { status = "mapped", rust = "max_labeled_demos", reason = "BootstrapFewShot::max_labeled_demos" }
+"teleprompt/bootstrap.py::BootstrapFewShot.max_rounds" = { status = "mapped", rust = "max_rounds", reason = "BootstrapFewShot::max_rounds" }
+"teleprompt/bootstrap.py::BootstrapFewShot.metric" = { status = "mapped", rust = "metric", reason = "BootstrapFewShot::metric" }
+"teleprompt/bootstrap.py::BootstrapFewShot.metric_threshold" = { status = "mapped", rust = "metric_threshold", reason = "BootstrapFewShot::metric_threshold" }
+"teleprompt/bootstrap.py::BootstrapFewShot.teacher_settings" = { status = "divergence", reason = "dspy's teacher settings are a thread-local config dict; the teacher's own LM is set on the module with with_lm" }
+"teleprompt/copro_optimizer.py::COPRO.breadth" = { status = "mapped", rust = "with_breadth", reason = "COPRO::with_breadth" }
+"teleprompt/copro_optimizer.py::COPRO.depth" = { status = "mapped", rust = "with_depth", reason = "COPRO::with_depth" }
+"teleprompt/copro_optimizer.py::COPRO.init_temperature" = { status = "mapped", rust = "with_init_temperature", reason = "COPRO::with_init_temperature" }
+"teleprompt/copro_optimizer.py::COPRO.metric" = { status = "mapped", rust = "COPRO", reason = "COPRO::new, positional" }
+"teleprompt/copro_optimizer.py::COPRO.prompt_model" = { status = "mapped", rust = "with_prompt_model", reason = "COPRO::with_prompt_model" }
+"teleprompt/copro_optimizer.py::COPRO.track_stats" = { status = "divergence", reason = "dspy accumulates per-round statistics onto the compiled program; the outcome carries them here" }
 "teleprompt/ensemble.py::Ensemble.deterministic" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "teleprompt/ensemble.py::Ensemble.reduce_fn" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
 "teleprompt/ensemble.py::Ensemble.size" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
