@@ -111,6 +111,11 @@ it, which is the failure this project keeps finding in its own ledger.
 So the response to main being ahead is **move the pin when a release lands**, not port without one.
 Note the gap in the ledger meanwhile — `LMToolSpec.strict` is the standing example.
 
+Already ahead of the pin, knowingly: `ChatModel::call`. The pin's `__call__` takes no variadic items
+and answers with a list of strings; main's takes `*items` and answers with an `LMResponse`, and that
+is what was built. Its parts — `LMRequest.from_call`, `_messages_from_items`, the four role
+constructors — are all at the pin, so only the entry is ahead. No upstream test reaches it.
+
 One real exception: a **bug fix** on main that the pin still has. Reproducing the pin faithfully
 there means reproducing a bug upstream has already disowned, and byte-conformance to a fixed
 mistake is not the point. Port the fix and say which commit it came from.
