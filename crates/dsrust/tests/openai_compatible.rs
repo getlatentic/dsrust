@@ -464,3 +464,36 @@ async fn an_identical_request_is_replayed_rather_than_sent_again() {
     assert_eq!(second.first_text(), "the reply");
     assert_eq!(stub.received().path, "/v1/chat/completions");
 }
+
+/// A request that never reaches a server is `transport`, and retryable — dspy classifies the same
+/// failure as `LMTransportError` and `is_retryable_lm_error` says yes.
+///
+/// Compared live against the pinned dspy, both pointed at a closed port: dspy answered
+/// `{"code": "transport", "retryable": true}` and this crate answered an untyped `anyhow` until
+/// the send site was given a kind.
+#[tokio::test]
+async fn a_refused_connection_is_a_retryable_transport_failure() {
+    let lm = dsrust::lm::LM::new("openai/gemma")
+        .expect("a model id")
+        // Port 9 is discard: nothing listens, so the connect fails before any HTTP happens.
+        .with_openai_base_url("http://127.0.0.1:9/v1")
+        .with_openai_key("x")
+        .without_cache();
+
+    let error = ask(&lm, &OutputMode::Text)
+        .await
+        .expect_err("nothing is listening");
+    let failed = error
+        .downcast_ref::<dsrust::lm::LmFailure>()
+        .unwrap_or_else(|| panic!("a typed LM failure, got: {error:#}"));
+    assert_eq!(failed.kind, dsrust::lm::LmErrorKind::Transport);
+    assert!(
+        failed.is_retryable(),
+        "a refused connection is worth asking again"
+    );
+    assert_eq!(
+        failed.status, None,
+        "nothing answered, so there is no status to report"
+    );
+    assert_eq!(failed.provider.as_deref(), Some("openai"));
+}

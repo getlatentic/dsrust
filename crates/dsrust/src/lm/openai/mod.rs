@@ -232,7 +232,9 @@ impl ChatModel for Endpoint<'_> {
                 .json(&body)
                 .send()
                 .await
-                .with_context(|| format!("{} request failed", self.label))?;
+                .map_err(|error| {
+                    crate::lm::LmFailure::from_transport(&error, self.model, self.label)
+                })?;
             let status = response.status();
             let body: Value = response
                 .json()

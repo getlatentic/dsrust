@@ -41,7 +41,9 @@ impl ChatModel for Chat<'_> {
             let response = authorized(request, self.api_key)
                 .send()
                 .await
-                .context("ollama request failed")?;
+                .map_err(|error| {
+                    crate::lm::LmFailure::from_transport(&error, self.model, "ollama")
+                })?;
             let status = response.status();
             let body: Value = response
                 .json()

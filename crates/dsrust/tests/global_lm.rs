@@ -57,10 +57,13 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
         .expect_err("host is unroutable");
     let rendered = format!("{provider_error:#}");
     assert!(!rendered.contains("no global LM"), "got: {rendered}");
-    assert!(
-        rendered.contains("ollama request failed"),
-        "got: {rendered}"
-    );
+    // A configured LM that cannot be reached is a transport failure, not a missing one — and the
+    // type says so rather than the prose, so a caller can retry it without matching a string.
+    let failed = provider_error
+        .downcast_ref::<dsrust::lm::LmFailure>()
+        .unwrap_or_else(|| panic!("a typed LM failure, got: {rendered}"));
+    assert_eq!(failed.kind, dsrust::lm::LmErrorKind::Transport);
+    assert_eq!(failed.provider.as_deref(), Some("ollama"));
 
     // Reconfiguring through the own-client path must win over the previous configure.
     lm::configure(
@@ -73,8 +76,10 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
         .await
         .expect_err("host is still unroutable");
     assert!(
-        format!("{reconfigured:#}").contains("ollama request failed"),
-        "got: {reconfigured:#}"
+        reconfigured
+            .downcast_ref::<dsrust::lm::LmFailure>()
+            .is_some_and(|failed| { failed.provider.as_deref() == Some("ollama") }),
+        "the reconfigured ollama LM is what was reached: {reconfigured:#}"
     );
 
     // The call macro's expansion resolves the same global: it must reach the provider, not
@@ -87,7 +92,9 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
     let rendered = format!("{via_macro:#}");
     assert!(!rendered.contains("no global LM"), "got: {rendered}");
     assert!(
-        rendered.contains("ollama request failed"),
-        "got: {rendered}"
+        via_macro
+            .downcast_ref::<dsrust::lm::LmFailure>()
+            .is_some_and(|failed| { failed.provider.as_deref() == Some("ollama") }),
+        "the macro's expansion reached the configured provider: {rendered}"
     );
 }

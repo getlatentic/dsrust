@@ -182,7 +182,9 @@ async fn a_short_timeout_abandons_every_slow_route() {
             .await
             .expect_err("the bound fires");
         assert!(
-            format!("{error:#}").contains("timed out") || format!("{error:#}").contains("timeout"),
+            error
+                .downcast_ref::<dsrust::lm::LmFailure>()
+                .is_some_and(|failed| failed.kind == dsrust::lm::LmErrorKind::Timeout),
             "{route} failed for another reason: {error:#}"
         );
         stub.done();

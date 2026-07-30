@@ -47,7 +47,9 @@ impl ChatModel for Anthropic<'_> {
                 .json(&request::request(self.model, call))
                 .send()
                 .await
-                .context("anthropic request failed")?;
+                .map_err(|error| {
+                    crate::lm::LmFailure::from_transport(&error, self.model, "anthropic")
+                })?;
             let status = response.status();
             let body: Value = response
                 .json()

@@ -68,6 +68,32 @@ impl LmFailure {
         failure
     }
 
+    /// A request that never got an answer, as the kind dspy gives it.
+    ///
+    /// Upstream reads litellm's exception class and message — `"timeout" in class_name`,
+    /// `"connection" in message` — because that is all litellm exposes. reqwest says so directly,
+    /// which is the same decision made from a better source. Both are retryable, and that is the
+    /// point: a refused connection is the most ordinary transient failure there is, and a caller
+    /// who cannot see it as one has to match on prose to retry.
+    pub fn from_transport(error: &reqwest::Error, model: &str, provider: &str) -> Self {
+        let kind = match error.is_timeout() {
+            true => LmErrorKind::Timeout,
+            false => LmErrorKind::Transport,
+        };
+        // reqwest's Display names the url and stops, so the reason — timed out, refused, DNS —
+        // lives in the source chain. A caller reading only the message would see neither.
+        let mut message = error.to_string();
+        let mut cause = std::error::Error::source(error);
+        while let Some(reason) = cause {
+            message.push_str(": ");
+            message.push_str(&reason.to_string());
+            cause = reason.source();
+        }
+        Self::new(kind, message)
+            .on_model(model)
+            .from_provider(provider)
+    }
+
     pub fn on_model(mut self, model: impl Into<String>) -> Self {
         self.model = Some(model.into());
         self
