@@ -116,22 +116,22 @@
 # turn a line here into a `todo` is finding upstream code that branches on it.
 "utils/exceptions.py::ContextWindowExceededError" = { status = "mapped", rust = "ContextWindowExceeded" }
 "utils/exceptions.py::DSPyError" = { status = "divergence", reason = "the taxonomy's root; `anyhow::Error` is the crate's, and nothing branches on the root itself" }
-"utils/exceptions.py::LMError" = { status = "divergence", reason = "dspy checks it to decide whether a JSON-adapter fallback is worth trying; the crate's fallback wraps only `parse`, so an LM failure never reaches that branch — see predict.rs::ask_through" }
+"utils/exceptions.py::LMError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind, the enum these fourteen classes flatten into" }
 "utils/exceptions.py::AdapterParseError" = { status = "divergence", reason = "a parse failure is an `anyhow::Error`; the one place dspy branches on it — swallowing it to `{}` when a reply carries tool calls — is `Predict::native_value`" }
-"utils/exceptions.py::LMTransportError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::LMConfigurationError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::LMNotConfiguredError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::LMUnsupportedFeatureError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::LMProviderError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::LMUnexpectedError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::LMAuthError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::LMBillingError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::LMRateLimitError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::LMInvalidRequestError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::LMUnsupportedModelError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::LMTimeoutError" = { status = "divergence", reason = "a timeout is the reqwest error; the caller's bound is `LM::with_timeout`" }
-"utils/exceptions.py::LMServerError" = { status = "divergence", reason = "the message carries it; nothing branches" }
-"utils/exceptions.py::is_retryable_lm_error" = { status = "divergence", reason = "classifies four error types — rate limit, timeout, server, transport — that this crate models as `anyhow::Error`, because nothing branches on them. dspy does not call it either: it is exported for callers, and its own docstring calls it advisory, since litellm has already exhausted provider retries by the time anything sees the error. The crate has no retry loop for it to inform. What would change this is a retry loop here — at that point the four types earn their place and this comes with them, which is the rule #10 now states: start from a branch, not from the list's length" }
+"utils/exceptions.py::LMTransportError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::Transport" }
+"utils/exceptions.py::LMConfigurationError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::Configuration" }
+"utils/exceptions.py::LMNotConfiguredError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::NotConfigured" }
+"utils/exceptions.py::LMUnsupportedFeatureError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::UnsupportedFeature" }
+"utils/exceptions.py::LMProviderError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::Provider" }
+"utils/exceptions.py::LMUnexpectedError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::Unexpected" }
+"utils/exceptions.py::LMAuthError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::Auth" }
+"utils/exceptions.py::LMBillingError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::Billing" }
+"utils/exceptions.py::LMRateLimitError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::RateLimit" }
+"utils/exceptions.py::LMInvalidRequestError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::InvalidRequest" }
+"utils/exceptions.py::LMUnsupportedModelError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::UnsupportedModel" }
+"utils/exceptions.py::LMTimeoutError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::Timeout" }
+"utils/exceptions.py::LMServerError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::Server" }
+"utils/exceptions.py::is_retryable_lm_error" = { status = "mapped", rust = "is_retryable", reason = "LmErrorKind::is_retryable, over the same four kinds" }
 
 # --- primitives ---
 "primitives/example.py::Example" = { status = "mapped", rust = "Example" }
@@ -732,3 +732,6 @@
 "teleprompt/vanilla.py::LabeledFewShot.k" = { status = "mapped", rust = "LabeledFewShot", reason = "LabeledFewShot::new, positional" }
 "utils/exceptions.py::ContextWindowExceededError.message" = { status = "mapped", rust = "ContextWindowExceeded", reason = "ContextWindowExceeded::message" }
 "utils/exceptions.py::ContextWindowExceededError.model" = { status = "mapped", rust = "ContextWindowExceeded", reason = "ContextWindowExceeded::model" }
+"utils/exceptions.py::LMUnsupportedFeatureError.message" = { status = "mapped", rust = "message", reason = "LmFailure::message" }
+"utils/exceptions.py::LMUnsupportedFeatureError.features" = { status = "todo", reason = "dspy names which features the model would not do; the kind says only that one was refused" }
+"utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "todo", reason = "dspy carries a per-feature explanation beside the feature list" }
