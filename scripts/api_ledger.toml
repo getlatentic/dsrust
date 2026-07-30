@@ -223,10 +223,10 @@
 "core/types.py::LMOutput" = { status = "divergence", reason = "reproduced as part of the LM response (lm/api/response.rs)" }
 "core/types.py::LMResponse" = { status = "divergence", reason = "reproduced as the LM response (lm/api/response.rs)" }
 "core/types.py::Assistant" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
-"core/types.py::Developer" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
+"core/types.py::Developer" = { status = "todo", reason = "the o1-family `developer` role in place of `system`; `Role` has User, Assistant, System and Tool and no fourth variant, so there is nothing to construct it from. Same gap as clients/lm.py::LM.use_developer_role, which is already todo" }
 "core/types.py::System" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
 "core/types.py::User" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
-"core/types.py::ToolResult" = { status = "divergence", reason = "tool-result message constructor; reproduced via LmMessage" }
+"core/types.py::ToolResult" = { status = "divergence", reason = "a constructor helper for a message carrying one LmPart::ToolResult, which exists; a caller composes the part instead of calling a helper" }
 
 # Every public method of a `mapped` class, classified the same way. A class can otherwise pass the
 # gate while missing half of what its Python counterpart does; this is what closes that.

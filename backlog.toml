@@ -258,6 +258,17 @@ appears somewhere in the tree and nothing more.
 That one is mechanisable rather than a reading pass: refuse a bare generic name as a `rust` value and
 require `Type::method`, so the grep has something specific to find. Do it first — it turns a
 sixteen-entry reading list into a gate, and it is how `from_call` was caught.
+
+**A fourth, and the check that found it.** Running `core/types.py`'s own `__all__` — twenty-nine
+names — against the tree found twenty-eight present and two constructor helpers absent. One of the
+two, `Developer`, was classified `divergence` because it is "reproduced via Role + LmMessage", and
+`Role` has User, Assistant, System and Tool. No fourth variant. The same untrue-substitution shape as
+`callbacks`, and inconsistent with `LM.use_developer_role` which was already `todo` — one gap wearing
+two classifications.
+
+Running a module's `__all__` against the tree is the cheapest check here and it is not automated.
+Do that for every module in `PORTED_MODULES` before reading anything: it is mechanical, it needs no
+judgement, and it found a bad entry on its first use.
 """
 
 [[story]]
