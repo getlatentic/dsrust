@@ -13,10 +13,9 @@
 //! Nothing is serialized unless something is listening. `tracing`'s macros check subscriber interest
 //! before evaluating a field, and [`shown`] and [`finished`] return immediately on a disabled span.
 //!
-//! **Five of the six points exist**: module, lm, tool, adapter format and adapter parse. Only
-//! evaluate has no span, and no unused constructor here either — a function nothing calls is what
-//! let the ledger claim these existed while the tree had none. `tests/observe.rs` decides which
-//! exist, and it can only see spans a run produced.
+//! **All six points exist**: module, lm, tool, adapter format, adapter parse and evaluate.
+//! `tests/observe.rs` is what says so, and it can only see spans a run actually produced — the entry
+//! this replaced claimed these points existed while the tree had none.
 
 use std::fmt::Write as _;
 use std::future::Future;
@@ -153,6 +152,44 @@ fn adapter_span(point: &'static str, adapter: &'static str) -> Span {
         outputs = field::Empty,
         error = field::Empty,
     )
+}
+
+/// dspy `on_evaluate_start`/`on_evaluate_end`: one whole run over a devset, with every module call
+/// it made inside it.
+///
+/// Upstream decorates `Evaluate.__call__`, and this wraps [`Evaluate::run`](crate::Evaluate::run) —
+/// the same method under a different name. The outermost span of an optimizer's search, so a reader
+/// filtering to `evaluate` sees one line per scoring pass rather than one per row.
+pub fn evaluating(rows: usize, threads: usize) -> Span {
+    tracing::info_span!(
+        target: TARGET,
+        "evaluate",
+        rows = rows,
+        threads = threads,
+        inputs = field::Empty,
+        outputs = field::Empty,
+        error = field::Empty,
+    )
+}
+
+/// What an evaluation found, recorded on its span — dspy's `on_evaluate_end(outputs=…)`.
+///
+/// Its own function rather than [`finished`] because a run has no error arm: a failing row scores
+/// `failure_score` and the run carries on, which is dspy's choice too.
+pub fn scored(span: &Span, evaluation: &crate::evaluate::Evaluation) {
+    if span.is_disabled() {
+        return;
+    }
+    span.record(
+        "outputs",
+        format!(
+            "{{\"score\":{},\"rows\":{},\"failed\":{}}}",
+            evaluation.score,
+            evaluation.results.len(),
+            evaluation.failure_count(),
+        )
+        .as_str(),
+    );
 }
 
 /// What dspy's `on_*_start` was shown, recorded on the span.

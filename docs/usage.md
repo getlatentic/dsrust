@@ -465,8 +465,11 @@ documentation example prints.
 Rendering the prompt and reading the reply back are their own spans too, so a parse failure shows
 the raw text beside the error — which is nearly always the next question.
 
+An `Evaluate` run is one span with every row nested inside it, so filtering to `evaluate` gives one
+line per scoring pass rather than one per row — which is what makes an optimizer's search readable.
+
 Nothing is rendered when nothing is listening, so a program with no subscriber pays an atomic load
-per point. Five of DSPy's six are here; `evaluate` is not yet.
+per point. All six of DSPy's callback points are here.
 
 A span cannot change what it sees, which is the one way this is not DSPy's shape: upstream's
 `BaseCallback` is handed the values and its own documentation warns against mutating them.

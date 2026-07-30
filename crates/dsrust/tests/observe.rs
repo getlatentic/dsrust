@@ -479,6 +479,54 @@ fn a_refused_reply_records_the_raw_text_beside_the_failure() {
     );
 }
 
+/// dspy `on_evaluate_start`/`on_evaluate_end`: the sixth and last point. One span per scoring pass,
+/// with every module call the run made nested inside it — which is what makes an optimizer's search
+/// readable at all, since filtering to `evaluate` gives one line per pass rather than one per row.
+#[test]
+fn an_evaluation_is_one_span_with_every_row_inside_it() {
+    let (recorded, evaluation) = recording(async {
+        let devset = vec![
+            example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"]),
+            example! { question: "capital of Belgium?", answer: "Brussels" }
+                .with_inputs(["question"]),
+        ];
+        let qa = Predict!("question -> answer").with_lm(scripted(vec![
+            example! { answer: "Paris" },
+            example! { answer: "Paris" },
+        ]));
+        dsrust::Evaluate::new(
+            devset,
+            |inputs: Example| qa.forward(inputs),
+            dsrust::exact_match,
+        )
+        .run()
+        .await
+    });
+
+    // The model answers Paris to both, and only the first row's label agrees — so the aggregate
+    // is a half, which is what makes the recorded score a real number rather than a constant.
+    assert_eq!(evaluation.score, 0.5);
+
+    let evaluate = recorded.one("evaluate");
+    assert_eq!(
+        evaluate.parent, None,
+        "the outermost span of a scoring pass"
+    );
+    let outputs = evaluate.outputs.expect("what the run found");
+    assert!(outputs.contains("\"rows\":2"), "{outputs}");
+    assert!(outputs.contains("\"score\":0.5"), "{outputs}");
+
+    let modules = recorded.named("module");
+    assert_eq!(modules.len(), 2, "one per row");
+    for module in &modules {
+        assert_eq!(
+            module.parent.as_deref(),
+            Some("evaluate"),
+            "every row runs inside the evaluation: {module:?}"
+        );
+    }
+}
+
 /// Nothing is serialized when nothing is listening. A program with no subscriber must not pay for
 /// rendering a prompt into a span field it will never reach.
 #[test]

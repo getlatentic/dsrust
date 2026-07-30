@@ -11,6 +11,7 @@
 use std::future::Future;
 
 use futures_util::StreamExt;
+use tracing::Instrument;
 
 use crate::example::{Example, Prediction};
 
@@ -104,15 +105,24 @@ where
     /// Order is `buffered` rather than `buffer_unordered`: a caller reads `results[i]` against
     /// `devset[i]`, and dspy's own results are aligned the same way.
     pub async fn run(&self) -> Evaluation {
+        let threads = self.num_threads.unwrap_or(1);
+        let span = crate::observe::evaluating(self.devset.len(), threads);
         let scoring = futures_util::stream::iter(self.devset.clone())
             .map(|example| self.score_row(example))
-            .buffered(self.num_threads.unwrap_or(1));
-        let results: Vec<Scored> = scoring.collect().await;
+            .buffered(threads);
+        // `collect` is the future, and instrumenting it is what keeps every row's spans inside this
+        // one. A `span.enter()` guard held across an await would attribute whatever the runtime
+        // polled next to this evaluation instead.
+        let results: Vec<Scored> = scoring.collect().instrument(span.clone()).await;
         let score = match results.is_empty() {
             true => 0.0,
             false => results.iter().map(|row| row.score).sum::<f64>() / results.len() as f64,
         };
-        Evaluation { results, score }
+        let evaluation = Evaluation { results, score };
+        // No error arm: a run scores every row and a failing one scores `failure_score`, which is
+        // dspy's choice too. So the span records what it found and never an exception.
+        crate::observe::scored(&span, &evaluation);
+        evaluation
     }
 
     /// One example, run and scored.

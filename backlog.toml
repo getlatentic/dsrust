@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 996
+rust_tests = 997
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -518,11 +518,11 @@ judgement, and it found a bad entry on its first use.
 id = "lm-callbacks"
 sprint = "api"
 title = "Nothing observes a run: dspy's six callback points have no counterpart"
-state = "doing"
+state = "done"
 size = "L"
 suites = ["tests/clients/test_lm.py", "tests/utils/test_settings.py"]
 done = """
-**Five of the six exist: module, lm, tool, adapter format and adapter parse.** The first two are the pair the plan says to do first; `tool` followed because it is what upstream's own documentation example prints. `src/observe.rs`
+**All six exist: module, lm, tool, adapter format, adapter parse and evaluate.** The first two are the pair the plan says to do first; `tool` followed because it is what upstream's own documentation example prints. `src/observe.rs`
 holds them and `tests/observe.rs` holds *them* — by running programs under a recording subscriber and
 asserting on the spans that arrived, never by reading the source. That is the whole point: the entry
 this story replaces claimed these points "emit tracing spans here" when the tree had no span at all,
