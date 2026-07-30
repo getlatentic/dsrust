@@ -64,6 +64,8 @@ struct GroundedProposer {
     program_code: Option<String>,
     tip_aware: bool,
     prompt_model: Arc<dyn DynChatModel>,
+    /// dspy `init_temperature`, carried from the optimizer to the one call that proposes.
+    init_temperature: f64,
 }
 
 impl GroundedProposer {
@@ -81,9 +83,14 @@ impl GroundedProposer {
             let mut candidates = Vec::with_capacity(num_candidates);
             for _ in 0..num_candidates {
                 let tip = self.select_tip(rng);
-                // dspy draws a rollout id per proposal to miss the response cache; the draw advances
-                // the shared generator whether or not anything is cached, so it is made here too.
-                let _rollout = rng.randint(0, 1_000_000_000);
+                // dspy asks for each proposal through `prompt_model.copy(rollout_id=…,
+                // temperature=init_temperature)`. The draw also advances the shared generator, which
+                // is why it happens whether or not the id is used.
+                let rollout = rng.randint(0, 1_000_000_000);
+                let sampling = crate::lm::LmConfig {
+                    temperature: Some(self.init_temperature),
+                    ..crate::lm::LmConfig::rollout(rollout)
+                };
                 let inputs = InstructionInputs {
                     dataset_summary: false,
                     program_aware: self.program_code.is_some(),
@@ -94,6 +101,7 @@ impl GroundedProposer {
                     self.program_code.clone(),
                     inputs,
                     self.prompt_model.clone(),
+                    sampling,
                 );
                 let instruction = generator
                     .forward(signature, "No task demos provided.", "", "", tip)
@@ -132,6 +140,8 @@ pub struct MIPROv2<M> {
     num_candidates: usize,
     num_trials: usize,
     seed: u64,
+    /// dspy `init_temperature`: what instructions are proposed at (default 1.0).
+    init_temperature: f64,
     /// What a scoring pass is bounded by. See [`Scoring`](super::Scoring).
     scoring: super::Scoring,
     program_code: Option<String>,
@@ -151,6 +161,7 @@ where
             num_candidates: 10,
             num_trials: 20,
             seed: 9,
+            init_temperature: 1.0,
             scoring: super::Scoring::default(),
             program_code: None,
             tip_aware: true,
@@ -166,6 +177,13 @@ where
     /// How many instruction combinations the search evaluates.
     pub fn with_trials(mut self, num_trials: usize) -> Self {
         self.num_trials = num_trials;
+        self
+    }
+
+    /// dspy `init_temperature`: the temperature instructions are proposed at, default 1.0. Lower it
+    /// for proposals that stay close to the current instruction.
+    pub fn init_temperature(mut self, temperature: f64) -> Self {
+        self.init_temperature = temperature;
         self
     }
 
@@ -237,6 +255,7 @@ where
             program_code: self.program_code.clone(),
             tip_aware: self.tip_aware,
             prompt_model: self.prompt_model.clone(),
+            init_temperature: self.init_temperature,
         };
         let candidates = proposer
             .propose(&predictors, self.num_candidates, &mut rng)

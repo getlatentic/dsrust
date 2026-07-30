@@ -723,7 +723,7 @@
 "teleprompt/gepa/gepa.py::GEPA.wandb_init_kwargs" = { status = "divergence", reason = "experiment tracking, which is the caller's to wire" }
 "teleprompt/gepa/gepa.py::GEPA.warn_on_score_mismatch" = { status = "divergence", reason = "dspy warns when a re-evaluated score differs; tracing carries the event" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.auto" = { status = "todo", reason = "dspy's light/medium/heavy presets, which set num_candidates and num_trials together" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.init_temperature" = { status = "todo", reason = "the temperature MIPRO proposes instructions at" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.init_temperature" = { status = "mapped", rust = "MIPROv2::init_temperature" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.log_dir" = { status = "divergence", reason = "dspy writes a run log to disk; tracing is the record here" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.max_bootstrapped_demos" = { status = "todo", reason = "this MIPROv2 is dspy's *zero-shot* configuration and says so at src/optimize/mipro/mod.rs:8 — instructions are searched, demos are not. So Step 1 runs with dspy's own zero-shot constants (BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT = 3) to ground the proposer and advance the RNG, and there is no demo dimension in Step 3 for a caller's cap to size. Not a missing setter: the few-shot half of MIPROv2" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.max_errors" = { status = "mapped", rust = "MIPROv2::scoring", reason = "both of dspy's scoring bounds travel together as optimize::Scoring, since every optimizer that builds an Evaluate needs the pair" }

@@ -109,17 +109,24 @@ impl GenerateModuleInstruction {
     /// Build the three predictors this proposer drives. `program_aware` only holds when there is
     /// program code to describe, so it is reconciled with `program_code` here — the same reconciliation
     /// dspy does when source introspection fails.
+    /// `sampling` is how dspy asks for the proposal itself: `prompt_model.copy(rollout_id=…,
+    /// temperature=init_temperature)`. The rollout id misses the response cache and the temperature
+    /// makes the proposals differ — without both, `num_candidates` proposals sharing a tip are one
+    /// proposal replayed. It reaches only `generate`; the two description calls are dspy's plain
+    /// `prompt_model`, and caching them is what makes a multi-predictor run affordable.
     pub(crate) fn new(
         program_code: Option<String>,
         mut inputs: InstructionInputs,
         model: Arc<dyn DynChatModel>,
+        sampling: crate::lm::LmConfig,
     ) -> Self {
         inputs.program_aware = inputs.program_aware && program_code.is_some();
         let predict = |signature| Predict::from_signature(signature).with_lm(model.clone());
         Self {
             describe_program: predict(signatures::describe_program()),
             describe_module: predict(signatures::describe_module()),
-            generate: predict(signatures::generate_module_instruction(inputs)),
+            generate: predict(signatures::generate_module_instruction(inputs))
+                .with_config(sampling),
             program_code,
             inputs,
         }
@@ -246,6 +253,64 @@ mod tests {
         }
     }
 
+    /// dspy asks for a proposal through `prompt_model.copy(rollout_id=…, temperature=…)`. Both reach
+    /// the request, and only the request that proposes: the two description calls are dspy's plain
+    /// prompt model, and caching them is what makes a multi-predictor run affordable.
+    #[tokio::test]
+    async fn the_proposal_carries_its_rollout_and_temperature() {
+        #[derive(Default)]
+        struct Recording(std::sync::Mutex<Vec<api::LmConfig>>);
+        impl crate::lm::ChatModel for Recording {
+            async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
+                self.0
+                    .lock()
+                    .expect("not poisoned")
+                    .push(request.config.clone());
+                Ok(api::LmResponse::text(
+                    "[[ ## proposed_instruction ## ]]\nBe precise.",
+                ))
+            }
+        }
+
+        let model = Arc::new(Recording::default());
+        let asked = Arc::clone(&model);
+        let sampling = crate::lm::LmConfig {
+            temperature: Some(0.7),
+            ..crate::lm::LmConfig::rollout(4242)
+        };
+        let proposer = GenerateModuleInstruction::new(
+            None,
+            InstructionInputs {
+                dataset_summary: false,
+                program_aware: false,
+                instruct_history: false,
+                tip: false,
+            },
+            model,
+            sampling,
+        );
+        let predictor: Signature = "question -> answer".parse().expect("parses");
+        proposer
+            .forward(&predictor, "", "", "", None)
+            .await
+            .expect("it proposes");
+
+        let asks = asked.0.lock().expect("not poisoned");
+        let proposing = asks.last().expect("the proposal itself");
+        assert_eq!(proposing.temperature, Some(0.7));
+        assert_eq!(
+            proposing.rollout_id(),
+            Some(&crate::lm::api::RolloutId::Number(4242)),
+            "a fresh rollout is what misses the response cache"
+        );
+        assert!(
+            asks[..asks.len() - 1]
+                .iter()
+                .all(|earlier| earlier.rollout_id().is_none()),
+            "the description calls stay cacheable"
+        );
+    }
+
     #[tokio::test]
     async fn proposes_through_the_program_aware_chain() {
         let model = Arc::new(Proposer);
@@ -258,6 +323,7 @@ mod tests {
                 tip: true,
             },
             model,
+            crate::lm::LmConfig::default(),
         );
         let predictor: Signature = "question -> answer".parse().expect("parses");
 
