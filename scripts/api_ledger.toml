@@ -15,8 +15,12 @@
 #                         decision rather than a pending gap. Counts as resolved-for-1.0, reported
 #                         apart from todo so the 1.0 backlog is only in-scope work.
 #
-# Both top-level symbols and the methods of every mapped class are gated; the `[methods]` table
-# below carries the second.
+# Three tables are gated: top-level names, the methods of every mapped class, and what each mapped
+# class's constructor accepts.
+#
+# The third exists because the first two read 216/216 while `dspy.LM(model, temperature=...,
+# max_tokens=...)` had neither parameter in this crate. A method list says `__init__` exists; it
+# says nothing about what it takes, and that is where a port loses things without going red.
 
 [symbols]
 
@@ -541,3 +545,190 @@
 "primitives/sandbox_serializable.py::SandboxSerializable.rlm_preview" = { status = "mapped", rust = "rlm_preview" }
 "primitives/sandbox_serializable.py::SandboxSerializable.to_repl_variable" = { status = "divergence", reason = "a one-call forward to `build_repl_variable`, which the free function already is; upstream keeps both because a Python method reads better on the instance" }
 "primitives/repl_types.py::REPLHistory.serialize_model" = { status = "divergence", reason = "as `REPLVariable.serialize_model`" }
+
+[constructors]
+
+"adapters/base.py::Adapter.callbacks" = { status = "divergence", reason = "dspy's callback list is Python-side instrumentation; tracing spans here" }
+"adapters/base.py::Adapter.native_response_types" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/base.py::Adapter.parallel_tool_calls" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/base.py::Adapter.use_native_function_calling" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/chat_adapter.py::ChatAdapter.callbacks" = { status = "divergence", reason = "dspy's callback list is Python-side instrumentation; tracing spans here" }
+"adapters/chat_adapter.py::ChatAdapter.native_response_types" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/chat_adapter.py::ChatAdapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "ChatAdapter::parallel_tool_calls" }
+"adapters/chat_adapter.py::ChatAdapter.use_json_adapter_fallback" = { status = "mapped", rust = "use_json_adapter_fallback", reason = "ChatAdapter::use_json_adapter_fallback" }
+"adapters/chat_adapter.py::ChatAdapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "ChatAdapter::use_native_function_calling" }
+"adapters/json_adapter.py::JSONAdapter.callbacks" = { status = "divergence", reason = "dspy's callback list is Python-side instrumentation; tracing spans here" }
+"adapters/json_adapter.py::JSONAdapter.parallel_tool_calls" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/json_adapter.py::JSONAdapter.use_native_function_calling" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/two_step_adapter.py::TwoStepAdapter.extraction_model" = { status = "mapped", rust = "extraction_model", reason = "TwoStepAdapter::extraction_model" }
+"adapters/types/image.py::Image.download" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/types/image.py::Image.url" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/types/image.py::Image.verify" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/types/tool.py::Tool.arg_desc" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/types/tool.py::Tool.arg_types" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/types/tool.py::Tool.args" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/types/tool.py::Tool.desc" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/types/tool.py::Tool.func" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"adapters/types/tool.py::Tool.name" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/base_lm.py::BaseLM.cache" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/base_lm.py::BaseLM.callbacks" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/base_lm.py::BaseLM.max_tokens" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/base_lm.py::BaseLM.model" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/base_lm.py::BaseLM.model_type" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/base_lm.py::BaseLM.num_retries" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/base_lm.py::BaseLM.temperature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/cache.py::Cache.disk_cache_dir" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/cache.py::Cache.disk_size_limit_bytes" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/cache.py::Cache.enable_disk_cache" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/cache.py::Cache.enable_memory_cache" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/cache.py::Cache.memory_max_entries" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/cache.py::Cache.restrict_pickle" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/cache.py::Cache.safe_types" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/lm.py::LM.cache" = { status = "mapped", rust = "without_cache", reason = "LM::without_cache / LmBuilder::no_cache" }
+"clients/lm.py::LM.callbacks" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/lm.py::LM.finetuning_model" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/lm.py::LM.launch_kwargs" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "with_max_tokens", reason = "LM::with_max_tokens / LmBuilder::max_tokens" }
+"clients/lm.py::LM.model" = { status = "mapped", rust = "new", reason = "LM::new / LM::builder, positional" }
+"clients/lm.py::LM.model_type" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/lm.py::LM.num_retries" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/lm.py::LM.provider" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/lm.py::LM.temperature" = { status = "mapped", rust = "with_temperature", reason = "LM::with_temperature / LmBuilder::temperature" }
+"clients/lm.py::LM.train_kwargs" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"clients/lm.py::LM.use_developer_role" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::Evaluate.devset" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::Evaluate.display_progress" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::Evaluate.display_table" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::Evaluate.failure_score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::Evaluate.max_errors" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::Evaluate.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::Evaluate.num_threads" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::Evaluate.provide_traceback" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::Evaluate.save_as_csv" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::Evaluate.save_as_json" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::EvaluationResult.results" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"evaluate/evaluate.py::EvaluationResult.score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/best_of_n.py::BestOfN.N" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/best_of_n.py::BestOfN.fail_count" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/best_of_n.py::BestOfN.module" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/best_of_n.py::BestOfN.reward_fn" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/best_of_n.py::BestOfN.threshold" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/chain_of_thought.py::ChainOfThought.rationale_field" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/chain_of_thought.py::ChainOfThought.rationale_field_type" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/chain_of_thought.py::ChainOfThought.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/code_act.py::CodeAct.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "CodeAct::with_interpreter" }
+"predict/code_act.py::CodeAct.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "CodeAct::with_max_iters" }
+"predict/code_act.py::CodeAct.signature" = { status = "mapped", rust = "new", reason = "CodeAct::new, positional" }
+"predict/code_act.py::CodeAct.tools" = { status = "mapped", rust = "new", reason = "CodeAct::new, positional" }
+"predict/multi_chain_comparison.py::MultiChainComparison.M" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/multi_chain_comparison.py::MultiChainComparison.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/multi_chain_comparison.py::MultiChainComparison.temperature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/parallel.py::Parallel.access_examples" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/parallel.py::Parallel.disable_progress_bar" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/parallel.py::Parallel.max_errors" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/parallel.py::Parallel.num_threads" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/parallel.py::Parallel.provide_traceback" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/parallel.py::Parallel.return_failed_examples" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/parallel.py::Parallel.straggler_limit" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/parallel.py::Parallel.timeout" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/predict.py::Predict.callbacks" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/predict.py::Predict.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/program_of_thought.py::ProgramOfThought.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "ProgramOfThought::with_interpreter" }
+"predict/program_of_thought.py::ProgramOfThought.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "ProgramOfThought::with_max_iters" }
+"predict/program_of_thought.py::ProgramOfThought.signature" = { status = "mapped", rust = "new", reason = "ProgramOfThought::new, positional" }
+"predict/react.py::ReAct.max_iters" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/react.py::ReAct.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/react.py::ReAct.tools" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/react_v2.py::ReActV2.max_iters" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/react_v2.py::ReActV2.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/react_v2.py::ReActV2.tools" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/refine.py::Refine.N" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/refine.py::Refine.fail_count" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/refine.py::Refine.module" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/refine.py::Refine.reward_fn" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/refine.py::Refine.threshold" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/rlm.py::RLM.interpreter" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/rlm.py::RLM.max_iterations" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/rlm.py::RLM.max_llm_calls" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/rlm.py::RLM.max_output_chars" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/rlm.py::RLM.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/rlm.py::RLM.sub_lm" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/rlm.py::RLM.tools" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"predict/rlm.py::RLM.verbose" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"primitives/code_interpreter.py::FinalOutput.output" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"primitives/example.py::Example.base" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"primitives/module.py::Module.callbacks" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"primitives/prediction.py::Completions.list_or_dict" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"primitives/prediction.py::Completions.signature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/bettertogether.py::BetterTogether.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/bootstrap.py::BootstrapFewShot.max_bootstrapped_demos" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/bootstrap.py::BootstrapFewShot.max_errors" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/bootstrap.py::BootstrapFewShot.max_labeled_demos" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/bootstrap.py::BootstrapFewShot.max_rounds" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/bootstrap.py::BootstrapFewShot.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/bootstrap.py::BootstrapFewShot.metric_threshold" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/bootstrap.py::BootstrapFewShot.teacher_settings" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/copro_optimizer.py::COPRO.breadth" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/copro_optimizer.py::COPRO.depth" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/copro_optimizer.py::COPRO.init_temperature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/copro_optimizer.py::COPRO.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/copro_optimizer.py::COPRO.prompt_model" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/copro_optimizer.py::COPRO.track_stats" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/ensemble.py::Ensemble.deterministic" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/ensemble.py::Ensemble.reduce_fn" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/ensemble.py::Ensemble.size" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.add_format_failure_as_feedback" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.auto" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.candidate_selection_strategy" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.component_selector" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.failure_score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.gepa_kwargs" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.instruction_proposer" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.log_dir" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.max_full_evals" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.max_merge_invocations" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.max_metric_calls" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.num_threads" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.perfect_score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.reflection_lm" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.reflection_minibatch_size" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.seed" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.skip_perfect_score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.track_best_outputs" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.track_stats" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.use_merge" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.use_mlflow" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.use_wandb" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.wandb_api_key" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.wandb_init_kwargs" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/gepa/gepa.py::GEPA.warn_on_score_mismatch" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.auto" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.init_temperature" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.log_dir" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_bootstrapped_demos" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_errors" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_labeled_demos" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.metric_threshold" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.num_candidates" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.num_threads" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.prompt_model" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.seed" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.task_model" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.teacher_settings" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.track_stats" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.verbose" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_bootstrapped_demos" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_errors" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_labeled_demos" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_rounds" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.metric" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.metric_threshold" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.num_candidate_programs" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.num_threads" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.stop_at_score" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.teacher_settings" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"teleprompt/vanilla.py::LabeledFewShot.k" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"utils/exceptions.py::ContextWindowExceededError.message" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }
+"utils/exceptions.py::ContextWindowExceededError.model" = { status = "todo", reason = "constructor parameter, not yet audited against this crate" }

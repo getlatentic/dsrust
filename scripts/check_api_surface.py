@@ -50,10 +50,18 @@ def rust_source() -> str:
 
 
 def is_defined(identifier: str, source: str) -> bool:
-    """The identifier appears as a definition or a re-export, not merely in passing."""
+    """The identifier appears as a definition or a re-export, not merely in passing.
+
+    A public struct field counts. Several of dspy's constructor parameters map to one here —
+    `ChatAdapter(use_json_adapter_fallback=...)` is `ChatAdapter { use_json_adapter_fallback }` —
+    and a field is as much API as a method is.
+    """
     keyword = r"(?:" + "|".join(DEFINES) + r")\s+" + re.escape(identifier) + r"\b"
     reexport = r"pub use [^\n]*\b" + re.escape(identifier) + r"\b"
-    return re.search(keyword, source) is not None or re.search(reexport, source) is not None
+    field = r"pub\s+" + re.escape(identifier) + r"\s*:"
+    return any(
+        re.search(pattern, source) is not None for pattern in (keyword, reexport, field)
+    )
 
 
 def top_level_keys(surface: dict) -> set[str]:
@@ -78,24 +86,50 @@ def method_keys(surface: dict, ledger: dict) -> set[str]:
     return keys
 
 
+def constructor_keys(surface: dict, ledger: dict) -> set[str]:
+    """Every parameter each mapped class's `__init__` accepts.
+
+    Gated for the same reason methods are: a name that quietly disappears from a constructor is a
+    caller who can no longer say something dspy lets them say. Only mapped classes, since an
+    unported class's parameters are the class's own gap.
+    """
+    keys = set()
+    for module, api in surface.items():
+        for cls, params in api.get("constructors", {}).items():
+            if ledger.get(f"{module}::{cls}", {}).get("status") != "mapped":
+                continue
+            keys.update(f"{module}::{cls}.{name}" for name in params)
+    return keys
+
+
 def main() -> None:
     surface = full_surface()
     ledger_file = tomllib.loads(LEDGER.read_text())
     ledger = ledger_file["symbols"]
     methods = ledger_file["methods"]
+    constructors = ledger_file["constructors"]
     defined = top_level_keys(surface)
     source = rust_source()
 
     # The same three checks over the top-level symbols and over the methods of every mapped class,
     # so a method that quietly went missing fails the run exactly as a symbol does.
     defined_methods = method_keys(surface, ledger)
-    entries = {**ledger, **methods}
-    unclassified = sorted(defined - set(ledger)) + sorted(defined_methods - set(methods))
-    stale = sorted(set(ledger) - defined) + sorted(set(methods) - defined_methods)
+    defined_params = constructor_keys(surface, ledger)
+    entries = {**ledger, **methods, **constructors}
+    unclassified = (
+        sorted(defined - set(ledger))
+        + sorted(defined_methods - set(methods))
+        + sorted(defined_params - set(constructors))
+    )
+    stale = (
+        sorted(set(ledger) - defined)
+        + sorted(set(methods) - defined_methods)
+        + sorted(set(constructors) - defined_params)
+    )
     broken = sorted(
         key
         for key, entry in entries.items()
-        if key in defined | defined_methods
+        if key in defined | defined_methods | defined_params
         and entry.get("status") == "mapped"
         and not is_defined(entry["rust"], source)
     )
@@ -142,6 +176,24 @@ def main() -> None:
     if method_total:
         print(f"  resolved   : {method_resolved}/{method_total} ({100 * method_resolved // method_total}%)")
 
+    param_counts = {"mapped": 0, "divergence": 0, "deferred": 0, "todo": 0}
+    for key in defined_params:
+        entry = constructors.get(key)
+        if entry:
+            param_counts[entry["status"]] = param_counts.get(entry["status"], 0) + 1
+    param_total = len(defined_params)
+    param_resolved = (
+        param_counts["mapped"] + param_counts["divergence"] + param_counts["deferred"]
+    )
+    print(f"constructor parameters of mapped classes: {param_total}")
+    print(f"  mapped     : {param_counts['mapped']}")
+    print(f"  divergence : {param_counts['divergence']}")
+    print(f"  deferred   : {param_counts['deferred']} (out of 1.0 scope)")
+    print(f"  todo       : {param_counts['todo']} (1.0 backlog)")
+    if param_total:
+        share = 100 * param_resolved // param_total
+        print(f"  resolved   : {param_resolved}/{param_total} ({share}%)")
+
     todos = sorted(k for k in defined if ledger.get(k, {}).get("status") == "todo")
     todos += sorted(k for k in defined_methods if methods.get(k, {}).get("status") == "todo")
     if todos:
@@ -155,7 +207,10 @@ def main() -> None:
         for line in failures:
             print(f"  {line}")
         sys.exit(1)
-    print("\nAPI-surface gate: OK (every dspy symbol and method mapped, justified, or tracked)")
+    print(
+        "\nAPI-surface gate: OK (every dspy symbol, method and constructor parameter mapped, "
+        "justified, or tracked)"
+    )
 
 
 if __name__ == "__main__":

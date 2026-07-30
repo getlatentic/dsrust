@@ -127,6 +127,22 @@ def _methods(cls: ast.ClassDef) -> list[str]:
     return sorted(out)
 
 
+def _constructor_params(cls: ast.ClassDef) -> list[str]:
+    """What `__init__` takes, by name.
+
+    A method list says `__init__` exists. It does not say what it accepts, and that is where a
+    port loses things quietly: `dspy.LM(model, temperature=…, max_tokens=…)` kept both on the
+    instance and merged them into every call, while this crate had neither and the gate read
+    216/216. The parameter names are the API as much as the method names are.
+    """
+    for stmt in cls.body:
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name == "__init__":
+            args = stmt.args
+            named = [a.arg for a in args.posonlyargs + args.args + args.kwonlyargs]
+            return sorted(name for name in named if name != "self" and _public(name))
+    return []
+
+
 def _toplevel(node: ast.Module):
     """Top-level statements, descending one level into conditional blocks that guard defs."""
     for stmt in node.body:
@@ -140,10 +156,14 @@ def surface_of(path: pathlib.Path) -> dict:
     tree = ast.parse(path.read_text(), filename=str(path))
     declared = _literal_all(tree)
     classes: dict[str, list[str]] = {}
+    constructors: dict[str, list[str]] = {}
     functions: list[str] = []
     for stmt in _toplevel(tree):
         if isinstance(stmt, ast.ClassDef) and _public(stmt.name):
             classes[stmt.name] = _methods(stmt)
+            params = _constructor_params(stmt)
+            if params:
+                constructors[stmt.name] = params
         elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and _public(stmt.name):
             functions.append(stmt.name)
     # `__all__` is dspy's own word on what is public: keep only what it names, but never drop a
@@ -155,6 +175,7 @@ def surface_of(path: pathlib.Path) -> dict:
     return {
         "declares_all": declared is not None,
         "classes": classes,
+        "constructors": {name: params for name, params in constructors.items() if name in classes},
         "functions": sorted(functions),
     }
 

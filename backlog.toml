@@ -90,6 +90,29 @@ This is the sprint that closed the project's one known blind spot.
 """
 
 [[story]]
+id = "api-3"
+sprint = "api"
+title = "Audit the 166 constructor parameters the API gate now counts"
+state = "todo"
+plan = """
+The gate read 216/216 on symbols and methods while `dspy.LM(model, temperature=..., max_tokens=...)`
+had neither parameter in this crate. A method list says `__init__` exists and nothing about what it
+accepts, so a whole class of divergence never went red: every keyword argument dspy offers that this
+crate has no way to say.
+
+`check_api_surface.py` gates a third table now, `[constructors]`, over what each mapped class's
+`__init__` takes. 184 parameters, 18 classified — the ones this session read upstream for and
+checked against the tree. The other 166 are `todo` by name, which is the honest starting number.
+
+Each one resolves the same three ways as a symbol: `mapped` with a Rust identifier the gate greps
+for, `divergence` with a written reason, or `deferred`. A public struct field counts as a definition,
+since `ChatAdapter(use_json_adapter_fallback=...)` is a field here rather than a method.
+
+Work it by module rather than alphabetically: adapters first, since a constructor argument there is
+usually a rendering decision and therefore prompt bytes.
+"""
+
+[[story]]
 id = "s3-1"
 sprint = "s3"
 title = "Prove the crate's BootstrapFewShot makes upstream's decisions"
