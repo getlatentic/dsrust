@@ -94,6 +94,8 @@ id = "api-6"
 sprint = "api"
 title = "A caller needs serde_json the moment they build anything, and nothing says so"
 state = "todo"
+size = "S"
+suites = []
 plan = """
 The public API takes and returns `serde_json::Value` — `JsonType::reflected(annotation, schema)`,
 `Tool::args`, `Prediction::get`. Reading an answer is fine, because the methods on `Value` need no
@@ -110,6 +112,9 @@ relying on it; the tokio one looked equally obvious and was wrong.
 
 Then `check_external_consumer.sh` should build a runtime-built signature with no `serde_json` line
 in its manifest, which is the only way this stays fixed.
+
+**What proves it.** `check_external_consumer.sh` is the proof, and only if it builds a runtime-built signature with no
+`serde_json` in that crate's manifest. Nothing upstream can test a Rust re-export.
 """
 
 [[story]]
@@ -117,6 +122,8 @@ id = "lm-streamify"
 sprint = "api"
 title = "Streaming reaches the provider and stops there: no streamify, listener or status"
 state = "todo"
+size = "L"
+suites = ["tests/streaming/test_streaming.py"]
 plan = """
 `LM::forward_stream` reads tokens off the provider, which is the transport half and the half that
 was easy. dspy's user-facing streaming is a layer above it and none of it exists here:
@@ -137,6 +144,9 @@ streams, and `forward_stream` already returns one. What is missing is everything
 
 Build the listener before the status provider. A field's chunks are what a caller actually wants,
 and the adapter already knows the marker boundaries it would key on.
+
+**What proves it.** Excused by name today. Un-excusing it is how the story starts: it arrives as a failure list, which
+is the honest specification for `streamify` and the listener.
 """
 
 [[story]]
@@ -144,6 +154,8 @@ id = "api-5"
 sprint = "api"
 title = "Re-read every ledger classification, assuming the author was wrong"
 state = "todo"
+size = "L"
+suites = []
 plan = """
 Four classifications were checked by the owner in one session and four were wrong. That is the
 prior to work from: an entry says what its author believed when they wrote it, and nothing since
@@ -175,6 +187,10 @@ capability in prose. Thirty-four reasons currently assert one, and each has to b
 Work them in that order — asserted capability first, then every divergence written before the
 feature it disclaims, then the mapped entries whose identifier resolves to something too generic
 for the grep to be evidence.
+
+**What proves it.** A reading pass over a ledger, so nothing green proves it. What can be gated is the result: every
+reason that asserts a capability names a Rust identifier the gate greps for, and the thirty-four
+asserting one today become zero unverified.
 """
 
 [[story]]
@@ -182,6 +198,8 @@ id = "lm-callbacks"
 sprint = "api"
 title = "Nothing observes a run: dspy's six callback points have no counterpart"
 state = "todo"
+size = "L"
+suites = ["tests/clients/test_lm.py", "tests/utils/test_settings.py"]
 plan = """
 `dspy.configure(callbacks=[MyCallback()])` fires a `BaseCallback` at six points, each with a start
 and an end: module, lm, adapter format, adapter parse, tool, evaluate. Upstream's own documentation
@@ -203,6 +221,10 @@ they did not expect, and they are what upstream's own example uses.
 
 Upstream's warning is worth carrying across: a callback that mutates what it is shown corrupts the
 run. A span takes values by reference and cannot, which is a real argument for the shape.
+
+**What proves it.** Both name `callbacks`, and `test_settings.py` is where `dspy.configure(callbacks=[...])` is
+exercised program-wide. Neither proves a span exists, so a Rust test subscribing to its own spans
+is what actually holds it.
 """
 
 [[story]]
@@ -210,6 +232,8 @@ id = "lm-retry"
 sprint = "api"
 title = "num_retries: dspy retries three times with backoff and this crate retries zero"
 state = "todo"
+size = "M"
+suites = ["tests/clients/test_lm.py"]
 plan = """
 `dspy.LM(model, num_retries=3)` is the default, and its docstring says what it covers: "retry a
 request if it fails transiently due to network error, rate limiting, etc. Requests are retried with
@@ -228,6 +252,9 @@ Two details worth reading upstream for rather than inventing. Whether a retry va
 a replayed failure is not a retry. And whether the backoff is bounded in total time or only in
 attempts, because a rate-limited provider can hold `retry_after` high enough that three attempts
 outlive the caller's patience.
+
+**What proves it.** Already in SUITES, and the file names `num_retries`. Triage which of its tests turn red once a
+retry loop exists — that list is the specification for the loop's shape.
 """
 
 [[story]]
@@ -235,6 +262,8 @@ id = "api-4"
 sprint = "api"
 title = "An error's cause should be in its message, not only in its chain"
 state = "todo"
+size = "S"
+suites = ["tests/adapters/test_json_adapter.py"]
 plan = """
 Reported by an outside project, and it cost them a debugging cycle: `{e}` prints
 "validated reply did not fit the requested type" and `{e:#}` prints ``missing field `name` ``. The
@@ -252,13 +281,19 @@ A second shape, found running an extraction experiment against a 1B model: the r
 "reply has no [[ ## field ## ]] sections", which is the chat adapter's, while the wire showed the
 JSON fallback had fired and it was the fallback that failed last. A caller reads the first adapter's
 complaint and never learns a second was tried, which is less useful than either error alone.
+
+**What proves it.** Upstream's adapter suites exercise the failures whose wording is wrong; none asserts the text a
+caller reads. A golden of the rendered messages closes it, in the shape
+`tests/exceptions_conformance.rs` already uses.
 """
 
 [[story]]
 id = "api-3"
 sprint = "api"
-title = "Audit the 166 constructor parameters the API gate now counts"
+title = "Audit the 34 constructor parameters still unclassified"
 state = "todo"
+size = "M"
+suites = []
 plan = """
 The gate read 216/216 on symbols and methods while `dspy.LM(model, temperature=..., max_tokens=...)`
 had neither parameter in this crate. A method list says `__init__` exists and nothing about what it
@@ -278,6 +313,10 @@ since `ChatAdapter(use_json_adapter_fallback=...)` is a field here rather than a
 
 Work it by module rather than alphabetically: adapters first, since a constructor argument there is
 usually a rendering decision and therefore prompt bytes.
+
+**What proves it.** Held by `check_api_surface.py`'s `[constructors]` table rather than by a suite — no upstream
+test asserts a Rust method exists. The gate's count is the evidence, and it fails if an entry goes
+unclassified or names an identifier that is not there.
 """
 
 [[story]]
