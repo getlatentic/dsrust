@@ -142,6 +142,8 @@ pub struct MIPROv2<M> {
     seed: u64,
     /// dspy `init_temperature`: what instructions are proposed at (default 1.0).
     init_temperature: f64,
+    /// dspy `metric_threshold`: the score a bootstrapped trace must beat to be kept in Step 1.
+    metric_threshold: Option<f64>,
     /// What a scoring pass is bounded by. See [`Scoring`](super::Scoring).
     scoring: super::Scoring,
     program_code: Option<String>,
@@ -162,6 +164,7 @@ where
             num_trials: 20,
             seed: 9,
             init_temperature: 1.0,
+            metric_threshold: None,
             scoring: super::Scoring::default(),
             program_code: None,
             tip_aware: true,
@@ -184,6 +187,13 @@ where
     /// for proposals that stay close to the current instruction.
     pub fn init_temperature(mut self, temperature: f64) -> Self {
         self.init_temperature = temperature;
+        self
+    }
+
+    /// dspy `metric_threshold`: the score a bootstrapped trace must beat to be kept in Step 1.
+    /// Unset keeps every trace whose metric was truthy, which is upstream's default.
+    pub fn metric_threshold(mut self, threshold: f64) -> Self {
+        self.metric_threshold = Some(threshold);
         self
     }
 
@@ -246,6 +256,7 @@ where
             ZEROSHOT_LABELED,
             ZEROSHOT_BOOTSTRAPPED,
             &self.metric,
+            self.metric_threshold,
             &mut rng,
         )
         .await?;

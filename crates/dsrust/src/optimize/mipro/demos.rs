@@ -26,6 +26,7 @@ pub(super) async fn create_demo_sets<S, M>(
     max_labeled: usize,
     max_bootstrapped: usize,
     metric: &M,
+    metric_threshold: Option<f64>,
     rng: &mut Rng,
 ) -> Result<Vec<Vec<Vec<Example>>>>
 where
@@ -49,7 +50,7 @@ where
                 .compile(student, trainset);
             }
             -1 => {
-                bootstrap(max_bootstrapped, max_labeled, metric)
+                bootstrap(max_bootstrapped, max_labeled, metric, metric_threshold)
                     .compile(student, trainset)
                     .await?;
             }
@@ -58,7 +59,7 @@ where
                 let mut shuffled = trainset.to_vec();
                 rng.shuffle(&mut shuffled);
                 let size = rng.randint(MIN_NUM_SAMPLES, max_bootstrapped as u64) as usize;
-                bootstrap(size, max_labeled, metric)
+                bootstrap(size, max_labeled, metric, metric_threshold)
                     .compile(student, &shuffled)
                     .await?;
             }
@@ -74,10 +75,16 @@ where
 
 /// A bootstrap teleprompter borrowing the metric, so each set builds its own without the metric
 /// needing to be cloned. dspy constructs a fresh `BootstrapFewShot` per set the same way.
-fn bootstrap<M>(max_bootstrapped: usize, max_labeled: usize, metric: &M) -> BootstrapFewShot<&M> {
+fn bootstrap<M>(
+    max_bootstrapped: usize,
+    max_labeled: usize,
+    metric: &M,
+    metric_threshold: Option<f64>,
+) -> BootstrapFewShot<&M> {
     BootstrapFewShot {
         max_bootstrapped_demos: max_bootstrapped,
         max_labeled_demos: max_labeled,
+        metric_threshold,
         ..BootstrapFewShot::new(metric)
     }
 }
@@ -172,6 +179,7 @@ mod tests {
                 case["max_labeled"].as_u64().expect("max_labeled") as usize,
                 case["max_bootstrapped"].as_u64().expect("max_bootstrapped") as usize,
                 &exact_match,
+                None,
                 &mut rng,
             )
             .await

@@ -729,7 +729,7 @@
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.max_errors" = { status = "mapped", rust = "MIPROv2::scoring", reason = "both of dspy's scoring bounds travel together as optimize::Scoring, since every optimizer that builds an Evaluate needs the pair" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.max_labeled_demos" = { status = "todo", reason = "as max_bootstrapped_demos — Step 1 uses LABELED_FEWSHOT_EXAMPLES_IN_CONTEXT = 0, dspy's own zero-shot value" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.metric" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new, positional" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.metric_threshold" = { status = "todo", reason = "the score a bootstrapped trace must beat to be kept. The machinery exists — BootstrapFewShot::metric_threshold is mapped, and Step 1 builds a BootstrapFewShot (src/optimize/mipro/demos.rs) — so what is left is threading the setting into it, as with num_threads. Not a missing capability" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.metric_threshold" = { status = "mapped", rust = "MIPROv2::metric_threshold" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.num_candidates" = { status = "mapped", rust = "with_candidates", reason = "MIPROv2::with_candidates" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.num_threads" = { status = "mapped", rust = "MIPROv2::scoring", reason = "both of dspy's scoring bounds travel together as optimize::Scoring, since every optimizer that builds an Evaluate needs the pair" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.prompt_model" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new's second argument" }
