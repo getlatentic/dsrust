@@ -31,19 +31,17 @@ impl<S: SignatureSpec + Send + Sync> Predict<S> {
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
     pub async fn call_inputs(&self, inputs: &S::Inputs) -> Result<S::Outputs> {
         let lm = self.asking()?;
-        let http = crate::lm::global::client();
-        self.call_inputs_with(&http, lm.as_ref(), inputs).await
+        self.call_inputs_with(lm.as_ref(), inputs).await
     }
 
     /// Ask through an explicit client and model: the per-call override, and the seam tests
     /// script with a canned [`ChatModel`](crate::lm::ChatModel).
     pub async fn call_inputs_with(
         &self,
-        http: &reqwest::Client,
         lm: &dyn DynChatModel,
         inputs: &S::Inputs,
     ) -> Result<S::Outputs> {
-        typed_task::<S, _>(self, http, lm, inputs, std::convert::identity).await
+        typed_task::<S, _>(self, lm, inputs, std::convert::identity).await
     }
 }
 
@@ -54,18 +52,16 @@ impl<S: SignatureSpec + Send + Sync> Predict<S> {
 /// `reasoning`) before deserializing.
 pub(crate) async fn typed_task<S: SignatureSpec, P>(
     predict: &Predict<P>,
-    http: &reqwest::Client,
     lm: &dyn DynChatModel,
     inputs: &S::Inputs,
     shape: fn(Value) -> Value,
 ) -> Result<S::Outputs> {
-    typed_pairs::<S, _>(predict, http, lm, S::input_pairs(inputs), shape).await
+    typed_pairs::<S, _>(predict, lm, S::input_pairs(inputs), shape).await
 }
 
 /// [`typed_task`] reached with the fields already named, which is what an `Example` carries.
 pub(crate) async fn typed_pairs<S: SignatureSpec, P>(
     predict: &Predict<P>,
-    http: &reqwest::Client,
     lm: &dyn DynChatModel,
     pairs: Vec<Input<'_>>,
     shape: fn(Value) -> Value,
@@ -77,7 +73,7 @@ pub(crate) async fn typed_pairs<S: SignatureSpec, P>(
         value,
         usage: _,
     } = predict
-        .call_with_inputs(http, lm, &pairs, &super::Steering::default())
+        .call_with_inputs(lm, &pairs, &super::Steering::default())
         .await?;
     let error = match typed::<S::Outputs>(shape(value)) {
         Ok(outputs) => return Ok(outputs),
@@ -89,7 +85,7 @@ pub(crate) async fn typed_pairs<S: SignatureSpec, P>(
         error: format!("{error:#}"),
     };
     let (_, value, _) = predict
-        .feedback_ask(http, lm, &pairs, &feedback, &super::Steering::default())
+        .feedback_ask(lm, &pairs, &feedback, &super::Steering::default())
         .await?;
     typed(shape(value))
 }
@@ -111,12 +107,11 @@ where
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
         Box::pin(async move {
             let lm = self.asking()?;
-            let http = crate::lm::global::client();
             let pairs: Vec<Input<'_>> = inputs
                 .fields()
                 .map(|(name, value)| Input::new(name, value.clone()))
                 .collect();
-            typed_pairs::<S, _>(self, &http, lm.as_ref(), pairs, std::convert::identity).await
+            typed_pairs::<S, _>(self, lm.as_ref(), pairs, std::convert::identity).await
         })
     }
 }

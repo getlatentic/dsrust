@@ -16,15 +16,12 @@ impl<S> Predict<S> {
     /// nothing.
     pub async fn forward_completions(&self, inputs: Example) -> Result<Vec<Prediction>> {
         let lm = self.asking()?;
-        let http = crate::lm::global::client();
         let (pairs, predicted_output) = rendered_inputs(&inputs);
         let steering = Steering {
             predicted_output,
             ..Steering::default()
         };
-        let answered = self
-            .ask(&http, lm.as_ref(), &pairs, None, &steering)
-            .await?;
+        let answered = self.ask(lm.as_ref(), &pairs, None, &steering).await?;
         let mut usage = answered.response.spend();
         let mut predictions = Vec::new();
         for output in &answered.response.outputs {

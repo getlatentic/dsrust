@@ -67,7 +67,6 @@ fn reply(answer: &str) -> String {
 #[tokio::test]
 async fn a_module_that_answers_correctly_scores_one() {
     let lm = Scripted::new(&[&reply("Paris"), &reply("Berlin")]);
-    let http = reqwest::Client::new();
     let predict = dsrust::predict::Predict::from_signature(signature());
 
     let evaluation = Evaluate::new(
@@ -80,9 +79,8 @@ async fn a_module_that_answers_correctly_scores_one() {
                 .to_owned();
             let predict = &predict;
             let lm = &lm;
-            let http = &http;
             async move {
-                let value = predict.call_with(http, lm, &request).await?;
+                let value = predict.call_with(lm, &request).await?;
                 let answer = value["answer"].clone();
                 Ok(Prediction::new(
                     Example::new([("answer", answer)]),
@@ -102,7 +100,6 @@ async fn a_module_that_answers_correctly_scores_one() {
 #[tokio::test]
 async fn a_wrong_answer_scores_zero_and_keeps_the_reply_for_inspection() {
     let lm = Scripted::new(&[&reply("Lyon"), &reply("Berlin")]);
-    let http = reqwest::Client::new();
     let predict = dsrust::predict::Predict::from_signature(signature());
 
     let evaluation = Evaluate::new(
@@ -115,9 +112,8 @@ async fn a_wrong_answer_scores_zero_and_keeps_the_reply_for_inspection() {
                 .to_owned();
             let predict = &predict;
             let lm = &lm;
-            let http = &http;
             async move {
-                let value = predict.call_with(http, lm, &request).await?;
+                let value = predict.call_with(lm, &request).await?;
                 Ok(Prediction::new(
                     Example::new([("answer", value["answer"].clone())]),
                     value.to_string(),

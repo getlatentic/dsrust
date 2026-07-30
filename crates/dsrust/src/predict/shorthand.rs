@@ -16,18 +16,12 @@ impl Predict<Dynamic> {
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
     pub async fn call(&self, input: &str) -> Result<Value> {
         let lm = self.asking()?;
-        let http = crate::lm::global::client();
-        self.call_with(&http, lm.as_ref(), input).await
+        self.call_with(lm.as_ref(), input).await
     }
 
     /// Ask through an explicit client and model: the per-call override, and the seam tests
     /// script with a canned [`ChatModel`](crate::lm::ChatModel).
-    pub async fn call_with(
-        &self,
-        http: &reqwest::Client,
-        lm: &dyn DynChatModel,
-        input: &str,
-    ) -> Result<Value> {
+    pub async fn call_with(&self, lm: &dyn DynChatModel, input: &str) -> Result<Value> {
         let name = self
             .signature
             .inputs
@@ -35,7 +29,6 @@ impl Predict<Dynamic> {
             .map_or("request", |f| f.name.as_str());
         Ok(self
             .call_with_inputs(
-                http,
                 lm,
                 &[Input::new(name, Value::String(input.to_owned()))],
                 &Steering::default(),
@@ -52,10 +45,9 @@ impl Predict<Dynamic> {
     /// [`Self::call_typed`] through an explicit client and model.
     pub async fn call_typed_with<T: DeserializeOwned>(
         &self,
-        http: &reqwest::Client,
         lm: &dyn DynChatModel,
         input: &str,
     ) -> Result<T> {
-        typed(self.call_with(http, lm, input).await?)
+        typed(self.call_with(lm, input).await?)
     }
 }

@@ -267,8 +267,9 @@ async fn forward_stream_reads_sse_into_typed_events() {
     let lm = probe_lm(&stub);
     let request = probe_request(&OutputMode::Text);
 
+    let http = reqwest::Client::new();
     let events: Vec<LmStreamEvent> = lm
-        .forward_stream(&reqwest::Client::new(), &request)
+        .forward_stream(&http, &request)
         .map(|event| event.expect("a valid event"))
         .collect()
         .await;

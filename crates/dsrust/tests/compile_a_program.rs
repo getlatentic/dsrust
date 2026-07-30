@@ -100,7 +100,7 @@ async fn the_chosen_demos_reach_the_prompt() {
 
     let lm = Recorder::new(&["[[ ## answer ## ]]\nMadrid\n\n[[ ## completed ## ]]"]);
     predict
-        .call_with(&reqwest::Client::new(), &lm, "capital of Spain?")
+        .call_with(&lm, "capital of Spain?")
         .await
         .expect("the call succeeds");
 

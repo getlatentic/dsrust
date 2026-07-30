@@ -199,7 +199,7 @@ fn the_derive_marks_a_struct_field_as_a_record_and_a_collection_as_not() {
 async fn prompts_annotate_json_fields_and_a_marker_reply_deserializes() {
     let lm = Scripted::new(&[&marker_reply(GOOD_IDEAS)]);
     let outputs = IdeasTask::predict()
-        .call_inputs_with(&reqwest::Client::new(), &lm, &inputs())
+        .call_inputs_with(&lm, &inputs())
         .await
         .expect("valid reply");
     assert_eq!(outputs.ideas.len(), 3);
@@ -248,7 +248,7 @@ async fn a_fenced_json_marker_section_still_parses() {
     let fenced = format!("```json\n{GOOD_IDEAS}\n```");
     let lm = Scripted::new(&[&marker_reply(&fenced)]);
     let outputs = IdeasTask::predict()
-        .call_inputs_with(&reqwest::Client::new(), &lm, &inputs())
+        .call_inputs_with(&lm, &inputs())
         .await
         .expect("valid reply");
     assert_eq!(outputs.ideas.len(), 3);
@@ -261,7 +261,7 @@ async fn invalid_json_rides_the_feedback_retry() {
     let lm = Scripted::new(&[&bad, &marker_reply(GOOD_IDEAS)]);
     let outputs = IdeasTask::predict()
         .with_feedback_retry()
-        .call_inputs_with(&reqwest::Client::new(), &lm, &inputs())
+        .call_inputs_with(&lm, &inputs())
         .await
         .expect("second reply is valid");
     assert_eq!(outputs.ideas.len(), 3);
@@ -288,7 +288,7 @@ async fn the_json_adapter_passes_native_arrays_through() {
     let lm = Scripted::new(&[&native]);
     let outputs = IdeasTask::predict()
         .with_adapter(JsonAdapter::default())
-        .call_inputs_with(&reqwest::Client::new(), &lm, &inputs())
+        .call_inputs_with(&lm, &inputs())
         .await
         .expect("native json reply");
     assert_eq!(outputs.ideas.len(), 3);
@@ -306,7 +306,7 @@ async fn a_shape_mismatch_gets_one_deep_retry_carrying_the_serde_error() {
     let shallow = marker_reply(r#"[{"title":"Fly rod"}]"#);
     let lm = Scripted::new(&[&shallow, &marker_reply(GOOD_IDEAS)]);
     let outputs = IdeasTask::predict()
-        .call_inputs_with(&reqwest::Client::new(), &lm, &inputs())
+        .call_inputs_with(&lm, &inputs())
         .await
         .expect("corrected reply deserializes");
     assert_eq!(outputs.ideas.len(), 3);
@@ -333,7 +333,7 @@ async fn a_second_shape_failure_is_final_with_no_third_ask() {
     let shallow = marker_reply(r#"[{"title":"Fly rod"}]"#);
     let lm = Scripted::new(&[&shallow, &shallow]);
     let error = IdeasTask::predict()
-        .call_inputs_with(&reqwest::Client::new(), &lm, &inputs())
+        .call_inputs_with(&lm, &inputs())
         .await
         .expect_err("second bad shape is final");
     assert!(
@@ -358,7 +358,7 @@ async fn typed_calls_stay_bounded_at_three_provider_calls() {
     let outputs = IdeasTask::predict()
         .with_feedback_retry()
         .with_adapter(JsonAdapter::default())
-        .call_inputs_with(&reqwest::Client::new(), &lm, &inputs())
+        .call_inputs_with(&lm, &inputs())
         .await
         .expect("third reply lands");
     assert_eq!(outputs.ideas.len(), 3);
@@ -405,7 +405,7 @@ async fn chain_of_thought_deep_retry_keeps_the_full_previous_reply() {
     );
     let lm = Scripted::new(&[&reasoned_bad, &reasoned_good]);
     let outputs = IdeasTask::chain_of_thought()
-        .call_inputs_with(&reqwest::Client::new(), &lm, &inputs())
+        .call_inputs_with(&lm, &inputs())
         .await
         .expect("corrected reply deserializes");
     assert_eq!(outputs.ideas.len(), 3);

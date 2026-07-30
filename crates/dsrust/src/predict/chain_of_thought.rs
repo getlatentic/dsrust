@@ -74,21 +74,13 @@ impl ChainOfThought {
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
     pub async fn call(&self, input: &str) -> Result<Value> {
         let lm = global::current()?;
-        let http = global::client();
-        self.call_with(&http, lm.as_ref(), input).await
+        self.call_with(lm.as_ref(), input).await
     }
 
     /// Ask through an explicit client and model: the per-call override, and the seam tests
     /// script with a canned [`ChatModel`](crate::lm::ChatModel).
-    pub async fn call_with(
-        &self,
-        http: &reqwest::Client,
-        lm: &dyn DynChatModel,
-        input: &str,
-    ) -> Result<Value> {
-        Ok(without_reasoning(
-            self.predict.call_with(http, lm, input).await?,
-        ))
+    pub async fn call_with(&self, lm: &dyn DynChatModel, input: &str) -> Result<Value> {
+        Ok(without_reasoning(self.predict.call_with(lm, input).await?))
     }
 
     /// The validated reply as a caller-owned struct instead of loose JSON.
@@ -99,11 +91,10 @@ impl ChainOfThought {
     /// [`Self::call_typed`] through an explicit client and model.
     pub async fn call_typed_with<T: DeserializeOwned>(
         &self,
-        http: &reqwest::Client,
         lm: &dyn DynChatModel,
         input: &str,
     ) -> Result<T> {
-        typed(self.call_with(http, lm, input).await?)
+        typed(self.call_with(lm, input).await?)
     }
 }
 
@@ -118,19 +109,17 @@ impl<S: SignatureSpec> TypedChainOfThought<S> {
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
     pub async fn call_inputs(&self, inputs: &S::Inputs) -> Result<S::Outputs> {
         let lm = global::current()?;
-        let http = global::client();
-        self.call_inputs_with(&http, lm.as_ref(), inputs).await
+        self.call_inputs_with(lm.as_ref(), inputs).await
     }
 
     /// Ask through an explicit client and model: the per-call override, and the seam tests
     /// script with a canned [`ChatModel`](crate::lm::ChatModel).
     pub async fn call_inputs_with(
         &self,
-        http: &reqwest::Client,
         lm: &dyn DynChatModel,
         inputs: &S::Inputs,
     ) -> Result<S::Outputs> {
-        typed_task::<S, _>(&self.cot.predict, http, lm, inputs, without_reasoning).await
+        typed_task::<S, _>(&self.cot.predict, lm, inputs, without_reasoning).await
     }
 }
 
@@ -263,15 +252,12 @@ mod tests {
         let reply = "[[ ## reasoning ## ]]\nthinking\n\n[[ ## color ## ]]\nred\n\n[[ ## why ## ]]\ncalm\n\n[[ ## completed ## ]]";
         let lm = Scripted::new(&[reply]);
         let cot = ChainOfThought::from_signature(signature());
-        let value = cot
-            .call_with(&reqwest::Client::new(), &lm, "draft it")
-            .await
-            .expect("valid reply");
+        let value = cot.call_with(&lm, "draft it").await.expect("valid reply");
         assert_eq!(value, json!({ "color": "red", "why": "calm" }));
 
         let lm = Scripted::new(&[reply]);
         let pick: Pick = cot
-            .call_typed_with(&reqwest::Client::new(), &lm, "draft it")
+            .call_typed_with(&lm, "draft it")
             .await
             .expect("deserializes");
         assert_eq!(pick.color, "red");
@@ -282,7 +268,7 @@ mod tests {
         let reply = "[[ ## reasoning ## ]]\nthinking\n\n[[ ## color ## ]]\nblue\n\n[[ ## why ## ]]\nfresh\n\n[[ ## completed ## ]]";
         let lm = Scripted::new(&[reply]);
         let outputs = RoomTask::chain_of_thought()
-            .call_inputs_with(&reqwest::Client::new(), &lm, &room_inputs())
+            .call_inputs_with(&lm, &room_inputs())
             .await
             .expect("valid reply");
         assert_eq!(outputs.color, "blue");
@@ -305,14 +291,12 @@ where
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
         Box::pin(async move {
             let lm = global::current()?;
-            let http = global::client();
             let pairs: Vec<Input<'_>> = inputs
                 .fields()
                 .map(|(name, value)| Input::new(name, value.clone()))
                 .collect();
             super::derived::typed_pairs::<S, _>(
                 &self.cot.predict,
-                &http,
                 lm.as_ref(),
                 pairs,
                 without_reasoning,

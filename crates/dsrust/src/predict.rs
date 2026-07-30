@@ -160,7 +160,6 @@ impl<S> Predict<S> {
     async fn ask_through(
         &self,
         adapter: &dyn Adapter,
-        http: &reqwest::Client,
         lm: &dyn DynChatModel,
         inputs: &[Input<'_>],
         feedback: Option<&Feedback>,
@@ -176,7 +175,7 @@ impl<S> Predict<S> {
         let asking = adapter.native_function_calling();
         let reasons = native_reasoning::reasoning_output_field(&asked).is_some();
         let capabilities = match asking.enabled || reasons {
-            true => lm.capabilities_dyn(http).await,
+            true => lm.capabilities_dyn(&crate::lm::global::client()).await,
             false => Capabilities::default(),
         };
         let native = match asking.enabled {
@@ -225,7 +224,9 @@ impl<S> Predict<S> {
                 .extensions
                 .insert("prediction".to_owned(), predicted.clone());
         }
-        let response = lm.forward_dyn(http, &request).await?;
+        let response = lm
+            .forward_dyn(&crate::lm::global::client(), &request)
+            .await?;
         Ok(Reply {
             response,
             rendered: asked,
@@ -234,19 +235,17 @@ impl<S> Predict<S> {
 
     async fn ask(
         &self,
-        http: &reqwest::Client,
         lm: &dyn DynChatModel,
         inputs: &[Input<'_>],
         feedback: Option<&Feedback>,
         steering: &Steering,
     ) -> Result<Reply> {
-        self.ask_through(self.adapter.as_ref(), http, lm, inputs, feedback, steering)
+        self.ask_through(self.adapter.as_ref(), lm, inputs, feedback, steering)
             .await
     }
 
     async fn call_with_inputs(
         &self,
-        http: &reqwest::Client,
         lm: &dyn DynChatModel,
         inputs: &[Input<'_>],
         steering: &Steering,
@@ -254,7 +253,7 @@ impl<S> Predict<S> {
         // dspy's ChatAdapter catches a parse failure and re-asks the whole exchange through
         // the JSON adapter; `use_json_adapter_fallback` turns that off. The adapter states the
         // policy, this module carries it out, because only the module can call the model.
-        let answered = self.ask(http, lm, inputs, None, steering).await?;
+        let answered = self.ask(lm, inputs, None, steering).await?;
         // A provider that returned no completions at all did not return an empty one. Upstream's
         // `Adapter.__call__` loops over the outputs, so an empty list never reaches its parser and
         // `Predict` hands back a prediction with no fields; parsing `""` instead would report a
@@ -282,7 +281,7 @@ impl<S> Predict<S> {
         // An adapter that answers in prose has a second model read the fields out of it. The
         // adapter says what to ask and who to ask; only this module can do the asking.
         if let Some(extraction) = self.adapter.extraction(&self.signature) {
-            return self.extract(http, extraction, raw, usage).await;
+            return self.extract(extraction, raw, usage).await;
         }
         let (raw, mut value, usage) = match self.adapter.parse(&self.signature, &raw) {
             Ok(value) => (raw, value, usage),
@@ -302,7 +301,7 @@ impl<S> Predict<S> {
                 Some(fallback) => {
                     tracing::warn!(%error, "reply did not parse; re-asking through the fallback");
                     let answered = self
-                        .ask_through(fallback.as_ref(), http, lm, inputs, None, steering)
+                        .ask_through(fallback.as_ref(), lm, inputs, None, steering)
                         .await?;
                     let answered_text = answered.response.first_text();
                     let value = fallback.parse(&self.signature, &answered_text)?;
@@ -327,9 +326,8 @@ impl<S> Predict<S> {
                     previous: raw,
                     error: error.to_string(),
                 };
-                let (raw, value, retried) = self
-                    .feedback_ask(http, lm, inputs, &feedback, steering)
-                    .await?;
+                let (raw, value, retried) =
+                    self.feedback_ask(lm, inputs, &feedback, steering).await?;
                 Ok(Validated {
                     raw,
                     value,
@@ -525,18 +523,12 @@ mod tests {
         let lm = Scripted::new(&[MARKER_REPLY, MARKER_REPLY]);
 
         let mut plain = Predict::from_signature(signature());
-        plain
-            .call_with(&reqwest::Client::new(), &lm, "draft it")
-            .await
-            .expect("valid reply");
+        plain.call_with(&lm, "draft it").await.expect("valid reply");
 
         for predictor in plain.named_predictors() {
             *predictor.hint = Some("name a warm colour".to_owned());
         }
-        plain
-            .call_with(&reqwest::Client::new(), &lm, "draft it")
-            .await
-            .expect("valid reply");
+        plain.call_with(&lm, "draft it").await.expect("valid reply");
 
         let calls = lm.calls();
         assert!(
@@ -564,7 +556,7 @@ mod tests {
     async fn a_marker_reply_flows_through_the_chat_adapter() {
         let lm = Scripted::new(&[MARKER_REPLY]);
         let value = Predict::from_signature(signature())
-            .call_with(&reqwest::Client::new(), &lm, "draft it")
+            .call_with(&lm, "draft it")
             .await
             .expect("valid reply");
         assert_eq!(value, json!({ "color": "red", "why": "calm" }));
@@ -580,7 +572,7 @@ mod tests {
         let lm = Scripted::new(&[bad, MARKER_REPLY]);
         let value = Predict::from_signature(signature())
             .with_feedback_retry()
-            .call_with(&reqwest::Client::new(), &lm, "draft it")
+            .call_with(&lm, "draft it")
             .await
             .expect("second reply is valid");
         assert_eq!(value["color"], "red");
@@ -640,7 +632,7 @@ mod tests {
             r#"{ "color": "red", "why": "calm" }"#,
         ]);
         let value = Predict::from_signature(signature())
-            .call_with(&reqwest::Client::new(), &lm, "draft it")
+            .call_with(&lm, "draft it")
             .await
             .expect("the fallback parses");
         assert_eq!(value["color"], "red");
@@ -661,12 +653,7 @@ mod tests {
         let lm = Scripted::new(&["red because it is calm", r#"{ "color": "red" }"#]);
         let predict =
             Predict::from_signature(signature()).with_adapter(ChatAdapter::without_json_fallback());
-        assert!(
-            predict
-                .call_with(&reqwest::Client::new(), &lm, "draft it")
-                .await
-                .is_err()
-        );
+        assert!(predict.call_with(&lm, "draft it").await.is_err());
         assert_eq!(
             lm.calls().len(),
             1,
@@ -684,7 +671,7 @@ mod tests {
             r#"{"color": "blue", "why": "calm"}"#,
         ]);
         let value = Predict::from_signature(signature())
-            .call_with(&reqwest::Client::new(), &lm, "draft it")
+            .call_with(&lm, "draft it")
             .await
             .expect("the fallback answers");
         assert_eq!(value["color"], "blue");
@@ -713,7 +700,7 @@ mod tests {
         ]);
         let value = Predict::from_signature(signature())
             .with_feedback_retry()
-            .call_with(&reqwest::Client::new(), &lm, "draft it")
+            .call_with(&lm, "draft it")
             .await
             .expect("second reply is valid");
         assert_eq!(value["color"], "blue");
@@ -726,7 +713,7 @@ mod tests {
         assert!(
             Predict::from_signature(signature())
                 .with_feedback_retry()
-                .call_with(&reqwest::Client::new(), &lm, "draft it")
+                .call_with(&lm, "draft it")
                 .await
                 .is_err()
         );
@@ -741,7 +728,7 @@ mod tests {
     async fn call_typed_hands_back_a_struct_or_a_shape_error() {
         let lm = Scripted::new(&[MARKER_REPLY]);
         let pick: Pick = Predict::from_signature(signature())
-            .call_typed_with(&reqwest::Client::new(), &lm, "draft it")
+            .call_typed_with(&lm, "draft it")
             .await
             .expect("deserializes");
         assert_eq!(pick.color, "red");
@@ -754,7 +741,7 @@ mod tests {
         }
         let lm = Scripted::new(&[MARKER_REPLY]);
         let wrong: Result<Wrong> = Predict::from_signature(signature())
-            .call_typed_with(&reqwest::Client::new(), &lm, "draft it")
+            .call_typed_with(&lm, "draft it")
             .await;
         assert!(wrong.is_err());
     }
@@ -763,7 +750,7 @@ mod tests {
     async fn a_typed_task_renders_every_input_and_returns_the_outputs_struct() {
         let lm = Scripted::new(&[MARKER_REPLY]);
         let outputs = Predict::task::<RoomTask>()
-            .call_inputs_with(&reqwest::Client::new(), &lm, &room_inputs())
+            .call_inputs_with(&lm, &room_inputs())
             .await
             .expect("valid reply");
         assert_eq!(outputs.color, "red");
@@ -787,7 +774,7 @@ mod tests {
         let lm = Scripted::new(&[bad, MARKER_REPLY]);
         let outputs = RoomTask::predict()
             .with_feedback_retry()
-            .call_inputs_with(&reqwest::Client::new(), &lm, &room_inputs())
+            .call_inputs_with(&lm, &room_inputs())
             .await
             .expect("second reply is valid");
         assert_eq!(outputs.color, "red");
@@ -875,7 +862,7 @@ mod tests {
             years: 30,
         };
         let outputs = SizeTask::predict()
-            .call_inputs_with(&reqwest::Client::new(), &lm, &inputs)
+            .call_inputs_with(&lm, &inputs)
             .await
             .expect("valid reply");
         assert_eq!(outputs.amount, 0.04);
@@ -904,7 +891,7 @@ mod tests {
         let lm = Scripted::new(&[bad, good]);
         let value = Predict::from_signature(typed_signature())
             .with_feedback_retry()
-            .call_with(&reqwest::Client::new(), &lm, "size it")
+            .call_with(&lm, "size it")
             .await
             .expect("second reply is valid");
         assert_eq!(
@@ -946,7 +933,7 @@ mod tests {
                 demos: Vec::new(),
             };
             let value = predict
-                .call_with(&reqwest::Client::new(), &lm, "size it")
+                .call_with(&lm, "size it")
                 .await
                 .expect("valid reply");
             assert_eq!(value, json!({ "amount": 0.04, "double": true, "count": 3 }));
@@ -996,7 +983,6 @@ impl<S: Send + Sync> Predict<S> {
         steering: &Steering,
     ) -> Result<Prediction> {
         let lm = self.asking()?;
-        let http = crate::lm::global::client();
         let (pairs, lifted) = rendered_inputs(&inputs);
         let mut steering = steering.clone();
         // Upstream assigns `config["prediction"]` after merging the caller's `config=`, so an input
@@ -1006,7 +992,7 @@ impl<S: Send + Sync> Predict<S> {
             steering.predicted_output = lifted;
         }
         let validated = self
-            .call_with_inputs(&http, lm.as_ref(), &pairs, &steering)
+            .call_with_inputs(lm.as_ref(), &pairs, &steering)
             .await?;
         Ok(
             Prediction::new(prediction_example(&validated.value), validated.raw)

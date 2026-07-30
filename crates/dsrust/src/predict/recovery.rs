@@ -20,7 +20,6 @@ impl<S> Predict<S> {
     /// outputs out — so nothing here knows it is reading prose rather than a fresh request.
     pub(super) async fn extract(
         &self,
-        http: &reqwest::Client,
         extraction: Extraction<'_>,
         raw: String,
         asking: Option<LmUsage>,
@@ -37,7 +36,7 @@ impl<S> Predict<S> {
         let request = api::interop::raise_request(&system, &turns, mode, &LmConfig::default());
         let extracted = extraction
             .model
-            .forward_dyn(http, &request)
+            .forward_dyn(&crate::lm::global::client(), &request)
             .await
             .context("the extraction model did not answer")?;
         let extracted_text = extracted.first_text();
@@ -63,13 +62,12 @@ impl<S> Predict<S> {
     /// failure past this point is final.
     pub(crate) async fn feedback_ask(
         &self,
-        http: &reqwest::Client,
         lm: &dyn DynChatModel,
         inputs: &[Input<'_>],
         feedback: &Feedback,
         steering: &Steering,
     ) -> Result<(String, Value, Option<LmUsage>)> {
-        let answered = self.ask(http, lm, inputs, Some(feedback), steering).await?;
+        let answered = self.ask(lm, inputs, Some(feedback), steering).await?;
         let answered_text = answered.response.first_text();
         let mut value = self.adapter.parse(&self.signature, &answered_text)?;
         self.signature.coerce(&mut value)?;

@@ -33,11 +33,7 @@ async fn the_task_model_answers_in_prose_and_a_second_model_names_the_fields() {
     let predict =
         Predict::from_signature(signature()).with_adapter(TwoStepAdapter::new(extractor.clone()));
     let value = predict
-        .call_with(
-            &reqwest::Client::new(),
-            &task,
-            "What is the capital of France?",
-        )
+        .call_with(&task, "What is the capital of France?")
         .await
         .expect("the two-step run succeeds");
 
@@ -60,7 +56,7 @@ async fn the_task_model_is_never_shown_a_wire_format() {
 
     Predict::from_signature(signature())
         .with_adapter(TwoStepAdapter::new(extractor))
-        .call_with(&reqwest::Client::new(), &task, "Where?")
+        .call_with(&task, "Where?")
         .await
         .expect("succeeds");
 
@@ -82,7 +78,7 @@ async fn the_extraction_model_is_shown_the_first_reply_as_its_text_field() {
 
     Predict::from_signature(signature())
         .with_adapter(TwoStepAdapter::new(extractor.clone()))
-        .call_with(&reqwest::Client::new(), &task, "Where?")
+        .call_with(&task, "Where?")
         .await
         .expect("succeeds");
 
@@ -112,7 +108,7 @@ async fn a_failed_extraction_names_the_prose_it_was_reading() {
 
     let error = Predict::from_signature(signature())
         .with_adapter(TwoStepAdapter::new(extractor))
-        .call_with(&reqwest::Client::new(), &task, "Where?")
+        .call_with(&task, "Where?")
         .await
         .expect_err("the extraction produced no `answer`");
     let shown = format!("{error:#}");
