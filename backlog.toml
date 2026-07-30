@@ -90,6 +90,33 @@ This is the sprint that closed the project's one known blind spot.
 """
 
 [[story]]
+id = "lm-streamify"
+sprint = "api"
+title = "Streaming reaches the provider and stops there: no streamify, listener or status"
+state = "todo"
+plan = """
+`LM::forward_stream` reads tokens off the provider, which is the transport half and the half that
+was easy. dspy's user-facing streaming is a layer above it and none of it exists here:
+
+`dspy.streamify(program)` turns any module into something that yields as it runs.
+
+`StreamListener(signature_field_name="reasoning")` yields *one field's* chunks as they arrive, which
+needs the adapter to know where a field starts and ends mid-stream — the interesting part, and the
+one that touches this crate's own strengths.
+
+`StatusMessageProvider` names each stage as the program passes through it, with a handler per
+transition, so a caller can render "calling the LM" and "module finished" without inventing the
+vocabulary.
+
+The coverage excuse for `tests/streaming/test_streaming.py` said "dspy's streaming listeners over
+its own async plumbing", which reads as though the async is the obstacle. It is not: Rust has
+streams, and `forward_stream` already returns one. What is missing is everything above the wire.
+
+Build the listener before the status provider. A field's chunks are what a caller actually wants,
+and the adapter already knows the marker boundaries it would key on.
+"""
+
+[[story]]
 id = "api-5"
 sprint = "api"
 title = "Re-read every ledger classification, assuming the author was wrong"

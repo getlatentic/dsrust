@@ -59,7 +59,10 @@ EXCUSED = {
     "tests/clients/test_disk_serialization.py": "Python pickling policy",
     "tests/clients/test_inspect_global_history.py": "dspy's history printing",
     "tests/clients/test_lm_local.py": "launching a locally-served model",
-    "tests/streaming/test_streaming.py": "dspy's streaming listeners over its own async plumbing",
+    # Understates it: this crate streams tokens off the provider (`LM::forward_stream`), and has
+    # nothing at the program level — no `streamify`, no `StreamListener` yielding a field's
+    # chunks as they arrive, no `StatusMessageProvider`. See `lm-streamify`.
+    "tests/streaming/test_streaming.py": "dspy's program-level streaming, which this crate has no counterpart for",
     "tests/teleprompt/test_bootstrap_trace.py": "dspy's trace-collection helpers",
     "tests/teleprompt/test_utils.py": "dspy's optimizer helper functions",
     "tests/teleprompt/test_gepa_instruction_proposer.py": "dspy's proposer over multimodal inputs",
