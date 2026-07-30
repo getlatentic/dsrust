@@ -345,11 +345,28 @@ Ruled out, each by testing rather than reasoning:
 
 Toolchain: rustc 1.96.0 (2026-05-25), maturin 1.14.1, macOS 27 (Darwin 27.0.0), arm64.
 
-**The reference that works** is `.dspy-venv`'s cp312 `.so`, dated 24 July and 1.6 MB against the
-current 2.9 MB. It predates whatever changed. Whether that is a rustc update or a macOS update is
-the one question left, and `rustup toolchain install` of a 1.95 or earlier and rebuilding is the
-cheapest way to answer it — if an older rustc produces an 8-aligned pool, this is a rustc regression
-and the fix is a pinned toolchain in `rust-toolchain.toml`.
+Two more ruled out since:
+
+* **Not a shadowed linker.** Homebrew's LLVM clang precedes Apple's on PATH, which looked like the
+  answer. `RUSTFLAGS="-C linker=/usr/bin/cc"` forces Apple's driver: same offset. `cc` was already
+  Apple's anyway — only `clang` is shadowed, and rustc does not use it.
+* **Not an old rustc, and it cannot be.** 1.85 and 1.86 are installed but the crate uses let-chains
+  (stable since 1.88), so they do not compile it. Downgrading is not available as a fix even if it
+  were the diagnosis.
+
+**The lead worth following, and it reframes the problem.** `/usr/bin/ld` is `ld-27036.1`, built
+10 July. The working `.so` is dated 24 July — *after* that linker. So the linker has not changed
+since it last produced a loadable binary. What has changed is the crate: 1.6 MB then against 2.9 MB
+now, and today alone added the observe module, retry, the items path and the whole `Sampling` rename.
+
+That fits every observation a toolchain-regression story does not: the same `ld` worked in July,
+the offset moves with the binary's content (3.12 and 3.13 give different ones), and no flag shifts
+it. A size- or symbol-count-dependent alignment bug in `ld` would look exactly like this.
+
+The test: build a *trimmed* bridge — comment out half the `#[pyfunction]`s — and see whether a
+smaller binary lands 8-aligned. If it does, this is an `ld` bug that the crate crossed a threshold
+into, and the workaround is whatever keeps the pool aligned (a padding symbol, `-Wl,-no_deduplicate`,
+or splitting the extension) rather than anything about rustc or Python.
 
 Note the two virtualenvs. `run_upstream_tests.sh` uses `$ROOT/.venv`; HANDOFF talks about
 `.dspy-venv`, which also exists. Only `.venv` has the broken bridge — `.dspy-venv` imports one
