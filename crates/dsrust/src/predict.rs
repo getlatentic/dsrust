@@ -995,7 +995,8 @@ impl<S: Send + Sync> Predict<S> {
         inputs: Example,
         steering: &Steering,
     ) -> Result<Prediction> {
-        let (http, lm) = self.asking()?;
+        let lm = self.asking()?;
+        let http = crate::lm::global::client();
         let (pairs, lifted) = rendered_inputs(&inputs);
         let mut steering = steering.clone();
         // Upstream assigns `config["prediction"]` after merging the caller's `config=`, so an input

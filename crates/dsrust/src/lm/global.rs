@@ -56,14 +56,19 @@ pub(crate) fn install_for_test(lm: Arc<dyn DynChatModel>) -> std::sync::MutexGua
     guard
 }
 
-/// The current default, cloned out so in-flight calls never hold the lock across await
+/// The current default model, cloned out so in-flight calls never hold the lock across await
 /// points and a concurrent reconfigure only affects later calls.
-pub(crate) fn current() -> Result<(reqwest::Client, Arc<dyn DynChatModel>)> {
+///
+/// The client it goes out on is [`client`], asked for separately. They were one call returning a
+/// pair, which coupled every caller needing a model to also naming a client — and every caller of
+/// this wants the model. See the `lm-shared-client` story: `ChatModel::forward` should name no
+/// client at all, and this split is the step that makes the rest tractable.
+pub(crate) fn current() -> Result<Arc<dyn DynChatModel>> {
     GLOBAL
         .read()
         .expect("lock not poisoned")
         .as_ref()
-        .map(|configured| (configured.http.clone(), Arc::clone(&configured.lm)))
+        .map(|configured| Arc::clone(&configured.lm))
         .ok_or_else(|| anyhow!("no global LM; call lm::configure(...) first"))
 }
 

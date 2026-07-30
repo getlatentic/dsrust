@@ -70,14 +70,13 @@ impl<S> Predict<S> {
         self.lm.as_ref()
     }
 
-    /// The model and client one call should use: this module's own, or the configured default.
+    /// The model one call should ask: this module's own, or the configured default.
     ///
-    /// A module with its own model needs only a client, not the global model behind it, so it
-    /// runs where none is configured — which is what `BestOfN` and `Refine` rely on when they
-    /// hand a predictor a scripted model.
-    pub(crate) fn asking(&self) -> Result<(reqwest::Client, std::sync::Arc<dyn DynChatModel>)> {
+    /// A module carrying its own model runs where none is configured, which is what `BestOfN` and
+    /// `Refine` rely on when they hand a predictor a scripted one.
+    pub(crate) fn asking(&self) -> Result<std::sync::Arc<dyn DynChatModel>> {
         match &self.lm {
-            Some(lm) => Ok((global::client(), lm.clone())),
+            Some(lm) => Ok(lm.clone()),
             None => global::current(),
         }
     }

@@ -15,7 +15,8 @@ use crate::lm::DynChatModel;
 impl Predict<Dynamic> {
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
     pub async fn call(&self, input: &str) -> Result<Value> {
-        let (http, lm) = self.asking()?;
+        let lm = self.asking()?;
+        let http = crate::lm::global::client();
         self.call_with(&http, lm.as_ref(), input).await
     }
 

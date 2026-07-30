@@ -15,7 +15,8 @@ impl<S> Predict<S> {
     /// failing the batch, since a proposal step wants the candidates that came through, not all or
     /// nothing.
     pub async fn forward_completions(&self, inputs: Example) -> Result<Vec<Prediction>> {
-        let (http, lm) = self.asking()?;
+        let lm = self.asking()?;
+        let http = crate::lm::global::client();
         let (pairs, predicted_output) = rendered_inputs(&inputs);
         let steering = Steering {
             predicted_output,

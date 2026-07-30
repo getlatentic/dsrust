@@ -73,7 +73,8 @@ impl ChainOfThought {
 
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
     pub async fn call(&self, input: &str) -> Result<Value> {
-        let (http, lm) = global::current()?;
+        let lm = global::current()?;
+        let http = global::client();
         self.call_with(&http, lm.as_ref(), input).await
     }
 
@@ -116,7 +117,8 @@ pub struct TypedChainOfThought<S: SignatureSpec> {
 impl<S: SignatureSpec> TypedChainOfThought<S> {
     /// Ask through the globally configured LM; see [`crate::lm::configure`].
     pub async fn call_inputs(&self, inputs: &S::Inputs) -> Result<S::Outputs> {
-        let (http, lm) = global::current()?;
+        let lm = global::current()?;
+        let http = global::client();
         self.call_inputs_with(&http, lm.as_ref(), inputs).await
     }
 
@@ -302,7 +304,8 @@ where
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
         Box::pin(async move {
-            let (http, lm) = global::current()?;
+            let lm = global::current()?;
+            let http = global::client();
             let pairs: Vec<Input<'_>> = inputs
                 .fields()
                 .map(|(name, value)| Input::new(name, value.clone()))
