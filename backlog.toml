@@ -311,6 +311,47 @@ without any module having been rebuilt, and reaching the process-wide one again 
 """
 
 [[story]]
+id = "bridge-wont-load"
+sprint = "api"
+title = "The upstream suite cannot run: the bridge .so is malformed on this toolchain"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+`./scripts/run_upstream_tests.sh` exits 1 without running a single upstream test. The bridge builds
+and installs, and then the dynamic loader refuses it:
+
+    ImportError: dlopen(.../dsrs_bridge.cpython-313-darwin.so):
+      mis-aligned LINKEDIT string pool, fileOffset=0x00256F7C
+
+What is *not* wrong, checked rather than assumed:
+
+* Not the install. Extracting the freshly built wheel and importing the `.so` straight out of it
+  fails identically, so the binary is bad before pip ever sees it.
+* Not the signature. `codesign -f -s -` re-signs it and the error is unchanged.
+* Not stripping, as far as could be shown. Adding `[profile.release] strip = false` and rebuilding
+  produced the failure at the *same byte offset*, and the build finished in 3.5s without
+  recompiling — so the artifact was cached and the change was never actually tested. That is the
+  first thing to redo: `cargo clean -p dsrs-bridge` first, then rebuild.
+
+Toolchain: rustc 1.96.0 (2026-05-25), maturin 1.14.1, macOS 27, CPython 3.13, arm64.
+
+Note the two virtualenvs. `run_upstream_tests.sh` uses `$ROOT/.venv`; HANDOFF talks about
+`.dspy-venv`, which also exists. Only `.venv` has the broken bridge — `.dspy-venv` imports one
+fine, presumably built by an older toolchain. Whether two are meant to exist is its own question,
+and the answer changes what "rebuild" means.
+
+**What this costs meanwhile.** Everything in `run_upstream_tests.sh` is dark: dspy's own 897 tests,
+the crossing counter, the strict-xfail backlog, the API-surface gate, and the two checks added on
+2026-07-30 (`check_pinned_all.py`, `check_pin_drift.py`) which have only ever been run by hand.
+`run_rust_gates.sh` is unaffected and green, so the crate's own 1002 tests still hold — but the
+"tested against dspy itself" claim in README.md is, right now, not being re-checked by anything.
+
+**What proves it.** The suite runs and the counts in `backlog.toml`'s `[status]` are written by a
+real run rather than carried over from the last green one.
+"""
+
+[[story]]
 id = "pin-drift"
 sprint = "api"
 title = "Six ported modules moved on main, and one of them contradicts a guide"
