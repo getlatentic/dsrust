@@ -92,9 +92,9 @@ This is the sprint that closed the project's one known blind spot.
 [[story]]
 id = "lm-from-call"
 sprint = "api"
-title = "LMRequest.from_call normalises three input shapes; this crate takes one"
+title = "ChatModel has forward and not call: the public LM entry was never ported"
 state = "todo"
-size = "M"
+size = "L"
 suites = ["tests/clients/test_lm.py"]
 plan = """
 `dspy.LMRequest.from_call` is the constructor the migration guide tells adapter authors to use, and
@@ -166,7 +166,7 @@ as prose.
 Add the `Developer` role, which `Role` has no variant for. Tracked twice already —
 `core/types.py::Developer` and `clients/lm.py::LM.use_developer_role`, both todo.
 
-Then `from_call` on top of those, since its `items` branch is a list of exactly these.
+Then `call` and `from_call` on top of those, since the `items` branch is a list of exactly these.
 
 **Two entrances, one request.** `adapters/base.py` builds its request with `from_call(model=,
 messages=, **lm_kwargs)` and no adapter anywhere passes `items=`. So the variadic form is not how a
@@ -177,6 +177,24 @@ and share everything below it.
 That settles the design here. `Predict` already produces `LmRequest` and needs no change; the
 constructors are a second door to the same type, for a caller who wants the model without a
 signature. Do not thread them through the adapters.
+
+**What this actually is.** dspy's `BaseLM` has two methods and this crate ported one.
+`forward` is the hook a provider implements, and `ChatModel::forward` is it, faithfully.
+`__call__` is the public entry a caller uses: it normalises the input, and `from_call` is the
+constructor it normalises through. There is no `ChatModel::call` here, which is why the direct-call
+UX has nowhere to live and why `from_call` looked like a free-standing gap.
+
+So the scope is porting `__call__`, not designing an API:
+
+    fn call(&self, items: impl IntoIterator<Item = impl Into<LmItem>>) -> ...   // the items path
+    fn call_messages(&self, messages: Vec<LmMessage>) -> ...                    // what adapters use
+
+`lm(...)` itself is impossible on stable Rust and this is not a compromise to argue about: manually
+implementing `FnOnce` needs `fn_traits`, the `rust-call` ABI and two more unstable features, checked
+rather than assumed. A struct cannot be called. `call` is the name because it is upstream's.
+
+`forward` stays exactly as it is. Adding `call` above it is the same layering dspy has, and it keeps
+the provider contract untouched.
 """
 
 [[story]]
