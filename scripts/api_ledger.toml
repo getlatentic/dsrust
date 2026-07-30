@@ -549,7 +549,7 @@
 [constructors]
 
 "adapters/base.py::Adapter.callbacks" = { status = "todo", reason = "dspy fires a BaseCallback at six points; module and lm exist here as `tracing` spans (src/observe.rs) and adapter format, adapter parse, tool and evaluate do not, so nothing observes this one. See lm-callbacks" }
-"adapters/base.py::Adapter.native_response_types" = { status = "todo", reason = "dspy's list of types answered natively rather than rendered; Citations and Reasoning are decided per-adapter here" }
+"adapters/base.py::Adapter.native_response_types" = { status = "todo", reason = "dspy's per-adapter list of types answered natively rather than rendered, defaulting to [Citations, Reasoning]. Not decided per-adapter here: `native_reasoning::plan` decides from the model's capabilities and the call's ReasoningEffort, read in Predict. So Reasoning has a switch — ReasoningEffort::Off forces the render — and Citations has none, and neither is a list a caller can replace" }
 "adapters/base.py::Adapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "the same field on each adapter" }
 "adapters/base.py::Adapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "the same field on each adapter" }
 "adapters/chat_adapter.py::ChatAdapter.callbacks" = { status = "todo", reason = "dspy fires a BaseCallback at six points; module and lm exist here as `tracing` spans (src/observe.rs) and adapter format, adapter parse, tool and evaluate do not, so nothing observes this one. See lm-callbacks" }
@@ -613,8 +613,8 @@
 "predict/best_of_n.py::BestOfN.module" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new, positional" }
 "predict/best_of_n.py::BestOfN.reward_fn" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's reward" }
 "predict/best_of_n.py::BestOfN.threshold" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's threshold" }
-"predict/chain_of_thought.py::ChainOfThought.rationale_field" = { status = "todo", reason = "dspy lets a caller replace the prepended reasoning field; the name and prose are fixed here" }
-"predict/chain_of_thought.py::ChainOfThought.rationale_field_type" = { status = "todo", reason = "the reasoning field's declared type, which follows rationale_field" }
+"predict/chain_of_thought.py::ChainOfThought.rationale_field" = { status = "mapped", rust = "ChainOfThought::with_rationale", reason = "takes a whole OutField, so the description, closed set, schema and prefix are all the caller's. Only the name is fixed at `reasoning`, because upstream prepends under that name too" }
+"predict/chain_of_thought.py::ChainOfThought.rationale_field_type" = { status = "mapped", rust = "ChainOfThought::with_rationale", reason = "the type travels as OutField::kind, so the one constructor carries both of upstream's arguments" }
 "predict/chain_of_thought.py::ChainOfThought.signature" = { status = "mapped", rust = "ChainOfThought", reason = "ChainOfThought::new, positional" }
 "predict/code_act.py::CodeAct.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "CodeAct::with_interpreter" }
 "predict/code_act.py::CodeAct.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "CodeAct::with_max_iters" }

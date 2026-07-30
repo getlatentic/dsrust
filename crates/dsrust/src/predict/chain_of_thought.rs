@@ -221,6 +221,23 @@ mod tests {
         assert_eq!(reasoning.desc, "work through it aloud");
     }
 
+    /// dspy's second argument, `rationale_field_type`, travels as the field's kind — so the one
+    /// constructor carries both. The ledger maps them to this method and the claim needs backing.
+    #[test]
+    fn the_rationale_carries_its_declared_type() {
+        let cot = ChainOfThought::with_rationale(
+            "question -> answer".parse().expect("a signature"),
+            OutField {
+                kind: crate::signature::FieldKind::Int,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            cot.signature().outputs[0].kind,
+            crate::signature::FieldKind::Int
+        );
+    }
+
     /// And the plain case says nothing, which is what dspy's suppressed sentinel amounts to.
     #[test]
     fn the_plain_rationale_carries_no_description() {
