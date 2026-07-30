@@ -218,4 +218,17 @@ macro_rules! react_v2 {
     ($signature:literal, $tools:expr, max_iters = $max:expr $(,)?) => {
         $crate::ReActV2::new($crate::signature!($signature), $tools).with_max_iters($max)
     };
+    ($task:ty, $tools:expr $(,)?) => {
+        $crate::ReActV2::new(
+            <$task as $crate::signature::SignatureSpec>::signature(),
+            $tools,
+        )
+    };
+    ($task:ty, $tools:expr, max_iters = $max:expr $(,)?) => {
+        $crate::ReActV2::new(
+            <$task as $crate::signature::SignatureSpec>::signature(),
+            $tools,
+        )
+        .with_max_iters($max)
+    };
 }

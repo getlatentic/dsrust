@@ -313,3 +313,53 @@ async fn best_of_n_is_a_module_an_optimizer_can_walk() {
     );
     assert_eq!(best.named_predictors().len(), 1);
 }
+
+/// A derived signature works with the ReAct macros, not only a string literal.
+///
+/// `predict!` and `chain_of_thought!` took both spellings from the start; the two agent macros
+/// took a literal only, so a caller who had declared their task as a struct had to reach past the
+/// macro. The four accept the same two shapes now.
+#[test]
+fn the_react_macros_take_a_declared_task_as_well_as_a_string() {
+    #[derive(dsrust::Signature)]
+    /// Answer the question, using tools where they help.
+    struct Investigate {
+        #[input]
+        question: String,
+        #[output]
+        answer: String,
+    }
+
+    let tools: Vec<Box<dyn dsrust::Tool>> = vec![Box::new(dsrust::FnTool::new(
+        "lookup",
+        "look something up",
+        serde_json::json!({ "term": { "type": "string" } }),
+        |_: &serde_json::Value| Ok("found".to_owned()),
+    ))];
+    let spelled = dsrust::react!("question -> answer", tools);
+
+    let tools: Vec<Box<dyn dsrust::Tool>> = vec![Box::new(dsrust::FnTool::new(
+        "lookup",
+        "look something up",
+        serde_json::json!({ "term": { "type": "string" } }),
+        |_: &serde_json::Value| Ok("found".to_owned()),
+    ))];
+    let declared = dsrust::react!(Investigate, tools, max_iters = 4);
+
+    assert_eq!(spelled.signature.outputs[0].name, "answer");
+    assert_eq!(declared.signature.outputs[0].name, "answer");
+    assert_eq!(declared.max_iters, 4);
+    // The declared form carries its docstring as instructions, which the string form cannot state.
+    assert!(
+        declared
+            .signature
+            .instructions
+            .contains("using tools where they help")
+    );
+    assert!(
+        !spelled
+            .signature
+            .instructions
+            .contains("using tools where they help")
+    );
+}

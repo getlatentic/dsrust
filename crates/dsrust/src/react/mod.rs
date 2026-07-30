@@ -274,6 +274,19 @@ macro_rules! react {
     ($signature:literal, $tools:expr, max_iters = $max:expr $(,)?) => {
         $crate::ReAct::new($crate::signature!($signature), $tools).with_max_iters($max)
     };
+    ($task:ty, $tools:expr $(,)?) => {
+        $crate::ReAct::new(
+            <$task as $crate::signature::SignatureSpec>::signature(),
+            $tools,
+        )
+    };
+    ($task:ty, $tools:expr, max_iters = $max:expr $(,)?) => {
+        $crate::ReAct::new(
+            <$task as $crate::signature::SignatureSpec>::signature(),
+            $tools,
+        )
+        .with_max_iters($max)
+    };
 }
 
 fn string_field(prediction: &Prediction, name: &str) -> String {
