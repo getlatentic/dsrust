@@ -175,12 +175,20 @@
 "clients/openai.py::OpenAIProvider" = { status = "deferred", reason = "OpenAI finetuning provider; out of the 1.0 ceiling" }
 "clients/openai.py::TrainingJobOpenAI" = { status = "deferred", reason = "OpenAI finetuning job; out of the 1.0 ceiling" }
 
-# Ahead of the pin on main, deliberately not ported — see HANDOFF's "Check main, not only the pin".
+# Ahead of the pin on main — see HANDOFF's "Check main, not only the pin".
 # `utils/callback_context.py` is a new module on main: ACTIVE_CALL_ID moved out of callback.py, plus
-# `_bind_active_call_id`, which carries the parent call id across a thread boundary for a synchronous
-# callable. There is nothing to port. `tracing` spans already carry their parent, and a future
-# instrumented with `.instrument()` keeps it across an await — which is what src/evaluate.rs does. The
-# machinery upstream is adding is machinery the Rust shape does not need.
+# `_bind_active_call_id`, which carries the parent call id across a *thread* boundary for a
+# synchronous callable.
+#
+# Nothing to port *here*, and the reason is a measurement rather than a preference: this crate crosses
+# no thread boundary. Its only `spawn` is the deno child process (src/interpreter/deno.rs), and its
+# concurrency is `buffered`/`buffer_unordered`, which poll on one task — so a `tracing` span's parent
+# already reaches every point, and an instrumented future keeps it across an await (src/evaluate.rs).
+#
+# The narrower claim, because the broad one would be wrong: a *caller* who puts a module behind
+# `tokio::spawn` — an ordinary thing for a server — does lose the linkage, and has to write
+# `.in_current_span()`. tracing makes that the caller's explicit act where upstream makes it the
+# library's implicit one. That is a real difference in who carries it, not an absence of the problem.
 
 # --- ambient configuration (dspy.settings / configure / context) ---
 "dsp/utils/settings.py::Settings" = { status = "divergence", reason = "dspy's thread-local ambient settings object, deliberately not reproduced: ambient state is a concurrency hazard and un-idiomatic in Rust. Its members map to explicit seams — `configure`/`settings.lm` -> lm::global::configure (the one global: the model); `context(lm=..., adapter=...)` -> per-call parameters (Predict::with_lm / with_adapter); `context(trace=[])` + settings.trace -> the trace passed explicitly as &mut Vec<TraceStep> through Module::forward_traced; save/load of ambient settings not reproduced" }

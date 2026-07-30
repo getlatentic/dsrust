@@ -471,6 +471,10 @@ line per scoring pass rather than one per row — which is what makes an optimiz
 Nothing is rendered when nothing is listening, so a program with no subscriber pays an atomic load
 per point. All six of DSPy's callback points are here.
 
+One thing `tracing` asks of you that DSPy does not: a module you put behind `tokio::spawn` starts a
+new span tree unless you carry the current one into it with `.in_current_span()`. Nothing inside this
+crate crosses a thread, so its own nesting is intact either way.
+
 A span cannot change what it sees, which is the one way this is not DSPy's shape: upstream's
 `BaseCallback` is handed the values and its own documentation warns against mutating them.
 
