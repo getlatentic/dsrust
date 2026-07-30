@@ -90,6 +90,31 @@ This is the sprint that closed the project's one known blind spot.
 """
 
 [[story]]
+id = "lm-retry"
+sprint = "api"
+title = "num_retries: dspy retries three times with backoff and this crate retries zero"
+state = "todo"
+plan = """
+`dspy.LM(model, num_retries=3)` is the default, and its docstring says what it covers: "retry a
+request if it fails transiently due to network error, rate limiting, etc. Requests are retried with
+exponential backoff." A program moving from Python loses that silently — the call fails on the
+first 429 where it used to succeed on the second.
+
+It was filed as a divergence on the reasoning that dspy delegates to litellm and this crate hands
+back `LmFailure::is_retryable` instead. That describes what exists rather than justifying the gap:
+`is_retryable` tells a caller a retry is safe, and then makes them write the loop.
+
+What it needs: a bounded retry inside the LM, on exactly the four kinds `is_retryable` names,
+honouring `retry_after` where the provider sent one and backing off exponentially where it did not.
+Default 3, as upstream's is, and settable on the builder.
+
+Two details worth reading upstream for rather than inventing. Whether a retry varies the cache key —
+a replayed failure is not a retry. And whether the backoff is bounded in total time or only in
+attempts, because a rate-limited provider can hold `retry_after` high enough that three attempts
+outlive the caller's patience.
+"""
+
+[[story]]
 id = "api-4"
 sprint = "api"
 title = "An error's cause should be in its message, not only in its chain"

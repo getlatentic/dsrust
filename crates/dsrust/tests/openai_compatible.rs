@@ -507,7 +507,7 @@ async fn the_models_own_settings_reach_a_call_that_did_not_state_them() {
         r#"{"choices":[{"message":{"content":"[[ ## answer ## ]]\nok"}}]}"#,
     );
     let lm = dsrust::lm::LM::builder("openai/gpt-4o-mini")
-        .base_url(&stub.base_url)
+        .api_base(&stub.base_url)
         .api_key("x")
         .temperature(0.25)
         .max_tokens(321)
@@ -530,7 +530,7 @@ async fn a_calls_own_setting_overrides_the_models() {
         r#"{"choices":[{"message":{"content":"[[ ## answer ## ]]\nok"}}]}"#,
     );
     let lm = dsrust::lm::LM::builder("openai/gpt-4o-mini")
-        .base_url(&stub.base_url)
+        .api_base(&stub.base_url)
         .api_key("x")
         .temperature(0.25)
         .max_tokens(321)

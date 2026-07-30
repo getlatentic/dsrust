@@ -278,7 +278,7 @@ let lm = LM::builder("openai/gpt-4o-mini").build()?;
 
 // Groq, on the same wire, a different host and key.
 let lm = LM::builder("openai/llama-3.3-70b")
-    .base_url("https://api.groq.com/openai/v1")
+    .api_base("https://api.groq.com/openai/v1")
     .api_key(std::env::var("GROQ_API_KEY")?)
     .build()?;
 

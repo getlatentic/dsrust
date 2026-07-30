@@ -70,7 +70,7 @@ impl LmBuilder {
     }
 
     /// Where an OpenAI-compatible host lives, for a service that is not OpenAI itself.
-    pub fn base_url(mut self, base_url: impl Into<String>) -> Self {
+    pub fn api_base(mut self, base_url: impl Into<String>) -> Self {
         let base_url = base_url.into();
         self.settings
             .push(Box::new(move |lm| lm.with_openai_base_url(base_url)));

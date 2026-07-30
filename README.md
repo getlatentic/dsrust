@@ -118,14 +118,14 @@ configure(LM::new("openai/gpt-4o-mini")?);                  // OPENAI_API_KEY
 
 configure(                                                   // Groq, same wire
     LM::builder("openai/llama-3.3-70b")
-        .base_url("https://api.groq.com/openai/v1")
+        .api_base("https://api.groq.com/openai/v1")
         .api_key(std::env::var("GROQ_API_KEY")?)
         .build()?,
 );
 
 configure(                                                   // a local llama-server
     LM::builder("openai/gemma-3-1b")
-        .base_url("http://127.0.0.1:8080/v1")
+        .api_base("http://127.0.0.1:8080/v1")
         .api_key("not-needed-locally")
         .build()?,
 );
