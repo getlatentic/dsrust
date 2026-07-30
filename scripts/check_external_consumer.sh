@@ -37,7 +37,7 @@ EOF
 cat > "$WORK/src/main.rs" <<'EOF'
 use dsrust::lm::{LM, configure};
 use dsrust::signature::SignatureSpec;
-use dsrust::{Signature, call, chain_of_thought, predict};
+use dsrust::{ChainOfThought, Predict, Signature, call};
 
 #[derive(Signature)]
 /// Answer the question.
@@ -62,13 +62,13 @@ struct Steps {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     configure(LM::new("openai/gpt-4o-mini")?);
 
-    // Declared and built, not asked: `predict!` reaches no provider, so this needs no key.
-    let _ = predict!(QA);
-    let _ = chain_of_thought!(QA);
-    let _ = predict!(Steps);
-    let _ = predict!("question -> answer");
+    // Declared and built, not asked: `Predict!` reaches no provider, so this needs no key.
+    let _ = Predict!(QA);
+    let _ = ChainOfThought!(QA);
+    let _ = Predict!(Steps);
+    let _ = Predict!("question -> answer");
     if false {
-        let out = call!(predict!(QA), question = "What is the capital of France?").await?;
+        let out = call!(Predict!(QA), question = "What is the capital of France?").await?;
         println!("{}", out.answer);
     }
 

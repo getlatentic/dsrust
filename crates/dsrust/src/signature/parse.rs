@@ -330,12 +330,12 @@ mod tests {
 
 #[cfg(test)]
 mod macro_tests {
-    use crate::signature;
+    use crate::make_signature;
 
-    /// `predict!("subject -> haiku")` builds the module, the way dspy's `Predict(spelling)` does.
+    /// `Predict!("subject -> haiku")` builds the module, the way dspy's `Predict(spelling)` does.
     #[test]
     fn the_string_form_builds_a_module() {
-        let mut haiku = crate::predict!("subject -> haiku");
+        let mut haiku = crate::Predict!("subject -> haiku");
         let named: Vec<String> = crate::module::Module::named_predictors(&mut haiku)
             .into_iter()
             .map(|predictor| predictor.signature.outputs[0].name.clone())
@@ -346,7 +346,7 @@ mod macro_tests {
     /// The spelling a caller writes, checked while this crate compiles.
     #[test]
     fn the_macro_reads_the_same_signature_the_parser_reads() {
-        let built = signature!("subject -> haiku");
+        let built = make_signature!("subject -> haiku");
         assert_eq!(built.inputs[0].name, "subject");
         assert_eq!(built.outputs[0].name, "haiku");
         let parsed: crate::Signature = "subject -> haiku".parse().expect("parses");
@@ -359,7 +359,7 @@ mod ergonomics {
     use std::sync::Arc;
 
     use crate::lm::global::install_for_test;
-    use crate::{DummyLM, example, predict};
+    use crate::{DummyLM, Predict, example};
 
     /// The shortest spelling end to end, against dspy's:
     ///
@@ -373,7 +373,7 @@ mod ergonomics {
             example! { haiku: "silicon dreaming" },
         ])));
 
-        let haiku_generator = predict!("subject -> haiku");
+        let haiku_generator = Predict!("subject -> haiku");
         let result = haiku_generator
             .call("computer science")
             .await
@@ -388,7 +388,7 @@ mod many_inputs {
     use std::sync::Arc;
 
     use crate::lm::global::install_for_test;
-    use crate::{DummyLM, Module, call, example, input, predict};
+    use crate::{DummyLM, Module, Predict, call, example, input};
 
     /// Both spellings, on a signature with more than one input.
     #[tokio::test]
@@ -398,7 +398,7 @@ mod many_inputs {
             example! { haiku: "silicon dreaming", mood: "wry" },
         )])));
 
-        let haiku = predict!("subject, tone -> haiku, mood");
+        let haiku = Predict!("subject, tone -> haiku, mood");
 
         let first = haiku
             .forward(input! { subject: "computer science", tone: "wry" })

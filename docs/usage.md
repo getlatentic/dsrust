@@ -38,7 +38,7 @@ struct QA {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     configure(LM::new("openai/gpt-4o-mini")?);   // reads OPENAI_API_KEY
 
-    let out = call!(predict!(QA), question = "What is the capital of France?").await?;
+    let out = call!(Predict!(QA), question = "What is the capital of France?").await?;
     println!("{}", out.answer);
     Ok(())
 }
@@ -59,25 +59,25 @@ that works, not the one someone remembered.
 ## The shape of it
 
 ```rust
-let qa = predict!("question -> answer");                   // declare
+let qa = Predict!("question -> answer");                   // declare
 let out = call!(qa, question = "capital of France?").await?;   // ask
 out.get("answer").unwrap()                                  // read
 ```
 
 Three things are worth knowing before the table.
 
-**Building is free; asking is the network call.** `predict!` reaches no provider, and neither does
+**Building is free; asking is the network call.** `Predict!` reaches no provider, and neither does
 copying the module. The model is reached in `call!`, once per call, which is why that line and only
 that line carries `.await?`.
 
-**A bad signature fails the build.** `predict!("a -> b -> c")` is a compile error carrying dspy's
+**A bad signature fails the build.** `Predict!("a -> b -> c")` is a compile error carrying dspy's
 own message, pointed at the literal. dspy raises the equivalent when the program runs.
 
 **A module is a value.** That is what lets an optimizer rewrite it, and the reason a callable was
 not the right shape:
 
 ```rust
-let mut program = predict!("question -> answer");
+let mut program = Predict!("question -> answer");
 BootstrapFewShot::new(exact_match).compile(&mut program, &trainset).await?;
 let out = call!(program, question = "…").await?;   // the same line, now compiled
 ```
@@ -100,7 +100,7 @@ let out = qa.forward(input! { question: "capital of France?" }).await?;
 out.get("answer").unwrap()
 
 // the short way
-let qa = predict!("question -> answer");
+let qa = Predict!("question -> answer");
 let out = call!(qa, question = "capital of France?").await?;
 ```
 
@@ -112,7 +112,7 @@ out = qa(subject="computer science", tone="wry")
 ```
 
 ```rust
-let qa = predict!("subject, tone -> haiku, mood");
+let qa = Predict!("subject, tone -> haiku, mood");
 let out = call!(qa, subject = "computer science", tone = "wry").await?;
 out.get("haiku").unwrap()
 ```
@@ -120,7 +120,7 @@ out.get("haiku").unwrap()
 Types are allowed, and a comma inside brackets belongs to the type rather than separating a field:
 
 ```rust
-let m = predict!("question: str, context: list[str] -> answer: int, scores: dict[str, float]");
+let m = Predict!("question: str, context: list[str] -> answer: int, scores: dict[str, float]");
 ```
 
 ## A struct
@@ -158,7 +158,7 @@ let out = qa.call_inputs(&QAInputs { question: "capital of France?".into() }).aw
 out.answer
 
 // the short way — the same spelling a string signature is asked with
-let qa = predict!(QA);
+let qa = Predict!(QA);
 let out = call!(qa, question = "capital of France?").await?;
 out.answer
 ```
@@ -175,7 +175,7 @@ out = poet(subject="quantum computing", tone="wry")
 ```
 
 ```rust
-let poet = predict!(Haiku);
+let poet = Predict!(Haiku);
 let out = call!(poet, subject = "quantum computing", tone = "wry").await?;
 out.haiku
 ```
@@ -184,7 +184,7 @@ One invocation can name the task and fill it, evaluating to the call itself. The
 exhaustive, so a forgotten field is a compile error:
 
 ```rust
-let out = predict!(Haiku {
+let out = Predict!(Haiku {
     subject: "quantum computing",
     tone: "wry"
 })
@@ -205,10 +205,10 @@ out = c(subject="machine learning", tone="patient")
 ```
 
 ```rust
-let picked = chain_of_thought!("question -> answer");
+let picked = ChainOfThought!("question -> answer");
 let out = call!(picked, question = "a calm colour?").await?;
 
-let out = chain_of_thought!(Haiku {
+let out = ChainOfThought!(Haiku {
     subject: "machine learning",
     tone: "patient"
 })
@@ -389,26 +389,26 @@ whatever it wraps, so it is built with `::new` and has no macro.
 
 | module | takes | dspy | DsRust |
 |---|---|---|---|
-| `Predict` | a signature | `dspy.Predict("q -> a")` | `predict!("q -> a")` |
-| `ChainOfThought` | a signature | `dspy.ChainOfThought("q -> a")` | `chain_of_thought!("q -> a")` |
-| `ReAct` | a signature + tools | `dspy.ReAct("q -> a", tools=[…])` | `react!("q -> a", tools)` |
-| `ReActV2` | a signature + tools | `dspy.ReActV2("q -> a", tools=[…])` | `react_v2!("q -> a", tools)` |
-| `ProgramOfThought` | a signature | `dspy.ProgramOfThought("q -> a")` | `program_of_thought!("q -> a")` |
-| `CodeAct` | a signature + tools | `dspy.CodeAct("q -> a", tools=[…])` | `code_act!("q -> a", tools)` |
-| `RLM` | a signature | `dspy.RLM("q -> a")` | `rlm!("q -> a")` |
+| `Predict` | a signature | `dspy.Predict("q -> a")` | `Predict!("q -> a")` |
+| `ChainOfThought` | a signature | `dspy.ChainOfThought("q -> a")` | `ChainOfThought!("q -> a")` |
+| `ReAct` | a signature + tools | `dspy.ReAct("q -> a", tools=[…])` | `ReAct!("q -> a", tools)` |
+| `ReActV2` | a signature + tools | `dspy.ReActV2("q -> a", tools=[…])` | `ReActV2!("q -> a", tools)` |
+| `ProgramOfThought` | a signature | `dspy.ProgramOfThought("q -> a")` | `ProgramOfThought!("q -> a")` |
+| `CodeAct` | a signature + tools | `dspy.CodeAct("q -> a", tools=[…])` | `CodeAct!("q -> a", tools)` |
+| `RLM` | a signature | `dspy.RLM("q -> a")` | `RLM!("q -> a")` |
 | `MultiChainComparison` | a signature | `dspy.MultiChainComparison("q -> a")` | `MultiChainComparison::with_attempts(…)` |
-| `BestOfN` | **a module** | `dspy.BestOfN(module=qa, N=3, reward_fn=f, threshold=1.0)` | `best_of_n!(qa, n = 3, reward = f, threshold = 1.0)` |
-| `Refine` | **a module** | `dspy.Refine(module=qa, N=3, …)` | `refine!(qa, n = 3, reward = f, threshold = 1.0)` |
+| `BestOfN` | **a module** | `dspy.BestOfN(module=qa, N=3, reward_fn=f, threshold=1.0)` | `BestOfN!(qa, n = 3, reward = f, threshold = 1.0)` |
+| `Refine` | **a module** | `dspy.Refine(module=qa, N=3, …)` | `Refine!(qa, n = 3, reward = f, threshold = 1.0)` |
 | `Parallel` | branches per call | `dspy.Parallel(num_threads=8)` | `Parallel::new(8)` |
 
 Every signature-taking macro accepts **either spelling** — a string, or a task declared with
 `#[derive(Signature)]`:
 
 ```rust
-let quick   = predict!("question -> answer");
-let declared = predict!(Investigate);          // carries its doc comment as instructions
-let agent    = react!(Investigate, tools, max_iters = 4);
-let reader   = rlm!(Investigate, max_iterations = 6);
+let quick   = Predict!("question -> answer");
+let declared = Predict!(Investigate);          // carries its doc comment as instructions
+let agent    = ReAct!(Investigate, tools, max_iters = 4);
+let reader   = RLM!(Investigate, max_iterations = 6);
 ```
 
 Each keeps the cap keyword its own module uses: `max_iters` for most, `max_iterations` for `RLM`.
@@ -438,7 +438,7 @@ out.answer
 
 ```rust
 // DsRust
-let qa = chain_of_thought!("question -> answer");
+let qa = ChainOfThought!("question -> answer");
 let out = call!(qa, question = "capital of France?").await?;
 out.get("answer").unwrap()
 ```
@@ -467,8 +467,8 @@ fn one_word(_inputs: &Example, out: &Prediction) -> f64 {
     }
 }
 
-let qa = chain_of_thought!("question -> answer");
-let best = best_of_n!(qa, n = 3, reward = one_word, threshold = 1.0);
+let qa = ChainOfThought!("question -> answer");
+let best = BestOfN!(qa, n = 3, reward = one_word, threshold = 1.0);
 let out = call!(best, question = "capital of Belgium?").await?;
 ```
 
@@ -476,7 +476,7 @@ The reward is a named function in both, which is what dspy's own example does. A
 works too — `|inputs: &Example, out: &Prediction| …` — but writing one inline inside the
 constructor buries the three arguments around it.
 
-**`best_of_n!` names the arguments** because dspy passes all four by keyword and Rust has no named
+**`BestOfN!` names the arguments** because dspy passes all four by keyword and Rust has no named
 arguments. `BestOfN::new(qa, 3, one_word, 1.0)` compiles and says nothing about which number is
 `n` and which is `threshold`. This is the same reason `call!` and `input!` exist: the macros
 supply what the language does not. `fail_count` is optional in the macro as it is upstream.
@@ -493,7 +493,7 @@ through to the predictors inside it.
 
 | | dspy | DsRust |
 |---|---|---|
-| Constructor | `dspy.Predict(x)` | `predict!(x)` — a string or a task |
+| Constructor | `dspy.Predict(x)` | `Predict!(x)` — a string or a task |
 | Call | `m(field=…)` | `call!(m, field = …)` |
 | Reading a result | `out.answer` | `out.answer` typed, `out.get("answer")` from a string signature |
 | One module type | ✅ | ✅ `Predict<S = Dynamic>` |
@@ -515,5 +515,5 @@ Three differences are the language rather than the design:
 
 Rust has no mapping literal and no named arguments, so `{ subject: "…" }` and `f(subject = "…")`
 are both syntax errors. `input!` and `call!` supply what the language does not, the way `vec!`
-supplies a list literal. `predict!` additionally checks a signature string while the crate
+supplies a list literal. `Predict!` additionally checks a signature string while the crate
 compiles, which is something dspy cannot do at all.

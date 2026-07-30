@@ -824,19 +824,19 @@ mod tests {
 
     #[test]
     fn call_macros_take_literal_borrowed_and_owned_values() {
-        use crate::signature::{chain_of_thought, predict};
+        use crate::signature::{ChainOfThought, Predict};
 
         let mood: &str = "calm focus";
         let room: String = "the study".into();
-        expands_to_a_call_future(predict!(RoomTask {
+        expands_to_a_call_future(Predict!(RoomTask {
             room: "the study",
             mood: mood
         }));
-        expands_to_a_call_future(predict!(RoomTask {
+        expands_to_a_call_future(Predict!(RoomTask {
             room: room.clone(),
             mood: "calm focus",
         }));
-        expands_to_a_call_future(chain_of_thought!(RoomTask {
+        expands_to_a_call_future(ChainOfThought!(RoomTask {
             room: room,
             mood: mood.to_owned(),
         }));
@@ -962,11 +962,11 @@ mod tests {
 
     #[test]
     fn call_macros_take_typed_literals_and_bindings() {
-        use crate::signature::{chain_of_thought, predict};
+        use crate::signature::{ChainOfThought, Predict};
 
         // Unsuffixed integer literals fall back to i32, which converts into i64 but not
         // into u32; an unsigned field takes a suffixed literal or a typed binding.
-        expands_to_a_size_future(predict!(SizeTask {
+        expands_to_a_size_future(Predict!(SizeTask {
             age: 61u32,
             fan: true,
             budget: 0.5,
@@ -974,7 +974,7 @@ mod tests {
         }));
         let age: u32 = 61;
         let budget: f64 = 0.5;
-        expands_to_a_size_future(chain_of_thought!(SizeTask {
+        expands_to_a_size_future(ChainOfThought!(SizeTask {
             age: age,
             fan: false,
             budget: budget,
@@ -1069,7 +1069,7 @@ crate::asks_with_a_prediction!(Predict);
 #[cfg(test)]
 mod one_api {
     use crate::predict::scripted::{RoomTask, Scripted};
-    use crate::{call, predict};
+    use crate::{Predict, call};
 
     /// One constructor and one call across both ways of declaring a task, which is what dspy
     /// gives and what a caller should not have to think about.
@@ -1086,8 +1086,8 @@ mod one_api {
                 reply, reply,
             ])));
 
-        let declared = predict!("request -> color, why");
-        let derived = predict!(RoomTask);
+        let declared = Predict!("request -> color, why");
+        let derived = Predict!(RoomTask);
 
         let from_declared = call!(declared, request = "something calm")
             .await
@@ -1110,7 +1110,7 @@ mod per_call_model {
     use crate::lm::dummy::DummyLM;
     use crate::module::Module;
     use crate::predict::scripted::Scripted;
-    use crate::{input, predict};
+    use crate::{Predict, input};
 
     /// A module asks its own model when it has one, and the configured one otherwise.
     ///
@@ -1123,7 +1123,7 @@ mod per_call_model {
             example! { answer: "from the default" },
         ])));
 
-        let asking = predict!("question -> answer");
+        let asking = Predict!("question -> answer");
         assert!(asking.lm().is_none(), "it defers until given one");
         let default = asking
             .forward(input! { question: "q" })
@@ -1131,7 +1131,7 @@ mod per_call_model {
             .expect("asks");
         assert_eq!(default.get("answer").unwrap(), "from the default");
 
-        let mine = predict!("question -> answer").with_lm(Arc::new(DummyLM::new([
+        let mine = Predict!("question -> answer").with_lm(Arc::new(DummyLM::new([
             example! { answer: "from its own" },
         ])));
         assert!(mine.lm().is_some());
@@ -1159,13 +1159,13 @@ mod per_call_model {
             example! { answer: "second" },
         ]));
 
-        let defaults = predict!("question -> answer").with_lm(lm.clone());
+        let defaults = Predict!("question -> answer").with_lm(lm.clone());
         defaults
             .forward(input! { question: "q" })
             .await
             .expect("asks");
 
-        let varied = predict!("question -> answer")
+        let varied = Predict!("question -> answer")
             .with_lm(lm.clone())
             .with_config(LmConfig {
                 temperature: Some(1.0),

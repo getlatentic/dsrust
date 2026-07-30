@@ -1,4 +1,4 @@
-//! `signature!("subject -> haiku")`: the string spelling, checked while the crate compiles.
+//! `make_signature!("subject -> haiku")`: the string spelling, checked while the crate compiles.
 //!
 //! dspy raises on a malformed signature when the program runs. A macro can do better, because
 //! the string is a literal the compiler already holds: the two ways a spelling can be refused
@@ -77,7 +77,7 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
     }
 }
 
-/// `predict!("subject -> haiku")` and its `chain_of_thought!` twin: the module a spelling
+/// `Predict!("subject -> haiku")` and its `ChainOfThought!` twin: the module a spelling
 /// declares, built rather than described.
 pub(crate) fn expand_module(literal: syn::LitStr, module: &str) -> TokenStream {
     let built = match checked(&literal) {

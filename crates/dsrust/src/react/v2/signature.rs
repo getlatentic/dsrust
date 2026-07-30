@@ -194,11 +194,11 @@ impl Tool for Submit {
     }
 }
 
-/// `react_v2!("question -> answer", tools)` — a [`ReActV2`](crate::ReActV2) agent over a signature and its tools,
-/// the module form of `ReActV2::new(signature!(...), tools)`. `max_iters = N` caps the loop.
+/// `ReActV2!("question -> answer", tools)` — a [`ReActV2`](crate::ReActV2) agent over a signature and its tools,
+/// the module form of `ReActV2::new(make_signature!(...), tools)`. `max_iters = N` caps the loop.
 ///
 /// ```
-/// use dsrust::{react_v2, FnTool, Tool};
+/// use dsrust::{ReActV2, FnTool, Tool};
 /// use serde_json::{json, Value};
 ///
 /// let tools: Vec<Box<dyn Tool>> = vec![Box::new(FnTool::new(
@@ -207,16 +207,16 @@ impl Tool for Submit {
 ///     json!({ "query": { "type": "string" } }),
 ///     |args: &Value| Ok(format!("found {}", args["query"].as_str().unwrap_or_default())),
 /// ))];
-/// let agent = react_v2!("question -> answer", tools, max_iters = 8);
+/// let agent = ReActV2!("question -> answer", tools, max_iters = 8);
 /// assert_eq!(agent.max_iters, 8);
 /// ```
 #[macro_export]
-macro_rules! react_v2 {
+macro_rules! ReActV2 {
     ($signature:literal, $tools:expr $(,)?) => {
-        $crate::ReActV2::new($crate::signature!($signature), $tools)
+        $crate::ReActV2::new($crate::make_signature!($signature), $tools)
     };
     ($signature:literal, $tools:expr, max_iters = $max:expr $(,)?) => {
-        $crate::ReActV2::new($crate::signature!($signature), $tools).with_max_iters($max)
+        $crate::ReActV2::new($crate::make_signature!($signature), $tools).with_max_iters($max)
     };
     ($task:ty, $tools:expr $(,)?) => {
         $crate::ReActV2::new(

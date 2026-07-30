@@ -7,7 +7,7 @@
 //! The declaration has to match the Python one field for field, including the instruction text,
 //! because a difference here would read as a difference between the libraries.
 
-use dsrust::{LM, Signature, chain_of_thought, configure, predict};
+use dsrust::{ChainOfThought, LM, Predict, Signature, configure};
 
 #[derive(Signature)]
 /// Write independent practice for this lesson step. The practice must set a
@@ -56,11 +56,11 @@ async fn main() -> anyhow::Result<()> {
     for (module, answered) in [
         (
             "Predict",
-            predict!(PracticeForStep).call_inputs(&inputs()).await,
+            Predict!(PracticeForStep).call_inputs(&inputs()).await,
         ),
         (
             "ChainOfThought",
-            chain_of_thought!(PracticeForStep)
+            ChainOfThought!(PracticeForStep)
                 .call_inputs(&inputs())
                 .await,
         ),

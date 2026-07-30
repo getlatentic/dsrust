@@ -11,7 +11,7 @@ use anyhow::{Result, anyhow};
 use dsrust::JsonAdapter;
 use dsrust::lm::api::{self, Content, content_of};
 use dsrust::lm::{self, ChatModel, ChatTurn, LM, Role};
-use dsrust::signature::{Signature, SignatureSpec, chain_of_thought, json_field_schema, predict};
+use dsrust::signature::{ChainOfThought, Predict, Signature, SignatureSpec, json_field_schema};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -440,7 +440,7 @@ fn call_macros_take_struct_literals_and_vecs() {
         age: 61,
         hobbies: vec!["fishing".into()],
     };
-    expands_to_an_ideas_future(predict!(IdeasTask {
+    expands_to_an_ideas_future(Predict!(IdeasTask {
         recipient: Recipient {
             name: "Dad".into(),
             age: 61,
@@ -454,7 +454,7 @@ fn call_macros_take_struct_literals_and_vecs() {
     }));
     // An empty vec! literal infers its element type through the identity conversion; a
     // non-empty one must already hold the field's element type (String, not &str).
-    expands_to_an_ideas_future(chain_of_thought!(IdeasTask {
+    expands_to_an_ideas_future(ChainOfThought!(IdeasTask {
         recipient: recipient,
         themes: vec!["surprise".to_owned()],
         past: vec![],
@@ -474,7 +474,7 @@ async fn live_complex_output() -> Result<()> {
     let model =
         std::env::var("LIVE_LM").unwrap_or_else(|_| "openrouter/openai/gpt-oss-120b".into());
     lm::configure(LM::new(&model)?);
-    let outputs = predict!(IdeasTask {
+    let outputs = Predict!(IdeasTask {
         recipient: Recipient {
             name: "Dad".into(),
             age: 61,

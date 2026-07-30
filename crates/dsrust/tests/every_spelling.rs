@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use dsrust::{
-    Ask, DummyLM, Forward, Module, Predict, Signature, call, chain_of_thought, example, input,
+    Ask, ChainOfThought, DummyLM, Forward, Module, Predict, Signature, call, example, input,
     predict,
 };
 
@@ -100,7 +100,7 @@ async fn a_string_signature_one_in_one_out() {
     assert_eq!(out.get("answer").unwrap(), "Paris");
 
     // Short: the spelling is checked as this test compiles.
-    let qa = predict!("question -> answer");
+    let qa = Predict!("question -> answer");
     let out = call!(qa, question = "capital of France?")
         .await
         .expect("asks");
@@ -111,7 +111,7 @@ async fn a_string_signature_one_in_one_out() {
 async fn a_string_signature_two_in_two_out() {
     install();
 
-    let qa = predict!("subject, tone -> haiku, mood");
+    let qa = Predict!("subject, tone -> haiku, mood");
     let out = call!(qa, subject = "computer science", tone = "wry")
         .await
         .expect("asks");
@@ -124,7 +124,7 @@ async fn a_string_signature_through_chain_of_thought() {
     // Chain of thought asks for a leading `reasoning` field and keeps it out of the answer.
     install();
 
-    let picked = chain_of_thought!("question -> answer");
+    let picked = ChainOfThought!("question -> answer");
     let out = call!(picked, question = "a calm colour?")
         .await
         .expect("asks");
@@ -151,7 +151,7 @@ async fn a_derived_signature_one_in_one_out() {
     assert_eq!(out.answer, "Berlin");
 
     // Short: the same module through the macro, asked the way a string signature is asked.
-    let qa = predict!(QA);
+    let qa = Predict!(QA);
     let out = call!(qa, question = "capital of France?")
         .await
         .expect("asks");
@@ -162,7 +162,7 @@ async fn a_derived_signature_one_in_one_out() {
 async fn a_derived_signature_two_in_two_out() {
     install();
 
-    let poet = predict!(Haiku);
+    let poet = Predict!(Haiku);
     let out = call!(poet, subject = "quantum computing", tone = "wry")
         .await
         .expect("asks");
@@ -170,7 +170,7 @@ async fn a_derived_signature_two_in_two_out() {
     assert_eq!(out.mood, "curious");
 
     // One invocation naming the task and filling it, which evaluates to the call itself.
-    let out = predict!(Haiku {
+    let out = Predict!(Haiku {
         subject: "quantum computing",
         tone: "wry"
     })
@@ -183,7 +183,7 @@ async fn a_derived_signature_two_in_two_out() {
 async fn a_derived_signature_through_chain_of_thought() {
     install();
 
-    let out = chain_of_thought!(Haiku {
+    let out = ChainOfThought!(Haiku {
         subject: "machine learning",
         tone: "patient"
     })
@@ -199,9 +199,9 @@ async fn both_forms_are_one_type_and_one_module() {
     fn is_a_module<M: Module>(_: &M) {}
     fn is_askable<A: Ask>(_: &A) {}
 
-    let declared = predict!("question -> answer");
-    let derived = predict!(QA);
-    let thinking = chain_of_thought!(QA);
+    let declared = Predict!("question -> answer");
+    let derived = Predict!(QA);
+    let thinking = ChainOfThought!(QA);
 
     is_a_module(&declared);
     is_a_module(&derived);
@@ -227,8 +227,8 @@ struct Outline {
 impl Outline {
     fn new() -> Self {
         Self {
-            plan: predict!("subject -> angle"),
-            write: predict!("angle -> haiku"),
+            plan: Predict!("subject -> angle"),
+            write: Predict!("angle -> haiku"),
         }
     }
 }
@@ -281,7 +281,7 @@ async fn best_of_n_wraps_a_module_and_is_called_like_one() {
     install();
 
     let best = dsrust::BestOfN::new(
-        predict!("question -> answer"),
+        Predict!("question -> answer"),
         3,
         |_inputs: &dsrust::Example, prediction: &dsrust::Prediction| match prediction
             .get("answer")
@@ -305,8 +305,8 @@ async fn best_of_n_wraps_a_module_and_is_called_like_one() {
 async fn best_of_n_is_a_module_an_optimizer_can_walk() {
     use dsrust::Module;
 
-    let mut best = dsrust::best_of_n!(
-        predict!("question -> answer"),
+    let mut best = dsrust::BestOfN!(
+        Predict!("question -> answer"),
         n = 2,
         reward = one_word,
         threshold = 1.0
@@ -316,7 +316,7 @@ async fn best_of_n_is_a_module_an_optimizer_can_walk() {
 
 /// A derived signature works with the ReAct macros, not only a string literal.
 ///
-/// `predict!` and `chain_of_thought!` took both spellings from the start; the two agent macros
+/// `Predict!` and `ChainOfThought!` took both spellings from the start; the two agent macros
 /// took a literal only, so a caller who had declared their task as a struct had to reach past the
 /// macro. The four accept the same two shapes now.
 #[test]
@@ -336,7 +336,7 @@ fn the_react_macros_take_a_declared_task_as_well_as_a_string() {
         serde_json::json!({ "term": { "type": "string" } }),
         |_: &serde_json::Value| Ok("found".to_owned()),
     ))];
-    let spelled = dsrust::react!("question -> answer", tools);
+    let spelled = dsrust::ReAct!("question -> answer", tools);
 
     let tools: Vec<Box<dyn dsrust::Tool>> = vec![Box::new(dsrust::FnTool::new(
         "lookup",
@@ -344,7 +344,7 @@ fn the_react_macros_take_a_declared_task_as_well_as_a_string() {
         serde_json::json!({ "term": { "type": "string" } }),
         |_: &serde_json::Value| Ok("found".to_owned()),
     ))];
-    let declared = dsrust::react!(Investigate, tools, max_iters = 4);
+    let declared = dsrust::ReAct!(Investigate, tools, max_iters = 4);
 
     assert_eq!(spelled.signature.outputs[0].name, "answer");
     assert_eq!(declared.signature.outputs[0].name, "answer");
@@ -386,12 +386,12 @@ fn the_code_writing_macros_take_both_spellings() {
         ))]
     }
 
-    let pot = dsrust::program_of_thought!("question -> answer", max_iters = 2);
-    let pot_typed = dsrust::program_of_thought!(Compute);
-    let act = dsrust::code_act!("question -> answer", tools(), max_iters = 3);
-    let act_typed = dsrust::code_act!(Compute, tools());
-    let reader = dsrust::rlm!("question -> answer", max_iterations = 6);
-    let reader_typed = dsrust::rlm!(Compute);
+    let pot = dsrust::ProgramOfThought!("question -> answer", max_iters = 2);
+    let pot_typed = dsrust::ProgramOfThought!(Compute);
+    let act = dsrust::CodeAct!("question -> answer", tools(), max_iters = 3);
+    let act_typed = dsrust::CodeAct!(Compute, tools());
+    let reader = dsrust::RLM!("question -> answer", max_iterations = 6);
+    let reader_typed = dsrust::RLM!(Compute);
 
     for signature in [
         &pot.signature,

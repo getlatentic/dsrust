@@ -8,7 +8,7 @@
 use std::time::Duration;
 
 use dsrust::lm::{self, LM};
-use dsrust::signature::{Signature, predict};
+use dsrust::signature::{Predict, Signature};
 
 /// Answer the question.
 // The derive is declaration data; the struct itself is never built.
@@ -84,7 +84,7 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
 
     // The call macro's expansion resolves the same global: it must reach the provider, not
     // the unconfigured error.
-    let via_macro = predict!(ProbeTask {
+    let via_macro = Predict!(ProbeTask {
         question: "anything"
     })
     .await

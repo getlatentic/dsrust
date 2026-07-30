@@ -49,7 +49,7 @@ use dsrust::{call, predict};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     configure(LM::new("openai/gpt-4o-mini")?);   // reads OPENAI_API_KEY
 
-    let qa = predict!("question -> answer");
+    let qa = Predict!("question -> answer");
     let out = call!(qa, question = "What is the capital of France?").await?;
     println!("{}", out.get("answer").unwrap().as_str().unwrap());
     Ok(())
@@ -90,8 +90,8 @@ the DSPy-vs-DsRust mapping side by side.
 ### A task is a string or a struct
 
 ```rust
-let qa = predict!("question -> answer");                       // names only
-let m  = predict!("question: str, context: list[str] -> answer: int");   // types too
+let qa = Predict!("question -> answer");                       // names only
+let m  = Predict!("question: str, context: list[str] -> answer: int");   // types too
 ```
 
 ```rust
@@ -102,11 +102,11 @@ struct QA {
     #[output] answer: String,
 }
 
-let out = call!(predict!(QA), question = "capital of France?").await?;
+let out = call!(Predict!(QA), question = "capital of France?").await?;
 println!("{}", out.answer);   // a String, checked when this compiles
 ```
 
-A bad signature fails the build. `predict!("a -> b -> c")` is a compile error carrying DSPy's own
+A bad signature fails the build. `Predict!("a -> b -> c")` is a compile error carrying DSPy's own
 message, pointed at the literal; DSPy raises the equivalent when the program runs.
 
 ### Reaching a provider

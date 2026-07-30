@@ -20,7 +20,7 @@ pub fn expand(model: &Model) -> TokenStream {
 }
 
 /// A declared signature is a *declaration*: a caller writes the struct to state the task and then
-/// never constructs it — `predict!(Task { … })` builds the generated `TaskInputs` instead. So every
+/// never constructs it — `Predict!(Task { … })` builds the generated `TaskInputs` instead. So every
 /// field of every signature warns as dead code, in the caller's own crate, for writing the thing
 /// the derive asked them to write. Reading each field once here is what makes the declaration count
 /// as the use it is.

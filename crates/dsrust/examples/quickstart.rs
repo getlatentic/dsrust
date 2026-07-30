@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use dsrust::{
-    BootstrapFewShot, DummyLM, Evaluate, Example, Module, call, configure_model, exact_match,
-    example, predict,
+    BootstrapFewShot, DummyLM, Evaluate, Example, Module, Predict, call, configure_model,
+    exact_match, example,
 };
 
 fn text(record: &Example, field: &str) -> String {
@@ -51,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
     configure_model(reqwest::Client::new(), Arc::new(stand_in()));
 
     // 1. Declare a task by naming its fields. The spelling is checked as this file compiles.
-    let mut program = predict!("question -> answer");
+    let mut program = Predict!("question -> answer");
 
     // 2. Ask it. Nothing has been learned yet, so the prompt carries no examples.
     let asked = call!(program, question = "What is the capital of France?").await?;

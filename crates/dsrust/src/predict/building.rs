@@ -97,7 +97,7 @@ impl<S> Predict<S> {
 }
 
 impl Predict<Dynamic> {
-    /// A module for a signature held as field names. `predict!("question -> answer")` is the
+    /// A module for a signature held as field names. `Predict!("question -> answer")` is the
     /// spelling to reach for; this is what it expands to.
     pub fn from_signature(signature: Signature) -> Self {
         Self {

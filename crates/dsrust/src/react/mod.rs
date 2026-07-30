@@ -250,11 +250,11 @@ impl Module for ReAct {
     }
 }
 
-/// `react!("question -> answer", tools)` — a [`ReAct`] agent over a signature and its tools, the
-/// module form of `ReAct::new(signature!(...), tools)`. `max_iters = N` caps the loop.
+/// `ReAct!("question -> answer", tools)` — a [`ReAct`] agent over a signature and its tools, the
+/// module form of `ReAct::new(make_signature!(...), tools)`. `max_iters = N` caps the loop.
 ///
 /// ```
-/// use dsrust::{react, FnTool, Tool};
+/// use dsrust::{ReAct, FnTool, Tool};
 /// use serde_json::{json, Value};
 ///
 /// let tools: Vec<Box<dyn Tool>> = vec![Box::new(FnTool::new(
@@ -263,16 +263,16 @@ impl Module for ReAct {
 ///     json!({ "city": { "type": "string" } }),
 ///     |args: &Value| Ok(format!("sunny in {}", args["city"].as_str().unwrap_or_default())),
 /// ))];
-/// let agent = react!("question -> answer", tools, max_iters = 5);
+/// let agent = ReAct!("question -> answer", tools, max_iters = 5);
 /// assert_eq!(agent.max_iters, 5);
 /// ```
 #[macro_export]
-macro_rules! react {
+macro_rules! ReAct {
     ($signature:literal, $tools:expr $(,)?) => {
-        $crate::ReAct::new($crate::signature!($signature), $tools)
+        $crate::ReAct::new($crate::make_signature!($signature), $tools)
     };
     ($signature:literal, $tools:expr, max_iters = $max:expr $(,)?) => {
-        $crate::ReAct::new($crate::signature!($signature), $tools).with_max_iters($max)
+        $crate::ReAct::new($crate::make_signature!($signature), $tools).with_max_iters($max)
     };
     ($task:ty, $tools:expr $(,)?) => {
         $crate::ReAct::new(

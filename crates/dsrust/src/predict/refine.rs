@@ -30,7 +30,7 @@ use crate::predict::Predict;
 /// anything else — the advisor it asks for feedback is deliberately not part of that walk, since
 /// dspy builds one per call rather than holding it as a parameter.
 ///
-/// Reach for [`refine!`](crate::refine) rather than `new`: dspy names all its arguments at the
+/// Reach for [`Refine!`](crate::refine) rather than `new`: dspy names all its arguments at the
 /// call site, and `Refine::new(qa, 3, one_word, 1.0)` leaves a reader guessing which number is
 /// which.
 ///
@@ -331,14 +331,14 @@ where
     }
 }
 
-/// `refine!(module, n = 3, reward = f, threshold = 1.0)` — upstream's call, named.
+/// `Refine!(module, n = 3, reward = f, threshold = 1.0)` — upstream's call, named.
 ///
 /// dspy passes its arguments by keyword; Rust has none, so this supplies them, the same reason
-/// [`call!`](crate::call) and [`best_of_n!`](crate::best_of_n) exist. `fail_count` is optional
+/// [`call!`](crate::call) and [`BestOfN!`](crate::best_of_n) exist. `fail_count` is optional
 /// here as it is there, and `threshold` accepts `1.0` or an `Option<f64>`.
 ///
 /// ```
-/// # use dsrust::{refine, predict, Example, Prediction};
+/// # use dsrust::{Refine, Predict, Example, Prediction};
 /// fn one_word(_inputs: &Example, out: &Prediction) -> f64 {
 ///     match out.get("answer").and_then(|answer| answer.as_str()) {
 ///         Some(answer) if answer.split_whitespace().count() == 1 => 1.0,
@@ -346,15 +346,15 @@ where
 ///     }
 /// }
 ///
-/// let refined = refine!(
-///     predict!("question -> answer"),
+/// let refined = Refine!(
+///     Predict!("question -> answer"),
 ///     n = 3,
 ///     reward = one_word,
 ///     threshold = 1.0
 /// );
 /// ```
 #[macro_export]
-macro_rules! refine {
+macro_rules! Refine {
     ($module:expr, n = $n:expr, reward = $reward:expr, threshold = $threshold:expr $(,)?) => {
         $crate::Refine::new($module, $n, $reward, $threshold)
     };

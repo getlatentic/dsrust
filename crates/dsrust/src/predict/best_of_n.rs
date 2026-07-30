@@ -17,7 +17,7 @@ use crate::module::{Ask, Module, NamedPredictor, TraceStep};
 
 /// Ask up to `n` times and answer with the best attempt.
 ///
-/// Reach for [`best_of_n!`](crate::best_of_n) rather than `new`: dspy names all four arguments at
+/// Reach for [`BestOfN!`](crate::best_of_n) rather than `new`: dspy names all four arguments at
 /// the call site, and `BestOfN::new(qa, 3, one_word, 1.0)` leaves a reader guessing which number
 /// is which. Rust has no named arguments, so the macro supplies them the way `call!` does.
 ///
@@ -239,14 +239,14 @@ where
     }
 }
 
-/// `best_of_n!(module, n = 3, reward = f, threshold = 1.0)` — upstream's call, named.
+/// `BestOfN!(module, n = 3, reward = f, threshold = 1.0)` — upstream's call, named.
 ///
 /// dspy passes all four by keyword. Rust has no named arguments, so this supplies them, the same
 /// reason [`call!`](crate::call) and [`input!`](crate::input) exist. `fail_count` is optional
 /// here as it is there.
 ///
 /// ```
-/// # use dsrust::{best_of_n, predict, Example, Prediction};
+/// # use dsrust::{BestOfN, Predict, Example, Prediction};
 /// fn one_word(_inputs: &Example, out: &Prediction) -> f64 {
 ///     match out.get("answer").and_then(|answer| answer.as_str()) {
 ///         Some(answer) if answer.split_whitespace().count() == 1 => 1.0,
@@ -254,15 +254,15 @@ where
 ///     }
 /// }
 ///
-/// let best = best_of_n!(
-///     predict!("question -> answer"),
+/// let best = BestOfN!(
+///     Predict!("question -> answer"),
 ///     n = 3,
 ///     reward = one_word,
 ///     threshold = 1.0
 /// );
 /// ```
 #[macro_export]
-macro_rules! best_of_n {
+macro_rules! BestOfN {
     ($module:expr, n = $n:expr, reward = $reward:expr, threshold = $threshold:expr $(,)?) => {
         $crate::BestOfN::new($module, $n, $reward, $threshold)
     };

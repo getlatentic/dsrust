@@ -57,7 +57,7 @@ fn indented(block: &str) -> String {
 mod tests {
     use super::*;
     use crate::module::Module;
-    use crate::{ChainOfThought, predict};
+    use crate::{ChainOfThought, Predict};
 
     /// Byte for byte against dspy 3.2.1's `inspect_modules` for the same program. The command in
     /// this module's header regenerates it.
@@ -90,7 +90,7 @@ mod tests {
     /// one — and the name on each is the one `named_predictors` gave it.
     #[test]
     fn each_predictor_gets_its_own_block() {
-        let mut program = predict!("question -> answer");
+        let mut program = Predict!("question -> answer");
         let rendered = modules(&program.named_predictors());
         assert_eq!(rendered.matches(&"-".repeat(SEPARATOR_WIDTH)).count(), 2);
         assert!(rendered.contains("Module self"));

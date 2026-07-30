@@ -1,4 +1,4 @@
-//! The call-site macros behind `predict!` / `chain_of_thought!`: one parsed grammar,
+//! The call-site macros behind `Predict!` / `ChainOfThought!`: one parsed grammar,
 //! `Task { field: value, ... }`, expanded to a typed module call on the named task.
 
 use proc_macro2::TokenStream;

@@ -570,7 +570,7 @@
 "adapters/types/tool.py::Tool.desc" = { status = "mapped", rust = "description", reason = "Tool::description" }
 "adapters/types/tool.py::Tool.func" = { status = "mapped", rust = "FnTool", reason = "FnTool's closure, or an impl of the Tool trait" }
 "adapters/types/tool.py::Tool.name" = { status = "mapped", rust = "name", reason = "Tool::name" }
-"clients/base_lm.py::BaseLM.cache" = { status = "mapped", rust = "without_cache", reason = "LM::without_cache" }
+"clients/base_lm.py::BaseLM.cache" = { status = "mapped", rust = "with_cache", reason = "LM::with_cache / LmBuilder::cache" }
 "clients/base_lm.py::BaseLM.callbacks" = { status = "divergence", reason = "Python-side instrumentation; tracing spans here" }
 "clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "with_max_tokens", reason = "LM::with_max_tokens" }
 "clients/base_lm.py::BaseLM.model" = { status = "mapped", rust = "LM", reason = "LM::new, positional" }
@@ -584,7 +584,7 @@
 "clients/cache.py::Cache.memory_max_entries" = { status = "mapped", rust = "new", reason = "ResponseCache::new takes the cap" }
 "clients/cache.py::Cache.restrict_pickle" = { status = "divergence", reason = "dspy guards against unpickling arbitrary types; nothing here pickles, and the disk cache is JSON" }
 "clients/cache.py::Cache.safe_types" = { status = "divergence", reason = "the allowlist for dspy's pickle guard, which has no counterpart in a JSON cache" }
-"clients/lm.py::LM.cache" = { status = "mapped", rust = "without_cache", reason = "LM::without_cache / LmBuilder::no_cache" }
+"clients/lm.py::LM.cache" = { status = "mapped", rust = "with_cache", reason = "LM::with_cache / LmBuilder::cache" }
 "clients/lm.py::LM.callbacks" = { status = "divergence", reason = "dspy's callback list is Python-side instrumentation; tracing spans here" }
 "clients/lm.py::LM.finetuning_model" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.launch_kwargs" = { status = "deferred", reason = "provider launch for finetuning, out of the 1.0 ceiling" }
