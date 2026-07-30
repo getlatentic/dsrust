@@ -27,7 +27,19 @@ impl<S> Predict<S> {
             lm: self.lm,
             config: self.config,
             hint: self.hint,
+            feedback_retry: self.feedback_retry,
         }
+    }
+
+    /// Re-ask with the error attached when a reply parses but does not validate.
+    ///
+    /// Off by default because dspy does not do it: upstream raises `AdapterParseError` and
+    /// re-asks through `JSONAdapter`, so the second call carries the JSON adapter's prompt rather
+    /// than a sentence naming the rejection. Turning this on trades that fidelity for a recovery
+    /// that keeps the original wire format.
+    pub fn with_feedback_retry(mut self) -> Self {
+        self.feedback_retry = true;
+        self
     }
 
     /// Ask this model rather than the configured one. dspy's `set_lm`.
@@ -93,6 +105,7 @@ impl Predict<Dynamic> {
             lm: None,
             config: LmConfig::default(),
             hint: None,
+            feedback_retry: false,
             signature,
             adapter: Box::new(ChatAdapter::default()),
             demos: Vec::new(),

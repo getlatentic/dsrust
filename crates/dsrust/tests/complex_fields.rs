@@ -260,6 +260,7 @@ async fn invalid_json_rides_the_feedback_retry() {
     let bad = marker_reply("three lovely ideas, honest");
     let lm = Scripted::new(&[&bad, &marker_reply(GOOD_IDEAS)]);
     let outputs = IdeasTask::predict()
+        .with_feedback_retry()
         .call_inputs_with(&reqwest::Client::new(), &lm, &inputs())
         .await
         .expect("second reply is valid");
@@ -355,6 +356,7 @@ async fn typed_calls_stay_bounded_at_three_provider_calls() {
     let script: Vec<&str> = script.iter().map(String::as_str).collect();
     let lm = Scripted::new(&script);
     let outputs = IdeasTask::predict()
+        .with_feedback_retry()
         .with_adapter(JsonAdapter::default())
         .call_inputs_with(&reqwest::Client::new(), &lm, &inputs())
         .await

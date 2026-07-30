@@ -124,6 +124,14 @@ pub struct Predict<S = Dynamic> {
     config: LmConfig,
     /// What an earlier attempt was told to do differently. See [`NamedPredictor::hint`].
     hint: Option<String>,
+    /// Whether a reply that parsed but did not validate is re-asked with the error attached.
+    ///
+    /// Off, because dspy has no such ask. Upstream raises `AdapterParseError` for a missing or
+    /// unusable field and `ChatAdapter.__call__` re-asks through `JSONAdapter` — one extra call
+    /// either way, but the prompt is the JSON adapter's rather than a sentence dspy never sends.
+    /// Turned on with [`Self::with_feedback_retry`], for a caller who wants the recovery and
+    /// accepts that the second ask is this crate's own.
+    feedback_retry: bool,
     spec: PhantomData<S>,
 }
 
@@ -278,10 +286,11 @@ impl<S> Predict<S> {
         }
         let (raw, mut value, usage) = match self.adapter.parse(&self.signature, &raw) {
             Ok(value) => (raw, value, usage),
-            // A reply that spoke the format but left a field out is the case the feedback ask
-            // exists for, so it carries on with whatever the reply did say and lets `ensure`
-            // name the gap. Upstream rejects it at parse because it has no such second ask.
-            Err(error) if error.is::<FieldMismatch>() => {
+            // A reply that spoke the format but left a field out. Upstream raises
+            // `AdapterParseError` here and `ChatAdapter.__call__` re-asks through `JSONAdapter`,
+            // which is the arm below — so this one only runs where a caller asked for the
+            // feedback ask instead, and it carries the partial forward for `ensure` to name.
+            Err(error) if self.feedback_retry && error.is::<FieldMismatch>() => {
                 let partial = error
                     .downcast::<FieldMismatch>()
                     .map(|mismatch| mismatch.parsed)
@@ -302,15 +311,16 @@ impl<S> Predict<S> {
                 }
             },
         };
-        // Coercion failures ride the same feedback retry as validation failures: the reply
-        // spoke the adapter's format, only a value was off, so the model gets the precise
-        // error rather than a different wire format.
+        // A value that will not coerce is upstream's `AdapterParseError` too — `parse_value`
+        // raises inside `parse`, so the JSON fallback is what answers it there. Without the
+        // feedback ask there is nothing left to try, and the error is the caller's.
         match self
             .signature
             .coerce(&mut value)
             .and_then(|()| self.signature.ensure(&value))
         {
             Ok(()) => Ok(Validated { raw, value, usage }),
+            Err(error) if !self.feedback_retry => Err(error),
             Err(error) => {
                 tracing::warn!(%error, "retrying with feedback");
                 let feedback = Feedback {
@@ -569,6 +579,7 @@ mod tests {
         let bad = "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\ncalm";
         let lm = Scripted::new(&[bad, MARKER_REPLY]);
         let value = Predict::from_signature(signature())
+            .with_feedback_retry()
             .call_with(&reqwest::Client::new(), &lm, "draft it")
             .await
             .expect("second reply is valid");
@@ -597,6 +608,7 @@ mod tests {
         let bad = "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\ncalm";
         let lm = Scripted::new(&[bad, MARKER_REPLY]).costing(30, 12);
         let answered = Predict::from_signature(signature())
+            .with_feedback_retry()
             .with_lm(std::sync::Arc::new(lm))
             .forward(input! { request: "draft it" })
             .await
@@ -662,6 +674,35 @@ mod tests {
         );
     }
 
+    /// A missing field takes upstream's route by default: dspy raises `AdapterParseError` and
+    /// `ChatAdapter.__call__` re-asks through `JSONAdapter`. The second ask therefore carries the
+    /// JSON adapter's prompt, not a sentence naming the rejection — which is text dspy never sends.
+    #[tokio::test]
+    async fn a_missing_field_re_asks_through_the_json_adapter_as_dspy_does() {
+        let lm = Scripted::new(&[
+            "[[ ## color ## ]]\nred",
+            r#"{"color": "blue", "why": "calm"}"#,
+        ]);
+        let value = Predict::from_signature(signature())
+            .call_with(&reqwest::Client::new(), &lm, "draft it")
+            .await
+            .expect("the fallback answers");
+        assert_eq!(value["color"], "blue");
+
+        let calls = lm.calls();
+        assert_eq!(calls.len(), 2, "one ask, then the JSON fallback");
+        let second: String = calls[1]
+            .turns
+            .iter()
+            .map(|turn| format!("{:?}", turn.content))
+            .collect();
+        assert!(
+            !second.contains("previous reply was rejected"),
+            "the second ask is the JSON adapter's, not a feedback sentence: {second}"
+        );
+        assert!(calls[1].json_mode, "and it asked in JSON mode");
+    }
+
     #[tokio::test]
     async fn attempts_stay_bounded_at_one_feedback_retry() {
         // A reply that parses but fails validation earns exactly one more ask, carrying the
@@ -671,6 +712,7 @@ mod tests {
             "[[ ## color ## ]]\nblue\n\n[[ ## why ## ]]\ncalm",
         ]);
         let value = Predict::from_signature(signature())
+            .with_feedback_retry()
             .call_with(&reqwest::Client::new(), &lm, "draft it")
             .await
             .expect("second reply is valid");
@@ -683,6 +725,7 @@ mod tests {
         ]);
         assert!(
             Predict::from_signature(signature())
+                .with_feedback_retry()
                 .call_with(&reqwest::Client::new(), &lm, "draft it")
                 .await
                 .is_err()
@@ -743,6 +786,7 @@ mod tests {
         let bad = "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\ncalm";
         let lm = Scripted::new(&[bad, MARKER_REPLY]);
         let outputs = RoomTask::predict()
+            .with_feedback_retry()
             .call_inputs_with(&reqwest::Client::new(), &lm, &room_inputs())
             .await
             .expect("second reply is valid");
@@ -859,6 +903,7 @@ mod tests {
         let good = "[[ ## amount ## ]]\n0.02\n\n[[ ## double ## ]]\nfalse\n\n[[ ## count ## ]]\n1";
         let lm = Scripted::new(&[bad, good]);
         let value = Predict::from_signature(typed_signature())
+            .with_feedback_retry()
             .call_with(&reqwest::Client::new(), &lm, "size it")
             .await
             .expect("second reply is valid");
@@ -895,6 +940,7 @@ mod tests {
                 lm: None,
                 config: LmConfig::default(),
                 hint: None,
+                feedback_retry: false,
                 signature: typed_signature(),
                 adapter: Box::new(JsonAdapter::default()),
                 demos: Vec::new(),

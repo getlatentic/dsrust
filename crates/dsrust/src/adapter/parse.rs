@@ -39,6 +39,18 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
     if fields.is_empty() {
         return Err(anyhow!("reply has no [[ ## field ## ]] sections"));
     }
+    // dspy's `ChatAdapter.parse` ends on `if fields.keys() != signature.output_fields.keys():
+    // raise AdapterParseError`, so a reply short of a field is a *parse* failure and
+    // `ChatAdapter.__call__` answers it by re-asking through `JSONAdapter`. Letting it through to
+    // validation instead would take a different second ask, with a prompt upstream never sends.
+    if fields.len() != signature.outputs.len() {
+        return Err(anyhow::Error::new(FieldMismatch {
+            parsed: Value::Object(fields),
+            adapter_name: "ChatAdapter".to_owned(),
+            lm_response: raw.to_owned(),
+            expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
+        }));
+    }
     Ok(Value::Object(fields))
 }
 
@@ -289,10 +301,15 @@ mod tests {
     }
 
     #[test]
-    fn parse_markers_leaves_missing_fields_to_validation() {
+    fn parse_markers_refuses_a_reply_short_of_a_field_as_dspy_does() {
         let raw = "[[ ## color ## ]]\nred";
-        let value = parse_markers(&signature(), raw).expect("parses");
-        assert_eq!(value, json!({ "color": "red" }));
+        let refused = parse_markers(&signature(), raw).expect_err("a field is missing");
+        let mismatch = refused
+            .downcast_ref::<FieldMismatch>()
+            .expect("a field mismatch, which is what routes it to the JSON fallback");
+        // Whatever did parse rides along, so the fallback's answer can be compared against it.
+        assert_eq!(mismatch.parsed, json!({ "color": "red" }));
+        assert_eq!(mismatch.adapter_name, "ChatAdapter");
     }
 
     #[test]
