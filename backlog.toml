@@ -106,6 +106,11 @@ want the same treatment: whatever `serde` or the signature said belongs in the m
 
 Audit every `anyhow::Error` this crate returns to a caller for the same shape. A context line that
 categorises is worth having; one that *replaces* the cause is not.
+
+A second shape, found running an extraction experiment against a 1B model: the reported error was
+"reply has no [[ ## field ## ]] sections", which is the chat adapter's, while the wire showed the
+JSON fallback had fired and it was the fallback that failed last. A caller reads the first adapter's
+complaint and never learns a second was tried, which is less useful than either error alone.
 """
 
 [[story]]
