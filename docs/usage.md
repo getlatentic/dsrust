@@ -438,11 +438,60 @@ Writing the turn yourself, `Developer(["…"])` is the constructor.
 
 ### Watching a run
 
-Every module's run and every model call happens inside a `tracing` span, which is DSPy's
-`on_module_start`/`on_lm_start` pair in the shape a Rust program already collects. A composed program
-nests, so the span tree is the program's shape and an `lm` span sits inside whichever module made the
-call. Each carries the values DSPy hands its handlers: the inputs on the way in, and either the
-outputs or the failure on the way out.
+DSPy fires a `BaseCallback` at six points — a module's run, a model call, a tool call, rendering the
+prompt, reading the reply back, and an evaluation — each with a start and an end. All six are here,
+and each fires two things: your `Callback` handlers, and a `tracing` span. Use either.
+
+#### As callbacks
+
+`BaseCallback` is a base class whose methods are no-ops, which is a trait with defaulted methods.
+Implement the handlers you care about and leave the rest:
+
+```rust
+use dsrust::{CallId, Callback, configure_callbacks, observe};
+
+struct Logging;
+
+impl Callback for Logging {
+    fn on_module_start(&self, call: &CallId, module: &str, inputs: &Example) {
+        println!("[{call}] {module} asked {}", observe::as_json(inputs));
+    }
+
+    fn on_module_end(&self, call: &CallId, answered: Result<&Prediction, &anyhow::Error>) {
+        match answered {
+            Ok(prediction) => println!("[{call}] -> {}", observe::as_json(&prediction.example)),
+            Err(error) => println!("[{call}] failed: {error:#}"),
+        }
+    }
+}
+```
+
+```rust
+configure_callbacks([Arc::new(Logging) as Arc<dyn Callback>]);
+```
+
+That is DSPy's `dspy.configure(callbacks=[LoggingCallback()])`. To watch one model rather than the
+whole process — DSPy's `dspy.LM(model, callbacks=[…])` — put the list on the model instead:
+
+```rust
+let lm = LM::builder("openai/gpt-4o-mini")
+    .callbacks([Arc::new(Logging) as Arc<dyn Callback>])
+    .build()?;
+```
+
+Both lists are told, the process-wide ones first.
+
+A `CallId` is the same value at a point's start and its end, and `call.parent()` is the call it
+happened inside — so `ChainOfThought` encloses its `Predict`, which encloses the model call. That is
+DSPy's `call_id` and `ACTIVE_CALL_ID`, without the second lookup. A handler that panics is caught and
+logged rather than allowed to end the run, as DSPy wraps each of its own in `try/except`.
+
+#### As spans
+
+The same six points open a `tracing` span, which is the shape a Rust program already collects. A
+composed program nests, so the span tree is the program's shape and an `lm` span sits inside
+whichever module made the call. Each carries the values DSPy hands its handlers: the inputs on the
+way in, and either the outputs or the failure on the way out.
 
 ```bash
 cargo add tracing-subscriber --features env-filter
@@ -468,15 +517,16 @@ the raw text beside the error — which is nearly always the next question.
 An `Evaluate` run is one span with every row nested inside it, so filtering to `evaluate` gives one
 line per scoring pass rather than one per row — which is what makes an optimizer's search readable.
 
-Nothing is rendered when nothing is listening, so a program with no subscriber pays an atomic load
-per point. All six of DSPy's callback points are here.
+Nothing is rendered when nothing is listening, so a program with neither a subscriber nor a
+registered handler pays an atomic load per point.
 
 One thing `tracing` asks of you that DSPy does not: a module you put behind `tokio::spawn` starts a
 new span tree unless you carry the current one into it with `.in_current_span()`. Nothing inside this
 crate crosses a thread, so its own nesting is intact either way.
 
-A span cannot change what it sees, which is the one way this is not DSPy's shape: upstream's
-`BaseCallback` is handed the values and its own documentation warns against mutating them.
+Reach for a span over a callback when you want the two properties it has and a handler list does not:
+a subscriber cannot change what it is shown, and a broken one cannot break the run. Upstream's own
+documentation warns readers against mutating what a callback is handed, which is the same worry.
 
 ### When a call fails
 

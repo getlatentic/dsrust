@@ -193,17 +193,10 @@ impl<S> Predict<S> {
             .as_ref()
             .map_or(asked, |plan| plan.signature.clone());
         let schema = asked.schema();
-        let (system, opening) = crate::observe::formatting(
-            adapter,
-            || adapter.format(&asked, &self.demos, &hinted),
-            |(system, turns): &(String, Vec<crate::lm::ChatTurn>)| {
-                format!(
-                    "{{\"system_bytes\":{},\"turns\":{}}}",
-                    system.len(),
-                    turns.len()
-                )
-            },
-        )?;
+        let (system, opening) =
+            crate::observe::formatting(adapter, &asked, &self.demos, &hinted, || {
+                adapter.format(&asked, &self.demos, &hinted)
+            })?;
         let mode = adapter.output_mode(&schema);
         let turns = turns_for(opening, feedback);
         // The typed 3.3 boundary: predict hands the model an `LMRequest`. Behind it the request
@@ -1015,7 +1008,6 @@ impl<S: Send + Sync> Module for Predict<S> {
             let span = crate::observe::module_shown("Predict", &inputs);
             crate::observe::watching(
                 span,
-                crate::observe::prediction,
                 self.forward_with_steering(inputs, &Steering::default()),
             )
             .await

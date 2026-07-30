@@ -22,6 +22,9 @@ use dsrust::{Evaluate, Evaluation, Scored, exact_match};
 // Provider config and keyless testing.
 use dsrust::{Capabilities, DummyLM, configure_model};
 
+// Watching a run: dspy's BaseCallback as a trait, and how a host registers one.
+use dsrust::{CallId, Callback, Rendered, configure_callbacks};
+
 // The trace stream and the saved-program state a host renders as a before/after diff.
 use dsrust::{PredictorState, ProgramState, TraceStep};
 
@@ -35,4 +38,6 @@ fn the_embeddable_surface_resolves_from_the_crate_root() {
     let _: Option<TraceStep> = None;
     let _: Option<ProgramState> = None;
     let _: Option<Capabilities> = None;
+    fn _a_watcher_is_object_safe(_: &dyn Callback) {} // Callback is stored behind an Arc
+    let _: Option<CallId> = None;
 }

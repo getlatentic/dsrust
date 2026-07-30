@@ -17,7 +17,7 @@ use crate::module::{Ask, Module, NamedPredictor, TraceStep};
 
 /// Ask up to `n` times and answer with the best attempt.
 ///
-/// Reach for [`BestOfN!`](crate::BestOfN) rather than `new`: dspy names all four arguments at
+/// Reach for [`BestOfN!`](macro@crate::BestOfN) rather than `new`: dspy names all four arguments at
 /// the call site, and `BestOfN::new(qa, 3, one_word, 1.0)` leaves a reader guessing which number
 /// is which. Rust has no named arguments, so the macro supplies them the way `call!` does.
 ///

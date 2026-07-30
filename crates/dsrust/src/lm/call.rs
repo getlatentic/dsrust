@@ -72,7 +72,7 @@ pub struct LmUsage {
     pub details: serde_json::Map<String, Value>,
     /// Any counter this crate does not model, kept rather than dropped.
     ///
-    /// Upstream's `extra="allow"`, and deliberately the opposite of [`LmConfig`], which forbids
+    /// Upstream's `extra="allow"`, and deliberately the opposite of [`api::LmConfig`](crate::lm::api::LmConfig), which forbids
     /// unknowns so they are routed into `extensions` instead. A provider that starts reporting a
     /// counter nobody has modelled yet still hands it to a caller through here.
     #[serde(flatten)]

@@ -11,7 +11,6 @@
 use std::future::Future;
 
 use futures_util::StreamExt;
-use tracing::Instrument;
 
 use crate::example::{Example, Prediction};
 
@@ -124,13 +123,10 @@ where
     /// `devset[i]`, and dspy's own results are aligned the same way.
     pub async fn run(&self) -> Evaluation {
         let threads = self.num_threads.unwrap_or(1);
-        let span = crate::observe::evaluating(self.devset.len(), threads);
+        let watch = crate::observe::evaluating(self.devset.len(), threads);
         let scoring = futures_util::stream::iter(self.devset.clone())
             .map(|example| self.score_row(example))
             .buffered(threads);
-        // `collect` is the future, and instrumenting it is what keeps every row's spans inside this
-        // one. A `span.enter()` guard held across an await would attribute whatever the runtime
-        // polled next to this evaluation instead.
         // dspy stops the run at `max_errors`, so the rows after the cap are never asked. `take_while`
         // is that: it ends the stream on the row that reaches the cap, and `buffered` stops pulling.
         // The failed rows up to and including it are kept, which is what makes the report readable.
@@ -143,7 +139,8 @@ where
             };
             std::future::ready(seen <= cap)
         });
-        let results: Vec<Scored> = bounded.collect().instrument(span.clone()).await;
+        let results: Vec<Scored> =
+            crate::observe::evaluated_within(&watch, bounded.collect()).await;
         let score = match results.is_empty() {
             true => 0.0,
             false => results.iter().map(|row| row.score).sum::<f64>() / results.len() as f64,
@@ -151,7 +148,7 @@ where
         let evaluation = Evaluation { results, score };
         // No error arm: a run scores every row and a failing one scores `failure_score`, which is
         // dspy's choice too. So the span records what it found and never an exception.
-        crate::observe::scored(&span, &evaluation);
+        crate::observe::scored(&watch, &evaluation);
         evaluation
     }
 

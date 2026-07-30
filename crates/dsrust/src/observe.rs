@@ -1,21 +1,24 @@
-//! dspy's callback points, as `tracing` spans: watching a run without changing it.
+//! dspy's six callback points, watched two ways at once: a `tracing` span and the [`Callback`] list.
 //!
-//! Upstream's `BaseCallback` fires at six places, each with a start and an end —
-//! module, lm, adapter format, adapter parse, tool, evaluate — and `with_callbacks` gives each
-//! call a uuid and links it to its parent through a context variable. That is a span tree with
-//! extra steps, so the Rust shape is `tracing`: a span *is* the identifier, the parent linkage,
-//! the start and the end, and a subscriber is what a Rust caller already knows how to write.
+//! Upstream fires a `BaseCallback` at six places, each with a start and an end — module, lm, adapter
+//! format, adapter parse, tool, evaluate — and `with_callbacks` gives each call a uuid and links it
+//! to its parent through a context variable. [`crate::callback`] is that, transcribed. A span is the
+//! same thing in the shape a Rust caller already has a subscriber for: the identifier, the parent
+//! linkage, the start and the end are one object, and it cannot mutate what it sees or break the
+//! run — upstream's own two documented worries about callbacks.
 //!
-//! A span cannot mutate what it sees, which answers upstream's own two worries: dspy's
-//! documentation warns readers not to mutate what a callback is handed, and it wraps every handler
-//! in `try/except` so a broken one cannot break the run.
+//! Both are fired here rather than at the call sites, and each point is one function that opens and
+//! closes together. That is what makes them un-forgettable: an end a `?` can skip is an end that
+//! will be skipped, and a point split into two calls is a point someone adds half of.
 //!
 //! Nothing is serialized unless something is listening. `tracing`'s macros check subscriber interest
-//! before evaluating a field, and [`shown`] and [`finished`] return immediately on a disabled span.
+//! before evaluating a field, [`Watch`] records nothing on a disabled span, and the callback list is
+//! checked for emptiness before a handler's arguments are built.
 //!
 //! **All six points exist**: module, lm, tool, adapter format, adapter parse and evaluate.
-//! `tests/observe.rs` is what says so, and it can only see spans a run actually produced — the entry
-//! this replaced claimed these points existed while the tree had none.
+//! `tests/observe.rs` and `tests/callback.rs` are what say so, and they can only see what a run
+//! actually produced — the ledger entry this replaced claimed these points existed while the tree
+//! had none.
 
 use std::fmt::Write as _;
 use std::future::Future;
@@ -25,48 +28,136 @@ use tracing::{Instrument, Span, field};
 
 use serde_json::Value;
 
-use crate::example::{Example, Prediction};
+use crate::adapter::Input;
+use crate::callback::{self, CallId, Callback, Ends, Rendered, Under};
+use crate::example::Example;
 
 /// The target every span here carries, so `RUST_LOG=dsrust::observe=info` is the whole of what a
 /// caller needs to watch a run — and so a subscriber can select these without matching on names.
 pub const TARGET: &str = "dsrust::observe";
 
-/// dspy `on_module_start`/`on_module_end`: one module's run, with everything it did inside it.
+/// One point, open: the span it entered and the call it identifies.
+///
+/// Returned by every `*_start`, and consumed by the matching end. The end handler cannot be called
+/// without it, which is what stops a point from being started and never finished.
+#[must_use = "a point that is opened must be closed, or its end handler never fires"]
+pub struct Watch {
+    span: Span,
+    call: CallId,
+    /// The callbacks the instance at this point carries, beyond the process-wide ones. Empty at
+    /// every point but the model call, which is the one upstream lets a caller attach to an object
+    /// — `dspy.LM("gpt-4o-mini", callbacks=[…])`.
+    instance: Vec<std::sync::Arc<dyn Callback>>,
+}
+
+impl Watch {
+    /// Record what dspy's `on_*_start` was shown, on the span.
+    ///
+    /// Separate from creating the span because a value worth rendering is a value worth not
+    /// rendering when nothing is listening, and `Span::record` evaluates its argument either way.
+    fn shown(&self, inputs: impl FnOnce() -> String) {
+        if self.span.is_disabled() {
+            return;
+        }
+        self.span.record("inputs", inputs().as_str());
+    }
+
+    /// Record the outcome on the span: dspy's `on_*_end(outputs=…, exception=…)`, where exactly one
+    /// of the two is present.
+    ///
+    /// A failure renders `{:#}` and not `{}`, because a parse failure keeps its cause in the chain
+    /// and the chain is the half naming the field.
+    fn finished<T>(
+        &self,
+        answered: Result<&T, &anyhow::Error>,
+        describe: impl FnOnce(&T) -> String,
+    ) {
+        if self.span.is_disabled() {
+            return;
+        }
+        match answered {
+            Ok(outputs) => self.span.record("outputs", describe(outputs).as_str()),
+            Err(error) => self.span.record("error", format!("{error:#}").as_str()),
+        };
+    }
+}
+
+/// Open a point: a span with the standard fields, and the call id it is known by.
+fn opening(span: Span) -> Watch {
+    Watch {
+        span,
+        call: CallId::next(),
+        instance: Vec::new(),
+    }
+}
+
+/// dspy `on_module_start`: one module's run, with everything it did inside it.
 ///
 /// `kind` is the module's type — `Predict`, `ReAct` — which is what upstream's `instance` is read
-/// for. A composed program nests, so the span tree is the program's shape.
-pub fn module(kind: &'static str) -> Span {
-    tracing::info_span!(
+/// for. A composed program nests, so the tree is the program's shape.
+///
+/// Inputs are taken by reference and rendered here rather than at the span's creation, so a
+/// `forward` records its inputs and then moves them on: this call followed by a body that consumes
+/// `inputs` is two statements and borrows nothing across them.
+pub fn module_shown(kind: &'static str, inputs: &Example) -> Watch {
+    let watch = opening(tracing::info_span!(
         target: TARGET,
         "module",
         module = kind,
         inputs = field::Empty,
         outputs = field::Empty,
         error = field::Empty,
-    )
+    ));
+    watch.shown(|| as_json(inputs));
+    if callback::watching(&watch.instance) {
+        callback::tell(&watch.instance, |callback| {
+            callback.on_module_start(&watch.call, kind, inputs)
+        });
+    }
+    watch
 }
 
-/// A module's span with its inputs already on it — dspy's `on_module_start`, as one call.
-///
-/// Taken by reference and rendered here rather than at the span's creation, so a `forward` records
-/// its inputs and then moves them on: `module_shown(kind, &inputs)` followed by a body that consumes
-/// `inputs` is two statements and borrows nothing across them.
-pub fn module_shown(kind: &'static str, inputs: &Example) -> Span {
-    let span = module(kind);
-    shown_example(&span, inputs);
-    span
-}
-
-/// dspy `on_lm_start`/`on_lm_end`: one call to a model, inside whichever module made it.
-pub fn lm(model: &str) -> Span {
-    tracing::info_span!(
+/// dspy `on_lm_start`: one call to a model, inside whichever module made it.
+pub fn lm_shown(
+    request: &crate::lm::api::LmRequest,
+    instance: &[std::sync::Arc<dyn Callback>],
+) -> Watch {
+    let mut watch = opening(tracing::info_span!(
         target: TARGET,
         "lm",
-        model = model,
+        model = request.model.as_str(),
         inputs = field::Empty,
         outputs = field::Empty,
         error = field::Empty,
-    )
+    ));
+    watch.instance = instance.to_vec();
+    watch.shown(|| request.watchable());
+    if callback::watching(&watch.instance) {
+        callback::tell(&watch.instance, |callback| {
+            callback.on_lm_start(&watch.call, request)
+        });
+    }
+    watch
+}
+
+/// Run `work` under an open point, telling its `on_*_end` handler what came back.
+///
+/// One function rather than a start call and an end call for the same reason the points are single
+/// functions: every exit records something. [`Ends`] is what says which handler this is — the two
+/// asynchronous points answer with different values, and pairing the value with its handler in one
+/// impl is what stops a call site from combining a module's span with the model's end handler.
+pub async fn watching<T: Ends, Work>(watch: Watch, work: Work) -> Result<T>
+where
+    Work: Future<Output = Result<T>>,
+{
+    let answered = Under::new(watch.call, work)
+        .instrument(watch.span.clone())
+        .await;
+    watch.finished(answered.as_ref(), T::describe);
+    if callback::watching(&watch.instance) {
+        T::ended(&watch.call, &watch.instance, answered.as_ref());
+    }
+    answered
 }
 
 /// dspy `on_tool_start`/`on_tool_end`: one tool call an agent made, with its arguments and either
@@ -74,26 +165,37 @@ pub fn lm(model: &str) -> Span {
 ///
 /// Synchronous, unlike the other points, because [`Tool::call_value`](crate::Tool::call_value) is —
 /// a tool is a Rust closure, not a network call. So this runs the call rather than wrapping a
-/// future, and the span opens and closes around it.
+/// future, and the point opens and closes around it.
 ///
 /// Every agent goes through here rather than through the trait, and that is deliberate:
-/// `call_value` is defaulted and two tools in the tree override it, so a span in the default body
+/// `call_value` is defaulted and two tools in the tree override it, so a point in the default body
 /// would miss exactly the tools most worth watching — ReActV2's `submit` and RLM's.
-pub fn tool_call(tool: &dyn crate::Tool, args: &serde_json::Value) -> anyhow::Result<Value> {
-    let span = tracing::info_span!(
+pub fn tool_call(tool: &dyn crate::Tool, args: &Value) -> Result<Value> {
+    let watch = opening(tracing::info_span!(
         target: TARGET,
         "tool",
         tool = tool.name(),
         inputs = field::Empty,
         outputs = field::Empty,
         error = field::Empty,
-    );
-    let _entered = span.enter();
-    if !span.is_disabled() {
-        span.record("inputs", args.to_string().as_str());
+    ));
+    let _entered = watch.span.enter();
+    watch.shown(|| args.to_string());
+    let named = tool.name();
+    if callback::watching(&watch.instance) {
+        callback::tell(&watch.instance, |callback| {
+            callback.on_tool_start(&watch.call, named, args)
+        });
     }
+
+    let _under = callback::entered(&watch.call);
     let answered = tool.call_value(args);
-    finished(&span, Value::to_string, &answered);
+    watch.finished(answered.as_ref(), Value::to_string);
+    if callback::watching(&watch.instance) {
+        callback::tell(&watch.instance, |callback| {
+            callback.on_tool_end(&watch.call, answered.as_ref())
+        });
+    }
     answered
 }
 
@@ -101,14 +203,43 @@ pub fn tool_call(tool: &dyn crate::Tool, args: &serde_json::Value) -> anyhow::Re
 ///
 /// A free function the callers go through, as [`tool_call`] is, and for the same reason `Module`
 /// needed an enumerating test: `Adapter::format` is a required trait method, so an implementor can
-/// always write one without the span. Upstream has no such problem — `__init_subclass__` decorates
+/// always write one without the point. Upstream has no such problem — `__init_subclass__` decorates
 /// every subclass on its way into existence — so the Rust answer is to watch the caller instead.
-pub fn formatting<T>(
+pub fn formatting(
     adapter: &dyn crate::Adapter,
-    rendering: impl FnOnce() -> Result<T>,
-    describe: fn(&T) -> String,
-) -> Result<T> {
-    watched("adapter.format", adapter.name(), rendering, describe)
+    signature: &crate::Signature,
+    demos: &[Example],
+    inputs: &[Input<'_>],
+    rendering: impl FnOnce() -> Result<(String, Vec<crate::lm::ChatTurn>)>,
+) -> Result<(String, Vec<crate::lm::ChatTurn>)> {
+    let watch = adapter_point("adapter.format", adapter.name());
+    let _entered = watch.span.enter();
+    let named = adapter.name();
+    if callback::watching(&watch.instance) {
+        callback::tell(&watch.instance, |callback| {
+            callback.on_adapter_format_start(&watch.call, named, signature, demos, inputs)
+        });
+    }
+
+    let _under = callback::entered(&watch.call);
+    let answered = rendering();
+    watch.finished(answered.as_ref(), |(system, turns)| {
+        format!(
+            "{{\"system_bytes\":{},\"turns\":{}}}",
+            system.len(),
+            turns.len()
+        )
+    });
+    if callback::watching(&watch.instance) {
+        let rendered = answered.as_ref().map(|(system, turns)| Rendered {
+            system,
+            turns: turns.as_slice(),
+        });
+        callback::tell(&watch.instance, |callback| {
+            callback.on_adapter_format_end(&watch.call, rendered.as_ref().map_err(|error| *error))
+        });
+    }
+    answered
 }
 
 /// dspy `on_adapter_parse_start`/`on_adapter_parse_end`: reading the reply back into fields.
@@ -120,30 +251,29 @@ pub fn parsing(
     raw: &str,
     reading: impl FnOnce() -> Result<Value>,
 ) -> Result<Value> {
-    let span = adapter_span("adapter.parse", adapter.name());
-    let _entered = span.enter();
-    shown(&span, raw);
+    let watch = adapter_point("adapter.parse", adapter.name());
+    let _entered = watch.span.enter();
+    watch.shown(|| raw.to_owned());
+    let named = adapter.name();
+    if callback::watching(&watch.instance) {
+        callback::tell(&watch.instance, |callback| {
+            callback.on_adapter_parse_start(&watch.call, named, raw)
+        });
+    }
+
+    let _under = callback::entered(&watch.call);
     let answered = reading();
-    finished(&span, Value::to_string, &answered);
+    watch.finished(answered.as_ref(), Value::to_string);
+    if callback::watching(&watch.instance) {
+        callback::tell(&watch.instance, |callback| {
+            callback.on_adapter_parse_end(&watch.call, answered.as_ref())
+        });
+    }
     answered
 }
 
-/// One synchronous adapter call, watched. Both points share everything but which value they show.
-fn watched<T>(
-    point: &'static str,
-    adapter: &'static str,
-    work: impl FnOnce() -> Result<T>,
-    describe: fn(&T) -> String,
-) -> Result<T> {
-    let span = adapter_span(point, adapter);
-    let _entered = span.enter();
-    let answered = work();
-    finished(&span, describe, &answered);
-    answered
-}
-
-fn adapter_span(point: &'static str, adapter: &'static str) -> Span {
-    tracing::info_span!(
+fn adapter_point(point: &'static str, adapter: &'static str) -> Watch {
+    opening(tracing::info_span!(
         target: TARGET,
         "adapter",
         point = point,
@@ -151,17 +281,16 @@ fn adapter_span(point: &'static str, adapter: &'static str) -> Span {
         inputs = field::Empty,
         outputs = field::Empty,
         error = field::Empty,
-    )
+    ))
 }
 
-/// dspy `on_evaluate_start`/`on_evaluate_end`: one whole run over a devset, with every module call
-/// it made inside it.
+/// dspy `on_evaluate_start`: one whole run over a devset, with every module call it made inside it.
 ///
 /// Upstream decorates `Evaluate.__call__`, and this wraps [`Evaluate::run`](crate::Evaluate::run) —
-/// the same method under a different name. The outermost span of an optimizer's search, so a reader
+/// the same method under a different name. The outermost point of an optimizer's search, so a reader
 /// filtering to `evaluate` sees one line per scoring pass rather than one per row.
-pub fn evaluating(rows: usize, threads: usize) -> Span {
-    tracing::info_span!(
+pub fn evaluating(rows: usize, threads: usize) -> Watch {
+    let watch = opening(tracing::info_span!(
         target: TARGET,
         "evaluate",
         rows = rows,
@@ -169,74 +298,49 @@ pub fn evaluating(rows: usize, threads: usize) -> Span {
         inputs = field::Empty,
         outputs = field::Empty,
         error = field::Empty,
-    )
+    ));
+    if callback::watching(&watch.instance) {
+        callback::tell(&watch.instance, |callback| {
+            callback.on_evaluate_start(&watch.call, rows, threads)
+        });
+    }
+    watch
 }
 
-/// What an evaluation found, recorded on its span — dspy's `on_evaluate_end(outputs=…)`.
+/// Run an evaluation's rows inside the open point, so every module call they make is a child of it.
 ///
-/// Its own function rather than [`finished`] because a run has no error arm: a failing row scores
+/// Both halves, as [`watching`] does: instrumented on the future rather than entered across an
+/// await, which would attribute whatever the runtime polled next to this evaluation, and run under
+/// the call id, which is what makes each row's `on_module_start` name this evaluation as its parent.
+/// Wrapping only the span left the callbacks reporting every row as an outermost call.
+pub async fn evaluated_within<T>(watch: &Watch, rows: impl Future<Output = T>) -> T {
+    Under::new(watch.call, rows)
+        .instrument(watch.span.clone())
+        .await
+}
+
+/// dspy `on_evaluate_end`: what an evaluation found.
+///
+/// Its own function rather than [`watching`] because a run has no error arm: a failing row scores
 /// `failure_score` and the run carries on, which is dspy's choice too.
-pub fn scored(span: &Span, evaluation: &crate::evaluate::Evaluation) {
-    if span.is_disabled() {
-        return;
+pub fn scored(watch: &Watch, evaluation: &crate::evaluate::Evaluation) {
+    if !watch.span.is_disabled() {
+        watch.span.record(
+            "outputs",
+            format!(
+                "{{\"score\":{},\"rows\":{},\"failed\":{}}}",
+                evaluation.score,
+                evaluation.results.len(),
+                evaluation.failure_count(),
+            )
+            .as_str(),
+        );
     }
-    span.record(
-        "outputs",
-        format!(
-            "{{\"score\":{},\"rows\":{},\"failed\":{}}}",
-            evaluation.score,
-            evaluation.results.len(),
-            evaluation.failure_count(),
-        )
-        .as_str(),
-    );
-}
-
-/// What dspy's `on_*_start` was shown, recorded on the span.
-///
-/// Separate from creating the span because a value worth rendering is a value worth not rendering
-/// when nothing is listening, and `Span::record` evaluates its argument either way.
-pub fn shown(span: &Span, inputs: &str) {
-    if span.is_disabled() {
-        return;
+    if callback::watching(&watch.instance) {
+        callback::tell(&watch.instance, |callback| {
+            callback.on_evaluate_end(&watch.call, evaluation)
+        });
     }
-    span.record("inputs", inputs);
-}
-
-/// As [`shown`], for an [`Example`] — a module's or a program's inputs, as dspy's `inputs` dict.
-pub fn shown_example(span: &Span, inputs: &Example) {
-    if span.is_disabled() {
-        return;
-    }
-    span.record("inputs", as_json(inputs).as_str());
-}
-
-/// Run `work` inside `span`, recording what dspy's `on_*_end` receives: the outputs, or the failure.
-///
-/// One function rather than a start call and an end call, because an end that a `?` can skip is an
-/// end that will be skipped. Every exit records something.
-pub async fn watching<T, Work>(span: Span, describe: fn(&T) -> String, work: Work) -> Result<T>
-where
-    Work: Future<Output = Result<T>>,
-{
-    let answered = work.instrument(span.clone()).await;
-    finished(&span, describe, &answered);
-    answered
-}
-
-/// Record the outcome on a span: dspy's `on_*_end(outputs=…, exception=…)`, where exactly one of
-/// the two is present.
-///
-/// A failure renders `{:#}` and not `{}`, because a parse failure keeps its cause in the chain and
-/// the chain is the half naming the field.
-pub fn finished<T>(span: &Span, describe: fn(&T) -> String, answered: &Result<T>) {
-    if span.is_disabled() {
-        return;
-    }
-    match answered {
-        Ok(outputs) => span.record("outputs", describe(outputs).as_str()),
-        Err(error) => span.record("error", format!("{error:#}").as_str()),
-    };
 }
 
 /// An [`Example`]'s fields as a JSON object, which is the shape dspy's `inputs` dict has.
@@ -252,30 +356,6 @@ pub fn as_json(example: &Example) -> String {
     }
     rendered.push('}');
     rendered
-}
-
-/// A [`Prediction`]'s parsed fields, for [`watching`]'s `describe`.
-pub fn prediction(answered: &Prediction) -> String {
-    as_json(&answered.example)
-}
-
-/// What a model answered, for [`watching`]'s `describe`: the text, whether it was replayed, and
-/// what it cost.
-///
-/// Not the whole response. dspy's `on_lm_end` is handed the outputs, and a span field is a line in a
-/// log — a reply's every part, its provider envelope and its logprobs would bury the four values a
-/// reader is actually looking for. The response itself is the caller's, unchanged.
-pub fn spent(answered: &crate::lm::api::LmResponse) -> String {
-    let usage = answered
-        .usage
-        .as_ref()
-        .and_then(|usage| usage.total_tokens)
-        .map_or_else(|| "null".to_owned(), |tokens| tokens.to_string());
-    format!(
-        "{{\"text\":{},\"cache_hit\":{},\"total_tokens\":{usage}}}",
-        serde_json::json!(answered.first_text()),
-        answered.cache_hit,
-    )
 }
 
 #[cfg(test)]
@@ -305,13 +385,15 @@ mod tests {
     /// Nothing is recorded on a disabled span, which is every span in a program with no subscriber.
     #[test]
     fn a_disabled_span_records_nothing() {
-        let span = Span::none();
-        assert!(span.is_disabled());
-        shown(&span, "ignored");
-        finished::<()>(
-            &span,
-            |_| unreachable!("a disabled span asks for no description"),
-            &Ok(()),
-        );
+        let watch = Watch {
+            span: Span::none(),
+            call: CallId::next(),
+            instance: Vec::new(),
+        };
+        assert!(watch.span.is_disabled());
+        watch.shown(|| unreachable!("a disabled span asks for no inputs"));
+        watch.finished::<()>(Ok(&()), |_| {
+            unreachable!("a disabled span asks for no description")
+        });
     }
 }

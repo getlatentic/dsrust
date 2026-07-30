@@ -18,9 +18,12 @@ mod token_limit;
 mod turn;
 pub mod usage;
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
+
+use crate::Callback;
 
 pub use api::{
     Assistant, Content, Detail, Developer, LmItem, LmMessage, LmPart, LmRequest, LmResponse,
@@ -87,6 +90,9 @@ pub struct LM {
     /// What this model can be asked for natively, where the caller has stated it rather than
     /// leaving it to the registry. See [`Self::with_capabilities`].
     capabilities: Option<Capabilities>,
+    /// dspy's `LM(model, callbacks=[…])`: watchers told about this model's calls and no other's.
+    /// See [`Self::with_callbacks`].
+    callbacks: Vec<Arc<dyn Callback>>,
 }
 
 impl LM {
@@ -111,6 +117,7 @@ impl LM {
             use_developer_role: false,
             timeout: DEFAULT_PROVIDER_TIMEOUT,
             capabilities: None,
+            callbacks: Vec::new(),
         })
     }
 
@@ -172,6 +179,19 @@ impl LM {
     /// registry does not know, or to keep a program off the network while it decides.
     pub fn with_capabilities(mut self, capabilities: Capabilities) -> Self {
         self.capabilities = Some(capabilities);
+        self
+    }
+
+    /// Watch this model's calls, and no other model's — dspy's `LM(model, callbacks=[…])`.
+    ///
+    /// The second of upstream's two ways to register: this one is per instance, where
+    /// [`configure_callbacks`](crate::configure_callbacks) is per process. Both are told, the
+    /// process-wide ones first.
+    pub fn with_callbacks(
+        mut self,
+        callbacks: impl IntoIterator<Item = Arc<dyn Callback>>,
+    ) -> Self {
+        self.callbacks = callbacks.into_iter().collect();
         self
     }
 

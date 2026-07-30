@@ -152,12 +152,7 @@ impl Module for CodeAct {
         Box::pin(async move {
             let span = crate::observe::module_shown("CodeAct", &inputs);
             let mut discarded = Vec::new();
-            crate::observe::watching(
-                span,
-                crate::observe::prediction,
-                self.run(inputs, &mut discarded),
-            )
-            .await
+            crate::observe::watching(span, self.run(inputs, &mut discarded)).await
         })
     }
 

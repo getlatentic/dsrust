@@ -47,9 +47,8 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
         request: &'a api::LmRequest,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>> {
         Box::pin(async move {
-            let span = crate::observe::lm(&request.model);
-            crate::observe::shown(&span, &request.watchable());
-            crate::observe::watching(span, crate::observe::spent, self.forward(request)).await
+            let watch = crate::observe::lm_shown(request, self.callbacks());
+            crate::observe::watching(watch, self.forward(request)).await
         })
     }
 
@@ -114,6 +113,18 @@ pub trait ChatModel {
         // whichever wire answers, as an adapter-built one does.
         let request = api::LmRequest::from_items("", items);
         async move { self.forward(&request).await }
+    }
+
+    /// Watchers attached to this model rather than to the process — dspy's
+    /// `dspy.LM("gpt-4o-mini", callbacks=[…])`, its second documented way to register one.
+    ///
+    /// They are told about this model's calls in addition to whatever
+    /// [`configure_callbacks`](crate::configure_callbacks) registered, which is upstream's
+    /// `settings.get("callbacks", []) + instance.callbacks`. Defaulted to none, so a provider
+    /// implementing `forward` and nothing else carries no list — and read in
+    /// [`DynChatModel::forward_dyn`], the one place a model's call cannot avoid.
+    fn callbacks(&self) -> &[std::sync::Arc<dyn crate::Callback>] {
+        &[]
     }
 
     /// What this model can be asked for natively. Nothing, unless the implementor says otherwise

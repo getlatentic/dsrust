@@ -30,11 +30,11 @@ use crate::predict::Predict;
 /// anything else — the advisor it asks for feedback is deliberately not part of that walk, since
 /// dspy builds one per call rather than holding it as a parameter.
 ///
-/// Reach for [`Refine!`](crate::Refine) rather than `new`: dspy names all its arguments at the
+/// Reach for [`Refine!`](macro@crate::Refine) rather than `new`: dspy names all its arguments at the
 /// call site, and `Refine::new(qa, 3, one_word, 1.0)` leaves a reader guessing which number is
 /// which.
 ///
-/// The wrapped module sits behind an async lock for the same reason [`BestOfN`](crate::BestOfN)'s
+/// The wrapped module sits behind an async lock for the same reason [`BestOfN`](struct@crate::BestOfN)'s
 /// does: `forward` takes `&self` while varying an attempt's config and hint needs `&mut`, and a
 /// `dyn Module` cannot be deep-copied the way dspy copies per attempt.
 pub struct Refine<M, R> {
@@ -48,7 +48,7 @@ pub struct Refine<M, R> {
     pub reward: R,
     /// Stop at the first attempt scoring this or better, or run all `n` when unset.
     ///
-    /// Nullable where [`BestOfN`](crate::BestOfN)'s is required: `Refine.forward` guards with
+    /// Nullable where [`BestOfN`](struct@crate::BestOfN)'s is required: `Refine.forward` guards with
     /// `if self.threshold is not None and reward >= self.threshold`, so a missing threshold is a
     /// state it can be in and `BestOfN` cannot.
     pub threshold: Option<f64>,
@@ -334,7 +334,7 @@ where
 /// `Refine!(module, n = 3, reward = f, threshold = 1.0)` — upstream's call, named.
 ///
 /// dspy passes its arguments by keyword; Rust has none, so this supplies them, the same reason
-/// [`call!`](crate::call) and [`BestOfN!`](crate::BestOfN) exist. `fail_count` is optional
+/// [`call!`](crate::call) and [`BestOfN!`](macro@crate::BestOfN) exist. `fail_count` is optional
 /// here as it is there, and `threshold` accepts `1.0` or an `Option<f64>`.
 ///
 /// ```

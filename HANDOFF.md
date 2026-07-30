@@ -28,7 +28,7 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 1002 passing |
+| Rust tests | 1013 passing |
 | Upstream dspy tests | 897 passing, 479 crossing into Rust, 529 deciding a signature |
 | Upstream files run | 52 of 86, every other one excused by name |
 | Strict-xfail backlog | 5 entries in `conftest.py` |
@@ -211,7 +211,9 @@ crates/dsrust/src/  the library itself
   react/            ReAct, Trajectory, Tool
   optimize/         rng, labeled, bootstrap, copro, mipro, gepa
   interpreter/      the CodeInterpreter seam, and deno/ — dspy's runner.js under pyodide
-  observe.rs        dspy's callback points as tracing spans — module and lm of the six
+  callback.rs       dspy's BaseCallback as a trait of twelve defaulted methods; context.rs is
+                    ACTIVE_CALL_ID, entered per poll so interleaved rows keep their own parent
+  observe.rs        the six points, each one function firing both the callbacks and a span
   lm/               ChatModel (forward, and call for a direct ask), DynChatModel,
                     api (request/response/items), builder, dispatch (which wire serves a model),
                     retry, cache (+disk), error, usage, anthropic, ollama, openai, dummy

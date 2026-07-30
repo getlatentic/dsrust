@@ -122,6 +122,17 @@ impl LmBuilder {
         self
     }
 
+    /// Watch this model's calls, and no other model's. dspy's `LM(model, callbacks=[…])`.
+    pub fn callbacks(
+        mut self,
+        callbacks: impl IntoIterator<Item = std::sync::Arc<dyn crate::Callback>>,
+    ) -> Self {
+        let callbacks: Vec<_> = callbacks.into_iter().collect();
+        self.settings
+            .push(Box::new(move |lm| lm.with_callbacks(callbacks)));
+        self
+    }
+
     /// Send the system message as `developer` instead, which is what the o1 family takes. dspy's
     /// `LM(model, use_developer_role=True)`, and as upstream has it this applies on the Responses
     /// wire only.

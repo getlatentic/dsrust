@@ -48,11 +48,15 @@ EXCUSED = {
     "tests/utils/test_unbatchify.py": "a Python batching helper",
     "tests/utils/test_langchain_tool.py": "a LangChain adapter",
     "tests/callback/test_callback.py": (
-        "dspy's callback protocol is a BaseCallback subclass registered through "
-        "dspy.configure(callbacks=[...]); all six of its points exist here as tracing spans "
-        "(src/observe.rs) and are held by tests/observe.rs, but a subscriber is not that protocol "
-        "and these tests assert against it. Whether the protocol itself should be ported as a trait "
-        "is the callback-trait story — if it is, this file runs"
+        "the protocol is ported — `Callback` in src/callback.rs, twelve defaulted methods, "
+        "registered by configure_callbacks or LM::with_callbacks — but six of these eight tests "
+        "drive the `@with_callbacks` decorator over a Python function: what they assert on is "
+        "inspect.getcallargs reading a call's arguments back, a ContextVar, and an attribute list "
+        "on a Python object, none of which has a Rust surface to reach. The two that assert "
+        "something portable are test_callback_complex_module and its async twin, whose subject is "
+        "the *sequence* of handlers one ChainOfThought(n=3) call fires; that sequence, and three "
+        "more, are recorded from this same dspy by scripts/generate_callback_fixture.py and the "
+        "crate is held to them by tests/callback.rs"
     ),
     # The taxonomy stayed small on purpose: upstream branches on error *identity* in one place,
     # and that one — ContextWindowExceeded, which ReAct catches to truncate — is built and tested.

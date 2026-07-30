@@ -17,6 +17,19 @@ One signature, its demos, and its input values, with the system message and turn
 `ChatAdapter` renders for them. `tests/conformance.rs` globs this directory, so a new fixture is
 exercised the moment it lands. Add cases to `CASES` in `scripts/generate_fixtures.py`.
 
+That glob is why every other fixture lives in a subdirectory: a `.json` dropped beside this file is
+read as a rendered prompt, and one that is not fails on a missing `inputs` array.
+
+## `observe/` — which callback handlers a program fires, and under what
+
+`observe/callbacks.json` is the handler sequence four dspy programs produced under a recording
+`BaseCallback`, with the nesting depth of the call each handler belongs to. The payloads do not
+cross — upstream hands a handler Python objects — so what is held here is *when* each point fires
+and what encloses it, which is the half a trait of defaulted methods gets wrong by counting.
+`tests/callback.rs` reads it; `scripts/generate_callback_fixture.py` writes it. The
+`chain_of_thought_n3` case is the one sequence upstream asserts by hand, in
+`tests/callback/test_callback.py`.
+
 ## `lm_api/` — dspy 3.3's normalized LM types
 
 `lm_api/dspy_3_3.json` is one pydantic dump per class, every field included rather than only the

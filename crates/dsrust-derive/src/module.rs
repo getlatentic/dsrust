@@ -49,10 +49,9 @@ pub(crate) fn expand(item: &DeriveInput) -> Result<proc_macro2::TokenStream, syn
                     // dspy's `on_module_start`/`on_module_end`, which upstream gets by decorating
                     // `Module.__call__`. Here the derive is that entry, so a module of the caller's
                     // own is watched without their having to ask.
-                    let span = ::dsrust::observe::module_shown(#label, &inputs);
+                    let watch = ::dsrust::observe::module_shown(#label, &inputs);
                     ::dsrust::observe::watching(
-                        span,
-                        ::dsrust::observe::prediction,
+                        watch,
                         ::dsrust::Forward::forward(self, inputs),
                     )
                     .await

@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1002
+rust_tests = 1013
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -271,53 +271,111 @@ the provider contract untouched.
 id = "callback-trait"
 sprint = "api"
 title = "BaseCallback is a base class with no-op methods, which is a Rust trait, and spans were chosen without weighing it"
+state = "done"
+size = "M"
+done = """
+`src/callback.rs`: `Callback`, twelve defaulted methods, one per handler upstream declares.
+`configure_callbacks` is dspy's `configure(callbacks=[…])`; `LM::with_callbacks` and
+`LmBuilder::callbacks` are its `LM(model, callbacks=[…])`, read through a defaulted
+`ChatModel::callbacks` in the blanket `forward_dyn` — the one place a model's call cannot avoid,
+which is where upstream decorates `BaseLM.__call__`. Both lists are told, the process-wide ones
+first, as `_get_active_callbacks` orders them. A handler that panics is caught and logged, which is
+upstream's `try/except` around each one.
+
+`src/callback/context.rs` is `ACTIVE_CALL_ID`: a `CallId` carries the call it was born under, so
+`parent()` answers what upstream needs a second lookup for. The context is entered *per poll* rather
+than for the whole future, which is what makes it right where a `ContextVar` would not be —
+`Evaluate` interleaves its rows inside one task with `buffered`, and a value set once and left would
+be read by whichever row was polled next.
+
+The two are not exclusive, which was the point: `src/observe.rs` fires the handlers and opens the
+span at the same six points, and each point is one function that opens and closes together. A caller
+who wants the properties a span has and a handler list does not — cannot mutate what it sees, cannot
+break the run — registers nothing and keeps the subscriber.
+
+**What proved it, and it was not the upstream file.** Reading `tests/callback/test_callback.py`
+changed the measure. Six of its eight tests drive the `@with_callbacks` decorator over a Python
+function: what they assert on is `inspect.getcallargs` reading a call's arguments back, a ContextVar,
+and an attribute list on a Python object — none of which has a Rust surface, so routing them through
+the bridge would have bought eleven declarations and two tests whose crossing is the *adapter*. The
+two that assert something portable assert a *sequence*: the fourteen handlers one
+`ChainOfThought(n=3)` call fires. So `scripts/generate_callback_fixture.py` records that sequence and
+three more by running the pinned dspy under a recording `BaseCallback`, and `tests/callback.rs` holds
+the crate to them — including the nesting, which is the half a transcription gets wrong by counting.
+
+It caught one on the first run: an evaluation's rows were not children of the evaluate call. The
+span was instrumented onto the rows' future and the call id was not, so every row reported itself as
+an outermost call. `observe::evaluated_within` now carries both.
+
+Two findings filed rather than folded in: `predict-completions` (the fixture's `n=3` case fires three
+parses where the crate fires one, because `Predict::forward` reads one output whatever `n` is) and
+`callbacks-per-module` (upstream's per-instance list on `Module`, which a Rust trait has no shared
+constructor to hold).
+
+Ledger: `utils/callback.py` is now a ported module — `BaseCallback` and its twelve handlers mapped,
+`with_callbacks` a divergence naming what replaced it — and `BaseLM.callbacks`/`LM.callbacks` moved
+from divergence to mapped.
+"""
+
+[[story]]
+id = "predict-completions"
+sprint = "api"
+title = "Predict::forward reads one output whatever n is, so n>1 answers with a fraction of what was paid for"
 state = "todo"
 size = "M"
-suites = ["tests/callback/test_callback.py"]
+suites = ["tests/predict/test_predict.py"]
 plan = """
-`lm-callbacks` shipped all six of dspy's points as `tracing` spans, and the reasoning it inherited
-was "the Rust shape is `tracing` rather than a callback list". That was never argued against the
-obvious alternative, and the alternative is close to a transcription:
+`dspy.Predict(sig, n=3)(...)` returns a `Prediction` whose `.completions.<field>` is a list of all
+three candidates, and it parses each one. The crate's `Predict::forward` parses
+`response.first_text()` and returns a `Prediction` with no completions, whatever `config.completions`
+was set to. The other candidates were asked for, paid for, and dropped.
 
-    class MyCallback(BaseCallback):
-        def on_module_start(self, call_id, instance, inputs): ...
-        def on_lm_end(self, call_id, outputs, exception): ...
+`forward_completions` reads them — it exists for an instruction optimizer's proposal step and returns
+`Vec<Prediction>` — so the machinery is there; it is not on the path `forward` takes, and it answers
+with a different type than upstream's single `Prediction` carrying `Completions`.
 
-    dspy.configure(callbacks=[MyCallback()])
+Found by `tests/conformance/observe/callbacks.json`: the `chain_of_thought_n3` case, recorded from dspy,
+fires `on_adapter_parse_start`/`end` three times where the crate fires it once.
+`tests/callback.rs::a_chain_of_thought_nests_its_predictor` strips the two extra pairs to compare the
+rest, and names this story where it does — so closing this makes that stripping fail.
 
-is, in Rust,
+The ledger reads `mapped` for both `Prediction.completions` and `Prediction.from_completions`, and
+the types do exist. What is missing is the path through `Predict.forward` that fills them, which is
+the one place dspy fills them. That is the shape `api-5` exists to find: a `mapped` claim that
+resolves to a real definition nothing reaches.
 
-    pub trait Callback: Send + Sync {
-        fn on_module_start(&self, call_id: &str, kind: &str, inputs: &Example) {}
-        fn on_module_end(&self, call_id: &str, outputs: Option<&Prediction>, error: Option<&Error>) {}
-        // …ten more, all defaulted
-    }
+**What proves it.** The `n=3` case in `tests/callback.rs` compares against dspy's recording
+unstripped, and a `Prediction` from `forward` at `n=3` carries three candidates per field.
+"""
 
-    configure_callbacks(vec![Arc::new(MyCallback::default())]);
+[[story]]
+id = "callbacks-per-module"
+sprint = "api"
+title = "A module cannot carry its own callbacks, because a Rust Module is a trait with no shared constructor"
+state = "todo"
+size = "M"
+plan = """
+`BaseCallback`'s own docstring shows two ways to register, and `callback-trait` shipped both:
+`configure_callbacks` for the process, `LM::with_callbacks` for one model. Upstream has a third that
+follows from its base class — `dspy.Module.__init__` stores a `callbacks` list every subclass
+inherits, and `_get_active_callbacks` unions it with the configured ones — so
+`dspy.Predict("q -> a", callbacks=[cb])` watches that predictor and no other.
 
-A base class whose methods are no-ops *is* a trait with defaulted methods. There is no impedance
-here to justify a different shape.
+Nothing here does. A Rust `Module` is a trait, so there is no shared constructor to hold the list:
+each of the eight module structs would carry its own field and its own setter, and a caller's
+`#[derive(Module)]` struct could not have one at all without the derive inventing a field name.
 
-What the spans genuinely buy, and it is not nothing: a span carries the call id, the parent linkage,
-the start and the end at once, where upstream needs a uuid plus a context variable plus paired
-handlers; a subscriber cannot mutate what it is shown, which upstream's own documentation warns
-readers not to do; and a broken subscriber cannot break the run, which upstream needs a `try/except`
-around every handler to guarantee.
+What a handler gets instead: the module's type on `on_module_start`, and `CallId::parent` for the
+call it sits under. That covers filtering by kind and by position, not by object identity — two
+`Predict`s of the same signature are indistinguishable.
 
-**But these are not exclusive, and that is the point this story exists to act on.** The trait can be
-the API and a built-in implementation of it can emit the spans. Then `dspy.configure(callbacks=[…])`
-has a real counterpart, `tests/callback/test_callback.py` — 8 tests, currently excused as "dspy's
-Python callback protocol" — can run, and nothing that exists today is lost.
+The shape worth weighing is a defaulted `Module::callbacks(&self) -> &[Arc<dyn Callback>]` mirroring
+`ChatModel::callbacks`, with the field on the structs that already have builders, and the derive
+reading an `#[callbacks]`-attributed field when one is declared. That is mechanical but it is eight
+files of near-duplicate state, so it wants a reason beyond symmetry.
 
-The six call sites already exist and are held by `tests/observe.rs`; what changes is that each fires
-a dispatch list as well as opening a span. The nesting a span gives free would have to be carried
-explicitly for the callback path, which is what upstream's `ACTIVE_CALL_ID` does and what
-`utils/callback_context.py` on main is refining — see the ledger note beside the ambient-configuration
-section.
-
-**What proves it.** `tests/callback/test_callback.py` runs, and its 8 tests arrive as a failure list
-to triage. That is the honest measure of whether the trait is really a transcription, since the tests
-assert on handler order and on what each handler is passed.
+**What proves it.** `dspy.Predict("q -> a", callbacks=[cb])` has a spelling here, and a test with two
+predictors where only one is watched records only that one's points.
 """
 
 [[story]]
@@ -2196,8 +2254,14 @@ BootstrapFinetune — the optimizer surface a dspy user reaches for beyond the f
 """
 suites = [
   "teleprompt/test_random_search.py", "teleprompt/test_ensemble.py",
-  "teleprompt/test_knn_fewshot.py", "teleprompt/test_infer_rules.py",
+  "teleprompt/test_knn_fewshot.py",
 ]
+note = """
+dspy 3.3.0b1 ships `dspy/teleprompt/infer_rules.py` and no test for it, so InferRules is
+the one optimizer here that no upstream file can prove — it needs a golden generated by running
+it, the way the optimizer-shaped primitives already are. The suites list named that file until the
+plan gate started checking unfinished entries too.
+"""
 rationale = """
 Most are compositions over BootstrapFewShot + the Optimizer trait that already exist; SIMBA and
 BootstrapFinetune are the two with genuinely new search/finetune machinery. Ranked last of the

@@ -25,6 +25,12 @@ impl ChatModel for LM {
         self.answer(&self.with_defaults(request)).await
     }
 
+    /// The watchers this model carries, told about its calls beside the process-wide ones — dspy's
+    /// `LM(model, callbacks=[…])`. See [`LM::with_callbacks`].
+    fn callbacks(&self) -> &[std::sync::Arc<dyn crate::Callback>] {
+        &self.callbacks
+    }
+
     /// What this model's provider will honour natively: what the caller stated, else the registry
     /// dspy consults, else — for an ollama model the registry does not list — the server itself.
     fn capabilities(&self) -> impl Future<Output = Capabilities> + Send {

@@ -14,6 +14,7 @@ extern crate self as dsrust;
 pub use reqwest;
 
 pub mod adapter;
+pub mod callback;
 pub mod evaluate;
 pub mod example;
 pub mod interpreter;
@@ -35,6 +36,7 @@ pub use adapter::{
     Audio, Citation, Citations, Code, Document, File, Formatted, History, Image, MediaType,
     ToolCall, ToolCallResult, ToolCallResults, ToolCalls, Type,
 };
+pub use callback::{CallId, Callback, Rendered, configure_callbacks};
 pub use dsrust_derive::Module;
 pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
 pub use example::{Completions, Example, Prediction};

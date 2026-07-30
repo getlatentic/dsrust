@@ -133,6 +133,10 @@
 "utils/exceptions.py::LMServerError" = { status = "mapped", rust = "LmErrorKind", reason = "LmErrorKind::Server" }
 "utils/exceptions.py::is_retryable_lm_error" = { status = "mapped", rust = "is_retryable", reason = "LmErrorKind::is_retryable, over the same four kinds" }
 
+# --- the callback protocol ---
+"utils/callback.py::BaseCallback" = { status = "mapped", rust = "Callback", reason = "a base class whose twelve handlers are no-ops is a trait with twelve defaulted methods; src/callback.rs. Registered by configure_callbacks, dspy's configure(callbacks=[…]), or per model by LM::with_callbacks, dspy's LM(model, callbacks=[…]). tests/callback.rs holds the handler sequences to ones dspy fired" }
+"utils/callback.py::with_callbacks" = { status = "divergence", rust = "observe::watching", reason = "a decorator that reads a call's arguments back with inspect.getcallargs, which is Python answering about itself. What it does — mint a call id, link it to the enclosing one, fire start and end — is src/observe.rs, where each point is one function that opens and closes together rather than a wrapper an implementor could forget to apply. CallId carries its parent, so ACTIVE_CALL_ID has no counterpart to expose" }
+
 # --- primitives ---
 "primitives/example.py::Example" = { status = "mapped", rust = "Example" }
 "primitives/prediction.py::Prediction" = { status = "mapped", rust = "Prediction" }
@@ -256,6 +260,20 @@
 # The classification is the load-bearing part — a recorded decision per method.
 
 [methods]
+
+# --- the callback protocol: the twelve handlers, each a defaulted trait method ---
+"utils/callback.py::BaseCallback.on_module_start" = { status = "mapped", rust = "on_module_start" }
+"utils/callback.py::BaseCallback.on_module_end" = { status = "mapped", rust = "on_module_end" }
+"utils/callback.py::BaseCallback.on_lm_start" = { status = "mapped", rust = "on_lm_start" }
+"utils/callback.py::BaseCallback.on_lm_end" = { status = "mapped", rust = "on_lm_end" }
+"utils/callback.py::BaseCallback.on_adapter_format_start" = { status = "mapped", rust = "on_adapter_format_start" }
+"utils/callback.py::BaseCallback.on_adapter_format_end" = { status = "mapped", rust = "on_adapter_format_end" }
+"utils/callback.py::BaseCallback.on_adapter_parse_start" = { status = "mapped", rust = "on_adapter_parse_start" }
+"utils/callback.py::BaseCallback.on_adapter_parse_end" = { status = "mapped", rust = "on_adapter_parse_end" }
+"utils/callback.py::BaseCallback.on_tool_start" = { status = "mapped", rust = "on_tool_start" }
+"utils/callback.py::BaseCallback.on_tool_end" = { status = "mapped", rust = "on_tool_end" }
+"utils/callback.py::BaseCallback.on_evaluate_start" = { status = "mapped", rust = "on_evaluate_start" }
+"utils/callback.py::BaseCallback.on_evaluate_end" = { status = "mapped", rust = "on_evaluate_end" }
 
 # Adapter
 "adapters/base.py::Adapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
@@ -567,16 +585,16 @@
 
 [constructors]
 
-"adapters/base.py::Adapter.callbacks" = { status = "divergence", rust = "observe::formatting", reason = "dspy fires a BaseCallback at six points and all six exist here as spans — though a BaseCallback subclass is a Rust trait with defaulted methods and that was never weighed against the span, which is the callback-trait story, this adapter's two included — as `tracing` spans from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. Upstream decorates format and parse in __init_subclass__; a required Rust trait method has no such hook, so the span sits at the caller. tests/observe.rs collects them" }
+"adapters/base.py::Adapter.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and all six are ported: `Callback` in src/callback.rs, fired from src/observe.rs, this adapter's format and parse included. What has no counterpart is the *per-instance list*. Upstream stores one on every Adapter through the base class and unions it with the configured ones; a Rust Adapter is a trait an implementor writes, with no shared __init__ to hold a list. So the list is per process (configure_callbacks) or per model (LM::with_callbacks), and a handler is told which adapter it is watching, which is what a per-instance list is read for here. tests/callback.rs holds the sequence to dspy's own" }
 "adapters/base.py::Adapter.native_response_types" = { status = "todo", reason = "dspy's per-adapter list of types answered natively rather than rendered, defaulting to [Citations, Reasoning]. Not decided per-adapter here: `native_reasoning::plan` decides from the model's capabilities and the call's ReasoningEffort, read in Predict. So Reasoning has a switch — ReasoningEffort::Off forces the render — and Citations has none, and neither is a list a caller can replace" }
 "adapters/base.py::Adapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "the same field on each adapter" }
 "adapters/base.py::Adapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "the same field on each adapter" }
-"adapters/chat_adapter.py::ChatAdapter.callbacks" = { status = "divergence", rust = "observe::formatting", reason = "dspy fires a BaseCallback at six points and all six exist here as spans — though a BaseCallback subclass is a Rust trait with defaulted methods and that was never weighed against the span, which is the callback-trait story, this adapter's two included — as `tracing` spans from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. Upstream decorates format and parse in __init_subclass__; a required Rust trait method has no such hook, so the span sits at the caller. tests/observe.rs collects them" }
+"adapters/chat_adapter.py::ChatAdapter.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and all six are ported: `Callback` in src/callback.rs, fired from src/observe.rs, this adapter's format and parse included. What has no counterpart is the *per-instance list*. Upstream stores one on every Adapter through the base class and unions it with the configured ones; a Rust Adapter is a trait an implementor writes, with no shared __init__ to hold a list. So the list is per process (configure_callbacks) or per model (LM::with_callbacks), and a handler is told which adapter it is watching, which is what a per-instance list is read for here. tests/callback.rs holds the sequence to dspy's own" }
 "adapters/chat_adapter.py::ChatAdapter.native_response_types" = { status = "todo", reason = "as adapters/base.py" }
 "adapters/chat_adapter.py::ChatAdapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "ChatAdapter::parallel_tool_calls" }
 "adapters/chat_adapter.py::ChatAdapter.use_json_adapter_fallback" = { status = "mapped", rust = "use_json_adapter_fallback", reason = "ChatAdapter::use_json_adapter_fallback" }
 "adapters/chat_adapter.py::ChatAdapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "ChatAdapter::use_native_function_calling" }
-"adapters/json_adapter.py::JSONAdapter.callbacks" = { status = "divergence", rust = "observe::formatting", reason = "dspy fires a BaseCallback at six points and all six exist here as spans — though a BaseCallback subclass is a Rust trait with defaulted methods and that was never weighed against the span, which is the callback-trait story, this adapter's two included — as `tracing` spans from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. Upstream decorates format and parse in __init_subclass__; a required Rust trait method has no such hook, so the span sits at the caller. tests/observe.rs collects them" }
+"adapters/json_adapter.py::JSONAdapter.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and all six are ported: `Callback` in src/callback.rs, fired from src/observe.rs, this adapter's format and parse included. What has no counterpart is the *per-instance list*. Upstream stores one on every Adapter through the base class and unions it with the configured ones; a Rust Adapter is a trait an implementor writes, with no shared __init__ to hold a list. So the list is per process (configure_callbacks) or per model (LM::with_callbacks), and a handler is told which adapter it is watching, which is what a per-instance list is read for here. tests/callback.rs holds the sequence to dspy's own" }
 "adapters/json_adapter.py::JSONAdapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "JsonAdapter::parallel_tool_calls" }
 "adapters/json_adapter.py::JSONAdapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "JsonAdapter::use_native_function_calling" }
 "adapters/two_step_adapter.py::TwoStepAdapter.extraction_model" = { status = "mapped", rust = "extraction_model", reason = "TwoStepAdapter::extraction_model" }
@@ -590,7 +608,7 @@
 "adapters/types/tool.py::Tool.func" = { status = "mapped", rust = "FnTool", reason = "FnTool's closure, or an impl of the Tool trait" }
 "adapters/types/tool.py::Tool.name" = { status = "mapped", rust = "name", reason = "Tool::name" }
 "clients/base_lm.py::BaseLM.cache" = { status = "mapped", rust = "with_cache", reason = "LM::with_cache / LmBuilder::cache" }
-"clients/base_lm.py::BaseLM.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and all six exist here as spans — though a BaseCallback subclass is a Rust trait with defaulted methods and that was never weighed against the span, which is the callback-trait story — as a `tracing` span from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. A span nests and cannot mutate what it sees, which is upstream's own stated worry about callbacks. tests/observe.rs collects them" }
+"clients/base_lm.py::BaseLM.callbacks" = { status = "mapped", rust = "callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. LM::with_callbacks sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
 "clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
 "clients/base_lm.py::BaseLM.model" = { status = "mapped", rust = "LM", reason = "LM::new, positional" }
 "clients/base_lm.py::BaseLM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "the wire enum LM routes on" }
@@ -604,7 +622,7 @@
 "clients/cache.py::Cache.restrict_pickle" = { status = "divergence", reason = "dspy guards against unpickling arbitrary types; nothing here pickles, and the disk cache is JSON" }
 "clients/cache.py::Cache.safe_types" = { status = "divergence", reason = "the allowlist for dspy's pickle guard, which has no counterpart in a JSON cache" }
 "clients/lm.py::LM.cache" = { status = "mapped", rust = "with_cache", reason = "LM::with_cache / LmBuilder::cache" }
-"clients/lm.py::LM.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and all six exist here as spans — though a BaseCallback subclass is a Rust trait with defaulted methods and that was never weighed against the span, which is the callback-trait story — as a `tracing` span from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. A span nests and cannot mutate what it sees, which is upstream's own stated worry about callbacks. tests/observe.rs collects them" }
+"clients/lm.py::LM.callbacks" = { status = "mapped", rust = "with_callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. LM::with_callbacks sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
 "clients/lm.py::LM.finetuning_model" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.launch_kwargs" = { status = "deferred", reason = "provider launch for finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
@@ -650,7 +668,7 @@
 "predict/parallel.py::Parallel.return_failed_examples" = { status = "mapped", rust = "return_failed_examples", reason = "Parallel::return_failed_examples" }
 "predict/parallel.py::Parallel.straggler_limit" = { status = "mapped", rust = "straggler_limit", reason = "Parallel::straggler_limit" }
 "predict/parallel.py::Parallel.timeout" = { status = "mapped", rust = "timeout", reason = "Parallel::timeout" }
-"predict/predict.py::Predict.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and all six exist here as spans — though a BaseCallback subclass is a Rust trait with defaulted methods and that was never weighed against the span, which is the callback-trait story — as a `tracing` span from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. A span nests and cannot mutate what it sees, which is upstream's own stated worry about callbacks. tests/observe.rs collects them" }
+"predict/predict.py::Predict.callbacks" = { status = "divergence", reason = "dspy's Module.__init__ stores a per-instance list every subclass inherits, and both of the registration paths its own documentation shows are ported: process-wide (configure_callbacks) and per model (LM::with_callbacks). A Rust Module is a trait, so there is no shared constructor to hold a list and each of the eight module structs would carry its own field — while a derived Module could not have one at all. A handler is told which module type it is watching and CallId::parent gives the call it sits under. Filed as `callbacks-per-module`" }
 "predict/predict.py::Predict.signature" = { status = "mapped", rust = "from_signature", reason = "Predict::from_signature / the predict! macro" }
 "predict/program_of_thought.py::ProgramOfThought.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "ProgramOfThought::with_interpreter" }
 "predict/program_of_thought.py::ProgramOfThought.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "ProgramOfThought::with_max_iters" }
@@ -676,7 +694,7 @@
 "predict/rlm.py::RLM.verbose" = { status = "divergence", reason = "dspy prints its trajectory; tracing spans carry the same events here" }
 "primitives/code_interpreter.py::FinalOutput.output" = { status = "mapped", rust = "Executed", reason = "Executed::Submitted carries the submitted value" }
 "primitives/example.py::Example.base" = { status = "mapped", rust = "with_inputs", reason = "Example's Clone plus with_inputs, which is what dspy's base= copies" }
-"primitives/module.py::Module.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and all six exist here as spans — though a BaseCallback subclass is a Rust trait with defaulted methods and that was never weighed against the span, which is the callback-trait story — as a `tracing` span from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. A span nests and cannot mutate what it sees, which is upstream's own stated worry about callbacks. tests/observe.rs collects them" }
+"primitives/module.py::Module.callbacks" = { status = "divergence", reason = "dspy's Module.__init__ stores a per-instance list every subclass inherits, and both of the registration paths its own documentation shows are ported: process-wide (configure_callbacks) and per model (LM::with_callbacks). A Rust Module is a trait, so there is no shared constructor to hold a list and each of the eight module structs would carry its own field — while a derived Module could not have one at all. A handler is told which module type it is watching and CallId::parent gives the call it sits under. Filed as `callbacks-per-module`" }
 "primitives/prediction.py::Completions.list_or_dict" = { status = "divergence", reason = "dspy accepts either shape; LmResponse::outputs is always a list" }
 "primitives/prediction.py::Completions.signature" = { status = "divergence", reason = "dspy's Completions keeps the signature to render itself; LmResponse carries the outputs and the adapter holds the signature" }
 "teleprompt/bettertogether.py::BetterTogether.metric" = { status = "mapped", rust = "BetterTogether", reason = "BetterTogether::new, positional" }

@@ -41,13 +41,22 @@ def sprints() -> list[dict]:
     return tomllib.loads(BACKLOG.read_text()).get("sprint", [])
 
 
-def named(sprint: dict) -> list[str]:
-    """The suites a sprint names as files.
+def stories() -> list[dict]:
+    """Stories carry `suites` too, and were unchecked in both directions until `callback-trait`
+    shipped naming a file the runner does not run — the same claim-without-evidence a sprint is
+    held to, one level down. A story's `state` is spelled the same way, so the check is the same."""
+    return tomllib.loads(BACKLOG.read_text()).get("story", [])
+
+
+def named(entry: dict) -> list[str]:
+    """The suites an entry names as files, as `area/test_x.py`.
 
     An entry naming a group rather than a file — "signatures/* (4 files)" — is prose about intent
-    and cannot be held to anything, so neither direction checks it.
+    and cannot be held to anything, so neither direction checks it. Stories write the path from the
+    dspy root and sprints write it from `tests/`, so the prefix is dropped rather than made a
+    difference the gate reports.
     """
-    return [suite for suite in sprint.get("suites", []) if "*" not in suite]
+    return [suite.removeprefix("tests/") for suite in entry.get("suites", []) if "*" not in suite]
 
 
 def stale_manifest() -> str | None:
@@ -68,16 +77,21 @@ def stale_manifest() -> str | None:
 
 
 def claims_without_evidence(suites: set[str], manifest: set[str]) -> list[str]:
-    """Sprints reporting coverage of a file that does not run, or that upstream does not ship."""
+    """Sprints and stories reporting coverage of a file that does not run, or that upstream does
+    not ship.
+
+    A file dspy does not ship is wrong whatever the state — an unfinished plan cannot name it
+    either. A file that merely does not *run* is only wrong once the work is claimed as shipped,
+    since naming what will prove a story is what a plan is for.
+    """
     found = []
-    for sprint in sprints():
-        if sprint.get("state") not in FINISHED:
-            continue
-        for suite in named(sprint):
+    for entry in sprints() + stories():
+        shipped = entry.get("state") in FINISHED
+        for suite in named(entry):
             if suite not in manifest:
-                found.append(f"{sprint['id']} names {suite}, which dspy does not ship at this version")
-            elif suite not in suites:
-                found.append(f"{sprint['id']} claims {suite}, which the runner does not run")
+                found.append(f"{entry['id']} names {suite}, which dspy does not ship at this version")
+            elif shipped and suite not in suites:
+                found.append(f"{entry['id']} claims {suite}, which the runner does not run")
     return found
 
 

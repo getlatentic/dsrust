@@ -72,6 +72,8 @@ PORTED_MODULES = [
     "primitives/sandbox_serializable.py",
     # the error taxonomy: 17 public types dspy exports and modules branch on
     "utils/exceptions.py",
+    # the callback protocol: a base class of no-op handlers, which is a Rust trait
+    "utils/callback.py",
     # teleprompt
     "teleprompt/teleprompt.py",
     "teleprompt/bootstrap.py",
