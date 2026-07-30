@@ -311,6 +311,47 @@ without any module having been rebuilt, and reaching the process-wide one again 
 """
 
 [[story]]
+id = "pin-drift"
+sprint = "api"
+title = "Six ported modules moved on main, and one of them contradicts a guide"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+`./scripts/check_pin_drift.py --detail` reports the public surface of every ported module, pin
+against main. Six have moved. None is to be ported now — the pin is the oracle and 3.3.0b1 is the
+only 3.3 tag — but each is what re-reading will cost when a release lands, and one is already wrong
+in a guide.
+
+**The sandbox lifecycle changed, and it is one refactor across three modules.** `CodeAct`,
+`ProgramOfThought` and `RLM` all moved `interpreter` out of `__init__` into `forward`, and `__init__`
+now takes an `interpreter_factory` instead. So upstream made the interpreter *per call* rather than
+per module. This crate has `with_interpreter` on the module, which is the pin's shape. Worth reading
+before the pin moves: a factory implies the sandbox is created and torn down per call, and
+`DenoInterpreter` currently holds a long-lived child process, so the change is about lifecycle rather
+than about a parameter.
+
+**`RLM.max_iterations` became `max_iters`.** `docs/usage.md` says: "Each keeps the cap keyword its own
+module uses: `max_iters` for most, `max_iterations` for `RLM`. A uniform name would be one none of
+them actually have." That was true of the pin and is exactly the sentence main deletes — upstream
+converged on `max_iters`. The guide has been softened to say the split is the pin's rather than
+permanent; the rename itself waits for the pin.
+
+**Two additions, neither breaking.** `primitives/code_interpreter.py` gains `CodeExecutionError`,
+which this crate answers today with an `anyhow::Error` carrying the sandbox's message — a typed
+counterpart is the same decision `LmFailure` already made for provider failures.
+`signatures/signature.py` gains `Signature.append_instructions`, which is a small mutator and has no
+counterpart here.
+
+**`BaseLM.__call__` and `acall` gained `*items` and `request`.** Already recorded under lm-from-call:
+`ChatModel::call` implements main's shape, not the pin's, and no upstream test reaches it.
+
+**What proves it.** Nothing, until the pin moves — that is the point of the story. What it buys is
+that the next pin bump is a list rather than a surprise, and `check_pin_drift.py` regenerates the
+list rather than this prose being trusted.
+"""
+
+[[story]]
 id = "lm-shared-client"
 sprint = "api"
 title = "ChatModel takes an HTTP client dspy's signature has not, and it leaks reqwest into every caller"

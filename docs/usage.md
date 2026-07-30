@@ -539,8 +539,9 @@ let agent    = ReAct!(Investigate, tools, max_iters = 4);
 let reader   = RLM!(Investigate, max_iterations = 6);
 ```
 
-Each keeps the cap keyword its own module uses: `max_iters` for most, `max_iterations` for `RLM`.
-A uniform name would be one none of them actually have.
+Each keeps the cap keyword its own module uses in DSPy 3.3.0b1: `max_iters` for most,
+`max_iterations` for `RLM`. Naming them alike would be naming them something neither has — though
+DSPy's main branch has since converged on `max_iters`, so this one follows when the pin moves.
 
 ### Code-writing modules run real Python
 
