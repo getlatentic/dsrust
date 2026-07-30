@@ -167,6 +167,16 @@ Add the `Developer` role, which `Role` has no variant for. Tracked twice already
 `core/types.py::Developer` and `clients/lm.py::LM.use_developer_role`, both todo.
 
 Then `from_call` on top of those, since its `items` branch is a list of exactly these.
+
+**Two entrances, one request.** `adapters/base.py` builds its request with `from_call(model=,
+messages=, **lm_kwargs)` and no adapter anywhere passes `items=`. So the variadic form is not how a
+signature reaches the model: a signature renders to messages and enters through `messages=`, while a
+caller writing `lm(User(...), Assistant(...))` enters through `items=`. Both converge on `LMRequest`
+and share everything below it.
+
+That settles the design here. `Predict` already produces `LmRequest` and needs no change; the
+constructors are a second door to the same type, for a caller who wants the model without a
+signature. Do not thread them through the adapters.
 """
 
 [[story]]
