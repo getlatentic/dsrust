@@ -48,7 +48,7 @@ where
 
     /// The seed the per-call draw starts from. dspy has no equivalent — it reaches for the
     /// process-wide `random` — and a caller who wants the same subset twice has nowhere to say so.
-    pub fn with_seed(mut self, seed: u64) -> Self {
+    pub fn seed(mut self, seed: u64) -> Self {
         self.seed = seed;
         self
     }
@@ -293,7 +293,7 @@ mod tests {
         let drawn = |seed: u64| {
             let ensembled = Ensemble::new(first_answer as fn(&[Prediction]) -> Result<Prediction>)
                 .with_size(2)
-                .with_seed(seed)
+                .seed(seed)
                 .compile(programs(&["a", "b", "c", "d"]));
             (0..3).map(|_| ensembled.asked()).collect::<Vec<_>>()
         };

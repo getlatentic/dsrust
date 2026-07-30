@@ -26,14 +26,6 @@ impl ChatModel for LM {
         http: &reqwest::Client,
         request: &api::LmRequest,
     ) -> Result<api::LmResponse> {
-        // dspy's `kwargs = {**self.kwargs, **kwargs}`, and in the same place: the LM applies its
-        // own settings, so every caller inherits them without having to know they exist. Before
-        // the cache key is taken, since two calls differing only in an inherited setting are two
-        // different requests.
-        // dspy's `kwargs = {**self.kwargs, **kwargs}`, and in the same place: the LM applies its own
-        // settings, so every caller inherits them without having to know they exist. Before the cache
-        // key is taken, since two calls differing only in an inherited setting are two different
-        // requests.
         self.answer(http, &self.with_defaults(request)).await
     }
 

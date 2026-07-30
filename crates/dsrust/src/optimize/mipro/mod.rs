@@ -167,7 +167,7 @@ where
     }
 
     /// The seed for the proposer's RNG and the TPE sampler — dspy seeds both from one number.
-    pub fn with_seed(mut self, seed: u64) -> Self {
+    pub fn seed(mut self, seed: u64) -> Self {
         self.seed = seed;
         self
     }

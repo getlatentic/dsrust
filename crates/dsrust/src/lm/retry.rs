@@ -86,17 +86,20 @@ impl Retry {
     }
 
     /// The delay itself, once it is settled that there will be another ask.
+    ///
+    /// A `retry-after` the provider sent wins, uncapped: waiting ten seconds when the server asked
+    /// for sixty earns a second refusal. litellm ignores the header, which is the part of upstream
+    /// not worth reproducing.
+    ///
+    /// Otherwise a rate limit backs off and nothing else does — litellm's `constant_retry`, whose
+    /// tenacity default is no wait. A timeout has already spent its own delay, and a refused
+    /// connection has nothing to wait for.
     fn wait(&self, failed: usize, failure: &LmFailure) -> Duration {
-        // A provider that named a delay is the authority on its own limit, and it is not capped:
-        // waiting ten seconds when the server asked for sixty earns a second refusal. litellm
-        // ignores the header entirely, which is the part of upstream not worth reproducing.
         if let Some(seconds) = failure.retry_after.filter(|seconds| *seconds > 0.0) {
             return Duration::from_secs_f64(seconds);
         }
         match failure.kind {
             super::LmErrorKind::RateLimit => Duration::from_secs_f64(exponential(failed)),
-            // litellm's `constant_retry`, whose tenacity default is no wait at all. A timeout has
-            // already spent its own delay, and a refused connection has nothing to wait for.
             _ => Duration::ZERO,
         }
     }

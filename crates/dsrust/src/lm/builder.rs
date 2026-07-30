@@ -13,30 +13,26 @@ use super::{LM, Retry, api};
 
 /// The settings an LM carries for every call through it — dspy's `lm.kwargs`.
 impl LM {
-    /// This request with anything it left unset filled from the LM's own settings.
+    /// This request with anything it left unset filled from the LM's own settings, and the system
+    /// message renamed where [`use_developer_role`](LmBuilder::use_developer_role) asks for it.
     pub(super) fn with_defaults(&self, request: &api::LmRequest) -> api::LmRequest {
         let mut asked = request.clone();
         api::defaults::beneath(&mut asked.config, &self.config);
+        if self.use_developer_role && matches!(self.openai.wire, super::OpenAiWire::Responses) {
+            for message in &mut asked.messages {
+                if message.role == "system" {
+                    message.role = "developer".to_owned();
+                }
+            }
+        }
         asked
     }
 
-    /// The sampling temperature every call through this model uses unless it states its own.
-    /// dspy's `dspy.LM(model, temperature=…)`.
-    pub fn with_temperature(mut self, temperature: f64) -> Self {
-        self.config.temperature = Some(temperature);
-        self
-    }
-
-    /// The token ceiling every call through this model uses unless it states its own.
-    pub fn with_max_tokens(mut self, max_tokens: u32) -> Self {
-        self.config.max_tokens = Some(max_tokens);
-        self
-    }
-
-    /// Any other setting dspy would have taken as a keyword argument, as a whole config.
+    /// dspy `lm.copy(**kwargs)`: this model again, with these settings replacing its own.
     ///
-    /// The escape hatch for the fields with no named setter — `top_p`, `stop`, `logprobs`, a
-    /// provider knob under `extensions`. Replaces whatever was set before it.
+    /// The one post-construction setter, rather than one per field. Upstream's counterpart is a
+    /// single `copy` taking keywords; `LM::builder` is where a field is named individually, and it
+    /// uses dspy's own names for them.
     pub fn with_config(mut self, config: api::LmConfig) -> Self {
         self.config = config;
         self
@@ -123,6 +119,16 @@ impl LmBuilder {
     pub fn num_retries(mut self, attempts: usize) -> Self {
         self.settings
             .push(Box::new(move |lm| lm.with_retry(Retry::attempts(attempts))));
+        self
+    }
+
+    /// Send the system message as `developer` instead, which is what the o1 family takes. dspy's
+    /// `LM(model, use_developer_role=True)`, and as upstream has it this applies on the Responses
+    /// wire only.
+    pub fn use_developer_role(mut self, use_developer_role: bool) -> Self {
+        self.settings.push(Box::new(move |lm| {
+            lm.with_developer_role(use_developer_role)
+        }));
         self
     }
 

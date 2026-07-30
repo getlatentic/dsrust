@@ -60,8 +60,9 @@ pub use interpreter::{
 pub use lm::dummy::DummyLM;
 pub use lm::global::configure_model;
 pub use lm::{
-    ChatModel, ChatTurn, DEFAULT_PROVIDER_TIMEOUT, LM, ModelRef, OutputMode, Provider, Role,
-    configure, configure_with_client,
+    Assistant, ChatModel, ChatTurn, DEFAULT_PROVIDER_TIMEOUT, Developer, LM, LmItem, LmMessage,
+    LmPart, LmRequest, LmResponse, ModelRef, OutputMode, Provider, Role, System, User, configure,
+    configure_with_client,
 };
 pub use predict::{
     Answered, BestOfN, ChainOfThought, CodeAct, MultiChainComparison, Parallel, Predict,

@@ -222,10 +222,10 @@
 "core/types.py::LMUsage" = { status = "divergence", reason = "reproduced as the usage record in lm/api" }
 "core/types.py::LMOutput" = { status = "divergence", reason = "reproduced as part of the LM response (lm/api/response.rs)" }
 "core/types.py::LMResponse" = { status = "divergence", reason = "reproduced as the LM response (lm/api/response.rs)" }
-"core/types.py::Assistant" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
-"core/types.py::Developer" = { status = "todo", reason = "the o1-family `developer` role in place of `system`; `Role` has User, Assistant, System and Tool and no fourth variant, so there is nothing to construct it from. Same gap as clients/lm.py::LM.use_developer_role, which is already todo" }
-"core/types.py::System" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
-"core/types.py::User" = { status = "divergence", reason = "message-role constructor; reproduced via Role + LmMessage" }
+"core/types.py::Assistant" = { status = "mapped", rust = "Assistant" }
+"core/types.py::Developer" = { status = "mapped", rust = "Developer", reason = "a free function as upstream's is, under #[allow(non_snake_case)] where dspy carries # noqa: N802" }
+"core/types.py::System" = { status = "mapped", rust = "System" }
+"core/types.py::User" = { status = "mapped", rust = "User" }
 "core/types.py::ToolResult" = { status = "divergence", reason = "a constructor helper for a message carrying one LmPart::ToolResult, which exists; a caller composes the part instead of calling a helper" }
 
 # Every public method of a `mapped` class, classified the same way. A class can otherwise pass the
@@ -467,7 +467,7 @@
 "clients/base_lm.py::BaseLM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
 "clients/base_lm.py::BaseLM.copy" = { status = "divergence", reason = "reproduced as `Clone` plus the per-call `LmConfig`, which is where a rollout differs" }
 "clients/base_lm.py::BaseLM.dump_state" = { status = "divergence", reason = "serialising a model into a program's state; the crate stores the model reference, not its credentials" }
-"clients/base_lm.py::BaseLM.forward" = { status = "mapped", rust = "forward" }
+"clients/base_lm.py::BaseLM.forward" = { status = "divergence", rust = "ChatModel::forward", reason = "same contract — one LmRequest in, one LmResponse out — with one parameter upstream has not: `http: &reqwest::Client`. litellm holds a module-level session, so dspy's signature names no client and its own docstring example constructs one inside `forward`. A caller implementing this trait therefore has to name a reqwest type, which is why the crate re-exports it. Closeable, and filed as lm-shared-client" }
 "clients/base_lm.py::BaseLM.inspect_history" = { status = "divergence", reason = "Python REPL history printing" }
 "clients/base_lm.py::BaseLM.load_state" = { status = "divergence", reason = "as `dump_state`" }
 "clients/base_lm.py::BaseLM.supported_params" = { status = "divergence", reason = "dspy's only consumer is JSONAdapter checking whether response_format is in lm.supported_params, and that branch is unreachable here: litellm answers this per *provider* once a model carries a prefix, and `ModelRef` refuses anything but `provider/model-id`. `gpt-4` lacks it; `openai/gpt-4` has it, and only the second is a model this crate can hold. The premise is pinned by `tests/lm_capabilities.rs::every_model_this_crate_can_hold_takes_a_response_format`, so it cannot quietly stop being true. The other predicate that adapter reads, supports_response_schema, is on `Capabilities`" }
@@ -504,7 +504,7 @@
 "core/types.py::LMMessage.text" = { status = "mapped", rust = "text" }
 
 # LMRequest
-"core/types.py::LMRequest.from_call" = { status = "todo", reason = "normalises three input shapes — a message list, a bare prompt, or variadic items that may mix LMMessage and LMResponse; LmRequest::new takes the message list only. See lm-from-call" }
+"core/types.py::LMRequest.from_call" = { status = "mapped", rust = "LmRequest::from_items", reason = "two constructors rather than one: from_messages is the adapter door, from_items the direct-call one. Upstream raises when both are passed; two constructors make it unwritable" }
 "core/types.py::LMRequest.from_prompt_or_messages" = { status = "divergence", reason = "builds a request from dspy's legacy prompt/messages pair; the crate's boundary is typed-only" }
 "core/types.py::LMRequest.with_config_overrides" = { status = "mapped", rust = "configured" }
 
@@ -572,11 +572,11 @@
 "adapters/types/tool.py::Tool.name" = { status = "mapped", rust = "name", reason = "Tool::name" }
 "clients/base_lm.py::BaseLM.cache" = { status = "mapped", rust = "with_cache", reason = "LM::with_cache / LmBuilder::cache" }
 "clients/base_lm.py::BaseLM.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and this point is one of the two that exist here — as a `tracing` span from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. A span nests and cannot mutate what it sees, which is upstream's own stated worry about callbacks. tests/observe.rs collects them" }
-"clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "with_max_tokens", reason = "LM::with_max_tokens" }
+"clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
 "clients/base_lm.py::BaseLM.model" = { status = "mapped", rust = "LM", reason = "LM::new, positional" }
 "clients/base_lm.py::BaseLM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "the wire enum LM routes on" }
 "clients/base_lm.py::BaseLM.num_retries" = { status = "mapped", rust = "with_retry", reason = "LM::with_retry / LmBuilder::num_retries; the policy itself is lm::Retry" }
-"clients/base_lm.py::BaseLM.temperature" = { status = "mapped", rust = "with_temperature", reason = "LM::with_temperature" }
+"clients/base_lm.py::BaseLM.temperature" = { status = "mapped", rust = "temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
 "clients/cache.py::Cache.disk_cache_dir" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new's root" }
 "clients/cache.py::Cache.disk_size_limit_bytes" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new takes the byte ceiling as its second argument" }
 "clients/cache.py::Cache.enable_disk_cache" = { status = "mapped", rust = "with_disk", reason = "ResponseCache::with_disk, present or absent" }
@@ -588,14 +588,14 @@
 "clients/lm.py::LM.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and this point is one of the two that exist here — as a `tracing` span from src/observe.rs, entered where upstream fires and carrying the same inputs and outputs, rather than as a per-instance callback list. A span nests and cannot mutate what it sees, which is upstream's own stated worry about callbacks. tests/observe.rs collects them" }
 "clients/lm.py::LM.finetuning_model" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.launch_kwargs" = { status = "deferred", reason = "provider launch for finetuning, out of the 1.0 ceiling" }
-"clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "with_max_tokens", reason = "LM::with_max_tokens / LmBuilder::max_tokens" }
+"clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
 "clients/lm.py::LM.model" = { status = "mapped", rust = "new", reason = "LM::new / LM::builder, positional" }
 "clients/lm.py::LM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "OpenAiWire / ModelRef routing decides chat vs responses" }
 "clients/lm.py::LM.num_retries" = { status = "mapped", rust = "with_retry", reason = "LM::with_retry / LmBuilder::num_retries; three asks and two retries, as upstream's stop_after_attempt counts" }
 "clients/lm.py::LM.provider" = { status = "todo", reason = "dspy's `provider=` overrides the inference the model prefix would give; the prefix is the only route here" }
-"clients/lm.py::LM.temperature" = { status = "mapped", rust = "with_temperature", reason = "LM::with_temperature / LmBuilder::temperature" }
+"clients/lm.py::LM.temperature" = { status = "mapped", rust = "temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
 "clients/lm.py::LM.train_kwargs" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
-"clients/lm.py::LM.use_developer_role" = { status = "todo", reason = "the o1-family `developer` role in place of `system`; nothing here sends it" }
+"clients/lm.py::LM.use_developer_role" = { status = "mapped", rust = "use_developer_role", reason = "LmBuilder::use_developer_role / LM::with_developer_role; applied on the Responses wire only, as upstream's is" }
 "evaluate/evaluate.py::Evaluate.devset" = { status = "mapped", rust = "devset", reason = "Evaluate::devset" }
 "evaluate/evaluate.py::Evaluate.display_progress" = { status = "divergence", reason = "progress is the caller's to render; tracing spans carry the events" }
 "evaluate/evaluate.py::Evaluate.display_table" = { status = "divergence", reason = "dspy prints a pandas table; Outcome carries the rows for a caller to render" }
@@ -674,30 +674,30 @@
 "teleprompt/copro_optimizer.py::COPRO.metric" = { status = "mapped", rust = "COPRO", reason = "COPRO::new, positional" }
 "teleprompt/copro_optimizer.py::COPRO.prompt_model" = { status = "mapped", rust = "with_prompt_model", reason = "COPRO::with_prompt_model" }
 "teleprompt/copro_optimizer.py::COPRO.track_stats" = { status = "divergence", reason = "dspy accumulates per-round statistics onto the compiled program; the outcome carries them here" }
-"teleprompt/ensemble.py::Ensemble.deterministic" = { status = "divergence", reason = "dspy raises on deterministic=True — it is unimplemented upstream; the seed is set with with_seed" }
+"teleprompt/ensemble.py::Ensemble.deterministic" = { status = "divergence", reason = "dspy raises on deterministic=True — it is unimplemented upstream; the seed is set with seed" }
 "teleprompt/ensemble.py::Ensemble.reduce_fn" = { status = "mapped", rust = "Ensemble", reason = "Ensemble::new, positional" }
 "teleprompt/ensemble.py::Ensemble.size" = { status = "mapped", rust = "with_size", reason = "Ensemble::with_size" }
 "teleprompt/gepa/gepa.py::GEPA.add_format_failure_as_feedback" = { status = "todo", reason = "dspy can feed a parse failure back as the reflection's feedback text" }
-"teleprompt/gepa/gepa.py::GEPA.auto" = { status = "mapped", rust = "auto_budget", reason = "GEPA::auto_budget / with_auto_budget" }
+"teleprompt/gepa/gepa.py::GEPA.auto" = { status = "mapped", rust = "auto_budget", reason = "GEPA::auto_budget / auto_metric_calls" }
 "teleprompt/gepa/gepa.py::GEPA.candidate_selection_strategy" = { status = "todo", reason = "dspy chooses between pareto and current-best candidate selection; only pareto is built" }
 "teleprompt/gepa/gepa.py::GEPA.component_selector" = { status = "todo", reason = "dspy lets a caller choose which predictor a round mutates; round-robin here" }
-"teleprompt/gepa/gepa.py::GEPA.failure_score" = { status = "mapped", rust = "with_failure_score", reason = "GEPA::with_failure_score" }
+"teleprompt/gepa/gepa.py::GEPA.failure_score" = { status = "mapped", rust = "failure_score", reason = "GEPA::failure_score" }
 "teleprompt/gepa/gepa.py::GEPA.gepa_kwargs" = { status = "divergence", reason = "a passthrough to the gepa library's own optimizer; dsrust-gepa is called directly" }
 "teleprompt/gepa/gepa.py::GEPA.instruction_proposer" = { status = "todo", reason = "dspy's pluggable proposer; the reflection tree is fixed here" }
 "teleprompt/gepa/gepa.py::GEPA.log_dir" = { status = "divergence", reason = "dspy writes its run log to disk; tracing spans are the record here" }
 "teleprompt/gepa/gepa.py::GEPA.max_full_evals" = { status = "mapped", rust = "auto_budget", reason = "an arm of GEPA::auto_budget's arithmetic" }
-"teleprompt/gepa/gepa.py::GEPA.max_merge_invocations" = { status = "mapped", rust = "with_max_merge_invocations", reason = "GEPA::with_max_merge_invocations" }
-"teleprompt/gepa/gepa.py::GEPA.max_metric_calls" = { status = "mapped", rust = "with_max_metric_calls", reason = "GEPA::with_max_metric_calls" }
+"teleprompt/gepa/gepa.py::GEPA.max_merge_invocations" = { status = "mapped", rust = "max_merge_invocations", reason = "GEPA::max_merge_invocations" }
+"teleprompt/gepa/gepa.py::GEPA.max_metric_calls" = { status = "mapped", rust = "max_metric_calls", reason = "GEPA::max_metric_calls" }
 "teleprompt/gepa/gepa.py::GEPA.metric" = { status = "mapped", rust = "GEPA", reason = "GEPA::new, positional" }
 "teleprompt/gepa/gepa.py::GEPA.num_threads" = { status = "todo", reason = "parallel evaluation, blocked on the same concurrency limit Evaluate::num_threads needs" }
-"teleprompt/gepa/gepa.py::GEPA.perfect_score" = { status = "mapped", rust = "with_perfect_score", reason = "GEPA::with_perfect_score" }
+"teleprompt/gepa/gepa.py::GEPA.perfect_score" = { status = "mapped", rust = "perfect_score", reason = "GEPA::perfect_score" }
 "teleprompt/gepa/gepa.py::GEPA.reflection_lm" = { status = "mapped", rust = "GEPA", reason = "GEPA::new's second argument" }
-"teleprompt/gepa/gepa.py::GEPA.reflection_minibatch_size" = { status = "mapped", rust = "with_reflection_minibatch_size", reason = "GEPA::with_reflection_minibatch_size" }
-"teleprompt/gepa/gepa.py::GEPA.seed" = { status = "mapped", rust = "with_seed", reason = "GEPA::with_seed" }
-"teleprompt/gepa/gepa.py::GEPA.skip_perfect_score" = { status = "mapped", rust = "skipping_perfect_scores", reason = "GEPA::skipping_perfect_scores" }
+"teleprompt/gepa/gepa.py::GEPA.reflection_minibatch_size" = { status = "mapped", rust = "reflection_minibatch_size", reason = "GEPA::reflection_minibatch_size" }
+"teleprompt/gepa/gepa.py::GEPA.seed" = { status = "mapped", rust = "seed", reason = "GEPA::seed" }
+"teleprompt/gepa/gepa.py::GEPA.skip_perfect_score" = { status = "mapped", rust = "skip_perfect_score", reason = "GEPA::skip_perfect_score" }
 "teleprompt/gepa/gepa.py::GEPA.track_best_outputs" = { status = "divergence", reason = "GepaOutcome carries the best candidate's outputs" }
 "teleprompt/gepa/gepa.py::GEPA.track_stats" = { status = "divergence", reason = "GepaOutcome carries the run's record; dspy attaches it to the program" }
-"teleprompt/gepa/gepa.py::GEPA.use_merge" = { status = "mapped", rust = "with_merge", reason = "GEPA::with_merge" }
+"teleprompt/gepa/gepa.py::GEPA.use_merge" = { status = "mapped", rust = "use_merge", reason = "GEPA::use_merge" }
 "teleprompt/gepa/gepa.py::GEPA.use_mlflow" = { status = "divergence", reason = "experiment tracking, which is the caller's to wire" }
 "teleprompt/gepa/gepa.py::GEPA.use_wandb" = { status = "divergence", reason = "experiment tracking, which is the caller's to wire" }
 "teleprompt/gepa/gepa.py::GEPA.wandb_api_key" = { status = "divergence", reason = "experiment tracking, which is the caller's to wire" }
@@ -714,7 +714,7 @@
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.num_candidates" = { status = "mapped", rust = "with_candidates", reason = "MIPROv2::with_candidates" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.num_threads" = { status = "todo", reason = "parallel evaluation, blocked on the same concurrency limit Evaluate::num_threads needs" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.prompt_model" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new's second argument" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.seed" = { status = "mapped", rust = "with_seed", reason = "MIPROv2::with_seed" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.seed" = { status = "mapped", rust = "seed", reason = "MIPROv2::seed" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.task_model" = { status = "todo", reason = "dspy asks the task model for bootstrapped demos and the prompt model for instructions; one model here" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.teacher_settings" = { status = "divergence", reason = "dspy's teacher config dict; the teacher's LM is set on the module with with_lm" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.track_stats" = { status = "divergence", reason = "the outcome carries the run's record" }

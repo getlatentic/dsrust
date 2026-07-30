@@ -20,25 +20,50 @@ pub struct LmMessage {
 }
 
 impl LmMessage {
-    pub fn new(role: impl Into<String>, parts: Vec<LmPart>) -> Self {
+    /// Anything that reads as a part — dspy's role constructors are variadic and turn a bare string
+    /// into an `LMTextPart` themselves, which is why its call sites read as prose.
+    ///
+    /// A Rust array holds one type, so a message mixing prose and an image names its parts:
+    ///
+    /// ```
+    /// # use dsrust::{LmMessage, LmPart};
+    /// LmMessage::user(["What is the capital of France?"]);
+    /// LmMessage::user([
+    ///     LmPart::text("Describe this image."),
+    ///     LmPart::image_url("https://example.com/a.jpg"),
+    /// ]);
+    /// ```
+    pub fn new(
+        role: impl Into<String>,
+        parts: impl IntoIterator<Item = impl Into<LmPart>>,
+    ) -> Self {
         Self {
             role: role.into(),
-            parts,
+            parts: parts.into_iter().map(Into::into).collect(),
             name: None,
             metadata: Metadata::new(),
         }
     }
 
-    pub fn user(parts: Vec<LmPart>) -> Self {
+    /// dspy `User`.
+    pub fn user(parts: impl IntoIterator<Item = impl Into<LmPart>>) -> Self {
         Self::new("user", parts)
     }
 
-    pub fn assistant(parts: Vec<LmPart>) -> Self {
+    /// dspy `Assistant`.
+    pub fn assistant(parts: impl IntoIterator<Item = impl Into<LmPart>>) -> Self {
         Self::new("assistant", parts)
     }
 
-    pub fn system(parts: Vec<LmPart>) -> Self {
+    /// dspy `System`.
+    pub fn system(parts: impl IntoIterator<Item = impl Into<LmPart>>) -> Self {
         Self::new("system", parts)
+    }
+
+    /// dspy `Developer`: the o1-family role that replaces `system`, sent when
+    /// `LM(use_developer_role=True)`.
+    pub fn developer(parts: impl IntoIterator<Item = impl Into<LmPart>>) -> Self {
+        Self::new("developer", parts)
     }
 
     /// Every text part run together, and `None` when the message holds no prose at all —
@@ -100,6 +125,52 @@ impl LmToolSpec {
 
 fn function_type() -> String {
     "function".to_owned()
+}
+
+/// dspy's role constructors, spelled as upstream spells them.
+///
+/// `dspy.User(...)` is a free function carrying `# noqa: N802` — Python suppressing its own naming
+/// lint to keep the name capitalised. These do the same with `#[allow(non_snake_case)]`, which is the
+/// trade `Predict!` and `ChainOfThought!` already make: a reader moving between the two languages
+/// should not have to translate a name.
+///
+/// The inherent [`LmMessage::user`] and friends are the same thing under Rust's own conventions.
+/// Neither is a wrapper for the other's benefit; they are two spellings of one constructor.
+///
+/// ```
+/// # use dsrust::{Assistant, User};
+/// User(["What is DSPy?"]);
+/// Assistant(["A framework for programming LM pipelines."]);
+/// ```
+pub mod roles {
+    use super::{LmMessage, LmPart};
+
+    /// dspy `System`: model-level instructions — tone, scope, formatting rules.
+    #[allow(non_snake_case)]
+    pub fn System(parts: impl IntoIterator<Item = impl Into<LmPart>>) -> LmMessage {
+        LmMessage::system(parts)
+    }
+
+    /// dspy `Developer`: instructions between system guidance and user content, for a provider that
+    /// takes the `developer` role. See [`use_developer_role`](crate::lm::LmBuilder::use_developer_role).
+    #[allow(non_snake_case)]
+    pub fn Developer(parts: impl IntoIterator<Item = impl Into<LmPart>>) -> LmMessage {
+        LmMessage::developer(parts)
+    }
+
+    /// dspy `User`: the request or the data to answer about.
+    #[allow(non_snake_case)]
+    pub fn User(parts: impl IntoIterator<Item = impl Into<LmPart>>) -> LmMessage {
+        LmMessage::user(parts)
+    }
+
+    /// dspy `Assistant`: what the model said, for a turn a caller is replaying rather than one it
+    /// just produced — an [`LmResponse`](crate::LmResponse) handed to
+    /// [`call`](crate::ChatModel::call) becomes this on its own.
+    #[allow(non_snake_case)]
+    pub fn Assistant(parts: impl IntoIterator<Item = impl Into<LmPart>>) -> LmMessage {
+        LmMessage::assistant(parts)
+    }
 }
 
 #[cfg(test)]

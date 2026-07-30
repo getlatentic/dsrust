@@ -340,6 +340,43 @@ not a subclass. A provider that shares the OpenAI wire but changes a header or t
 wraps the OpenAI request and reply pieces in its own `ChatModel`. It holds what it reuses rather
 than inheriting it.
 
+### Asking a model directly, with no signature
+
+DSPy's `lm(...)` — its `BaseLM.__call__` — is `ChatModel::call`. Every model has it, including one of
+your own, because it is defaulted on the trait and built from `forward`.
+
+```python
+lm = dspy.LM("openai/gpt-4o-mini")
+response = lm(dspy.User("What is DSPy?"))
+```
+
+```rust
+let lm = LM::new("openai/gpt-4o-mini")?;
+
+let answered = lm.call(items![User(["What is the capital of France?"])]).await?;
+
+// A reply goes straight back in as the assistant turn it was.
+let next = lm.call(items![answered, User(["And of Belgium?"])]).await?;
+
+// Prose and an image are one multimodal turn, not two.
+lm.call(items!["Describe this.", LmPart::image_url(url)]).await?;
+```
+
+`User`, `Assistant`, `System` and `Developer` are DSPy's own names for the four role constructors —
+free functions there carrying `# noqa: N802`, and here carrying `#[allow(non_snake_case)]`, the same
+trade `Predict!` makes. `LmMessage::user(…)` is the same constructor under Rust's conventions.
+
+`items!` exists because Rust has no varargs and an array holds one type, so a call mixing a turn, a
+reply and a string needs each element converted — the same reason `call!` and `input!` exist.
+
+Two doors, one request. A signature renders to messages and enters through
+`LmRequest::from_messages`; a direct call enters through `LmRequest::from_items`. Below that they are
+the same type, which is why a module needs no special handling for either. DSPy has one constructor
+that raises when you pass both; two constructors make that unwritable.
+
+`lm(...)` itself is not possible on stable Rust — calling a struct needs `fn_traits` and the
+`rust-call` ABI, both unstable — so the method carries DSPy's own name for it.
+
 ### Settings that apply to every call
 
 DSPy keeps `temperature` and `max_tokens` on the LM and merges them beneath each call —

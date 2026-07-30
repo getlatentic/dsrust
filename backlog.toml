@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 970
+rust_tests = 989
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -93,9 +93,61 @@ This is the sprint that closed the project's one known blind spot.
 id = "lm-from-call"
 sprint = "api"
 title = "ChatModel has forward and not call: the public LM entry was never ported"
-state = "todo"
+state = "done"
 size = "L"
 suites = ["tests/clients/test_lm.py"]
+done = """
+All four parts, in the order the plan set. `tests/lm_direct_call.rs` holds them by asserting on the
+*conversation that reached the wire* rather than on the answer — the whole of `call` is the
+normalisation between what a caller wrote and what a provider is sent, so a case reading only the
+reply would pass for a `call` that discarded its input.
+
+`ChatModel::call` is dspy's `BaseLM.__call__`, and it is **defaulted** on the trait: a provider gets
+it by implementing `forward` and nothing else, which is the same reason upstream puts `__call__` on
+the base class. `where Self: Sync` is on it because the returned future captures `&self`.
+
+`LmRequest::from_items` and `from_messages` are the two doors. Upstream is one `from_call` that
+raises on "messages plus direct-call inputs"; two constructors make that unwritable, which is more
+faithful to the intent than to the signature. `src/lm/api/items.rs` reproduces
+`_messages_from_items`'s three branches — nothing at all is one empty user turn (upstream's
+`items = ("",)`), every item a turn or a reply is a conversation with each `LmResponse` expanded per
+output, and anything else is one user message whose parts are the items, which is what makes
+`lm("Describe this.", image)` a single multimodal question.
+
+One upstream branch has deliberately no counterpart: `_messages_from_items` unwraps a single item
+that is itself a list, because Python cannot tell `lm(messages)` from `lm(message)`. Two constructors
+leave nothing to disambiguate.
+
+`items!` was not in the plan and turned out to be necessary. A Rust array holds one type, so
+`[msg.into(), response.into()]` cannot infer `impl Into<LmItem>` — the compiler said so. The macro
+converts each element, for the same reason `call!` and `input!` exist.
+
+The vocabulary is now reachable: `LmMessage`, `LmPart`, `LmItem`, `LmRequest` and `LmResponse` at the
+crate root, where before `LmMessage` was only at `dsrust::lm::api::LmMessage`. The role constructors
+take `impl IntoIterator<Item = impl Into<LmPart>>` with `From<&str> for LmPart` beside them, which is
+dspy's own coercion — `LmMessage::user(["Hello?"])` rather than `vec![LmPart::text("Hello?")]`.
+
+`Developer` is `LmMessage::developer`, and `LM(use_developer_role=True)` is
+`LmBuilder::use_developer_role` — the system→developer rename, on the Responses wire only, as
+upstream's is. Both were todo; the ledger's stated reason for `Developer` was itself wrong, claiming
+`Role` has a `System` variant. It has User, Assistant and Tool.
+
+**A gate hole closed on the way, and it was the cause of the audit's method 2.** `check_api_surface.py`
+only accepted a bare identifier, so mapping `LMRequest.from_call` to `LmRequest::from_items` *failed*
+while mapping it to `new` passed. Being specific broke the gate, which is what pushed sixteen entries
+toward generic values. `is_defined` now splits `Type::method` and checks both halves. Constructor
+coverage read 81% before this story and reads 85% after.
+"""
+remaining = """
+`ChatModel::call` names no HTTP client, as dspy's does not — it reaches `global::client()`, which
+already existed for modules carrying their own model. `forward` still takes one and should not; that
+is lm-shared-client, and it is now the only place the parameter survives.
+
+dspy's `__call__` also returns the *processed* outputs (`list[dict | str]`) on the legacy contract,
+where this returns `LmResponse`. That is the typed contract's own answer and the right one here, but
+it means `_process_lm_response` has no counterpart — nothing needs it while adapters read the typed
+response directly.
+"""
 plan = """
 `dspy.LMRequest.from_call` is the constructor the migration guide tells adapter authors to use, and
 it exists at the pinned tag rather than being part of the plan. Kw-only, three mutually exclusive
@@ -195,6 +247,45 @@ rather than assumed. A struct cannot be called. `call` is the name because it is
 
 `forward` stays exactly as it is. Adding `call` above it is the same layering dspy has, and it keeps
 the provider contract untouched.
+"""
+
+[[story]]
+id = "lm-shared-client"
+sprint = "api"
+title = "ChatModel takes an HTTP client dspy's signature has not, and it leaks reqwest into every caller"
+state = "todo"
+size = "L"
+suites = ["tests/clients/test_lm.py"]
+plan = """
+`ChatModel::forward(&self, http: &reqwest::Client, request: &LmRequest)` carries a parameter upstream
+does not have. dspy's `BaseLM.forward(request) -> LMResponse` names no client — litellm holds a
+module-level session — and upstream's own docstring example constructs an `OpenAI()` inside `forward`.
+
+The cost is not cosmetic. A caller implementing the crate's advertised extensibility seam has to name
+a `reqwest` type, which means either depending on reqwest and keeping its major version matched to
+this crate's by hand, or reaching through `dsrust::reqwest` — a re-export added on 2026-07-30 for
+exactly this reason. The re-export made the trait *implementable*; it did not make it faithful, and
+the ledger entry that called this `mapped` to a bare `forward` was the audit's own failure shape.
+
+The close: a process-wide client behind a `OnceLock`, which is what `cache::shared` already does and
+what litellm does. Then `forward(&self, request)` and `call(&self, items)`, and reqwest is gone from
+the public surface. `configure_with_client` already exists and becomes how a caller supplies their
+own, so the capability is preserved rather than dropped.
+
+Why it is not free: 157 mentions of `reqwest::Client` across 37 files, every provider, every scripted
+double in `src/` and `tests/`, and the PyO3 bridge. Mechanical, but not small, and it is one breaking
+change to `ChatModel` — so it should land alone rather than riding along with a feature.
+
+Read before starting: whether anything actually depends on the *caller's* client rather than a shared
+one. `Parallel` and `Evaluate` run many calls at once and want one connection pool; a `OnceLock`
+client gives them that, and a per-provider client would not. That is the argument for the parameter
+in the first place, and it survives the change.
+
+**What proves it.** `check_external_consumer.sh` and `check_docs.py` both build from outside the
+workspace, so a `ChatModel` impl written there compiles only if reqwest really is unnecessary. Add
+such an impl to whichever guide documents the seam — `docs/usage.md`'s "Reaching a provider, and
+adding your own" already has one, and it currently names `dsrust::reqwest::Client`. When that line can
+be deleted, the story is done.
 """
 
 [[story]]

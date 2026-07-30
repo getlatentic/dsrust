@@ -10,6 +10,7 @@ mod delta;
 mod event;
 mod history;
 pub(crate) mod interop;
+mod items;
 pub use interop::wire_messages_of;
 mod legacy;
 mod message;
@@ -29,7 +30,9 @@ pub use config::{
 pub use delta::LmDelta;
 pub use event::LmStreamEvent;
 pub use history::LmHistoryEntry;
+pub use items::{LmItem, messages_from_items};
 pub use legacy::part_of_block;
+pub use message::roles::{Assistant, Developer, System, User};
 pub use message::{LmMessage, LmToolSpec};
 pub use part::{Detail, DocumentSource, LEGACY_BLOCK, LmPart, LmSource, Metadata};
 pub use patch::LmRequestPatch;

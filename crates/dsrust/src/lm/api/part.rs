@@ -279,6 +279,13 @@ impl From<DocumentSource> for DocumentFields {
     }
 }
 
+/// A bare string is text, which is the coercion dspy's variadic role constructors do.
+impl<T: Into<String>> From<T> for LmPart {
+    fn from(text: T) -> Self {
+        Self::text(text)
+    }
+}
+
 impl LmPart {
     pub fn text(text: impl Into<String>) -> Self {
         Self::Text {

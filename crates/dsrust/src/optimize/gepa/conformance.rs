@@ -101,8 +101,8 @@ async fn gepa_evolves_the_instruction_that_scores() {
     student.signature.instructions = "Answer the question.".to_owned();
 
     GEPA::new(metric, Arc::new(Reflector))
-        .with_max_metric_calls(20)
-        .with_reflection_minibatch_size(2)
+        .max_metric_calls(20)
+        .reflection_minibatch_size(2)
         .compile(&mut student, &trainset(), &trainset())
         .await
         .expect("compiles");
@@ -251,9 +251,9 @@ async fn gepa_makes_the_decisions_dspy_makes() {
             proposals: std::sync::Mutex::new(Vec::new()),
         });
         let outcome = GEPA::new(metric, reflector.clone())
-            .with_max_metric_calls(budget)
-            .with_reflection_minibatch_size(minibatch)
-            .with_seed(seed)
+            .max_metric_calls(budget)
+            .reflection_minibatch_size(minibatch)
+            .seed(seed)
             .compile(&mut student, &trainset(), &trainset())
             .await
             .expect("compiles");

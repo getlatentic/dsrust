@@ -18,7 +18,8 @@ use dsrust::signature::SignatureSpec;
 use dsrust::{
     BestOfN, BootstrapFewShot, ChainOfThought, ChatModel, CodeAct, Example, Forward, GEPA, Module,
     MultiChainComparison, Parallel, Predict, Prediction, ProgramOfThought, RLM, ReAct, ReActV2,
-    Refine, Rlm, Signature, Tool, call, exact_match, input,
+    Assistant, Developer, LmMessage, LmPart, Refine, Rlm, Signature, System, Tool, User, call,
+    exact_match, input, items,
 };
 
 /// The two-in, two-out task the guide writes in Python once and then keeps using.
@@ -59,6 +60,8 @@ struct Prose {
     qa: Predict,
     /// A reward function, named as dspy's `reward_fn=f` keyword is.
     f: fn(&Example, &Prediction) -> f64,
+    /// The image a caller already has, in the multimodal examples.
+    url: String,
 }
 
 fn prose() -> Prose {
@@ -73,6 +76,7 @@ fn prose() -> Prose {
         program: Predict!("question -> answer"),
         qa: Predict!("question -> answer"),
         f: |_, _| 0.0,
+        url: "https://example.com/a.jpg".to_owned(),
     }
 }
 

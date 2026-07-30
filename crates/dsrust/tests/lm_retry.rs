@@ -44,10 +44,8 @@ impl Refusing {
         let recorded = Arc::clone(&arrivals);
         let asked_to_stop = Arc::clone(&stopping);
         let served = std::thread::spawn(move || {
-            // One more than the refusals: the ask that finally succeeds. Most cases here leave
-            // refusals unspent on purpose — proving a rejected key is *not* retried means the stub
-            // offers nine and serves one — so the loop has to be interruptible. `done` sets the flag
-            // and then opens one connection, which is what releases the blocking accept.
+            // Most cases leave refusals unspent on purpose, so the loop has to be interruptible:
+            // `done` sets the flag and opens one connection to release the blocking accept.
             for number in 0..=refusals {
                 let Ok((mut stream, _)) = listener.accept() else {
                     return;

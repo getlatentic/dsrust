@@ -78,7 +78,7 @@ where
         self
     }
 
-    pub fn with_seed(mut self, seed: u64) -> Self {
+    pub fn seed(mut self, seed: u64) -> Self {
         self.seed = seed;
         self
     }

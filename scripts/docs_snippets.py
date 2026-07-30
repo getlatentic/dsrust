@@ -49,6 +49,7 @@ PROSE = (
     "program",
     "qa",
     "f",
+    "url",
 )
 
 FENCE = re.compile(r"^```(\w[\w,]*)\s*$")

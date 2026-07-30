@@ -55,7 +55,15 @@ def is_defined(identifier: str, source: str) -> bool:
     A public struct field counts. Several of dspy's constructor parameters map to one here —
     `ChatAdapter(use_json_adapter_fallback=...)` is `ChatAdapter { use_json_adapter_fallback }` —
     and a field is as much API as a method is.
+
+    `Type::method` is checked as both halves. Without that this only accepted a bare name, which is
+    what pushed entries toward generic ones: `LMRequest.from_call` was mapped to `new` because
+    writing `LmRequest::from_items` would have failed the gate. A bare `new` proves only that the
+    word appears somewhere in 160 files, so being specific has to be the thing that passes.
     """
+    if "::" in identifier:
+        owner, member = identifier.rsplit("::", 1)
+        return is_defined(owner, source) and is_defined(member, source)
     keyword = r"(?:" + "|".join(DEFINES) + r")\s+" + re.escape(identifier) + r"\b"
     reexport = r"pub use [^\n]*\b" + re.escape(identifier) + r"\b"
     field = r"pub\s+" + re.escape(identifier) + r"\s*:"

@@ -81,6 +81,48 @@ pub trait ChatModel {
         request: &'a api::LmRequest,
     ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a;
 
+    /// dspy `BaseLM.__call__`: ask this model directly, with no signature and no adapter.
+    ///
+    /// The other half of upstream's pair. [`forward`](Self::forward) is the hook a provider
+    /// implements; this is the entry a caller uses, and it normalises the input the way upstream's
+    /// `__call__` does — through `LMRequest.from_call`, which is
+    /// [`LmRequest::from_items`](api::LmRequest::from_items) here.
+    ///
+    /// ```no_run
+    /// # use dsrust::{Assistant, ChatModel, LM, User, items};
+    /// # async fn ask() -> anyhow::Result<()> {
+    /// let lm = LM::new("openai/gpt-4o-mini")?;
+    ///
+    /// let answered = lm.call(["What is the capital of France?"]).await?;
+    /// let next = lm.call(items![answered, User(["And of Belgium?"])]).await?;
+    /// # let _ = next;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// [`items!`](crate::items) is what makes a mixed run of arguments one array: a Rust array holds
+    /// one type, so `[answered.into(), turn.into()]` cannot infer the target.
+    ///
+    /// Defaulted, so a provider gets it by implementing `forward` and nothing else — which is why
+    /// no model can be missing it, the same reason upstream decorates `__call__` on the base class.
+    ///
+    /// It names no HTTP client, as dspy's does not: the call goes out on the configured one, which is
+    /// where [`configure_with_client`](crate::configure_with_client) puts a caller's own. `forward`
+    /// still takes one and should not — see the `lm-shared-client` story.
+    fn call(
+        &self,
+        items: impl IntoIterator<Item = impl Into<api::LmItem>>,
+    ) -> impl Future<Output = Result<api::LmResponse>> + Send
+    where
+        Self: Sync,
+    {
+        // The model name is the provider's own; every request this crate builds leaves it for
+        // whichever wire answers, as an adapter-built one does.
+        let request = api::LmRequest::from_items("", items);
+        let http = crate::lm::global::client();
+        async move { self.forward(&http, &request).await }
+    }
+
     /// What this model can be asked for natively. Nothing, unless the implementor says otherwise
     /// — the same default dspy's `BaseLM` carries, and for the same reason.
     ///

@@ -59,7 +59,7 @@ where
     M: Fn(&Example, &Prediction) -> Feedback + Send + Sync,
 {
     /// A GEPA optimizer with dspy's defaults, save the budget — set it with
-    /// [`with_max_metric_calls`](Self::with_max_metric_calls) before compiling.
+    /// [`max_metric_calls`](Self::max_metric_calls) before compiling.
     pub fn new(metric: M, reflection_model: Arc<dyn DynChatModel>) -> Self {
         Self {
             metric,
@@ -75,15 +75,20 @@ where
         }
     }
 
-    /// Turn merging off (dspy `use_merge=False`), leaving the reflective-mutation-only engine.
-    pub fn without_merge(mut self) -> Self {
-        self.use_merge = false;
-        self
-    }
-
-    /// The rollout budget: GEPA stops once this many metric calls have been spent (dspy's
-    /// `max_metric_calls`). Required — GEPA has no other stopping condition here.
-    pub fn with_max_metric_calls(mut self, calls: usize) -> Self {
+    /// The rollout budget: GEPA stops once this many metric calls have been spent. Required — GEPA
+    /// has no other stopping condition.
+    ///
+    /// [`auto_budget`](Self::auto_budget) works one out from the shape of the run:
+    ///
+    /// ```no_run
+    /// # use dsrust::GEPA;
+    /// # let gepa: GEPA<fn(&dsrust::Example, &dsrust::Prediction) -> dsrust::optimize::Feedback>
+    /// #     = todo!();
+    /// gepa.max_metric_calls(GEPA::<fn(&dsrust::Example, &dsrust::Prediction)
+    ///     -> dsrust::optimize::Feedback>::auto_budget(1, 8, 50, 35, 5)?);
+    /// # Ok::<(), String>(())
+    /// ```
+    pub fn max_metric_calls(mut self, calls: usize) -> Self {
         self.max_metric_calls = calls;
         self
     }
@@ -125,35 +130,23 @@ where
         Ok(total)
     }
 
-    /// The budget [`auto_budget`](Self::auto_budget) works out, set on this optimizer.
-    pub fn with_auto_budget(
-        self,
-        num_preds: usize,
-        num_candidates: usize,
-        valset_size: usize,
-    ) -> Result<Self, String> {
-        // dspy's own defaults for the two it defaults.
-        let calls = Self::auto_budget(num_preds, num_candidates, valset_size, 35, 5)?;
-        Ok(self.with_max_metric_calls(calls))
-    }
-
     /// The minibatch size reflection evaluates on each iteration (dspy default 3).
-    pub fn with_reflection_minibatch_size(mut self, size: usize) -> Self {
+    pub fn reflection_minibatch_size(mut self, size: usize) -> Self {
         self.reflection_minibatch_size = size;
         self
     }
 
     /// The score a candidate must reach to count as perfect (dspy default 1.0).
     ///
-    /// Only meaningful beside [`skipping_perfect_scores`](Self::skipping_perfect_scores), which
+    /// Only meaningful beside [`skip_perfect_score`](Self::skip_perfect_score), which
     /// decides whether reaching it ends the search for that example.
-    pub fn with_perfect_score(mut self, score: f64) -> Self {
+    pub fn perfect_score(mut self, score: f64) -> Self {
         self.perfect_score = score;
         self
     }
 
     /// Whether an example already scoring perfectly is left alone (dspy default true).
-    pub fn skipping_perfect_scores(mut self, skip: bool) -> Self {
+    pub fn skip_perfect_score(mut self, skip: bool) -> Self {
         self.skip_perfect_score = skip;
         self
     }
@@ -162,25 +155,25 @@ where
     ///
     /// The same choice `Evaluate` makes: one failing row should not discard the evidence from the
     /// others, so it scores rather than aborting.
-    pub fn with_failure_score(mut self, score: f64) -> Self {
+    pub fn failure_score(mut self, score: f64) -> Self {
         self.failure_score = score;
         self
     }
 
     /// Whether the merge step runs at all (dspy default true).
-    pub fn with_merge(mut self, use_merge: bool) -> Self {
+    pub fn use_merge(mut self, use_merge: bool) -> Self {
         self.use_merge = use_merge;
         self
     }
 
     /// How many times the merge step may be invoked (dspy default 5).
-    pub fn with_max_merge_invocations(mut self, invocations: usize) -> Self {
+    pub fn max_merge_invocations(mut self, invocations: usize) -> Self {
         self.max_merge_invocations = invocations;
         self
     }
 
     /// The RNG seed shared by candidate selection and minibatch sampling (dspy default 0).
-    pub fn with_seed(mut self, seed: u64) -> Self {
+    pub fn seed(mut self, seed: u64) -> Self {
         self.seed = seed;
         self
     }
@@ -198,7 +191,7 @@ where
     ) -> Result<GepaOutcome> {
         assert!(
             self.max_metric_calls > 0,
-            "GEPA needs a metric-call budget; set it with with_max_metric_calls"
+            "GEPA needs a metric-call budget; set it with max_metric_calls"
         );
         let seed_candidate: Candidate = student
             .named_predictors()

@@ -17,14 +17,14 @@ fn metric(_: &Example, _: &Prediction) -> Feedback {
 fn gepas_options_are_all_reachable() {
     let model = std::sync::Arc::new(DummyLM::new([]));
     let tuned = GEPA::new(metric, model)
-        .with_max_metric_calls(200)
-        .with_reflection_minibatch_size(5)
-        .with_seed(7)
-        .with_perfect_score(0.95)
-        .skipping_perfect_scores(false)
-        .with_failure_score(-1.0)
-        .with_merge(false)
-        .with_max_merge_invocations(9);
+        .max_metric_calls(200)
+        .reflection_minibatch_size(5)
+        .seed(7)
+        .perfect_score(0.95)
+        .skip_perfect_score(false)
+        .failure_score(-1.0)
+        .use_merge(false)
+        .max_merge_invocations(9);
 
     // The chain compiles and returns GEPA, which is what a caller needs; the values themselves are
     // held privately and are exercised by the conformance goldens rather than read back here.

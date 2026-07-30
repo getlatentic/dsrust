@@ -22,7 +22,10 @@ use std::time::Duration;
 
 use anyhow::Result;
 
-pub use api::{Content, Detail, LmPart, LmSource};
+pub use api::{
+    Assistant, Content, Detail, Developer, LmItem, LmMessage, LmPart, LmRequest, LmResponse,
+    LmSource, System, User,
+};
 pub use builder::LmBuilder;
 pub use cache::{Cached, ResponseCache};
 pub use call::{LmConfig, LmUsage};
@@ -76,6 +79,9 @@ pub struct LM {
     /// How many times a transiently failing call is asked, dspy's `LM(num_retries=3)`. See
     /// [`retry`].
     pub retry: Retry,
+    /// dspy's `LM(use_developer_role=False)`: send the system message under the o1-family's
+    /// `developer` role instead. Applies on the Responses wire only, as upstream's does.
+    pub use_developer_role: bool,
     /// How long any one call to this model may take. See [`Self::with_timeout`].
     pub timeout: Duration,
     /// What this model can be asked for natively, where the caller has stated it rather than
@@ -102,6 +108,7 @@ impl LM {
             openai: OpenAiConfig::from_env(),
             cache: true,
             retry: Retry::default(),
+            use_developer_role: false,
             timeout: DEFAULT_PROVIDER_TIMEOUT,
             capabilities: None,
         })
@@ -148,6 +155,13 @@ impl LM {
     /// `LM(num_retries=3)`, counting asks rather than retries. See [`retry`].
     pub fn with_retry(mut self, retry: Retry) -> Self {
         self.retry = retry;
+        self
+    }
+
+    /// Send the system message as `developer`, which the o1 family takes instead — dspy's
+    /// `LM(use_developer_role=True)`, and like upstream's it applies on the Responses wire only.
+    pub fn with_developer_role(mut self, use_developer_role: bool) -> Self {
+        self.use_developer_role = use_developer_role;
         self
     }
 

@@ -24,6 +24,32 @@ pub struct LmRequest {
 }
 
 impl LmRequest {
+    /// dspy `LMRequest.from_call(model=…, messages=…)`: the door an adapter comes through.
+    ///
+    /// A signature renders to messages and enters here; a caller writing turns by hand enters
+    /// through [`from_items`](Self::from_items). Upstream is one constructor that raises when both
+    /// are passed, which two constructors make unwritable instead.
+    pub fn from_messages(model: impl Into<String>, messages: Vec<LmMessage>) -> Self {
+        Self::new(model, messages)
+    }
+
+    /// dspy `LMRequest.from_call(model=…, items=…)`: the direct-call door, for a caller who wants
+    /// the model without a signature.
+    ///
+    /// ```
+    /// # use dsrust::{LmMessage, LmRequest};
+    /// LmRequest::from_items("openai/gpt-4o-mini", ["What is the capital of France?"]);
+    /// LmRequest::from_items("openai/gpt-4o-mini", [LmMessage::user(["Hello?"])]);
+    /// ```
+    ///
+    /// What a run of items means is [`messages_from_items`](super::messages_from_items).
+    pub fn from_items(
+        model: impl Into<String>,
+        items: impl IntoIterator<Item = impl Into<super::LmItem>>,
+    ) -> Self {
+        Self::new(model, super::messages_from_items(items))
+    }
+
     pub fn new(model: impl Into<String>, messages: Vec<LmMessage>) -> Self {
         Self {
             model: model.into(),

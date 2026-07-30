@@ -166,7 +166,7 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
         let trials = MIPROv2::new(exact_match, model.clone())
             .with_candidates(case["num_candidates"].as_u64().expect("num_candidates") as usize)
             .with_trials(case["num_trials"].as_u64().expect("num_trials") as usize)
-            .with_seed(case["seed"].as_u64().expect("seed"))
+            .seed(case["seed"].as_u64().expect("seed"))
             .compile_traced(&mut student, &trainset)
             .await
             .expect("compiles");
