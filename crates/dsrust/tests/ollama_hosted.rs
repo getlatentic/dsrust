@@ -113,7 +113,7 @@ async fn the_probe_asks_the_configured_host_and_carries_its_credential() {
         .with_ollama_host(&stub.host)
         .with_ollama_key("hosted-secret");
 
-    let found = lm.capabilities(&reqwest::Client::new()).await;
+    let found = lm.capabilities().await;
     assert!(found.function_calling, "the template offers tools");
 
     let asked = stub.received();
@@ -135,7 +135,7 @@ async fn an_unauthenticated_host_is_asked_without_a_credential() {
         .expect("a valid reference")
         .with_ollama_host(&stub.host);
 
-    let found = lm.capabilities(&reqwest::Client::new()).await;
+    let found = lm.capabilities().await;
     assert!(!found.function_calling, "this template offers no tools");
     assert_eq!(stub.received().authorization, None);
 }
@@ -149,7 +149,7 @@ async fn a_host_that_cannot_be_reached_grants_nothing() {
         // Port 9 is discard: nothing listens, and the connection is refused rather than hanging.
         .with_ollama_host("http://127.0.0.1:9");
 
-    let found = lm.capabilities(&reqwest::Client::new()).await;
+    let found = lm.capabilities().await;
     assert!(!found.function_calling);
 }
 
@@ -163,11 +163,7 @@ async fn a_model_the_registry_lists_is_never_asked_about() {
         .with_ollama_host(&stub.host);
 
     // `llama2` is in litellm's registry crediting nothing; the stub would say otherwise if asked.
-    assert!(
-        !lm.capabilities(&reqwest::Client::new())
-            .await
-            .function_calling
-    );
+    assert!(!lm.capabilities().await.function_calling);
     drop(stub);
 }
 
@@ -178,16 +174,11 @@ async fn a_model_the_registry_lists_is_never_asked_about() {
 #[tokio::test]
 #[ignore = "needs a live ollama with qwen2.5:7b-instruct and gemma3:4b pulled"]
 async fn a_live_daemon_answers_the_way_litellm_reads_it() {
-    let http = reqwest::Client::new();
     for (model, tools) in [
         ("ollama_chat/qwen2.5:7b-instruct", true),
         ("ollama_chat/gemma3:4b", false),
     ] {
         let lm = LM::new(model).expect("a valid reference");
-        assert_eq!(
-            lm.capabilities(&http).await.function_calling,
-            tools,
-            "{model}"
-        );
+        assert_eq!(lm.capabilities().await.function_calling, tools, "{model}");
     }
 }

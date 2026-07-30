@@ -45,7 +45,6 @@ pub(super) struct Adapter<'a, S: Module + ?Sized, M> {
     student: &'a mut S,
     metric: &'a M,
     reflection: Arc<dyn DynChatModel>,
-    http: reqwest::Client,
     trainset: &'a [Example],
     valset: &'a [Example],
     failure_score: f64,
@@ -57,7 +56,6 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
         student: &'a mut S,
         metric: &'a M,
         reflection: Arc<dyn DynChatModel>,
-        http: reqwest::Client,
         trainset: &'a [Example],
         valset: &'a [Example],
         failure_score: f64,
@@ -66,7 +64,6 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
             student,
             metric,
             reflection,
-            http,
             trainset,
             valset,
             failure_score,
@@ -160,11 +157,7 @@ where
             REFLECTION_MODEL,
             vec![LmMessage::user(vec![LmPart::text(prompt)])],
         );
-        let response = self
-            .reflection
-            .forward_dyn(&self.http, &request)
-            .await
-            .ok()?;
+        let response = self.reflection.forward_dyn(&request).await.ok()?;
         Some(response.first_text())
     }
 }

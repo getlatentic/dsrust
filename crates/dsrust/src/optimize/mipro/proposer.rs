@@ -227,11 +227,7 @@ mod tests {
     struct Proposer;
 
     impl ChatModel for Proposer {
-        async fn forward(
-            &self,
-            _http: &reqwest::Client,
-            request: &api::LmRequest,
-        ) -> Result<api::LmResponse> {
+        async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
             let system = request.system();
             let reply = |field: &str, value: &str| {
                 format!("[[ ## {field} ## ]]\n{value}\n\n[[ ## completed ## ]]")

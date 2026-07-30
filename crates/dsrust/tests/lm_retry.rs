@@ -170,7 +170,7 @@ async fn two_rate_limits_are_ridden_out_within_dspys_default_budget() {
     let stub = Refusing::new(2, 429, None);
     let answered = stub
         .model(3)
-        .forward(&reqwest::Client::new(), &asking())
+        .forward(&asking())
         .await
         .expect("the third ask answers");
 
@@ -192,7 +192,7 @@ async fn a_provider_that_never_recovers_hands_back_the_failure() {
     // Two asks, so the exhaustion case costs one backoff rather than three.
     let error = stub
         .model(2)
-        .forward(&reqwest::Client::new(), &asking())
+        .forward(&asking())
         .await
         .expect_err("every ask was refused");
 
@@ -212,7 +212,7 @@ async fn a_rejected_key_is_never_asked_twice() {
     let stub = Refusing::new(9, 401, None);
     let error = stub
         .model(3)
-        .forward(&reqwest::Client::new(), &asking())
+        .forward(&asking())
         .await
         .expect_err("the key is rejected");
 
@@ -232,7 +232,7 @@ async fn a_server_error_is_asked_again_without_waiting() {
     let stub = Refusing::new(1, 503, None);
     let answered = stub
         .model(3)
-        .forward(&reqwest::Client::new(), &asking())
+        .forward(&asking())
         .await
         .expect("the second ask answers");
 
@@ -254,7 +254,7 @@ async fn a_retry_after_header_replaces_the_curve() {
     let stub = Refusing::new(1, 429, Some("0.25"));
     let answered = stub
         .model(3)
-        .forward(&reqwest::Client::new(), &asking())
+        .forward(&asking())
         .await
         .expect("the second ask answers");
 
@@ -278,7 +278,7 @@ async fn one_attempt_never_asks_twice() {
     let stub = Refusing::new(9, 429, None);
     let error = stub
         .model(1)
-        .forward(&reqwest::Client::new(), &asking())
+        .forward(&asking())
         .await
         .expect_err("the one ask was refused");
 
@@ -328,21 +328,14 @@ fn the_default_budget_is_dspys_num_retries() {
 async fn a_callers_own_model_is_not_retried_behind_its_back() {
     struct Counting(AtomicUsize);
     impl ChatModel for Counting {
-        async fn forward(
-            &self,
-            _http: &reqwest::Client,
-            _request: &api::LmRequest,
-        ) -> anyhow::Result<api::LmResponse> {
+        async fn forward(&self, _request: &api::LmRequest) -> anyhow::Result<api::LmResponse> {
             self.0.fetch_add(1, Ordering::SeqCst);
             Err(anyhow::Error::new(LmFailure::from_status(429, "slow down")))
         }
     }
 
     let counting = Counting(AtomicUsize::new(0));
-    let error = counting
-        .forward(&reqwest::Client::new(), &asking())
-        .await
-        .expect_err("it refuses");
+    let error = counting.forward(&asking()).await.expect_err("it refuses");
     assert_eq!(
         error.downcast_ref::<LmFailure>().map(|failed| failed.kind),
         Some(LmErrorKind::RateLimit)

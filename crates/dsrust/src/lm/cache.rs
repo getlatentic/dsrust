@@ -239,27 +239,20 @@ impl<M> Cached<M> {
 }
 
 impl<M: ChatModel + Send + Sync> ChatModel for Cached<M> {
-    async fn forward(
-        &self,
-        http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<LmResponse> {
+    async fn forward(&self, request: &api::LmRequest) -> Result<LmResponse> {
         // The store belongs to this wrapper and holds one model's replies, so there is no other
         // model's entries for a name to keep these apart from.
         let key = request.cache_key("");
         if let Some(replayed) = self.cache.replay(&key) {
             return Ok(replayed);
         }
-        let answered = self.inner.forward(http, request).await?;
+        let answered = self.inner.forward(request).await?;
         self.cache.keep(key, answered.clone());
         Ok(answered)
     }
 
-    fn capabilities<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-    ) -> impl Future<Output = crate::lm::Capabilities> + Send + 'a {
-        self.inner.capabilities(http)
+    fn capabilities(&self) -> impl Future<Output = crate::lm::Capabilities> + Send {
+        self.inner.capabilities()
     }
 
     /// Transparent: a wrapper caches replies, it does not change what the model behind it can do.
@@ -283,7 +276,7 @@ mod tests {
             OutputMode::Text,
             &config,
         );
-        futures_lite_block_on(lm.forward(&reqwest::Client::new(), &request)).expect("an answer")
+        futures_lite_block_on(lm.forward(&request)).expect("an answer")
     }
 
     /// The dummy never awaits anything real, so a trivial executor keeps these synchronous.

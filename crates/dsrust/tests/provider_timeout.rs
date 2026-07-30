@@ -166,7 +166,6 @@ fn reply_for(route: &str) -> String {
 /// A model slower than the bound is abandoned, on every route the bound has to reach.
 #[tokio::test]
 async fn a_short_timeout_abandons_every_slow_route() {
-    let http = reqwest::Client::new();
     for route in ["ollama_chat", "ollama", "openai chat", "openai responses"] {
         let stub = Slow::answering(reply_for(route));
         let lm = routes(&stub)
@@ -177,10 +176,7 @@ async fn a_short_timeout_abandons_every_slow_route() {
             .with_cache(false)
             .with_timeout(TOO_SHORT);
 
-        let error = lm
-            .forward(&http, &asking())
-            .await
-            .expect_err("the bound fires");
+        let error = lm.forward(&asking()).await.expect_err("the bound fires");
         assert!(
             error
                 .downcast_ref::<dsrust::lm::LmFailure>()
@@ -195,7 +191,6 @@ async fn a_short_timeout_abandons_every_slow_route() {
 /// the stub being unreachable.
 #[tokio::test]
 async fn a_raised_timeout_waits_for_every_slow_route() {
-    let http = reqwest::Client::new();
     for route in ["ollama_chat", "ollama", "openai chat", "openai responses"] {
         let stub = Slow::answering(reply_for(route));
         let lm = routes(&stub)
@@ -207,7 +202,7 @@ async fn a_raised_timeout_waits_for_every_slow_route() {
             .with_timeout(LONG_ENOUGH);
 
         let answered = lm
-            .forward(&http, &asking())
+            .forward(&asking())
             .await
             .unwrap_or_else(|error| panic!("{route} should have waited: {error:#}"));
         assert_eq!(answered.first_text(), "the reply", "the reply for {route}");
@@ -219,7 +214,6 @@ async fn a_raised_timeout_waits_for_every_slow_route() {
 /// dropped it would leave a stalled stream hanging for the whole request.
 #[tokio::test]
 async fn the_bound_reaches_the_streaming_routes() {
-    let http = reqwest::Client::new();
     for route in ["ollama_chat", "ollama", "openai chat"] {
         let stub = Slow::answering(reply_for(route));
         let lm = routes(&stub)
@@ -230,6 +224,7 @@ async fn the_bound_reaches_the_streaming_routes() {
             .with_timeout(TOO_SHORT);
 
         let request = asking();
+        let http = reqwest::Client::new();
         let mut events = lm.forward_stream(&http, &request);
         let first = events.next().await.expect("an event");
         assert!(first.is_err(), "{route} streamed past its bound: {first:?}");
@@ -249,7 +244,7 @@ async fn the_bound_reaches_the_capability_probe() {
     // A probe that gave up reports nothing rather than raising, which is how an unreachable
     // server has always been treated — what is asserted is that it gave up inside the bound.
     let started = std::time::Instant::now();
-    let found = lm.capabilities(&reqwest::Client::new()).await;
+    let found = lm.capabilities().await;
     assert!(started.elapsed() < DELAY, "the probe waited past its bound");
     assert!(
         !found.function_calling,

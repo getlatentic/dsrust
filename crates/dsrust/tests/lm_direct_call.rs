@@ -16,11 +16,7 @@ struct Recording {
 }
 
 impl ChatModel for Recording {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> anyhow::Result<api::LmResponse> {
+    async fn forward(&self, request: &api::LmRequest) -> anyhow::Result<api::LmResponse> {
         self.asked
             .lock()
             .expect("not poisoned")
@@ -133,11 +129,7 @@ async fn a_written_conversation_is_sent_in_order() {
 async fn a_model_implementing_only_forward_still_has_call() {
     struct BareMinimum;
     impl ChatModel for BareMinimum {
-        async fn forward(
-            &self,
-            _http: &reqwest::Client,
-            request: &api::LmRequest,
-        ) -> anyhow::Result<api::LmResponse> {
+        async fn forward(&self, request: &api::LmRequest) -> anyhow::Result<api::LmResponse> {
             Ok(api::LmResponse::text(format!(
                 "{} turn(s)",
                 request.messages.len()

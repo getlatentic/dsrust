@@ -138,11 +138,7 @@ where
 struct Unparseable;
 
 impl ChatModel for Unparseable {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        _request: &api::LmRequest,
-    ) -> anyhow::Result<api::LmResponse> {
+    async fn forward(&self, _request: &api::LmRequest) -> anyhow::Result<api::LmResponse> {
         Ok(api::LmResponse::text("nothing parseable here"))
     }
 }

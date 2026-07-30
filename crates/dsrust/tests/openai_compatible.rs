@@ -171,8 +171,7 @@ fn probe_request(mode: &OutputMode<'_>) -> api::LmRequest {
 }
 
 async fn ask(lm: &LM, mode: &OutputMode<'_>) -> anyhow::Result<api::LmResponse> {
-    lm.forward(&reqwest::Client::new(), &probe_request(mode))
-        .await
+    lm.forward(&probe_request(mode)).await
 }
 
 /// The same, naming a token cap — what the key-routing tests need, now that a bare call sends
@@ -180,7 +179,7 @@ async fn ask(lm: &LM, mode: &OutputMode<'_>) -> anyhow::Result<api::LmResponse> 
 async fn ask_capped(lm: &LM, mode: &OutputMode<'_>, cap: u32) -> anyhow::Result<api::LmResponse> {
     let mut request = probe_request(mode);
     request.config.max_tokens = Some(cap);
-    lm.forward(&reqwest::Client::new(), &request).await
+    lm.forward(&request).await
 }
 
 fn probe_schema() -> Value {
@@ -551,9 +550,7 @@ async fn a_calls_own_setting_overrides_the_models() {
 
     let mut request = probe_request(&OutputMode::Text);
     request.config.temperature = Some(0.9);
-    lm.forward(&reqwest::Client::new(), &request)
-        .await
-        .expect("the stub answers");
+    lm.forward(&request).await.expect("the stub answers");
 
     let sent = stub.received();
     assert_eq!(sent.body["temperature"], 0.9, "the call's");

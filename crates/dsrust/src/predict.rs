@@ -175,7 +175,7 @@ impl<S> Predict<S> {
         let asking = adapter.native_function_calling();
         let reasons = native_reasoning::reasoning_output_field(&asked).is_some();
         let capabilities = match asking.enabled || reasons {
-            true => lm.capabilities_dyn(&crate::lm::global::client()).await,
+            true => lm.capabilities_dyn().await,
             false => Capabilities::default(),
         };
         let native = match asking.enabled {
@@ -224,9 +224,7 @@ impl<S> Predict<S> {
                 .extensions
                 .insert("prediction".to_owned(), predicted.clone());
         }
-        let response = lm
-            .forward_dyn(&crate::lm::global::client(), &request)
-            .await?;
+        let response = lm.forward_dyn(&request).await?;
         Ok(Reply {
             response,
             rendered: asked,
@@ -375,11 +373,7 @@ mod tests {
     struct ManyCompletions(Vec<&'static str>);
 
     impl crate::lm::ChatModel for ManyCompletions {
-        async fn forward(
-            &self,
-            _http: &reqwest::Client,
-            _request: &api::LmRequest,
-        ) -> Result<api::LmResponse> {
+        async fn forward(&self, _request: &api::LmRequest) -> Result<api::LmResponse> {
             Ok(api::LmResponse::completions(
                 self.0.iter().map(|reply| reply.to_string()),
             ))
@@ -392,11 +386,7 @@ mod tests {
     struct Captured(std::sync::Mutex<Option<api::LmRequest>>);
 
     impl crate::lm::ChatModel for Captured {
-        async fn forward(
-            &self,
-            _http: &reqwest::Client,
-            request: &api::LmRequest,
-        ) -> Result<api::LmResponse> {
+        async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
             *self.0.lock().expect("the captured request") = Some(request.clone());
             Ok(api::LmResponse::completions([MARKER_REPLY.to_owned()]))
         }

@@ -31,11 +31,7 @@ impl Scripted {
 }
 
 impl ChatModel for Scripted {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<api::LmResponse> {
+    async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
         let last = request
             .user_messages()
             .last()

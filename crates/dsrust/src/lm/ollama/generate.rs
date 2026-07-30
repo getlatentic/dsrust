@@ -36,10 +36,10 @@ pub(crate) struct Generate<'a> {
 impl ChatModel for Generate<'_> {
     fn forward<'a>(
         &'a self,
-        http: &'a reqwest::Client,
         call: &'a api::LmRequest,
     ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
         async move {
+            let http = &crate::lm::global::client();
             let request = http
                 .post(format!("{}/api/generate", self.host))
                 .timeout(self.timeout)

@@ -505,7 +505,6 @@ mod truncation_tests {
     impl DynChatModel for TooLong {
         fn forward_dyn<'a>(
             &'a self,
-            _http: &'a reqwest::Client,
             request: &'a LmRequest,
         ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>> {
             let asked: String = request.messages.iter().filter_map(|m| m.text()).collect();
@@ -525,7 +524,6 @@ mod truncation_tests {
 
         fn capabilities_dyn<'a>(
             &'a self,
-            _http: &'a reqwest::Client,
         ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>> {
             Box::pin(std::future::ready(Capabilities::default()))
         }
@@ -653,7 +651,6 @@ mod truncation_tests {
         impl DynChatModel for Broken {
             fn forward_dyn<'a>(
                 &'a self,
-                _http: &'a reqwest::Client,
                 _request: &'a LmRequest,
             ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>>
             {
@@ -663,7 +660,6 @@ mod truncation_tests {
             }
             fn capabilities_dyn<'a>(
                 &'a self,
-                _http: &'a reqwest::Client,
             ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>> {
                 Box::pin(std::future::ready(Capabilities::default()))
             }

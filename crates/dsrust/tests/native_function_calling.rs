@@ -45,11 +45,7 @@ impl Recorder {
 }
 
 impl ChatModel for Recorder {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> anyhow::Result<api::LmResponse> {
+    async fn forward(&self, request: &api::LmRequest) -> anyhow::Result<api::LmResponse> {
         self.seen
             .lock()
             .expect("not poisoned")
@@ -59,10 +55,7 @@ impl ChatModel for Recorder {
         ))
     }
 
-    fn capabilities<'a>(
-        &'a self,
-        _http: &'a reqwest::Client,
-    ) -> impl std::future::Future<Output = Capabilities> + Send + 'a {
+    fn capabilities(&self) -> impl std::future::Future<Output = Capabilities> + Send {
         std::future::ready(self.capabilities)
     }
 }
@@ -241,18 +234,11 @@ async fn asking_for_calls_without_offering_tools_never_reaches_the_model() {
 struct NativeReplier(api::LmResponse);
 
 impl ChatModel for NativeReplier {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        _request: &api::LmRequest,
-    ) -> anyhow::Result<api::LmResponse> {
+    async fn forward(&self, _request: &api::LmRequest) -> anyhow::Result<api::LmResponse> {
         Ok(self.0.clone())
     }
 
-    fn capabilities<'a>(
-        &'a self,
-        _http: &'a reqwest::Client,
-    ) -> impl std::future::Future<Output = Capabilities> + Send + 'a {
+    fn capabilities(&self) -> impl std::future::Future<Output = Capabilities> + Send {
         std::future::ready(Capabilities {
             function_calling: true,
             ..Default::default()

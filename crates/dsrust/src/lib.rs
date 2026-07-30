@@ -6,12 +6,11 @@
 // paths valid when the derive is used inside this crate itself.
 extern crate self as dsrust;
 
-/// The HTTP client this crate uses, re-exported because [`ChatModel::forward`] takes one.
+/// The HTTP client this crate uses, re-exported for the two places its type is still named.
 ///
-/// A provider of your own is the `ChatModel` trait, and its signature names a `reqwest::Client`. A
-/// caller who depends only on `dsrust` therefore could not write that `impl` at all — and one who
-/// added `reqwest` of their own would have to keep its major version matched to this crate's by
-/// hand. Reach it as `dsrust::reqwest::Client` and neither is a problem.
+/// [`ChatModel`] no longer mentions it — implementing a provider of your own needs nothing from
+/// here. What remains is [`configure_with_client`], for a caller supplying a pooled client of their
+/// own, and `LM::forward_stream`, whose returned stream has to borrow one that outlives the call.
 pub use reqwest;
 
 pub mod adapter;

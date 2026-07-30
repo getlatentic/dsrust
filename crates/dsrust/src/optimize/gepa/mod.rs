@@ -29,7 +29,7 @@ use adapter::{Adapter, set_instructions};
 
 use super::Optimizer;
 use crate::example::{Example, Prediction};
-use crate::lm::{DynChatModel, global};
+use crate::lm::DynChatModel;
 use crate::module::Module;
 
 /// dspy `GEPA`: evolve each predictor's instruction by reflecting on how the program did, keeping the
@@ -209,7 +209,6 @@ where
                 student,
                 &self.metric,
                 self.reflection_model.clone(),
-                global::client(),
                 trainset,
                 valset,
                 self.failure_score,

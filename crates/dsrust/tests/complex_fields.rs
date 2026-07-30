@@ -95,11 +95,7 @@ impl Scripted {
 }
 
 impl ChatModel for Scripted {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<api::LmResponse> {
+    async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
         self.calls.lock().expect("not poisoned").push(Call {
             system: request.system().to_owned(),
             turns: recorded_turns(request),

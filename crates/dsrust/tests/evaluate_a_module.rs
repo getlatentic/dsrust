@@ -28,11 +28,7 @@ impl Scripted {
 }
 
 impl ChatModel for Scripted {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        _request: &api::LmRequest,
-    ) -> Result<api::LmResponse> {
+    async fn forward(&self, _request: &api::LmRequest) -> Result<api::LmResponse> {
         self.replies
             .lock()
             .expect("not poisoned")

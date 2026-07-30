@@ -309,21 +309,14 @@ impl NativeToolLM {
 }
 
 impl ChatModel for NativeToolLM {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> anyhow::Result<api::LmResponse> {
+    async fn forward(&self, request: &api::LmRequest) -> anyhow::Result<api::LmResponse> {
         let mut seen = self.seen.lock().expect("not poisoned");
         let reply = self.replies[seen.len().min(self.replies.len() - 1)].clone();
         seen.push(request.clone());
         Ok(reply)
     }
 
-    fn capabilities<'a>(
-        &'a self,
-        _http: &'a reqwest::Client,
-    ) -> impl std::future::Future<Output = Capabilities> + Send + 'a {
+    fn capabilities(&self) -> impl std::future::Future<Output = Capabilities> + Send {
         std::future::ready(Capabilities {
             function_calling: true,
             ..Default::default()

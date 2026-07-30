@@ -296,9 +296,46 @@ without any module having been rebuilt, and reaching the process-wide one again 
 id = "lm-shared-client"
 sprint = "api"
 title = "ChatModel takes an HTTP client dspy's signature has not, and it leaks reqwest into every caller"
-state = "todo"
+state = "done"
 size = "L"
 suites = ["tests/clients/test_lm.py"]
+done = """
+`ChatModel::forward(&self, request) -> Result<LmResponse>` and `capabilities(&self)`, which is dspy's
+`BaseLM.forward(request)` exactly. The word `reqwest` no longer appears in `src/lm/model.rs` at all,
+and `reqwest::Client` in `src/` went from 157 mentions to 17.
+
+The done-condition held: `docs/usage.md`'s "a provider of your own" example dropped
+`dsrust::reqwest::Client` and `check_docs.py` compiles that `impl ChatModel` from outside the
+workspace with only the dependencies the README prints. A caller writing a provider now needs nothing
+from this crate but the trait.
+
+Four steps, each landing green on its own, which is what made it work after the first attempt
+cascaded:
+
+1. `global::current()` returns the model rather than a `(Client, Arc<dyn DynChatModel>)` pair. Nine
+   call sites destructured it and every one wanted the model.
+2. `Predict`'s chain: sixteen signatures carried the client to exactly three consumers — two
+   `forward_dyn` calls and one `capabilities_dyn`. Those three ask `global::client()` themselves and
+   the chain is gone. GEPA's reflection adapter held a client field for the same reason and lost it.
+3. The trait, `DynChatModel`, and the 36 impls. Most took `_http` and ignored it.
+4. The four providers reach `global::client()` in their own `forward`.
+
+The first attempt did all four at once with scripted edits and turned two errors into fifty. Step 1
+alone then compiled first try by hand. The lesson is in [[verification-traps]]-shaped terms: the
+157-mention count measured the *visible* chain and missed that removing the trait parameter makes a
+whole call graph dead simultaneously.
+"""
+remaining = """
+`LM::forward_stream(&http, request)` still takes one, and it is the only place left on the public
+surface. Its returned stream borrows the client for `'a`, so the client has to outlive the call; the
+streaming helpers in `openai/stream.rs`, `anthropic/stream.rs` and `ollama/*stream*` would have to
+take it by value first. That is a lifetime change to five helpers, not a signature change, and it is
+worth doing only if someone wants `reqwest` off the surface entirely — it is not the seam a caller
+implements.
+
+`configure_with_client` keeps naming the type on purpose: it is how a caller hands the crate a pooled
+client, which is the capability the parameter used to provide.
+"""
 plan = """
 `ChatModel::forward(&self, http: &reqwest::Client, request: &LmRequest)` carries a parameter upstream
 does not have. dspy's `BaseLM.forward(request) -> LMResponse` names no client — litellm holds a

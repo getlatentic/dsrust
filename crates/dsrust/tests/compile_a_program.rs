@@ -30,11 +30,7 @@ impl Recorder {
 }
 
 impl ChatModel for Recorder {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<api::LmResponse> {
+    async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
         self.turns
             .lock()
             .expect("not poisoned")

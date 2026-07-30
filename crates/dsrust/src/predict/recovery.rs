@@ -36,7 +36,7 @@ impl<S> Predict<S> {
         let request = api::interop::raise_request(&system, &turns, mode, &LmConfig::default());
         let extracted = extraction
             .model
-            .forward_dyn(&crate::lm::global::client(), &request)
+            .forward_dyn(&request)
             .await
             .context("the extraction model did not answer")?;
         let extracted_text = extracted.first_text();

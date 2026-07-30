@@ -333,11 +333,7 @@ mod tests {
     struct Studio;
 
     impl ChatModel for Studio {
-        async fn forward(
-            &self,
-            _http: &reqwest::Client,
-            request: &api::LmRequest,
-        ) -> Result<api::LmResponse> {
+        async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
             let system = request.system();
             let content = if system.contains("generate a new instruction that will be used") {
                 "[[ ## proposed_instruction ## ]]\nAnswer with GOOD precision.\n\n[[ ## completed ## ]]".to_owned()

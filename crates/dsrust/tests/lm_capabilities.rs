@@ -40,7 +40,7 @@ async fn a_configured_model_answers_for_the_reference_it_was_built_from() {
     ] {
         let lm = LM::new(reference).expect("a valid reference");
         assert_eq!(lm.model.reference(), reference);
-        let found = lm.capabilities(&reqwest::Client::new()).await;
+        let found = lm.capabilities().await;
         assert_eq!(found.function_calling, function_calling, "{reference}");
     }
 }
@@ -53,17 +53,13 @@ async fn a_model_that_says_nothing_grants_nothing() {
     impl ChatModel for Silent {
         fn forward<'a>(
             &'a self,
-            _http: &'a reqwest::Client,
             _request: &'a dsrust::lm::api::LmRequest,
         ) -> impl std::future::Future<Output = anyhow::Result<dsrust::lm::api::LmResponse>> + Send + 'a
         {
             async { unreachable!("not called") }
         }
     }
-    assert_eq!(
-        Silent.capabilities(&reqwest::Client::new()).await,
-        Capabilities::default()
-    );
+    assert_eq!(Silent.capabilities().await, Capabilities::default());
 }
 
 /// `response_format` is supported by every model this crate can hold, which is why

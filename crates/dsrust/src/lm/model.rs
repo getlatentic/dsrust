@@ -21,15 +21,12 @@ pub trait DynChatModel: Send + Sync {
     /// which is how a module reaching its model through `dyn DynChatModel` asks it.
     fn forward_dyn<'a>(
         &'a self,
-        http: &'a reqwest::Client,
         request: &'a api::LmRequest,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>>;
 
     /// The object-safe form of [`ChatModel::capabilities`].
-    fn capabilities_dyn<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>>;
+    fn capabilities_dyn(&self)
+    -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + '_>>;
 
     /// The object-safe form of [`ChatModel::native_reasoning_usable`] — the `_dyn` name keeps it from
     /// clashing with the inherent one on a model that implements both.
@@ -47,21 +44,19 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
     /// same reason upstream's `DummyLM` is.
     fn forward_dyn<'a>(
         &'a self,
-        http: &'a reqwest::Client,
         request: &'a api::LmRequest,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>> {
         Box::pin(async move {
             let span = crate::observe::lm(&request.model);
             crate::observe::shown(&span, &request.watchable());
-            crate::observe::watching(span, crate::observe::spent, self.forward(http, request)).await
+            crate::observe::watching(span, crate::observe::spent, self.forward(request)).await
         })
     }
 
-    fn capabilities_dyn<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>> {
-        Box::pin(self.capabilities(http))
+    fn capabilities_dyn(
+        &self,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + '_>> {
+        Box::pin(self.capabilities())
     }
 
     fn native_reasoning_usable_dyn(&self) -> bool {
@@ -77,7 +72,6 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
 pub trait ChatModel {
     fn forward<'a>(
         &'a self,
-        http: &'a reqwest::Client,
         request: &'a api::LmRequest,
     ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a;
 
@@ -106,9 +100,9 @@ pub trait ChatModel {
     /// Defaulted, so a provider gets it by implementing `forward` and nothing else — which is why
     /// no model can be missing it, the same reason upstream decorates `__call__` on the base class.
     ///
-    /// It names no HTTP client, as dspy's does not: the call goes out on the configured one, which is
-    /// where [`configure_with_client`](crate::configure_with_client) puts a caller's own. `forward`
-    /// still takes one and should not — see the `lm-shared-client` story.
+    /// Neither this nor [`forward`](Self::forward) names an HTTP client, as dspy's do not. The call
+    /// goes out on the configured one, which is where
+    /// [`configure_with_client`](crate::configure_with_client) puts a caller's own.
     fn call(
         &self,
         items: impl IntoIterator<Item = impl Into<api::LmItem>>,
@@ -119,8 +113,7 @@ pub trait ChatModel {
         // The model name is the provider's own; every request this crate builds leaves it for
         // whichever wire answers, as an adapter-built one does.
         let request = api::LmRequest::from_items("", items);
-        let http = crate::lm::global::client();
-        async move { self.forward(&http, &request).await }
+        async move { self.forward(&request).await }
     }
 
     /// What this model can be asked for natively. Nothing, unless the implementor says otherwise
@@ -128,10 +121,7 @@ pub trait ChatModel {
     ///
     /// Asynchronous because the honest answer is not always a lookup: an ollama server is asked
     /// what a model can do, exactly as litellm asks it, and that is a request like any other.
-    fn capabilities<'a>(
-        &'a self,
-        _http: &'a reqwest::Client,
-    ) -> impl Future<Output = Capabilities> + Send + 'a {
+    fn capabilities(&self) -> impl Future<Output = Capabilities> + Send {
         std::future::ready(Capabilities::default())
     }
 

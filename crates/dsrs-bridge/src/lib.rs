@@ -32,7 +32,6 @@ struct NotOnThisSide;
 impl DynChatModel for NotOnThisSide {
     fn forward_dyn<'a>(
         &'a self,
-        _http: &'a reqwest::Client,
         _request: &'a dsrust::lm::api::LmRequest,
     ) -> Pin<Box<dyn Future<Output = anyhow::Result<dsrust::lm::api::LmResponse>> + Send + 'a>>
     {
@@ -46,7 +45,6 @@ impl DynChatModel for NotOnThisSide {
     /// Nothing, which is also what a model that never answers can honour.
     fn capabilities_dyn<'a>(
         &'a self,
-        _http: &'a reqwest::Client,
     ) -> Pin<Box<dyn Future<Output = dsrust::lm::Capabilities> + Send + 'a>> {
         Box::pin(std::future::ready(dsrust::lm::Capabilities::default()))
     }
@@ -120,7 +118,6 @@ const MODULE_UNSUPPORTED: &str = "MODULE_UNSUPPORTED: the LM reply carried non-t
 impl DynChatModel for PyLM {
     fn forward_dyn<'a>(
         &'a self,
-        _http: &'a reqwest::Client,
         request: &'a dsrust::lm::api::LmRequest,
     ) -> Pin<Box<dyn Future<Output = anyhow::Result<dsrust::lm::api::LmResponse>> + Send + 'a>>
     {
@@ -129,7 +126,6 @@ impl DynChatModel for PyLM {
 
     fn capabilities_dyn<'a>(
         &'a self,
-        _http: &'a reqwest::Client,
     ) -> Pin<Box<dyn Future<Output = dsrust::lm::Capabilities> + Send + 'a>> {
         Box::pin(std::future::ready(dsrust::lm::Capabilities::default()))
     }

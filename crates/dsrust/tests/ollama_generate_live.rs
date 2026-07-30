@@ -14,10 +14,7 @@ async fn the_generate_route_answers() {
             vec![api::LmPart::text("Reply with the single word: ready")],
         )],
     );
-    let answered = lm
-        .forward(&reqwest::Client::new(), &req)
-        .await
-        .expect("a reply");
+    let answered = lm.forward(&req).await.expect("a reply");
     assert!(
         !answered.first_text().is_empty(),
         "got: {:?}",

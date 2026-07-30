@@ -137,7 +137,6 @@ fn as_json_reply(answer: &Example) -> String {
 impl ChatModel for DummyLM {
     fn forward<'a>(
         &'a self,
-        _http: &'a reqwest::Client,
         request: &'a api::LmRequest,
     ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
         let json_mode = request.output_schema().is_some();
@@ -218,8 +217,7 @@ mod tests {
             OutputMode::Text,
             &LmConfig::default(),
         );
-        futures_lite_block_on(lm.forward(&reqwest::Client::new(), &request))
-            .map(|answered| answered.first_text())
+        futures_lite_block_on(lm.forward(&request)).map(|answered| answered.first_text())
     }
 
     /// The dummy never awaits anything real, so a trivial executor keeps these tests
@@ -285,8 +283,8 @@ mod tests {
             ],
         );
 
-        let answered = futures_lite_block_on(lm.forward(&reqwest::Client::new(), &typed))
-            .expect("the dummy answers a typed request");
+        let answered =
+            futures_lite_block_on(lm.forward(&typed)).expect("the dummy answers a typed request");
         assert_eq!(
             answered.first_text(),
             "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]"
@@ -323,7 +321,7 @@ mod tests {
             OutputMode::Json { schema: &schema },
             &LmConfig::default(),
         );
-        let reply = futures_lite_block_on(lm.forward(&reqwest::Client::new(), &request)).unwrap();
+        let reply = futures_lite_block_on(lm.forward(&request)).unwrap();
         assert_eq!(reply.first_text(), r#"{"answer":"red"}"#);
         assert_eq!(reply.usage, None, "a scripted answer cost nothing to make");
     }

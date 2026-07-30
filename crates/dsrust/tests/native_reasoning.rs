@@ -44,11 +44,7 @@ impl Recorder {
 }
 
 impl ChatModel for Recorder {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> anyhow::Result<api::LmResponse> {
+    async fn forward(&self, request: &api::LmRequest) -> anyhow::Result<api::LmResponse> {
         self.seen
             .lock()
             .expect("not poisoned")
@@ -56,10 +52,7 @@ impl ChatModel for Recorder {
         Ok(self.reply.clone())
     }
 
-    fn capabilities<'a>(
-        &'a self,
-        _http: &'a reqwest::Client,
-    ) -> impl std::future::Future<Output = Capabilities> + Send + 'a {
+    fn capabilities(&self) -> impl std::future::Future<Output = Capabilities> + Send {
         std::future::ready(self.capabilities)
     }
 }

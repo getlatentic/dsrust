@@ -50,11 +50,7 @@ fn marker(text: &str) -> Option<u64> {
 }
 
 impl ChatModel for Coach {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<api::LmResponse> {
+    async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
         let system = request.system();
         let last = request
             .messages

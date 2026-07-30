@@ -37,11 +37,7 @@ const PROPOSAL: &str = "Answer with GOOD precision.";
 struct TaskCoach;
 
 impl ChatModel for TaskCoach {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<LmResponse> {
+    async fn forward(&self, request: &api::LmRequest) -> Result<LmResponse> {
         let has_good = request.system().contains("GOOD");
         let last = request
             .messages
@@ -64,11 +60,7 @@ impl ChatModel for TaskCoach {
 struct Reflector;
 
 impl ChatModel for Reflector {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        _request: &api::LmRequest,
-    ) -> Result<LmResponse> {
+    async fn forward(&self, _request: &api::LmRequest) -> Result<LmResponse> {
         Ok(LmResponse::text(format!("```\n{PROPOSAL}\n```")))
     }
 }
@@ -128,11 +120,7 @@ struct ProfileCoach {
 }
 
 impl ChatModel for ProfileCoach {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<LmResponse> {
+    async fn forward(&self, request: &api::LmRequest) -> Result<LmResponse> {
         let system = request.system();
         let last = request
             .messages
@@ -163,11 +151,7 @@ struct CountingReflector {
 }
 
 impl ChatModel for CountingReflector {
-    async fn forward(
-        &self,
-        _http: &reqwest::Client,
-        _request: &api::LmRequest,
-    ) -> Result<LmResponse> {
+    async fn forward(&self, _request: &api::LmRequest) -> Result<LmResponse> {
         let call = self.calls.fetch_add(1, Ordering::SeqCst) + 1;
         let proposal = format!("Answer with GOOD-{call} precision.");
         self.proposals

@@ -317,7 +317,6 @@ struct MyProvider {
 impl ChatModel for MyProvider {
     fn forward<'a>(
         &'a self,
-        http: &'a dsrust::reqwest::Client,
         request: &'a dsrust::lm::api::LmRequest,
     ) -> impl Future<Output = Result<dsrust::lm::api::LmResponse>> + Send + 'a {
         async move {
@@ -330,6 +329,9 @@ impl ChatModel for MyProvider {
 ```
 
 This is dspy 3.3's `forward_contract = "typed_lm"` shape exactly: `forward(LmRequest) -> LmResponse`.
+One request in, one response out, and nothing else — no HTTP client, as DSPy's names none. Your own
+provider brings whatever transport it likes; the built-ins share one, which
+`configure_with_client` is how you replace.
 A model built this way is indistinguishable from the built-ins — it nests behind `Cached`, reaches
 every module, and (with `forward_stream`, optional) streams.
 

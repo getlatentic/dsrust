@@ -56,7 +56,6 @@ fn weather_tool() -> LmToolSpec {
 /// One turn: the messages so far, the tool on offer, whatever the provider answers.
 async fn turn(
     lm: &LM,
-    http: &reqwest::Client,
     model: &str,
     messages: Vec<LmMessage>,
     tool: &LmToolSpec,
@@ -65,9 +64,7 @@ async fn turn(
     let request = api::LmRequest::new(model, messages)
         .with_tools(vec![tool.clone()])
         .configured(config.clone());
-    lm.forward(http, &request)
-        .await
-        .expect("the provider answered")
+    lm.forward(&request).await.expect("the provider answered")
 }
 
 /// The plainest round trip — a question in, some text out — so any OpenAI-compatible server (a local
@@ -76,7 +73,6 @@ async fn turn(
 #[ignore = "talks to a live provider"]
 async fn a_text_round_trip_runs_end_to_end() {
     let (lm, model, config) = live_setup();
-    let http = reqwest::Client::new();
     let request = api::LmRequest::new(
         &model,
         vec![LmMessage::user(vec![LmPart::text(
@@ -85,7 +81,7 @@ async fn a_text_round_trip_runs_end_to_end() {
     )
     .configured(config);
     let answer = lm
-        .forward(&http, &request)
+        .forward(&request)
         .await
         .expect("the provider answered")
         .first_text();
@@ -99,7 +95,6 @@ async fn a_text_round_trip_runs_end_to_end() {
 #[ignore = "talks to a live provider; runs a local ollama model by default"]
 async fn a_tool_conversation_runs_end_to_end() {
     let (lm, model, config) = live_setup();
-    let http = reqwest::Client::new();
     let tool = weather_tool();
 
     // Turn 1 — ask, with the tool available. The model should answer with a call, which the
@@ -107,7 +102,7 @@ async fn a_tool_conversation_runs_end_to_end() {
     let ask = LmMessage::user(vec![LmPart::text(
         "What is the weather in Paris right now? Use the get_weather tool to find out.",
     )]);
-    let first = turn(&lm, &http, &model, vec![ask.clone()], &tool, &config).await;
+    let first = turn(&lm, &model, vec![ask.clone()], &tool, &config).await;
     let output = first.outputs.first().expect("one output");
 
     let call = output
@@ -146,7 +141,7 @@ async fn a_tool_conversation_runs_end_to_end() {
         LmMessage::assistant(vec![call.clone()]),
         LmMessage::new("tool", vec![result]),
     ];
-    let answer = turn(&lm, &http, &model, conversation, &tool, &config)
+    let answer = turn(&lm, &model, conversation, &tool, &config)
         .await
         .first_text();
     println!("[{model}] turn 2 → answer: {answer}");

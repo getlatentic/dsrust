@@ -208,10 +208,10 @@ fn streaming_body(
 impl ChatModel for Endpoint<'_> {
     fn forward<'a>(
         &'a self,
-        http: &'a reqwest::Client,
         call: &'a api::LmRequest,
     ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
         async move {
+            let http = &crate::lm::global::client();
             let key = self
                 .api_key
                 .ok_or_else(|| anyhow!("{} is not set", self.key_var))?;

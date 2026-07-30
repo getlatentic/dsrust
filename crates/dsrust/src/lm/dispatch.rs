@@ -16,25 +16,18 @@ use anyhow::Result;
 use futures_util::Stream;
 
 use super::{
-    Capabilities, ChatModel, LM, OpenAiWire, Provider, anthropic, api, cache, ollama, openai,
-    retry, usage,
+    Capabilities, ChatModel, LM, OpenAiWire, Provider, anthropic, api, cache, global, ollama,
+    openai, retry, usage,
 };
 
 impl ChatModel for LM {
-    async fn forward(
-        &self,
-        http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<api::LmResponse> {
-        self.answer(http, &self.with_defaults(request)).await
+    async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
+        self.answer(&self.with_defaults(request)).await
     }
 
     /// What this model's provider will honour natively: what the caller stated, else the registry
     /// dspy consults, else — for an ollama model the registry does not list — the server itself.
-    fn capabilities<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-    ) -> impl Future<Output = Capabilities> + Send + 'a {
+    fn capabilities(&self) -> impl Future<Output = Capabilities> + Send {
         async move {
             if let Some(stated) = self.capabilities {
                 return stated;
@@ -49,7 +42,7 @@ impl ChatModel for LM {
                 Provider::OllamaChat => Capabilities::listed(&format!("ollama/{}", self.model.id))
                     .unwrap_or(
                         ollama::capabilities(
-                            http,
+                            &global::client(),
                             &self.ollama_host,
                             self.ollama_api_key.as_deref(),
                             self.timeout,
@@ -131,13 +124,9 @@ impl LM {
     }
 
     /// The reply, from the cache or from the provider — everything [`ChatModel::forward`] watches.
-    async fn answer(
-        &self,
-        http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<api::LmResponse> {
+    async fn answer(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
         if !self.cache {
-            let answered = self.ask_provider_retrying(http, request).await?;
+            let answered = self.ask_provider_retrying(request).await?;
             usage::record(&self.model.id, answered.spend());
             return Ok(answered);
         }
@@ -145,7 +134,7 @@ impl LM {
         if let Some(replayed) = cache::shared().replay(&key) {
             return Ok(replayed);
         }
-        let answered = self.ask_provider_retrying(http, request).await?;
+        let answered = self.ask_provider_retrying(request).await?;
         usage::record(&self.model.id, answered.spend());
         cache::shared().keep(key, answered.clone());
         Ok(answered)
@@ -156,20 +145,12 @@ impl LM {
     /// Inside the cache and not around it, which is where upstream puts it: `request_cache` wraps
     /// the function that carries `num_retries`, so a replayed answer is never retried and an answer
     /// a retry finally won is kept.
-    async fn ask_provider_retrying(
-        &self,
-        http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<api::LmResponse> {
-        retry::asking(self.retry, || self.ask_provider(http, request)).await
+    async fn ask_provider_retrying(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
+        retry::asking(self.retry, || self.ask_provider(request)).await
     }
 
     /// The call itself, on whichever wire format this model's provider speaks.
-    async fn ask_provider(
-        &self,
-        http: &reqwest::Client,
-        request: &api::LmRequest,
-    ) -> Result<api::LmResponse> {
+    async fn ask_provider(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
         // Every arm resolves the model reference and this LM's credentials into a provider — each
         // its own [`ChatModel`] — then makes the one uniform call. The match is the factory that
         // maps a model string to its provider, which is inherent: dspy does the same in
@@ -182,7 +163,7 @@ impl LM {
                     api_key: self.anthropic_api_key.as_deref(),
                     timeout: self.timeout,
                 }
-                .forward(http, request)
+                .forward(request)
                 .await
             }
             Provider::OpenRouter => {
@@ -191,12 +172,12 @@ impl LM {
                     self.openrouter_api_key.as_deref(),
                     self.timeout,
                 )
-                .forward(http, request)
+                .forward(request)
                 .await
             }
             Provider::OpenAiCompatible => {
                 openai::Endpoint::configured(&self.model.id, &self.openai, self.timeout)
-                    .forward(http, request)
+                    .forward(request)
                     .await
             }
             Provider::Ollama => {
@@ -206,7 +187,7 @@ impl LM {
                     host: &self.ollama_host,
                     timeout: self.timeout,
                 }
-                .forward(http, request)
+                .forward(request)
                 .await
             }
             Provider::OllamaChat => {
@@ -216,7 +197,7 @@ impl LM {
                     host: &self.ollama_host,
                     timeout: self.timeout,
                 }
-                .forward(http, request)
+                .forward(request)
                 .await
             }
         }

@@ -319,11 +319,7 @@ mod tests {
     struct Coach;
 
     impl ChatModel for Coach {
-        async fn forward(
-            &self,
-            _http: &reqwest::Client,
-            request: &api::LmRequest,
-        ) -> Result<api::LmResponse> {
+        async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
             let system = request.system();
             if system.contains("instruction optimizer") {
                 let proposal = "[[ ## proposed_instruction ## ]]\nAnswer the question. GOOD\n\n\
