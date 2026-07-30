@@ -519,6 +519,11 @@ NOT_ADAPTER_CONFORMANCE = {
     # Python subclass has no surface to cross on; `interpreter/sandbox.rs` holds its own tests.
     # The file is here rather than absent so that a bridge which *did* cross would fail this
     # declaration rather than pass unnoticed.
+    # Every test here asserts on the ABC itself: that an incomplete subclass cannot be instantiated,
+    # that a duck-typed class fails `isinstance`, that the pydantic hook passes through. A Rust trait
+    # has no runtime `isinstance` and no pydantic. What *is* portable is what `build_repl_variable`
+    # decides, and `tests/sandbox_serializable_conformance.rs` holds this crate to a golden generated
+    # by running it — so this file being not-crossing is not the same as the protocol being unchecked.
     "upstream_test_sandbox_serializable.py": (
         "dspy's SandboxSerializable ABC and its pydantic hook, in Python"
     ),

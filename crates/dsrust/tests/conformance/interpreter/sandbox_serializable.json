@@ -1,0 +1,70 @@
+{
+  "_source": "dspy 3.3.0b1 build_repl_variable, via generate_sandbox_serializable_fixture.py",
+  "cases": [
+    {
+      "label": "setup and a desc, which concatenate",
+      "name": "sales",
+      "type_name": "TextValue",
+      "desc": "last quarter\nSandbox imports available:\nimport json\nimport io",
+      "constraints": "",
+      "total_length": 24,
+      "preview": "TextValue: 11 characters",
+      "sandbox_setup": "import json\nimport io",
+      "to_sandbox_base64": "Y29sX2EsY29sX2I=",
+      "sandbox_assignment": "sales = json.loads(_raw_sales)",
+      "rlm_preview": "TextValue: 11 characters"
+    },
+    {
+      "label": "setup and no desc",
+      "name": "corpus",
+      "type_name": "TextValue",
+      "desc": "Sandbox imports available:\nimport json\nimport io",
+      "constraints": "",
+      "total_length": 23,
+      "preview": "TextValue: 3 characters",
+      "sandbox_setup": "import json\nimport io",
+      "to_sandbox_base64": "YWJj",
+      "sandbox_assignment": "corpus = json.loads(_raw_corpus)",
+      "rlm_preview": "TextValue: 3 characters"
+    },
+    {
+      "label": "a desc and constraints, no setup",
+      "name": "frame",
+      "type_name": "BinaryValue",
+      "desc": "the frame",
+      "constraints": "at most 3 rows",
+      "total_length": 29,
+      "preview": "DataFrame: 3 rows x 2 columns",
+      "sandbox_setup": "",
+      "to_sandbox_base64": "QUFFQw==",
+      "sandbox_assignment": "frame = pd.read_parquet(io.BytesIO(base64.b64decode(_raw_frame)))",
+      "rlm_preview": "DataFrame: 3 rows x 2 columns"
+    },
+    {
+      "label": "a preview that outruns the desc",
+      "name": "wide",
+      "type_name": "LongPreview",
+      "desc": "a wide thing\nSandbox imports available:\nimport pandas as pd",
+      "constraints": "",
+      "total_length": 120,
+      "preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "sandbox_setup": "import pandas as pd",
+      "to_sandbox_base64": "",
+      "sandbox_assignment": "wide = _raw_wide",
+      "rlm_preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "label": "a placeholder desc, which is dropped",
+      "name": "unnamed",
+      "type_name": "TextValue",
+      "desc": "Sandbox imports available:\nimport json\nimport io",
+      "constraints": "",
+      "total_length": 23,
+      "preview": "TextValue: 1 characters",
+      "sandbox_setup": "import json\nimport io",
+      "to_sandbox_base64": "eA==",
+      "sandbox_assignment": "unnamed = json.loads(_raw_unnamed)",
+      "rlm_preview": "TextValue: 1 characters"
+    }
+  ]
+}

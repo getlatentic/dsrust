@@ -22,8 +22,8 @@ use crate::adapter::python_json::json_dumps;
 use crate::adapter::types::base::{Formatted, to_field_value};
 use crate::example::{Example, Prediction};
 use crate::interpreter::{
-    CodeInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable, SandboxSerializable,
-    build_repl_variable, sandbox,
+    CodeInterpreter, Executed, ReplEntry, ReplHistory, ReplVariable, SandboxSerializable, sandbox,
+    with_constraints,
 };
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::react::Tool;
@@ -268,16 +268,19 @@ impl Rlm {
             .inputs
             .iter()
             .filter_map(|field| {
-                let mut variable = match self.sandboxed.get(&field.name) {
-                    Some(held) => build_repl_variable(held.as_ref(), &field.name, &field.desc),
+                let constraints = field.constraints.clone().unwrap_or_default();
+                let variable = match self.sandboxed.get(&field.name) {
+                    Some(held) => {
+                        with_constraints(held.as_ref(), &field.name, &field.desc, &constraints)
+                    }
                     None => {
                         let mut built =
                             ReplVariable::from_value(&field.name, inputs.get(&field.name)?);
                         built.desc = field.desc.clone();
+                        built.constraints = constraints;
                         built
                     }
                 };
-                variable.constraints = field.constraints.clone().unwrap_or_default();
                 match Type::format(&variable) {
                     Formatted::Text(rendered) => Some(rendered),
                     Formatted::Blocks(_) => None,

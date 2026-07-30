@@ -55,15 +55,41 @@ pub fn build_repl_variable(
     name: &str,
     desc: &str,
 ) -> ReplVariable {
+    with_constraints(value, name, desc, "")
+}
+
+/// As [`build_repl_variable`], with the field's constraint text as well.
+///
+/// Upstream reads both out of one `json_schema_extra`, so a field stating a constraint carries it
+/// into the sandbox description. Rust has no `FieldInfo` to read, so the caller passes it.
+pub fn with_constraints(
+    value: &dyn SandboxSerializable,
+    name: &str,
+    desc: &str,
+    constraints: &str,
+) -> ReplVariable {
     let preview = value.rlm_preview(PREVIEW_MAX_CHARS);
     let setup = value.sandbox_setup().trim().to_owned();
     ReplVariable {
         name: name.to_owned(),
         type_name: value.type_name().to_owned(),
-        desc: described(desc, &setup),
-        constraints: String::new(),
+        desc: described(stated(desc), &setup),
+        constraints: constraints.to_owned(),
+        // Python's `len` over a `str` counts code points, which is what `chars` counts.
         total_length: preview.chars().count(),
         preview,
+    }
+}
+
+/// A description someone actually wrote, or nothing.
+///
+/// dspy fills an unstated field description with the placeholder `${name}` and then drops anything
+/// starting `${` on the way into a variable. Passing one through would show the model a literal
+/// `${answer}` as though it were documentation.
+fn stated(desc: &str) -> &str {
+    match desc.starts_with("${") {
+        true => "",
+        false => desc,
     }
 }
 
