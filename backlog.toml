@@ -592,7 +592,7 @@ caller reads. A golden of the rendered messages closes it, in the shape
 [[story]]
 id = "api-3"
 sprint = "api"
-title = "Audit the 34 constructor parameters still unclassified"
+title = "Audit the 27 constructor parameters still unclassified"
 state = "todo"
 size = "M"
 suites = []
