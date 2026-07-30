@@ -240,6 +240,10 @@
 "core/types.py::Assistant" = { status = "mapped", rust = "Assistant" }
 "core/types.py::Developer" = { status = "mapped", rust = "Developer", reason = "a free function as upstream's is, under #[allow(non_snake_case)] where dspy carries # noqa: N802" }
 "core/types.py::System" = { status = "mapped", rust = "System" }
+# Aliases rather than classes, so `api_surface.py`'s AST walk never saw them and neither table had
+# an answer. `check_pinned_all.py` reads `__all__` instead and found both.
+"core/types.py::LMPart" = { status = "mapped", rust = "LmPart", reason = "upstream's `Annotated[Union[...]]` over the eleven part classes; one enum here, which is what a closed set of variants is in Rust" }
+"core/types.py::ToolCall" = { status = "mapped", rust = "LmPart", reason = "upstream aliases `ToolCall = LMToolCallPart`; here it is the `LmPart::ToolCall` variant. Distinct from `adapters/types/tool.py::ToolCall`, which is the signature-field type and is mapped separately" }
 "core/types.py::User" = { status = "mapped", rust = "User" }
 "core/types.py::ToolResult" = { status = "divergence", reason = "a constructor helper for a message carrying one LmPart::ToolResult, which exists; a caller composes the part instead of calling a helper" }
 

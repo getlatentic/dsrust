@@ -166,6 +166,18 @@ def surface_of(path: pathlib.Path) -> dict:
                 constructors[stmt.name] = params
         elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and _public(stmt.name):
             functions.append(stmt.name)
+        elif declared is not None:
+            # A name bound to a type rather than defined as one: `LMPart = Annotated[Union[...]]`,
+            # `ToolCall = LMToolCallPart`. Walking only classes and functions missed both, and both
+            # are named in `core/types.py`'s `__all__`.
+            #
+            # Only where a module declares `__all__`, and the filter below keeps only what it names —
+            # otherwise every module-level constant and `logger` would read as public surface.
+            functions.extend(
+                target.id
+                for target in getattr(stmt, "targets", [])
+                if isinstance(target, ast.Name) and _public(target.id)
+            )
     # `__all__` is dspy's own word on what is public: keep only what it names, but never drop a
     # class's methods — those are not top-level names it would list.
     if declared is not None:
