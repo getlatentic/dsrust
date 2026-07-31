@@ -318,6 +318,43 @@ from divergence to mapped.
 """
 
 [[story]]
+id = "method-parameter-gate"
+sprint = "api"
+title = "The surface gate compares three tables, and a method's parameters is not one of them"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+`check_api_surface.py` walks dspy and gates three things: top-level symbols, method *names*, and
+`__init__` parameters. A method's **signature** is compared nowhere, so every keyword argument of
+every method is unchecked — `compile` most of all, which for the teleprompters carries as much
+configuration as `__init__` does.
+
+Measured on MIPROv2 2026-07-31, whose `compile` takes eighteen arguments. The ledger holds one
+entry for one of them (`teacher`). Seven are unimplemented and unrecorded:
+
+  - `program_aware_proposer` — the crate has `program_code`, which is the same switch under a
+    different shape (Some = on), so this is a naming divergence rather than a gap, and nothing says so;
+  - `data_aware_proposer` and `view_data_batch_size` — the dataset-summary proposer, not wired;
+  - `fewshot_aware_proposer` — not wired;
+  - `requires_permission_to_run` — an interactive confirmation before a costly run;
+  - `provide_traceback` — what an evaluation error reports.
+
+`tip_aware_proposer` was in the same list until this was written: the field existed with no setter,
+so a caller could not turn it off. Fixed in passing, which is the point — a one-line gap sitting in
+a shipped optimizer for as long as the optimizer has existed, invisible to a gate that only checks
+that a method called `compile` exists.
+
+The work is a fourth table: for each mapped method, dspy's parameters against the Rust equivalent,
+with the same mapped/divergence/deferred/todo vocabulary the other three use. Rust has no keyword
+arguments, so the mapping is to a builder method or a positional parameter, and the ledger has to
+say which — the same judgement `constructors` already makes.
+
+Expect a large first backlog. That is the finding, not an objection to it: `constructors` found
+fourteen gaps when it landed and every one was real.
+"""
+
+[[story]]
 id = "predict-completions"
 sprint = "api"
 title = "Predict::forward read one output whatever n was, so n>1 answered with a fraction of what was paid for"

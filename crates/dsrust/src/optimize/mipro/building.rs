@@ -156,6 +156,16 @@ where
         self
     }
 
+    /// dspy `tip_aware_proposer`: draw a writing tip per proposal and put it in the proposer's
+    /// prompt, on by default as upstream's is.
+    ///
+    /// Turning it off removes the field *and* the draw, so it changes the whole generator sequence
+    /// after it rather than only the prompt.
+    pub fn tip_aware_proposer(mut self, tip_aware_proposer: bool) -> Self {
+        self.tip_aware = tip_aware_proposer;
+        self
+    }
+
     /// dspy `init_temperature`: the temperature instructions are proposed at, default 1.0. Lower it
     /// for proposals that stay close to the current instruction.
     pub fn init_temperature(mut self, temperature: f64) -> Self {

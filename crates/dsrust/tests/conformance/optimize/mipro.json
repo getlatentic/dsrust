@@ -34,6 +34,14 @@
       "capital of Spain?"
     ]
   },
+  "tips": [
+    "",
+    "Don't be afraid to be creative when creating the new instruction!",
+    "Keep the instruction clear and concise.",
+    "Make sure your instruction is very informative and descriptive.",
+    "The instruction should include a high stakes scenario in which the LM must solve the task!",
+    "Include a persona that is relevant to the task in the instruction (ie. \"You are a ...\")"
+  ],
   "cases": [
     {
       "num_candidates": 5,

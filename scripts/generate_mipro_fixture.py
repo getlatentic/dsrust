@@ -36,6 +36,7 @@ warnings.filterwarnings("ignore")
 
 import dspy
 import optuna
+from dspy.propose.grounded_proposer import TIPS
 from dspy.clients.base_lm import BaseLM
 from dspy.dsp.utils.utils import dotdict
 
@@ -313,6 +314,11 @@ def main() -> None:
         "optuna_version": optuna.__version__,
         "trainset": [{"question": q, "answer": a} for q, a in TRAINSET],
         "profiles": {str(k): sorted(v) for k, v in PROFILES.items()},
+        # The proposer's tip texts, in declaration order — which is the order `list(TIPS.keys())`
+        # yields and therefore the order `random.choice` indexes into, so the order is as much of
+        # the golden as the strings. Recorded rather than transcribed: a tip upstream reworded
+        # would otherwise diverge silently, since nothing else in this fixture renders one.
+        "tips": list(TIPS.values()),
         "cases": cases,
         "minibatch_trainset": [{"question": q, "answer": a} for q, a in BIG_TRAINSET],
         "minibatch_profiles": {str(k): sorted(v) for k, v in BIG_PROFILES.items()},

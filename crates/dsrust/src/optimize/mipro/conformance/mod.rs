@@ -123,6 +123,24 @@ fn profiles(fixture: &Value) -> HashMap<u64, Vec<String>> {
 
 mod minibatch;
 
+/// The proposer's tip texts, against dspy's own `TIPS` dict.
+///
+/// Transcribed constants are the one part of this module a golden was not holding: the strings were
+/// right, and nothing would have said so if upstream reworded one. Order counts as much as the
+/// text, since `random.choice` indexes into `list(TIPS.keys())` — so a tip inserted rather than
+/// appended would change every proposal after it.
+#[test]
+fn the_proposers_tips_are_dspys() {
+    let fixture = fixture();
+    let recorded: Vec<&str> = fixture["tips"]
+        .as_array()
+        .expect("the golden records dspy's tips")
+        .iter()
+        .map(|tip| tip.as_str().expect("a tip"))
+        .collect();
+    assert_eq!(super::TIPS.as_slice(), recorded.as_slice());
+}
+
 use super::{Auto, Trial};
 
 #[tokio::test]
