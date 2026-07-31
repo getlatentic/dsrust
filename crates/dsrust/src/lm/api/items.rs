@@ -92,6 +92,14 @@ macro_rules! items {
 /// Thin on purpose — it expands to the same [`User`](crate::User) the typed API offers, so nothing
 /// this crate decides lives inside a macro.
 ///
+/// **An image part here is [`LmPart::image_url`](crate::lm::api::LmPart::image_url), not
+/// [`Image`](crate::Image)** — and the pinned dspy documents the opposite. `dspy.User`'s own
+/// docstring at 3.3.0b1 shows `dspy.User("Describe this.", dspy.Image(url))`, which raises:
+/// `TypeError: Cannot convert <class 'dspy.adapters.types.image.Image'> to an LMPart.` Measured, not
+/// read. Upstream's main has since rewritten every one of those examples to `LMImagePart(url=…)`
+/// while leaving `_coerce_part` byte-identical, so the docstring was the error and this spelling is
+/// the fixed one. `Image` is a *signature field* type; a message part is a different layer.
+///
 /// ```no_run
 /// # use dsrust::{Assistant, ChatModel, LM, System, User, items};
 /// # async fn ask(lm: LM) -> anyhow::Result<()> {
@@ -328,7 +336,7 @@ mod macros {
     //! cannot take that, and the macro can.
 
     use crate::lm::api::LmPart;
-    use crate::{Assistant, System, User, items};
+    use crate::{Assistant, System, User};
 
     /// Parts of different types in one turn — the case the function form cannot express, because
     /// `["Describe this:", LmPart::image_url(…)]` would need `&str` and `LmPart` to be one type.

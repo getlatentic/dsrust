@@ -375,6 +375,11 @@ is one type. `User!["Describe this:", image]` converts each expression on its ow
 macros stay thin — each expands to the function beside it, so nothing this crate decides lives
 inside one.
 
+An image in a turn is `LmPart::image_url(url)`, DSPy's `LMImagePart`. It is *not* `Image`, which is
+the type a declared signature field carries — a different layer. DSPy 3.3.0b1's own `User` docstring
+shows `dspy.Image(...)` in this position and that raises; upstream's main has since rewritten those
+examples to `LMImagePart(url=…)`, so this spelling is the corrected one rather than a divergence.
+
 `items!` is the same idea one level up, for the conversation rather than the turn: a run mixing a
 turn, a reply and a string needs each element converted — the same reason `call!` and `input!`
 exist.

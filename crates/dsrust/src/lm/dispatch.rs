@@ -61,6 +61,12 @@ impl ChatModel for LM {
         }
     }
 
+    /// dspy `Citations.adapt_to_native_lm_feature`: `lm.model.startswith("anthropic/")`. The prefix
+    /// names the provider, and `ModelRef` has already parsed it into one.
+    fn native_citations_usable(&self) -> bool {
+        matches!(self.model.provider, Provider::Anthropic)
+    }
+
     /// dspy `Reasoning.adapt_to_native_lm_feature`'s caveat: `"gpt-5" in lm.model and lm.model_type
     /// == "chat"`. The chat-completions route is [`OpenAiWire::Chat`] for a compatible endpoint and
     /// the only route OpenRouter speaks; the Responses API, and every non-OpenAI provider, is

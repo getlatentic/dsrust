@@ -61,6 +61,7 @@ mod blocks;
 mod chat;
 pub use chat::ChatAdapter;
 mod json;
+pub mod native_citations;
 pub mod native_reasoning;
 pub use native_reasoning::{NativeReasoning, ReasoningEffort};
 pub mod native_tools;

@@ -526,6 +526,10 @@ mod truncation_tests {
         fn native_reasoning_usable_dyn(&self) -> bool {
             false
         }
+
+        fn native_citations_usable_dyn(&self) -> bool {
+            false
+        }
     }
 
     fn long_trajectory(steps: usize) -> Trajectory {
@@ -659,6 +663,10 @@ mod truncation_tests {
                 Box::pin(std::future::ready(Capabilities::default()))
             }
             fn native_reasoning_usable_dyn(&self) -> bool {
+                false
+            }
+
+            fn native_citations_usable_dyn(&self) -> bool {
                 false
             }
         }

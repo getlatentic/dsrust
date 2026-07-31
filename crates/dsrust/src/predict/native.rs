@@ -9,7 +9,7 @@ use anyhow::{Result, anyhow};
 use serde_json::{Map, Value};
 
 use super::{Predict, Reply};
-use crate::adapter::{ToolCall, ToolCalls, native_tools};
+use crate::adapter::{ToolCall, ToolCalls, native_citations, native_tools};
 use crate::lm::api;
 use crate::signature::FieldKind;
 
@@ -61,6 +61,37 @@ fn as_tool_call(part: &api::LmPart) -> Option<ToolCall> {
 
 /// dspy `Reasoning.parse_lm_response` reads `reasoning_content` off a reply; here that is the
 /// thinking part the providers already lift out of it.
+/// dspy `Citations.parse_lm_response`: the citations the provider attached to its own text blocks,
+/// as the field value a `Citations` output holds.
+///
+/// Upstream reads them off litellm's `provider_specific_fields["citations"]` — a list per text
+/// block, flattened — and `Citations.from_dict_list` builds the type. Here the wire reader has
+/// already turned each into an [`api::LmPart::Citation`], in block order, so this is the flatten.
+fn cited(output: &api::LmOutput) -> Vec<Value> {
+    output
+        .parts
+        .iter()
+        .filter_map(|part| match part {
+            api::LmPart::Citation {
+                text, title, url, ..
+            } => {
+                let mut citation = Map::new();
+                if let Some(text) = text {
+                    citation.insert("cited_text".to_owned(), Value::String(text.clone()));
+                }
+                if let Some(title) = title {
+                    citation.insert("document_title".to_owned(), Value::String(title.clone()));
+                }
+                if let Some(url) = url {
+                    citation.insert("url".to_owned(), Value::String(url.clone()));
+                }
+                Some(Value::Object(citation))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 fn thinking_text(output: &api::LmOutput) -> Option<String> {
     output.parts.iter().find_map(|part| match part {
         api::LmPart::Thinking { text, .. } => Some(text.clone()),
@@ -132,6 +163,22 @@ impl<S> Predict<S> {
             for field in &removed {
                 if matches!(field.kind, FieldKind::Reasoning) {
                     object.insert(field.name.clone(), Value::String(thinking.clone()));
+                }
+            }
+        }
+        // dspy `Citations.parse_lm_response`: an Anthropic model's own citations fill the
+        // `Citations` output that left the render for them. Absent citations leave the field null
+        // rather than an empty list, which is upstream returning `None` and inserting nothing.
+        let citations = reply
+            .response
+            .outputs
+            .first()
+            .map(cited)
+            .unwrap_or_default();
+        if !citations.is_empty() {
+            for field in &removed {
+                if native_citations::citations_output_field(&self.signature) == Some(&field.name) {
+                    object.insert(field.name.clone(), Value::Array(citations.clone()));
                 }
             }
         }

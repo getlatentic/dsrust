@@ -31,6 +31,9 @@ pub trait DynChatModel: Send + Sync {
     /// The object-safe form of [`ChatModel::native_reasoning_usable`] — the `_dyn` name keeps it from
     /// clashing with the inherent one on a model that implements both.
     fn native_reasoning_usable_dyn(&self) -> bool;
+
+    /// The object-safe form of [`ChatModel::native_citations_usable`].
+    fn native_citations_usable_dyn(&self) -> bool;
 }
 
 impl<T: ChatModel + Send + Sync> DynChatModel for T {
@@ -60,6 +63,10 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
 
     fn native_reasoning_usable_dyn(&self) -> bool {
         ChatModel::native_reasoning_usable(self)
+    }
+
+    fn native_citations_usable_dyn(&self) -> bool {
+        ChatModel::native_citations_usable(self)
     }
 }
 
@@ -142,6 +149,16 @@ pub trait ChatModel {
     /// what a model can do, exactly as litellm asks it, and that is a request like any other.
     fn capabilities(&self) -> impl Future<Output = Capabilities> + Send {
         std::future::ready(Capabilities::default())
+    }
+
+    /// Whether this model answers with citations on its own channel — dspy's
+    /// `Citations.adapt_to_native_lm_feature`, whose test is `lm.model.startswith("anthropic/")`.
+    ///
+    /// A model that does takes the `Citations` output field *out* of the rendered prompt and fills
+    /// it from the citations it attached to its own text blocks. Off by default, as it is for every
+    /// provider but one upstream.
+    fn native_citations_usable(&self) -> bool {
+        false
     }
 
     /// Whether native reasoning is usable over this model's current path — dspy's model-specific

@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use anyhow::Result;
 use serde_json::{Map, Value};
 
+use crate::adapter::native_citations;
 use crate::adapter::native_reasoning::{self, ReasoningEffort};
 use crate::adapter::parse::FieldMismatch;
 use crate::adapter::{Adapter, Feedback, Input, native_tools, turns_for};
@@ -190,6 +191,13 @@ impl<S> Predict<S> {
             lm.native_reasoning_usable_dyn(),
         );
         let asked = reasoning
+            .as_ref()
+            .map_or(asked, |plan| plan.signature.clone());
+        // dspy's third native-response adaptation: an Anthropic model cites on its own channel, so
+        // the `Citations` output leaves the render and `native_value` fills it from the reply.
+        // Asking the prompt for it *and* reading the channel would ask twice.
+        let citations = native_citations::plan(&asked, lm.native_citations_usable_dyn());
+        let asked = citations
             .as_ref()
             .map_or(asked, |plan| plan.signature.clone());
         let schema = asked.schema();

@@ -52,6 +52,12 @@ impl DynChatModel for NotOnThisSide {
     fn native_reasoning_usable_dyn(&self) -> bool {
         true
     }
+
+    /// The bridge's models stand in for dspy's own, which decide this per provider;
+    /// nothing crossing here is an Anthropic model, so citations stay in the render.
+    fn native_citations_usable_dyn(&self) -> bool {
+        false
+    }
 }
 
 /// A model backed by a Python LM object, so this crate's own `Predict::forward` can run under
@@ -132,6 +138,12 @@ impl DynChatModel for PyLM {
 
     fn native_reasoning_usable_dyn(&self) -> bool {
         true
+    }
+
+    /// The bridge's models stand in for dspy's own, which decide this per provider;
+    /// nothing crossing here is an Anthropic model, so citations stay in the render.
+    fn native_citations_usable_dyn(&self) -> bool {
+        false
     }
 }
 
