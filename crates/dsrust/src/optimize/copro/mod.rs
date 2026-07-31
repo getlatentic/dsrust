@@ -298,8 +298,14 @@ where
         student: &'a mut dyn Module,
         teacher: Option<&'a mut dyn Module>,
         trainset: &'a [Example],
+        valset: Option<&'a [Example]>,
     ) -> impl Future<Output = Result<()>> + Send + 'a {
         async move {
+            if valset.is_some() {
+                bail!(
+                    "COPRO scores on the trainset, as upstream's compile does — it takes no valset"
+                );
+            }
             if teacher.is_some() {
                 bail!(
                     "COPRO optimizes instructions from a metric and has no teacher to learn from"
@@ -371,7 +377,8 @@ mod tests {
         let mut student = Predict::parse("question -> answer").expect("parses");
         let mut teacher = Predict::parse("question -> answer").expect("parses");
         let optimizer = COPRO::new(exact_match).prompt_model(model);
-        let refused = Optimizer::compile(&optimizer, &mut student, Some(&mut teacher), &[]).await;
+        let refused =
+            Optimizer::compile(&optimizer, &mut student, Some(&mut teacher), &[], None).await;
         assert!(
             refused.is_err(),
             "a teacher COPRO cannot use is an error, not silently ignored"

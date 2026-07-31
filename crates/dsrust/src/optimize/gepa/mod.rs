@@ -294,19 +294,22 @@ impl<M> Optimizer for GEPA<M>
 where
     M: Fn(&Example, &Prediction) -> Feedback + Send + Sync,
 {
-    /// GEPA has no teacher — it optimizes instructions from a metric — and reuses the trainset as the
-    /// valset (dspy's default when none is given).
+    /// GEPA has no teacher — it optimizes instructions from a metric. With no valset it scores on
+    /// the whole trainset, which is upstream's own `valset = valset or trainset` and *not* the
+    /// 20/80 split MIPROv2 makes: two optimizers, two defaults.
     fn compile<'a>(
         &'a self,
         student: &'a mut dyn Module,
         teacher: Option<&'a mut dyn Module>,
         trainset: &'a [Example],
+        valset: Option<&'a [Example]>,
     ) -> impl Future<Output = Result<()>> + Send + 'a {
         async move {
             if teacher.is_some() {
                 bail!("GEPA optimizes instructions from a metric and has no teacher to learn from");
             }
-            self.compile(student, trainset, trainset).await?;
+            self.compile(student, trainset, valset.unwrap_or(trainset))
+                .await?;
             Ok(())
         }
     }

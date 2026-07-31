@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1060
+rust_tests = 1061
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -413,7 +413,8 @@ two signatures, their fixtures, and the RNG order around them.
 id = "optimizer-valset"
 sprint = "api"
 title = "The Optimizer trait takes no valset, and two optimizers need one"
-state = "todo"
+state = "done"
+shipped = "2026-07-31"
 size = "M"
 suites = []
 plan = """
@@ -428,6 +429,31 @@ and is why it wants doing before 1.0 rather than after. `Option<&[Example]>` mat
 
 Noted in s6's own notes when the trait was designed; the parameter table is what turned it from a
 note into three tracked entries.
+"""
+outcome = """
+`Optimizer::compile` and `DynOptimizer::compile_dyn` take `valset: Option<&[Example]>`. The breaking
+change is done before 1.0 rather than after, which was the whole reason to do it now.
+
+What `None` means is deliberately each optimizer's own, because upstream's differ and a single trait
+default would have to be wrong for one of them:
+
+  - GEPA scores on the whole trainset — upstream's `valset = valset or trainset`, which its own
+    docstring warns overfits and is what makes it usable as an inference-time search;
+  - MIPROv2 splits — `_set_and_validate_datasets` keeps the first 20% to bootstrap from and scores
+    on the last 80%;
+  - LabeledFewShot, BootstrapFewShot and COPRO **refuse** one. They never score a candidate, and
+    upstream's `compile` has no such keyword, so passing one there is a TypeError. Silently dropping
+    it would be worse than refusing: a caller would believe their validation set was being used.
+
+The refusal follows the precedent already in the trait — an optimizer with no use for a teacher
+refuses rather than ignores — and `an_optimizer_that_never_scores_refuses_a_valset` holds it.
+
+GEPA's `Optimizer` impl doc said it reuses the trainset as "dspy's default when none is given". That
+read as the same mistake `mipro-auto-minibatch` had just found, and it is not: checked against the
+pin, GEPA's default really is `valset or trainset`. Two optimizers, two defaults, and the doc now
+says which is which so the next reader does not have to check again.
+
+The three `Teleprompter.compile.valset` ledger entries that pointed here are `mapped`.
 """
 
 [[story]]

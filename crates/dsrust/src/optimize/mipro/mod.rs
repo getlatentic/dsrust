@@ -431,6 +431,7 @@ where
         student: &'a mut dyn Module,
         teacher: Option<&'a mut dyn Module>,
         trainset: &'a [Example],
+        valset: Option<&'a [Example]>,
     ) -> impl Future<Output = Result<()>> + Send + 'a {
         async move {
             if teacher.is_some() {
@@ -438,7 +439,7 @@ where
                     "MIPROv2 proposes instructions from a metric and has no teacher to learn from"
                 );
             }
-            MIPROv2::compile(self, student, trainset, None).await
+            MIPROv2::compile(self, student, trainset, valset).await
         }
     }
 }

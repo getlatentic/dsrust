@@ -106,12 +106,19 @@ use crate::module::Module;
 pub trait Optimizer {
     /// A teacher produces the demos the student keeps, which is how a strong model teaches a
     /// cheap one. An optimizer with no use for one refuses it rather than ignoring it, the way
-    /// upstream's would refuse the keyword.
+    /// upstream's would refuse the keyword — and the same goes for the valset.
+    ///
+    /// `valset` is what candidates are scored on. What `None` means is each optimizer's own
+    /// business, because upstream's differ: GEPA's is `valset or trainset`, scoring on the whole
+    /// trainset, while MIPROv2's `_set_and_validate_datasets` keeps the first 20% to bootstrap from
+    /// and scores on the last 80%. An optimizer that never scores at all — `LabeledFewShot`,
+    /// `BootstrapFewShot` — refuses one, since upstream's `compile` has no such keyword to pass.
     fn compile<'a>(
         &'a self,
         student: &'a mut dyn Module,
         teacher: Option<&'a mut dyn Module>,
         trainset: &'a [Example],
+        valset: Option<&'a [Example]>,
     ) -> impl Future<Output = Result<()>> + Send + 'a;
 }
 
@@ -126,6 +133,7 @@ pub trait DynOptimizer: Send + Sync {
         student: &'a mut dyn Module,
         teacher: Option<&'a mut dyn Module>,
         trainset: &'a [Example],
+        valset: Option<&'a [Example]>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>>;
 }
 
@@ -135,8 +143,9 @@ impl<T: Optimizer + Send + Sync> DynOptimizer for T {
         student: &'a mut dyn Module,
         teacher: Option<&'a mut dyn Module>,
         trainset: &'a [Example],
+        valset: Option<&'a [Example]>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
-        Box::pin(self.compile(student, teacher, trainset))
+        Box::pin(self.compile(student, teacher, trainset, valset))
     }
 }
 
@@ -155,6 +164,7 @@ mod tests {
             student: &'a mut dyn Module,
             _teacher: Option<&'a mut dyn Module>,
             trainset: &'a [Example],
+            _valset: Option<&'a [Example]>,
         ) -> impl Future<Output = Result<()>> + Send + 'a {
             async move {
                 for predictor in student.named_predictors() {
@@ -170,7 +180,7 @@ mod tests {
         let examples = trainset();
         let mut student = Solver::new(Answers::Correctly);
         KeepTheFirst
-            .compile(&mut student, None, &examples)
+            .compile(&mut student, None, &examples, None)
             .await
             .expect("a caller's optimizer compiles");
         assert_eq!(answers(&student.demos), ["Paris"]);
@@ -190,7 +200,7 @@ mod tests {
         let mut student = Solver::new(Answers::Correctly);
         for optimizer in &sequence {
             optimizer
-                .compile_dyn(&mut student, None, &examples)
+                .compile_dyn(&mut student, None, &examples, None)
                 .await
                 .expect("each optimizer in the sequence compiles");
         }
@@ -219,6 +229,7 @@ mod tests {
             &mut student,
             Some(&mut teacher),
             &examples,
+            None,
         )
         .await;
         assert!(
@@ -240,11 +251,37 @@ mod tests {
             &mut student,
             Some(&mut teacher),
             &examples,
+            None,
         )
         .await
         .expect("a teacher compiles the student");
 
         assert_eq!(answers(&student.demos), ["Paris", "Berlin"]);
         assert!(teacher.demos.is_empty(), "the student took the result");
+    }
+
+    /// An optimizer that never scores a candidate refuses a valset rather than ignoring one, the way
+    /// it already refuses a teacher it cannot learn from. Upstream's `compile` has no such keyword,
+    /// so passing one is a `TypeError` there and silently dropping it here would be worse: a caller
+    /// would believe their validation set was being used.
+    #[tokio::test]
+    async fn an_optimizer_that_never_scores_refuses_a_valset() {
+        let examples = trainset();
+        let mut student = Solver::new(Answers::Correctly);
+        let refused = Optimizer::compile(
+            &LabeledFewShot::new(2),
+            &mut student,
+            None,
+            &examples,
+            Some(&examples),
+        )
+        .await;
+        assert!(
+            refused
+                .unwrap_err()
+                .to_string()
+                .contains("no valset to score on"),
+            "LabeledFewShot should refuse a valset it would not read"
+        );
     }
 }

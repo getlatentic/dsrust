@@ -122,7 +122,7 @@ where
                 rng.shuffle(&mut trainset);
             }
             let optimizer = &self.optimizers[step];
-            if let Err(error) = optimizer.compile_dyn(student, None, &trainset).await {
+            if let Err(error) = optimizer.compile_dyn(student, None, &trainset, None).await {
                 tracing::error!(%error, step = %step, "a step failed; keeping the best so far");
                 break;
             }
@@ -250,6 +250,7 @@ mod tests {
             student: &'a mut dyn Module,
             _teacher: Option<&'a mut dyn Module>,
             _trainset: &'a [Example],
+            _valset: Option<&'a [Example]>,
         ) -> impl Future<Output = Result<()>> + Send + 'a {
             async move {
                 for predictor in student.named_predictors() {
@@ -269,6 +270,7 @@ mod tests {
             _student: &'a mut dyn Module,
             _teacher: Option<&'a mut dyn Module>,
             _trainset: &'a [Example],
+            _valset: Option<&'a [Example]>,
         ) -> impl Future<Output = Result<()>> + Send + 'a {
             async move { bail!("this step fails") }
         }

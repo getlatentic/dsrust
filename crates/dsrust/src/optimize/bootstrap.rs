@@ -260,8 +260,15 @@ where
         student: &'a mut dyn Module,
         teacher: Option<&'a mut dyn Module>,
         trainset: &'a [Example],
+        valset: Option<&'a [Example]>,
     ) -> impl Future<Output = Result<()>> + Send + 'a {
         async move {
+            if valset.is_some() {
+                return Err(anyhow!(
+                    "BootstrapFewShot keeps the traces a teacher produced and never scores a \
+                     candidate, so it has no valset to score on"
+                ));
+            }
             match teacher {
                 Some(teacher) => {
                     self.compile_with_teacher(student, teacher, trainset)
