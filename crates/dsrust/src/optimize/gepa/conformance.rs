@@ -115,31 +115,41 @@ async fn a_callers_proposer_replaces_the_reflection_tree() {
     impl ChatModel for Counting {
         async fn forward(&self, _request: &api::LmRequest) -> Result<LmResponse> {
             self.0.fetch_add(1, Ordering::Relaxed);
-            Ok(LmResponse::text(format!("```\n{PROPOSAL}\n```")))
+            // Bare, not fenced: the reflection tree would strip a fence, and the proposer here
+            // uses the reply as written — so a fenced reply would prove nothing about which path
+            // produced the instruction.
+            Ok(LmResponse::text(PROPOSAL))
         }
     }
 
-    struct Shouting;
-    impl super::InstructionProposer for Shouting {
+    struct Asking;
+    impl super::InstructionProposer for Asking {
         fn propose<'a>(
             &'a self,
+            reflection: &'a Arc<dyn crate::lm::DynChatModel>,
             candidate: &'a BTreeMap<String, String>,
             components: &'a [String],
             datasets: &'a BTreeMap<String, super::ReflectiveDataset>,
         ) -> std::pin::Pin<Box<dyn Future<Output = BTreeMap<String, String>> + Send + 'a>> {
             Box::pin(async move {
-                components
-                    .iter()
-                    .map(|name| {
-                        // The dataset it was handed is the one the reflection tree would have read,
-                        // so a proposer that ignores it is the caller's choice and not a gap here.
-                        assert!(!datasets[name].is_empty(), "handed an empty dataset");
-                        // A proposal that outscores the seed, so the accept/reject step is not what
-                        // decides this test. `GOOD` is what `TaskCoach` reads.
-                        let _ = &candidate[name];
-                        (name.clone(), format!("Caller says: {PROPOSAL}"))
-                    })
-                    .collect()
+                let mut proposed = BTreeMap::new();
+                for name in components {
+                    // The dataset it was handed is the one the reflection tree would have read.
+                    assert!(!datasets[name].is_empty(), "handed an empty dataset");
+                    let _ = &candidate[name];
+                    // The model GEPA was built with reaches the proposer, which is what upstream's
+                    // `with dspy.context(lm=reflection_lm)` gives its own. Asking it is how this
+                    // test tells "handed the model" from "handed nothing".
+                    let asked = reflection
+                        .forward_dyn(&api::LmRequest::from_items(
+                            "",
+                            ["propose something better"],
+                        ))
+                        .await
+                        .expect("the reflection model answers");
+                    proposed.insert(name.clone(), asked.first_text());
+                }
+                proposed
             })
         }
     }
@@ -153,19 +163,19 @@ async fn a_callers_proposer_replaces_the_reflection_tree() {
     GEPA::new(metric, reflector.clone())
         .max_metric_calls(20)
         .reflection_minibatch_size(2)
-        .instruction_proposer(Arc::new(Shouting))
+        .instruction_proposer(Arc::new(Asking))
         .compile(&mut student, &trainset(), &trainset())
         .await
         .expect("compiles");
 
-    assert_eq!(
-        reflector.0.load(Ordering::Relaxed),
-        0,
-        "the reflection model was asked despite a caller's proposer"
+    // Asked by the proposer and by nothing else: GEPA's own reflection tree was not consulted, so
+    // every call on the counter is one the caller's proposer made.
+    assert!(
+        reflector.0.load(Ordering::Relaxed) > 0,
+        "the proposer could not reach the reflection model"
     );
     assert_eq!(
-        student.signature.instructions,
-        format!("Caller says: {PROPOSAL}"),
+        student.signature.instructions, PROPOSAL,
         "the caller's proposal did not reach the student"
     );
 }

@@ -9,6 +9,11 @@
 //! Called from both request builders, because upstream calls it from both `common_config_kwargs`
 //! and `responses_config_kwargs` — the endpoint is the only thing that differs, and it travels into
 //! the issue line.
+//!
+//! Always enforced, which is the pin. Main has since added an `enforce_reasoning_temperature=True`
+//! parameter to the Responses path only, so a caller there can opt out; the chat path still always
+//! enforces. Worth revisiting when the pin moves — not before, since the pin is what every gate
+//! here is measured against.
 
 use crate::lm::api;
 use crate::lm::error::{LmErrorKind, LmFailure};

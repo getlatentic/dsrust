@@ -410,6 +410,12 @@ mode this project keeps finding, not a smaller version of the feature.
 Splitting `num_candidates` into the two counts is worth doing whether or not auto lands, since it is
 what upstream's Step 1 and Step 2 actually take.
 
+One moving part to watch, measured 2026-07-31: `get_program_with_highest_avg_score` — the helper
+that picks which combination gets a full evaluation — is the *only* line of `teleprompt/utils.py`
+that differs between the pin and main. The pin falls through to the last valid program it saw; main
+raises `ValueError("No valid program found in param_score_dict")`. The pin is the oracle, so port
+the fallthrough, but expect that to flip.
+
 **What proves it.** `scripts/generate_mipro_fixture.py` grows cases with `auto=` set and a valset
 over 50, recorded off the same captured optuna study — the trial sequence including which trials
 were minibatch and which were full evaluations.

@@ -233,7 +233,9 @@ where
         // not consulted at all, only the components it was asked about.
         if let Some(proposer) = &self.proposer {
             let asked: Vec<String> = datasets.keys().cloned().collect();
-            return proposer.propose(candidate, &asked, &datasets).await;
+            return proposer
+                .propose(&self.reflection, candidate, &asked, &datasets)
+                .await;
         }
 
         let mut new_texts = BTreeMap::new();
