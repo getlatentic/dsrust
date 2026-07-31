@@ -106,20 +106,42 @@ def metric(example, prediction, trace=None) -> float:
     return float(example.answer == prediction.answer)
 
 
-#: (num_candidates, num_trials, seed). Trials below candidates so the tried set is seed-dependent;
-#: one case with trials above candidates so repeat suggestions are exercised too. The committed
-#: set must compile more than one distinct instruction across cases — checked in main().
+#: (num_candidates, num_trials, seed, max_bootstrapped_demos, max_labeled_demos). Trials below
+#: candidates so the tried set is seed-dependent; one case with trials above candidates so repeat
+#: suggestions are exercised too. The committed set must compile more than one distinct instruction
+#: across cases — checked in main().
+#:
+#: The last four are the few-shot regime, where the search space is *two* parameters per predictor
+#: rather than one and the trial sequence therefore differs at the sampler. Zero-shot cases alone
+#: could not tell an interleaved search space from a grouped one, because with one parameter per
+#: predictor the two orders are the same list.
 CASES = [
-    (5, 3, 0),
-    (5, 3, 1),
-    (5, 3, 5),
-    (5, 3, 9),
-    (6, 8, 7),
-    (4, 6, 3),
+    (5, 3, 0, 0, 0),
+    (5, 3, 1, 0, 0),
+    (5, 3, 5, 0, 0),
+    (5, 3, 9, 0, 0),
+    (6, 8, 7, 0, 0),
+    (4, 6, 3, 0, 0),
+    (5, 3, 0, 4, 4),
+    (5, 6, 1, 4, 4),
+    (5, 4, 5, 2, 0),
+    (4, 6, 3, 2, 4),
 ]
 
+#: `max_bootstrapped_demos=0` with `max_labeled_demos>0` is not a configuration upstream supports:
+#: `create_n_fewshot_demo_sets` reaches `rng.randint(min_num_samples, max_bootstrapped_demos)` for
+#: every shuffled set, and `randint(1, 0)` raises `ValueError: empty range`. It is only reachable
+#: because `zeroshot` requires *both* to be zero, so `(0, k>0)` falls through to the bootstrap path
+#: with nothing to bootstrap. Measured, not read — it is why that combination is not a case here.
 
-def compile_once(num_candidates: int, num_trials: int, seed: int) -> dict:
+
+def compile_once(
+    num_candidates: int,
+    num_trials: int,
+    seed: int,
+    max_bootstrapped_demos: int,
+    max_labeled_demos: int,
+) -> dict:
     coach = Coach()
     dspy.configure(lm=coach)
     trainset = [dspy.Example(question=q, answer=a).with_inputs("question") for q, a in TRAINSET]
@@ -139,7 +161,7 @@ def compile_once(num_candidates: int, num_trials: int, seed: int) -> dict:
         optimizer = dspy.MIPROv2(
             metric=metric, prompt_model=dspy.settings.lm, task_model=dspy.settings.lm,
             auto=None, num_candidates=num_candidates, num_threads=1, seed=seed,
-            max_bootstrapped_demos=0, max_labeled_demos=0,
+            max_bootstrapped_demos=max_bootstrapped_demos, max_labeled_demos=max_labeled_demos,
         )
         compiled = optimizer.compile(
             Program(), trainset=trainset, valset=trainset, num_trials=num_trials, minibatch=False,
@@ -155,9 +177,18 @@ def compile_once(num_candidates: int, num_trials: int, seed: int) -> dict:
         "num_candidates": num_candidates,
         "num_trials": num_trials,
         "seed": seed,
+        "max_bootstrapped_demos": max_bootstrapped_demos,
+        "max_labeled_demos": max_labeled_demos,
         "proposals": list(coach.proposals),
         "trials": trials,
         "compiled": [p.signature.instructions for _, p in compiled.named_predictors()],
+        # The demos the winning trial left on each predictor, as the field values a set carries.
+        # The instruction alone would not say which demo set was chosen, and choosing the set is
+        # half of what a few-shot run does.
+        "compiled_demos": [
+            [{k: v for k, v in demo.items()} for demo in p.demos]
+            for _, p in compiled.named_predictors()
+        ],
     }
 
 

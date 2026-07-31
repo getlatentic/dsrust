@@ -24,6 +24,14 @@ pub struct LmFailure {
     pub request_id: Option<String>,
     /// Seconds the provider asked the caller to wait, from `Retry-After`.
     pub retry_after: Option<f64>,
+    /// dspy `LMUnsupportedFeatureError.features`: which features were asked for and refused —
+    /// `"temperature"`, `"reasoning"`. Empty for every other kind, as upstream's is.
+    ///
+    /// The kind alone says a feature was refused; this says which, which is what a caller needs to
+    /// drop one and retry rather than give up on the call.
+    pub features: Vec<String>,
+    /// dspy `LMUnsupportedFeatureError.issues`: why each refusal happened, in the caller's terms.
+    pub issues: Vec<String>,
 }
 
 impl Default for LmErrorKind {

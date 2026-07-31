@@ -27,7 +27,14 @@ use stream::frame;
 /// The Responses request body for one call. A requested schema rides under `text.format`, built from
 /// the bare schema by `text_format` — this crate builds the envelope rather than carrying dspy's
 /// whole one, the same split the chat wire makes.
-pub fn request(model: &str, call: &api::LmRequest, json_format: JsonFormat) -> Value {
+pub fn request(
+    model: &str,
+    call: &api::LmRequest,
+    json_format: JsonFormat,
+) -> anyhow::Result<Value> {
+    // As the chat builder: dspy calls the same check from `responses_config_kwargs`, naming the
+    // endpoint it was reached from.
+    super::reasoning_temperature::checked(&call.config, model, "responses")?;
     let config = &call.config;
     let mut body = json!({ "model": model, "input": input(&call.wire_messages()) });
     // dspy's `responses_config_kwargs` opens with the extensions, unknown kwargs passing through.
@@ -72,7 +79,7 @@ pub fn request(model: &str, call: &api::LmRequest, json_format: JsonFormat) -> V
     if !call.tools.is_empty() {
         body["tools"] = Value::Array(call.tools.iter().map(tool_json).collect());
     }
-    body
+    Ok(body)
 }
 
 /// The OpenAI-shaped messages as Responses input items — dspy's `message_to_responses_input_items`,
@@ -213,10 +220,14 @@ fn reasoning(call: &api::LmRequest) -> Option<Value> {
 // -------- streaming: Responses SSE -> typed events --------
 
 /// The request body with the streaming flag set.
-pub(super) fn streaming_body(model: &str, call: &api::LmRequest, json_format: JsonFormat) -> Value {
-    let mut body = request(model, call, json_format);
+pub(super) fn streaming_body(
+    model: &str,
+    call: &api::LmRequest,
+    json_format: JsonFormat,
+) -> anyhow::Result<Value> {
+    let mut body = request(model, call, json_format)?;
     body["stream"] = json!(true);
-    body
+    Ok(body)
 }
 
 /// The typed events of one streaming Responses call. Text and reasoning arrive as deltas for live
@@ -389,7 +400,7 @@ mod tests {
             let call: api::LmRequest = serde_json::from_value(case["lm_request"].clone())
                 .unwrap_or_else(|error| panic!("{name}: the typed request did not parse: {error}"));
             assert_eq!(
-                request(&call.model, &call, JsonFormat::Object),
+                request(&call.model, &call, JsonFormat::Object).expect("the body builds"),
                 case["expected"],
                 "{name}: our Responses body diverges from dspy's"
             );
@@ -432,11 +443,11 @@ mod tests {
             &crate::lm::Sampling::default(),
         );
         assert_eq!(
-            request("gpt-5", &call, JsonFormat::Object)["text"],
+            request("gpt-5", &call, JsonFormat::Object).expect("builds")["text"],
             json!({ "format": { "type": "json_object" } })
         );
         assert_eq!(
-            request("gpt-5", &call, JsonFormat::Schema)["text"],
+            request("gpt-5", &call, JsonFormat::Schema).expect("builds")["text"],
             json!({ "format": { "type": "json_schema", "name": "response", "schema": schema, "strict": true } })
         );
     }

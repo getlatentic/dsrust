@@ -39,6 +39,8 @@
       "num_candidates": 5,
       "num_trials": 3,
       "seed": 0,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
@@ -74,12 +76,17 @@
       ],
       "compiled": [
         "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        []
       ]
     },
     {
       "num_candidates": 5,
       "num_trials": 3,
       "seed": 1,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
@@ -115,12 +122,17 @@
       ],
       "compiled": [
         "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        []
       ]
     },
     {
       "num_candidates": 5,
       "num_trials": 3,
       "seed": 5,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
@@ -156,12 +168,17 @@
       ],
       "compiled": [
         "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        []
       ]
     },
     {
       "num_candidates": 5,
       "num_trials": 3,
       "seed": 9,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
@@ -197,12 +214,17 @@
       ],
       "compiled": [
         "Answer with GOOD-3 precision."
+      ],
+      "compiled_demos": [
+        []
       ]
     },
     {
       "num_candidates": 6,
       "num_trials": 8,
       "seed": 7,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
@@ -269,12 +291,17 @@
       ],
       "compiled": [
         "Answer with GOOD-4 precision."
+      ],
+      "compiled_demos": [
+        []
       ]
     },
     {
       "num_candidates": 4,
       "num_trials": 6,
       "seed": 3,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
@@ -327,6 +354,296 @@
       ],
       "compiled": [
         "Answer with GOOD-3 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 3,
+      "seed": 0,
+      "max_bootstrapped_demos": 4,
+      "max_labeled_demos": 4,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 3
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 4
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 2
+          },
+          "score": 0.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        [
+          {
+            "question": "capital of Germany?",
+            "answer": "Berlin"
+          },
+          {
+            "question": "capital of Spain?",
+            "answer": "Madrid"
+          },
+          {
+            "question": "capital of France?",
+            "answer": "Paris"
+          }
+        ]
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 6,
+      "seed": 1,
+      "max_bootstrapped_demos": 4,
+      "max_labeled_demos": 4,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 4
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 0
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 0
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 2
+          },
+          "score": 100.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 1
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 4
+          },
+          "score": 66.67
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-3 precision."
+      ],
+      "compiled_demos": [
+        [
+          {
+            "question": "capital of Spain?",
+            "answer": "Madrid"
+          },
+          {
+            "question": "capital of Germany?",
+            "answer": "Berlin"
+          },
+          {
+            "question": "capital of France?",
+            "answer": "Paris"
+          }
+        ]
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 4,
+      "seed": 5,
+      "max_bootstrapped_demos": 2,
+      "max_labeled_demos": 0,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 1
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4,
+            "0_predictor_demos": 3
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 2
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 4
+          },
+          "score": 33.33
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-4 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "num_candidates": 4,
+      "num_trials": 6,
+      "seed": 3,
+      "max_bootstrapped_demos": 2,
+      "max_labeled_demos": 4,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 2
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 2
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 66.67
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        [
+          {
+            "question": "capital of Germany?",
+            "answer": "Berlin"
+          },
+          {
+            "question": "capital of Spain?",
+            "answer": "Madrid"
+          },
+          {
+            "question": "capital of France?",
+            "answer": "Paris"
+          }
+        ]
       ]
     }
   ]

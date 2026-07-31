@@ -159,10 +159,14 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
             .expect("parses")
             .with_lm(model.clone());
 
+        let boot = case["max_bootstrapped_demos"].as_u64().expect("boot") as usize;
+        let labeled = case["max_labeled_demos"].as_u64().expect("labeled") as usize;
         let trials = MIPROv2::new(exact_match, model.clone())
             .with_candidates(case["num_candidates"].as_u64().expect("num_candidates") as usize)
             .with_trials(case["num_trials"].as_u64().expect("num_trials") as usize)
             .seed(case["seed"].as_u64().expect("seed"))
+            .max_bootstrapped_demos(boot)
+            .max_labeled_demos(labeled)
             .compile_traced(&mut student, &trainset)
             .await
             .expect("compiles");
@@ -182,14 +186,20 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
         let recorded = case["trials"].as_array().expect("trials");
         assert_eq!(trials.len(), recorded.len(), "trial count for case {case}");
         for (index, (ours, theirs)) in trials.iter().zip(recorded).enumerate() {
-            let instruction = theirs["params"]["0_predictor_instruction"]
-                .as_u64()
-                .expect("instruction") as usize;
-            assert_eq!(
-                ours.params,
-                vec![instruction],
-                "trial {index} params for case {case}"
-            );
+            // Interleaved per predictor — instruction then demos — which is the order upstream
+            // suggests them in and therefore the order optuna's multivariate TPE draws in. A
+            // zero-shot run suggests no demo parameter at all, so the vector is one wide.
+            let named = |name: &str| {
+                theirs["params"][name]
+                    .as_u64()
+                    .unwrap_or_else(|| panic!("param {name} for case {case}"))
+                    as usize
+            };
+            let mut params = vec![named("0_predictor_instruction")];
+            if theirs["params"].get("0_predictor_demos").is_some() {
+                params.push(named("0_predictor_demos"));
+            }
+            assert_eq!(ours.params, params, "trial {index} params for case {case}");
             let score = theirs["score"].as_f64().expect("score");
             assert_eq!(ours.score, score, "trial {index} score for case {case}");
         }
@@ -201,5 +211,26 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
             student.signature.instructions, compiled,
             "compiled instruction for case {case}"
         );
+
+        // The demo set the winning trial left on the predictor. Choosing the set is half of what a
+        // few-shot run does, and the instruction alone would not say which one was chosen.
+        let wanted = case["compiled_demos"][0]
+            .as_array()
+            .expect("compiled demos");
+        assert_eq!(
+            student.demos.len(),
+            wanted.len(),
+            "compiled demo count for case {case}"
+        );
+        for (ours, theirs) in student.demos.iter().zip(wanted) {
+            let fields = theirs.as_object().expect("a demo is an object");
+            for (name, value) in fields {
+                assert_eq!(
+                    ours.get(name),
+                    Some(value),
+                    "demo field {name} for case {case}"
+                );
+            }
+        }
     }
 }

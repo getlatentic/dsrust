@@ -13,6 +13,7 @@ use std::time::Duration;
 
 use super::{ChatModel, LmUsage, api, env_nonempty};
 
+mod reasoning_temperature;
 mod response;
 pub mod responses;
 mod stream;
@@ -168,6 +169,21 @@ impl<'a> Endpoint<'a> {
         call: &api::LmRequest,
     ) -> std::pin::Pin<Box<dyn futures_util::Stream<Item = Result<api::LmStreamEvent>> + Send + 'h>>
     {
+        // The body is built first because building it can refuse the call — an OpenAI reasoning
+        // model asked to reason at a chosen temperature. A refusal arrives as the stream's first
+        // and only item, which is where a streaming caller reads a failure from anyway.
+        let built = match self.wire {
+            OpenAiWire::Chat => {
+                streaming_body(self.model, call, self.json_format, self.token_limit_rule)
+            }
+            OpenAiWire::Responses => responses::streaming_body(self.model, call, self.json_format),
+        };
+        let body = match built {
+            Ok(body) => body,
+            Err(refused) => {
+                return Box::pin(futures_util::stream::once(std::future::ready(Err(refused))));
+            }
+        };
         match self.wire {
             OpenAiWire::Chat => Box::pin(stream::events(
                 http,
@@ -175,7 +191,7 @@ impl<'a> Endpoint<'a> {
                 self.api_key.map(str::to_owned),
                 self.label.to_owned(),
                 self.model.to_owned(),
-                streaming_body(self.model, call, self.json_format, self.token_limit_rule),
+                body,
                 self.timeout,
             )),
             OpenAiWire::Responses => Box::pin(responses::stream(
@@ -184,7 +200,7 @@ impl<'a> Endpoint<'a> {
                 self.api_key.map(str::to_owned),
                 self.label.to_owned(),
                 self.model.to_owned(),
-                responses::streaming_body(self.model, call, self.json_format),
+                body,
                 self.timeout,
             )),
         }
@@ -198,11 +214,11 @@ fn streaming_body(
     call: &api::LmRequest,
     json_format: JsonFormat,
     token_limit_rule: TokenLimitRule,
-) -> Value {
-    let mut body = request(model, call, json_format, token_limit_rule);
+) -> Result<Value> {
+    let mut body = request(model, call, json_format, token_limit_rule)?;
     body["stream"] = json!(true);
     body["stream_options"] = json!({ "include_usage": true });
-    body
+    Ok(body)
 }
 
 impl ChatModel for Endpoint<'_> {
@@ -218,11 +234,11 @@ impl ChatModel for Endpoint<'_> {
             let (url, body) = match self.wire {
                 OpenAiWire::Chat => (
                     chat_completions_url(self.base_url),
-                    request(self.model, call, self.json_format, self.token_limit_rule),
+                    request(self.model, call, self.json_format, self.token_limit_rule)?,
                 ),
                 OpenAiWire::Responses => (
                     responses_url(self.base_url),
-                    responses::request(self.model, call, self.json_format),
+                    responses::request(self.model, call, self.json_format)?,
                 ),
             };
             let response = http
@@ -271,7 +287,10 @@ fn request(
     call: &api::LmRequest,
     json_format: JsonFormat,
     token_limit_rule: TokenLimitRule,
-) -> Value {
+) -> Result<Value> {
+    // dspy validates before it builds — `common_config_kwargs` opens with this — so a refused
+    // pairing never reaches a body at all.
+    reasoning_temperature::checked(&call.config, model, "chat")?;
     let mut request = json!({
         "model": model,
         "messages": call.wire_messages(),
@@ -328,7 +347,7 @@ fn request(
     if !call.tools.is_empty() {
         request["tools"] = Value::Array(call.tools.iter().map(tool_json).collect());
     }
-    request
+    Ok(request)
 }
 
 /// dspy's `tool_to_openai`: a function tool, its provider data merged onto the tool object.
@@ -407,6 +426,7 @@ mod tests {
             json_format,
             TokenLimitRule::ByOpenAiModelFamily,
         )
+        .expect("the body builds")
     }
 
     /// The body a text-mode call to `model` produces on OpenAI's own endpoint.
@@ -422,7 +442,7 @@ mod tests {
             OutputMode::Text,
             &config,
         );
-        request(model, &call, JsonFormat::Object, token_limit_rule)
+        request(model, &call, JsonFormat::Object, token_limit_rule).expect("the body builds")
     }
 
     #[test]
@@ -564,7 +584,8 @@ mod tests {
                 &call,
                 JsonFormat::Object,
                 TokenLimitRule::ByOpenAiModelFamily,
-            );
+            )
+            .expect("the body builds");
             assert_eq!(
                 body, case["expected"],
                 "{name}: our OpenAI body diverges from dspy 3.3's to_openai_chat_request"
@@ -633,7 +654,8 @@ mod tests {
                 &call,
                 endpoint.json_format,
                 endpoint.token_limit_rule,
-            );
+            )
+            .expect("the body builds");
             assert_eq!(
                 body.to_string(),
                 format!(

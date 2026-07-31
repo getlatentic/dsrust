@@ -379,6 +379,66 @@ predictors where only one is watched records only that one's points.
 """
 
 [[story]]
+id = "mipro-auto-minibatch"
+sprint = "api"
+title = "MIPROv2's auto is minibatch evaluation wearing a preset's name"
+state = "todo"
+size = "L"
+suites = []
+plan = """
+`auto="light"|"medium"|"heavy"` was classified as a setter for two counts. Reading
+`_set_and_validate_auto_settings` against the pin, it is five things, and four of them this crate
+has no shape for:
+
+  - `AUTO_RUN_SETTINGS` picks `n` (6/12/18) and a `val_size` (100/300/1000);
+  - the valset is *subsampled* to `val_size` by `create_minibatch`, which draws off the same RNG
+    Step 1 and Step 2 read — so turning auto on moves every later draw;
+  - `minibatch` turns on whenever the subsample exceeds `MIN_MINIBATCH_SIZE = 50`;
+  - the count splits in two — `num_instruct_candidates` is `n/2` when demos are searched and `n`
+    when they are not, `num_fewshot_candidates` is always `n` — where this crate carries one
+    `num_candidates` for both. They coincide only on the non-auto path, which is why nothing has
+    noticed;
+  - `num_trials = max(2 * num_vars * log2(n), 1.5 * n)`, with `num_vars` doubled when demos are
+    searched.
+
+So the real work is minibatch evaluation: `_perform_full_evaluation`, the `param_score_dict` of
+per-combination scores, `get_program_with_highest_avg_score`, the full-eval steps interleaved with
+minibatch trials, and the adjusted trial count that follows. Shipping `auto` without it would agree
+with dspy only on a valset of 50 or fewer and diverge silently above that — which is the failure
+mode this project keeps finding, not a smaller version of the feature.
+
+Splitting `num_candidates` into the two counts is worth doing whether or not auto lands, since it is
+what upstream's Step 1 and Step 2 actually take.
+
+**What proves it.** `scripts/generate_mipro_fixture.py` grows cases with `auto=` set and a valset
+over 50, recorded off the same captured optuna study — the trial sequence including which trials
+were minibatch and which were full evaluations.
+"""
+
+[[story]]
+id = "mipro-task-model"
+sprint = "api"
+title = "task_model: dspy bootstraps and evaluates on one model while another writes the proposals"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+dspy's MIPROv2 takes `prompt_model` and `task_model` and scopes the second with
+`with dspy.context(lm=self.task_model):` around Step 1 (bootstrap) and Step 3 (evaluation), leaving
+`prompt_model` to write the proposals in Step 2. The point is spending a strong model on the
+proposals and a cheap one on the many evaluation calls.
+
+This crate has `prompt_model` and evaluates on whichever model each predictor already carries. There
+is no block-scoped configuration to swap it for the duration of two steps, which is
+[`lm-context`](dspy.context) — so this is blocked on that story rather than independent of it. Doing
+it by mutating each predictor's `lm` and putting it back would work and is what a caller can already
+write; it is also exactly the ambient-state juggling `dspy.context` exists to make safe.
+
+**What proves it.** A conformance case where the proposer's model and the task model answer
+differently, so a run that evaluated on the proposer's model compiles the wrong instruction.
+"""
+
+[[story]]
 id = "lm-context"
 sprint = "api"
 title = "dspy.context scopes a model to a block; nothing here does"

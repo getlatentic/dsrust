@@ -51,7 +51,7 @@ impl TokenLimitRule {
     pub fn field_for(self, model: &str) -> TokenLimitField {
         match self {
             TokenLimitRule::AlwaysMaxTokens => TokenLimitField::MaxTokens,
-            TokenLimitRule::ByOpenAiModelFamily if is_reasoning_model(model) => {
+            TokenLimitRule::ByOpenAiModelFamily if is_openai_reasoning_model(model) => {
                 TokenLimitField::MaxCompletionTokens
             }
             TokenLimitRule::ByOpenAiModelFamily => TokenLimitField::MaxTokens,
@@ -64,7 +64,7 @@ impl TokenLimitRule {
 /// The name is all that is available at request time, and it is what OpenAI's own families
 /// are told apart by. A vendor-prefixed id — `openai/o3` — names the same model as the bare
 /// one, so only the last segment is examined.
-fn is_reasoning_model(model: &str) -> bool {
+pub(crate) fn is_openai_reasoning_model(model: &str) -> bool {
     let name = model
         .rsplit_once('/')
         .map_or(model, |(_, last)| last)

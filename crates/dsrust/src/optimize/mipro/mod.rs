@@ -5,11 +5,17 @@
 //! verified in isolation — and this module wraps it the way dspy wraps optuna. The proposer's
 //! prompts live in [`signatures`], byte-verified against dspy.
 //!
-//! This is the zero-shot configuration: instructions are searched, demos are not. dspy's
-//! demo-bootstrapping path (`max_bootstrapped_demos > 0`), the dataset-summary proposer, and
-//! minibatch evaluation build on the same pieces and are not yet wired; a run here matches dspy
-//! with `max_bootstrapped_demos=0`, `max_labeled_demos=0`, `data_aware_proposer=False`,
-//! `minibatch=False`.
+//! Instructions and demos are both searched, as upstream's defaults do — `max_bootstrapped_demos`
+//! and `max_labeled_demos` are dspy's 4 and 4, and setting both to zero is upstream's own zero-shot
+//! configuration rather than a separate path. The dataset-summary proposer and minibatch evaluation
+//! are not wired; a run here matches dspy with `data_aware_proposer=False`, `minibatch=False`.
+//!
+//! **The search space is interleaved per predictor** — instruction, demos, instruction, demos —
+//! because that is the order upstream suggests them in and optuna's multivariate TPE draws in
+//! suggest order, not in sorted-name order. dspy's names (`0_predictor_instruction`,
+//! `0_predictor_demos`) sort the other way round, so the two orders genuinely disagree and no
+//! reading settles it. `crates/dsrust-tpe/tests/conformance/optuna_tpe.json` carries the case that
+//! does: two parameters of different cardinality under dspy's own names.
 
 use std::sync::Arc;
 
@@ -148,6 +154,11 @@ pub struct MIPROv2<M> {
     scoring: super::Scoring,
     program_code: Option<String>,
     tip_aware: bool,
+    /// dspy `max_bootstrapped_demos`: how many demos a bootstrap may put in a set. Zero with
+    /// `max_labeled_demos` zero is upstream's zero-shot run.
+    max_bootstrapped_demos: usize,
+    /// dspy `max_labeled_demos`: how many labelled trainset examples a set may carry unbootstrapped.
+    max_labeled_demos: usize,
 }
 
 impl<M> MIPROv2<M>
@@ -168,7 +179,30 @@ where
             scoring: super::Scoring::default(),
             program_code: None,
             tip_aware: true,
+            max_bootstrapped_demos: 4,
+            max_labeled_demos: 4,
         }
+    }
+
+    /// dspy `max_bootstrapped_demos`: how many bootstrapped demos a candidate set may hold, default
+    /// 4 as upstream's is. With `max_labeled_demos` also zero the run is upstream's zero-shot one:
+    /// the sets are still built, because they ground the proposer, but they are built at dspy's
+    /// in-context constants and never searched.
+    pub fn max_bootstrapped_demos(mut self, max_bootstrapped_demos: usize) -> Self {
+        self.max_bootstrapped_demos = max_bootstrapped_demos;
+        self
+    }
+
+    /// dspy `max_labeled_demos`: how many labelled trainset examples a candidate set may hold
+    /// without bootstrapping, default 4 as upstream's is.
+    pub fn max_labeled_demos(mut self, max_labeled_demos: usize) -> Self {
+        self.max_labeled_demos = max_labeled_demos;
+        self
+    }
+
+    /// Whether this run searches demos at all — dspy's `zeroshot_opt`, and the same test.
+    fn zeroshot(&self) -> bool {
+        self.max_bootstrapped_demos == 0 && self.max_labeled_demos == 0
     }
 
     /// How many instructions to propose per predictor.
@@ -247,14 +281,24 @@ where
 
         let mut rng = Rng::seeded(self.seed);
 
-        // Step 1: bootstrap demo sets. Zero-shot searches instructions only, but dspy still runs this
-        // — the sets ground the proposer, and it advances the shared RNG that Step 2's proposal reads.
-        demos::create_demo_sets(
+        // Step 1: bootstrap demo sets. A zero-shot run still builds them — they ground the proposer,
+        // and building them advances the shared RNG that Step 2's proposal reads — but it builds them
+        // at dspy's in-context constants rather than at the caller's counts, and never searches them.
+        let zeroshot = self.zeroshot();
+        let demo_sets = demos::create_demo_sets(
             student,
             self.num_candidates,
             trainset,
-            ZEROSHOT_LABELED,
-            ZEROSHOT_BOOTSTRAPPED,
+            if zeroshot {
+                ZEROSHOT_LABELED
+            } else {
+                self.max_labeled_demos
+            },
+            if zeroshot {
+                ZEROSHOT_BOOTSTRAPPED
+            } else {
+                self.max_bootstrapped_demos
+            },
             &self.metric,
             self.metric_threshold,
             &mut rng,
@@ -272,8 +316,10 @@ where
             .propose(&predictors, self.num_candidates, &mut rng)
             .await?;
 
-        // Step 3: search the instruction combinations.
-        Ok(self.search(student, &candidates, trainset).await)
+        // Step 3: search the combinations. A zero-shot run hands the search no demo sets, which is
+        // upstream passing `demo_candidates=None` and suggesting no demo parameter at all.
+        let searched = (!zeroshot).then_some(demo_sets.as_slice());
+        Ok(self.search(student, &candidates, searched, trainset).await)
     }
 
     /// dspy's Step 3: seed the sampler with the default program as a baseline trial, run `num_trials`
@@ -283,10 +329,11 @@ where
         &self,
         student: &mut S,
         candidates: &[Vec<String>],
+        demo_sets: Option<&[Vec<Vec<Example>>]>,
         valset: &[Example],
     ) -> Vec<Trial> {
-        let cardinalities: Vec<usize> = candidates.iter().map(Vec::len).collect();
-        let baseline = vec![0usize; candidates.len()];
+        let cardinalities = search_space(candidates, demo_sets);
+        let baseline = vec![0usize; cardinalities.len()];
         let default_score = self.score(student, valset).await;
 
         let mut sampler = tpe::TpeSampler::new(self.seed as u32, cardinalities);
@@ -299,7 +346,7 @@ where
 
         for _ in 0..self.num_trials {
             let params = sampler.ask();
-            apply(student, candidates, &params);
+            apply(student, candidates, demo_sets, &params);
             let score = self.score(student, valset).await;
             sampler.tell(params.clone(), score);
             trials.push(Trial {
@@ -311,7 +358,7 @@ where
             }
         }
 
-        apply(student, candidates, &best.1);
+        apply(student, candidates, demo_sets, &best.1);
         trials
     }
 
@@ -330,12 +377,37 @@ where
     }
 }
 
-/// Set each predictor to the instruction the trial chose for it.
-fn apply<S: Module + ?Sized>(student: &mut S, candidates: &[Vec<String>], params: &[usize]) {
+/// The parameters one trial chooses, in the order upstream suggests them: per predictor, the
+/// instruction and then — only when demos are searched — the demo set.
+///
+/// Interleaved and not grouped, because optuna's multivariate TPE draws in suggest order. Grouping
+/// them would keep the same cardinalities and give a different sequence of trials.
+fn search_space(candidates: &[Vec<String>], demo_sets: Option<&[Vec<Vec<Example>>]>) -> Vec<usize> {
+    let mut space = Vec::with_capacity(candidates.len() * 2);
+    for (index, instructions) in candidates.iter().enumerate() {
+        space.push(instructions.len());
+        if let Some(sets) = demo_sets {
+            space.push(sets[index].len());
+        }
+    }
+    space
+}
+
+/// Set each predictor to the instruction — and the demo set — the trial chose for it.
+fn apply<S: Module + ?Sized>(
+    student: &mut S,
+    candidates: &[Vec<String>],
+    demo_sets: Option<&[Vec<Vec<Example>>]>,
+    params: &[usize],
+) {
+    let stride = if demo_sets.is_some() { 2 } else { 1 };
     let mut predictors = student.named_predictors();
     for (index, predictor) in predictors.iter_mut().enumerate() {
-        if let Some(&choice) = params.get(index) {
+        if let Some(&choice) = params.get(index * stride) {
             predictor.signature.instructions = candidates[index][choice].clone();
+        }
+        if let (Some(sets), Some(&choice)) = (demo_sets, params.get(index * stride + 1)) {
+            *predictor.demos = sets[index][choice].clone();
         }
     }
 }
