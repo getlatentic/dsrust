@@ -33,6 +33,13 @@ impl Random {
         }
     }
 
+    /// CPython `random.random()`: a float in `[0, 1)` from 53 bits, which is `genrand_res53`.
+    ///
+    /// The one draw that is not an integer, and the one gepa's epsilon-greedy selector opens with.
+    pub fn random(&mut self) -> f64 {
+        self.0.random_double()
+    }
+
     /// CPython `random.choice(seq)`: the element at `_randbelow(len)`. Returned as the index so a
     /// caller can pick from any sequence.
     pub fn choice_index(&mut self, len: usize) -> usize {

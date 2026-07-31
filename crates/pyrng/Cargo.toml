@@ -11,4 +11,7 @@ description = "Byte-faithful Rust reproductions of Python's Mersenne-Twister RNG
 [dependencies]
 
 [dev-dependencies]
-serde_json = "1"
+# `float_roundtrip`: the default parser is best-effort and loses the last bit of a full-precision
+# float. Here the goldens' probabilities are *inputs* to `choice`, so a rounded one would change the
+# draw rather than the comparison — see the note in dsrust-gepa/Cargo.toml for where it was caught.
+serde_json = { version = "1", features = ["float_roundtrip"] }

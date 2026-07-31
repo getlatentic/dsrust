@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1045
+rust_tests = 1047
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -351,6 +351,42 @@ existing — and the pieces they reach for already live beside them.
 """
 
 [[story]]
+id = "gepa-candidate-order"
+sprint = "api"
+title = "GEPA walks a program's components alphabetically where gepa walks them in declaration order"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+`Candidate` is `BTreeMap<String, String>`, so its keys are **sorted**. gepa's is a Python `dict`,
+which is **insertion-ordered** — and for dspy that insertion order is the program's *declaration*
+order, since the seed candidate is built from `student.named_predictors()`.
+
+Three places read that order, and one of them decides the search:
+
+  - `state.rs`: `list_of_named_predictors`, which is the round-robin walk. A two-predictor program
+    declared `write, plan` reflects on `plan` first here and `write` first upstream — a different
+    component mutated on the very first iteration.
+  - `engine.rs`: `ComponentSelection::All`, whose returned order reaches the proposer.
+  - `merge.rs`: the predicate loop, whose own doc already calls this "one bounded edge".
+
+Found by generating a component-selector golden from the real gepa package and comparing —
+`tests/selectors.rs` records it as a divergence and goes red when it is fixed, so this cannot be
+closed by accident. Every existing golden agrees, because they are single-predictor or carry names
+that sort into declaration order; that is why nothing caught it.
+
+The fix is a type change rather than a patch: `Candidate` becomes insertion-ordered. `indexmap` is
+the obvious tool, though this crate hand-rolled `PyIntSet` rather than take a dependency for the
+same class of problem, so a `Vec<(String, String)>` newtype is the consistent alternative. The
+blast radius is small — three order-sensitive reads plus the ordinary map operations — but it
+crosses `dsrust-gepa` and `dsrust`'s GEPA adapter, and both are published crates.
+
+**What proves it.** `both_component_selectors_choose_what_gepa_chooses` flips from `assert_ne` to
+`assert_eq` on the two walks, and a multi-predictor GEPA conformance case is generated with
+predictors whose declaration order is not alphabetical.
+"""
+
+[[story]]
 id = "callbacks-per-module"
 sprint = "api"
 title = "A module cannot carry its own callbacks, because a Rust Module is a trait with no shared constructor"
@@ -566,37 +602,41 @@ than approximate, which was the other half of what this story objected to.
 id = "gepa-remaining-selectors"
 sprint = "api"
 title = "Two gepa candidate-selection strategies are reachable from dspy and not built here"
-state = "todo"
+state = "done"
 size = "S"
 suites = []
-plan = """
-Found while correcting the `candidate_selection_strategy` ledger reason, and then left *in* that
-reason — which is the failure this repo has already named once: a gap recorded inside a `mapped`
-classification is not tracked work. This is it as a story.
+done = """
+`CandidateSelection::EpsilonGreedy` and `TopKPareto`, the two arms dspy's string passthrough reaches
+past its own `Literal`. `select_with` came out of the engine's inline match so each arm can be driven
+against the package directly, and `Random::random()` is CPython's `genrand_res53` — the one draw
+these need that no other selector took.
 
-dspy annotates the parameter `Literal["pareto", "current_best"]` and passes the string straight to
-`gepa.optimize`. That function's factory map has four entries:
+`scripts/generate_gepa_selector_fixture.py` records **all four** candidate selectors and **both**
+component selectors, not just the two that were new. That was the point: asked whether the earlier
+GEPA seams had been cross-checked against Python after writing, the honest answer was that `Pareto`
+and `RoundRobin` had goldens and `CurrentBest` and `All` had been built from reading and never
+compared. Both are compared now.
 
-    "pareto":        ParetoCandidateSelector(rng=rng)
-    "current_best":  CurrentBestCandidateSelector()
-    "epsilon_greedy": EpsilonGreedyCandidateSelector(epsilon=0.1, rng=rng)
-    "top_k_pareto":  TopKParetoCandidateSelector(k=5, rng=rng)
+Three findings, none of which better Rust would have produced:
 
-So a dspy caller can pass either of the last two: a type checker complains, the run works. Both are
-built here as neither — `gepa::CandidateSelection` has the first two arms only.
+**The first fixture could not distinguish anything.** All 20 seeds landed above `epsilon=0.1`, so it
+agreed with a port that ignored the coin entirely. It uses seeds that take both branches now, and the
+generator refuses to write one that does not.
 
-Both are small and both draw from the shared generator, so each is a *different* trial sequence
-rather than a different preference over one: epsilon-greedy draws a uniform and then either a random
-index or `idxmax`, and top-k-pareto restricts the survivor set before the frequency-weighted draw.
-The constants dspy reaches them with are fixed (`epsilon=0.1`, `k=5`) because dspy passes only the
-string, so neither needs a knob.
+**serde_json was rounding goldens.** `0.37331193139504204` parsed back as a different f64, which
+failed the new test on the *generator-position* witness while every selection matched. The crate's
+RNG was byte-exact with CPython throughout — confirmed by comparing raw draws before touching
+anything. `float_roundtrip` is on for `dsrust`, `dsrust-gepa` and `pyrng` now. It stayed invisible
+because older goldens compare integers or short decimals; in `pyrng` it is quieter still, since the
+probabilities it reads are *inputs* to `choice`, so a rounded one changes the draw rather than
+failing a comparison.
 
-`component_selector` is complete by contrast — gepa's map for that one has exactly the two arms this
-crate has, which is why only this half is filed.
+**`gepa-candidate-order`**, filed: the component walk is alphabetical here and declaration-ordered
+upstream. `tests/selectors.rs` records it as a divergence and goes red when it is fixed.
 
-**What proves it.** `crates/dsrust-gepa/tests/conformance/` grows a case per strategy, generated by
-running the real gepa package the way the pareto golden already is, and the engine reproduces the
-selection sequence.
+What made the last two visible was test design rather than implementation — a fixture carrying
+full-precision floats, a witness recording where the generator was left rather than only what it
+chose, and component names that do not sort into insertion order.
 """
 
 [[story]]

@@ -14,6 +14,67 @@ use crate::adapter::{Candidate, GepaAdapter};
 use crate::batch::BatchSampler;
 use crate::merge::{MergesPerformed, sample_and_attempt_merge, select_eval_subsample};
 use crate::pareto::{find_dominator_programs, select_candidate};
+use crate::pyset::PyIntSet;
+
+/// Which candidate a strategy picks — gepa's `CandidateSelector.select_candidate_idx`.
+///
+/// Its own function rather than a `match` inside the loop, so a conformance test can drive each arm
+/// against the package directly. What has to agree is the pick *and* where the generator is left:
+/// the four arms take zero, one or two draws, and a round that advances it differently diverges on
+/// the round after rather than on this one.
+pub fn select_with(
+    selection: CandidateSelection,
+    fronts: &[PyIntSet],
+    scores: &[f64],
+    rng: &mut Random,
+) -> usize {
+    match selection {
+        CandidateSelection::Pareto => select_candidate(fronts, scores, rng),
+        // gepa's `idxmax`: `lst.index(max(lst))`, so a tie goes to the earliest candidate. No draw
+        // from the generator, unlike the Pareto arm.
+        CandidateSelection::CurrentBest => idxmax(scores),
+        CandidateSelection::EpsilonGreedy { epsilon } => {
+            // The coin is drawn whatever it decides, which is what keeps the two branches from
+            // disagreeing about how far the generator has advanced.
+            match rng.random() < epsilon {
+                true => rng.randint(0, scores.len().saturating_sub(1) as u64) as usize,
+                false => idxmax(scores),
+            }
+        }
+        CandidateSelection::TopKPareto { k } => top_k_pareto(fronts, scores, k, rng),
+    }
+}
+
+/// gepa's `TopKParetoCandidateSelector`: the Pareto draw over only the `k` best candidates.
+///
+/// The top-k comes from `sorted(range(n), key=scores.__getitem__, reverse=True)[:k]`, and Python's
+/// sort is stable — so a tie keeps index order, and reversing a stable descending sort is not the
+/// same as sorting ascending and reversing the result. The filtered fronts are set *intersections*,
+/// which is why they go through [`PyIntSet`]: their iteration order reaches the sampling list and
+/// therefore the draw.
+///
+/// An empty filtered mapping falls back to `idxmax` and draws nothing at all — a branch that moves
+/// every later draw by not taking one.
+fn top_k_pareto(fronts: &[PyIntSet], scores: &[f64], k: usize, rng: &mut Random) -> usize {
+    let mut ranked: Vec<usize> = (0..scores.len()).collect();
+    // `sorted(..., reverse=True)` on a stable sort: equal scores keep their index order.
+    ranked.sort_by(|left, right| {
+        scores[*right]
+            .partial_cmp(&scores[*left])
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let top = PyIntSet::from_keys(ranked.into_iter().take(k));
+
+    let filtered: Vec<PyIntSet> = fronts
+        .iter()
+        .map(|front| front.intersection(&top))
+        .filter(|front| !front.is_empty())
+        .collect();
+    match filtered.is_empty() {
+        true => idxmax(scores),
+        false => select_candidate(&filtered, scores, rng),
+    }
+}
 
 /// gepa's `idxmax`: the first index holding the maximum. `lst.index(max(lst))` in Python, so a tie
 /// resolves to the earliest — which for candidates means the one found first.
@@ -89,7 +150,8 @@ pub struct GepaEngine<A: GepaAdapter> {
 /// generator and [`CurrentBest`](Self::CurrentBest) does not, so switching moves every later draw in
 /// the run — the batch sample, the merge attempt, the next selection. It is not a preference applied
 /// to the same sequence.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+// No `Eq`: epsilon is a float, and gepa compares strategies by name rather than by value.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum CandidateSelection {
     /// `ParetoCandidateSelector`: the survivor set of the per-testcase fronts, then a
     /// frequency-weighted draw. gepa's default, and dspy's.
@@ -98,6 +160,17 @@ pub enum CandidateSelection {
     /// `CurrentBestCandidateSelector`: `idxmax` over the aggregate valset scores — the first index
     /// holding the maximum, ties going to the earliest candidate found.
     CurrentBest,
+    /// `EpsilonGreedyCandidateSelector`: with probability `epsilon` a uniform candidate, otherwise
+    /// `idxmax`. gepa reaches it with `epsilon=0.1` and dspy passes only the strategy name, so the
+    /// constant is fixed rather than a knob.
+    ///
+    /// Two draws or one: the coin is always drawn, and the uniform index only when it comes up
+    /// below `epsilon`. Both come off the shared generator, so which branch a round takes moves
+    /// every draw after it.
+    EpsilonGreedy { epsilon: f64 },
+    /// `TopKParetoCandidateSelector`: the Pareto draw restricted to the `k` best candidates by
+    /// aggregate score. gepa reaches it with `k=5`.
+    TopKPareto { k: usize },
 }
 
 /// gepa's `ReflectionComponentSelector`: which components one reflection rewrites.
@@ -272,6 +345,19 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             // gepa's `idxmax`: `lst.index(max(lst))`, so a tie goes to the earliest candidate. No
             // draw from the generator, unlike the Pareto arm.
             CandidateSelection::CurrentBest => idxmax(&state.mean_scores()),
+            CandidateSelection::EpsilonGreedy { epsilon } => {
+                let scores = state.mean_scores();
+                // The coin is drawn whatever it decides, which is what keeps the two branches from
+                // disagreeing about how far the generator has advanced.
+                match rng.random() < epsilon {
+                    true => rng.randint(0, scores.len().saturating_sub(1) as u64) as usize,
+                    false => idxmax(&scores),
+                }
+            }
+            CandidateSelection::TopKPareto { k } => {
+                let scores = state.mean_scores();
+                top_k_pareto(state.fronts(), &scores, k, rng)
+            }
         };
         let subsample = sampler.next_minibatch_ids(self.trainset_size, state.i as usize, rng);
         let parent_candidate = state.candidates[parent].clone();

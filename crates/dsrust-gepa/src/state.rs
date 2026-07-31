@@ -63,6 +63,26 @@ impl GepaState {
     /// dspy `RoundRobinReflectionComponentSelector`: return the parent's next component to reflect on
     /// and advance that parent's cursor. A new candidate inherits the advanced cursor (see
     /// [`Self::add_program`]), so the family cycles through its components across generations.
+    /// A state carrying only what a component selector reads — the component list and one
+    /// candidate's cursor. For holding the round-robin walk to gepa's without building a run.
+    pub fn for_components(components: Vec<String>, cursor: usize) -> Self {
+        let mut state = Self::new(
+            components
+                .iter()
+                .map(|name| (name.clone(), String::new()))
+                .collect(),
+            Vec::new(),
+        );
+        state.next_predictor = vec![cursor];
+        state
+    }
+
+    /// Which component this candidate would reflect on next — gepa's
+    /// `named_predictor_id_to_update_next_for_program_candidate`, which a new candidate inherits.
+    pub fn next_component_for(&self, candidate_idx: usize) -> usize {
+        self.next_predictor[candidate_idx]
+    }
+
     pub fn select_component(&mut self, candidate_idx: usize) -> String {
         let pid = self.next_predictor[candidate_idx];
         self.next_predictor[candidate_idx] = (pid + 1) % self.components.len();
