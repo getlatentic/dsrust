@@ -15,8 +15,12 @@ impl<M> MIPROv2<M>
 where
     M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
 {
-    /// A MIPROv2 proposing with this model. dspy's defaults for the counts are set per auto mode;
-    /// here they are explicit — ten instruction candidates and twenty trials is a common medium run.
+    /// A MIPROv2 proposing with this model, at upstream's own defaults: `auto="light"`, which
+    /// decides the counts, the valset and whether trials run on minibatches.
+    ///
+    /// Naming [`num_candidates`](Self::num_candidates) or [`num_trials`](Self::num_trials) clears
+    /// the preset and runs to the explicit counts instead — ten and twenty here, where dspy has no
+    /// default at all and raises for the one it is not given.
     pub fn new(metric: M, prompt_model: Arc<dyn DynChatModel>) -> Self {
         Self {
             metric,
@@ -32,7 +36,60 @@ where
             task_model: None,
             max_bootstrapped_demos: 4,
             max_labeled_demos: 4,
+            auto: Some(super::Auto::Light),
+            minibatch: true,
+            minibatch_size: 35,
+            minibatch_full_eval_steps: 5,
         }
+    }
+
+    /// dspy `auto="light" | "medium" | "heavy"`: run to a budget preset rather than to explicit
+    /// counts.
+    ///
+    /// A preset does five things, not two. It picks a candidate count and a validation-set size;
+    /// subsamples the valset to that size — off the same generator the bootstrap and the proposer
+    /// read, and *before* either, so every later draw moves; turns minibatching on when the
+    /// subsample exceeds 50; splits the candidate count in two, halving the instruction budget when
+    /// demos are also searched; and derives the trial count from the search space.
+    ///
+    /// Mutually exclusive with [`num_candidates`](Self::num_candidates) and
+    /// [`num_trials`](Self::num_trials), which upstream raises on. Here the last call wins, so the
+    /// pair dspy rejects cannot be built.
+    pub fn auto(mut self, auto: super::Auto) -> Self {
+        self.auto = Some(auto);
+        self
+    }
+
+    /// dspy `minibatch`: score each trial on a subsample of the valset rather than all of it,
+    /// stopping every [`minibatch_full_eval_steps`](Self::minibatch_full_eval_steps) trials to score
+    /// the best-averaging combination on the whole thing.
+    ///
+    /// On by default, as upstream's `compile` argument is. Read only when [`auto`](Self::auto) is
+    /// unset: a preset recomputes it from the subsampled valset's size and discards what was asked
+    /// for, which is upstream's precedence rather than this crate's.
+    ///
+    /// Note that the interleaved full evaluations are themselves fed back to the sampler, so this
+    /// changes which combinations get tried and not only what a trial costs. On a valset no larger
+    /// than [`minibatch_size`](Self::minibatch_size) every trial is still a full pass, but the
+    /// winner then moves only on those full evaluations — so a run of fewer than
+    /// `minibatch_full_eval_steps + 1` trials compiles the default program.
+    pub fn minibatch(mut self, minibatch: bool) -> Self {
+        self.minibatch = minibatch;
+        self
+    }
+
+    /// dspy `minibatch_size`: how many examples one minibatch trial scores on, default 35. A size
+    /// at or above the valset makes every trial a full pass — and takes no draw, as upstream's does.
+    pub fn minibatch_size(mut self, minibatch_size: usize) -> Self {
+        self.minibatch_size = minibatch_size;
+        self
+    }
+
+    /// dspy `minibatch_full_eval_steps`: how often a full evaluation interrupts the minibatch
+    /// trials, default 5.
+    pub fn minibatch_full_eval_steps(mut self, minibatch_full_eval_steps: usize) -> Self {
+        self.minibatch_full_eval_steps = minibatch_full_eval_steps;
+        self
     }
 
     /// dspy `task_model`: run the program on this model while `prompt_model` writes the proposals.
@@ -83,15 +140,19 @@ where
         self.max_bootstrapped_demos == 0 && self.max_labeled_demos == 0
     }
 
-    /// How many instructions to propose per predictor.
+    /// How many instructions to propose per predictor. Clears [`auto`](Self::auto), which would
+    /// otherwise override it — upstream refuses the pair rather than picking one.
     pub fn num_candidates(mut self, num_candidates: usize) -> Self {
         self.num_candidates = num_candidates;
+        self.auto = None;
         self
     }
 
-    /// How many instruction combinations the search evaluates.
+    /// How many instruction combinations the search evaluates. Clears [`auto`](Self::auto), for the
+    /// reason [`num_candidates`](Self::num_candidates) gives.
     pub fn num_trials(mut self, num_trials: usize) -> Self {
         self.num_trials = num_trials;
+        self.auto = None;
         self
     }
 

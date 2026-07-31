@@ -121,6 +121,10 @@ fn profiles(fixture: &Value) -> HashMap<u64, Vec<String>> {
         .collect()
 }
 
+mod minibatch;
+
+use super::{Auto, Trial};
+
 #[tokio::test]
 async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
     let fixture = fixture();
@@ -149,90 +153,105 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
     );
 
     for case in fixture["cases"].as_array().expect("cases") {
-        let model = Arc::new(Coach {
-            table: table.clone(),
-            profiles: profiles.clone(),
-            proposal_calls: AtomicUsize::new(0),
-            proposals: std::sync::Mutex::new(Vec::new()),
-        });
+        let model = coach(&table, &profiles);
         let mut student = Predict::parse("question -> answer")
             .expect("parses")
             .set_lm(model.clone());
 
-        let boot = case["max_bootstrapped_demos"].as_u64().expect("boot") as usize;
-        let labeled = case["max_labeled_demos"].as_u64().expect("labeled") as usize;
         let trials = MIPROv2::new(exact_match, model.clone())
             .num_candidates(case["num_candidates"].as_u64().expect("num_candidates") as usize)
             .num_trials(case["num_trials"].as_u64().expect("num_trials") as usize)
+            // The golden's own `minibatch=False`. On by default in both, and these cases are the
+            // non-minibatch regime; `minibatch.rs` carries the other one.
+            .minibatch(false)
             .seed(case["seed"].as_u64().expect("seed"))
-            .max_bootstrapped_demos(boot)
-            .max_labeled_demos(labeled)
-            .compile_traced(&mut student, &trainset)
+            .max_bootstrapped_demos(case["max_bootstrapped_demos"].as_u64().expect("boot") as usize)
+            .max_labeled_demos(case["max_labeled_demos"].as_u64().expect("labeled") as usize)
+            .compile_traced(&mut student, &trainset, Some(&trainset))
             .await
             .expect("compiles");
 
-        // Every proposal, in call order — pins the proposer's call count as well as its replies.
-        let proposed: Vec<String> = model.proposals.lock().expect("proposals lock").clone();
-        let expected: Vec<&str> = case["proposals"]
-            .as_array()
-            .expect("proposals")
-            .iter()
-            .map(|proposal| proposal.as_str().unwrap())
-            .collect();
-        assert_eq!(proposed, expected, "proposals for case {case}");
+        agrees_with(case, &model, &trials, &student);
+    }
+}
 
-        // Every trial: the candidate index it chose and the score it earned, the baseline first —
-        // the search path, not merely its destination.
-        let recorded = case["trials"].as_array().expect("trials");
-        assert_eq!(trials.len(), recorded.len(), "trial count for case {case}");
-        for (index, (ours, theirs)) in trials.iter().zip(recorded).enumerate() {
-            // Interleaved per predictor — instruction then demos — which is the order upstream
-            // suggests them in and therefore the order optuna's multivariate TPE draws in. A
-            // zero-shot run suggests no demo parameter at all, so the vector is one wide.
-            let named = |name: &str| {
-                theirs["params"][name]
-                    .as_u64()
-                    .unwrap_or_else(|| panic!("param {name} for case {case}"))
-                    as usize
-            };
-            let mut params = vec![named("0_predictor_instruction")];
-            if theirs["params"].get("0_predictor_demos").is_some() {
-                params.push(named("0_predictor_demos"));
-            }
-            assert_eq!(ours.params, params, "trial {index} params for case {case}");
-            let score = theirs["score"].as_f64().expect("score");
-            assert_eq!(ours.score, score, "trial {index} score for case {case}");
+/// What every case asserts, whichever family it came from: the proposer's whole call sequence, the
+/// whole trial sequence, and what the run left on the predictor.
+///
+/// The trial sequence is the part that matters. A minibatch case's trials include the interleaved
+/// full evaluations, so comparing only the winner would pass on a port that never ran them.
+fn agrees_with(case: &Value, model: &Coach, trials: &[Trial], student: &Predict) {
+    // Every proposal, in call order — pins the proposer's call count as well as its replies.
+    let proposed: Vec<String> = model.proposals.lock().expect("proposals lock").clone();
+    let expected: Vec<&str> = case["proposals"]
+        .as_array()
+        .expect("proposals")
+        .iter()
+        .map(|proposal| proposal.as_str().unwrap())
+        .collect();
+    assert_eq!(proposed, expected, "proposals for case {case}");
+
+    // Every trial: the candidate index it chose and the score it earned, the baseline first —
+    // the search path, not merely its destination.
+    let recorded = case["trials"].as_array().expect("trials");
+    assert_eq!(trials.len(), recorded.len(), "trial count for case {case}");
+    for (index, (ours, theirs)) in trials.iter().zip(recorded).enumerate() {
+        // Interleaved per predictor — instruction then demos — which is the order upstream
+        // suggests them in and therefore the order optuna's multivariate TPE draws in. A
+        // zero-shot run suggests no demo parameter at all, so the vector is one wide.
+        let named = |name: &str| {
+            theirs["params"][name]
+                .as_u64()
+                .unwrap_or_else(|| panic!("param {name} for case {case}")) as usize
+        };
+        let mut params = vec![named("0_predictor_instruction")];
+        if theirs["params"].get("0_predictor_demos").is_some() {
+            params.push(named("0_predictor_demos"));
         }
+        assert_eq!(ours.params, params, "trial {index} params for case {case}");
+        let score = theirs["score"].as_f64().expect("score");
+        assert_eq!(ours.score, score, "trial {index} score for case {case}");
+    }
 
-        let compiled = case["compiled"][0]
-            .as_str()
-            .expect("a compiled instruction");
-        assert_eq!(
-            student.signature.instructions, compiled,
-            "compiled instruction for case {case}"
-        );
+    let compiled = case["compiled"][0]
+        .as_str()
+        .expect("a compiled instruction");
+    assert_eq!(
+        student.signature.instructions, compiled,
+        "compiled instruction for case {case}"
+    );
 
-        // The demo set the winning trial left on the predictor. Choosing the set is half of what a
-        // few-shot run does, and the instruction alone would not say which one was chosen.
-        let wanted = case["compiled_demos"][0]
-            .as_array()
-            .expect("compiled demos");
-        assert_eq!(
-            student.demos.len(),
-            wanted.len(),
-            "compiled demo count for case {case}"
-        );
-        for (ours, theirs) in student.demos.iter().zip(wanted) {
-            let fields = theirs.as_object().expect("a demo is an object");
-            for (name, value) in fields {
-                assert_eq!(
-                    ours.get(name),
-                    Some(value),
-                    "demo field {name} for case {case}"
-                );
-            }
+    // The demo set the winning trial left on the predictor. Choosing the set is half of what a
+    // few-shot run does, and the instruction alone would not say which one was chosen.
+    let wanted = case["compiled_demos"][0]
+        .as_array()
+        .expect("compiled demos");
+    assert_eq!(
+        student.demos.len(),
+        wanted.len(),
+        "compiled demo count for case {case}"
+    );
+    for (ours, theirs) in student.demos.iter().zip(wanted) {
+        let fields = theirs.as_object().expect("a demo is an object");
+        for (name, value) in fields {
+            assert_eq!(
+                ours.get(name),
+                Some(value),
+                "demo field {name} for case {case}"
+            );
         }
     }
+}
+
+/// A fresh proposer-and-answerer for one case. Each case needs its own: the proposal tally is what
+/// makes replies distinct, and sharing one across cases would carry the count over.
+fn coach(table: &[(String, String)], profiles: &HashMap<u64, Vec<String>>) -> Arc<Coach> {
+    Arc::new(Coach {
+        table: table.to_vec(),
+        profiles: profiles.clone(),
+        proposal_calls: AtomicUsize::new(0),
+        proposals: std::sync::Mutex::new(Vec::new()),
+    })
 }
 
 /// dspy scopes `task_model` around Step 1 and Step 3 and leaves Step 2 to `prompt_model`, so the
@@ -291,11 +310,12 @@ async fn the_task_model_runs_the_program_and_the_prompt_model_writes_the_proposa
     MIPROv2::new(exact_match, prompt_model.clone())
         .num_candidates(2)
         .num_trials(1)
+        .minibatch(false)
         .seed(0)
         .max_bootstrapped_demos(0)
         .max_labeled_demos(0)
         .task_model(task.clone())
-        .compile(&mut student, &trainset)
+        .compile(&mut student, &trainset, Some(&trainset))
         .await
         .expect("compiles");
 

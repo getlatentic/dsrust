@@ -6,13 +6,15 @@
 //! the sampler the score — optuna's ask-and-tell, which is what MIPROv2's objective loop is.
 //!
 //! The generator draws are reproduced bit for bit, so the sampler proposes optuna's candidates
-//! exactly. It also picks among them exactly, save for one boundary: optuna scores candidates with
-//! numpy's vectorized `log`/`exp`, whose last bit this crate's scalar `ln`/`exp` cannot always
-//! match, so two candidates whose acquisitions sit within a few ULPs — which a symmetric objective
-//! can produce — may rank in the other order. Ranking by the raw density ratio rather than the
-//! log-difference (see [`crate::parzen`]) keeps that to genuine near-ties; with distinct objective
-//! scores the whole trial sequence reproduces. It is the one place exact reproduction meets the
-//! limit of cross-language floating point.
+//! exactly, and it scores them with optuna's own arithmetic — a log-sum-exp over the kernels, summed
+//! in numpy's pairwise order (see [`crate::parzen`]).
+//!
+//! Scoring them *equivalently* is not enough. The acquisition ties constantly: any two categories
+//! the two estimators treat alike score the same, and `np.argmax` then keeps the first. Ranking by
+//! the algebraically identical `pdf_below / pdf_above` computed in linear space breaks those ties by
+//! last-bit noise instead — measured at twelve categories, where optuna produced two distinct
+//! acquisition values across twenty-four candidates and the ratio produced five. Reproducing the
+//! expression, not merely its ordering, is what makes the ties land where optuna's do.
 
 use crate::parzen::Parzen;
 use pyrng::RandomState;
@@ -29,17 +31,33 @@ struct Trial {
 /// A seeded TPE sampler over a fixed list of categorical parameters, given by their cardinalities.
 /// Maximises the told scores, as MIPROv2's study does.
 pub struct TpeSampler {
+    /// Cardinalities in the order the objective suggests the parameters.
     cardinalities: Vec<usize>,
+    /// Indices into `cardinalities`, ordered by parameter name.
+    ///
+    /// The two phases read the search space in different orders, which is invisible until a run is
+    /// long enough to reach both. A startup trial is drawn one parameter at a time by
+    /// `sample_independent`, called from `suggest_categorical` — so in suggest order. A TPE trial is
+    /// drawn all at once by `sample_relative`, whose search space comes from `IntersectionSearchSpace`
+    /// and is `dict(sorted(...))` — so in name order.
+    by_name: Vec<usize>,
     startup_rng: RandomState,
     tpe_rng: RandomState,
     trials: Vec<Trial>,
 }
 
 impl TpeSampler {
-    /// A sampler over parameters with these cardinalities, seeded as optuna's `TPESampler(seed=...)`.
-    pub fn new(seed: u32, cardinalities: Vec<usize>) -> Self {
+    /// A sampler over these parameters, named and in the order the objective suggests them, seeded
+    /// as optuna's `TPESampler(seed=...)`.
+    ///
+    /// The names are not decoration: they decide the order the TPE phase draws in, and a caller
+    /// whose names sort differently from its suggest order gets a different search.
+    pub fn new(seed: u32, parameters: Vec<(String, usize)>) -> Self {
+        let mut by_name: Vec<usize> = (0..parameters.len()).collect();
+        by_name.sort_by(|&left, &right| parameters[left].0.cmp(&parameters[right].0));
         Self {
-            cardinalities,
+            cardinalities: parameters.into_iter().map(|(_, count)| count).collect(),
+            by_name,
             startup_rng: RandomState::new(seed),
             tpe_rng: RandomState::new(seed),
             trials: Vec::new(),
@@ -72,18 +90,32 @@ impl TpeSampler {
     /// optuna's TPE step: split the trials into a better and worse group, fit a Parzen estimator to
     /// each, draw candidates from the better one, and keep the candidate the estimators most prefer.
     fn sample_tpe(&mut self) -> Vec<usize> {
+        let ordered = |params: &[usize]| -> Vec<usize> {
+            self.by_name.iter().map(|&index| params[index]).collect()
+        };
+        let cardinalities = ordered(&self.cardinalities);
         let (below, above) = self.split(default_gamma(self.trials.len()));
-        let below = Parzen::build(&below, &self.cardinalities, PRIOR_WEIGHT);
-        let above = Parzen::build(&above, &self.cardinalities, PRIOR_WEIGHT);
-        let candidates = below.sample(&mut self.tpe_rng, N_EI_CANDIDATES, self.cardinalities.len());
+        let reorder = |group: Vec<Vec<usize>>| {
+            group
+                .iter()
+                .map(|params| ordered(params))
+                .collect::<Vec<_>>()
+        };
+        let below = Parzen::build(&reorder(below), &cardinalities, PRIOR_WEIGHT);
+        let above = Parzen::build(&reorder(above), &cardinalities, PRIOR_WEIGHT);
+        let candidates = below.sample(&mut self.tpe_rng, N_EI_CANDIDATES, cardinalities.len());
 
-        // optuna ranks by log_pdf_below - log_pdf_above = log(pdf_below / pdf_above); the raw ratio
-        // ranks the same way without the log/exp that would flip near-ULP ties across languages.
         let acquisitions: Vec<f64> = candidates
             .iter()
-            .map(|candidate| below.pdf(candidate) / above.pdf(candidate))
+            .map(|candidate| below.log_pdf(candidate) - above.log_pdf(candidate))
             .collect();
-        candidates[argmax(&acquisitions)].clone()
+        // Back into suggest order, which is what a caller indexes its own parameters by.
+        let chosen = &candidates[argmax(&acquisitions)];
+        let mut params = vec![0; chosen.len()];
+        for (position, &parameter) in self.by_name.iter().enumerate() {
+            params[parameter] = chosen[position];
+        }
+        params
     }
 
     /// optuna `_split_trials`: the best `gamma` trials by score go below, the rest above. Sorted by

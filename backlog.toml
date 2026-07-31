@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1047
+rust_tests = 1052
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -420,7 +420,8 @@ predictors where only one is watched records only that one's points.
 id = "mipro-auto-minibatch"
 sprint = "api"
 title = "MIPROv2's auto is minibatch evaluation wearing a preset's name"
-state = "todo"
+state = "done"
+shipped = "2026-07-31"
 size = "L"
 suites = []
 plan = """
@@ -469,6 +470,42 @@ That is why this is L and why `auto` cannot ship without it.
 **What proves it.** `scripts/generate_mipro_fixture.py` grows cases with `auto=` set and a valset
 over 50, recorded off the same captured optuna study — the trial sequence including which trials
 were minibatch and which were full evaluations.
+"""
+outcome = """
+Shipped, and the golden found more than the story predicted.
+
+What landed: `Auto::{Light, Medium, Heavy}`, the valset subsample drawn before Step 1, minibatch
+trials, `Averages` (dspy's `param_score_dict` with the pin's fallthrough rather than main's raise),
+the interleaved full evaluations fed back to the sampler as trials of their own, and
+`_set_and_validate_datasets` — no valset means the last 80% of the trainset, not the whole of it.
+`auto` is mutually exclusive with the two counts as upstream is, encoded so the pair dspy raises on
+cannot be built. Constructor coverage reached 187/187.
+
+Three defects the golden caught that reading had not:
+
+  - **A full evaluation takes a trial number.** `trial_num` is `trial.number + 1`, and `add_trial`
+    creates a trial, so every full evaluation shifts the schedule of the ones after it. Counting
+    loop iterations agrees until the first full evaluation and then drifts by one per full
+    evaluation.
+
+  - **The TPE sampler summed differently from numpy past eight elements.** optuna ranks candidates
+    by `log_pdf_below - log_pdf_above`; the crate ranked by the algebraically identical
+    `pdf_below / pdf_above` in linear space. The acquisition ties constantly and `np.argmax` keeps
+    the first of a tie, so ranking equivalently is not enough — the ties have to land where optuna's
+    do. Reproducing the expression exposed the rest: numpy's `add.reduce` is *pairwise*, and a
+    kernel row is normalised over the parameter's categories, so a program proposing twelve
+    instructions rounds differently from one proposing six. Every case in the TPE fixture stopped at
+    six. Fixed in `crates/dsrust-tpe`, with cases at 12 and 18 categories added.
+
+  - **optuna reads the search space in two different orders.** A startup trial is drawn one
+    parameter at a time by `sample_independent` in suggest order; a TPE trial is drawn all at once
+    from `IntersectionSearchSpace`, which is `dict(sorted(...))`, so `0_predictor_demos` precedes
+    `0_predictor_instruction`. `mipro/mod.rs` had asserted the suggest order for both, on a reading.
+    Invisible until now because every few-shot case gave the two parameters the same cardinality
+    (where both orders draw the same numbers) and none ran the ten trials it takes to leave the
+    startup phase. `auto` breaks both conditions at once. The sampler now takes named parameters and
+    holds the two orders apart; `optuna_tpe.json` carries two cases under dspy's own names with
+    unequal cardinalities, and both go red without the fix.
 """
 
 [[story]]

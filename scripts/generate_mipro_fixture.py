@@ -67,10 +67,12 @@ class Coach(BaseLM):
     stateful, and a cache hit would skip `forward` and swallow an increment.
     """
 
-    def __init__(self):
+    def __init__(self, table=None, profiles=None):
         super().__init__("coach", "chat", 0.0, 1000, False)
         self.tally = {"proposal_calls": 0}
         self.proposals = []
+        self.table = TABLE if table is None else table
+        self.profiles = PROFILES if profiles is None else profiles
 
     def forward(self, prompt=None, messages=None, **kwargs):
         system, last = messages[0]["content"], messages[-1]["content"]
@@ -80,10 +82,10 @@ class Coach(BaseLM):
             self.proposals.append(proposal)
             content = f"[[ ## proposed_instruction ## ]]\n{proposal}\n\n[[ ## completed ## ]]"
         else:
-            question = next((q for q in TABLE if q in last), None)
+            question = next((q for q in self.table if q in last), None)
             marker = re.search(r"GOOD-(\d+)", system)
-            solved = PROFILES.get(int(marker.group(1)), set()) if marker else set()
-            answer = TABLE[question] if question in solved else "wrong"
+            solved = self.profiles.get(int(marker.group(1)), set()) if marker else set()
+            answer = self.table[question] if question in solved else "wrong"
             content = f"[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]"
         message = dotdict(content=content, tool_calls=None)
         return dotdict(
@@ -126,6 +128,42 @@ CASES = [
     (5, 6, 1, 4, 4),
     (5, 4, 5, 2, 0),
     (4, 6, 3, 2, 4),
+]
+
+#: The minibatch regime needs a valset bigger than one batch, and `auto` needs one bigger than
+#: `MIN_MINIBATCH_SIZE` *after* its own subsample — so these cases get their own 140-row trainset
+#: rather than the three above. Answers stay `capital of C? -> CAP-C` so one table serves both.
+BIG_TRAINSET = [(f"capital of C{i}?", f"CAP-{i}") for i in range(140)]
+BIG_TABLE = dict(BIG_TRAINSET)
+
+#: Every third question for `GOOD-1`, every fourth for `GOOD-2`, and so on: overlapping profiles
+#: whose *means over a 35-row subsample* differ from their means over the whole 100, which is what
+#: makes a minibatch run pick differently from a full one.
+BIG_PROFILES = {
+    marker: {q for i, (q, _) in enumerate(BIG_TRAINSET) if i % (marker + 2) == 0}
+    for marker in range(1, 8)
+}
+
+#: (auto, minibatch, minibatch_size, minibatch_full_eval_steps, seed, max_bootstrapped, max_labeled,
+#: valset_given).
+#: `auto` set means `num_candidates` and `num_trials` must both be None — upstream raises otherwise.
+#: The `None` auto cases pin minibatching on its own, where the counts are explicit and only the
+#: batching differs; the preset cases pin the whole of `_set_hyperparams_from_run_mode`, whose valset
+#: subsample is the first draw off the shared generator and moves every later one.
+#: The two `valset_given=False` cases pin `_set_and_validate_datasets`, which is not a formality:
+#: no valset means the *last 80%* of the trainset becomes the valset and the first 20% stays behind
+#: to bootstrap from, so the two sets do not overlap and neither is the whole.
+MINIBATCH_CASES = [
+    ("light", None, 35, 5, 0, 0, 0, True),
+    ("light", None, 35, 5, 7, 0, 0, True),
+    ("medium", None, 35, 5, 3, 0, 0, True),
+    ("light", None, 35, 5, 1, 4, 4, True),
+    ("medium", None, 20, 2, 5, 4, 4, True),
+    ("light", None, 35, 5, 2, 0, 0, False),
+    (None, True, 35, 5, 0, 0, 0, True),
+    (None, True, 40, 3, 2, 0, 0, True),
+    (None, True, 25, 2, 4, 4, 4, True),
+    (None, True, 35, 5, 6, 0, 0, False),
 ]
 
 #: `max_bootstrapped_demos=0` with `max_labeled_demos>0` is not a configuration upstream supports:
@@ -192,10 +230,78 @@ def compile_once(
     }
 
 
+def compile_minibatch(
+    auto: str | None,
+    minibatch: bool | None,
+    minibatch_size: int,
+    minibatch_full_eval_steps: int,
+    seed: int,
+    max_bootstrapped_demos: int,
+    max_labeled_demos: int,
+    valset_given: bool,
+) -> dict:
+    """One run in the minibatch regime, over the 140-row set.
+
+    `auto` and the two explicit counts are mutually exclusive upstream — passing both raises — so
+    the preset cases send `num_candidates=None` and `num_trials=None` and let the preset decide.
+    """
+    coach = Coach(BIG_TABLE, BIG_PROFILES)
+    dspy.configure(lm=coach)
+    trainset = [dspy.Example(question=q, answer=a).with_inputs("question") for q, a in BIG_TRAINSET]
+
+    studies = []
+    orig_create_study = optuna.create_study
+
+    def capture(*args, **kwargs):
+        study = orig_create_study(*args, **kwargs)
+        studies.append(study)
+        return study
+
+    optuna.create_study = capture
+    try:
+        optimizer = dspy.MIPROv2(
+            metric=metric, prompt_model=dspy.settings.lm, task_model=dspy.settings.lm,
+            auto=auto, num_candidates=None if auto else 6, num_threads=1, seed=seed,
+            max_bootstrapped_demos=max_bootstrapped_demos, max_labeled_demos=max_labeled_demos,
+        )
+        compiled = optimizer.compile(
+            Program(), trainset=trainset, valset=trainset if valset_given else None,
+            num_trials=None if auto else 9, minibatch=minibatch,
+            minibatch_size=minibatch_size, minibatch_full_eval_steps=minibatch_full_eval_steps,
+            requires_permission_to_run=False, program_aware_proposer=False,
+            data_aware_proposer=False, tip_aware_proposer=True, fewshot_aware_proposer=False,
+        )
+    finally:
+        optuna.create_study = orig_create_study
+
+    (study,) = studies
+    return {
+        "auto": auto,
+        "minibatch": minibatch,
+        "minibatch_size": minibatch_size,
+        "minibatch_full_eval_steps": minibatch_full_eval_steps,
+        "seed": seed,
+        "max_bootstrapped_demos": max_bootstrapped_demos,
+        "max_labeled_demos": max_labeled_demos,
+        "valset_given": valset_given,
+        "proposals": list(coach.proposals),
+        # Every trial the study holds, minibatch and full-evaluation alike, in optuna's own order —
+        # which is by trial number, so a full evaluation lands *after* the trial that triggered it
+        # even though `add_trial` is called first.
+        "trials": [{"params": dict(t.params), "score": t.value} for t in study.trials],
+        "compiled": [p.signature.instructions for _, p in compiled.named_predictors()],
+        "compiled_demos": [
+            [{k: v for k, v in demo.items()} for demo in p.demos]
+            for _, p in compiled.named_predictors()
+        ],
+    }
+
+
 def main() -> None:
     if dspy.__version__ != PINNED:
         raise SystemExit(f"expected dspy {PINNED}, found {dspy.__version__}")
     cases = [compile_once(*case) for case in CASES]
+    minibatch_cases = [compile_minibatch(*case) for case in MINIBATCH_CASES]
     distinct = {case["compiled"][0] for case in cases}
     # The whole point of the case set: if every case compiles the same instruction, the golden
     # cannot tell a seeded search from one that ignores its seed. Refuse to write it.
@@ -208,6 +314,9 @@ def main() -> None:
         "trainset": [{"question": q, "answer": a} for q, a in TRAINSET],
         "profiles": {str(k): sorted(v) for k, v in PROFILES.items()},
         "cases": cases,
+        "minibatch_trainset": [{"question": q, "answer": a} for q, a in BIG_TRAINSET],
+        "minibatch_profiles": {str(k): sorted(v) for k, v in BIG_PROFILES.items()},
+        "minibatch_cases": minibatch_cases,
     }
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / "mipro.json"

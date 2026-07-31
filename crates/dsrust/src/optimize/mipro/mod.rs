@@ -7,15 +7,26 @@
 //!
 //! Instructions and demos are both searched, as upstream's defaults do — `max_bootstrapped_demos`
 //! and `max_labeled_demos` are dspy's 4 and 4, and setting both to zero is upstream's own zero-shot
-//! configuration rather than a separate path. The dataset-summary proposer and minibatch evaluation
-//! are not wired; a run here matches dspy with `data_aware_proposer=False`, `minibatch=False`.
+//! configuration rather than a separate path. The dataset-summary proposer is not wired; a run here
+//! matches dspy with `data_aware_proposer=False`.
 //!
-//! **The search space is interleaved per predictor** — instruction, demos, instruction, demos —
-//! because that is the order upstream suggests them in and optuna's multivariate TPE draws in
-//! suggest order, not in sorted-name order. dspy's names (`0_predictor_instruction`,
-//! `0_predictor_demos`) sort the other way round, so the two orders genuinely disagree and no
-//! reading settles it. `crates/dsrust-tpe/tests/conformance/optuna_tpe.json` carries the case that
-//! does: two parameters of different cardinality under dspy's own names.
+//! `auto` is the whole of upstream's `_set_hyperparams_from_run_mode`, which is mostly [`minibatch`]:
+//! a preset subsamples the valset off the shared generator before anything else draws, and above
+//! fifty examples turns on minibatch trials whose interleaved full evaluations are fed back to the
+//! sampler as trials of their own.
+//!
+//! **The search space is read in two different orders**, which is why the parameters carry dspy's
+//! names down to the sampler rather than only their cardinalities. A startup trial is drawn one
+//! parameter at a time by `sample_independent`, called from `suggest_categorical` — so in the order
+//! upstream suggests them, instruction then demos. A TPE trial is drawn all at once from a search
+//! space that came through `IntersectionSearchSpace`, which is `dict(sorted(...))` — so in name
+//! order, where `0_predictor_demos` sorts before `0_predictor_instruction`.
+//!
+//! Measured, after this file asserted the suggest order for both. Every few-shot conformance case
+//! had happened to give the two parameters the *same* cardinality, where the two orders draw the
+//! same numbers, and no case ran the ten trials it takes to leave the startup phase. `auto` is what
+//! exposed it: a preset proposes `n/2` instructions against `n` demo sets and runs long enough to
+//! reach TPE.
 
 use std::future::Future;
 use std::sync::Arc;
@@ -24,7 +35,6 @@ use anyhow::{Result, bail};
 
 use super::Optimizer;
 use super::rng::Rng;
-use crate::evaluate::{Evaluate, percent};
 use crate::example::{Example, Prediction};
 use crate::lm::DynChatModel;
 use crate::module::Module;
@@ -32,11 +42,15 @@ use crate::signature::Signature;
 
 mod building;
 mod demos;
+pub mod minibatch;
 mod proposer;
+mod search;
 mod signatures;
 
 #[cfg(test)]
 mod conformance;
+
+pub use minibatch::Auto;
 
 use proposer::GenerateModuleInstruction;
 use signatures::InstructionInputs;
@@ -164,6 +178,27 @@ pub struct MIPROv2<M> {
     max_bootstrapped_demos: usize,
     /// dspy `max_labeled_demos`: how many labelled trainset examples a set may carry unbootstrapped.
     max_labeled_demos: usize,
+    /// dspy `auto`: a budget preset, which replaces the two counts and subsamples the valset.
+    /// See [`auto`](Self::auto).
+    auto: Option<Auto>,
+    /// dspy `minibatch`: score each trial on a subsample rather than the whole valset. Read only
+    /// when `auto` is unset, which is upstream's precedence and not this crate's.
+    minibatch: bool,
+    /// dspy `minibatch_size`: how many examples a minibatch trial scores on (default 35).
+    minibatch_size: usize,
+    /// dspy `minibatch_full_eval_steps`: how often a full evaluation interrupts the minibatch
+    /// trials (default 5).
+    minibatch_full_eval_steps: usize,
+}
+
+/// What one run's hyperparameters resolve to once `auto` has had its say — dspy's
+/// `_set_hyperparams_from_run_mode` return.
+struct RunMode {
+    num_trials: usize,
+    valset: Vec<Example>,
+    minibatch: bool,
+    instruction_candidates: usize,
+    fewshot_candidates: usize,
 }
 
 impl<M> MIPROv2<M>
@@ -176,8 +211,11 @@ where
         &self,
         student: &mut S,
         trainset: &[Example],
+        valset: Option<&[Example]>,
     ) -> Result<()> {
-        self.compile_traced(student, trainset).await.map(|_| ())
+        self.compile_traced(student, trainset, valset)
+            .await
+            .map(|_| ())
     }
 
     /// The same compile, also returning the search's trial sequence — dspy's `trial_logs`, which
@@ -188,6 +226,7 @@ where
         &self,
         student: &mut S,
         trainset: &[Example],
+        valset: Option<&[Example]>,
     ) -> Result<Vec<Trial>> {
         let predictors: Vec<Signature> = student
             .named_predictors()
@@ -197,18 +236,22 @@ where
         if predictors.is_empty() {
             return Ok(Vec::new());
         }
+        let zeroshot = self.zeroshot();
+        let (trainset, valset) = self.datasets(trainset, valset)?;
 
         let mut rng = Rng::seeded(self.seed);
+        // `auto` draws before anything else does — the valset subsample is the first thing off this
+        // generator, ahead of Step 1 — so a preset moves every later draw, not only the counts.
+        let mode = self.run_mode(predictors.len(), zeroshot, valset, &mut rng);
 
         // Step 1: bootstrap demo sets. A zero-shot run still builds them — they ground the proposer,
         // and building them advances the shared RNG that Step 2's proposal reads — but it builds them
         // at dspy's in-context constants rather than at the caller's counts, and never searches them.
-        let zeroshot = self.zeroshot();
         let demo_sets = self
             .on_task_model(demos::create_demo_sets(
                 student,
-                self.num_candidates,
-                trainset,
+                mode.fewshot_candidates,
+                &trainset,
                 if zeroshot {
                     ZEROSHOT_LABELED
                 } else {
@@ -233,104 +276,149 @@ where
             init_temperature: self.init_temperature,
         };
         let candidates = proposer
-            .propose(&predictors, self.num_candidates, &mut rng)
+            .propose(&predictors, mode.instruction_candidates, &mut rng)
             .await?;
 
         // Step 3: search the combinations. A zero-shot run hands the search no demo sets, which is
         // upstream passing `demo_candidates=None` and suggesting no demo parameter at all.
         let searched = (!zeroshot).then_some(demo_sets.as_slice());
-        Ok(self
-            .on_task_model(self.search(student, &candidates, searched, trainset))
-            .await)
+        self.on_task_model(self.search(student, &candidates, searched, &mode, &mut rng))
+            .await
     }
 
-    /// dspy's Step 3: seed the sampler with the default program as a baseline trial, run `num_trials`
-    /// more, and leave the student on the best combination. Candidate zero of every predictor is its
-    /// original instruction, so the all-zeros baseline is the default program.
-    async fn search<S: Module + ?Sized>(
+    /// dspy `_set_and_validate_datasets`: what a run bootstraps from and what it scores on.
+    ///
+    /// No valset is not "score on everything": upstream hands the *last* 80% of the trainset to the
+    /// valset and keeps the first 20% to bootstrap from, so a caller who passes one set gets a split
+    /// rather than an overlap.
+    fn datasets(
         &self,
-        student: &mut S,
-        candidates: &[Vec<String>],
-        demo_sets: Option<&[Vec<Vec<Example>>]>,
-        valset: &[Example],
-    ) -> Vec<Trial> {
-        let cardinalities = search_space(candidates, demo_sets);
-        let baseline = vec![0usize; cardinalities.len()];
-        let default_score = self.score(student, valset).await;
-
-        let mut sampler = tpe::TpeSampler::new(self.seed as u32, cardinalities);
-        sampler.tell(baseline.clone(), default_score);
-        let mut best = (default_score, baseline.clone());
-        let mut trials = vec![Trial {
-            params: baseline,
-            score: default_score,
-        }];
-
-        for _ in 0..self.num_trials {
-            let params = sampler.ask();
-            apply(student, candidates, demo_sets, &params);
-            let score = self.score(student, valset).await;
-            sampler.tell(params.clone(), score);
-            trials.push(Trial {
-                params: params.clone(),
-                score,
-            });
-            if score > best.0 {
-                best = (score, params);
-            }
+        trainset: &[Example],
+        valset: Option<&[Example]>,
+    ) -> Result<(Vec<Example>, Vec<Example>)> {
+        if trainset.is_empty() {
+            bail!("Trainset cannot be empty.");
         }
-
-        apply(student, candidates, demo_sets, &best.1);
-        trials
+        let Some(valset) = valset else {
+            if trainset.len() < 2 {
+                bail!("Trainset must have at least 2 examples if no valset specified.");
+            }
+            let size = (trainset.len() as f64 * 0.80) as usize;
+            let cutoff = trainset.len() - size.clamp(1, 1000);
+            return Ok((trainset[..cutoff].to_vec(), trainset[cutoff..].to_vec()));
+        };
+        if valset.is_empty() {
+            bail!("Valset cannot be empty.");
+        }
+        Ok((trainset.to_vec(), valset.to_vec()))
     }
 
-    /// dspy Evaluate's headline for one candidate: the metric's mean over the valset, as a percentage.
-    async fn score<S: Module + ?Sized>(&self, student: &S, valset: &[Example]) -> f64 {
-        let evaluation = self
-            .scoring
-            .apply(Evaluate::new(
-                valset.to_vec(),
-                |inputs| student.forward(inputs),
-                |example: &Example, prediction: &Prediction| (self.metric)(example, prediction),
-            ))
-            .run()
-            .await;
-        percent(evaluation.score)
+    /// dspy `_set_hyperparams_from_run_mode`: what `auto` replaces, and what it leaves alone.
+    fn run_mode(
+        &self,
+        predictors: usize,
+        zeroshot: bool,
+        valset: Vec<Example>,
+        rng: &mut Rng,
+    ) -> RunMode {
+        let Some(auto) = self.auto else {
+            return RunMode {
+                num_trials: self.num_trials,
+                minibatch: self.minibatch,
+                valset,
+                instruction_candidates: self.num_candidates,
+                fewshot_candidates: self.num_candidates,
+            };
+        };
+        let valset = minibatch::subsample(&valset, auto.val_size(), rng);
+        RunMode {
+            num_trials: trials_for(predictors, zeroshot, auto.candidates()),
+            // Recomputed from the subsample, discarding whatever the caller asked for — upstream
+            // overwrites the argument here rather than defaulting to it.
+            minibatch: valset.len() > minibatch::MIN_MINIBATCH_SIZE,
+            valset,
+            instruction_candidates: auto.instruction_candidates(zeroshot),
+            fewshot_candidates: auto.candidates(),
+        }
     }
 }
 
-/// The parameters one trial chooses, in the order upstream suggests them: per predictor, the
-/// instruction and then — only when demos are searched — the demo set.
+/// dspy `_set_num_trials_from_num_candidates`: how many trials a preset's candidate count is worth.
+/// Searching demos doubles the variables, since each predictor then carries two.
+fn trials_for(predictors: usize, zeroshot: bool, num_candidates: usize) -> usize {
+    let num_vars = if zeroshot { predictors } else { predictors * 2 };
+    let by_space = 2.0 * num_vars as f64 * (num_candidates as f64).log2();
+    by_space.max(1.5 * num_candidates as f64) as usize
+}
+
+/// One slot of the search space: which predictor it belongs to, whether it chooses that
+/// predictor's demo set rather than its instruction, and how many choices it has.
+#[derive(Clone, Copy)]
+pub(super) struct Slot {
+    predictor: usize,
+    demos: bool,
+    cardinality: usize,
+}
+
+/// The parameters one trial chooses, under dspy's own names and in the order upstream suggests
+/// them: per predictor, the instruction and then — only when demos are searched — the demo set.
 ///
-/// Interleaved and not grouped, because optuna's multivariate TPE draws in suggest order. Grouping
-/// them would keep the same cardinalities and give a different sequence of trials.
-fn search_space(candidates: &[Vec<String>], demo_sets: Option<&[Vec<Vec<Example>>]>) -> Vec<usize> {
-    let mut space = Vec::with_capacity(candidates.len() * 2);
-    for (index, instructions) in candidates.iter().enumerate() {
-        space.push(instructions.len());
+/// The names travel with them because the sampler draws in suggest order while it is still in its
+/// random startup and in *name* order once TPE takes over, and `demos` sorts before `instruction`.
+pub(super) fn search_space(
+    candidates: &[Vec<String>],
+    demo_sets: Option<&[Vec<Vec<Example>>]>,
+) -> Vec<(String, Slot)> {
+    let mut named: Vec<(String, Slot)> = Vec::with_capacity(candidates.len() * 2);
+    for (predictor, instructions) in candidates.iter().enumerate() {
+        named.push((
+            format!("{predictor}_predictor_instruction"),
+            Slot {
+                predictor,
+                demos: false,
+                cardinality: instructions.len(),
+            },
+        ));
         if let Some(sets) = demo_sets {
-            space.push(sets[index].len());
+            named.push((
+                format!("{predictor}_predictor_demos"),
+                Slot {
+                    predictor,
+                    demos: true,
+                    cardinality: sets[predictor].len(),
+                },
+            ));
         }
     }
-    space
+    named
 }
 
 /// Set each predictor to the instruction — and the demo set — the trial chose for it.
-fn apply<S: Module + ?Sized>(
+pub(super) fn apply<S: Module + ?Sized>(
     student: &mut S,
     candidates: &[Vec<String>],
     demo_sets: Option<&[Vec<Vec<Example>>]>,
+    space: &[Slot],
     params: &[usize],
 ) {
-    let stride = if demo_sets.is_some() { 2 } else { 1 };
     let mut predictors = student.named_predictors();
-    for (index, predictor) in predictors.iter_mut().enumerate() {
-        if let Some(&choice) = params.get(index * stride) {
-            predictor.signature.instructions = candidates[index][choice].clone();
+    for (slot, &choice) in space.iter().zip(params) {
+        let Some(predictor) = predictors.get_mut(slot.predictor) else {
+            continue;
+        };
+        match (slot.demos, demo_sets) {
+            (true, Some(sets)) => *predictor.demos = sets[slot.predictor][choice].clone(),
+            (true, None) => {}
+            (false, _) => {
+                predictor.signature.instructions = candidates[slot.predictor][choice].clone();
+            }
         }
-        if let (Some(sets), Some(&choice)) = (demo_sets, params.get(index * stride + 1)) {
-            *predictor.demos = sets[index][choice].clone();
-        }
+    }
+}
+
+impl Slot {
+    pub(super) fn cardinality(self) -> usize {
+        self.cardinality
     }
 }
 
@@ -350,7 +438,7 @@ where
                     "MIPROv2 proposes instructions from a metric and has no teacher to learn from"
                 );
             }
-            MIPROv2::compile(self, student, trainset).await
+            MIPROv2::compile(self, student, trainset, None).await
         }
     }
 }
@@ -398,7 +486,8 @@ mod tests {
         MIPROv2::new(exact_match, model.clone())
             .num_candidates(2)
             .num_trials(4)
-            .compile(&mut student, &trainset)
+            .minibatch(false)
+            .compile(&mut student, &trainset, Some(&trainset))
             .await
             .expect("compiles");
 

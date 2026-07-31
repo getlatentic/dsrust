@@ -51,29 +51,71 @@ impl Parzen {
         candidates
     }
 
-    /// The density of one candidate under the mixture: each kernel's mixture weight times the
-    /// product of its category weights, summed.
+    /// One candidate's log density under the mixture — optuna
+    /// `_MixtureOfProductDistribution.log_pdf`.
     ///
-    /// optuna computes `log_pdf` and ranks candidates by `log_pdf_below - log_pdf_above`, i.e. by
-    /// `log(pdf_below / pdf_above)`. Since `log` is monotonic, ranking by the raw ratio
-    /// `pdf_below / pdf_above` gives the same order — and it avoids the `log`/`exp` whose
-    /// cross-language last-bit differences would otherwise flip the order of two categories whose
-    /// acquisitions sit only a few ULPs apart. The categorical densities are small sums of rational
-    /// weights over the few parameters a program has, so the product neither under- nor overflows.
-    pub fn pdf(&self, candidate: &[usize]) -> f64 {
-        self.mixture
+    /// The expression is reproduced rather than simplified. Summing the kernels in linear space and
+    /// ranking by the ratio is algebraically the same and numerically is not: it breaks the exact
+    /// ties optuna's acquisition is full of, and `np.argmax` keeps the first of a tie, so a tie
+    /// broken by last-bit noise picks a different trial.
+    pub fn log_pdf(&self, candidate: &[usize]) -> f64 {
+        let weighted: Vec<f64> = self
+            .mixture
             .iter()
             .enumerate()
             .map(|(kernel, weight)| {
-                let product: f64 = candidate
+                let logs: Vec<f64> = candidate
                     .iter()
                     .enumerate()
-                    .map(|(param, &category)| self.categorical[param][kernel][category])
-                    .product();
-                weight * product
+                    .map(|(param, &category)| self.categorical[param][kernel][category].ln())
+                    .collect();
+                pairwise_sum(&logs) + weight.ln()
             })
-            .sum()
+            .collect();
+        // optuna zeroes a `-inf` maximum so the shift below never subtracts infinity from itself.
+        let mut largest = weighted.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        if largest == f64::NEG_INFINITY {
+            largest = 0.0;
+        }
+        let shifted: Vec<f64> = weighted
+            .iter()
+            .map(|value| (value - largest).exp())
+            .collect();
+        pairwise_sum(&shifted).ln() + largest
     }
+}
+
+/// numpy's `add.reduce` over a contiguous double array — pairwise summation, which is not a left
+/// fold and rounds differently past eight elements.
+///
+/// Every sum numpy takes goes through this, not only the log-sum-exp: normalising a kernel row sums
+/// over the categories, so a program proposing twelve instructions rounds differently from one
+/// proposing six. That difference reaches the acquisition, which ties constantly, and `np.argmax`
+/// keeps the first of a tie — so it decides which trial runs next.
+fn pairwise_sum(values: &[f64]) -> f64 {
+    const BLOCK: usize = 128;
+    let n = values.len();
+    if n < 8 {
+        return values.iter().sum();
+    }
+    if n <= BLOCK {
+        let mut accumulators: [f64; 8] = values[..8].try_into().expect("eight values");
+        let mut index = 8;
+        while index + 8 <= n {
+            for (slot, value) in accumulators.iter_mut().zip(&values[index..index + 8]) {
+                *slot += value;
+            }
+            index += 8;
+        }
+        let mut total = ((accumulators[0] + accumulators[1]) + (accumulators[2] + accumulators[3]))
+            + ((accumulators[4] + accumulators[5]) + (accumulators[6] + accumulators[7]));
+        for value in &values[index..] {
+            total += value;
+        }
+        return total;
+    }
+    let half = (n / 2) - (n / 2) % 8;
+    pairwise_sum(&values[..half]) + pairwise_sum(&values[half..])
 }
 
 /// optuna `default_weights` appended with the prior, then normalised: the mixture weights over the
@@ -85,7 +127,7 @@ fn mixture_weights(observations: usize, prior_weight: f64) -> Vec<f64> {
     }
     let mut weights = default_weights(observations);
     weights.push(prior_weight);
-    let sum: f64 = weights.iter().sum();
+    let sum = pairwise_sum(&weights);
     weights.iter().map(|weight| weight / sum).collect()
 }
 
@@ -129,7 +171,10 @@ fn categorical_kernel(
         kernels[kernel][observation[param]] += 1.0;
     }
     for kernel in &mut kernels {
-        let sum: f64 = kernel.iter().sum();
+        // Summed pairwise because numpy's `weights.sum(axis=1)` is, and this row is as long as the
+        // parameter has categories — so it crosses numpy's eight-element threshold exactly when a
+        // program has eight or more candidates. Below that the two agree and nothing notices.
+        let sum = pairwise_sum(kernel);
         for weight in kernel {
             *weight /= sum;
         }

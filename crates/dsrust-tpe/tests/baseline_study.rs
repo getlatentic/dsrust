@@ -33,7 +33,7 @@ fn a_seeded_baseline_matches_optunas_add_trial() {
         (2, 1),
     ];
 
-    let mut sampler = TpeSampler::new(9, vec![4, 3]);
+    let mut sampler = TpeSampler::new(9, vec![("p0".to_owned(), 4), ("p1".to_owned(), 3)]);
     // MIPROv2's baseline: the all-zeros default program, told before any ask.
     let baseline = vec![0, 0];
     sampler.tell(baseline.clone(), objective(&baseline));

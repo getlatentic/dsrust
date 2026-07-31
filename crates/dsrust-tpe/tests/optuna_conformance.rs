@@ -37,12 +37,6 @@ fn tpe_proposes_the_trials_optuna_proposes() {
     assert!(!cases.is_empty(), "the golden records no cases");
     for case in cases {
         let seed = case["seed"].as_u64().expect("seed") as u32;
-        let cardinalities: Vec<usize> = case["cards"]
-            .as_array()
-            .expect("cards")
-            .iter()
-            .map(|value| value.as_u64().expect("a cardinality") as usize)
-            .collect();
         let table: HashMap<String, f64> = case["table"]
             .as_object()
             .expect("table")
@@ -51,7 +45,7 @@ fn tpe_proposes_the_trials_optuna_proposes() {
             .collect();
         let expected = case["sequence"].as_array().expect("sequence");
 
-        let mut sampler = TpeSampler::new(seed, cardinalities);
+        let mut sampler = TpeSampler::new(seed, parameters(case));
         for (trial, want) in expected.iter().enumerate() {
             let params = sampler.ask();
             let expected_params: Vec<usize> = want
@@ -69,4 +63,24 @@ fn tpe_proposes_the_trials_optuna_proposes() {
             sampler.tell(params, value);
         }
     }
+}
+
+/// A case's parameters, named and in the order its objective suggests them.
+///
+/// The names are what the sampler sorts by once it leaves its random startup, so the cases carrying
+/// dspy's own names — where `demos` sorts before the `instruction` suggested first — are the ones
+/// that hold the two orders apart.
+fn parameters(case: &serde_json::Value) -> Vec<(String, usize)> {
+    let names = case["names"].as_array().expect("names");
+    let cards = case["cards"].as_array().expect("cards");
+    names
+        .iter()
+        .zip(cards)
+        .map(|(name, count)| {
+            (
+                name.as_str().expect("a name").to_owned(),
+                count.as_u64().expect("a cardinality") as usize,
+            )
+        })
+        .collect()
 }
