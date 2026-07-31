@@ -318,6 +318,38 @@ from divergence to mapped.
 """
 
 [[story]]
+id = "transcribed-constants"
+sprint = "api"
+title = "The prose that reaches a prompt is byte-pinned; the tables beside it are transcribed"
+state = "todo"
+size = "S"
+suites = []
+plan = """
+Prompt prose is this crate's strongest ground: gepa's reflection template, refine's blame
+instructions, RLM's action instructions and every proposer signature are compared against generated
+goldens. The constants *beside* them are not, because nothing renders them into a prompt a fixture
+captures.
+
+`TIPS` was the case that surfaced it — six tip strings and their order, transcribed, correct, and
+unwatched until a golden was asked to record dspy's own `TIPS` dict. Measured 2026-07-31, four more
+module-level tables have no fixture mentioning them:
+
+  - `adapter/demos.rs` and `adapter/history.rs` `NOT_SUPPLIED` — dspy's `missing_field_message`, two
+    different strings for a demo and for a history turn. **This one is prompt bytes**, so it belongs
+    to the core claim rather than beside it: no adapter fixture renders a demo or a history message
+    with a field missing, and a hand-written expectation inside `demos.rs` is what stands in. Both
+    strings check out against `adapters/base.py` by hand; nothing says so on the next pin bump.
+  - `interpreter/variables.rs` `RESERVED` — 36 Python keywords the interpreter refuses to bind.
+  - `lm/error/headers.rs` `REQUEST_ID_HEADERS` — the four headers a provider's request id arrives under.
+  - `adapter/native_tools.rs` `TOOL_ANNOTATIONS` — the two annotations that mean a tool field.
+
+The work is small and mostly mechanical: a fixture case that *renders* the incomplete demo and
+incomplete history message, and a generated table for each of the other three, compared as
+`the_proposers_tips_are_dspys` now compares TIPS. Every one should be mutation-checked — the point
+is a test that goes red when upstream rewords, not a second copy of the same transcription.
+"""
+
+[[story]]
 id = "method-parameter-gate"
 sprint = "api"
 title = "The surface gate compares three tables, and a method's parameters is not one of them"
