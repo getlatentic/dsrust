@@ -59,13 +59,11 @@ impl ChatModel for Recorder {
 
 /// `reasoning: Reasoning` then `answer`, dspy's `ChainOfThought` shape.
 fn reasoning_signature() -> Signature {
-    let mut signature = Signature::single_input(
-        "Answer the question.",
-        vec![OutField {
-            name: "answer".into(),
-            ..Default::default()
-        }],
-    );
+    // The signature the golden was generated from: `question -> reasoning, answer`, with the
+    // instructions dspy's docstring gives. Built by parsing rather than by `single_input`, whose
+    // input is named `request` and carries a description — both of which are prompt bytes.
+    let mut signature: Signature = "question -> answer".parse().expect("parses");
+    signature.instructions = "Answer the question.".to_owned();
     signature.outputs.insert(
         0,
         OutField {
@@ -110,15 +108,37 @@ async fn a_reasoning_model_carries_the_effort_and_drops_the_field_from_the_promp
 
     let request = model.request();
     assert_eq!(
-        request.config.reasoning.and_then(|r| r.effort).as_deref(),
+        request
+            .config
+            .reasoning
+            .as_ref()
+            .and_then(|r| r.effort.as_deref()),
         Some("low"),
         "the default effort rides on the request"
     );
-    let prompt = serde_json::to_string(&request.messages).expect("messages serialize");
-    assert!(
-        !prompt.contains("[[ ## reasoning ## ]]"),
-        "the field is not rendered: {prompt}"
+    // Byte for byte against what dspy rendered, not `!contains("[[ ## reasoning ## ]]")`. Removing
+    // a field renumbers every output line after it, and a substring check passes for a render that
+    // dropped the field and got the rest wrong — which is what the same switch caught in
+    // `citations-native`.
+    assert_eq!(
+        request.system(),
+        recorded("openai/o3")["system"].as_str().expect("system"),
+        "the reasoning-model render diverges from dspy's"
     );
+}
+
+/// Whichever arm the golden recorded for `model`.
+fn recorded(model: &str) -> Value {
+    let golden: Value =
+        serde_json::from_str(include_str!("conformance/adapter/reasoning_native.json"))
+            .expect("the golden parses");
+    golden["renders"]
+        .as_array()
+        .expect("renders")
+        .iter()
+        .find(|render| render["model"] == model)
+        .unwrap_or_else(|| panic!("no recorded render for {model}"))
+        .clone()
 }
 
 /// dspy `parse_lm_response`: the reply's thinking fills the reasoning field, and the answer is read
@@ -168,5 +188,36 @@ async fn a_model_that_cannot_reason_renders_the_field() {
     assert_eq!(
         prediction.get("reasoning").and_then(Value::as_str),
         Some("six sevens are forty-two")
+    );
+}
+
+/// The other arm, which is where the citations comparison failed: a model that cannot reason
+/// renders the field, so the prompt asks for it in prose and the numbering includes it.
+///
+/// Byte for byte, because this is the arm a substring check cannot speak for — `contains` passes
+/// whatever the field line says and whatever comes after it.
+#[tokio::test]
+async fn a_model_that_cannot_reason_renders_it_the_way_dspy_does() {
+    let model = Recorder::new(false, reply_with_thinking("unused"));
+    let predict = Predict::from_signature(reasoning_signature())
+        .set_lm(model.clone() as Arc<dyn DynChatModel>);
+    let _ = predict.forward(asked()).await;
+
+    let request = model.request();
+    assert_eq!(
+        request
+            .config
+            .reasoning
+            .as_ref()
+            .and_then(|r| r.effort.as_deref()),
+        None,
+        "a model that cannot reason carries no effort"
+    );
+    assert_eq!(
+        request.system(),
+        recorded("openai/gpt-4o-mini")["system"]
+            .as_str()
+            .expect("system"),
+        "the plain-model render diverges from dspy's"
     );
 }

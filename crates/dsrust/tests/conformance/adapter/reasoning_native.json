@@ -1,0 +1,23 @@
+{
+  "source": "generated from dspy==3.3.0b1 via scripts/generate_reasoning_fixture.py",
+  "dspy_version": "3.3.0b1",
+  "note": "Both arms of Reasoning.adapt_to_native_lm_feature: a model that reasons drops the field from the render and carries a reasoning_effort, one that does not renders it. The whole system prompt is recorded, not a substring — removing a field renumbers every output line after it.",
+  "renders": [
+    {
+      "model": "openai/o3",
+      "reasons": true,
+      "renders_the_field": false,
+      "lm_kwargs": {
+        "reasoning_effort": "low"
+      },
+      "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer the question."
+    },
+    {
+      "model": "openai/gpt-4o-mini",
+      "reasons": false,
+      "renders_the_field": true,
+      "lm_kwargs": {},
+      "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `reasoning` (str): \n2. `answer` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## reasoning ## ]]\n{reasoning}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer the question."
+    }
+  ]
+}

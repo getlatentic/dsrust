@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1034
+rust_tests = 1035
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -618,28 +618,29 @@ it finds rather than mass-justifying it.
 id = "native-reasoning-bytes"
 sprint = "api"
 title = "The native-reasoning tests assert properties where the citations ones now assert bytes"
-state = "todo"
+state = "done"
 size = "S"
 suites = []
-plan = """
-`tests/native_reasoning.rs` has no golden. Its three cases assert *properties* — the field is absent
-from the render, the effort reached the request, the thinking filled the field — where the byte a
-port has to get right is the whole rendered prompt.
+done = """
+`scripts/generate_reasoning_fixture.py` records the system prompt dspy renders for a `Reasoning`
+signature on a model that reasons (`openai/o3`, which drops the field and carries
+`reasoning_effort: low`) and one that does not (`openai/gpt-4o-mini`, which renders it).
+`tests/native_reasoning.rs` compares whole prompts against both, where it compared
+`!prompt.contains("[[ ## reasoning ## ]]")` before.
 
-That is the weaker check `citations-native` started with and then failed. Switching that one from
-`system.contains("citations")` to `assert_eq!` against dspy's recorded prompt found two divergences
-the property check could not see: a missing type-description line, and a schema note whose key order
-differed because dspy derives its own schema rather than using `model_json_schema()`. Neither
-touched the carve-out under test; both were real bytes.
+**It arrived green, which is worth saying because the story predicted red.** The citations version of
+this switch failed immediately and found two real bytes; this one found none. The render was already
+correct and only the check was weak — so the value here is that the claim is now held rather than
+assumed, not that anything was fixed.
 
-Native reasoning removes a field from the render exactly as citations does, so the same two failure
-modes apply: the numbering of every output line after the removed field moves, and `Reasoning` is a
-str-like custom type whose description may reach the prompt. A `contains` check passes through both.
+One thing the byte comparison did surface, in the test rather than the crate: the signature under
+test was built with `Signature::single_input`, whose input is named `request` and carries a
+description, where the golden's is `question` with none. Both are prompt bytes, and a `contains`
+check could never have noticed that the test was rendering a different signature than the one it
+claimed to be comparing against. It parses `"question -> answer"` now.
 
-**What proves it.** A generator beside `generate_citations_fixture.py` recording the system prompt
-dspy renders for a `Reasoning` signature on a reasoning model and on a plain one, and
-`tests/native_reasoning.rs` comparing whole prompts rather than substrings. It should be assumed to
-arrive red — that is what the citations one did.
+The arm that *keeps* the field is covered too — the one where citations failed — since a substring
+check speaks for neither the field line nor anything after it.
 """
 
 [[story]]
