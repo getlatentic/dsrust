@@ -87,7 +87,7 @@ where
     }
 
     /// The budget of failed attempts, which upstream defaults to `n`.
-    pub fn with_fail_count(mut self, fail_count: usize) -> Self {
+    pub fn fail_count(mut self, fail_count: usize) -> Self {
         self.fail_count = Some(fail_count);
         self
     }
@@ -360,7 +360,7 @@ macro_rules! Refine {
     };
     ($module:expr, n = $n:expr, reward = $reward:expr, threshold = $threshold:expr,
      fail_count = $fail_count:expr $(,)?) => {
-        $crate::Refine::new($module, $n, $reward, $threshold).with_fail_count($fail_count)
+        $crate::Refine::new($module, $n, $reward, $threshold).fail_count($fail_count)
     };
 }
 
@@ -562,10 +562,7 @@ mod tests {
         let solver = Solver::new(Answers::Wrongly);
         // No replies: every advisor call fails. Attempt 0 answers then fails to advise (budget
         // 1 → 0); attempt 1 answers then fails to advise (index 1 > 0) → fatal.
-        let refine = advised(
-            Refine::new(solver, 4, correctness, 1.0).with_fail_count(1),
-            &[],
-        );
+        let refine = advised(Refine::new(solver, 4, correctness, 1.0).fail_count(1), &[]);
 
         let refused = refine.run(asked("capital of France?")).await;
         assert!(
@@ -582,10 +579,7 @@ mod tests {
     #[tokio::test]
     async fn the_failure_budget_counts_the_index_not_the_tally() {
         let solver = Solver::new(Answers::Wrongly);
-        let refine = advised(
-            Refine::new(solver, 5, correctness, 1.0).with_fail_count(2),
-            &[],
-        );
+        let refine = advised(Refine::new(solver, 5, correctness, 1.0).fail_count(2), &[]);
 
         let refused = refine.run(asked("capital of France?")).await;
         assert!(refused.is_err());

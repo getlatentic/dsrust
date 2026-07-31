@@ -216,7 +216,7 @@ macro_rules! ReActV2 {
         $crate::ReActV2::new($crate::make_signature!($signature), $tools)
     };
     ($signature:literal, $tools:expr, max_iters = $max:expr $(,)?) => {
-        $crate::ReActV2::new($crate::make_signature!($signature), $tools).with_max_iters($max)
+        $crate::ReActV2::new($crate::make_signature!($signature), $tools).max_iters($max)
     };
     ($task:ty, $tools:expr $(,)?) => {
         $crate::ReActV2::new(
@@ -229,6 +229,6 @@ macro_rules! ReActV2 {
             <$task as $crate::signature::SignatureSpec>::signature(),
             $tools,
         )
-        .with_max_iters($max)
+        .max_iters($max)
     };
 }

@@ -469,7 +469,7 @@ fn the_budget_ends_the_loop_without_a_final_warning_turn() {
     ]));
     let _guard = install(lm.clone());
 
-    let react = ReAct::new(task(), vec![weather()]).with_max_iters(2);
+    let react = ReAct::new(task(), vec![weather()]).max_iters(2);
     block_on(react.forward(example! { request: "x" }.with_inputs(["request"])));
 
     let asked = lm.asked();

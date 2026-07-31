@@ -140,7 +140,7 @@ async fn the_budget_stops_a_model_that_never_finishes() {
     let lm = Arc::new(Scripted::new(&[&never, &never, &never, &answer("gave up")]));
     let _guard = configure(lm.clone());
 
-    let react = ReAct::new(task(), vec![weather()]).with_max_iters(3);
+    let react = ReAct::new(task(), vec![weather()]).max_iters(3);
     react
         .forward(example! { request: "endless" }.with_inputs(["request"]))
         .await

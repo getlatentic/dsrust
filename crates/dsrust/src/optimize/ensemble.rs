@@ -41,7 +41,7 @@ where
     /// dspy draws with the global `random`, so a run is reproducible only against a seeded
     /// interpreter. The draw is per *call*, not per compile — the same ensemble asked twice may
     /// ask different members, which is the point of sampling one.
-    pub fn with_size(mut self, size: usize) -> Self {
+    pub fn size(mut self, size: usize) -> Self {
         self.size = Some(size);
         self
     }
@@ -270,7 +270,7 @@ mod tests {
             );
             first_answer(answers)
         })
-        .with_size(2)
+        .size(2)
         .compile(programs(&["a", "b", "c", "d"]));
 
         for _ in 0..3 {
@@ -292,7 +292,7 @@ mod tests {
     async fn the_same_seed_draws_the_same_members() {
         let drawn = |seed: u64| {
             let ensembled = Ensemble::new(first_answer as fn(&[Prediction]) -> Result<Prediction>)
-                .with_size(2)
+                .size(2)
                 .seed(seed)
                 .compile(programs(&["a", "b", "c", "d"]));
             (0..3).map(|_| ensembled.asked()).collect::<Vec<_>>()

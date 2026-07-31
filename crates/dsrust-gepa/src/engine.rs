@@ -78,9 +78,9 @@ pub struct GepaEngine<A: GepaAdapter> {
     /// dspy `max_merge_invocations`: the cap on accepted merges over a run (default 5).
     pub max_merge_invocations: usize,
     /// Which candidate each iteration reflects on. See [`CandidateSelection`].
-    pub candidate_selection: CandidateSelection,
+    pub candidate_selection_strategy: CandidateSelection,
     /// Which of a candidate's components a reflection rewrites. See [`ComponentSelection`].
-    pub component_selection: ComponentSelection,
+    pub component_selector: ComponentSelection,
 }
 
 /// gepa's `CandidateSelector`: which candidate an iteration mutates.
@@ -265,7 +265,7 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         rng: &mut Random,
         sampler: &mut BatchSampler,
     ) -> Option<Proposal> {
-        let parent = match self.candidate_selection {
+        let parent = match self.candidate_selection_strategy {
             CandidateSelection::Pareto => {
                 select_candidate(state.fronts(), &state.mean_scores(), rng)
             }
@@ -288,7 +288,7 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             return None;
         }
 
-        let components = match self.component_selection {
+        let components = match self.component_selector {
             ComponentSelection::RoundRobin => vec![state.select_component(parent)],
             ComponentSelection::All => parent_candidate.keys().cloned().collect(),
         };

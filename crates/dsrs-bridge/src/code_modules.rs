@@ -125,12 +125,12 @@ pub(crate) fn rlm_forward(
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
     let mut rlm =
-        dsrust::Rlm::with_interpreter(signature, Arc::new(PyInterpreter { inner: interpreter }));
+        dsrust::Rlm::interpreter(signature, Arc::new(PyInterpreter { inner: interpreter }));
     if let Some(max_llm_calls) = max_llm_calls {
-        rlm = rlm.with_max_llm_calls(max_llm_calls);
+        rlm = rlm.max_llm_calls(max_llm_calls);
     }
     if let Some(max_iterations) = max_iterations {
-        rlm = rlm.with_max_iterations(max_iterations);
+        rlm = rlm.max_iterations(max_iterations);
     }
     rlm = rlm
         .with_action_lm(Arc::new(PyLM { inner: action_lm }))
@@ -157,12 +157,12 @@ pub(crate) fn program_of_thought_forward(
     max_iters: Option<usize>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let mut pot = dsrust::ProgramOfThought::with_interpreter(
+    let mut pot = dsrust::ProgramOfThought::interpreter(
         signature,
         Arc::new(PyInterpreter { inner: interpreter }),
     );
     if let Some(max_iters) = max_iters {
-        pot = pot.with_max_iters(max_iters);
+        pot = pot.max_iters(max_iters);
     }
     answered(py, pot.with_lm(Arc::new(PyLM { inner: py_lm })), values)
 }
@@ -189,13 +189,13 @@ pub(crate) fn code_act_forward(
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
     let rust_tools = crate::py_tools(py, &tools)?;
-    let mut act = dsrust::CodeAct::with_interpreter(
+    let mut act = dsrust::CodeAct::interpreter(
         signature,
         rust_tools,
         Arc::new(PyInterpreter { inner: interpreter }),
     );
     if let Some(max_iters) = max_iters {
-        act = act.with_max_iters(max_iters);
+        act = act.max_iters(max_iters);
     }
     answered(py, act.with_lm(Arc::new(PyLM { inner: py_lm })), values)
 }

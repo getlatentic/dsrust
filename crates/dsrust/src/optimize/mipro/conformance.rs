@@ -162,8 +162,8 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
         let boot = case["max_bootstrapped_demos"].as_u64().expect("boot") as usize;
         let labeled = case["max_labeled_demos"].as_u64().expect("labeled") as usize;
         let trials = MIPROv2::new(exact_match, model.clone())
-            .with_candidates(case["num_candidates"].as_u64().expect("num_candidates") as usize)
-            .with_trials(case["num_trials"].as_u64().expect("num_trials") as usize)
+            .num_candidates(case["num_candidates"].as_u64().expect("num_candidates") as usize)
+            .num_trials(case["num_trials"].as_u64().expect("num_trials") as usize)
             .seed(case["seed"].as_u64().expect("seed"))
             .max_bootstrapped_demos(boot)
             .max_labeled_demos(labeled)

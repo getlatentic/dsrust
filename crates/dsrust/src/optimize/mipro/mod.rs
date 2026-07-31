@@ -206,13 +206,13 @@ where
     }
 
     /// How many instructions to propose per predictor.
-    pub fn with_candidates(mut self, num_candidates: usize) -> Self {
+    pub fn num_candidates(mut self, num_candidates: usize) -> Self {
         self.num_candidates = num_candidates;
         self
     }
 
     /// How many instruction combinations the search evaluates.
-    pub fn with_trials(mut self, num_trials: usize) -> Self {
+    pub fn num_trials(mut self, num_trials: usize) -> Self {
         self.num_trials = num_trials;
         self
     }
@@ -474,8 +474,8 @@ mod tests {
         ];
 
         MIPROv2::new(exact_match, model.clone())
-            .with_candidates(2)
-            .with_trials(4)
+            .num_candidates(2)
+            .num_trials(4)
             .compile(&mut student, &trainset)
             .await
             .expect("compiles");

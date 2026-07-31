@@ -72,7 +72,7 @@ impl ReActV2 {
         }
     }
 
-    pub fn with_max_iters(mut self, max_iters: usize) -> Self {
+    pub fn max_iters(mut self, max_iters: usize) -> Self {
         self.max_iters = max_iters;
         self
     }

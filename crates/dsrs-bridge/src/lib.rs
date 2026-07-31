@@ -679,7 +679,7 @@ fn react_forward(
     let mut react =
         dsrust::ReAct::new(signature, rust_tools).with_lm(Arc::new(PyLM { inner: py_lm }));
     if let Some(max_iters) = max_iters {
-        react = react.with_max_iters(max_iters);
+        react = react.max_iters(max_iters);
     }
 
     let mut fields = Vec::new();

@@ -80,7 +80,7 @@ where
     }
 
     /// The budget of failed attempts, which upstream defaults to `n`.
-    pub fn with_fail_count(mut self, fail_count: usize) -> Self {
+    pub fn fail_count(mut self, fail_count: usize) -> Self {
         self.fail_count = Some(fail_count);
         self
     }
@@ -268,7 +268,7 @@ macro_rules! BestOfN {
     };
     ($module:expr, n = $n:expr, reward = $reward:expr, threshold = $threshold:expr,
      fail_count = $fail_count:expr $(,)?) => {
-        $crate::BestOfN::new($module, $n, $reward, $threshold).with_fail_count($fail_count)
+        $crate::BestOfN::new($module, $n, $reward, $threshold).fail_count($fail_count)
     };
 }
 
@@ -430,7 +430,7 @@ mod tests {
     async fn enough_failures_end_the_call_with_the_failure() {
         let solver = Solver::new(Answers::Failing);
         let refused = BestOfN::new(solver, 3, correctness, 1.0)
-            .with_fail_count(1)
+            .fail_count(1)
             .run(asked("capital of France?"))
             .await;
         assert!(refused.is_err(), "two failures exceed a budget of one");
@@ -465,7 +465,7 @@ mod tests {
     #[tokio::test]
     async fn a_failure_late_in_the_run_is_fatal_where_the_same_failure_early_is_not() {
         let solver = Solver::new(Answers::FailingAfter(2));
-        let best = BestOfN::new(solver, 5, correctness, 1.0).with_fail_count(1);
+        let best = BestOfN::new(solver, 5, correctness, 1.0).fail_count(1);
         let refused = best.run(asked("capital of France?")).await;
 
         assert!(refused.is_err(), "the run gave out");
@@ -482,7 +482,7 @@ mod tests {
     #[tokio::test]
     async fn a_fail_count_of_zero_means_n_rather_than_none_allowed() {
         let solver = Solver::new(Answers::FailingAfter(2));
-        let best = BestOfN::new(solver, 4, correctness, 1.0).with_fail_count(0);
+        let best = BestOfN::new(solver, 4, correctness, 1.0).fail_count(0);
         let _ = best.run(asked("capital of France?")).await;
 
         assert_eq!(
@@ -497,7 +497,7 @@ mod tests {
     async fn every_attempt_failing_is_an_error_even_inside_the_budget() {
         let solver = Solver::new(Answers::Failing);
         let refused = BestOfN::new(solver, 2, correctness, 1.0)
-            .with_fail_count(10)
+            .fail_count(10)
             .run(asked("capital of France?"))
             .await;
         assert!(refused.is_err());

@@ -146,8 +146,8 @@ async fn reproduces_the_runs_gepa_produces() {
             seed: case["seed"].as_u64().expect("seed"),
             // The golden was recorded from gepa under its defaults; naming them keeps a later
             // change of default from silently re-pointing this at another strategy.
-            candidate_selection: CandidateSelection::Pareto,
-            component_selection: ComponentSelection::RoundRobin,
+            candidate_selection_strategy: CandidateSelection::Pareto,
+            component_selector: ComponentSelection::RoundRobin,
         };
         let outcome = engine.optimize(candidate_of(&case["seed_candidate"])).await;
         let result = &case["result"];

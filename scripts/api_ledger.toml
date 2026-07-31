@@ -646,19 +646,19 @@
 "evaluate/evaluate.py::EvaluationResult.results" = { status = "mapped", rust = "results", reason = "Outcome::results" }
 "evaluate/evaluate.py::EvaluationResult.score" = { status = "mapped", rust = "score", reason = "Outcome::score" }
 "predict/best_of_n.py::BestOfN.N" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's n" }
-"predict/best_of_n.py::BestOfN.fail_count" = { status = "mapped", rust = "with_fail_count", reason = "BestOfN::with_fail_count" }
+"predict/best_of_n.py::BestOfN.fail_count" = { status = "mapped", rust = "fail_count", reason = "BestOfN::with_fail_count" }
 "predict/best_of_n.py::BestOfN.module" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new, positional" }
 "predict/best_of_n.py::BestOfN.reward_fn" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's reward" }
 "predict/best_of_n.py::BestOfN.threshold" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's threshold" }
 "predict/chain_of_thought.py::ChainOfThought.rationale_field" = { status = "mapped", rust = "ChainOfThought::with_rationale", reason = "takes a whole OutField, so the description, closed set, schema and prefix are all the caller's. Only the name is fixed at `reasoning`, because upstream prepends under that name too" }
 "predict/chain_of_thought.py::ChainOfThought.rationale_field_type" = { status = "mapped", rust = "ChainOfThought::with_rationale", reason = "the type travels as OutField::kind, so the one constructor carries both of upstream's arguments" }
 "predict/chain_of_thought.py::ChainOfThought.signature" = { status = "mapped", rust = "ChainOfThought", reason = "ChainOfThought::new, positional" }
-"predict/code_act.py::CodeAct.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "CodeAct::with_interpreter" }
-"predict/code_act.py::CodeAct.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "CodeAct::with_max_iters" }
+"predict/code_act.py::CodeAct.interpreter" = { status = "mapped", rust = "interpreter", reason = "CodeAct::with_interpreter" }
+"predict/code_act.py::CodeAct.max_iters" = { status = "mapped", rust = "max_iters", reason = "CodeAct::with_max_iters" }
 "predict/code_act.py::CodeAct.signature" = { status = "mapped", rust = "new", reason = "CodeAct::new, positional" }
 "predict/code_act.py::CodeAct.tools" = { status = "mapped", rust = "new", reason = "CodeAct::new, positional" }
-"predict/multi_chain_comparison.py::MultiChainComparison.M" = { status = "mapped", rust = "with_attempts", reason = "MultiChainComparison::with_attempts' attempts" }
-"predict/multi_chain_comparison.py::MultiChainComparison.signature" = { status = "mapped", rust = "with_attempts", reason = "MultiChainComparison::with_attempts, positional" }
+"predict/multi_chain_comparison.py::MultiChainComparison.M" = { status = "mapped", rust = "attempts", reason = "MultiChainComparison::with_attempts' attempts" }
+"predict/multi_chain_comparison.py::MultiChainComparison.signature" = { status = "mapped", rust = "attempts", reason = "MultiChainComparison::with_attempts, positional" }
 "predict/multi_chain_comparison.py::MultiChainComparison.temperature" = { status = "divergence", reason = "dspy raises the temperature for the comparison ask; set it on the module's config or the LM instead" }
 "predict/parallel.py::Parallel.access_examples" = { status = "mapped", rust = "access_examples", reason = "Parallel::access_examples" }
 "predict/parallel.py::Parallel.disable_progress_bar" = { status = "mapped", rust = "disable_progress_bar", reason = "Parallel::disable_progress_bar" }
@@ -670,23 +670,23 @@
 "predict/parallel.py::Parallel.timeout" = { status = "mapped", rust = "timeout", reason = "Parallel::timeout" }
 "predict/predict.py::Predict.callbacks" = { status = "divergence", reason = "dspy's Module.__init__ stores a per-instance list every subclass inherits, and both of the registration paths its own documentation shows are ported: process-wide (configure_callbacks) and per model (LM::with_callbacks). A Rust Module is a trait, so there is no shared constructor to hold a list and each of the eight module structs would carry its own field — while a derived Module could not have one at all. A handler is told which module type it is watching and CallId::parent gives the call it sits under. Filed as `callbacks-per-module`" }
 "predict/predict.py::Predict.signature" = { status = "mapped", rust = "from_signature", reason = "Predict::from_signature / the predict! macro" }
-"predict/program_of_thought.py::ProgramOfThought.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "ProgramOfThought::with_interpreter" }
-"predict/program_of_thought.py::ProgramOfThought.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "ProgramOfThought::with_max_iters" }
+"predict/program_of_thought.py::ProgramOfThought.interpreter" = { status = "mapped", rust = "interpreter", reason = "ProgramOfThought::with_interpreter" }
+"predict/program_of_thought.py::ProgramOfThought.max_iters" = { status = "mapped", rust = "max_iters", reason = "ProgramOfThought::with_max_iters" }
 "predict/program_of_thought.py::ProgramOfThought.signature" = { status = "mapped", rust = "new", reason = "ProgramOfThought::new, positional" }
-"predict/react.py::ReAct.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "ReAct::with_max_iters" }
+"predict/react.py::ReAct.max_iters" = { status = "mapped", rust = "max_iters", reason = "ReAct::with_max_iters" }
 "predict/react.py::ReAct.signature" = { status = "mapped", rust = "ReAct", reason = "ReAct::new, positional" }
 "predict/react.py::ReAct.tools" = { status = "mapped", rust = "ReAct", reason = "ReAct::new, positional" }
-"predict/react_v2.py::ReActV2.max_iters" = { status = "mapped", rust = "with_max_iters", reason = "ReActV2::with_max_iters" }
+"predict/react_v2.py::ReActV2.max_iters" = { status = "mapped", rust = "max_iters", reason = "ReActV2::with_max_iters" }
 "predict/react_v2.py::ReActV2.signature" = { status = "mapped", rust = "ReActV2", reason = "ReActV2::new, positional" }
 "predict/react_v2.py::ReActV2.tools" = { status = "mapped", rust = "ReActV2", reason = "ReActV2::new, positional" }
 "predict/refine.py::Refine.N" = { status = "mapped", rust = "Refine", reason = "Refine::new's n" }
-"predict/refine.py::Refine.fail_count" = { status = "mapped", rust = "with_fail_count", reason = "Refine::with_fail_count" }
+"predict/refine.py::Refine.fail_count" = { status = "mapped", rust = "fail_count", reason = "Refine::with_fail_count" }
 "predict/refine.py::Refine.module" = { status = "mapped", rust = "Refine", reason = "Refine::new, positional" }
 "predict/refine.py::Refine.reward_fn" = { status = "mapped", rust = "Refine", reason = "Refine::new's reward" }
 "predict/refine.py::Refine.threshold" = { status = "mapped", rust = "Refine", reason = "Refine::new's threshold" }
-"predict/rlm.py::RLM.interpreter" = { status = "mapped", rust = "with_interpreter", reason = "Rlm::with_interpreter" }
-"predict/rlm.py::RLM.max_iterations" = { status = "mapped", rust = "with_max_iterations", reason = "Rlm::with_max_iterations" }
-"predict/rlm.py::RLM.max_llm_calls" = { status = "mapped", rust = "with_max_llm_calls", reason = "Rlm::with_max_llm_calls" }
+"predict/rlm.py::RLM.interpreter" = { status = "mapped", rust = "interpreter", reason = "Rlm::with_interpreter" }
+"predict/rlm.py::RLM.max_iterations" = { status = "mapped", rust = "max_iterations", reason = "Rlm::with_max_iterations" }
+"predict/rlm.py::RLM.max_llm_calls" = { status = "mapped", rust = "max_llm_calls", reason = "Rlm::with_max_llm_calls" }
 "predict/rlm.py::RLM.max_output_chars" = { status = "mapped", rust = "max_output_chars", reason = "Rlm::max_output_chars" }
 "predict/rlm.py::RLM.signature" = { status = "mapped", rust = "Rlm", reason = "Rlm::new, positional" }
 "predict/rlm.py::RLM.sub_lm" = { status = "mapped", rust = "with_action_lm", reason = "Rlm::with_action_lm / with_extract_lm" }
@@ -705,19 +705,19 @@
 "teleprompt/bootstrap.py::BootstrapFewShot.metric" = { status = "mapped", rust = "metric", reason = "BootstrapFewShot::metric" }
 "teleprompt/bootstrap.py::BootstrapFewShot.metric_threshold" = { status = "mapped", rust = "metric_threshold", reason = "BootstrapFewShot::metric_threshold" }
 "teleprompt/bootstrap.py::BootstrapFewShot.teacher_settings" = { status = "divergence", reason = "dspy's teacher settings are a thread-local config dict; the teacher's own LM is set on the module with with_lm" }
-"teleprompt/copro_optimizer.py::COPRO.breadth" = { status = "mapped", rust = "with_breadth", reason = "COPRO::with_breadth" }
-"teleprompt/copro_optimizer.py::COPRO.depth" = { status = "mapped", rust = "with_depth", reason = "COPRO::with_depth" }
-"teleprompt/copro_optimizer.py::COPRO.init_temperature" = { status = "mapped", rust = "with_init_temperature", reason = "COPRO::with_init_temperature" }
+"teleprompt/copro_optimizer.py::COPRO.breadth" = { status = "mapped", rust = "breadth", reason = "COPRO::with_breadth" }
+"teleprompt/copro_optimizer.py::COPRO.depth" = { status = "mapped", rust = "depth", reason = "COPRO::with_depth" }
+"teleprompt/copro_optimizer.py::COPRO.init_temperature" = { status = "mapped", rust = "init_temperature", reason = "COPRO::with_init_temperature" }
 "teleprompt/copro_optimizer.py::COPRO.metric" = { status = "mapped", rust = "COPRO", reason = "COPRO::new, positional" }
-"teleprompt/copro_optimizer.py::COPRO.prompt_model" = { status = "mapped", rust = "with_prompt_model", reason = "COPRO::with_prompt_model" }
+"teleprompt/copro_optimizer.py::COPRO.prompt_model" = { status = "mapped", rust = "prompt_model", reason = "COPRO::with_prompt_model" }
 "teleprompt/copro_optimizer.py::COPRO.track_stats" = { status = "divergence", reason = "dspy accumulates per-round statistics onto the compiled program; the outcome carries them here" }
 "teleprompt/ensemble.py::Ensemble.deterministic" = { status = "divergence", reason = "dspy raises on deterministic=True — it is unimplemented upstream; the seed is set with seed" }
 "teleprompt/ensemble.py::Ensemble.reduce_fn" = { status = "mapped", rust = "Ensemble", reason = "Ensemble::new, positional" }
-"teleprompt/ensemble.py::Ensemble.size" = { status = "mapped", rust = "with_size", reason = "Ensemble::with_size" }
+"teleprompt/ensemble.py::Ensemble.size" = { status = "mapped", rust = "size", reason = "Ensemble::with_size" }
 "teleprompt/gepa/gepa.py::GEPA.add_format_failure_as_feedback" = { status = "divergence", reason = "the flag filters `FailedPrediction` entries out of the reflective dataset, and a Rust trace has none to filter: `TraceStep` is {predictor, inputs, outputs} with no failure arm, because a predictor whose parse failed returns `Err` and ends the run rather than recording a step carrying the raw completion. So dspy's default (false) is already this crate's behaviour and setting it true would add nothing. What it would take first is bootstrap_trace.py's FailedPrediction — a step holding the completion text and a format reward — which is a change to the trace every optimizer reads, not to GEPA" }
 "teleprompt/gepa/gepa.py::GEPA.auto" = { status = "mapped", rust = "auto_budget", reason = "GEPA::auto_budget / auto_metric_calls" }
-"teleprompt/gepa/gepa.py::GEPA.candidate_selection_strategy" = { status = "mapped", rust = "candidate_selection", reason = "gepa::CandidateSelection, both arms dspy declares: Pareto (the survivor set then a frequency-weighted draw) and CurrentBest (gepa's idxmax over the aggregate valset scores, ties to the earliest). Not a preference over one sequence — Pareto draws from the shared generator and CurrentBest does not, so switching moves every later draw. Measured caveat: dspy annotates the parameter Literal[\"pareto\", \"current_best\"] but passes the string straight to gepa.optimize, whose factory map also accepts \"epsilon_greedy\" (eps=0.1) and \"top_k_pareto\" (k=5) — reachable at runtime, outside dspy's declared contract, and not built here" }
-"teleprompt/gepa/gepa.py::GEPA.component_selector" = { status = "mapped", rust = "component_selection", reason = "gepa::ComponentSelection, both arms gepa's string map holds: RoundRobin (one component, the parent's cursor advancing so a family cycles across generations) and All (every component in the seed candidate's key order). Unlike candidate_selection_strategy the map has no third entry, so this one is complete. A caller-supplied selector object is the same seam as instruction_proposer and is tracked there" }
+"teleprompt/gepa/gepa.py::GEPA.candidate_selection_strategy" = { status = "mapped", rust = "candidate_selection_strategy", reason = "gepa::CandidateSelection, both arms dspy declares: Pareto (the survivor set then a frequency-weighted draw) and CurrentBest (gepa's idxmax over the aggregate valset scores, ties to the earliest). Not a preference over one sequence — Pareto draws from the shared generator and CurrentBest does not, so switching moves every later draw. Measured caveat: dspy annotates the parameter Literal[\"pareto\", \"current_best\"] but passes the string straight to gepa.optimize, whose factory map also accepts \"epsilon_greedy\" (eps=0.1) and \"top_k_pareto\" (k=5) — reachable at runtime, outside dspy's declared contract, and not built here" }
+"teleprompt/gepa/gepa.py::GEPA.component_selector" = { status = "mapped", rust = "component_selector", reason = "gepa::ComponentSelection, both arms gepa's string map holds: RoundRobin (one component, the parent's cursor advancing so a family cycles across generations) and All (every component in the seed candidate's key order). Unlike candidate_selection_strategy the map has no third entry, so this one is complete. A caller-supplied selector object is the same seam as instruction_proposer and is tracked there" }
 "teleprompt/gepa/gepa.py::GEPA.failure_score" = { status = "mapped", rust = "failure_score", reason = "GEPA::failure_score" }
 "teleprompt/gepa/gepa.py::GEPA.gepa_kwargs" = { status = "divergence", reason = "a passthrough to the gepa library's own optimizer; dsrust-gepa is called directly" }
 "teleprompt/gepa/gepa.py::GEPA.instruction_proposer" = { status = "mapped", rust = "InstructionProposer", reason = "a trait rather than a bare fn, because a caller writing one wants their own state and GEPA stores it behind a pointer, so it is object-safe by hand like DynChatModel. It replaces the whole proposal step as upstream's does — the reflection tree is not consulted — and is handed the reflection model explicitly, where upstream reaches it through `with dspy.context(lm=reflection_lm)` around the call; without that a Rust proposer would be strictly less able than a Python one. Handed only the components whose runs produced something, which upstream skips too" }
@@ -748,7 +748,7 @@
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.max_labeled_demos" = { status = "mapped", rust = "max_labeled_demos", reason = "as max_bootstrapped_demos; both zero is dspy's zeroshot_opt and the same test. `(0, k>0)` is unreachable upstream — create_n_fewshot_demo_sets calls randint(1, 0) and raises — so it is not a case here" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.metric" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new, positional" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.metric_threshold" = { status = "mapped", rust = "MIPROv2::metric_threshold" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.num_candidates" = { status = "mapped", rust = "with_candidates", reason = "MIPROv2::with_candidates" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.num_candidates" = { status = "mapped", rust = "num_candidates", reason = "MIPROv2::with_candidates" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.num_threads" = { status = "mapped", rust = "MIPROv2::scoring", reason = "both of dspy's scoring bounds travel together as optimize::Scoring, since every optimizer that builds an Evaluate needs the pair" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.prompt_model" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new's second argument" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.seed" = { status = "mapped", rust = "seed", reason = "MIPROv2::seed" }

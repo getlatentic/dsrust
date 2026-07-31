@@ -571,7 +571,7 @@ whatever it wraps, so it is built with `::new` and has no macro.
 | `ProgramOfThought` | a signature | `dspy.ProgramOfThought("q -> a")` | `ProgramOfThought!("q -> a")` |
 | `CodeAct` | a signature + tools | `dspy.CodeAct("q -> a", tools=[…])` | `CodeAct!("q -> a", tools)` |
 | `RLM` | a signature | `dspy.RLM("q -> a")` | `RLM!("q -> a")` |
-| `MultiChainComparison` | a signature | `dspy.MultiChainComparison("q -> a")` | `MultiChainComparison::with_attempts(…)` |
+| `MultiChainComparison` | a signature | `dspy.MultiChainComparison("q -> a")` | `MultiChainComparison::attempts(…)` |
 | `BestOfN` | **a module** | `dspy.BestOfN(module=qa, N=3, reward_fn=f, threshold=1.0)` | `BestOfN!(qa, n = 3, reward = f, threshold = 1.0)` |
 | `Refine` | **a module** | `dspy.Refine(module=qa, N=3, …)` | `Refine!(qa, n = 3, reward = f, threshold = 1.0)` |
 | `Parallel` | branches per call | `dspy.Parallel(num_threads=8)` | `Parallel::new(8)` |
@@ -616,7 +616,7 @@ must be on the path**, which is what DSPy asks of its users too:
 curl -fsSL https://deno.land/install.sh | sh    # or: brew install deno
 ```
 
-Supply your own environment with `with_interpreter`, which is also how a test scripts one without
+Supply your own environment with `interpreter`, which is also how a test scripts one without
 needing deno at all.
 
 ### Asking one, side by side

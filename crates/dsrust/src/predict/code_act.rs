@@ -39,11 +39,11 @@ pub struct CodeAct {
 impl CodeAct {
     /// dspy's `interpreter=None`: the Deno/Pyodide sandbox, which is what upstream defaults to.
     pub fn new(signature: Signature, tools: Vec<Arc<dyn Tool>>) -> Self {
-        Self::with_interpreter(signature, tools, Arc::new(DenoInterpreter::new()))
+        Self::interpreter(signature, tools, Arc::new(DenoInterpreter::new()))
     }
 
     /// The same, running code somewhere the caller chose.
-    pub fn with_interpreter(
+    pub fn interpreter(
         signature: Signature,
         tools: Vec<Arc<dyn Tool>>,
         interpreter: Arc<dyn CodeInterpreter>,
@@ -58,7 +58,7 @@ impl CodeAct {
         }
     }
 
-    pub fn with_max_iters(mut self, max_iters: usize) -> Self {
+    pub fn max_iters(mut self, max_iters: usize) -> Self {
         self.max_iters = max_iters;
         self
     }
@@ -271,7 +271,7 @@ macro_rules! CodeAct {
         $crate::CodeAct::new($crate::make_signature!($signature), $tools)
     };
     ($signature:literal, $tools:expr, max_iters = $max:expr $(,)?) => {
-        $crate::CodeAct::new($crate::make_signature!($signature), $tools).with_max_iters($max)
+        $crate::CodeAct::new($crate::make_signature!($signature), $tools).max_iters($max)
     };
     ($task:ty, $tools:expr $(,)?) => {
         $crate::CodeAct::new(
@@ -284,7 +284,7 @@ macro_rules! CodeAct {
             <$task as $crate::signature::SignatureSpec>::signature(),
             $tools,
         )
-        .with_max_iters($max)
+        .max_iters($max)
     };
 }
 
@@ -349,7 +349,7 @@ mod tests {
             "[[ ## reasoning ## ]]\nread it\n\n[[ ## answer ## ]]\n120\n\n[[ ## completed ## ]]",
         ]);
         let model = Arc::new(model);
-        let mut act = CodeAct::with_interpreter(task(), tools(), interpreter.clone());
+        let mut act = CodeAct::interpreter(task(), tools(), interpreter.clone());
         act.codeact = act.codeact.with_lm(model.clone());
         act.extractor = act.extractor.with_lm(model);
 
@@ -381,7 +381,7 @@ mod tests {
             done,
             "[[ ## reasoning ## ]]\nr\n\n[[ ## answer ## ]]\n120\n\n[[ ## completed ## ]]",
         ]));
-        let mut act = CodeAct::with_interpreter(task(), tools(), interpreter.clone());
+        let mut act = CodeAct::interpreter(task(), tools(), interpreter.clone());
         act.codeact = act.codeact.with_lm(model.clone());
         act.extractor = act.extractor.with_lm(model);
 

@@ -167,9 +167,9 @@ async fn copro_makes_the_decisions_dspy_makes() {
         let mut module = build(case, model.clone());
 
         COPRO::new(exact_match)
-            .with_breadth(case["breadth"].as_u64().expect("breadth") as usize)
-            .with_depth(case["depth"].as_u64().expect("depth") as usize)
-            .with_prompt_model(model.clone())
+            .breadth(case["breadth"].as_u64().expect("breadth") as usize)
+            .depth(case["depth"].as_u64().expect("depth") as usize)
+            .prompt_model(model.clone())
             .compile(module.as_mut(), &trainset)
             .await
             .expect("compiles");

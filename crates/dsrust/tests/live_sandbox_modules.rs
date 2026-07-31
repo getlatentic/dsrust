@@ -144,7 +144,7 @@ async fn rlm_computes_over_a_value_that_never_enters_the_prompt() {
 
     let rlm = dsrust::Rlm::new("question -> answer".parse::<Signature>().expect("parses"))
         .with_sandbox_input("cities", corpus)
-        .with_max_iterations(4);
+        .max_iterations(4);
 
     let prediction = rlm
         .forward(example! { question: "Which city in `cities` has the largest population? Answer with its name." })

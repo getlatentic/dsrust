@@ -58,9 +58,9 @@ pub struct GEPA<M> {
     /// dspy `num_threads`: how many examples one evaluation runs at once (default one).
     num_threads: usize,
     /// dspy `candidate_selection_strategy`. See [`CandidateSelection`].
-    candidate_selection: CandidateSelection,
+    candidate_selection_strategy: CandidateSelection,
     /// dspy `component_selector`. See [`ComponentSelection`].
-    component_selection: ComponentSelection,
+    component_selector: ComponentSelection,
     /// dspy `instruction_proposer`. See [`InstructionProposer`].
     proposer: Option<Arc<dyn InstructionProposer>>,
 }
@@ -84,8 +84,8 @@ where
             use_merge: true,
             max_merge_invocations: 5,
             num_threads: 1,
-            candidate_selection: CandidateSelection::default(),
-            component_selection: ComponentSelection::default(),
+            candidate_selection_strategy: CandidateSelection::default(),
+            component_selector: ComponentSelection::default(),
             proposer: None,
         }
     }
@@ -116,15 +116,15 @@ where
     ///
     /// Not a preference over one sequence: the Pareto selector draws from the shared generator and
     /// the current-best one does not, so switching moves every later draw in the run.
-    pub fn candidate_selection(mut self, strategy: CandidateSelection) -> Self {
-        self.candidate_selection = strategy;
+    pub fn candidate_selection_strategy(mut self, strategy: CandidateSelection) -> Self {
+        self.candidate_selection_strategy = strategy;
         self
     }
 
     /// dspy `component_selector`: which of a candidate's components one reflection rewrites,
     /// round-robin by default.
-    pub fn component_selection(mut self, selector: ComponentSelection) -> Self {
-        self.component_selection = selector;
+    pub fn component_selector(mut self, selector: ComponentSelection) -> Self {
+        self.component_selector = selector;
         self
     }
 
@@ -277,8 +277,8 @@ where
             seed: self.seed,
             use_merge: self.use_merge,
             max_merge_invocations: self.max_merge_invocations,
-            candidate_selection: self.candidate_selection,
-            component_selection: self.component_selection,
+            candidate_selection_strategy: self.candidate_selection_strategy,
+            component_selector: self.component_selector,
         };
         let outcome = engine.optimize(seed_candidate).await;
         set_instructions(student, &outcome.best);

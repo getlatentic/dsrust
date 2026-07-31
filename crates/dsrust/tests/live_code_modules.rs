@@ -117,7 +117,7 @@ fn field(prediction: &dsrust::Prediction, name: &str) -> String {
 async fn program_of_thought_runs_against_a_real_model() {
     let model = configure_live();
     let interpreter = Canned::new(Executed::Submitted(json!({ "answer": "120" })));
-    let pot = ProgramOfThought::with_interpreter(
+    let pot = ProgramOfThought::interpreter(
         "question -> answer".parse::<Signature>().expect("parses"),
         interpreter.clone(),
     );
@@ -154,12 +154,12 @@ async fn program_of_thought_runs_against_a_real_model() {
 async fn code_act_runs_against_a_real_model() {
     let model = configure_live();
     let interpreter = Canned::new(Executed::Printed(json!("120")));
-    let act = CodeAct::with_interpreter(
+    let act = CodeAct::interpreter(
         "question -> answer".parse::<Signature>().expect("parses"),
         Vec::new(),
         interpreter.clone(),
     )
-    .with_max_iters(3);
+    .max_iters(3);
 
     let prediction = act
         .forward(example! { question: "What is 5 factorial? Print it." })
@@ -195,11 +195,11 @@ async fn rlm_drives_a_repl_against_a_real_model() {
     let interpreter = Canned::new(Executed::Printed(json!(
         "the document mentions Paris 3 times"
     )));
-    let rlm = Rlm::with_interpreter(
+    let rlm = Rlm::interpreter(
         "context -> answer".parse::<Signature>().expect("parses"),
         interpreter.clone(),
     )
-    .with_max_iterations(3);
+    .max_iterations(3);
 
     let context = "Paris is the capital of France. ".repeat(50);
     let prediction = rlm

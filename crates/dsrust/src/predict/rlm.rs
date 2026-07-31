@@ -51,14 +51,14 @@ macro_rules! RLM {
         $crate::Rlm::new($crate::make_signature!($signature))
     };
     ($signature:literal, max_iterations = $max:expr $(,)?) => {
-        $crate::Rlm::new($crate::make_signature!($signature)).with_max_iterations($max)
+        $crate::Rlm::new($crate::make_signature!($signature)).max_iterations($max)
     };
     ($task:ty $(,)?) => {
         $crate::Rlm::new(<$task as $crate::signature::SignatureSpec>::signature())
     };
     ($task:ty, max_iterations = $max:expr $(,)?) => {
         $crate::Rlm::new(<$task as $crate::signature::SignatureSpec>::signature())
-            .with_max_iterations($max)
+            .max_iterations($max)
     };
 }
 
@@ -92,11 +92,11 @@ pub struct Rlm {
 impl Rlm {
     /// dspy's `interpreter=None`: the Deno/Pyodide sandbox, which is what upstream defaults to.
     pub fn new(signature: Signature) -> Self {
-        Self::with_interpreter(signature, Arc::new(DenoInterpreter::new()))
+        Self::interpreter(signature, Arc::new(DenoInterpreter::new()))
     }
 
     /// The same, running code somewhere the caller chose.
-    pub fn with_interpreter(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
+    pub fn interpreter(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
         Self::with_tools(signature, Vec::new(), interpreter)
     }
 
@@ -147,14 +147,14 @@ impl Rlm {
             .collect()
     }
 
-    pub fn with_max_iterations(mut self, max_iterations: usize) -> Self {
+    pub fn max_iterations(mut self, max_iterations: usize) -> Self {
         self.max_iterations = max_iterations;
         self
     }
 
     /// The budget the model is told about, which is stated in the action instructions — so
     /// changing it rebuilds them.
-    pub fn with_max_llm_calls(mut self, max_llm_calls: usize) -> Self {
+    pub fn max_llm_calls(mut self, max_llm_calls: usize) -> Self {
         self.max_llm_calls = max_llm_calls;
         let (action, _) = signatures(&self.signature, &self.tools, max_llm_calls);
         self.generate_action = Predict::from_signature(action);
@@ -439,7 +439,7 @@ mod loop_tests {
 
     fn rlm(interpreter: Arc<ScriptedInterpreter>, replies: &[&'static str]) -> Rlm {
         let model = Arc::new(Scripted::new(replies));
-        let mut rlm = Rlm::with_interpreter(task(), interpreter);
+        let mut rlm = Rlm::interpreter(task(), interpreter);
         rlm.generate_action = rlm.generate_action.with_lm(model.clone());
         rlm.extract = rlm.extract.with_lm(model);
         rlm
@@ -459,7 +459,7 @@ mod loop_tests {
         let interpreter = Arc::new(ScriptedInterpreter::new([Ok(Executed::Submitted(
             json!({ "answer": "Lagos", "count": 3 }),
         ))]));
-        let rlm = Rlm::with_interpreter(
+        let rlm = Rlm::interpreter(
             "question -> answer: str, count: int"
                 .parse()
                 .expect("parses"),
@@ -589,7 +589,7 @@ mod loop_tests {
             action("full", "```python\nSUBMIT(answer='42', count=1)\n```").into_boxed_str(),
         );
         let model = Arc::new(Scripted::new(&[first, second]));
-        let mut rlm = Rlm::with_interpreter(signature, interpreter);
+        let mut rlm = Rlm::interpreter(signature, interpreter);
         rlm.generate_action = rlm.generate_action.with_lm(model.clone());
         rlm.extract = rlm.extract.with_lm(model);
 
@@ -613,7 +613,7 @@ mod loop_tests {
         )))]));
         let look = Box::leak(action("look", "```python\nprint(1)\n```").into_boxed_str());
         let extracted = "[[ ## answer ## ]]\nfrom the trajectory\n\n[[ ## completed ## ]]";
-        let rlm = rlm(interpreter, &[look, extracted]).with_max_iterations(1);
+        let rlm = rlm(interpreter, &[look, extracted]).max_iterations(1);
 
         let prediction = rlm
             .forward(example! { context: "doc" })
@@ -669,7 +669,7 @@ mod loop_tests {
         let right =
             Box::leak(action("fix", "```python\nSUBMIT(answer='yes')\n```").into_boxed_str());
         let model = Arc::new(Scripted::new(&[wrong, right]));
-        let mut rlm = Rlm::with_interpreter(signature, interpreter);
+        let mut rlm = Rlm::interpreter(signature, interpreter);
         rlm.generate_action = rlm.generate_action.with_lm(model.clone());
         rlm.extract = rlm.extract.with_lm(model);
 
@@ -749,7 +749,7 @@ mod sandbox_tests {
         let submit =
             Box::leak(action("finish", "```python\nSUBMIT(answer='done')\n```").into_boxed_str());
         let model = Arc::new(Scripted::new(&[submit]));
-        let rlm = Rlm::with_interpreter(
+        let rlm = Rlm::interpreter(
             "corpus -> answer".parse().expect("parses"),
             interpreter.clone(),
         )
@@ -780,7 +780,7 @@ mod sandbox_tests {
         let interpreter = Arc::new(ScriptedInterpreter::new([]));
         let mut signature: Signature = "corpus -> answer".parse().expect("parses");
         signature.inputs[0].desc = "everything we have".to_owned();
-        let rlm = Rlm::with_interpreter(signature, interpreter)
+        let rlm = Rlm::interpreter(signature, interpreter)
             .with_sandbox_input("corpus", Arc::new(Corpus(12)));
 
         let described = rlm.variables(&Example::default());

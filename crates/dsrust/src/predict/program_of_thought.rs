@@ -45,14 +45,14 @@ pub struct ProgramOfThought {
 impl ProgramOfThought {
     /// dspy's `interpreter=None`: the Deno/Pyodide sandbox, which is what upstream defaults to.
     ///
-    /// Ask for another with [`Self::with_interpreter`] — a caller who wants their own environment,
+    /// Ask for another with [`Self::interpreter`] — a caller who wants their own environment,
     /// or a test that scripts one.
     pub fn new(signature: Signature) -> Self {
-        Self::with_interpreter(signature, Arc::new(DenoInterpreter::new()))
+        Self::interpreter(signature, Arc::new(DenoInterpreter::new()))
     }
 
     /// The same, running code somewhere the caller chose.
-    pub fn with_interpreter(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
+    pub fn interpreter(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
         Self {
             generate: ChainOfThought::from_signature(mode_signature(&signature, Mode::Generate)),
             regenerate: ChainOfThought::from_signature(mode_signature(
@@ -66,7 +66,7 @@ impl ProgramOfThought {
         }
     }
 
-    pub fn with_max_iters(mut self, max_iters: usize) -> Self {
+    pub fn max_iters(mut self, max_iters: usize) -> Self {
         self.max_iters = max_iters;
         self
     }
@@ -378,14 +378,14 @@ macro_rules! ProgramOfThought {
         $crate::ProgramOfThought::new($crate::make_signature!($signature))
     };
     ($signature:literal, max_iters = $max:expr $(,)?) => {
-        $crate::ProgramOfThought::new($crate::make_signature!($signature)).with_max_iters($max)
+        $crate::ProgramOfThought::new($crate::make_signature!($signature)).max_iters($max)
     };
     ($task:ty $(,)?) => {
         $crate::ProgramOfThought::new(<$task as $crate::signature::SignatureSpec>::signature())
     };
     ($task:ty, max_iters = $max:expr $(,)?) => {
         $crate::ProgramOfThought::new(<$task as $crate::signature::SignatureSpec>::signature())
-            .with_max_iters($max)
+            .max_iters($max)
     };
 }
 
@@ -442,7 +442,7 @@ mod tests {
             "[[ ## reasoning ## ]]\nread it\n\n[[ ## answer ## ]]\n2\n\n[[ ## completed ## ]]",
         ]);
         let pot = with_model(
-            ProgramOfThought::with_interpreter(task(), interpreter.clone()),
+            ProgramOfThought::interpreter(task(), interpreter.clone()),
             Arc::new(model),
         );
 
@@ -468,7 +468,7 @@ mod tests {
             "[[ ## reasoning ## ]]\nread\n\n[[ ## answer ## ]]\n2\n\n[[ ## completed ## ]]",
         ]);
         let pot = with_model(
-            ProgramOfThought::with_interpreter(task(), interpreter.clone()),
+            ProgramOfThought::interpreter(task(), interpreter.clone()),
             Arc::new(model),
         );
 
@@ -494,7 +494,7 @@ mod tests {
         let reply = "[[ ## reasoning ## ]]\nr\n\n[[ ## generated_code ## ]]\nprint(x)\n\n[[ ## completed ## ]]";
         let model = Scripted::new(&[reply, reply, reply, reply]);
         let pot = with_model(
-            ProgramOfThought::with_interpreter(task(), interpreter.clone()).with_max_iters(2),
+            ProgramOfThought::interpreter(task(), interpreter.clone()).max_iters(2),
             Arc::new(model),
         );
 

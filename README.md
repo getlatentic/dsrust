@@ -184,7 +184,7 @@ A compile rewrites the program in place, so what you save is the program you pas
 back a new one instead; Rust has no deep copy of a `dyn Module` to hand back.
 
 GEPA's strategy seams are DSPy's, as traits and enums rather than duck-typed callables:
-`candidate_selection` (Pareto or current-best), `component_selection` (round-robin or all), and
+`candidate_selection_strategy` (Pareto or current-best), `component_selector` (round-robin or all), and
 `instruction_proposer` — a trait, so your own proposer can carry its own model and template, and it
 replaces GEPA's reflection prompt entirely the way DSPy's `ProposalFn` does.
 

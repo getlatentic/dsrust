@@ -41,7 +41,7 @@ pub struct MultiChainComparison {
 impl MultiChainComparison {
     /// A module comparing three attempts, which is dspy's default `M`.
     pub fn from_signature(signature: Signature) -> Result<Self> {
-        Self::with_attempts(signature, ATTEMPTS)
+        Self::attempts(signature, ATTEMPTS)
     }
 
     /// The same, told how many attempts it will be given.
@@ -49,7 +49,7 @@ impl MultiChainComparison {
     /// Fails on a signature with no output fields, where there is no last field for an attempt's
     /// prediction to be read from. Upstream fails here too, on the tuple unpacking that looks
     /// for one.
-    pub fn with_attempts(mut signature: Signature, attempts: usize) -> Result<Self> {
+    pub fn attempts(mut signature: Signature, attempts: usize) -> Result<Self> {
         let last_key = signature
             .outputs
             .last()
@@ -266,7 +266,7 @@ mod tests {
 
     fn module(case: &Value) -> MultiChainComparison {
         let attempts = case["m"].as_u64().expect("an M") as usize;
-        MultiChainComparison::with_attempts(base(case), attempts).expect("the module builds")
+        MultiChainComparison::attempts(base(case), attempts).expect("the module builds")
     }
 
     fn example(fields: &Value) -> Example {
@@ -404,7 +404,7 @@ mod tests {
         for case in golden()["count_mismatch"].as_array().expect("cases") {
             let attempts = case["m"].as_u64().expect("an M") as usize;
             let given = case["given"].as_u64().expect("a count") as usize;
-            let module = MultiChainComparison::with_attempts(base(&cases()[0]), attempts)
+            let module = MultiChainComparison::attempts(base(&cases()[0]), attempts)
                 .expect("the module builds");
             let completions = vec![example(&json!({ "rationale": "r", "answer": "a" })); given];
 
@@ -447,7 +447,7 @@ mod tests {
     #[test]
     fn a_completion_without_usable_reasoning_is_refused() {
         let module =
-            MultiChainComparison::with_attempts(base(&cases()[0]), 1).expect("the module builds");
+            MultiChainComparison::attempts(base(&cases()[0]), 1).expect("the module builds");
         for completion in [
             json!({ "answer": "blue" }),
             json!({ "rationale": 7, "answer": "blue" }),

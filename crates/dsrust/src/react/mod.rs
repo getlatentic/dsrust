@@ -70,7 +70,7 @@ impl ReAct {
         }
     }
 
-    pub fn with_max_iters(mut self, max_iters: usize) -> Self {
+    pub fn max_iters(mut self, max_iters: usize) -> Self {
         self.max_iters = max_iters;
         self
     }
@@ -273,7 +273,7 @@ macro_rules! ReAct {
         $crate::ReAct::new($crate::make_signature!($signature), $tools)
     };
     ($signature:literal, $tools:expr, max_iters = $max:expr $(,)?) => {
-        $crate::ReAct::new($crate::make_signature!($signature), $tools).with_max_iters($max)
+        $crate::ReAct::new($crate::make_signature!($signature), $tools).max_iters($max)
     };
     ($task:ty, $tools:expr $(,)?) => {
         $crate::ReAct::new(
@@ -286,7 +286,7 @@ macro_rules! ReAct {
             <$task as $crate::signature::SignatureSpec>::signature(),
             $tools,
         )
-        .with_max_iters($max)
+        .max_iters($max)
     };
 }
 

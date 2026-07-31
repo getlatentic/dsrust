@@ -33,7 +33,7 @@ use candidates::{Evaluated, Evaluations, Proposal, best_program, dspy_score, str
 ///
 /// `breadth` proposals per round (must exceed one), `depth` rounds, and `init_temperature` for how
 /// freely the proposing model samples — upstream's defaults are 10, 3 and 1.4. The proposing model
-/// defaults to whichever model the predictors use; [`Self::with_prompt_model`] sets a stronger one
+/// defaults to whichever model the predictors use; [`Self::prompt_model`] sets a stronger one
 /// to write the prompts while a cheaper one runs the task, which is dspy's `prompt_model`.
 pub struct COPRO<M> {
     metric: M,
@@ -64,26 +64,26 @@ where
 
     /// How many instructions to propose each round. dspy rejects one or fewer, since a round has to
     /// leave the current instruction and at least one rival to choose between.
-    pub fn with_breadth(mut self, breadth: usize) -> Self {
+    pub fn breadth(mut self, breadth: usize) -> Self {
         self.breadth = breadth;
         self
     }
 
     /// How many rounds of propose-score-keep to run.
-    pub fn with_depth(mut self, depth: usize) -> Self {
+    pub fn depth(mut self, depth: usize) -> Self {
         self.depth = depth;
         self
     }
 
     /// How freely the proposing model samples. Higher is more varied; dspy's default is 1.4.
-    pub fn with_init_temperature(mut self, temperature: f64) -> Self {
+    pub fn init_temperature(mut self, temperature: f64) -> Self {
         self.init_temperature = temperature;
         self
     }
 
     /// Propose instructions with this model rather than the one the program runs on. dspy's
     /// `prompt_model`.
-    pub fn with_prompt_model(mut self, model: Arc<dyn DynChatModel>) -> Self {
+    pub fn prompt_model(mut self, model: Arc<dyn DynChatModel>) -> Self {
         self.prompt_model = Some(model);
         self
     }
@@ -353,9 +353,9 @@ mod tests {
         ];
 
         COPRO::new(exact_match)
-            .with_breadth(2)
-            .with_depth(1)
-            .with_prompt_model(model.clone())
+            .breadth(2)
+            .depth(1)
+            .prompt_model(model.clone())
             .compile(&mut student, &trainset)
             .await
             .expect("compiles");
@@ -370,7 +370,7 @@ mod tests {
         let model = Arc::new(Coach);
         let mut student = Predict::parse("question -> answer").expect("parses");
         let mut teacher = Predict::parse("question -> answer").expect("parses");
-        let optimizer = COPRO::new(exact_match).with_prompt_model(model);
+        let optimizer = COPRO::new(exact_match).prompt_model(model);
         let refused = Optimizer::compile(&optimizer, &mut student, Some(&mut teacher), &[]).await;
         assert!(
             refused.is_err(),
