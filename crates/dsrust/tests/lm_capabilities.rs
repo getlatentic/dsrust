@@ -101,3 +101,38 @@ fn every_model_this_crate_can_hold_takes_a_response_format() {
         );
     }
 }
+
+/// A caller can state what a model does natively, overriding the registry — the one setter here
+/// that dspy has no counterpart for, and the reason it exists rather than being deleted.
+///
+/// dspy reads `supports_function_calling` and friends off litellm's registry, which litellm updates
+/// continuously. This crate's is `capabilities.json`, a snapshot frozen at build time — so a model
+/// the snapshot cannot know about has no other door. That is not hypothetical: the README's own
+/// "any OpenAI-compatible host is a base URL away" covers a local vLLM or LM Studio serving a model
+/// under a name no registry lists, and the default for an unlisted model is *nothing native*.
+///
+/// Uncalled and untested until now, which is how a setter for a read-only upstream concept survived
+/// review: `check_api_surface.py` walks dspy -> Rust and nothing walks the other way.
+#[tokio::test]
+async fn a_stated_capability_overrides_the_registry() {
+    // A name no registry lists, which is the case the escape hatch is for.
+    let unlisted = "openai/my-local-vllm-build";
+    let resolved = LM::new(unlisted).expect("parses").capabilities().await;
+    assert!(
+        !resolved.function_calling,
+        "an unlisted model should resolve to nothing native, or this test proves nothing"
+    );
+
+    let stated = LM::new(unlisted)
+        .expect("parses")
+        .with_capabilities(Capabilities {
+            function_calling: true,
+            ..Capabilities::default()
+        })
+        .capabilities()
+        .await;
+    assert!(
+        stated.function_calling,
+        "a stated capability did not override the registry"
+    );
+}

@@ -355,21 +355,29 @@ response = lm(dspy.User("What is DSPy?"))
 ```rust
 let lm = LM::new("openai/gpt-4o-mini")?;
 
-let answered = lm.call(items![User(["What is the capital of France?"])]).await?;
+let answered = lm.call(items![User!["What is the capital of France?"]]).await?;
 
 // A reply goes straight back in as the assistant turn it was.
-let next = lm.call(items![answered, User(["And of Belgium?"])]).await?;
+let next = lm.call(items![answered, User!["And of Belgium?"]]).await?;
 
 // Prose and an image are one multimodal turn, not two.
-lm.call(items!["Describe this.", LmPart::image_url(url)]).await?;
+lm.call(items![User!["Describe this.", LmPart::image_url(url)]]).await?;
 ```
 
 `User`, `Assistant`, `System` and `Developer` are DSPy's own names for the four role constructors —
 free functions there carrying `# noqa: N802`, and here carrying `#[allow(non_snake_case)]`, the same
 trade `Predict!` makes. `LmMessage::user(…)` is the same constructor under Rust's conventions.
 
-`items!` exists because Rust has no varargs and an array holds one type, so a call mixing a turn, a
-reply and a string needs each element converted — the same reason `call!` and `input!` exist.
+Each has a macro beside it, and the macro is the one to reach for. DSPy's constructors take
+`*parts`, so `dspy.User("Describe this:", image)` writes two parts of different types positionally.
+A Rust function cannot: `User(["Describe this:", image])` is an array, and every element of an array
+is one type. `User!["Describe this:", image]` converts each expression on its own, so it can. The
+macros stay thin — each expands to the function beside it, so nothing this crate decides lives
+inside one.
+
+`items!` is the same idea one level up, for the conversation rather than the turn: a run mixing a
+turn, a reply and a string needs each element converted — the same reason `call!` and `input!`
+exist.
 
 Two doors, one request. A signature renders to messages and enters through
 `LmRequest::from_messages`; a direct call enters through `LmRequest::from_items`. Below that they are

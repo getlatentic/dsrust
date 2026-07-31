@@ -8,6 +8,37 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# How long any one step may take before it is killed and the gate fails.
+#
+# A gate that waits forever is not a gate. A wedged `cargo test` once sat for fifteen hours on a
+# test whose loopback stub never answered — it held a slot, said nothing, and the only reason
+# anyone noticed was an unrelated look at the process table. A hang has to read as a failure.
+CAP=${DSRS_GATE_TIMEOUT:-1800}
+
+#: Run a command under `CAP` seconds, killing its whole process group on expiry.
+#:
+#: The group matters: `cargo test` spawns the test binary as a child, and TERM to cargo alone
+#: leaves the binary running — which is exactly the shape the fifteen-hour process had.
+bounded() {
+  set -m
+  "$@" &
+  local job=$!
+  ( sleep "$CAP"
+    if kill -0 "$job" 2>/dev/null; then
+      echo "  TIMED OUT after ${CAP}s — killing; raise DSRS_GATE_TIMEOUT if this is legitimate" >&2
+      kill -TERM -"$job" 2>/dev/null || kill -TERM "$job" 2>/dev/null
+      sleep 10
+      kill -KILL -"$job" 2>/dev/null || kill -KILL "$job" 2>/dev/null
+    fi ) &
+  local watchdog=$!
+  local status=0
+  wait "$job" || status=$?
+  kill "$watchdog" 2>/dev/null || true
+  wait "$watchdog" 2>/dev/null || true
+  set +m
+  return "$status"
+}
 cd "$ROOT"
 mkdir -p target
 
@@ -15,9 +46,12 @@ echo "==> cargo test --workspace"
 # Teed rather than piped, so this script exits with the run's own status and not the tee's. The
 # recorder reads the copy, and writes nothing when the run was not green.
 set +e
-cargo test --workspace 2>&1 | tee target/last-cargo-test.txt
-STATUS=${PIPESTATUS[0]}
+# Bounded, and written to the file rather than teed: `bounded` backgrounds its command, so a
+# pipeline would put the watchdog on the wrong end of it. The transcript is echoed afterwards.
+bounded cargo test --workspace > target/last-cargo-test.txt 2>&1
+STATUS=$?
 set -e
+cat target/last-cargo-test.txt
 python3 scripts/record_rust_tests.py < target/last-cargo-test.txt
 [ "$STATUS" -eq 0 ] || exit "$STATUS"
 

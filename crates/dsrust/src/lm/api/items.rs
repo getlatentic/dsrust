@@ -81,6 +81,65 @@ macro_rules! items {
     };
 }
 
+/// dspy `dspy.User(*parts)`: one user turn from parts written positionally.
+///
+/// The function [`User`](crate::User) takes an iterable, because that is what a Rust function can
+/// take. Upstream's takes `*parts`, and the difference shows the moment the parts differ in type:
+/// `["Describe this:", image]` is an array, and an array holds one type. The macro converts each
+/// expression on its own, so a string and an [`Image`](crate::Image) sit side by side the way they
+/// do in `dspy.User("Describe this:", image)`.
+///
+/// Thin on purpose — it expands to the same [`User`](crate::User) the typed API offers, so nothing
+/// this crate decides lives inside a macro.
+///
+/// ```no_run
+/// # use dsrust::{Assistant, ChatModel, LM, System, User, items};
+/// # async fn ask(lm: LM) -> anyhow::Result<()> {
+/// # let image = dsrust::lm::api::LmPart::image_url("https://example.com/cat.png");
+/// lm.call(items![
+///     System!["You are terse."],
+///     User!["Describe this:", image],
+///     Assistant!["A cat."],
+/// ])
+/// .await?;
+/// # Ok(())
+/// # }
+/// ```
+#[macro_export]
+#[allow(non_snake_case)]
+macro_rules! User {
+    ($($part:expr),* $(,)?) => {
+        $crate::User([$($crate::lm::api::LmPart::from($part)),*])
+    };
+}
+
+/// dspy `dspy.Assistant(*parts)`: a turn the model took, replayed. See [`User!`](crate::User!).
+#[macro_export]
+#[allow(non_snake_case)]
+macro_rules! Assistant {
+    ($($part:expr),* $(,)?) => {
+        $crate::Assistant([$($crate::lm::api::LmPart::from($part)),*])
+    };
+}
+
+/// dspy `dspy.System(*parts)`: the instruction before the conversation. See [`User!`](crate::User!).
+#[macro_export]
+#[allow(non_snake_case)]
+macro_rules! System {
+    ($($part:expr),* $(,)?) => {
+        $crate::System([$($crate::lm::api::LmPart::from($part)),*])
+    };
+}
+
+/// dspy `dspy.Developer(*parts)`: the o1 family's system role. See [`User!`](crate::User!).
+#[macro_export]
+#[allow(non_snake_case)]
+macro_rules! Developer {
+    ($($part:expr),* $(,)?) => {
+        $crate::Developer([$($crate::lm::api::LmPart::from($part)),*])
+    };
+}
+
 /// dspy `_messages_from_items`: what a run of direct-call arguments means.
 ///
 /// Three branches, upstream's own:
@@ -259,5 +318,47 @@ mod tests {
         .expect("all parts");
         assert_eq!(multimodal.len(), 1);
         assert_eq!(multimodal[0].parts.len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod macros {
+    //! The variadic spelling, which exists because an array holds one type and a turn's parts
+    //! need not. Upstream writes `dspy.User("Describe this:", image)`; the function form here
+    //! cannot take that, and the macro can.
+
+    use crate::lm::api::LmPart;
+    use crate::{Assistant, System, User, items};
+
+    /// Parts of different types in one turn — the case the function form cannot express, because
+    /// `["Describe this:", LmPart::image_url(…)]` would need `&str` and `LmPart` to be one type.
+    /// The macro converts each expression on its own, so they need not be.
+    #[test]
+    fn parts_of_different_types_sit_in_one_turn() {
+        let turn = User![
+            "Describe this:",
+            LmPart::image_url("https://example.com/cat.png")
+        ];
+        assert_eq!(turn.role, "user");
+        assert_eq!(turn.parts.len(), 2);
+        assert_eq!(turn.parts[0], LmPart::text("Describe this:"));
+    }
+
+    /// The macro is the function: same role, same parts, so nothing this crate decides lives
+    /// inside a macro.
+    #[test]
+    fn the_macro_is_the_function() {
+        assert_eq!(User!["a"], User([LmPart::text("a")]));
+        assert_eq!(Assistant!["b"], Assistant([LmPart::text("b")]));
+        assert_eq!(System!["c"], System([LmPart::text("c")]));
+    }
+
+    /// A whole conversation reads the way upstream's does, nested rather than flattened.
+    #[test]
+    fn a_conversation_nests_the_way_dspy_writes_one() {
+        let conversation = items![System!["terse"], User!["hello"], Assistant!["hi"]];
+        let messages = super::messages_from_items(conversation).expect("all turns");
+        let roles: Vec<&str> = messages.iter().map(|m| m.role.as_str()).collect();
+        assert_eq!(roles, ["system", "user", "assistant"]);
     }
 }

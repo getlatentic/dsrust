@@ -11,6 +11,29 @@ WORK="$ROOT/target/upstream-tests"
 # The pinned harness environment, built by `uv sync` from pyproject.toml.
 VENV="$ROOT/.venv"
 
+# As `run_rust_gates.sh`: a step that hangs must read as a failure rather than as silence. This run
+# is ~8 minutes; the cap is generous and overridable.
+CAP=${DSRS_GATE_TIMEOUT:-2400}
+bounded() {
+  set -m
+  "$@" &
+  local job=$!
+  ( sleep "$CAP"
+    if kill -0 "$job" 2>/dev/null; then
+      echo "  TIMED OUT after ${CAP}s — killing; raise DSRS_GATE_TIMEOUT if legitimate" >&2
+      kill -TERM -"$job" 2>/dev/null || kill -TERM "$job" 2>/dev/null
+      sleep 10
+      kill -KILL -"$job" 2>/dev/null || kill -KILL "$job" 2>/dev/null
+    fi ) &
+  local watchdog=$!
+  local status=0
+  wait "$job" || status=$?
+  kill "$watchdog" 2>/dev/null || true
+  wait "$watchdog" 2>/dev/null || true
+  set +m
+  return "$status"
+}
+
 [ -x "$VENV/bin/python" ] || { echo "run: uv sync   (builds .venv from pyproject.toml)" >&2; exit 1; }
 
 echo "==> Building and installing the Rust bridge"
@@ -135,10 +158,14 @@ cd "$WORK"
 # Teed rather than piped, so the run's own exit status is what this script exits with — a `| tee`
 # would report the tee's. The recorder reads the copy and leaves `[status]` alone on a red run.
 set +e
-PYTHONPATH="$WORK:$SRC" "$VENV/bin/python" -m pytest $(for f in "${SUITES[@]}"; do echo "upstream_$(basename "$f")"; done) \
-  "$@" 2>&1 | tee "$WORK/last-run.txt"
-STATUS=${PIPESTATUS[0]}
+# Written to the file rather than teed, because `bounded` backgrounds its command and a pipeline
+# would put the watchdog on the wrong end. The transcript is echoed afterwards.
+PYTHONPATH="$WORK:$SRC" bounded "$VENV/bin/python" -m pytest \
+  $(for f in "${SUITES[@]}"; do echo "upstream_$(basename "$f")"; done) \
+  "$@" > "$WORK/last-run.txt" 2>&1
+STATUS=$?
 set -e
+cat "$WORK/last-run.txt"
 # backlog.toml's [status] block was hand-written and stale. It is generated from the run now, so a
 # number in the plan cannot part company with the evidence for it.
 python3 "$ROOT/scripts/record_status.py" --suites "${#SUITES[@]}" --status "$STATUS" < "$WORK/last-run.txt"
