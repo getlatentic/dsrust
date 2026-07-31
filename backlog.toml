@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1052
+rust_tests = 1057
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -321,7 +321,8 @@ from divergence to mapped.
 id = "transcribed-constants"
 sprint = "api"
 title = "The prose that reaches a prompt is byte-pinned; the tables beside it are transcribed"
-state = "todo"
+state = "done"
+shipped = "2026-07-31"
 size = "S"
 suites = []
 plan = """
@@ -347,6 +348,42 @@ The work is small and mostly mechanical: a fixture case that *renders* the incom
 incomplete history message, and a generated table for each of the other three, compared as
 `the_proposers_tips_are_dspys` now compares TIPS. Every one should be mutation-checked — the point
 is a test that goes red when upstream rewords, not a second copy of the same transcription.
+"""
+outcome = """
+Done, and it was not only a coverage gap: one of the four constants was **wrong in shipped code**.
+
+`adapter/history.rs` rendered a field a past exchange never recorded as "Not supplied for this
+conversation history message. ". dspy renders `None`. That string does exist in `adapters/base.py`,
+which is how it got here — at exactly one site, `format_demos`'s *complete* branch, where by
+construction no field is missing, so nothing renders it. `format_conversation_history` passes no
+`missing_field_message` at all, so `outputs.get(name, None)` substitutes Python's `None` and formats
+it, which comes out as four letters whatever the field is annotated (measured across `str`,
+`list[str]` and `int`). Every replayed conversation with an incomplete exchange had been going to
+the model with a sentence in it.
+
+Nothing caught it because no fixture rendered a history at all — the unit test beside the code was a
+hand-written expectation of the wrong bytes, which is the failure mode this story was filed about,
+one layer down.
+
+Now held by goldens generated from their own oracles:
+
+  - `tests/conformance/history/conversation_history.json` — a history with an exchange missing one
+    output, one missing three of different annotations, and a complete one, plus an incomplete demo
+    beside it so both substitutions are pinned and cannot drift back together.
+  - `tests/conformance/constants/tables.json` — the refused variable names (CPython's own
+    `keyword.kwlist` plus dspy's `"json"`, since upstream asks `keyword.iskeyword` rather than
+    holding a list) and the four request-id headers, read out of `_exception_request_id`'s AST.
+
+Each mutation-checked: changing a tip, a keyword, a header's order or the history constant turns the
+relevant test red.
+
+`adapter/native_tools.rs`'s `TOOL_ANNOTATIONS` was dropped from scope on reading: dspy compares
+annotations structurally (`origin is list and args[0] == Tool`), so those two strings are this
+crate's own spelling of a type test and there is no upstream string to pin them against.
+
+The static keyword list is a divergence left standing deliberately: dspy's predicate picks up a
+keyword a later CPython adds and the list does not. The golden records the interpreter version it
+was generated under, so it surfaces as a diff here rather than as a sandbox syntax error later.
 """
 
 [[story]]

@@ -1,0 +1,91 @@
+{
+  "source": "generated from dspy==3.3.0b1 via scripts/generate_history_fixture.py",
+  "dspy_version": "3.3.0b1",
+  "note": "A history exchange substitutes Python's None for a field it never recorded, whatever the annotation. An incomplete demo substitutes 'Not supplied for this particular example. '. They are different strings from different call sites and the crate had them confused.",
+  "history": {
+    "exchanges": [
+      {
+        "question": "capital of Germany?",
+        "answer": "Berlin"
+      },
+      {
+        "question": "capital of Spain?",
+        "answer": "Madrid",
+        "tags": [
+          "geo"
+        ],
+        "score": 9
+      },
+      {
+        "question": "capital of Peru?"
+      }
+    ],
+    "system": "Your input fields are:\n1. `question` (str): \n2. `history` (History):\nYour output fields are:\n1. `answer` (str): \n2. `tags` (list[str]): \n3. `score` (int):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## history ## ]]\n{history}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## tags ## ]]\n{tags}        # note: the value you produce must adhere to the JSON schema: {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n\n[[ ## score ## ]]\n{score}        # note: the value you produce must be a single int value\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer the question.",
+    "turns": [
+      {
+        "role": "user",
+        "content": "[[ ## question ## ]]\ncapital of Germany?"
+      },
+      {
+        "role": "assistant",
+        "content": "[[ ## answer ## ]]\nBerlin\n\n[[ ## tags ## ]]\nNone\n\n[[ ## score ## ]]\nNone\n\n[[ ## completed ## ]]\n"
+      },
+      {
+        "role": "user",
+        "content": "[[ ## question ## ]]\ncapital of Spain?"
+      },
+      {
+        "role": "assistant",
+        "content": "[[ ## answer ## ]]\nMadrid\n\n[[ ## tags ## ]]\n[\"geo\"]\n\n[[ ## score ## ]]\n9\n\n[[ ## completed ## ]]\n"
+      },
+      {
+        "role": "user",
+        "content": "[[ ## question ## ]]\ncapital of Peru?"
+      },
+      {
+        "role": "assistant",
+        "content": "[[ ## answer ## ]]\nNone\n\n[[ ## tags ## ]]\nNone\n\n[[ ## score ## ]]\nNone\n\n[[ ## completed ## ]]\n"
+      },
+      {
+        "role": "user",
+        "content": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, then `[[ ## tags ## ]]` (must be formatted as a valid Python list[str]), then `[[ ## score ## ]]` (must be formatted as a valid Python int), and then ending with the marker for `[[ ## completed ## ]]`."
+      }
+    ]
+  },
+  "demos": {
+    "examples": [
+      {
+        "question": "capital of Italy?",
+        "answer": "Rome"
+      },
+      {
+        "question": "capital of Japan?",
+        "answer": "Tokyo",
+        "confidence": "high"
+      }
+    ],
+    "system": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `answer` (str): \n2. `confidence` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## confidence ## ]]\n{confidence}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Answer the question.",
+    "turns": [
+      {
+        "role": "user",
+        "content": "This is an example of the task, though some input or output fields are not supplied.\n\n[[ ## question ## ]]\ncapital of Italy?"
+      },
+      {
+        "role": "assistant",
+        "content": "[[ ## answer ## ]]\nRome\n\n[[ ## confidence ## ]]\nNot supplied for this particular example.\n\n[[ ## completed ## ]]\n"
+      },
+      {
+        "role": "user",
+        "content": "[[ ## question ## ]]\ncapital of Japan?"
+      },
+      {
+        "role": "assistant",
+        "content": "[[ ## answer ## ]]\nTokyo\n\n[[ ## confidence ## ]]\nhigh\n\n[[ ## completed ## ]]\n"
+      },
+      {
+        "role": "user",
+        "content": "[[ ## question ## ]]\ncapital of France?\n\nRespond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, then `[[ ## confidence ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+      }
+    ]
+  }
+}

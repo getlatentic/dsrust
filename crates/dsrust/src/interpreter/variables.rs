@@ -119,6 +119,35 @@ pub(super) fn prepared(code: &str, variables: &Map<String, Value>) -> Result<Pre
 
 #[cfg(test)]
 mod tests {
+    /// The committed table, generated from CPython and dspy by
+    /// `scripts/generate_constants_fixture.py`.
+    fn tables() -> serde_json::Value {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/conformance/constants/tables.json");
+        let text = std::fs::read_to_string(&path).expect("the constants golden is committed");
+        serde_json::from_str(&text).expect("the golden parses")
+    }
+
+    /// dspy holds no list: it asks `keyword.iskeyword(name) or name == "json"`. The crate holds
+    /// one, so the two agree exactly as long as the list is CPython's — compared as a set, since
+    /// membership is all that is observable and the order here is the crate's own.
+    ///
+    /// A keyword a later CPython adds would reach upstream's predicate and not this list. The
+    /// golden records the interpreter it was generated under so that surfaces as a diff here
+    /// rather than as a syntax error inside the sandbox much later.
+    #[test]
+    fn the_refused_names_are_pythons_keywords_and_dspys_json() {
+        let tables = tables();
+        let recorded: std::collections::BTreeSet<&str> = tables["refused_variable_names"]
+            .as_array()
+            .expect("refused names")
+            .iter()
+            .map(|name| name.as_str().expect("a name"))
+            .collect();
+        let ours: std::collections::BTreeSet<&str> = RESERVED.iter().copied().collect();
+        assert_eq!(ours, recorded);
+    }
+
     use super::*;
     use serde_json::json;
 

@@ -19,9 +19,15 @@ use super::types::ToolCalls;
 /// The annotation dspy prints for a history field, and so the name this crate recognises it by.
 const ANNOTATION: &str = "History";
 
-/// dspy's `missing_field_message` for history, standing in for a field an exchange never had.
-/// The trailing space is upstream's, and survives because the block is stripped as a whole.
-const NOT_SUPPLIED: &str = "Not supplied for this conversation history message. ";
+/// What a field the exchange never recorded renders as.
+///
+/// dspy passes *no* `missing_field_message` when it replays history, so
+/// `outputs.get(name, missing_field_message)` substitutes Python's `None` and formats that — which
+/// comes out as the four letters `None` whatever the field is annotated, measured across `str`,
+/// `list[str]` and `int`. The string upstream names "Not supplied for this conversation history
+/// message. " is reachable only from `format_demos`'s *complete* branch, where by construction no
+/// field is missing, so nothing renders it and this is not it.
+const UNRECORDED: &str = "None";
 
 /// dspy renders a round of tool results through a one-field signature named for them, so the
 /// section a replayed conversation carries is this.
@@ -107,7 +113,7 @@ fn replay(stripped: &Signature, exchange: &Example, style: Style, native: bool) 
     }
     push_non_empty(
         &mut turns,
-        (style.answer)(stripped, &stated, Some(NOT_SUPPLIED)),
+        (style.answer)(stripped, &stated, Some(UNRECORDED)),
     );
 
     if let Some((_, results)) = answered {
@@ -324,7 +330,7 @@ mod tests {
     }
 
     #[test]
-    fn an_exchange_missing_an_output_says_so_rather_than_going_blank() {
+    fn an_exchange_missing_an_output_renders_pythons_none() {
         let stripped = signature().delete("history");
         let turns = turns(
             &stripped,
@@ -334,7 +340,7 @@ mod tests {
         );
         assert_eq!(
             turns[1].content.text().unwrap(),
-            "[[ ## answer ## ]]\nNot supplied for this conversation history message.\n\n[[ ## completed ## ]]\n"
+            "[[ ## answer ## ]]\nNone\n\n[[ ## completed ## ]]\n"
         );
     }
 

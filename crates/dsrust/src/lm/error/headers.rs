@@ -41,6 +41,30 @@ fn header<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {
 
 #[cfg(test)]
 mod tests {
+    /// The committed table, generated from CPython and dspy by
+    /// `scripts/generate_constants_fixture.py`.
+    fn tables() -> serde_json::Value {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/conformance/constants/tables.json");
+        let text = std::fs::read_to_string(&path).expect("the constants golden is committed");
+        serde_json::from_str(&text).expect("the golden parses")
+    }
+
+    /// dspy tries the four in order and takes the first present, so the order decides which id a
+    /// caller is shown when a provider sends more than one. Read out of `_exception_request_id`'s
+    /// own AST rather than copied.
+    #[test]
+    fn the_request_id_headers_are_dspys_in_dspys_order() {
+        let tables = tables();
+        let recorded: Vec<&str> = tables["request_id_headers"]
+            .as_array()
+            .expect("headers")
+            .iter()
+            .map(|name| name.as_str().expect("a header"))
+            .collect();
+        assert_eq!(REQUEST_ID_HEADERS.as_slice(), recorded.as_slice());
+    }
+
     use super::*;
 
     fn with(pairs: &[(&str, &str)]) -> HeaderMap {
