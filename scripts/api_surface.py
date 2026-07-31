@@ -145,6 +145,41 @@ def _constructor_params(cls: ast.ClassDef) -> list[str]:
     return []
 
 
+def _method_params(cls: ast.ClassDef) -> dict[str, list[str]]:
+    """What each public method takes, by name — the table `_methods` does not fill.
+
+    `_constructor_params` exists because a method list says `__init__` is there and not what it
+    accepts. Every other method has the same hole, and for the teleprompters it is the larger one:
+    `MIPROv2.compile` carries eighteen arguments, as much configuration as its constructor. A
+    parameter that quietly has no Rust equivalent is a gap; one whose Rust spelling differs is a
+    divergence; either way it is invisible to a gate that only checks the method exists.
+
+    `__init__` is excluded — it has its own table, and listing it twice would double-count.
+    `self` and `cls` are the receiver, not API.
+    """
+    out: dict[str, list[str]] = {}
+    for stmt in cls.body:
+        if not isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if stmt.name == "__init__" or not (_public(stmt.name) or stmt.name in API_DUNDERS):
+            continue
+        out[stmt.name] = _parameters(stmt)
+    return {name: params for name, params in out.items() if params}
+
+
+def _parameters(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+    """A callable's public parameter names, sorted. `*args`/`**kwargs` count under their own names:
+    `**kwargs` is how dspy carries a whole configuration surface, so dropping it would hide the
+    thing most worth tracking."""
+    args = fn.args
+    named = [a.arg for a in args.posonlyargs + args.args + args.kwonlyargs]
+    if args.vararg is not None:
+        named.append(args.vararg.arg)
+    if args.kwarg is not None:
+        named.append(args.kwarg.arg)
+    return sorted(name for name in named if name not in ("self", "cls") and _public(name))
+
+
 def _toplevel(node: ast.Module):
     """Top-level statements, descending one level into conditional blocks that guard defs."""
     for stmt in node.body:
@@ -164,6 +199,8 @@ def surface_of_source(source: str, where: str = "<pinned>") -> dict:
     declared = _literal_all(tree)
     classes: dict[str, list[str]] = {}
     constructors: dict[str, list[str]] = {}
+    method_params: dict[str, dict[str, list[str]]] = {}
+    function_params: dict[str, list[str]] = {}
     functions: list[str] = []
     for stmt in _toplevel(tree):
         if isinstance(stmt, ast.ClassDef) and _public(stmt.name):
@@ -171,8 +208,14 @@ def surface_of_source(source: str, where: str = "<pinned>") -> dict:
             params = _constructor_params(stmt)
             if params:
                 constructors[stmt.name] = params
+            taken = _method_params(stmt)
+            if taken:
+                method_params[stmt.name] = taken
         elif isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and _public(stmt.name):
             functions.append(stmt.name)
+            taken = _parameters(stmt)
+            if taken:
+                function_params[stmt.name] = taken
         elif declared is not None:
             # A name bound to a type rather than defined as one: `LMPart = Annotated[Union[...]]`,
             # `ToolCall = LMToolCallPart`. Walking only classes and functions missed both, and both
@@ -191,10 +234,16 @@ def surface_of_source(source: str, where: str = "<pinned>") -> dict:
         allow = set(declared)
         classes = {k: v for k, v in classes.items() if k in allow}
         functions = [f for f in functions if f in allow]
+        method_params = {k: v for k, v in method_params.items() if k in allow}
+        function_params = {k: v for k, v in function_params.items() if k in allow}
     return {
         "declares_all": declared is not None,
         "classes": classes,
         "constructors": {name: params for name, params in constructors.items() if name in classes},
+        "method_params": {name: taken for name, taken in method_params.items() if name in classes},
+        "function_params": {
+            name: taken for name, taken in function_params.items() if name in functions
+        },
         "functions": sorted(functions),
     }
 

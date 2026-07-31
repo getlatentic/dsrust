@@ -110,12 +110,56 @@ def constructor_keys(surface: dict, ledger: dict) -> set[str]:
     return keys
 
 
+def parameter_keys(surface: dict, ledger: dict, methods: dict) -> set[str]:
+    """Every parameter each mapped method and mapped free function accepts.
+
+    The `constructors` table opened this and stopped one method short. `__init__` is not the only
+    callable whose parameters are API: `MIPROv2.compile` takes eighteen arguments, as much
+    configuration as its constructor, and a gate that checks only that a method named `compile`
+    exists sees none of them. Gated on the owner being mapped, for the reason the other tables are —
+    an unported method's parameters are the method's own gap, counted once.
+    """
+    keys = set()
+    for module, api in surface.items():
+        for cls, taken in api.get("method_params", {}).items():
+            if ledger.get(f"{module}::{cls}", {}).get("status") != "mapped":
+                continue
+            for method, params in taken.items():
+                if methods.get(f"{module}::{cls}.{method}", {}).get("status") != "mapped":
+                    continue
+                keys.update(f"{module}::{cls}.{method}.{name}" for name in params)
+        for fn, params in api.get("function_params", {}).items():
+            if ledger.get(f"{module}::{fn}", {}).get("status") != "mapped":
+                continue
+            keys.update(f"{module}::{fn}.{name}" for name in params)
+    return keys
+
+
+def report(label: str, defined: set[str], entries: dict) -> None:
+    """One table's tally, in the shape every table reports."""
+    tally = {"mapped": 0, "divergence": 0, "deferred": 0, "todo": 0}
+    for key in defined:
+        entry = entries.get(key)
+        if entry:
+            tally[entry["status"]] = tally.get(entry["status"], 0) + 1
+    total = len(defined)
+    resolved = tally["mapped"] + tally["divergence"] + tally["deferred"]
+    print(f"{label}: {total}")
+    print(f"  mapped     : {tally['mapped']}")
+    print(f"  divergence : {tally['divergence']}")
+    print(f"  deferred   : {tally['deferred']} (out of 1.0 scope)")
+    print(f"  todo       : {tally['todo']} (1.0 backlog)")
+    if total:
+        print(f"  resolved   : {resolved}/{total} ({100 * resolved // total}%)")
+
+
 def main() -> None:
     surface = full_surface()
     ledger_file = tomllib.loads(LEDGER.read_text())
     ledger = ledger_file["symbols"]
     methods = ledger_file["methods"]
     constructors = ledger_file["constructors"]
+    parameters = ledger_file["parameters"]
     defined = top_level_keys(surface)
     source = rust_source()
 
@@ -123,21 +167,24 @@ def main() -> None:
     # so a method that quietly went missing fails the run exactly as a symbol does.
     defined_methods = method_keys(surface, ledger)
     defined_params = constructor_keys(surface, ledger)
-    entries = {**ledger, **methods, **constructors}
+    defined_arguments = parameter_keys(surface, ledger, methods)
+    entries = {**ledger, **methods, **constructors, **parameters}
     unclassified = (
         sorted(defined - set(ledger))
         + sorted(defined_methods - set(methods))
         + sorted(defined_params - set(constructors))
+        + sorted(defined_arguments - set(parameters))
     )
     stale = (
         sorted(set(ledger) - defined)
         + sorted(set(methods) - defined_methods)
         + sorted(set(constructors) - defined_params)
+        + sorted(set(parameters) - defined_arguments)
     )
     broken = sorted(
         key
         for key, entry in entries.items()
-        if key in defined | defined_methods | defined_params
+        if key in defined | defined_methods | defined_params | defined_arguments
         and entry.get("status") == "mapped"
         and not is_defined(entry["rust"], source)
     )
@@ -153,54 +200,10 @@ def main() -> None:
         failures.append(f"{len(broken)} mapped entr(ies) whose Rust identifier is undefined:")
         failures += [f"    ? {k} -> {entries[k]['rust']}" for k in broken]
 
-    counts = {"mapped": 0, "divergence": 0, "deferred": 0, "todo": 0}
-    for key in defined:
-        entry = ledger.get(key)
-        if entry:
-            counts[entry["status"]] = counts.get(entry["status"], 0) + 1
-    method_counts = {"mapped": 0, "divergence": 0, "deferred": 0, "todo": 0}
-    for key in defined_methods:
-        entry = methods.get(key)
-        if entry:
-            method_counts[entry["status"]] = method_counts.get(entry["status"], 0) + 1
-    total = len(defined)
-    resolved = counts["mapped"] + counts["divergence"] + counts["deferred"]
-
-    print(f"API surface (top-level, {len(PORTED_MODULES)} ported modules): {total} symbols")
-    print(f"  mapped     : {counts['mapped']}")
-    print(f"  divergence : {counts['divergence']}")
-    print(f"  deferred   : {counts['deferred']} (out of 1.0 scope)")
-    print(f"  todo       : {counts['todo']} (1.0 backlog)")
-    if total:
-        print(f"  resolved   : {resolved}/{total} ({100 * resolved // total}%)")
-
-    method_total = len(defined_methods)
-    method_resolved = method_counts["mapped"] + method_counts["divergence"] + method_counts["deferred"]
-    print(f"methods of mapped classes: {method_total}")
-    print(f"  mapped     : {method_counts['mapped']}")
-    print(f"  divergence : {method_counts['divergence']}")
-    print(f"  deferred   : {method_counts['deferred']} (out of 1.0 scope)")
-    print(f"  todo       : {method_counts['todo']} (1.0 backlog)")
-    if method_total:
-        print(f"  resolved   : {method_resolved}/{method_total} ({100 * method_resolved // method_total}%)")
-
-    param_counts = {"mapped": 0, "divergence": 0, "deferred": 0, "todo": 0}
-    for key in defined_params:
-        entry = constructors.get(key)
-        if entry:
-            param_counts[entry["status"]] = param_counts.get(entry["status"], 0) + 1
-    param_total = len(defined_params)
-    param_resolved = (
-        param_counts["mapped"] + param_counts["divergence"] + param_counts["deferred"]
-    )
-    print(f"constructor parameters of mapped classes: {param_total}")
-    print(f"  mapped     : {param_counts['mapped']}")
-    print(f"  divergence : {param_counts['divergence']}")
-    print(f"  deferred   : {param_counts['deferred']} (out of 1.0 scope)")
-    print(f"  todo       : {param_counts['todo']} (1.0 backlog)")
-    if param_total:
-        share = 100 * param_resolved // param_total
-        print(f"  resolved   : {param_resolved}/{param_total} ({share}%)")
+    report(f"API surface (top-level, {len(PORTED_MODULES)} ported modules)", defined, ledger)
+    report("methods of mapped classes", defined_methods, methods)
+    report("constructor parameters of mapped classes", defined_params, constructors)
+    report("parameters of mapped methods and functions", defined_arguments, parameters)
 
     todos = sorted(k for k in defined if ledger.get(k, {}).get("status") == "todo")
     todos += sorted(k for k in defined_methods if methods.get(k, {}).get("status") == "todo")
@@ -216,8 +219,8 @@ def main() -> None:
             print(f"  {line}")
         sys.exit(1)
     print(
-        "\nAPI-surface gate: OK (every dspy symbol, method and constructor parameter mapped, "
-        "justified, or tracked)"
+        "\nAPI-surface gate: OK (every dspy symbol, method, constructor parameter and method "
+        "parameter mapped, justified, or tracked)"
     )
 
 

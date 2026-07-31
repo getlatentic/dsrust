@@ -387,10 +387,95 @@ was generated under, so it surfaces as a diff here rather than as a sandbox synt
 """
 
 [[story]]
+id = "mipro-remaining-proposers"
+sprint = "api"
+title = "Two of MIPROv2's four proposer switches are not wired"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+`compile` takes four `*_aware_proposer` flags. `tip_aware_proposer` and `program_aware_proposer` are
+built; the other two are not, and until the parameter table landed nothing recorded that.
+
+  - `data_aware_proposer` with `view_data_batch_size` — dspy shows the proposer a summary of the
+    trainset, written by a model reading `view_data_batch_size` examples at a time
+    (`DatasetDescriptor` / `DatasetDescriptorWithPriorObservations` in `propose/dataset_summary_generator.py`).
+    That is two more signatures to byte-verify and a loop whose model calls draw off the shared RNG,
+    so turning it on moves every later draw — it cannot be added as a prompt tweak.
+  - `fewshot_aware_proposer` — shows the proposer the demo sets Step 1 bootstrapped, so an
+    instruction can be written to suit the examples it will sit beside.
+
+A run today matches dspy with both set to False, which is what the module doc says. The work is the
+two signatures, their fixtures, and the RNG order around them.
+"""
+
+[[story]]
+id = "optimizer-valset"
+sprint = "api"
+title = "The Optimizer trait takes no valset, and two optimizers need one"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+`Teleprompter.compile` takes `valset`; the Rust trait takes student, teacher and trainset. GEPA and
+MIPROv2 both have one on their own inherent `compile` — GEPA requires it, MIPROv2 splits the
+trainset 20/80 when it is not given — so the trait is the odd one out, and an optimizer reached
+through `dyn Optimizer` cannot be given a validation set at all.
+
+Widening it is a breaking change to a published trait, which is why it was left when MIPROv2 landed
+and is why it wants doing before 1.0 rather than after. `Option<&[Example]>` matches upstream's
+`valset=None` and keeps the split behaviour, which `_set_and_validate_datasets` already implements.
+
+Noted in s6's own notes when the trait was designed; the parameter table is what turned it from a
+note into three tracked entries.
+"""
+
+[[story]]
+id = "random-search-remaining-args"
+sprint = "api"
+title = "BootstrapFewShotWithRandomSearch drops two of its compile arguments"
+state = "todo"
+size = "S"
+suites = []
+plan = """
+`labeled_sample` and `restrict` have no Rust equivalent.
+
+`labeled_sample` decides whether the labelled-only candidate draws its demos at random or takes the
+first n — it is `LabeledFewShot`'s `sample`, which this optimizer builds internally and hardwires.
+`restrict` narrows which candidate seeds are tried, so a caller can resume a search or run a subset
+rather than all of them.
+
+Both are small. They are here because the parameter gate caught the ledger claiming a Rust name that
+does not exist — the entries said `mapped` and named `labeled_sample`, and `is_defined` refused it.
+That is the gate working on its first run.
+"""
+
+[[story]]
+id = "trusted-lm-state"
+sprint = "api"
+title = "A saved program can carry its model's state, and restoring it is a trust decision"
+state = "todo"
+size = "S"
+suites = []
+plan = """
+dspy 3.3 added `Predict.load_state(state, allow_unsafe_lm_state=False)`: a saved program may carry
+the LM's own state, and restoring it from a file you did not write is a trust decision, so upstream
+refuses unless the caller says otherwise.
+
+The crate saves instructions and demos and never the model, so there is nothing yet to gate — which
+is why this reads as a gap in `load_state` rather than a missing flag. It becomes real the moment a
+saved program carries anything the loader would act on, and it should land *with* that rather than
+after: a flag added later defaults the wrong way for everyone who already has files.
+
+Reached through the parameter table, which is the first thing to have counted it.
+"""
+
+[[story]]
 id = "method-parameter-gate"
 sprint = "api"
 title = "The surface gate compares three tables, and a method's parameters is not one of them"
-state = "todo"
+state = "done"
+shipped = "2026-07-31"
 size = "M"
 suites = []
 plan = """
@@ -421,6 +506,38 @@ say which — the same judgement `constructors` already makes.
 
 Expect a large first backlog. That is the finding, not an objection to it: `constructors` found
 fourteen gaps when it landed and every one was real.
+"""
+outcome = """
+The fourth table is live: `[parameters]` in the ledger, keyed `module::Owner.method.param`, gated on
+the owner already being mapped. 247 parameters of mapped methods and free functions — 162 mapped,
+76 divergences, 9 todos.
+
+It found things on its first run, which is the argument for it:
+
+  - **`tip_aware_proposer` had a field and no setter.** MIPROv2 has carried the switch since it
+    landed and no caller could reach it. Fixed while writing the entry.
+  - **Two of `BootstrapFewShotWithRandomSearch.compile`'s arguments do not exist here** —
+    `labeled_sample` and `restrict`. The entries went in as `mapped`, naming Rust identifiers that
+    were not defined, and `is_defined` refused them. The gate caught its own author, which is the
+    check the other three tables have always had and is why it is worth having here.
+  - **Ten entries in all** named a Rust identifier that did not exist — the other eight were real
+    methods under different names (`from_id`, `mcp_tool`, `truncate_oldest`, `from_candidates`,
+    `split_custom_types`), which the method table already knew and the parameter entries had guessed
+    at.
+  - Four more gaps went into their own stories: `mipro-remaining-proposers`, `optimizer-valset`,
+    `random-search-remaining-args`, `trusted-lm-state`.
+
+The four counting blocks in `check_api_surface.py` were near-identical before a fifth was added, so
+they collapsed into one `report(label, defined, entries)` — the file grew by one table and shrank by
+three copies of the same tally.
+
+The 76 divergences are the interesting half rather than a residue. They are almost all one of four
+shapes, and writing them down made the pattern visible: a Python `**kwargs` becoming a typed config
+(`LmConfig`, `Sampling`, `FieldEdit`), several loose arguments becoming one value that cannot
+disagree with itself (`Side` carrying name and type, `Result` carrying outputs-or-exception), a
+parameter that is a Python type name rather than a fact (`answers_list`, `citations_dicts`,
+`prediction_or_completions`), and a default argument becoming a second function because Rust has no
+defaults (`answer_exact_match` / `answer_match`).
 """
 
 [[story]]
