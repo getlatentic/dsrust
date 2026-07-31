@@ -12,13 +12,21 @@
 //! will be skipped, and a point split into two calls is a point someone adds half of.
 //!
 //! Nothing is serialized unless something is listening. `tracing`'s macros check subscriber interest
-//! before evaluating a field, [`Watch`] records nothing on a disabled span, and the callback list is
-//! checked for emptiness before a handler's arguments are built.
+//! before evaluating a field, [`Watch`] records nothing on a disabled span, the callback list is
+//! checked for emptiness before a handler's arguments are built, and an unwatched call carries no
+//! parent linkage — upstream's own `if not callbacks: return fn(...)`.
 //!
 //! **All six points exist**: module, lm, tool, adapter format, adapter parse and evaluate.
 //! `tests/observe.rs` and `tests/callback.rs` are what say so, and they can only see what a run
 //! actually produced — the ledger entry this replaced claimed these points existed while the tree
 //! had none.
+//!
+//! Six is upstream's count read off its `@with_callbacks` sites rather than off its handler names:
+//! `BaseLM.__call__`/`acall`, `Module.__call__`/`acall`, `Tool.__call__`/`acall`,
+//! `Evaluate.__call__`, and `format`/`parse` decorated onto every `Adapter` subclass by
+//! `__init_subclass__`. Each pair is one point here, since this crate is async throughout. There is
+//! a seventh site — `Retrieve.__call__`, which falls through to the module handlers — and it has no
+//! counterpart because retrievers are out of scope (`scripts/check_coverage.py` says so by name).
 
 use std::fmt::Write as _;
 use std::future::Future;
@@ -150,9 +158,17 @@ pub async fn watching<T: Ends, Work>(watch: Watch, work: Work) -> Result<T>
 where
     Work: Future<Output = Result<T>>,
 {
-    let answered = Under::new(watch.call, work)
-        .instrument(watch.span.clone())
-        .await;
+    // Nothing registered means no parent linkage anyone can read, so the work runs unwrapped —
+    // upstream's `if not callbacks: return fn(...)`, and what keeps an unwatched call from paying
+    // for a boxed future at every point.
+    let answered = match callback::watching(&watch.instance) {
+        true => {
+            Under::new(watch.call, work)
+                .instrument(watch.span.clone())
+                .await
+        }
+        false => work.instrument(watch.span.clone()).await,
+    };
     watch.finished(answered.as_ref(), T::describe);
     if callback::watching(&watch.instance) {
         T::ended(&watch.call, &watch.instance, answered.as_ref());

@@ -314,3 +314,24 @@ async fn a_tool_call_is_watched() {
     assert_eq!(answered, serde_json::json!("sunny in Paris"));
     assert_eq!(recording.tree(), "on_tool_start\non_tool_end");
 }
+
+/// `lm.call([…])` is dspy's `BaseLM.__call__`, which is the method upstream decorates — so asking a
+/// model directly fires the lm point exactly as asking it through a module does.
+///
+/// It did not: `call` reached `ChatModel::forward` rather than the blanket `forward_dyn`, so the one
+/// entry named after upstream's decorated method was the one entry with no point on it.
+#[tokio::test]
+async fn asking_a_model_directly_fires_the_lm_point() {
+    use dsrust::lm::ChatModel;
+
+    let recording = Arc::new(Recording::default());
+    let lm = Arc::new(DummyLM::new([example! { answer: "test output" }]));
+    let _serial = install(lm.clone(), recording.clone());
+
+    lm.call(["What is the capital of France?"])
+        .await
+        .expect("the scripted answer comes back");
+    configure_callbacks([]);
+
+    assert_eq!(recording.tree(), "on_lm_start\non_lm_end");
+}

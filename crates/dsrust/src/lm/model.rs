@@ -107,12 +107,17 @@ pub trait ChatModel {
         items: impl IntoIterator<Item = impl Into<api::LmItem>>,
     ) -> impl Future<Output = Result<api::LmResponse>> + Send
     where
-        Self: Sync,
+        Self: Sized + Send + Sync,
     {
         // The model name is the provider's own; every request this crate builds leaves it for
         // whichever wire answers, as an adapter-built one does.
         let request = api::LmRequest::from_items("", items);
-        async move { self.forward(&request).await }
+        // Through `forward_dyn` and not `forward`, so asking a model directly is watched exactly as
+        // asking it through a module is. Upstream decorates `__call__` — this method — so a `call`
+        // that reached the provider hook instead would leave the one entry named after the decorated
+        // method as the one entry with no point on it. It did, until
+        // `asking_a_model_directly_fires_the_lm_point` said so.
+        async move { self.forward_dyn(&request).await }
     }
 
     /// Watchers attached to this model rather than to the process — dspy's

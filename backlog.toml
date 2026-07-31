@@ -1318,7 +1318,13 @@ Order, leaves first, so nothing is half-typed at any point:
          because it is dspy's `LMConfig`. Only five files now name both, and each is a genuine
          bridge: `lm.rs` re-exports them, `interop.rs` converts between them, and the other three
          take a `Sampling` while asserting on the `api::LmConfig` that reached the wire. What is
-         left of this slice is the replacing itself.
+         left of this slice is the replacing itself. Re-measured 2026-07-31: `ChatTurn` 86 mentions
+         across 21 files, `Sampling` 113 across 19, and 19 call sites reach `interop::raise_request`
+         — the edge conversion this slice deletes.
+
+         It is tracked here rather than as a story, which is why it has no plan and nobody has
+         picked it up: `still_pending` on a sprint says work remains and says nothing about what
+         doing it looks like. It wants filing as one before it is started.
   s13-4  DONE. `lm/api/config.rs`: the typed fields, the nested configs, `extensions` catching
          anything unrecognised, and the flat aliases folded on construction. `rollout_id` lives at
          `cache.rollout_id` and is int-or-string.

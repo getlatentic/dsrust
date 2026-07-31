@@ -87,6 +87,13 @@ pub(crate) fn entered(call: &CallId) -> Entered {
 /// `ContextVar` would not be. `Evaluate` runs its rows with `buffered`, so several rows interleave
 /// inside one task: a value set once and left would be read by whichever row was polled next. It is
 /// also what carries the parent across a runtime that moves a future between threads.
+///
+/// dspy is fixing the same defect from the other side. Main's `utils/callback_context.py` adds
+/// `_bind_active_call_id`, which captures the id at binding time and re-establishes it on each
+/// invocation, and `ParallelExecutor` wraps every function it hands a worker with it — because a
+/// thread taken from the pool would otherwise read whatever the last call on that thread left.
+/// Nothing else in that module moved: main's `callback.py` is the pinned file with `ACTIVE_CALL_ID`
+/// imported rather than declared.
 pub(crate) struct Under<F> {
     call: CallId,
     inner: Pin<Box<F>>,
