@@ -17,6 +17,7 @@
 //! reading settles it. `crates/dsrust-tpe/tests/conformance/optuna_tpe.json` carries the case that
 //! does: two parameters of different cardinality under dspy's own names.
 
+use std::future::Future;
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
@@ -29,6 +30,7 @@ use crate::lm::DynChatModel;
 use crate::module::Module;
 use crate::signature::Signature;
 
+mod building;
 mod demos;
 mod proposer;
 mod signatures;
@@ -154,6 +156,9 @@ pub struct MIPROv2<M> {
     scoring: super::Scoring,
     program_code: Option<String>,
     tip_aware: bool,
+    /// dspy `task_model`: the model the program is bootstrapped and evaluated on, where that is
+    /// not the configured one. See [`task_model`](Self::task_model).
+    task_model: Option<Arc<dyn DynChatModel>>,
     /// dspy `max_bootstrapped_demos`: how many demos a bootstrap may put in a set. Zero with
     /// `max_labeled_demos` zero is upstream's zero-shot run.
     max_bootstrapped_demos: usize,
@@ -165,92 +170,6 @@ impl<M> MIPROv2<M>
 where
     M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
 {
-    /// A MIPROv2 proposing with this model. dspy's defaults for the counts are set per auto mode;
-    /// here they are explicit — ten instruction candidates and twenty trials is a common medium run.
-    pub fn new(metric: M, prompt_model: Arc<dyn DynChatModel>) -> Self {
-        Self {
-            metric,
-            prompt_model,
-            num_candidates: 10,
-            num_trials: 20,
-            seed: 9,
-            init_temperature: 1.0,
-            metric_threshold: None,
-            scoring: super::Scoring::default(),
-            program_code: None,
-            tip_aware: true,
-            max_bootstrapped_demos: 4,
-            max_labeled_demos: 4,
-        }
-    }
-
-    /// dspy `max_bootstrapped_demos`: how many bootstrapped demos a candidate set may hold, default
-    /// 4 as upstream's is. With `max_labeled_demos` also zero the run is upstream's zero-shot one:
-    /// the sets are still built, because they ground the proposer, but they are built at dspy's
-    /// in-context constants and never searched.
-    pub fn max_bootstrapped_demos(mut self, max_bootstrapped_demos: usize) -> Self {
-        self.max_bootstrapped_demos = max_bootstrapped_demos;
-        self
-    }
-
-    /// dspy `max_labeled_demos`: how many labelled trainset examples a candidate set may hold
-    /// without bootstrapping, default 4 as upstream's is.
-    pub fn max_labeled_demos(mut self, max_labeled_demos: usize) -> Self {
-        self.max_labeled_demos = max_labeled_demos;
-        self
-    }
-
-    /// Whether this run searches demos at all — dspy's `zeroshot_opt`, and the same test.
-    fn zeroshot(&self) -> bool {
-        self.max_bootstrapped_demos == 0 && self.max_labeled_demos == 0
-    }
-
-    /// How many instructions to propose per predictor.
-    pub fn num_candidates(mut self, num_candidates: usize) -> Self {
-        self.num_candidates = num_candidates;
-        self
-    }
-
-    /// How many instruction combinations the search evaluates.
-    pub fn num_trials(mut self, num_trials: usize) -> Self {
-        self.num_trials = num_trials;
-        self
-    }
-
-    /// dspy `init_temperature`: the temperature instructions are proposed at, default 1.0. Lower it
-    /// for proposals that stay close to the current instruction.
-    pub fn init_temperature(mut self, temperature: f64) -> Self {
-        self.init_temperature = temperature;
-        self
-    }
-
-    /// dspy `metric_threshold`: the score a bootstrapped trace must beat to be kept in Step 1.
-    /// Unset keeps every trace whose metric was truthy, which is upstream's default.
-    pub fn metric_threshold(mut self, threshold: f64) -> Self {
-        self.metric_threshold = Some(threshold);
-        self
-    }
-
-    /// What each scoring pass is bounded by — dspy's `num_threads` and `max_errors`, which its
-    /// teleprompters take and hand to the `Evaluate` they build.
-    pub fn scoring(mut self, scoring: super::Scoring) -> Self {
-        self.scoring = scoring;
-        self
-    }
-
-    /// The seed for the proposer's RNG and the TPE sampler — dspy seeds both from one number.
-    pub fn seed(mut self, seed: u64) -> Self {
-        self.seed = seed;
-        self
-    }
-
-    /// Turn on the program-aware proposer with this pseudo-code description of the program. dspy
-    /// reads it from source; a Rust caller supplies it, which is dspy's own `program_code_string` seam.
-    pub fn program_code(mut self, program_code: impl Into<String>) -> Self {
-        self.program_code = Some(program_code.into());
-        self
-    }
-
     /// dspy `compile(student, trainset=...)`: rewrite the student's instructions in place, leaving it
     /// holding the highest-scoring combination the search found.
     pub async fn compile<S: Module + ?Sized>(
@@ -285,25 +204,26 @@ where
         // and building them advances the shared RNG that Step 2's proposal reads — but it builds them
         // at dspy's in-context constants rather than at the caller's counts, and never searches them.
         let zeroshot = self.zeroshot();
-        let demo_sets = demos::create_demo_sets(
-            student,
-            self.num_candidates,
-            trainset,
-            if zeroshot {
-                ZEROSHOT_LABELED
-            } else {
-                self.max_labeled_demos
-            },
-            if zeroshot {
-                ZEROSHOT_BOOTSTRAPPED
-            } else {
-                self.max_bootstrapped_demos
-            },
-            &self.metric,
-            self.metric_threshold,
-            &mut rng,
-        )
-        .await?;
+        let demo_sets = self
+            .on_task_model(demos::create_demo_sets(
+                student,
+                self.num_candidates,
+                trainset,
+                if zeroshot {
+                    ZEROSHOT_LABELED
+                } else {
+                    self.max_labeled_demos
+                },
+                if zeroshot {
+                    ZEROSHOT_BOOTSTRAPPED
+                } else {
+                    self.max_bootstrapped_demos
+                },
+                &self.metric,
+                self.metric_threshold,
+                &mut rng,
+            ))
+            .await?;
 
         // Step 2: propose instruction candidates, off the RNG Step 1 advanced.
         let proposer = GroundedProposer {
@@ -319,7 +239,9 @@ where
         // Step 3: search the combinations. A zero-shot run hands the search no demo sets, which is
         // upstream passing `demo_candidates=None` and suggesting no demo parameter at all.
         let searched = (!zeroshot).then_some(demo_sets.as_slice());
-        Ok(self.search(student, &candidates, searched, trainset).await)
+        Ok(self
+            .on_task_model(self.search(student, &candidates, searched, trainset))
+            .await)
     }
 
     /// dspy's Step 3: seed the sampler with the default program as a baseline trial, run `num_trials`

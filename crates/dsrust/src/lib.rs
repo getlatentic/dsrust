@@ -59,7 +59,7 @@ pub use interpreter::{
     build_repl_variable,
 };
 pub use lm::dummy::DummyLM;
-pub use lm::global::configure_model;
+pub use lm::global::{Scope, configure_model, context, context_model, context_with_client};
 pub use lm::{
     Assistant, ChatModel, ChatTurn, DEFAULT_PROVIDER_TIMEOUT, Developer, LM, LmItem, LmMessage,
     LmPart, LmRequest, LmResponse, ModelRef, OutputMode, Provider, Role, System, User, configure,

@@ -234,3 +234,92 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
         }
     }
 }
+
+/// dspy scopes `task_model` around Step 1 and Step 3 and leaves Step 2 to `prompt_model`, so the
+/// program is bootstrapped and evaluated on one model while another writes the proposals.
+///
+/// Two models that answer differently is the only way to see the split: a run that evaluated on the
+/// proposer's model would compile a different instruction, and one that proposed on the task model
+/// would propose different text. Both are asserted.
+#[tokio::test]
+async fn the_task_model_runs_the_program_and_the_prompt_model_writes_the_proposals() {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// Records which system prompts it was shown, so a test can say what each model was asked for.
+    struct Counting {
+        proposals: AtomicUsize,
+        programs: AtomicUsize,
+    }
+
+    impl ChatModel for Counting {
+        async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
+            if request
+                .system()
+                .contains("generate a new instruction that will be used")
+            {
+                self.proposals.fetch_add(1, Ordering::Relaxed);
+                return Ok(api::LmResponse::text(
+                    "[[ ## proposed_instruction ## ]]\nBe precise.\n\n[[ ## completed ## ]]",
+                ));
+            }
+            self.programs.fetch_add(1, Ordering::Relaxed);
+            Ok(api::LmResponse::text(
+                "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]",
+            ))
+        }
+    }
+
+    fn counting() -> Arc<Counting> {
+        Arc::new(Counting {
+            proposals: AtomicUsize::new(0),
+            programs: AtomicUsize::new(0),
+        })
+    }
+
+    let prompt_model = counting();
+    let task = counting();
+    // A *third* model is configured, so nothing but the scope can send the program to `task`. With
+    // the task model also configured this test would pass without any scoping at all — which is the
+    // shape of assertion that proves nothing.
+    let configured = counting();
+    let _installed = crate::lm::global::install_for_test(configured.clone());
+    let mut student = Predict::parse("question -> answer").expect("parses");
+
+    let trainset = vec![
+        example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"]),
+    ];
+    MIPROv2::new(exact_match, prompt_model.clone())
+        .num_candidates(2)
+        .num_trials(1)
+        .seed(0)
+        .max_bootstrapped_demos(0)
+        .max_labeled_demos(0)
+        .task_model(task.clone())
+        .compile(&mut student, &trainset)
+        .await
+        .expect("compiles");
+
+    assert!(
+        prompt_model.proposals.load(Ordering::Relaxed) > 0,
+        "the prompt model should have written the proposals"
+    );
+    assert_eq!(
+        prompt_model.programs.load(Ordering::Relaxed),
+        0,
+        "the prompt model should never have run the program"
+    );
+    assert!(
+        task.programs.load(Ordering::Relaxed) > 0,
+        "the task model should have run the program"
+    );
+    assert_eq!(
+        configured.programs.load(Ordering::Relaxed),
+        0,
+        "the configured model should have been scoped out of Steps 1 and 3"
+    );
+    assert_eq!(
+        task.proposals.load(Ordering::Relaxed),
+        0,
+        "the task model should never have written a proposal"
+    );
+}

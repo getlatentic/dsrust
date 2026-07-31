@@ -34,7 +34,9 @@ pub use cache::{Cached, ResponseCache};
 pub use call::{LmUsage, Sampling};
 pub use capabilities::Capabilities;
 pub use error::{ContextWindowExceeded, LmErrorKind, LmFailure};
-pub use global::{configure, configure_with_client};
+pub use global::{
+    Scope, configure, configure_with_client, context, context_model, context_with_client,
+};
 pub use model::{ChatModel, DynChatModel};
 pub use openai::{
     DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, JsonFormat, OpenAiConfig, OpenAiWire,

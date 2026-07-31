@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1040
+rust_tests = 1045
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -418,6 +418,18 @@ that differs between the pin and main. The pin falls through to the last valid p
 raises `ValueError("No valid program found in param_score_dict")`. The pin is the oracle, so port
 the fallthrough, but expect that to flip.
 
+**Minibatch injects trials back into the sampler, which is the part a reimplementation misses.**
+Read while waiting on a gate: `_perform_full_evaluation` does not merely re-score a candidate. It
+picks the best-averaging combination with `get_program_with_highest_avg_score`, evaluates it on the
+*whole* valset, and then calls `study.add_trial(...)` with that score — so the full evaluation
+becomes an extra trial the TPE sampler learns from, moving every draw after it. A port that ran full
+evaluations and simply recorded the number would agree on the scores and diverge on the search.
+
+So minibatch changes four things, not one: what each trial scores on (a subsample drawn off the
+shared RNG), how many trials run (`num_trials + num_trials // minibatch_full_eval_steps + 1 +
+run_additional_full_eval_at_end`), which combination gets re-scored, and the sampler's own state.
+That is why this is L and why `auto` cannot ship without it.
+
 **What proves it.** `scripts/generate_mipro_fixture.py` grows cases with `auto=` set and a valset
 over 50, recorded off the same captured optuna study — the trial sequence including which trials
 were minibatch and which were full evaluations.
@@ -427,23 +439,27 @@ were minibatch and which were full evaluations.
 id = "mipro-task-model"
 sprint = "api"
 title = "task_model: dspy bootstraps and evaluates on one model while another writes the proposals"
-state = "todo"
+state = "done"
 size = "M"
 suites = []
-plan = """
-dspy's MIPROv2 takes `prompt_model` and `task_model` and scopes the second with
-`with dspy.context(lm=self.task_model):` around Step 1 (bootstrap) and Step 3 (evaluation), leaving
-`prompt_model` to write the proposals in Step 2. The point is spending a strong model on the
-proposals and a cheap one on the many evaluation calls.
+done = """
+`MIPROv2::task_model`, scoped with `lm::context` around Step 1 and Step 3 — exactly where upstream
+puts `with dspy.context(lm=self.task_model)` — and deliberately *not* around Step 2, which is
+`prompt_model`'s. That is the point of the split: a strong model writes a handful of instructions
+while a cheap one absorbs the many evaluation calls.
 
-This crate has `prompt_model` and evaluates on whichever model each predictor already carries. There
-is no block-scoped configuration to swap it for the duration of two steps, which is
-[`lm-context`](dspy.context) — so this is blocked on that story rather than independent of it. Doing
-it by mutating each predictor's `lm` and putting it back would work and is what a caller can already
-write; it is also exactly the ambient-state juggling `dspy.context` exists to make safe.
+Small, because `lm-context` had already built the mechanism. Unset means the configured model, as
+upstream's `task_model or settings.lm` does, so nothing changes for a caller who does not name one.
 
-**What proves it.** A conformance case where the proposer's model and the task model answer
-differently, so a run that evaluated on the proposer's model compiles the wrong instruction.
+A predictor carrying its own model still asks that one, in both — dspy's `Predict.forward` resolves
+`self.lm or settings.lm`, so a scope reaches only the predictors that defer.
+
+**The first version of the test could not fail.** It configured the task model globally and then
+asserted the program ran on it, which was true with or without any scoping. A *third* model is
+configured now, so nothing but the scope can send the program to `task`, and both directions are
+asserted: the prompt model wrote every proposal and ran the program zero times, the task model ran
+the program and proposed zero times, and the configured model was scoped out entirely. Verified by
+removing the scoping and watching it fail, then restoring it.
 """
 
 [[story]]
@@ -651,44 +667,39 @@ check speaks for neither the field line nor anything after it.
 [[story]]
 id = "lm-context"
 sprint = "api"
-title = "dspy.context scopes a model to a block; nothing here does"
-state = "todo"
+title = "dspy.context scopes a model to a block; nothing here did"
+state = "done"
 size = "M"
 suites = ["tests/utils/test_settings.py"]
-plan = """
-`with dspy.context(lm=...):` overrides settings for the dynamic extent of a block — every module
-called inside it, however deeply nested — and restores them on exit. It is thread- and task-local,
-which upstream's own docstring calls out: "unlike `dspy.configure(...)`, you can call
-`dspy.context(...)` from any thread or async task."
+done = """
+`lm::context(lm).run(work)` — dspy's `with dspy.context(lm=...)`. A thread-local in
+`lm/global.rs`, read by `current()` and `client()` in preference to the process-wide pair and
+restored when the work ends. `configure` stays what it was, which is upstream's own split.
 
-The ledger classifies `Settings` as a divergence whose members "map to explicit seams —
-`context(lm=..., adapter=...)` -> per-call parameters (Predict::with_lm / with_adapter)". That reason
-does not hold, and it is the audit's own failure shape: describing what exists instead of justifying
-the absence. `with_lm` is a *construction-time* choice on *one* module. `context` is a *runtime*
-scope over *any* program, including one already built and handed to you. A five-module pipeline
-cannot be pointed at a second model for one block without reaching into every predictor; `set_config`
-walks a program but mutates it permanently and carries config rather than the model.
+**It scopes a future, not a block, and that is the whole design.** dspy can use a `with` statement
+because a `ContextVar` in asyncio is per-Task. A Rust guard held across an `.await` would be read by
+whatever the runtime polled next — and `Evaluate` interleaves its rows inside one task with
+`buffered`, so that is not hypothetical. `Scope::run` installs on each poll and restores when the
+poll returns, which is the mechanism `CallId` already uses for the same reason.
+`interleaved_scopes_do_not_borrow_each_others_model` runs two *different* scopes concurrently and
+each keeps its own model.
 
-The second half of the reason — "ambient state is a concurrency hazard and un-idiomatic in Rust" —
-was also written before the crate had a counter-example. `tracing` spans are exactly this: a
-task-local value with dynamic extent, restored on exit, safe across threads and await points. The
-crate now uses them in `src/observe.rs`. `tokio::task_local!` is the same mechanism without the
-subscriber. So the shape is available and idiomatic; what is missing is the decision to have it.
+The story said the old ledger reason did not hold, and it did not. "Ambient state is a concurrency
+hazard and un-idiomatic in Rust" was written before the crate had two counter-examples of its own —
+`tracing` spans in observe.rs and the call-id context in callback/context.rs. And `set_lm` is not
+the same seam: it is a construction-time choice on one module, where this redirects a program that
+already exists, five modules deep, without touching any of them.
 
-What it would take: a task-local holding the same thing `global::GLOBAL` holds, read by
-`global::current` in preference to the process-wide one, and a guard type whose `Drop` restores.
-`configure` stays what it is — the process-wide default — and `context` becomes the scoped one, which
-is upstream's own split.
+**`context_model` exists because the test needed it, and dspy has it too.** `context` takes an `LM`,
+which is what a program uses; a test has no provider. Upstream's context takes any `BaseLM` and its
+own tests pass a `DummyLM`, so a scripted model that could be made the process-wide default but never
+scoped would have been a real gap — the two paths must be testable the same way. It mirrors
+`configure`/`configure_model` exactly.
 
-Worth deciding alongside lm-shared-client, since that story moves the HTTP client into the same
-global: if a scope ever overrides the model, the client should scope with it. Both should be read
-through one function so a task-local has exactly one place to hook — which is already true of
-`global::client()`.
-
-**What proves it.** `tests/utils/test_settings.py` is where `dspy.configure`/`dspy.context` are
-exercised program-wide, and it is not in SUITES. Adding it is the honest first step: it arrives as a
-failure list. A Rust test needs to show a nested program inside a scope reaching the scoped model
-without any module having been rebuilt, and reaching the process-wide one again after it.
+Unblocks `mipro-task-model`, which needs `dspy.context(lm=self.task_model)` around MIPROv2's Steps 1
+and 3. `tests/utils/test_settings.py` stays out of SUITES: what it exercises is dspy's own settings
+object — its thread-local stack, its refusal to be configured from a child thread, what a saved
+settings file excludes — and this crate has one scoped setting rather than a settings object.
 """
 
 [[story]]

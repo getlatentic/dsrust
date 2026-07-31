@@ -17,6 +17,15 @@ struct Configured {
 
 static GLOBAL: RwLock<Option<Configured>> = RwLock::new(None);
 
+thread_local! {
+    /// The model a [`context`] scope installed, read in preference to [`GLOBAL`].
+    ///
+    /// dspy's `thread_local_overrides`, a `ContextVar`: `context` layers over `configure` rather
+    /// than replacing it, and a scope inside a scope inherits the outer one's overrides before
+    /// applying its own.
+    static SCOPED: std::cell::RefCell<Option<Configured>> = const { std::cell::RefCell::new(None) };
+}
+
 /// Make `lm` the process-wide default, with a client of its own.
 pub fn configure(lm: LM) {
     configure_with_client(reqwest::Client::new(), lm);
@@ -64,6 +73,16 @@ pub(crate) fn install_for_test(lm: Arc<dyn DynChatModel>) -> std::sync::MutexGua
 /// this wants the model. See the `lm-shared-client` story: `ChatModel::forward` should name no
 /// client at all, and this split is the step that makes the rest tractable.
 pub(crate) fn current() -> Result<Arc<dyn DynChatModel>> {
+    // A scope wins over the process-wide default, which is upstream's
+    // `{**main_thread_config, **thread_local_overrides}`.
+    if let Some(scoped) = SCOPED.with(|scoped| {
+        scoped
+            .borrow()
+            .as_ref()
+            .map(|configured| Arc::clone(&configured.lm))
+    }) {
+        return Ok(scoped);
+    }
     GLOBAL
         .read()
         .expect("lock not poisoned")
@@ -77,10 +96,115 @@ pub(crate) fn current() -> Result<Arc<dyn DynChatModel>> {
 /// A module carrying its own model still needs a client to make the call, but not the global
 /// model behind it — so this never errors, where [`current`] does when nothing is configured.
 pub(crate) fn client() -> reqwest::Client {
+    // Scoped alongside the model: a block that overrides which model answers should send on that
+    // model's client, not on the one the process was configured with.
+    if let Some(scoped) = SCOPED.with(|scoped| {
+        scoped
+            .borrow()
+            .as_ref()
+            .map(|configured| configured.http.clone())
+    }) {
+        return scoped;
+    }
     GLOBAL
         .read()
         .expect("lock not poisoned")
         .as_ref()
         .map(|configured| configured.http.clone())
         .unwrap_or_default()
+}
+
+/// dspy `dspy.context(lm=...)`: ask this model for the duration of one piece of work, then go back.
+///
+/// The scoped model wins over [`configure`]'s process-wide one for every module the work reaches,
+/// however deeply nested and without any of them being rebuilt — which is the difference from
+/// [`Predict::set_lm`](crate::predict::Predict::set_lm), a construction-time choice on one module.
+/// A five-module pipeline handed to you already built can be pointed at another model this way and
+/// no other.
+///
+/// ```no_run
+/// # use dsrust::{Module, lm};
+/// # async fn ask(program: impl Module, inputs: dsrust::Example, other: dsrust::LM) -> anyhow::Result<()> {
+/// // Everything this program calls asks `other`, and anything after the scope asks the configured
+/// // model again.
+/// let answered = lm::context(other).run(program.forward(inputs)).await?;
+/// # let _ = answered;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// **It scopes a future, not a block.** dspy's is a `with` statement because a `ContextVar` in
+/// asyncio is per-Task; a Rust guard held across an `.await` would instead be read by whatever the
+/// runtime polled next. [`Scope::run`] enters on each poll and leaves when the poll returns, so two
+/// pieces of work interleaved in one task each see their own model — the same mechanism, and the
+/// same reason, as [`CallId`](crate::CallId)'s parent linkage.
+pub fn context(lm: LM) -> Scope {
+    context_with_client(reqwest::Client::new(), lm)
+}
+
+/// As [`context`], sending the scope's provider calls on `http` rather than a client of its own.
+pub fn context_with_client(http: reqwest::Client, lm: LM) -> Scope {
+    context_model(http, Arc::new(lm))
+}
+
+/// Scope any model, including a scripted one — the counterpart to [`configure_model`], and the
+/// shape dspy's own tests use: `with dspy.context(lm=DummyLM(...))`.
+///
+/// `context` takes an [`LM`] because that is what a program does; this takes anything implementing
+/// the trait, which is what a test does. Without it a scripted model could be made the process-wide
+/// default but never scoped, and the two paths would not be testable the same way.
+pub fn context_model(http: reqwest::Client, lm: Arc<dyn DynChatModel>) -> Scope {
+    Scope {
+        configured: Configured { http, lm },
+    }
+}
+
+/// A model installed for the duration of one piece of work. See [`context`].
+pub struct Scope {
+    configured: Configured,
+}
+
+impl Scope {
+    /// Run `work` with this scope's model in force.
+    pub async fn run<T>(self, work: impl Future<Output = T>) -> T {
+        Scoped {
+            configured: self.configured,
+            inner: Box::pin(work),
+        }
+        .await
+    }
+}
+
+/// A future that runs under a scoped model: installed for the duration of each poll, and the
+/// enclosing scope put back when the poll returns.
+///
+/// Per poll rather than for the whole future, for the reason
+/// [`callback::context::Under`](crate::callback) is: `Evaluate` interleaves its rows inside one task,
+/// so a value set once and left would be read by whichever row was polled next.
+struct Scoped<F> {
+    configured: Configured,
+    inner: std::pin::Pin<Box<F>>,
+}
+
+impl<F: Future> Future for Scoped<F> {
+    type Output = F::Output;
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<F::Output> {
+        let scoped = self.get_mut();
+        // dspy layers: `{**main_thread_config, **original_overrides, **kwargs}`. Replacing rather
+        // than merging is the same thing here, because this crate scopes exactly one setting — the
+        // model — so an inner scope overriding it leaves nothing of the outer one to inherit.
+        let restore = SCOPED.with(|slot| {
+            slot.borrow_mut().replace(Configured {
+                http: scoped.configured.http.clone(),
+                lm: Arc::clone(&scoped.configured.lm),
+            })
+        });
+        let polled = scoped.inner.as_mut().poll(context);
+        SCOPED.with(|slot| *slot.borrow_mut() = restore);
+        polled
+    }
 }

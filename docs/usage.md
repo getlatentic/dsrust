@@ -58,6 +58,26 @@ that works, not the one someone remembered.
 `Predict::set_lm`, which is what an optimizer varies; see
 [Reaching a provider](#reaching-a-provider-and-adding-your-own).
 
+To point a program you already have at another model for one piece of work — DSPy's
+`with dspy.context(lm=...)` — scope it:
+
+```rust
+use dsrust::lm::context;
+
+let answered = context(LM::new("anthropic/claude-sonnet-4-5")?)
+    .run(program.forward(inputs))
+    .await?;
+```
+
+Every module the work reaches asks the scoped model, however deeply nested and without any of them
+being rebuilt. That is the difference from `set_lm`, which is a construction-time choice on one
+module: a five-module pipeline someone handed you can be redirected this way and no other.
+
+It scopes a *future* rather than a block. DSPy can use a `with` statement because a `ContextVar` in
+asyncio is per-Task; a Rust guard held across an `.await` would instead be read by whatever the
+runtime polled next. `run` enters on each poll, so two pieces of work interleaved in one task each
+see their own model.
+
 ## The shape of it
 
 ```rust
