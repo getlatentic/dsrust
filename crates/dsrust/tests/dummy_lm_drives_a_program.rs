@@ -123,3 +123,61 @@ async fn a_keyed_dummy_suits_a_loop_whose_order_the_model_chooses() {
         );
     }
 }
+
+/// dspy `Prediction.from_completions`: a call asking for `n` answers holds all `n`, and its own
+/// fields are the first — upstream's `{k: v[0] for k, v in completions.items()}`.
+///
+/// Measured against dspy 3.3.0b1 with the same script: `prediction.answer` is `red`,
+/// `prediction.completions.answer` is `["red", "blue", "green"]`.
+#[tokio::test]
+async fn a_call_asking_for_several_answers_holds_all_of_them() {
+    let lm = Arc::new(DummyLM::new([
+        example! { answer: "red" },
+        example! { answer: "blue" },
+        example! { answer: "green" },
+    ]));
+    let _guard = install(lm.clone());
+
+    let predict =
+        dsrust::predict::Predict::from_signature(signature()).config(dsrust::lm::Sampling {
+            completions: Some(3),
+            ..Default::default()
+        });
+    let prediction = predict
+        .forward(example! { request: "a colour?" }.with_inputs(["request"]))
+        .await
+        .expect("the scripted answers parse");
+
+    // The prediction's own field is the first candidate, as upstream reads it.
+    assert_eq!(
+        prediction.get("answer").and_then(Value::as_str),
+        Some("red")
+    );
+
+    let completions = prediction
+        .completions
+        .expect("three answers were asked for");
+    assert_eq!(completions.len(), 3);
+    let answers: Vec<&str> = completions
+        .get("answer")
+        .expect("the answer field")
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    assert_eq!(answers, ["red", "blue", "green"]);
+}
+
+/// A call asking for one answer carries no completions, which is every existing caller — upstream's
+/// single-candidate `Prediction` reads the same way.
+#[tokio::test]
+async fn a_call_asking_for_one_answer_carries_no_completions() {
+    let lm = Arc::new(DummyLM::new([example! { answer: "Paris" }]));
+    let _guard = install(lm.clone());
+
+    let prediction = dsrust::predict::Predict::from_signature(signature())
+        .forward(example! { request: "capital of France?" }.with_inputs(["request"]))
+        .await
+        .expect("the scripted answer parses");
+
+    assert!(prediction.completions.is_none());
+}

@@ -183,6 +183,13 @@ pub struct Prediction {
     /// `track_usage` is set. It is unconditional here because it arrives on the response either
     /// way, so there is no setting for it to be switched off by and no ambient state to read.
     pub usage: Option<LmUsage>,
+    /// Every candidate the model returned, when more than one was asked for — dspy's
+    /// `Prediction.completions`, which `from_completions` fills.
+    ///
+    /// The fields above are the *first* candidate, which is upstream's
+    /// `{k: v[0] for k, v in completions.items()}`. Absent for a call that asked for one answer,
+    /// since there is nothing to hold beside it.
+    pub completions: Option<Completions>,
 }
 
 impl Prediction {
@@ -191,7 +198,27 @@ impl Prediction {
             example,
             raw: raw.into(),
             usage: None,
+            completions: None,
         }
+    }
+
+    /// dspy `Prediction.from_completions`: several candidates, of which the first is the answer.
+    ///
+    /// Upstream sets `_store = {k: v[0] for k, v in completions.items()}` — so reading a field off
+    /// the prediction gives the first candidate's value, and `.completions` gives them all. A single
+    /// candidate carries no completions, which is what a call that asked for one answer produces.
+    pub fn from_candidates(candidates: &[Example], raw: impl Into<String>) -> Result<Self> {
+        let first = candidates.first().cloned().unwrap_or_default();
+        let completions = match candidates.len() > 1 {
+            true => Some(Completions::from_candidates(candidates)?),
+            false => None,
+        };
+        Ok(Self {
+            example: first,
+            raw: raw.into(),
+            usage: None,
+            completions,
+        })
     }
 
     /// What the calls behind this answer cost.

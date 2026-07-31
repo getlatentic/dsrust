@@ -1,14 +1,13 @@
 use std::marker::PhantomData;
 
 use anyhow::Result;
-use serde_json::{Map, Value};
+use serde_json::Value;
 
 use crate::adapter::native_citations;
 use crate::adapter::native_reasoning::{self, ReasoningEffort};
-use crate::adapter::parse::FieldMismatch;
 use crate::adapter::{Adapter, Feedback, Input, native_tools, turns_for};
 use crate::example::{Example, Prediction};
-use crate::lm::{Capabilities, DynChatModel, LmUsage, Sampling, api};
+use crate::lm::{Capabilities, DynChatModel, Sampling, api};
 use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::Signature;
 
@@ -82,6 +81,7 @@ mod recovery;
 pub mod refine;
 pub mod rlm;
 mod shorthand;
+mod validate;
 pub use aggregation::{Normalize, majority, normalize_text};
 pub use best_of_n::BestOfN;
 pub use chain_of_thought::{ChainOfThought, TypedChainOfThought};
@@ -94,6 +94,7 @@ pub use parallel::{Answered, Parallel};
 pub use program_of_thought::ProgramOfThought;
 pub use refine::Refine;
 pub use rlm::Rlm;
+use validate::Validated;
 
 #[cfg(test)]
 mod scripted;
@@ -142,17 +143,6 @@ pub struct Predict<S = Dynamic> {
 /// the same shape: one type, and what a call answers with follows from whether that type knows
 /// its outputs. `Predict<Dynamic>` knows only the names, so it answers with the fields it parsed.
 pub struct Dynamic;
-
-/// One accepted reply: the value that passed coercion and validation, the raw text it was
-/// parsed from, and the adapter that produced it — enough for a typed caller to push a
-/// deeper failure back through the same feedback path.
-struct Validated {
-    raw: String,
-    value: Value,
-    /// What every call behind this one cost together — a fallback and a feedback retry each add
-    /// their own, so the accepted reply carries the whole exchange rather than its last ask.
-    usage: Option<LmUsage>,
-}
 
 impl<S> Predict<S> {
     /// One attempt: render through the adapter, ask the model, hand back the raw reply.
@@ -251,104 +241,6 @@ impl<S> Predict<S> {
     ) -> Result<Reply> {
         self.ask_through(self.adapter.as_ref(), lm, inputs, feedback, steering)
             .await
-    }
-
-    async fn call_with_inputs(
-        &self,
-        lm: &dyn DynChatModel,
-        inputs: &[Input<'_>],
-        steering: &Steering,
-    ) -> Result<Validated> {
-        // dspy's ChatAdapter catches a parse failure and re-asks the whole exchange through
-        // the JSON adapter; `use_json_adapter_fallback` turns that off. The adapter states the
-        // policy, this module carries it out, because only the module can call the model.
-        let answered = self.ask(lm, inputs, None, steering).await?;
-        // A provider that returned no completions at all did not return an empty one. Upstream's
-        // `Adapter.__call__` loops over the outputs, so an empty list never reaches its parser and
-        // `Predict` hands back a prediction with no fields; parsing `""` instead would report a
-        // malformed reply for a call that produced none. `forward_completions` already answers with
-        // an empty list here, and the two paths cannot disagree about the same response.
-        if answered.response.outputs.is_empty() {
-            return Ok(Validated {
-                raw: String::new(),
-                value: Value::Object(Map::new()),
-                usage: answered.response.spend(),
-            });
-        }
-        // dspy `_call_postprocess`: a reply whose fields left the render for a native feature is
-        // filled from those channels and skips the whole text path — parse, coercion, feedback —
-        // exactly as upstream returns the native reply without re-validating it.
-        if let Some(value) = self.native_value(&answered)? {
-            return Ok(Validated {
-                raw: answered.response.first_text(),
-                value,
-                usage: answered.response.spend(),
-            });
-        }
-        let usage = answered.response.spend();
-        let raw = answered.response.first_text();
-        // An adapter that answers in prose has a second model read the fields out of it. The
-        // adapter says what to ask and who to ask; only this module can do the asking.
-        if let Some(extraction) = self.adapter.extraction(&self.signature) {
-            return self.extract(extraction, raw, usage).await;
-        }
-        let parsed = crate::observe::parsing(self.adapter.as_ref(), &raw, || {
-            self.adapter.parse(&self.signature, &raw)
-        });
-        let (raw, mut value, usage) = match parsed {
-            Ok(value) => (raw, value, usage),
-            // A reply that spoke the format but left a field out. Upstream raises
-            // `AdapterParseError` here and `ChatAdapter.__call__` re-asks through `JSONAdapter`,
-            // which is the arm below — so this one only runs where a caller asked for the
-            // feedback ask instead, and it carries the partial forward for `ensure` to name.
-            Err(error) if self.feedback_retry && error.is::<FieldMismatch>() => {
-                let partial = error
-                    .downcast::<FieldMismatch>()
-                    .map(|mismatch| mismatch.parsed)
-                    .unwrap_or(Value::Null);
-                (raw, partial, usage)
-            }
-            Err(error) => match self.adapter.json_fallback() {
-                None => return Err(error),
-                Some(fallback) => {
-                    tracing::warn!(%error, "reply did not parse; re-asking through the fallback");
-                    let answered = self
-                        .ask_through(fallback.as_ref(), lm, inputs, None, steering)
-                        .await?;
-                    let answered_text = answered.response.first_text();
-                    let value = crate::observe::parsing(fallback.as_ref(), &answered_text, || {
-                        fallback.parse(&self.signature, &answered_text)
-                    })?;
-                    let merged = LmUsage::merge(usage, answered.response.spend());
-                    (answered_text, value, merged)
-                }
-            },
-        };
-        // A value that will not coerce is upstream's `AdapterParseError` too — `parse_value`
-        // raises inside `parse`, so the JSON fallback is what answers it there. Without the
-        // feedback ask there is nothing left to try, and the error is the caller's.
-        match self
-            .signature
-            .coerce(&mut value)
-            .and_then(|()| self.signature.ensure(&value))
-        {
-            Ok(()) => Ok(Validated { raw, value, usage }),
-            Err(error) if !self.feedback_retry => Err(error),
-            Err(error) => {
-                tracing::warn!(%error, "retrying with feedback");
-                let feedback = Feedback {
-                    previous: raw,
-                    error: error.to_string(),
-                };
-                let (raw, value, retried) =
-                    self.feedback_ask(lm, inputs, &feedback, steering).await?;
-                Ok(Validated {
-                    raw,
-                    value,
-                    usage: LmUsage::merge(usage, retried),
-                })
-            }
-        }
     }
 }
 
@@ -1000,10 +892,12 @@ impl<S: Send + Sync> Predict<S> {
         let validated = self
             .call_with_inputs(lm.as_ref(), &pairs, &steering)
             .await?;
-        Ok(
-            Prediction::new(prediction_example(&validated.value), validated.raw)
-                .set_lm_usage(validated.usage),
-        )
+        // dspy `Prediction.from_completions`: the fields are the first candidate's and
+        // `.completions` holds them all. A call that asked for one answer has one candidate and
+        // therefore no completions, which is the shape every existing caller sees.
+        let mut candidates = vec![prediction_example(&validated.value)];
+        candidates.extend(validated.siblings);
+        Ok(Prediction::from_candidates(&candidates, validated.raw)?.set_lm_usage(validated.usage))
     }
 }
 

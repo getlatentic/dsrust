@@ -52,6 +52,8 @@ impl<S> Predict<S> {
         self.signature.coerce(&mut value)?;
         self.signature.ensure(&value)?;
         Ok(Validated {
+            // A recovery ask answers once; there are no alternatives beside it.
+            siblings: Vec::new(),
             usage: LmUsage::merge(asking, extracted.spend()),
             raw: extracted_text,
             value,

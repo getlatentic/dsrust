@@ -147,23 +147,25 @@ impl ChatModel for DummyLM {
             config: recorded_config(&request.config),
         };
         let message = asked.last_message().to_owned();
-        // dspy's `DummyLM` answers `n` times over, one identical choice per completion asked for;
-        // a caller reading several completions (an instruction optimizer's proposal step) needs
-        // the same count back rather than one.
+        // dspy's `DummyLM.forward` loops `for _ in range(n)` and *chooses again* each time, so a
+        // queue pops a different answer per completion and a keyed model matches the same key n
+        // times over. This choosing once and repeating it, which is what stood here, was right for
+        // the keyed mode and wrong for the queue — and a test reading several completions is
+        // exactly the caller that would notice.
         let completions = request.config.n.unwrap_or(1).max(1) as usize;
         self.asked.lock().expect("not poisoned").push(asked);
         async move {
-            let answer = self.choose(&message)?;
-            let reply = match json_mode {
-                true => as_json_reply(&answer),
-                false => as_marker_reply(&answer),
-            };
+            let mut replies = Vec::with_capacity(completions);
+            for _ in 0..completions {
+                let answer = self.choose(&message)?;
+                replies.push(match json_mode {
+                    true => as_json_reply(&answer),
+                    false => as_marker_reply(&answer),
+                });
+            }
             // No usage: a scripted answer had no cost, and reporting zero would let a test
             // assert a total that no provider produced.
-            Ok(api::LmResponse::completions(std::iter::repeat_n(
-                reply,
-                completions,
-            )))
+            Ok(api::LmResponse::completions(replies))
         }
     }
 }

@@ -69,6 +69,7 @@ pub(crate) async fn typed_pairs<S: SignatureSpec, P>(
     // A typed call answers with the caller's own struct, so there is nowhere here for what it
     // cost to go. LmUsage is readable on the value-level paths, which answer with a `Prediction`.
     let Validated {
+        siblings: _,
         raw,
         value,
         usage: _,

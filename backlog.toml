@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1038
+rust_tests = 1040
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -320,32 +320,34 @@ from divergence to mapped.
 [[story]]
 id = "predict-completions"
 sprint = "api"
-title = "Predict::forward reads one output whatever n is, so n>1 answers with a fraction of what was paid for"
-state = "todo"
+title = "Predict::forward read one output whatever n was, so n>1 answered with a fraction of what was paid for"
+state = "done"
 size = "M"
 suites = ["tests/predict/test_predict.py"]
-plan = """
-`dspy.Predict(sig, n=3)(...)` returns a `Prediction` whose `.completions.<field>` is a list of all
-three candidates, and it parses each one. The crate's `Predict::forward` parses
-`response.first_text()` and returns a `Prediction` with no completions, whatever `config.completions`
-was set to. The other candidates were asked for, paid for, and dropped.
+done = """
+`Prediction` carries `completions` now, and `Predict::forward` reads every candidate the model
+returned. dspy's `from_completions` sets `_store = {k: v[0] for k, v in completions.items()}`, so the
+prediction's own fields are the *first* candidate and `.completions` holds them all — and a call that
+asked for one answer carries `None`, which is every caller that existed before this.
 
-`forward_completions` reads them — it exists for an instruction optimizer's proposal step and returns
-`Vec<Prediction>` — so the machinery is there; it is not on the path `forward` takes, and it answers
-with a different type than upstream's single `Prediction` carrying `Completions`.
+The `Completions` type was already a full port and simply unused by `forward`. Reading the siblings
+is best-effort — a candidate the model malformed is dropped rather than failing the call — which is
+what `forward_completions` already did, since the answer is the first and the rest are alternatives.
 
-Found by `tests/conformance/observe/callbacks.json`: the `chain_of_thought_n3` case, recorded from dspy,
-fires `on_adapter_parse_start`/`end` three times where the crate fires it once.
-`tests/callback.rs::a_chain_of_thought_nests_its_predictor` strips the two extra pairs to compare the
-rest, and names this story where it does — so closing this makes that stripping fail.
+**A second defect, found by needing real expected values.** The test needed what dspy actually
+returns, and running it gave `['red', 'blue', 'green']` — three *different* answers. The crate's
+`DummyLM` carried the comment "dspy's DummyLM answers n times over, one identical choice per
+completion asked for", and that was false: upstream loops `for _ in range(n)` with `next(self.answers)`
+*inside* the loop, so a queue pops a different answer per completion and only the keyed mode repeats.
+The crate chose once and repeated it — right for keyed, wrong for the queue.
 
-The ledger reads `mapped` for both `Prediction.completions` and `Prediction.from_completions`, and
-the types do exist. What is missing is the path through `Predict.forward` that fills them, which is
-the one place dspy fills them. That is the shape `api-5` exists to find: a `mapped` claim that
-resolves to a real definition nothing reaches.
+That matters more than an ordinary bug because `DummyLM` is what most of this crate's tests are built
+on: a future test asserting on multi-completion behaviour would have been measuring the double rather
+than the crate. Reading the comment would have confirmed it; running dspy contradicted it.
 
-**What proves it.** The `n=3` case in `tests/callback.rs` compares against dspy's recording
-unstripped, and a `Prediction` from `forward` at `n=3` carries three candidates per field.
+`predict.rs` crossed 400 lines on this change, so `Validated` and `call_with_inputs` moved to
+`predict/validate.rs`. They are one job — everything between the model answering and a `Prediction`
+existing — and the pieces they reach for already live beside them.
 """
 
 [[story]]

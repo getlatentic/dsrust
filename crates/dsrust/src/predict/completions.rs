@@ -8,6 +8,26 @@ use super::{Predict, Steering, rendered_inputs};
 use crate::example::{Example, Prediction};
 
 impl<S> Predict<S> {
+    /// Every candidate beside the first, parsed the way [`forward_completions`] parses them.
+    ///
+    /// dspy's `Adapter.__call__` returns one parsed dict per output and `from_completions` keeps
+    /// them all, so a `Predict` asked for `n` answers holds `n`. The first is read by the ordinary
+    /// path — with its recovery, its fallback and its coercion — and these are the alternatives
+    /// beside it, dropped individually where the model malformed one.
+    pub(super) fn candidates(&self, response: &crate::lm::api::LmResponse) -> Vec<Example> {
+        response
+            .outputs
+            .iter()
+            .skip(1)
+            .filter_map(|output| {
+                let text = output.as_text();
+                let mut value = self.adapter.parse(&self.signature, &text).ok()?;
+                let _ = self.signature.coerce(&mut value);
+                Some(super::prediction_example(&value))
+            })
+            .collect()
+    }
+
     /// Ask the model for several candidate answers in one call and read every one, not just the
     /// first — dspy's `Predict(sig, n=N)(...)`. How many is
     /// [`config.completions`](crate::lm::Sampling) (set with [`config`](Self::config));
