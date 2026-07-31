@@ -180,7 +180,7 @@ fn kind(field: &Field) -> TokenStream {
             return quote! {
                 ::dsrust::signature::FieldKind::Json(
                     ::dsrust::signature::JsonType::plain(#annotation)
-                        .with_descriptions(#descriptions),
+                        .descriptions(#descriptions),
                 )
             };
         }
@@ -210,7 +210,7 @@ fn out_kind(field: &Field) -> TokenStream {
                 #annotation,
                 ::dsrust::signature::json_field_reflection::<#ty>(),
             )
-            .with_descriptions(#descriptions),
+            .descriptions(#descriptions),
         )
     }
 }

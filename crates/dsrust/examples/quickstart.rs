@@ -43,7 +43,7 @@ fn stand_in() -> DummyLM {
         ("France", example! { answer: "Paris" }),
         ("Japan", example! { answer: "Tokyo" }),
     ])
-    .with_fallback(example! { answer: "I don't know" })
+    .fallback(example! { answer: "I don't know" })
 }
 
 #[tokio::main]

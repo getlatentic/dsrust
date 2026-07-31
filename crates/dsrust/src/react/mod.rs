@@ -77,9 +77,9 @@ impl ReAct {
 
     /// Ask both inner predictors — the loop's `react` turn and the final `extract` — through this
     /// model. Without it they reach for the globally configured one, the way dspy's do.
-    pub fn with_lm(mut self, lm: std::sync::Arc<dyn crate::lm::DynChatModel>) -> Self {
-        self.react = self.react.with_lm(lm.clone());
-        self.extract = self.extract.with_lm(lm);
+    pub fn set_lm(mut self, lm: std::sync::Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.react = self.react.set_lm(lm.clone());
+        self.extract = self.extract.set_lm(lm);
         self
     }
 
@@ -576,7 +576,7 @@ mod truncation_tests {
             refusals: Mutex::new(0),
             reply: "[[ ## reasoning ## ]]\nit was sunny\n\n[[ ## answer ## ]]\nsunny\n\n[[ ## completed ## ]]".to_owned(),
         });
-        let react = ReAct::new(task(), vec![weather()]).with_lm(model.clone());
+        let react = ReAct::new(task(), vec![weather()]).set_lm(model.clone());
         // Five steps against a three-step budget: refuse, trim, refuse, trim, fits — the third of
         // the three attempts upstream allows. Six would never get there, upstream included.
         let mut trajectory = long_trajectory(5);
@@ -613,7 +613,7 @@ mod truncation_tests {
             refusals: Mutex::new(0),
             reply: String::new(),
         });
-        let react = ReAct::new(task(), vec![weather()]).with_lm(model.clone());
+        let react = ReAct::new(task(), vec![weather()]).set_lm(model.clone());
         let mut trajectory = long_trajectory(8);
 
         let refused = react
@@ -663,7 +663,7 @@ mod truncation_tests {
             }
         }
 
-        let react = ReAct::new(task(), vec![weather()]).with_lm(std::sync::Arc::new(Broken));
+        let react = ReAct::new(task(), vec![weather()]).set_lm(std::sync::Arc::new(Broken));
         let mut trajectory = long_trajectory(4);
         let refused = react
             .asked(

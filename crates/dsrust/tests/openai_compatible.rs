@@ -138,16 +138,16 @@ fn write_response(stream: &mut TcpStream, status: u16, body: &str) {
 /// `tests/lm_retry.rs` is where the retry itself is held.
 fn probe_lm_for(stub: &Stub, model: &str) -> LM {
     caching_lm_for(stub, model)
-        .with_cache(false)
-        .with_retry(dsrust::lm::Retry::once())
+        .cache(false)
+        .retry(dsrust::lm::Retry::once())
 }
 
 /// The same probe with the cache left on, for the one test that is about the cache.
 fn caching_lm_for(stub: &Stub, model: &str) -> LM {
     LM::new(model)
         .expect("valid model ref")
-        .with_openai_key("sk-test")
-        .with_openai_base_url(stub.base_url.as_str())
+        .openai_api_key("sk-test")
+        .openai_base_url(stub.base_url.as_str())
 }
 
 fn probe_lm(stub: &Stub) -> LM {
@@ -214,9 +214,9 @@ async fn a_base_url_with_a_trailing_slash_reaches_the_same_route() {
     let stub = Stub::answering(200, REPLY);
     let lm = LM::new("openai/gpt-4o-mini")
         .expect("valid model ref")
-        .with_openai_key("sk-test")
-        .with_openai_base_url(format!("{}/", stub.base_url))
-        .with_cache(false);
+        .openai_api_key("sk-test")
+        .openai_base_url(format!("{}/", stub.base_url))
+        .cache(false);
     ask(&lm, &OutputMode::Text).await.expect("the stub answers");
     assert_eq!(stub.received().path, "/v1/chat/completions");
 }
@@ -237,7 +237,7 @@ async fn json_mode_asks_for_an_object_by_default() {
 #[tokio::test]
 async fn the_schema_envelope_is_opt_in_and_carries_the_schema() {
     let stub = Stub::answering(200, REPLY);
-    let lm = probe_lm(&stub).with_openai_json_format(JsonFormat::Schema);
+    let lm = probe_lm(&stub).openai_json_format(JsonFormat::Schema);
     let schema = probe_schema();
     ask(&lm, &OutputMode::Json { schema: &schema })
         .await
@@ -361,8 +361,8 @@ async fn the_gpt_5_chat_line_keeps_max_tokens_on_the_wire() {
 #[tokio::test]
 async fn a_host_pinned_to_max_tokens_sends_it_for_a_reasoning_model_too() {
     let stub = Stub::answering(200, REPLY);
-    let lm = probe_lm_for(&stub, "openai/o3")
-        .with_openai_token_limit_rule(TokenLimitRule::AlwaysMaxTokens);
+    let lm =
+        probe_lm_for(&stub, "openai/o3").openai_token_limit_rule(TokenLimitRule::AlwaysMaxTokens);
     ask_capped(&lm, &OutputMode::Text, 1024)
         .await
         .expect("the stub answers");
@@ -422,8 +422,8 @@ async fn a_missing_key_names_the_variable_the_endpoint_was_told_to_read() {
     // on different threads.
     let lm = LM::new("openai/llama-3.3-70b")
         .expect("valid model ref")
-        .with_openai_key_env("DSRS_TEST_KEY_THAT_IS_NOT_SET")
-        .with_cache(false);
+        .openai_key_var("DSRS_TEST_KEY_THAT_IS_NOT_SET")
+        .cache(false);
     let error = ask(&lm, &OutputMode::Text)
         .await
         .expect_err("no credential is configured");
@@ -486,9 +486,9 @@ async fn a_refused_connection_is_a_retryable_transport_failure() {
     let lm = dsrust::lm::LM::new("openai/gemma")
         .expect("a model id")
         // Port 9 is discard: nothing listens, so the connect fails before any HTTP happens.
-        .with_openai_base_url("http://127.0.0.1:9/v1")
-        .with_openai_key("x")
-        .with_cache(false);
+        .openai_base_url("http://127.0.0.1:9/v1")
+        .openai_api_key("x")
+        .cache(false);
 
     let error = ask(&lm, &OutputMode::Text)
         .await

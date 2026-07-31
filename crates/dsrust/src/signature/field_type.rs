@@ -99,7 +99,7 @@ impl JsonType {
     /// The same, carrying the prose each custom type in the annotation states about itself. What
     /// the derive fills from a field type's [`Type`](crate::adapter::Type) seam; empty for a plain
     /// structure, leaving the value unchanged.
-    pub fn with_descriptions(mut self, descriptions: Vec<TypeDescription>) -> Self {
+    pub fn descriptions(mut self, descriptions: Vec<TypeDescription>) -> Self {
         self.descriptions = descriptions;
         self
     }

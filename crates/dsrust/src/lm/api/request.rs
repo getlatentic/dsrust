@@ -65,7 +65,7 @@ impl LmRequest {
         self
     }
 
-    pub fn with_tools(mut self, tools: Vec<LmToolSpec>) -> Self {
+    pub fn tools(mut self, tools: Vec<LmToolSpec>) -> Self {
         self.tools = tools;
         self
     }

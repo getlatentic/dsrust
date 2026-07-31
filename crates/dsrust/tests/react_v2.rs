@@ -38,7 +38,7 @@ fn turn(next_thought: &str, tool_calls: Value) -> Example {
 
 fn agent(tools: Vec<Box<dyn Tool>>, lm: Arc<DummyLM>) -> ReActV2 {
     ReActV2::new("question -> answer".parse().expect("a signature"), tools)
-        .with_lm(lm as Arc<dyn DynChatModel>)
+        .set_lm(lm as Arc<dyn DynChatModel>)
 }
 
 fn history_of(prediction: &dsrust::Prediction) -> History {
@@ -156,7 +156,7 @@ async fn a_top_level_tool_call_is_accepted() {
         ),
     ]));
     let prediction = agent(vec![lookup()], lm)
-        .with_adapter(ChatAdapter::default())
+        .adapter(ChatAdapter::default())
         .forward(Example::new([("question", json!("cats"))]))
         .await
         .expect("the loop runs");
@@ -182,7 +182,7 @@ async fn a_wrapped_submit_call_is_accepted() {
         json!({ "tool_calls": [{ "name": "submit", "arguments": { "answer": "done" } }] }),
     )]));
     let prediction = agent(vec![], lm)
-        .with_adapter(ChatAdapter::default())
+        .adapter(ChatAdapter::default())
         .forward(Example::new([("question", json!("cats"))]))
         .await
         .expect("the loop runs");
@@ -377,8 +377,8 @@ async fn a_native_loop_replays_results_with_the_providers_id() {
         native_call("call_submit", "submit", json!({ "answer": "found cats" })),
     ]);
     let prediction = ReActV2::new("question -> answer".parse().unwrap(), vec![lookup()])
-        .with_adapter(ChatAdapter::default().with_native_function_calling(true))
-        .with_lm(lm.clone() as Arc<dyn DynChatModel>)
+        .adapter(ChatAdapter::default().use_native_function_calling(true))
+        .set_lm(lm.clone() as Arc<dyn DynChatModel>)
         .forward(Example::new([("question", json!("cats"))]))
         .await
         .expect("the loop runs");
@@ -412,8 +412,8 @@ async fn a_forced_submit_pins_the_provider_to_submit() {
         native_call("call_submit", "submit", json!({ "answer": "forced" })),
     ]);
     let prediction = ReActV2::new("question -> answer".parse().unwrap(), vec![lookup()])
-        .with_adapter(ChatAdapter::default().with_native_function_calling(true))
-        .with_lm(lm.clone() as Arc<dyn DynChatModel>)
+        .adapter(ChatAdapter::default().use_native_function_calling(true))
+        .set_lm(lm.clone() as Arc<dyn DynChatModel>)
         .forward(Example::new([("question", json!("cats"))]))
         .await
         .expect("the loop runs");
@@ -484,12 +484,12 @@ async fn native_parallel_calls_replay_in_order() {
         ),
     ]);
     let prediction = ReActV2::new("question -> answer".parse().unwrap(), vec![lookup()])
-        .with_adapter(
+        .adapter(
             ChatAdapter::default()
-                .with_native_function_calling(true)
-                .with_parallel_tool_calls(Some(true)),
+                .use_native_function_calling(true)
+                .parallel_tool_calls(Some(true)),
         )
-        .with_lm(lm.clone() as Arc<dyn DynChatModel>)
+        .set_lm(lm.clone() as Arc<dyn DynChatModel>)
         .forward(Example::new([("question", json!("cats and dogs"))]))
         .await
         .expect("the loop runs");

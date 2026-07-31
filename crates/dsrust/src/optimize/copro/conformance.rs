@@ -80,7 +80,7 @@ fn model(case: &Value) -> Arc<DummyLM> {
 fn predict(signature: &str, instruction: &str, model: Arc<DummyLM>) -> Predict {
     let mut signature: Signature = signature.parse().expect("parses");
     signature.instructions = instruction.to_owned();
-    Predict::from_signature(signature).with_lm(model)
+    Predict::from_signature(signature).set_lm(model)
 }
 
 /// The student dspy compiled: a lone `Predict` for a `question -> answer` task, or the two-predictor

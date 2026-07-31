@@ -31,7 +31,7 @@ impl ChainOfThought {
     /// A module for a signature held as field names, matching
     /// [`Predict::from_signature`](super::Predict::from_signature).
     pub fn from_signature(signature: Signature) -> Self {
-        Self::with_rationale(signature, OutField::default())
+        Self::rationale(signature, OutField::default())
     }
 
     /// dspy's `ChainOfThought(signature, rationale_field=…)`: reason through a field of the
@@ -43,7 +43,7 @@ impl ChainOfThought {
     /// `${reasoning}` sentinel and suppresses it when rendering, so the field reaches a prompt as
     /// its name alone. The "Let's think step by step" prefix it once had was removed upstream in
     /// PR #8822, and prose here would be a line dspy never sends.
-    pub fn with_rationale(mut signature: Signature, rationale: OutField) -> Self {
+    pub fn rationale(mut signature: Signature, rationale: OutField) -> Self {
         signature.outputs.insert(
             0,
             OutField {
@@ -58,8 +58,8 @@ impl ChainOfThought {
 
     /// Ask through this model rather than the globally configured one — the per-module override,
     /// and the seam a composed module uses to point its children at one model.
-    pub fn with_lm(mut self, lm: std::sync::Arc<dyn crate::lm::DynChatModel>) -> Self {
-        self.predict = self.predict.with_lm(lm);
+    pub fn set_lm(mut self, lm: std::sync::Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.predict = self.predict.set_lm(lm);
         self
     }
 
@@ -199,7 +199,7 @@ mod tests {
     /// it is handed.
     #[test]
     fn a_caller_can_supply_the_rationale_field() {
-        let cot = ChainOfThought::with_rationale(
+        let cot = ChainOfThought::rationale(
             "question -> answer".parse().expect("a signature"),
             OutField {
                 name: "ignored".into(),
@@ -220,7 +220,7 @@ mod tests {
     /// constructor carries both. The ledger maps them to this method and the claim needs backing.
     #[test]
     fn the_rationale_carries_its_declared_type() {
-        let cot = ChainOfThought::with_rationale(
+        let cot = ChainOfThought::rationale(
             "question -> answer".parse().expect("a signature"),
             OutField {
                 kind: crate::signature::FieldKind::Int,

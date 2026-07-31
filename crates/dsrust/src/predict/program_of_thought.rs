@@ -72,10 +72,10 @@ impl ProgramOfThought {
     }
 
     /// Ask all three steps — write, rewrite and answer — of this model.
-    pub fn with_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
-        self.generate = self.generate.with_lm(lm.clone());
-        self.regenerate = self.regenerate.with_lm(lm.clone());
-        self.answer = self.answer.with_lm(lm);
+    pub fn set_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.generate = self.generate.set_lm(lm.clone());
+        self.regenerate = self.regenerate.set_lm(lm.clone());
+        self.answer = self.answer.set_lm(lm);
         self
     }
 
@@ -514,9 +514,9 @@ mod tests {
         mut pot: ProgramOfThought,
         model: Arc<dyn crate::lm::DynChatModel>,
     ) -> ProgramOfThought {
-        pot.generate = pot.generate.with_lm(model.clone());
-        pot.regenerate = pot.regenerate.with_lm(model.clone());
-        pot.answer = pot.answer.with_lm(model);
+        pot.generate = pot.generate.set_lm(model.clone());
+        pot.regenerate = pot.regenerate.set_lm(model.clone());
+        pot.answer = pot.answer.set_lm(model);
         pot
     }
 }

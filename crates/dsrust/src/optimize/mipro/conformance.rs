@@ -157,7 +157,7 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
         });
         let mut student = Predict::parse("question -> answer")
             .expect("parses")
-            .with_lm(model.clone());
+            .set_lm(model.clone());
 
         let boot = case["max_bootstrapped_demos"].as_u64().expect("boot") as usize;
         let labeled = case["max_labeled_demos"].as_u64().expect("labeled") as usize;

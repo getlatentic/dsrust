@@ -121,12 +121,11 @@ impl GenerateModuleInstruction {
         sampling: crate::lm::Sampling,
     ) -> Self {
         inputs.program_aware = inputs.program_aware && program_code.is_some();
-        let predict = |signature| Predict::from_signature(signature).with_lm(model.clone());
+        let predict = |signature| Predict::from_signature(signature).set_lm(model.clone());
         Self {
             describe_program: predict(signatures::describe_program()),
             describe_module: predict(signatures::describe_module()),
-            generate: predict(signatures::generate_module_instruction(inputs))
-                .with_config(sampling),
+            generate: predict(signatures::generate_module_instruction(inputs)).config(sampling),
             program_code,
             inputs,
         }

@@ -206,6 +206,9 @@ mod tests {
                     ..Default::default()
                 },
                 InField {
+                    // Named for `infer_prefix`, not for anything this crate calls: a leading
+                    // `with_` is what makes the prefix `With Desc:`, so renaming it would delete
+                    // the case rather than move it.
                     name: "with_desc".into(),
                     desc: "a described one".into(),
                     ..Default::default()

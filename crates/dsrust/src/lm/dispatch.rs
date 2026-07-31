@@ -26,7 +26,7 @@ impl ChatModel for LM {
     }
 
     /// The watchers this model carries, told about its calls beside the process-wide ones — dspy's
-    /// `LM(model, callbacks=[…])`. See [`LM::with_callbacks`].
+    /// `LM(model, callbacks=[…])`. See [`LM::callbacks`].
     fn callbacks(&self) -> &[std::sync::Arc<dyn crate::Callback>] {
         &self.callbacks
     }

@@ -77,7 +77,7 @@ impl ChatModel for Scripted {
             .lock()
             .expect("not poisoned")
             .pop_front()
-            .map(|reply| api::LmResponse::text(reply).with_usage(self.usage.clone()))
+            .map(|reply| api::LmResponse::text(reply).usage(self.usage.clone()))
             .ok_or_else(|| anyhow!("script exhausted"))
     }
 }

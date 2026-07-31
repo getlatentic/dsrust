@@ -113,11 +113,11 @@ impl RustSandbox {
             Some(json) => serde_json::from_str(&json)
                 .map_err(|error| PyValueError::new_err(format!("output_fields: {error}")))?,
         };
-        let mut sandbox = DenoInterpreter::with_permissions(permissions);
+        let mut sandbox = DenoInterpreter::permissions(permissions);
         if sync_files == Some(false) {
             sandbox = sandbox.without_write_back();
         }
-        let sandbox = sandbox.with_output_fields(described.iter().map(|field| {
+        let sandbox = sandbox.output_fields(described.iter().map(|field| {
             OutputField {
                 name: field
                     .get("name")

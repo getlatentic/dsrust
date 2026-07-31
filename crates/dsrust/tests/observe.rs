@@ -158,7 +158,7 @@ fn one_answer() -> Arc<dyn DynChatModel> {
 #[test]
 fn a_predict_records_a_module_span_with_the_lm_call_inside_it() {
     let (recorded, answered) = recording(async {
-        let qa = Predict!("question -> answer").with_lm(one_answer());
+        let qa = Predict!("question -> answer").set_lm(one_answer());
         call!(qa, question = "capital of France?").await
     });
     answered.expect("the scripted model answers");
@@ -219,8 +219,8 @@ fn a_composed_program_nests_a_span_per_step() {
             example! { haiku: "frost on the window" },
         ]);
         let mine = Outline {
-            plan: Predict!("subject -> angle").with_lm(Arc::clone(&model)),
-            write: Predict!("angle -> haiku").with_lm(model),
+            plan: Predict!("subject -> angle").set_lm(Arc::clone(&model)),
+            write: Predict!("angle -> haiku").set_lm(model),
         };
         call!(mine, subject = "winter mornings").await
     });
@@ -257,7 +257,7 @@ fn a_failed_run_records_the_error_and_no_outputs() {
         // Prose with no field marker in it: the adapter refuses the reply. `DummyLM` cannot produce
         // this — it renders its own fields back through the adapter — so the case needs a model of
         // its own, which is the caller's `ChatModel` path as well.
-        let qa = Predict!("question -> answer").with_lm(Arc::new(Unparseable));
+        let qa = Predict!("question -> answer").set_lm(Arc::new(Unparseable));
         call!(qa, question = "capital of France?").await
     });
     answered.expect_err("the reply does not parse");
@@ -278,12 +278,12 @@ fn every_module_is_watched() {
     let cases: Vec<(&str, Box<dyn Fn() -> Box<dyn Module>>)> = vec![
         (
             "Predict",
-            Box::new(|| Box::new(Predict!("question -> answer").with_lm(one_answer()))),
+            Box::new(|| Box::new(Predict!("question -> answer").set_lm(one_answer()))),
         ),
         (
             "ChainOfThought",
             Box::new(|| {
-                Box::new(ChainOfThought!("question -> answer").with_lm(scripted(vec![
+                Box::new(ChainOfThought!("question -> answer").set_lm(scripted(vec![
                     example! { reasoning: "it is the capital", answer: "Paris" },
                 ])))
             }),
@@ -327,7 +327,7 @@ fn a_react_agent_records_a_span_per_tool_call() {
             },
         ))];
         let agent =
-            dsrust::ReAct!("question -> answer", tools, max_iters = 2).with_lm(scripted(vec![
+            dsrust::ReAct!("question -> answer", tools, max_iters = 2).set_lm(scripted(vec![
                 example! {
                     next_thought: "check the weather",
                     next_tool_name: "get_weather",
@@ -383,7 +383,7 @@ fn a_refusing_tool_records_its_error() {
             |_: &serde_json::Value| anyhow::bail!("the service is down"),
         ))];
         let agent =
-            dsrust::ReAct!("question -> answer", tools, max_iters = 2).with_lm(scripted(vec![
+            dsrust::ReAct!("question -> answer", tools, max_iters = 2).set_lm(scripted(vec![
                 example! {
                     next_thought: "try it",
                     next_tool_name: "always_fails",
@@ -422,7 +422,7 @@ fn a_refusing_tool_records_its_error() {
 #[test]
 fn rendering_and_parsing_are_their_own_spans() {
     let (recorded, answered) = recording(async {
-        let qa = Predict!("question -> answer").with_lm(one_answer());
+        let qa = Predict!("question -> answer").set_lm(one_answer());
         call!(qa, question = "capital of France?").await
     });
     answered.expect("the scripted model answers");
@@ -458,7 +458,7 @@ fn rendering_and_parsing_are_their_own_spans() {
 #[test]
 fn a_refused_reply_records_the_raw_text_beside_the_failure() {
     let (recorded, answered) = recording(async {
-        let qa = Predict!("question -> answer").with_lm(Arc::new(Unparseable));
+        let qa = Predict!("question -> answer").set_lm(Arc::new(Unparseable));
         call!(qa, question = "capital of France?").await
     });
     answered.expect_err("the reply does not parse");
@@ -490,7 +490,7 @@ fn an_evaluation_is_one_span_with_every_row_inside_it() {
             example! { question: "capital of Belgium?", answer: "Brussels" }
                 .with_inputs(["question"]),
         ];
-        let qa = Predict!("question -> answer").with_lm(scripted(vec![
+        let qa = Predict!("question -> answer").set_lm(scripted(vec![
             example! { answer: "Paris" },
             example! { answer: "Paris" },
         ]));
@@ -536,7 +536,7 @@ fn a_run_with_no_subscriber_records_nothing() {
         .build()
         .expect("a runtime")
         .block_on(async {
-            let qa = Predict!("question -> answer").with_lm(one_answer());
+            let qa = Predict!("question -> answer").set_lm(one_answer());
             call!(qa, question = "capital of France?").await
         });
     assert_eq!(

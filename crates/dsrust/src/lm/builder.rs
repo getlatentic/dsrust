@@ -33,7 +33,7 @@ impl LM {
     /// The one post-construction setter, rather than one per field. Upstream's counterpart is a
     /// single `copy` taking keywords; `LM::builder` is where a field is named individually, and it
     /// uses dspy's own names for them.
-    pub fn with_config(mut self, config: api::LmConfig) -> Self {
+    pub fn config(mut self, config: api::LmConfig) -> Self {
         self.config = config;
         self
     }
@@ -69,7 +69,7 @@ impl LmBuilder {
     pub fn api_base(mut self, base_url: impl Into<String>) -> Self {
         let base_url = base_url.into();
         self.settings
-            .push(Box::new(move |lm| lm.with_openai_base_url(base_url)));
+            .push(Box::new(move |lm| lm.openai_base_url(base_url)));
         self
     }
 
@@ -78,12 +78,12 @@ impl LmBuilder {
         let key = key.into();
         self.settings
             .push(Box::new(move |lm| match lm.model.provider {
-                crate::lm::Provider::Anthropic => lm.with_anthropic_key(key),
-                crate::lm::Provider::OpenRouter => lm.with_openrouter_key(key),
+                crate::lm::Provider::Anthropic => lm.anthropic_api_key(key),
+                crate::lm::Provider::OpenRouter => lm.openrouter_api_key(key),
                 crate::lm::Provider::Ollama | crate::lm::Provider::OllamaChat => {
-                    lm.with_ollama_key(key)
+                    lm.ollama_api_key(key)
                 }
-                crate::lm::Provider::OpenAiCompatible => lm.with_openai_key(key),
+                crate::lm::Provider::OpenAiCompatible => lm.openai_api_key(key),
             }));
         self
     }
@@ -91,15 +91,13 @@ impl LmBuilder {
     /// Where ollama is listening, when it is not the default.
     pub fn ollama_host(mut self, host: impl Into<String>) -> Self {
         let host = host.into();
-        self.settings
-            .push(Box::new(move |lm| lm.with_ollama_host(host)));
+        self.settings.push(Box::new(move |lm| lm.ollama_host(host)));
         self
     }
 
     /// How long one call may take before it is abandoned.
     pub fn timeout(mut self, timeout: Duration) -> Self {
-        self.settings
-            .push(Box::new(move |lm| lm.with_timeout(timeout)));
+        self.settings.push(Box::new(move |lm| lm.timeout(timeout)));
         self
     }
 
@@ -108,7 +106,7 @@ impl LmBuilder {
     /// dspy's `LM(model, cache=True)`, and a boolean for the same reason: a caller with a runtime
     /// switch writes `.cache(measuring_the_model)` rather than branching around a method call.
     pub fn cache(mut self, cache: bool) -> Self {
-        self.settings.push(Box::new(move |lm| lm.with_cache(cache)));
+        self.settings.push(Box::new(move |lm| lm.cache(cache)));
         self
     }
 
@@ -118,7 +116,7 @@ impl LmBuilder {
     /// two retries. `1` never asks twice, which is what a test measuring one call wants.
     pub fn num_retries(mut self, attempts: usize) -> Self {
         self.settings
-            .push(Box::new(move |lm| lm.with_retry(Retry::attempts(attempts))));
+            .push(Box::new(move |lm| lm.retry(Retry::attempts(attempts))));
         self
     }
 
@@ -129,7 +127,7 @@ impl LmBuilder {
     ) -> Self {
         let callbacks: Vec<_> = callbacks.into_iter().collect();
         self.settings
-            .push(Box::new(move |lm| lm.with_callbacks(callbacks)));
+            .push(Box::new(move |lm| lm.callbacks(callbacks)));
         self
     }
 
@@ -138,7 +136,7 @@ impl LmBuilder {
     /// wire only.
     pub fn use_developer_role(mut self, use_developer_role: bool) -> Self {
         self.settings.push(Box::new(move |lm| {
-            lm.with_developer_role(use_developer_role)
+            lm.use_developer_role(use_developer_role)
         }));
         self
     }
@@ -156,7 +154,7 @@ impl LmBuilder {
 
     /// The model, or the reason its id is not one.
     pub fn build(self) -> Result<LM> {
-        let built = LM::new(&self.model)?.with_config(self.config);
+        let built = LM::new(&self.model)?.config(self.config);
         Ok(self.settings.into_iter().fold(built, |lm, apply| apply(lm)))
     }
 }

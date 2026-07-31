@@ -29,7 +29,7 @@ mod variables;
 
 pub use deno::{DenoInterpreter, Permissions};
 pub use repl::{ReplEntry, ReplHistory, ReplVariable};
-pub use sandbox::{SandboxSerializable, build_repl_variable, with_constraints};
+pub use sandbox::{SandboxSerializable, build_repl_variable, constraints};
 
 /// What one execution produced.
 ///

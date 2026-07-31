@@ -304,7 +304,7 @@ impl Signature {
     /// raises `KeyError`. This is the opposite of [`delete`](Self::delete), where upstream is
     /// deliberately forgiving, and the difference is worth keeping: deleting a field an adapter
     /// only sometimes adds is reasonable, while editing one that was never there is a typo.
-    pub fn with_updated_field(
+    pub fn with_updated_fields(
         &self,
         name: &str,
         edit: impl FnOnce(&mut FieldEdit<'_>),
@@ -1027,7 +1027,7 @@ mod edit_tests {
     #[test]
     fn updating_a_field_leaves_the_rest_alone() {
         let edited = sig()
-            .with_updated_field("context", |field| field.set_desc("A better context"))
+            .with_updated_fields("context", |field| field.set_desc("A better context"))
             .expect("the field is there");
         assert_eq!(edited.inputs[1].desc, "A better context");
         assert_eq!(edited.inputs[0].desc, "", "the other field is untouched");
@@ -1035,7 +1035,7 @@ mod edit_tests {
         assert_eq!(names(&edited), names(&sig()), "and the shape is unchanged");
 
         let retyped = sig()
-            .with_updated_field("context", |field| field.set_kind(FieldKind::Int))
+            .with_updated_fields("context", |field| field.set_kind(FieldKind::Int))
             .expect("the field is there");
         assert_eq!(retyped.inputs[1].kind, FieldKind::Int);
     }
@@ -1044,7 +1044,7 @@ mod edit_tests {
     #[test]
     fn updating_reaches_either_side() {
         let edited = sig()
-            .with_updated_field("output_text", |field| field.set_desc("the translation"))
+            .with_updated_fields("output_text", |field| field.set_desc("the translation"))
             .expect("the field is there");
         assert_eq!(edited.outputs[0].desc, "the translation");
     }
@@ -1055,7 +1055,7 @@ mod edit_tests {
     fn updating_a_field_that_is_not_there_is_refused() {
         assert_eq!(
             sig()
-                .with_updated_field("nope", |field| field.set_desc("x"))
+                .with_updated_fields("nope", |field| field.set_desc("x"))
                 .expect_err("no such field"),
             "\"nope\""
         );

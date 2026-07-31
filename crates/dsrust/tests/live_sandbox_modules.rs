@@ -24,8 +24,8 @@ fn configure_live() -> String {
     configure(
         LM::new(&format!("openai/{model}"))
             .expect("a model id")
-            .with_openai_base_url(&base_url)
-            .with_openai_key("not-needed-locally"),
+            .openai_base_url(&base_url)
+            .openai_api_key("not-needed-locally"),
     );
     assert!(
         DenoInterpreter::available(),
@@ -143,7 +143,7 @@ async fn rlm_computes_over_a_value_that_never_enters_the_prompt() {
     });
 
     let rlm = dsrust::Rlm::new("question -> answer".parse::<Signature>().expect("parses"))
-        .with_sandbox_input("cities", corpus)
+        .sandbox_input("cities", corpus)
         .max_iterations(4);
 
     let prediction = rlm

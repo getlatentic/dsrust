@@ -56,11 +56,9 @@ fn live_timeout() -> Option<Duration> {
 
 fn configure_live() -> String {
     let model = live_model();
-    let mut lm = LM::new(&model)
-        .expect("a valid model ref")
-        .with_cache(false);
+    let mut lm = LM::new(&model).expect("a valid model ref").cache(false);
     if let Some(timeout) = live_timeout() {
-        lm = lm.with_timeout(timeout);
+        lm = lm.timeout(timeout);
     }
     dsrust::configure(lm);
     model

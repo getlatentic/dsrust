@@ -195,7 +195,7 @@ impl Prediction {
     }
 
     /// What the calls behind this answer cost.
-    pub fn with_usage(mut self, usage: Option<LmUsage>) -> Self {
+    pub fn set_lm_usage(mut self, usage: Option<LmUsage>) -> Self {
         self.usage = usage;
         self
     }

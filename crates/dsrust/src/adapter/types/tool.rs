@@ -33,7 +33,7 @@ impl ToolCall {
     }
 
     /// The same call carrying the provider's id.
-    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+    pub fn id(mut self, id: impl Into<String>) -> Self {
         self.id = Some(id.into());
         self
     }
@@ -123,7 +123,7 @@ impl ToolCalls {
     }
 
     /// The same calls carrying what running them returned.
-    pub fn with_results(mut self, results: ToolCallResults) -> Self {
+    pub fn results(mut self, results: ToolCallResults) -> Self {
         self.tool_call_results = Some(results);
         self
     }
@@ -448,7 +448,7 @@ mod tests {
                 .expect("object")
                 .clone(),
         )
-        .with_id("call_1")
+        .id("call_1")
     }
 
     /// dspy `ToolCall.format` states the name and args; the provider's id is transport and is
@@ -490,7 +490,7 @@ mod tests {
         // The results dump as their own model, so they nest under a second `tool_call_results`.
         // Checked against dspy 3.3.0b1's `ToolCalls.model_dump()` rather than assumed.
         assert_eq!(
-            serde_json::to_value(calls.with_results(results)).expect("serializes"),
+            serde_json::to_value(calls.results(results)).expect("serializes"),
             json!({
                 "tool_calls": [{ "name": "search", "args": { "query": "cats" } }],
                 "tool_call_results": {
@@ -516,7 +516,7 @@ mod tests {
             json!({ "tool_calls": [{ "id": "call_1", "name": "search", "args": { "query": "cats" } }] })
         );
 
-        let with_results = calls.clone().with_results(
+        let results = calls.clone().results(
             ToolCallResults::from_tool_calls_and_values(
                 &calls.tool_calls,
                 vec![json!("cat")],
@@ -525,7 +525,7 @@ mod tests {
             .expect("pairs"),
         );
         let back: ToolCalls =
-            serde_json::from_value(with_results.to_value_with_ids()).expect("reads back");
+            serde_json::from_value(results.to_value_with_ids()).expect("reads back");
         assert_eq!(back.tool_calls[0].id.as_deref(), Some("call_1"));
         assert_eq!(
             back.tool_call_results.expect("results").tool_call_results[0]
@@ -649,7 +649,7 @@ mod tests {
                 .expect("pairs");
         assert!(
             ToolCalls::new(calls.clone())
-                .with_results(matching)
+                .results(matching)
                 .results_match_calls()
         );
 
@@ -666,7 +666,7 @@ mod tests {
         };
         assert!(
             !ToolCalls::new(calls)
-                .with_results(mismatched)
+                .results(mismatched)
                 .results_match_calls()
         );
         // A call with no id cannot be answered by name alone.
@@ -676,7 +676,7 @@ mod tests {
                 .expect("pairs");
         assert!(
             !ToolCalls::new(anonymous)
-                .with_results(results)
+                .results(results)
                 .results_match_calls()
         );
     }

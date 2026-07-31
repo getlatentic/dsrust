@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn a_named_retry_after_wins_over_the_curve() {
         let policy = Retry::default();
-        let asked = failed(LmErrorKind::RateLimit).with_retry_after(42.0);
+        let asked = failed(LmErrorKind::RateLimit).retry_after(42.0);
         assert_eq!(
             policy.wait_after(1, &asked),
             Some(Duration::from_secs(42)),

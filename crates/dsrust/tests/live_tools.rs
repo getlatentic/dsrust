@@ -23,11 +23,9 @@ use dsrust::{ChatModel, LM};
 fn live_setup() -> (LM, String, LmConfig) {
     let model =
         std::env::var("LIVE_LM").unwrap_or_else(|_| "ollama_chat/qwen2.5:7b-instruct".to_owned());
-    let mut lm = LM::new(&model)
-        .expect("a valid model ref")
-        .with_cache(false);
+    let mut lm = LM::new(&model).expect("a valid model ref").cache(false);
     if let Ok(base_url) = std::env::var("LIVE_BASE_URL") {
-        lm = lm.with_openai_base_url(base_url);
+        lm = lm.openai_base_url(base_url);
     }
     // Pinning an OpenRouter upstream rides through as the `provider` field, which the OpenAI-shaped
     // request builder passes straight onto the wire from config extensions.
@@ -62,7 +60,7 @@ async fn turn(
     config: &LmConfig,
 ) -> api::LmResponse {
     let request = api::LmRequest::new(model, messages)
-        .with_tools(vec![tool.clone()])
+        .tools(vec![tool.clone()])
         .configured(config.clone());
     lm.forward(&request).await.expect("the provider answered")
 }

@@ -52,17 +52,17 @@ impl Document {
         }
     }
 
-    pub fn with_title(mut self, title: impl Into<String>) -> Self {
+    pub fn title(mut self, title: impl Into<String>) -> Self {
         self.title = Some(title.into());
         self
     }
 
-    pub fn with_media_type(mut self, media_type: MediaType) -> Self {
+    pub fn media_type(mut self, media_type: MediaType) -> Self {
         self.media_type = media_type;
         self
     }
 
-    pub fn with_context(mut self, context: impl Into<String>) -> Self {
+    pub fn context(mut self, context: impl Into<String>) -> Self {
         self.context = Some(context.into());
         self
     }
@@ -178,9 +178,9 @@ mod tests {
     #[test]
     fn its_optional_fields_follow_the_required_ones() {
         let document = Document::new("A report.")
-            .with_title("Weather")
-            .with_context("From the archive")
-            .with_media_type(MediaType::Pdf);
+            .title("Weather")
+            .context("From the archive")
+            .media_type(MediaType::Pdf);
         let Formatted::Blocks(blocks) = document.format() else {
             panic!("a document renders as a block");
         };
@@ -200,9 +200,7 @@ mod tests {
         .expect("parses");
         assert_eq!(
             mapped,
-            Document::new("Body")
-                .with_title("T")
-                .with_media_type(MediaType::Pdf)
+            Document::new("Body").title("T").media_type(MediaType::Pdf)
         );
         assert!(serde_json::from_value::<Document>(json!({ "title": "no data" })).is_err());
         // Outside the pair dspy's `Literal` allows.
@@ -217,7 +215,7 @@ mod tests {
     fn its_string_form_names_the_title_and_counts_the_content() {
         assert_eq!(Document::new("abcd").to_string(), "Document(4 chars)");
         assert_eq!(
-            Document::new("abcd").with_title("T").to_string(),
+            Document::new("abcd").title("T").to_string(),
             "Document('T': 4 chars)"
         );
     }

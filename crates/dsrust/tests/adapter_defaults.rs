@@ -38,8 +38,8 @@ fn a_chat_fallback_carries_the_chat_adapters_settings_not_the_json_defaults() {
     assert!(!fallback.use_native_function_calling);
 
     let native = ChatAdapter::default()
-        .with_native_function_calling(true)
-        .with_parallel_tool_calls(Some(true));
+        .use_native_function_calling(true)
+        .parallel_tool_calls(Some(true));
     let fallback = native.json_fallback_adapter().expect("falls back");
     assert!(fallback.use_native_function_calling);
     assert_eq!(fallback.parallel_tool_calls, Some(true));

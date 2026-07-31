@@ -34,7 +34,7 @@ impl File {
         }
     }
 
-    pub fn with_filename(mut self, filename: impl Into<String>) -> Self {
+    pub fn filename(mut self, filename: impl Into<String>) -> Self {
         self.filename = Some(filename.into());
         self
     }
@@ -111,7 +111,7 @@ mod tests {
     /// The block carries only the fields that are set, in dspy's order, wrapped in the sentinels.
     #[test]
     fn it_renders_only_the_fields_that_are_set() {
-        let file = File::from_id("file-1").with_filename("a.txt");
+        let file = File::from_id("file-1").filename("a.txt");
         assert_eq!(
             file.format(),
             Formatted::Blocks(vec![

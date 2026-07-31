@@ -105,7 +105,7 @@ fn asked() -> dsrust::example::Example {
 async fn a_reasoning_model_carries_the_effort_and_drops_the_field_from_the_prompt() {
     let model = Recorder::new(true, reply_with_thinking("six sevens are forty-two"));
     let predict = Predict::from_signature(reasoning_signature())
-        .with_lm(model.clone() as Arc<dyn DynChatModel>);
+        .set_lm(model.clone() as Arc<dyn DynChatModel>);
     let _ = predict.forward(asked()).await;
 
     let request = model.request();
@@ -127,7 +127,7 @@ async fn a_reasoning_model_carries_the_effort_and_drops_the_field_from_the_promp
 async fn the_reply_thinking_fills_the_reasoning_field() {
     let model = Recorder::new(true, reply_with_thinking("six sevens are forty-two"));
     let predict =
-        Predict::from_signature(reasoning_signature()).with_lm(model as Arc<dyn DynChatModel>);
+        Predict::from_signature(reasoning_signature()).set_lm(model as Arc<dyn DynChatModel>);
     let prediction = predict
         .forward(asked())
         .await
@@ -149,7 +149,7 @@ async fn a_model_that_cannot_reason_renders_the_field() {
     );
     let model = Recorder::new(false, reply);
     let predict = Predict::from_signature(reasoning_signature())
-        .with_lm(model.clone() as Arc<dyn DynChatModel>);
+        .set_lm(model.clone() as Arc<dyn DynChatModel>);
     let prediction = predict
         .forward(asked())
         .await

@@ -77,12 +77,12 @@ impl ReplVariable {
         }
     }
 
-    pub fn with_desc(mut self, desc: impl Into<String>) -> Self {
+    pub fn desc(mut self, desc: impl Into<String>) -> Self {
         self.desc = desc.into();
         self
     }
 
-    pub fn with_constraints(mut self, constraints: impl Into<String>) -> Self {
+    pub fn constraints(mut self, constraints: impl Into<String>) -> Self {
         self.constraints = constraints.into();
         self
     }

@@ -133,8 +133,8 @@ pub(crate) fn rlm_forward(
         rlm = rlm.max_iterations(max_iterations);
     }
     rlm = rlm
-        .with_action_lm(Arc::new(PyLM { inner: action_lm }))
-        .with_extract_lm(Arc::new(PyLM { inner: extract_lm }));
+        .action_lm(Arc::new(PyLM { inner: action_lm }))
+        .extract_lm(Arc::new(PyLM { inner: extract_lm }));
 
     answered(py, rlm, values)
 }
@@ -164,7 +164,7 @@ pub(crate) fn program_of_thought_forward(
     if let Some(max_iters) = max_iters {
         pot = pot.max_iters(max_iters);
     }
-    answered(py, pot.with_lm(Arc::new(PyLM { inner: py_lm })), values)
+    answered(py, pot.set_lm(Arc::new(PyLM { inner: py_lm })), values)
 }
 
 /// Run this crate's `CodeAct` over a Python interpreter and a set of Python tools.
@@ -197,7 +197,7 @@ pub(crate) fn code_act_forward(
     if let Some(max_iters) = max_iters {
         act = act.max_iters(max_iters);
     }
-    answered(py, act.with_lm(Arc::new(PyLM { inner: py_lm })), values)
+    answered(py, act.set_lm(Arc::new(PyLM { inner: py_lm })), values)
 }
 
 /// Run a module over the named input values and hand its prediction back as JSON.

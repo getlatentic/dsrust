@@ -76,11 +76,11 @@ impl DenoInterpreter {
     /// A sandbox that may read only what it must: the runner and Pyodide's cache. No network, no
     /// writes, no environment — upstream's defaults, which are the point of a sandbox.
     pub fn new() -> Self {
-        Self::with_permissions(Permissions::default())
+        Self::permissions(Permissions::default())
     }
 
     /// The same, with what the sandboxed code is allowed to reach spelled out.
-    pub fn with_permissions(permissions: Permissions) -> Self {
+    pub fn permissions(permissions: Permissions) -> Self {
         Self {
             permissions,
             session: Mutex::new(None),
@@ -103,7 +103,7 @@ impl DenoInterpreter {
     ///
     /// `CodeAct` and `RLM` set this so the model calls `SUBMIT(answer=…, confidence=…)` rather
     /// than passing one positional value; without it the sandbox keeps its single-argument default.
-    pub fn with_output_fields(self, outputs: impl IntoIterator<Item = OutputField>) -> Self {
+    pub fn output_fields(self, outputs: impl IntoIterator<Item = OutputField>) -> Self {
         *self.outputs.lock().expect("the output fields") = outputs.into_iter().collect();
         self
     }

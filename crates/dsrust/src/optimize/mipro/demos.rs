@@ -170,7 +170,7 @@ mod tests {
         for case in fixture["cases"].as_array().expect("cases") {
             let mut student = Predict::parse("question -> answer")
                 .expect("parses")
-                .with_lm(model(&fixture));
+                .set_lm(model(&fixture));
             let mut rng = Rng::seeded(case["seed"].as_u64().expect("seed"));
             let sets = create_demo_sets(
                 &mut student,

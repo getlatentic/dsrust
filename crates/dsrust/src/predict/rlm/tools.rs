@@ -123,7 +123,7 @@ impl<A: Fn(&str) -> Result<String> + Send + Sync> Tool for LlmQueryBatched<A> {
 ///
 /// `ask` is the caller's bridge to a sub-LLM, synchronous because [`Tool::call`] is — the same
 /// contract [`mcp_tool`](crate::react::mcp_tool) states, and a caller driving an async model blocks
-/// on it. Hand the pair to [`Rlm::with_tools`](super::Rlm::with_tools) and they reach the sandbox
+/// on it. Hand the pair to [`Rlm::tools`](super::Rlm::tools) and they reach the sandbox
 /// through [`define_tools`](crate::interpreter::CodeInterpreter::define_tools) with the caller's
 /// own tools.
 pub fn llm_query_tools<A>(max_llm_calls: usize, ask: A) -> Vec<Arc<dyn Tool>>

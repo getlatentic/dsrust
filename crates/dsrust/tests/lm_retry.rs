@@ -295,7 +295,7 @@ async fn one_attempt_never_asks_twice() {
 #[tokio::test]
 async fn a_module_rides_out_a_rate_limit_too() {
     let stub = Refusing::new(1, 429, Some("0.1"));
-    let qa = Predict!("question -> answer").with_lm(Arc::new(stub.model(3)));
+    let qa = Predict!("question -> answer").set_lm(Arc::new(stub.model(3)));
 
     let out = call!(qa, question = "capital of France?")
         .await

@@ -78,7 +78,7 @@ fn reply(
         }
         return Err(
             crate::lm::LmFailure::from_body(status.as_u16(), model, "anthropic", body)
-                .with_headers(headers)
+                .headers(headers)
                 .into(),
         );
     }
@@ -90,9 +90,9 @@ fn reply(
         outputs: vec![output],
         ..api::LmResponse::default()
     }
-    .with_usage(usage(&body["usage"]))
-    .with_provider_response(provider_data(body))
-    .with_model(model))
+    .usage(usage(&body["usage"]))
+    .provider_response(provider_data(body))
+    .model(model))
 }
 
 /// The message's content blocks as a typed output, in dspy's part vocabulary: reasoning as a

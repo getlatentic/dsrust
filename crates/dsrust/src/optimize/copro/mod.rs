@@ -215,13 +215,13 @@ where
         n: usize,
         input: [(&str, Value); 1],
     ) -> Result<Vec<Proposal>> {
-        let mut predict = Predict::from_signature(signature).with_config(Sampling {
+        let mut predict = Predict::from_signature(signature).config(Sampling {
             completions: Some(n as u32),
             temperature: Some(self.init_temperature),
             ..Sampling::default()
         });
         if let Some(model) = &self.prompt_model {
-            predict = predict.with_lm(model.clone());
+            predict = predict.set_lm(model.clone());
         }
         let predictions = predict.forward_completions(Example::new(input)).await?;
         Ok(predictions.iter().map(proposal_of).collect())
@@ -347,7 +347,7 @@ mod tests {
         let model = Arc::new(Coach);
         let mut student = Predict::parse("question -> answer")
             .expect("parses")
-            .with_lm(model.clone());
+            .set_lm(model.clone());
         let trainset = vec![
             example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"]),
         ];

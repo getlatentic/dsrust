@@ -113,7 +113,7 @@ fn a_file_written_in_the_sandbox_reaches_the_host() {
     let path = directory.join("written-inside.txt");
     std::fs::write(&path, "before").expect("the host's version");
 
-    let deno = DenoInterpreter::with_permissions(Permissions {
+    let deno = DenoInterpreter::permissions(Permissions {
         write: vec![path.clone()],
         ..Permissions::default()
     });
@@ -141,7 +141,7 @@ fn without_write_back_the_hosts_file_is_left_alone() {
     let path = directory.join("left-alone.txt");
     std::fs::write(&path, "untouched").expect("the host's version");
 
-    let deno = DenoInterpreter::with_permissions(Permissions {
+    let deno = DenoInterpreter::permissions(Permissions {
         write: vec![path.clone()],
         ..Permissions::default()
     })

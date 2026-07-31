@@ -23,7 +23,7 @@ use crate::adapter::types::base::{Formatted, to_field_value};
 use crate::example::{Example, Prediction};
 use crate::interpreter::{
     CodeInterpreter, DenoInterpreter, Executed, OutputField, ReplEntry, ReplHistory, ReplVariable,
-    SandboxSerializable, sandbox, with_constraints,
+    SandboxSerializable, constraints, sandbox,
 };
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::react::Tool;
@@ -85,7 +85,7 @@ pub struct Rlm {
     tools: Vec<Arc<dyn Tool>>,
     interpreter: Arc<dyn CodeInterpreter>,
     /// Inputs that live in the sandbox rather than crossing as JSON, by field name. See
-    /// [`Self::with_sandbox_input`].
+    /// [`Self::sandbox_input`].
     sandboxed: BTreeMap<String, Arc<dyn SandboxSerializable>>,
 }
 
@@ -97,10 +97,10 @@ impl Rlm {
 
     /// The same, running code somewhere the caller chose.
     pub fn interpreter(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
-        Self::with_tools(signature, Vec::new(), interpreter)
+        Self::tools(signature, Vec::new(), interpreter)
     }
 
-    pub fn with_tools(
+    pub fn tools(
         signature: Signature,
         tools: Vec<Arc<dyn Tool>>,
         interpreter: Arc<dyn CodeInterpreter>,
@@ -125,7 +125,7 @@ impl Rlm {
     /// other path. An [`Example`] holds JSON, so a Rust caller names the field instead, and the
     /// value is serialized, rebuilt in the sandbox before the first turn, and described to the
     /// model by [`build_repl_variable`](crate::interpreter::build_repl_variable) rather than previewed.
-    pub fn with_sandbox_input(
+    pub fn sandbox_input(
         mut self,
         name: impl Into<String>,
         value: Arc<dyn SandboxSerializable>,
@@ -168,9 +168,9 @@ impl Rlm {
     }
 
     /// Ask both steps of this model.
-    pub fn with_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
-        self.generate_action = self.generate_action.with_lm(lm.clone());
-        self.extract = self.extract.with_lm(lm);
+    pub fn set_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.generate_action = self.generate_action.set_lm(lm.clone());
+        self.extract = self.extract.set_lm(lm);
         self
     }
 
@@ -179,14 +179,14 @@ impl Rlm {
     /// The two steps are separable because upstream's are: `rlm.generate_action` and `rlm.extract`
     /// are attributes its own tests replace one at a time, and a caller wanting a cheaper model to
     /// read back a finished session wants the same seam.
-    pub fn with_action_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
-        self.generate_action = self.generate_action.with_lm(lm);
+    pub fn action_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.generate_action = self.generate_action.set_lm(lm);
         self
     }
 
-    /// Ask the extract step of this model. See [`Self::with_action_lm`].
-    pub fn with_extract_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
-        self.extract = self.extract.with_lm(lm);
+    /// Ask the extract step of this model. See [`Self::action_lm`].
+    pub fn extract_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.extract = self.extract.set_lm(lm);
         self
     }
 
@@ -313,16 +313,14 @@ impl Rlm {
             .inputs
             .iter()
             .filter_map(|field| {
-                let constraints = field.constraints.clone().unwrap_or_default();
+                let stated = field.constraints.clone().unwrap_or_default();
                 let variable = match self.sandboxed.get(&field.name) {
-                    Some(held) => {
-                        with_constraints(held.as_ref(), &field.name, &field.desc, &constraints)
-                    }
+                    Some(held) => constraints(held.as_ref(), &field.name, &field.desc, &stated),
                     None => {
                         let mut built =
                             ReplVariable::from_value(&field.name, inputs.get(&field.name)?);
                         built.desc = field.desc.clone();
-                        built.constraints = constraints;
+                        built.constraints = stated;
                         built
                     }
                 };
@@ -440,8 +438,8 @@ mod loop_tests {
     fn rlm(interpreter: Arc<ScriptedInterpreter>, replies: &[&'static str]) -> Rlm {
         let model = Arc::new(Scripted::new(replies));
         let mut rlm = Rlm::interpreter(task(), interpreter);
-        rlm.generate_action = rlm.generate_action.with_lm(model.clone());
-        rlm.extract = rlm.extract.with_lm(model);
+        rlm.generate_action = rlm.generate_action.set_lm(model.clone());
+        rlm.extract = rlm.extract.set_lm(model);
         rlm
     }
 
@@ -469,7 +467,7 @@ mod loop_tests {
             "[[ ## reasoning ## ]]\nlook\n\n[[ ## code ## ]]\nSUBMIT(answer=\"Lagos\", count=3)\n\n[[ ## completed ## ]]",
         ]);
         let _ = rlm
-            .with_lm(Arc::new(model))
+            .set_lm(Arc::new(model))
             .forward(example! { question: "which city?" })
             .await;
 
@@ -590,8 +588,8 @@ mod loop_tests {
         );
         let model = Arc::new(Scripted::new(&[first, second]));
         let mut rlm = Rlm::interpreter(signature, interpreter);
-        rlm.generate_action = rlm.generate_action.with_lm(model.clone());
-        rlm.extract = rlm.extract.with_lm(model);
+        rlm.generate_action = rlm.generate_action.set_lm(model.clone());
+        rlm.extract = rlm.extract.set_lm(model);
 
         let prediction = rlm
             .forward(example! { context: "doc" })
@@ -670,8 +668,8 @@ mod loop_tests {
             Box::leak(action("fix", "```python\nSUBMIT(answer='yes')\n```").into_boxed_str());
         let model = Arc::new(Scripted::new(&[wrong, right]));
         let mut rlm = Rlm::interpreter(signature, interpreter);
-        rlm.generate_action = rlm.generate_action.with_lm(model.clone());
-        rlm.extract = rlm.extract.with_lm(model);
+        rlm.generate_action = rlm.generate_action.set_lm(model.clone());
+        rlm.extract = rlm.extract.set_lm(model);
 
         let prediction = rlm
             .forward(example! { context: "doc" })
@@ -753,8 +751,8 @@ mod sandbox_tests {
             "corpus -> answer".parse().expect("parses"),
             interpreter.clone(),
         )
-        .with_sandbox_input("corpus", Arc::new(Corpus(12)))
-        .with_lm(model);
+        .sandbox_input("corpus", Arc::new(Corpus(12)))
+        .set_lm(model);
 
         let prediction = rlm.forward(Example::default()).await.expect("answers");
         assert_eq!(prediction.get("answer"), Some(&json!("done")));
@@ -780,8 +778,8 @@ mod sandbox_tests {
         let interpreter = Arc::new(ScriptedInterpreter::new([]));
         let mut signature: Signature = "corpus -> answer".parse().expect("parses");
         signature.inputs[0].desc = "everything we have".to_owned();
-        let rlm = Rlm::interpreter(signature, interpreter)
-            .with_sandbox_input("corpus", Arc::new(Corpus(12)));
+        let rlm =
+            Rlm::interpreter(signature, interpreter).sandbox_input("corpus", Arc::new(Corpus(12)));
 
         let described = rlm.variables(&Example::default());
         assert_eq!(described.len(), 1);

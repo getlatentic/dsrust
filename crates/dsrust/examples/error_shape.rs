@@ -12,9 +12,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::var("PROBE_BASE").unwrap_or_else(|_| "http://127.0.0.1:8080/v1".to_owned());
     configure(
         LM::new(&format!("openai/{model}"))?
-            .with_openai_base_url(&base)
-            .with_openai_key("x")
-            .with_cache(false),
+            .openai_base_url(&base)
+            .openai_api_key("x")
+            .cache(false),
     );
 
     let asked = Predict::from_signature("question -> answer".parse::<Signature>()?)

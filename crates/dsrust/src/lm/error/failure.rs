@@ -71,7 +71,7 @@ impl LmFailure {
             .on_model(model)
             .from_provider(provider);
         if let Some(code) = body["error"]["code"].as_str() {
-            failure = failure.with_provider_code(code);
+            failure = failure.provider_code(code);
         }
         failure
     }
@@ -112,12 +112,12 @@ impl LmFailure {
         self
     }
 
-    pub fn with_request_id(mut self, request_id: impl Into<String>) -> Self {
+    pub fn request_id(mut self, request_id: impl Into<String>) -> Self {
         self.request_id = Some(request_id.into());
         self
     }
 
-    pub fn with_retry_after(mut self, seconds: f64) -> Self {
+    pub fn retry_after(mut self, seconds: f64) -> Self {
         self.retry_after = Some(seconds);
         self
     }
@@ -127,13 +127,13 @@ impl LmFailure {
     ///
     /// Not folded into [`from_body`](Self::from_body): the body is parsed after the response has
     /// been consumed, so the headers have to be taken before that and handed in.
-    pub fn with_headers(mut self, headers: &reqwest::header::HeaderMap) -> Self {
+    pub fn headers(mut self, headers: &reqwest::header::HeaderMap) -> Self {
         self.retry_after = super::headers::retry_after(headers);
         self.request_id = super::headers::request_id(headers);
         self
     }
 
-    pub fn with_provider_code(mut self, code: impl Into<String>) -> Self {
+    pub fn provider_code(mut self, code: impl Into<String>) -> Self {
         self.provider_code = Some(code.into());
         self
     }

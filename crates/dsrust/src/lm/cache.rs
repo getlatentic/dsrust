@@ -54,7 +54,7 @@ impl ResponseCache {
     }
 
     /// The same, also writing through to a directory that outlives the process.
-    pub fn with_disk(mut self, disk: DiskCache) -> Self {
+    pub fn enable_disk_cache(mut self, disk: DiskCache) -> Self {
         self.disk = Some(disk);
         self
     }
@@ -193,7 +193,7 @@ fn canonical(value: &serde_json::Value) -> String {
 /// makes a repeated compile cheap.
 pub fn shared() -> &'static ResponseCache {
     SHARED.get_or_init(|| match DiskCache::from_env() {
-        Some(disk) => ResponseCache::default().with_disk(disk),
+        Some(disk) => ResponseCache::default().enable_disk_cache(disk),
         None => ResponseCache::default(),
     })
 }
@@ -340,7 +340,7 @@ mod tests {
     /// Temperature is sent, so it is part of what the reply depends on and must key separately.
     #[test]
     fn a_different_temperature_is_a_different_entry() {
-        let lm = Cached::new(DummyLM::new([]).with_fallback(example! { answer: "any" }));
+        let lm = Cached::new(DummyLM::new([]).fallback(example! { answer: "any" }));
         ask(&lm, Sampling::default());
         ask(
             &lm,
@@ -371,7 +371,7 @@ mod tests {
     #[test]
     fn the_oldest_entry_is_dropped_once_the_bound_is_reached() {
         let lm = Cached::bounded(
-            DummyLM::new([]).with_fallback(example! { answer: "any" }),
+            DummyLM::new([]).fallback(example! { answer: "any" }),
             NonZeroUsize::new(2).expect("two"),
         );
         for id in 0..3 {
@@ -389,10 +389,10 @@ mod tests {
             std::env::temp_dir().join(format!("dsrust-cache-across-runs-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
 
-        let first = ResponseCache::default().with_disk(DiskCache::new(&dir, 1_000_000));
+        let first = ResponseCache::default().enable_disk_cache(DiskCache::new(&dir, 1_000_000));
         first.keep("key".to_owned(), LmResponse::text("bought once"));
 
-        let restarted = ResponseCache::default().with_disk(DiskCache::new(&dir, 1_000_000));
+        let restarted = ResponseCache::default().enable_disk_cache(DiskCache::new(&dir, 1_000_000));
         assert!(
             restarted.is_empty(),
             "memory starts cold, as a new process would"
@@ -406,7 +406,7 @@ mod tests {
         restarted.clear();
         assert_eq!(
             ResponseCache::default()
-                .with_disk(DiskCache::new(&dir, 1_000_000))
+                .enable_disk_cache(DiskCache::new(&dir, 1_000_000))
                 .replay("key"),
             None,
             "clearing reaches the disk half too"
@@ -422,7 +422,7 @@ mod tests {
         let usage = LmUsage::counted(10, 4);
         cache.keep(
             "key".to_owned(),
-            LmResponse::text("the reply").with_usage(Some(usage.clone())),
+            LmResponse::text("the reply").usage(Some(usage.clone())),
         );
 
         let replayed = cache.replay("key").expect("a hit");

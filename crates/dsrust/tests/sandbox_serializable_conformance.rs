@@ -11,7 +11,7 @@
 
 use std::path::Path;
 
-use dsrust::interpreter::{SandboxSerializable, with_constraints};
+use dsrust::interpreter::{SandboxSerializable, constraints};
 use serde_json::Value;
 
 /// One golden case, replayed through the Rust trait.
@@ -83,13 +83,13 @@ fn build_repl_variable_matches_dspys() {
                 .trim_end_matches('\n')
                 .to_owned(),
         };
-        let constraints = case["constraints"].as_str().expect("constraints");
+        let stated = case["constraints"].as_str().expect("constraints");
 
-        let built = with_constraints(
+        let built = constraints(
             &value,
             case["name"].as_str().expect("a name"),
             &given,
-            constraints,
+            stated,
         );
 
         assert_eq!(
@@ -99,7 +99,7 @@ fn build_repl_variable_matches_dspys() {
         );
         assert_eq!(built.type_name, value.type_name, "type_name, {label}");
         assert_eq!(built.desc, produced, "desc, {label}");
-        assert_eq!(built.constraints, constraints, "constraints, {label}");
+        assert_eq!(built.constraints, stated, "constraints, {label}");
         assert_eq!(built.preview, value.preview, "preview, {label}");
         assert_eq!(
             built.total_length,

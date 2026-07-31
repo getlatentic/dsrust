@@ -256,7 +256,7 @@ async fn invalid_json_rides_the_feedback_retry() {
     let bad = marker_reply("three lovely ideas, honest");
     let lm = Scripted::new(&[&bad, &marker_reply(GOOD_IDEAS)]);
     let outputs = IdeasTask::predict()
-        .with_feedback_retry()
+        .feedback_retry()
         .call_inputs_with(&lm, &inputs())
         .await
         .expect("second reply is valid");
@@ -283,7 +283,7 @@ async fn the_json_adapter_passes_native_arrays_through() {
     let native = format!(r#"{{ "ideas": {GOOD_IDEAS}, "tip": "Wrap it well." }}"#);
     let lm = Scripted::new(&[&native]);
     let outputs = IdeasTask::predict()
-        .with_adapter(JsonAdapter::default())
+        .adapter(JsonAdapter::default())
         .call_inputs_with(&lm, &inputs())
         .await
         .expect("native json reply");
@@ -352,8 +352,8 @@ async fn typed_calls_stay_bounded_at_three_provider_calls() {
     let script: Vec<&str> = script.iter().map(String::as_str).collect();
     let lm = Scripted::new(&script);
     let outputs = IdeasTask::predict()
-        .with_feedback_retry()
-        .with_adapter(JsonAdapter::default())
+        .feedback_retry()
+        .adapter(JsonAdapter::default())
         .call_inputs_with(&lm, &inputs())
         .await
         .expect("third reply lands");

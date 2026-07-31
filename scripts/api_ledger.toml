@@ -415,7 +415,7 @@
 "signatures/signature.py::Signature.load_state" = { status = "mapped", rust = "restore" }
 "signatures/signature.py::Signature.prepend" = { status = "mapped", rust = "prepend" }
 "signatures/signature.py::Signature.with_instructions" = { status = "mapped", rust = "with_instructions" }
-"signatures/signature.py::Signature.with_updated_fields" = { status = "mapped", rust = "with_updated_field" }
+"signatures/signature.py::Signature.with_updated_fields" = { status = "mapped", rust = "with_updated_fields" }
 
 # Predict
 "predict/predict.py::Predict.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
@@ -425,7 +425,7 @@
 "predict/predict.py::Predict.get_config" = { status = "mapped", rust = "config" }
 "predict/predict.py::Predict.load_state" = { status = "mapped", rust = "load_state" }
 "predict/predict.py::Predict.reset" = { status = "divergence", reason = "clearing a predictor's learned state; a Rust caller rebuilds it or assigns the fields `named_predictors` exposes" }
-"predict/predict.py::Predict.update_config" = { status = "mapped", rust = "with_config" }
+"predict/predict.py::Predict.update_config" = { status = "mapped", rust = "config" }
 
 # ChainOfThought
 "predict/chain_of_thought.py::ChainOfThought.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
@@ -467,7 +467,7 @@
 "primitives/prediction.py::Prediction.completions" = { status = "mapped", rust = "Completions" }
 "primitives/prediction.py::Prediction.from_completions" = { status = "mapped", rust = "from_candidates" }
 "primitives/prediction.py::Prediction.get_lm_usage" = { status = "mapped", rust = "usage" }
-"primitives/prediction.py::Prediction.set_lm_usage" = { status = "mapped", rust = "with_usage" }
+"primitives/prediction.py::Prediction.set_lm_usage" = { status = "mapped", rust = "set_lm_usage" }
 
 # Completions
 "primitives/prediction.py::Completions.items" = { status = "mapped", rust = "items" }
@@ -480,7 +480,7 @@
 "primitives/module.py::Module.map_named_predictors" = { status = "divergence", reason = "`named_predictors` hands back `&mut` references, so a caller maps over them directly" }
 "primitives/module.py::Module.named_predictors" = { status = "mapped", rust = "named_predictors" }
 "primitives/module.py::Module.predictors" = { status = "mapped", rust = "named_predictors" }
-"primitives/module.py::Module.set_lm" = { status = "mapped", rust = "with_lm" }
+"primitives/module.py::Module.set_lm" = { status = "mapped", rust = "set_lm" }
 
 # Teleprompter
 "teleprompt/teleprompt.py::Teleprompter.compile" = { status = "mapped", rust = "compile" }
@@ -566,7 +566,7 @@
 # RLM
 "predict/rlm.py::RLM.forward" = { status = "mapped", rust = "forward" }
 "predict/rlm.py::RLM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward` is the async method" }
-"predict/rlm.py::RLM.tools" = { status = "mapped", rust = "with_tools", reason = "Rlm::with_tools" }
+"predict/rlm.py::RLM.tools" = { status = "mapped", rust = "tools", reason = "Rlm::with_tools" }
 
 # the REPL types
 "primitives/repl_types.py::REPLVariable.format" = { status = "mapped", rust = "format" }
@@ -607,28 +607,28 @@
 "adapters/types/tool.py::Tool.desc" = { status = "mapped", rust = "description", reason = "Tool::description" }
 "adapters/types/tool.py::Tool.func" = { status = "mapped", rust = "FnTool", reason = "FnTool's closure, or an impl of the Tool trait" }
 "adapters/types/tool.py::Tool.name" = { status = "mapped", rust = "name", reason = "Tool::name" }
-"clients/base_lm.py::BaseLM.cache" = { status = "mapped", rust = "with_cache", reason = "LM::with_cache / LmBuilder::cache" }
+"clients/base_lm.py::BaseLM.cache" = { status = "mapped", rust = "cache", reason = "LM::with_cache / LmBuilder::cache" }
 "clients/base_lm.py::BaseLM.callbacks" = { status = "mapped", rust = "callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. LM::with_callbacks sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
 "clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
 "clients/base_lm.py::BaseLM.model" = { status = "mapped", rust = "LM", reason = "LM::new, positional" }
 "clients/base_lm.py::BaseLM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "the wire enum LM routes on" }
-"clients/base_lm.py::BaseLM.num_retries" = { status = "mapped", rust = "with_retry", reason = "LM::with_retry / LmBuilder::num_retries; the policy itself is lm::Retry" }
+"clients/base_lm.py::BaseLM.num_retries" = { status = "mapped", rust = "retry", reason = "LM::with_retry / LmBuilder::num_retries; the policy itself is lm::Retry" }
 "clients/base_lm.py::BaseLM.temperature" = { status = "mapped", rust = "temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
 "clients/cache.py::Cache.disk_cache_dir" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new's root" }
 "clients/cache.py::Cache.disk_size_limit_bytes" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new takes the byte ceiling as its second argument" }
-"clients/cache.py::Cache.enable_disk_cache" = { status = "mapped", rust = "with_disk", reason = "ResponseCache::with_disk, present or absent" }
+"clients/cache.py::Cache.enable_disk_cache" = { status = "mapped", rust = "enable_disk_cache", reason = "ResponseCache::with_disk, present or absent" }
 "clients/cache.py::Cache.enable_memory_cache" = { status = "mapped", rust = "ResponseCache", reason = "ResponseCache::new, always on; a caller opts out per LM with without_cache" }
 "clients/cache.py::Cache.memory_max_entries" = { status = "mapped", rust = "new", reason = "ResponseCache::new takes the cap" }
 "clients/cache.py::Cache.restrict_pickle" = { status = "divergence", reason = "dspy guards against unpickling arbitrary types; nothing here pickles, and the disk cache is JSON" }
 "clients/cache.py::Cache.safe_types" = { status = "divergence", reason = "the allowlist for dspy's pickle guard, which has no counterpart in a JSON cache" }
-"clients/lm.py::LM.cache" = { status = "mapped", rust = "with_cache", reason = "LM::with_cache / LmBuilder::cache" }
-"clients/lm.py::LM.callbacks" = { status = "mapped", rust = "with_callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. LM::with_callbacks sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
+"clients/lm.py::LM.cache" = { status = "mapped", rust = "cache", reason = "LM::with_cache / LmBuilder::cache" }
+"clients/lm.py::LM.callbacks" = { status = "mapped", rust = "callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. LM::with_callbacks sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
 "clients/lm.py::LM.finetuning_model" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.launch_kwargs" = { status = "deferred", reason = "provider launch for finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
 "clients/lm.py::LM.model" = { status = "mapped", rust = "new", reason = "LM::new / LM::builder, positional" }
 "clients/lm.py::LM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "OpenAiWire / ModelRef routing decides chat vs responses" }
-"clients/lm.py::LM.num_retries" = { status = "mapped", rust = "with_retry", reason = "LM::with_retry / LmBuilder::num_retries; three asks and two retries, as upstream's stop_after_attempt counts" }
+"clients/lm.py::LM.num_retries" = { status = "mapped", rust = "retry", reason = "LM::with_retry / LmBuilder::num_retries; three asks and two retries, as upstream's stop_after_attempt counts" }
 "clients/lm.py::LM.provider" = { status = "deferred", reason = "not a routing override, which is what this entry used to say: `provider=` takes a `dspy.clients.provider.Provider` — the finetuning lifecycle object with launch/kill/finetune/reinforce — and `self.provider.launch(self, ...)` is the only thing read off it. That class is already deferred as out of the 1.0 inference/optimization ceiling, so its constructor parameter is too. Routing here is `ModelRef::parse` off the prefix, which is what dspy's own `infer_provider`/`_provider_name` do" }
 "clients/lm.py::LM.temperature" = { status = "mapped", rust = "temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
 "clients/lm.py::LM.train_kwargs" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
@@ -650,8 +650,8 @@
 "predict/best_of_n.py::BestOfN.module" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new, positional" }
 "predict/best_of_n.py::BestOfN.reward_fn" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's reward" }
 "predict/best_of_n.py::BestOfN.threshold" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's threshold" }
-"predict/chain_of_thought.py::ChainOfThought.rationale_field" = { status = "mapped", rust = "ChainOfThought::with_rationale", reason = "takes a whole OutField, so the description, closed set, schema and prefix are all the caller's. Only the name is fixed at `reasoning`, because upstream prepends under that name too" }
-"predict/chain_of_thought.py::ChainOfThought.rationale_field_type" = { status = "mapped", rust = "ChainOfThought::with_rationale", reason = "the type travels as OutField::kind, so the one constructor carries both of upstream's arguments" }
+"predict/chain_of_thought.py::ChainOfThought.rationale_field" = { status = "mapped", rust = "ChainOfThought::rationale", reason = "takes a whole OutField, so the description, closed set, schema and prefix are all the caller's. Only the name is fixed at `reasoning`, because upstream prepends under that name too" }
+"predict/chain_of_thought.py::ChainOfThought.rationale_field_type" = { status = "mapped", rust = "ChainOfThought::rationale", reason = "the type travels as OutField::kind, so the one constructor carries both of upstream's arguments" }
 "predict/chain_of_thought.py::ChainOfThought.signature" = { status = "mapped", rust = "ChainOfThought", reason = "ChainOfThought::new, positional" }
 "predict/code_act.py::CodeAct.interpreter" = { status = "mapped", rust = "interpreter", reason = "CodeAct::with_interpreter" }
 "predict/code_act.py::CodeAct.max_iters" = { status = "mapped", rust = "max_iters", reason = "CodeAct::with_max_iters" }
@@ -689,8 +689,8 @@
 "predict/rlm.py::RLM.max_llm_calls" = { status = "mapped", rust = "max_llm_calls", reason = "Rlm::with_max_llm_calls" }
 "predict/rlm.py::RLM.max_output_chars" = { status = "mapped", rust = "max_output_chars", reason = "Rlm::max_output_chars" }
 "predict/rlm.py::RLM.signature" = { status = "mapped", rust = "Rlm", reason = "Rlm::new, positional" }
-"predict/rlm.py::RLM.sub_lm" = { status = "mapped", rust = "with_action_lm", reason = "Rlm::with_action_lm / with_extract_lm" }
-"predict/rlm.py::RLM.tools" = { status = "mapped", rust = "with_tools", reason = "Rlm::with_tools" }
+"predict/rlm.py::RLM.sub_lm" = { status = "mapped", rust = "action_lm", reason = "Rlm::with_action_lm / with_extract_lm" }
+"predict/rlm.py::RLM.tools" = { status = "mapped", rust = "tools", reason = "Rlm::with_tools" }
 "predict/rlm.py::RLM.verbose" = { status = "divergence", reason = "dspy prints its trajectory; tracing spans carry the same events here" }
 "primitives/code_interpreter.py::FinalOutput.output" = { status = "mapped", rust = "Executed", reason = "Executed::Submitted carries the submitted value" }
 "primitives/example.py::Example.base" = { status = "mapped", rust = "with_inputs", reason = "Example's Clone plus with_inputs, which is what dspy's base= copies" }

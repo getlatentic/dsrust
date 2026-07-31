@@ -94,19 +94,15 @@ where
 
     /// The source the advisor reads: the program's, and the reward's. dspy's two
     /// `inspect.getsource` results, supplied rather than reflected.
-    pub fn with_code(
-        mut self,
-        program_code: impl Into<String>,
-        reward_code: impl Into<String>,
-    ) -> Self {
+    pub fn code(mut self, program_code: impl Into<String>, reward_code: impl Into<String>) -> Self {
         self.program_code = program_code.into();
         self.reward_code = reward_code.into();
         self
     }
 
     /// The model the advisor asks. Unset, it asks the configured one — dspy's `dspy.settings.lm`.
-    pub fn with_advisor_lm(mut self, lm: std::sync::Arc<dyn DynChatModel>) -> Self {
-        self.advisor = self.advisor.with_lm(lm);
+    pub fn advisor_lm(mut self, lm: std::sync::Arc<dyn DynChatModel>) -> Self {
+        self.advisor = self.advisor.set_lm(lm);
         self
     }
 
@@ -406,7 +402,7 @@ mod tests {
         M: Module,
         R: Fn(&Example, &Prediction) -> f64,
     {
-        refine.with_advisor_lm(std::sync::Arc::new(Scripted::new(replies)))
+        refine.advisor_lm(std::sync::Arc::new(Scripted::new(replies)))
     }
 
     #[tokio::test]

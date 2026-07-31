@@ -49,7 +49,7 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
         http,
         LM::new("ollama/whatever")
             .expect("valid model ref")
-            .with_ollama_host(UNROUTABLE_OLLAMA),
+            .ollama_host(UNROUTABLE_OLLAMA),
     );
     let provider_error = ProbeTask::predict()
         .call_inputs(&inputs)
@@ -69,7 +69,7 @@ async fn typed_calls_resolve_the_global_and_name_the_fix_when_it_is_missing() {
     lm::configure(
         LM::new("ollama/whatever")
             .expect("valid model ref")
-            .with_ollama_host(UNROUTABLE_OLLAMA),
+            .ollama_host(UNROUTABLE_OLLAMA),
     );
     let reconfigured = ProbeTask::chain_of_thought()
         .call_inputs(&inputs)

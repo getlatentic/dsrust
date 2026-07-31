@@ -110,8 +110,8 @@ async fn the_probe_asks_the_configured_host_and_carries_its_credential() {
     let stub = Stub::answering(json!({ "template": "{{ if .Tools }}{{ end }}" }));
     let lm = LM::new(&unlisted("carries"))
         .expect("a valid reference")
-        .with_ollama_host(&stub.host)
-        .with_ollama_key("hosted-secret");
+        .ollama_host(&stub.host)
+        .ollama_api_key("hosted-secret");
 
     let found = lm.capabilities().await;
     assert!(found.function_calling, "the template offers tools");
@@ -133,7 +133,7 @@ async fn an_unauthenticated_host_is_asked_without_a_credential() {
     let stub = Stub::answering(json!({ "template": "{{ .Prompt }}" }));
     let lm = LM::new(&unlisted("bare"))
         .expect("a valid reference")
-        .with_ollama_host(&stub.host);
+        .ollama_host(&stub.host);
 
     let found = lm.capabilities().await;
     assert!(!found.function_calling, "this template offers no tools");
@@ -147,7 +147,7 @@ async fn a_host_that_cannot_be_reached_grants_nothing() {
     let lm = LM::new(&unlisted("unreachable"))
         .expect("a valid reference")
         // Port 9 is discard: nothing listens, and the connection is refused rather than hanging.
-        .with_ollama_host("http://127.0.0.1:9");
+        .ollama_host("http://127.0.0.1:9");
 
     let found = lm.capabilities().await;
     assert!(!found.function_calling);
@@ -160,7 +160,7 @@ async fn a_model_the_registry_lists_is_never_asked_about() {
     let stub = Stub::answering(json!({ "template": "{{ if .Tools }}{{ end }}" }));
     let lm = LM::new("ollama_chat/llama2")
         .expect("a valid reference")
-        .with_ollama_host(&stub.host);
+        .ollama_host(&stub.host);
 
     // `llama2` is in litellm's registry crediting nothing; the stub would say otherwise if asked.
     assert!(!lm.capabilities().await.function_calling);

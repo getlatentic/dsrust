@@ -89,7 +89,7 @@ async fn gepa_evolves_the_instruction_that_scores() {
     let task = Arc::new(TaskCoach);
     let mut student = Predict::parse("question -> answer")
         .expect("parses")
-        .with_lm(task);
+        .set_lm(task);
     student.signature.instructions = "Answer the question.".to_owned();
 
     GEPA::new(metric, Arc::new(Reflector))
@@ -157,7 +157,7 @@ async fn a_callers_proposer_replaces_the_reflection_tree() {
     let reflector = Arc::new(Counting(AtomicUsize::new(0)));
     let mut student = Predict::parse("question -> answer")
         .expect("parses")
-        .with_lm(Arc::new(TaskCoach));
+        .set_lm(Arc::new(TaskCoach));
     student.signature.instructions = "Answer the question.".to_owned();
 
     GEPA::new(metric, reflector.clone())
@@ -192,7 +192,7 @@ async fn a_threaded_evaluation_reaches_the_same_instruction() {
     for threads in [1, 4] {
         let mut student = Predict::parse("question -> answer")
             .expect("parses")
-            .with_lm(Arc::new(TaskCoach));
+            .set_lm(Arc::new(TaskCoach));
         student.signature.instructions = "Answer the question.".to_owned();
 
         GEPA::new(metric, Arc::new(Reflector))
@@ -331,7 +331,7 @@ async fn gepa_makes_the_decisions_dspy_makes() {
 
         let mut student = Predict::parse("question -> answer")
             .expect("parses")
-            .with_lm(Arc::new(ProfileCoach {
+            .set_lm(Arc::new(ProfileCoach {
                 profiles: profiles.clone(),
             }));
         student.signature.instructions = case["seed_instruction"]

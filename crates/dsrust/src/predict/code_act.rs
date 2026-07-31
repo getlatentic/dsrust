@@ -64,9 +64,9 @@ impl CodeAct {
     }
 
     /// Ask both steps — the per-turn code and the final extraction — of this model.
-    pub fn with_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
-        self.codeact = self.codeact.with_lm(lm.clone());
-        self.extractor = self.extractor.with_lm(lm);
+    pub fn set_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.codeact = self.codeact.set_lm(lm.clone());
+        self.extractor = self.extractor.set_lm(lm);
         self
     }
 
@@ -350,8 +350,8 @@ mod tests {
         ]);
         let model = Arc::new(model);
         let mut act = CodeAct::interpreter(task(), tools(), interpreter.clone());
-        act.codeact = act.codeact.with_lm(model.clone());
-        act.extractor = act.extractor.with_lm(model);
+        act.codeact = act.codeact.set_lm(model.clone());
+        act.extractor = act.extractor.set_lm(model);
 
         let prediction = act
             .forward(example! { question: "5!" })
@@ -382,8 +382,8 @@ mod tests {
             "[[ ## reasoning ## ]]\nr\n\n[[ ## answer ## ]]\n120\n\n[[ ## completed ## ]]",
         ]));
         let mut act = CodeAct::interpreter(task(), tools(), interpreter.clone());
-        act.codeact = act.codeact.with_lm(model.clone());
-        act.extractor = act.extractor.with_lm(model);
+        act.codeact = act.codeact.set_lm(model.clone());
+        act.extractor = act.extractor.set_lm(model);
 
         let prediction = act
             .forward(example! { question: "5!" })

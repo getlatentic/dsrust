@@ -58,14 +58,14 @@ impl ChatAdapter {
 
     /// Let the provider call tools itself where the model supports it — dspy's
     /// `use_native_function_calling`.
-    pub fn with_native_function_calling(mut self, native: bool) -> Self {
+    pub fn use_native_function_calling(mut self, native: bool) -> Self {
         self.use_native_function_calling = native;
         self
     }
 
     /// Ask the provider for parallel tool calls while native function calling is active. Leaving
     /// this unset is not the same as setting it false: dspy only sends the option when it is set.
-    pub fn with_parallel_tool_calls(mut self, parallel: Option<bool>) -> Self {
+    pub fn parallel_tool_calls(mut self, parallel: Option<bool>) -> Self {
         self.parallel_tool_calls = parallel;
         self
     }

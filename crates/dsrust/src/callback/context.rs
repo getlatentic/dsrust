@@ -1,6 +1,6 @@
 //! Which call a handler is being told about, and which call enclosed it.
 //!
-//! Upstream keeps this in a `ContextVar`: `with_callbacks` sets `ACTIVE_CALL_ID` to the new id just
+//! Upstream keeps this in a `ContextVar`: `callbacks` sets `ACTIVE_CALL_ID` to the new id just
 //! before running the wrapped function and restores it afterwards, so a handler reached during that
 //! function reads its caller's id. `CallId` carries the parent it was born under instead, which
 //! answers the same question without a second lookup — and means a handler is never asked to read

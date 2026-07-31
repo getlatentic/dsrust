@@ -40,9 +40,9 @@ async fn main() -> anyhow::Result<()> {
         // The key is how the proxy tells the two clients apart, and the cache is off so a second
         // run asks again rather than replaying an answer the proxy never saw.
         LM::new(format!("openai/{model}"))?
-            .with_openai_base_url(&base_url)
-            .with_openai_key("rust-dsrust")
-            .with_cache(false),
+            .openai_base_url(&base_url)
+            .openai_api_key("rust-dsrust")
+            .cache(false),
     );
 
     let inputs = || PracticeForStepInputs {

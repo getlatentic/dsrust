@@ -66,7 +66,7 @@ impl ChatModel for Generate<'_> {
                     crate::lm::LmFailure::from_status(status.as_u16(), refusal(&body))
                         .on_model(self.model)
                         .from_provider("ollama")
-                        .with_headers(&headers)
+                        .headers(&headers)
                         .into(),
                 );
             }
@@ -305,9 +305,9 @@ fn reply(model: &str, body: &Value) -> Result<api::LmResponse> {
         outputs: vec![output],
         ..api::LmResponse::default()
     }
-    .with_usage(usage(body))
-    .with_provider_response(provider_data(body))
-    .with_model(model))
+    .usage(usage(body))
+    .provider_response(provider_data(body))
+    .model(model))
 }
 
 /// One `/api/generate` line as its events: a piece of `response` as a text delta, the `done` line

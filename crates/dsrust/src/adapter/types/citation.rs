@@ -46,12 +46,12 @@ impl Citation {
         }
     }
 
-    pub fn with_document_title(mut self, title: impl Into<String>) -> Self {
+    pub fn document_title(mut self, title: impl Into<String>) -> Self {
         self.document_title = Some(title.into());
         self
     }
 
-    pub fn with_supported_text(mut self, supported: impl Into<String>) -> Self {
+    pub fn supported_text(mut self, supported: impl Into<String>) -> Self {
         self.supported_text = Some(supported.into());
         self
     }
@@ -217,8 +217,8 @@ mod tests {
             r#"{"type":"char_location","cited_text":"The sky is blue","document_index":0,"start_char_index":0,"end_char_index":15}"#
         );
         let full = quoted()
-            .with_document_title("Weather")
-            .with_supported_text("It was blue.");
+            .document_title("Weather")
+            .supported_text("It was blue.");
         assert_eq!(
             serde_json::to_string(&full.format()).expect("serializes"),
             r#"{"type":"char_location","cited_text":"The sky is blue","document_index":0,"start_char_index":0,"end_char_index":15,"document_title":"Weather","supported_text":"It was blue."}"#

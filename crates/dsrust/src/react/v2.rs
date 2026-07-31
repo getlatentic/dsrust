@@ -79,16 +79,16 @@ impl ReActV2 {
 
     /// The adapter the per-turn predictor asks through — a native one turns the tool calls into
     /// provider function calls rather than a rendered field.
-    pub fn with_adapter(mut self, adapter: impl Adapter + 'static) -> Self {
-        self.react = self.react.with_adapter(adapter);
+    pub fn adapter(mut self, adapter: impl Adapter + 'static) -> Self {
+        self.react = self.react.adapter(adapter);
         self
     }
 
     /// The model the per-turn predictor asks, when it is not the configured one. dspy reaches the
     /// context LM; here a module can be handed its own, which is what an optimizer varies and what
     /// a test scripts.
-    pub fn with_lm(mut self, lm: std::sync::Arc<dyn crate::lm::DynChatModel>) -> Self {
-        self.react = self.react.with_lm(lm);
+    pub fn set_lm(mut self, lm: std::sync::Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.react = self.react.set_lm(lm);
         self
     }
 
@@ -259,7 +259,7 @@ impl ReActV2 {
         if !calls.tool_calls.is_empty() {
             let calls = match results.tool_call_results.is_empty() {
                 true => calls,
-                false => calls.with_results(results),
+                false => calls.results(results),
             };
             event.insert("tool_calls".to_owned(), calls.to_value_with_ids());
         }

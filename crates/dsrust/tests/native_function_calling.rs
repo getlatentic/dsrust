@@ -99,8 +99,8 @@ fn search_tool() -> Value {
 /// Run one call through a predictor built on `adapter`, against a model of the given ability.
 async fn ask(adapter: ChatAdapter, model: Arc<Recorder>) -> api::LmRequest {
     let predict = Predict::from_signature(tool_signature())
-        .with_adapter(adapter)
-        .with_lm(model.clone() as Arc<dyn DynChatModel>);
+        .adapter(adapter)
+        .set_lm(model.clone() as Arc<dyn DynChatModel>);
     // The reply is deliberately thin, so a parse failure surfaces here rather than as a
     // confusing assertion later. What is under test is the request.
     let _ = predict.forward(asked_example()).await;
@@ -121,7 +121,7 @@ fn prompt_of(request: &api::LmRequest) -> String {
 
 #[tokio::test]
 async fn the_tools_ride_on_the_request_and_leave_the_prompt() {
-    let adapter = ChatAdapter::default().with_native_function_calling(true);
+    let adapter = ChatAdapter::default().use_native_function_calling(true);
     let request = ask(adapter, Recorder::able(true)).await;
 
     assert_eq!(request.tools.len(), 1, "the request carries the tool list");
@@ -152,7 +152,7 @@ async fn the_tools_ride_on_the_request_and_leave_the_prompt() {
 
 #[tokio::test]
 async fn a_model_that_cannot_call_tools_gets_them_in_the_prompt() {
-    let adapter = ChatAdapter::default().with_native_function_calling(true);
+    let adapter = ChatAdapter::default().use_native_function_calling(true);
     let request = ask(adapter, Recorder::able(false)).await;
 
     assert!(
@@ -185,8 +185,8 @@ async fn an_adapter_that_does_not_ask_natively_renders_them_however_able_the_mod
 #[tokio::test]
 async fn parallel_tool_calls_reaches_the_request_only_when_stated() {
     let asked = ChatAdapter::default()
-        .with_native_function_calling(true)
-        .with_parallel_tool_calls(Some(false));
+        .use_native_function_calling(true)
+        .parallel_tool_calls(Some(false));
     let request = ask(asked, Recorder::able(true)).await;
     assert_eq!(
         request.config.tool_choice.expect("a tool choice").parallel,
@@ -194,7 +194,7 @@ async fn parallel_tool_calls_reaches_the_request_only_when_stated() {
     );
 
     // Unset is not the same as `Some(false)`: upstream leaves the provider option alone.
-    let silent = ChatAdapter::default().with_native_function_calling(true);
+    let silent = ChatAdapter::default().use_native_function_calling(true);
     let request = ask(silent, Recorder::able(true)).await;
     assert!(
         request
@@ -212,8 +212,8 @@ async fn asking_for_calls_without_offering_tools_never_reaches_the_model() {
     let mut signature = tool_signature();
     signature.inputs.retain(|field| field.name != "tools");
     let predict = Predict::from_signature(signature)
-        .with_adapter(ChatAdapter::default().with_native_function_calling(true))
-        .with_lm(model.clone() as Arc<dyn DynChatModel>);
+        .adapter(ChatAdapter::default().use_native_function_calling(true))
+        .set_lm(model.clone() as Arc<dyn DynChatModel>);
 
     let without_tools = Example::new([("question", json!("what is dspy"))]);
     let refused = predict.forward(without_tools).await.expect_err("refused");
@@ -273,8 +273,8 @@ async fn a_native_reply_fills_the_output_field_with_the_providers_ids() {
         ..Default::default()
     };
     let predict = Predict::from_signature(tool_signature())
-        .with_adapter(ChatAdapter::default().with_native_function_calling(true))
-        .with_lm(Arc::new(NativeReplier(reply)) as Arc<dyn DynChatModel>);
+        .adapter(ChatAdapter::default().use_native_function_calling(true))
+        .set_lm(Arc::new(NativeReplier(reply)) as Arc<dyn DynChatModel>);
 
     let prediction = predict
         .forward(asked_example())
@@ -312,8 +312,8 @@ async fn parallel_native_calls_all_reach_the_output_field() {
         ..Default::default()
     };
     let predict = Predict::from_signature(tool_signature())
-        .with_adapter(ChatAdapter::default().with_native_function_calling(true))
-        .with_lm(Arc::new(NativeReplier(reply)) as Arc<dyn DynChatModel>);
+        .adapter(ChatAdapter::default().use_native_function_calling(true))
+        .set_lm(Arc::new(NativeReplier(reply)) as Arc<dyn DynChatModel>);
 
     let prediction = predict
         .forward(asked_example())

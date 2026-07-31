@@ -76,7 +76,7 @@ where
         }
     }
 
-    pub fn with_valset_ratio(mut self, valset_ratio: f64) -> Self {
+    pub fn valset_ratio(mut self, valset_ratio: f64) -> Self {
         self.valset_ratio = valset_ratio;
         self
     }
@@ -285,7 +285,7 @@ mod tests {
         pairs: Vec<(&'static str, Box<dyn DynOptimizer>)>,
     ) -> BetterTogether<fn(&Example, &Prediction) -> f64> {
         BetterTogether::new(exact_match as fn(&Example, &Prediction) -> f64, pairs)
-            .with_valset_ratio(0.0)
+            .valset_ratio(0.0)
     }
 
     /// Every step runs in order, and each is recorded under the strategy that reached it.
@@ -395,7 +395,7 @@ mod tests {
     /// The held-out share comes off the front of the trainset, and Python's `int()` truncates.
     #[test]
     fn the_validation_share_is_taken_off_the_front() {
-        let together = optimizers(vec![("p", Box::new(Writes("x")))]).with_valset_ratio(0.5);
+        let together = optimizers(vec![("p", Box::new(Writes("x")))]).valset_ratio(0.5);
         let examples = trainset();
         let (train, val) = together.split(&examples, None).expect("splits");
         assert_eq!(val.expect("a valset").len(), examples.len() / 2);

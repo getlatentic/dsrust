@@ -90,19 +90,19 @@ impl LmResponse {
         }
     }
 
-    pub fn with_usage(mut self, usage: Option<LmUsage>) -> Self {
+    pub fn usage(mut self, usage: Option<LmUsage>) -> Self {
         self.usage = usage;
         self
     }
 
     /// The provider's own reply kept whole — a stop reason, a fingerprint, a filter verdict — so
     /// reading a new one needs no release. dspy's `LMResponse.provider_response`.
-    pub fn with_provider_response(mut self, provider_response: Option<Value>) -> Self {
+    pub fn provider_response(mut self, provider_response: Option<Value>) -> Self {
         self.provider_response = provider_response;
         self
     }
 
-    pub fn with_model(mut self, model: &str) -> Self {
+    pub fn model(mut self, model: &str) -> Self {
         self.model = Some(model.to_owned());
         self
     }

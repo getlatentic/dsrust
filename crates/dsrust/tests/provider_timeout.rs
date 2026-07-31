@@ -128,28 +128,28 @@ fn routes(stub: &Slow) -> Vec<(&'static str, LM)> {
             "ollama_chat",
             LM::new("ollama_chat/slow-model")
                 .expect("a valid reference")
-                .with_ollama_host(&stub.address),
+                .ollama_host(&stub.address),
         ),
         (
             "ollama",
             LM::new("ollama/slow-model")
                 .expect("a valid reference")
-                .with_ollama_host(&stub.address),
+                .ollama_host(&stub.address),
         ),
         (
             "openai chat",
             LM::new("openai/slow-model")
                 .expect("a valid reference")
-                .with_openai_base_url(stub.base_url())
-                .with_openai_key("stub"),
+                .openai_base_url(stub.base_url())
+                .openai_api_key("stub"),
         ),
         (
             "openai responses",
             LM::new("openai/slow-model")
                 .expect("a valid reference")
-                .with_openai_base_url(stub.base_url())
-                .with_openai_key("stub")
-                .with_openai_responses_api(),
+                .openai_base_url(stub.base_url())
+                .openai_api_key("stub")
+                .openai_responses_api(),
         ),
     ]
 }
@@ -173,8 +173,8 @@ async fn a_short_timeout_abandons_every_slow_route() {
             .find(|(name, _)| *name == route)
             .expect("the route")
             .1
-            .with_cache(false)
-            .with_timeout(TOO_SHORT);
+            .cache(false)
+            .timeout(TOO_SHORT);
 
         let error = lm.forward(&asking()).await.expect_err("the bound fires");
         assert!(
@@ -198,8 +198,8 @@ async fn a_raised_timeout_waits_for_every_slow_route() {
             .find(|(name, _)| *name == route)
             .expect("the route")
             .1
-            .with_cache(false)
-            .with_timeout(LONG_ENOUGH);
+            .cache(false)
+            .timeout(LONG_ENOUGH);
 
         let answered = lm
             .forward(&asking())
@@ -221,7 +221,7 @@ async fn the_bound_reaches_the_streaming_routes() {
             .find(|(name, _)| *name == route)
             .expect("the route")
             .1
-            .with_timeout(TOO_SHORT);
+            .timeout(TOO_SHORT);
 
         let request = asking();
         let http = reqwest::Client::new();
@@ -238,8 +238,8 @@ async fn the_bound_reaches_the_capability_probe() {
     let stub = Slow::answering(json!({ "template": "{{ if .Tools }}{{ end }}" }).to_string());
     let lm = LM::new("ollama_chat/a-model-litellm-never-heard-of:timeout")
         .expect("a valid reference")
-        .with_ollama_host(&stub.address)
-        .with_timeout(TOO_SHORT);
+        .ollama_host(&stub.address)
+        .timeout(TOO_SHORT);
 
     // A probe that gave up reports nothing rather than raising, which is how an unreachable
     // server has always been treated — what is asserted is that it gave up inside the bound.
@@ -272,8 +272,8 @@ fn the_default_is_the_one_litellm_applies() {
 fn raising_the_bound_leaves_the_rest_of_the_model_alone() {
     let lm = LM::new("ollama_chat/qwen2.5:7b-instruct")
         .expect("a valid reference")
-        .with_ollama_host("http://elsewhere:11434")
-        .with_timeout(Duration::from_secs(120));
+        .ollama_host("http://elsewhere:11434")
+        .timeout(Duration::from_secs(120));
     assert_eq!(lm.timeout, Duration::from_secs(120));
     assert_eq!(lm.ollama_host, "http://elsewhere:11434");
     assert!(lm.cache, "the cache setting is untouched");

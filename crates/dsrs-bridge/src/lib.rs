@@ -317,7 +317,7 @@ fn adapter_named(adapter: &str) -> PyResult<Box<dyn Adapter>> {
 fn configured_adapter(adapter: &str, native: bool) -> PyResult<Box<dyn Adapter>> {
     match adapter {
         "chat" => Ok(Box::new(
-            ChatAdapter::default().with_native_function_calling(native),
+            ChatAdapter::default().use_native_function_calling(native),
         )),
         "json" => Ok(Box::new(JsonAdapter {
             use_native_function_calling: native,
@@ -520,15 +520,15 @@ fn predict_forward(
     let mut config = dsrust::lm::Sampling::default();
     config.completions = n;
     let predict = dsrust::predict::Predict::from_signature(signature)
-        .with_config(config)
-        .with_demos(demos)
-        .with_lm(Arc::new(PyLM { inner: py_lm }));
+        .config(config)
+        .demos(demos)
+        .set_lm(Arc::new(PyLM { inner: py_lm }));
     // Honour the adapter dspy configured, since a test may set a JSON or XML one. `from_signature`
     // already defaults to `ChatAdapter`, so only the others need setting.
     let predict = match adapter {
-        "json" => predict.with_adapter(JsonAdapter::default()),
-        "xml" => predict.with_adapter(XmlAdapter),
-        "baml" => predict.with_adapter(BamlAdapter),
+        "json" => predict.adapter(JsonAdapter::default()),
+        "xml" => predict.adapter(XmlAdapter),
+        "baml" => predict.adapter(BamlAdapter),
         _ => predict,
     };
     // One candidate goes through the full `forward` — parse, coercion, the feedback retry, any
@@ -677,7 +677,7 @@ fn react_forward(
     }
 
     let mut react =
-        dsrust::ReAct::new(signature, rust_tools).with_lm(Arc::new(PyLM { inner: py_lm }));
+        dsrust::ReAct::new(signature, rust_tools).set_lm(Arc::new(PyLM { inner: py_lm }));
     if let Some(max_iters) = max_iters {
         react = react.max_iters(max_iters);
     }

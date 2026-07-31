@@ -55,14 +55,14 @@ pub fn build_repl_variable(
     name: &str,
     desc: &str,
 ) -> ReplVariable {
-    with_constraints(value, name, desc, "")
+    constraints(value, name, desc, "")
 }
 
 /// As [`build_repl_variable`], with the field's constraint text as well.
 ///
 /// Upstream reads both out of one `json_schema_extra`, so a field stating a constraint carries it
 /// into the sandbox description. Rust has no `FieldInfo` to read, so the caller passes it.
-pub fn with_constraints(
+pub fn constraints(
     value: &dyn SandboxSerializable,
     name: &str,
     desc: &str,

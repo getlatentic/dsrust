@@ -121,7 +121,7 @@ pub struct Predict<S = Dynamic> {
     /// The other half of the same seam: `BestOfN` and a bootstrap round after the first vary
     /// this rather than the model, since what they need to differ is one call's config and
     /// not which provider answers.
-    config: Sampling,
+    pub config: Sampling,
     /// What an earlier attempt was told to do differently. See [`NamedPredictor::hint`].
     hint: Option<String>,
     /// Whether a reply that parsed but did not validate is re-asked with the error attached.
@@ -129,7 +129,7 @@ pub struct Predict<S = Dynamic> {
     /// Off, because dspy has no such ask. Upstream raises `AdapterParseError` for a missing or
     /// unusable field and `ChatAdapter.__call__` re-asks through `JSONAdapter` — one extra call
     /// either way, but the prompt is the JSON adapter's rather than a sentence dspy never sends.
-    /// Turned on with [`Self::with_feedback_retry`], for a caller who wants the recovery and
+    /// Turned on with [`Self::feedback_retry`], for a caller who wants the recovery and
     /// accepts that the second ask is this crate's own.
     feedback_retry: bool,
     spec: PhantomData<S>,
@@ -403,7 +403,7 @@ mod tests {
     /// What one call sent, for a predictor answering through [`Captured`].
     async fn sent_by(spec: &str, inputs: Example) -> api::LmRequest {
         let model = std::sync::Arc::new(Captured::default());
-        let predict = Predict::parse(spec).expect("parses").with_lm(model.clone());
+        let predict = Predict::parse(spec).expect("parses").set_lm(model.clone());
         predict.forward(inputs).await.expect("answers");
         model
             .0
@@ -495,8 +495,8 @@ mod tests {
         ];
         let predict = Predict::parse("request -> color, why")
             .expect("parses")
-            .with_lm(std::sync::Arc::new(ManyCompletions(replies)))
-            .with_config(Sampling {
+            .set_lm(std::sync::Arc::new(ManyCompletions(replies)))
+            .config(Sampling {
                 completions: Some(3),
                 ..Sampling::default()
             });
@@ -569,7 +569,7 @@ mod tests {
         let bad = "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\ncalm";
         let lm = Scripted::new(&[bad, MARKER_REPLY]);
         let value = Predict::from_signature(signature())
-            .with_feedback_retry()
+            .feedback_retry()
             .call_with(&lm, "draft it")
             .await
             .expect("second reply is valid");
@@ -598,8 +598,8 @@ mod tests {
         let bad = "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\ncalm";
         let lm = Scripted::new(&[bad, MARKER_REPLY]).costing(30, 12);
         let answered = Predict::from_signature(signature())
-            .with_feedback_retry()
-            .with_lm(std::sync::Arc::new(lm))
+            .feedback_retry()
+            .set_lm(std::sync::Arc::new(lm))
             .forward(input! { request: "draft it" })
             .await
             .expect("the retry is valid");
@@ -614,7 +614,7 @@ mod tests {
     #[tokio::test]
     async fn a_model_that_reports_no_cost_answers_with_none_rather_than_zero() {
         let answered = Predict::from_signature(signature())
-            .with_lm(std::sync::Arc::new(Scripted::new(&[MARKER_REPLY])))
+            .set_lm(std::sync::Arc::new(Scripted::new(&[MARKER_REPLY])))
             .forward(input! { request: "draft it" })
             .await
             .expect("a valid reply");
@@ -650,7 +650,7 @@ mod tests {
         // cleared the parse failure is final and the JSON adapter is never reached.
         let lm = Scripted::new(&["red because it is calm", r#"{ "color": "red" }"#]);
         let predict =
-            Predict::from_signature(signature()).with_adapter(ChatAdapter::without_json_fallback());
+            Predict::from_signature(signature()).adapter(ChatAdapter::without_json_fallback());
         assert!(predict.call_with(&lm, "draft it").await.is_err());
         assert_eq!(
             lm.calls().len(),
@@ -697,7 +697,7 @@ mod tests {
             "[[ ## color ## ]]\nblue\n\n[[ ## why ## ]]\ncalm",
         ]);
         let value = Predict::from_signature(signature())
-            .with_feedback_retry()
+            .feedback_retry()
             .call_with(&lm, "draft it")
             .await
             .expect("second reply is valid");
@@ -710,7 +710,7 @@ mod tests {
         ]);
         assert!(
             Predict::from_signature(signature())
-                .with_feedback_retry()
+                .feedback_retry()
                 .call_with(&lm, "draft it")
                 .await
                 .is_err()
@@ -771,7 +771,7 @@ mod tests {
         let bad = "[[ ## color ## ]]\ngreen\n\n[[ ## why ## ]]\ncalm";
         let lm = Scripted::new(&[bad, MARKER_REPLY]);
         let outputs = RoomTask::predict()
-            .with_feedback_retry()
+            .feedback_retry()
             .call_inputs_with(&lm, &room_inputs())
             .await
             .expect("second reply is valid");
@@ -888,7 +888,7 @@ mod tests {
         let good = "[[ ## amount ## ]]\n0.02\n\n[[ ## double ## ]]\nfalse\n\n[[ ## count ## ]]\n1";
         let lm = Scripted::new(&[bad, good]);
         let value = Predict::from_signature(typed_signature())
-            .with_feedback_retry()
+            .feedback_retry()
             .call_with(&lm, "size it")
             .await
             .expect("second reply is valid");
@@ -994,7 +994,7 @@ impl<S: Send + Sync> Predict<S> {
             .await?;
         Ok(
             Prediction::new(prediction_example(&validated.value), validated.raw)
-                .with_usage(validated.usage),
+                .set_lm_usage(validated.usage),
         )
     }
 }
@@ -1120,7 +1120,7 @@ mod per_call_model {
             .expect("asks");
         assert_eq!(default.get("answer").unwrap(), "from the default");
 
-        let mine = Predict!("question -> answer").with_lm(Arc::new(DummyLM::new([
+        let mine = Predict!("question -> answer").set_lm(Arc::new(DummyLM::new([
             example! { answer: "from its own" },
         ])));
         assert!(mine.lm().is_some());
@@ -1133,7 +1133,7 @@ mod per_call_model {
     fn the_override_survives_being_given_a_task() {
         let _ = Scripted::new(&[]);
         let carried = Predict::from_signature("q -> a".parse().expect("parses"))
-            .with_lm(Arc::new(DummyLM::new([])));
+            .set_lm(Arc::new(DummyLM::new([])));
         assert!(carried.into_task::<()>().lm().is_some());
     }
 
@@ -1148,15 +1148,15 @@ mod per_call_model {
             example! { answer: "second" },
         ]));
 
-        let defaults = Predict!("question -> answer").with_lm(lm.clone());
+        let defaults = Predict!("question -> answer").set_lm(lm.clone());
         defaults
             .forward(input! { question: "q" })
             .await
             .expect("asks");
 
         let varied = Predict!("question -> answer")
-            .with_lm(lm.clone())
-            .with_config(Sampling {
+            .set_lm(lm.clone())
+            .config(Sampling {
                 temperature: Some(1.0),
                 max_tokens: Some(64),
                 ..Sampling::default()
@@ -1175,11 +1175,10 @@ mod per_call_model {
     /// Sampling travels with the module the same way the model override does.
     #[test]
     fn the_sampling_survives_being_given_a_task() {
-        let carried =
-            Predict::from_signature("q -> a".parse().expect("parses")).with_config(Sampling {
-                temperature: Some(0.5),
-                ..Sampling::default()
-            });
-        assert_eq!(carried.into_task::<()>().config().temperature, Some(0.5));
+        let carried = Predict::from_signature("q -> a".parse().expect("parses")).config(Sampling {
+            temperature: Some(0.5),
+            ..Sampling::default()
+        });
+        assert_eq!(carried.into_task::<()>().config.temperature, Some(0.5));
     }
 }

@@ -1,9 +1,9 @@
 //! Putting a `Predict` together: the constructors, and the seams an optimizer sets.
 //!
 //! dspy builds one by calling the class and mutating attributes afterwards. The same settings live
-//! here as builder methods, and they are the ones an optimizer reaches for — `with_lm` and
+//! here as builder methods, and they are the ones an optimizer reaches for — `set_lm` and
 //! `with_config` are what let `BestOfN` run the same module against calls that differ, and
-//! `with_demos` is what a bootstrap writes its result into.
+//! `demos` is what a bootstrap writes its result into.
 
 use std::marker::PhantomData;
 
@@ -37,13 +37,13 @@ impl<S> Predict<S> {
     /// re-asks through `JSONAdapter`, so the second call carries the JSON adapter's prompt rather
     /// than a sentence naming the rejection. Turning this on trades that fidelity for a recovery
     /// that keeps the original wire format.
-    pub fn with_feedback_retry(mut self) -> Self {
+    pub fn feedback_retry(mut self) -> Self {
         self.feedback_retry = true;
         self
     }
 
     /// Ask this model rather than the configured one. dspy's `set_lm`.
-    pub fn with_lm(mut self, lm: std::sync::Arc<dyn DynChatModel>) -> Self {
+    pub fn set_lm(mut self, lm: std::sync::Arc<dyn DynChatModel>) -> Self {
         self.lm = Some(lm);
         self
     }
@@ -53,15 +53,9 @@ impl<S> Predict<S> {
     /// dspy reaches the same setting through `lm.copy(temperature=...)`, which needs a model to
     /// copy; this is per call, so a module that defers to the configured model can still vary
     /// how it is asked.
-    pub fn with_config(mut self, config: Sampling) -> Self {
+    pub fn config(mut self, config: Sampling) -> Self {
         self.config = config;
         self
-    }
-
-    /// The config this module asks for. An optimizer reads it to vary one field and leave
-    /// the rest alone.
-    pub fn config(&self) -> &Sampling {
-        &self.config
     }
 
     /// dspy's `get_lm`: the model this module asks, or nothing if it defers to the configured
@@ -82,14 +76,14 @@ impl<S> Predict<S> {
     }
 
     /// Show the model these solved examples before the request.
-    pub fn with_demos(mut self, demos: impl IntoIterator<Item = Example>) -> Self {
+    pub fn demos(mut self, demos: impl IntoIterator<Item = Example>) -> Self {
         self.demos = demos.into_iter().collect();
         self
     }
 
     /// Send this module's prompts through a different wire format. Any [`Adapter`] works,
     /// including one a caller writes: dspy chooses its adapter the same way.
-    pub fn with_adapter(mut self, adapter: impl Adapter + 'static) -> Self {
+    pub fn adapter(mut self, adapter: impl Adapter + 'static) -> Self {
         self.adapter = Box::new(adapter);
         self
     }

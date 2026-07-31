@@ -1,7 +1,7 @@
 //! dspy's six callback points, watched two ways at once: a `tracing` span and the [`Callback`] list.
 //!
 //! Upstream fires a `BaseCallback` at six places, each with a start and an end — module, lm, adapter
-//! format, adapter parse, tool, evaluate — and `with_callbacks` gives each call a uuid and links it
+//! format, adapter parse, tool, evaluate — and `callbacks` gives each call a uuid and links it
 //! to its parent through a context variable. [`crate::callback`] is that, transcribed. A span is the
 //! same thing in the shape a Rust caller already has a subscriber for: the identifier, the parent
 //! linkage, the start and the end are one object, and it cannot mutate what it sees or break the
@@ -21,7 +21,7 @@
 //! actually produced — the ledger entry this replaced claimed these points existed while the tree
 //! had none.
 //!
-//! Six is upstream's count read off its `@with_callbacks` sites rather than off its handler names:
+//! Six is upstream's count read off its `@callbacks` sites rather than off its handler names:
 //! `BaseLM.__call__`/`acall`, `Module.__call__`/`acall`, `Tool.__call__`/`acall`,
 //! `Evaluate.__call__`, and `format`/`parse` decorated onto every `Adapter` subclass by
 //! `__init_subclass__`. Each pair is one point here, since this crate is async throughout. There is

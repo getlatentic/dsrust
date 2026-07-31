@@ -55,7 +55,7 @@ on every gate run, from a crate outside this repository. So the dependency list 
 that works, not the one someone remembered.
 
 `configure` sets the model for the whole process. Pass one to a single module instead with
-`Predict::with_lm`, which is what an optimizer varies; see
+`Predict::set_lm`, which is what an optimizer varies; see
 [Reaching a provider](#reaching-a-provider-and-adding-your-own).
 
 ## The shape of it
@@ -549,7 +549,7 @@ match extractor.forward(inputs).await {
 short form names the category and the alternate form names the field.
 
 A reply that parses but is missing a field is re-asked through the JSON adapter, as DSPy does it.
-`Predict::with_feedback_retry` swaps that for a second ask in the original format, carrying the
+`Predict::feedback_retry` swaps that for a second ask in the original format, carrying the
 error. That recovery is this crate's own and DSPy has no equivalent, so it is off by default.
 
 ## Every module, and what it takes

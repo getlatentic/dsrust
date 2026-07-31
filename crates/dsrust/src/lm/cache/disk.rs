@@ -197,7 +197,7 @@ mod tests {
     }
 
     fn reply(text: &str) -> LmResponse {
-        LmResponse::text(text).with_usage(Some(LmUsage::counted(3, 4)))
+        LmResponse::text(text).usage(Some(LmUsage::counted(3, 4)))
     }
 
     #[test]

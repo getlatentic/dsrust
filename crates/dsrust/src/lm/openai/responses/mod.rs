@@ -271,7 +271,7 @@ pub(super) fn reply(
         }
         return Err(
             crate::lm::LmFailure::from_body(status.as_u16(), model, label, body)
-                .with_headers(headers)
+                .headers(headers)
                 .into(),
         );
     }

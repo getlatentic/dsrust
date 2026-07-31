@@ -36,7 +36,7 @@ impl<S> Predict<S> {
             let mut prediction = Prediction::new(super::prediction_example(&value), text);
             // The call's usage is charged once, to the first candidate that came through.
             if usage.is_some() {
-                prediction = prediction.with_usage(usage.take());
+                prediction = prediction.set_lm_usage(usage.take());
             }
             predictions.push(prediction);
         }

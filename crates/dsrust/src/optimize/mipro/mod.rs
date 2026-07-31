@@ -246,7 +246,7 @@ where
 
     /// Turn on the program-aware proposer with this pseudo-code description of the program. dspy
     /// reads it from source; a Rust caller supplies it, which is dspy's own `program_code_string` seam.
-    pub fn with_program_code(mut self, program_code: impl Into<String>) -> Self {
+    pub fn program_code(mut self, program_code: impl Into<String>) -> Self {
         self.program_code = Some(program_code.into());
         self
     }
@@ -468,7 +468,7 @@ mod tests {
         let model = Arc::new(Studio);
         let mut student = Predict::parse("question -> answer")
             .expect("parses")
-            .with_lm(model.clone());
+            .set_lm(model.clone());
         let trainset = vec![
             example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"]),
         ];

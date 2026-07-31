@@ -89,7 +89,7 @@ fn a_file_field_becomes_a_file_block() {
         Input::new("question", json!("summarize")),
         Input::new(
             "doc",
-            serde_json::to_value(File::from_id("file-1").with_filename("a.txt")).unwrap(),
+            serde_json::to_value(File::from_id("file-1").filename("a.txt")).unwrap(),
         ),
     ];
     let Content::Blocks(blocks) = user_content(&signature, &inputs) else {

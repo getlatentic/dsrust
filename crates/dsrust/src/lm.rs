@@ -52,7 +52,7 @@ pub use usage::{UsageTracker, track as track_usage};
 /// off a docstring. It is long enough to look like no bound at all, and that is the point — a local
 /// model serving a long prompt takes minutes, and a default tight enough to feel responsive is one
 /// that fails a call dspy would have completed. A caller who wants a real bound sets it:
-/// [`LM::with_timeout`].
+/// [`LM::timeout`].
 pub const DEFAULT_PROVIDER_TIMEOUT: Duration = Duration::from_secs(6000);
 
 /// The stock ollama port on the local machine, shared with the server's config so `LM::new`
@@ -77,7 +77,7 @@ pub struct LM {
     ///
     /// dspy's `LM(cache=True)`, on for the same reason: a program asked the same thing twice
     /// almost never means to buy the answer twice, and every retry-shaped module depends on
-    /// `rollout_id` having a cache to miss. [`Self::with_cache`] turns it off.
+    /// `rollout_id` having a cache to miss. [`Self::cache`] turns it off.
     pub cache: bool,
     /// How many times a transiently failing call is asked, dspy's `LM(num_retries=3)`. See
     /// [`retry`].
@@ -85,13 +85,13 @@ pub struct LM {
     /// dspy's `LM(use_developer_role=False)`: send the system message under the o1-family's
     /// `developer` role instead. Applies on the Responses wire only, as upstream's does.
     pub use_developer_role: bool,
-    /// How long any one call to this model may take. See [`Self::with_timeout`].
+    /// How long any one call to this model may take. See [`Self::timeout`].
     pub timeout: Duration,
     /// What this model can be asked for natively, where the caller has stated it rather than
-    /// leaving it to the registry. See [`Self::with_capabilities`].
+    /// leaving it to the registry. See [`Self::capabilities`].
     capabilities: Option<Capabilities>,
     /// dspy's `LM(model, callbacks=[…])`: watchers told about this model's calls and no other's.
-    /// See [`Self::with_callbacks`].
+    /// See [`Self::callbacks`].
     callbacks: Vec<Arc<dyn Callback>>,
 }
 
@@ -153,26 +153,30 @@ impl LM {
     ///
     /// Raise it for a local model reading a long prompt — the cost of a low bound is a call that
     /// would have answered being abandoned, not a slow one being made faster.
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+    pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = timeout;
         self
     }
 
     /// How many times a transiently failing call is asked before the failure is handed back — dspy's
     /// `LM(num_retries=3)`, counting asks rather than retries. See [`retry`].
-    pub fn with_retry(mut self, retry: Retry) -> Self {
+    pub fn retry(mut self, retry: Retry) -> Self {
         self.retry = retry;
         self
     }
 
     /// Send the system message as `developer`, which the o1 family takes instead — dspy's
     /// `LM(use_developer_role=True)`, and like upstream's it applies on the Responses wire only.
-    pub fn with_developer_role(mut self, use_developer_role: bool) -> Self {
+    pub fn use_developer_role(mut self, use_developer_role: bool) -> Self {
         self.use_developer_role = use_developer_role;
         self
     }
 
     /// State what this model can be asked for natively, rather than have it resolved.
+    ///
+    /// The one setter here that keeps a `with_` prefix, because there is no upstream name to take:
+    /// dspy has no such constructor argument — it asks litellm's registry — and `capabilities` is
+    /// already [`ChatModel::capabilities`], which *reads* them.
     ///
     /// Resolution is litellm's registry, and for an unlisted ollama model the server itself. This
     /// short-circuits both — for a provider-compatible endpoint serving a model under a name the
@@ -187,10 +191,7 @@ impl LM {
     /// The second of upstream's two ways to register: this one is per instance, where
     /// [`configure_callbacks`](crate::configure_callbacks) is per process. Both are told, the
     /// process-wide ones first.
-    pub fn with_callbacks(
-        mut self,
-        callbacks: impl IntoIterator<Item = Arc<dyn Callback>>,
-    ) -> Self {
+    pub fn callbacks(mut self, callbacks: impl IntoIterator<Item = Arc<dyn Callback>>) -> Self {
         self.callbacks = callbacks.into_iter().collect();
         self
     }
@@ -199,41 +200,41 @@ impl LM {
     ///
     /// dspy's `cache=` argument, and on by default as upstream has it. Turn it off to measure a
     /// model: with it on, a second run reads the first run's reply and reports it as fresh.
-    pub fn with_cache(mut self, cache: bool) -> Self {
+    pub fn cache(mut self, cache: bool) -> Self {
         self.cache = cache;
         self
     }
 
-    pub fn with_anthropic_key(mut self, key: impl Into<String>) -> Self {
+    pub fn anthropic_api_key(mut self, key: impl Into<String>) -> Self {
         self.anthropic_api_key = Some(key.into());
         self
     }
 
-    pub fn with_openrouter_key(mut self, key: impl Into<String>) -> Self {
+    pub fn openrouter_api_key(mut self, key: impl Into<String>) -> Self {
         self.openrouter_api_key = Some(key.into());
         self
     }
 
     /// Authenticate to a hosted ollama. litellm sends this as a bearer token, and so does every
     /// call this crate makes — the chat, the stream, and the capability probe alike.
-    pub fn with_ollama_key(mut self, key: impl Into<String>) -> Self {
+    pub fn ollama_api_key(mut self, key: impl Into<String>) -> Self {
         self.ollama_api_key = Some(key.into());
         self
     }
 
-    pub fn with_ollama_host(mut self, host: impl Into<String>) -> Self {
+    pub fn ollama_host(mut self, host: impl Into<String>) -> Self {
         self.ollama_host = host.into();
         self
     }
 
-    pub fn with_openai_key(mut self, key: impl Into<String>) -> Self {
+    pub fn openai_api_key(mut self, key: impl Into<String>) -> Self {
         self.openai.api_key = Some(key.into());
         self
     }
 
     /// Read the key from another variable — GROQ_API_KEY, TOGETHER_API_KEY — and remember the
     /// name, so a key that turns out to be missing names the variable the caller chose.
-    pub fn with_openai_key_env(mut self, var: impl Into<String>) -> Self {
+    pub fn openai_key_var(mut self, var: impl Into<String>) -> Self {
         let var = var.into();
         self.openai.api_key = env_nonempty(&var);
         self.openai.key_var = var;
@@ -242,21 +243,21 @@ impl LM {
 
     /// Point at another OpenAI-shaped service: `https://api.groq.com/openai/v1`,
     /// `http://localhost:8000/v1` for vLLM, `http://localhost:1234/v1` for LM Studio.
-    pub fn with_openai_base_url(mut self, base_url: impl Into<String>) -> Self {
+    pub fn openai_base_url(mut self, base_url: impl Into<String>) -> Self {
         self.openai.base_url = base_url.into();
         self
     }
 
     /// Opt into schema-constrained decoding, which only some OpenAI-shaped services support.
     /// See [`JsonFormat`].
-    pub fn with_openai_json_format(mut self, json_format: JsonFormat) -> Self {
+    pub fn openai_json_format(mut self, json_format: JsonFormat) -> Self {
         self.openai.json_format = json_format;
         self
     }
 
     /// Speak the Responses API rather than chat completions — OpenAI's wire for reasoning models,
     /// dspy's `model_type="responses"`. Non-streaming only for now. See [`OpenAiWire`].
-    pub fn with_openai_responses_api(mut self) -> Self {
+    pub fn openai_responses_api(mut self) -> Self {
         self.openai.wire = OpenAiWire::Responses;
         self
     }
@@ -264,7 +265,7 @@ impl LM {
     /// Choose which generation-cap field this endpoint is sent. The default follows
     /// OpenAI's own rule; a service that predates `max_completion_tokens` wants
     /// [`TokenLimitRule::AlwaysMaxTokens`].
-    pub fn with_openai_token_limit_rule(mut self, rule: TokenLimitRule) -> Self {
+    pub fn openai_token_limit_rule(mut self, rule: TokenLimitRule) -> Self {
         self.openai.token_limit_rule = rule;
         self
     }
@@ -292,7 +293,7 @@ mod tests {
         assert!(
             LM::new("openai/gpt-5-mini")
                 .expect("an LM")
-                .with_openai_responses_api()
+                .openai_responses_api()
                 .native_reasoning_usable()
         );
         // A non-gpt-5 model on the chat route is fine.
@@ -391,9 +392,9 @@ mod tests {
     fn builder_overrides_replace_the_env_resolved_values() {
         let lm = LM::new("anthropic/claude-opus-4-8")
             .expect("valid ref")
-            .with_anthropic_key("ak")
-            .with_openrouter_key("ok")
-            .with_ollama_host("http://one:1");
+            .anthropic_api_key("ak")
+            .openrouter_api_key("ok")
+            .ollama_host("http://one:1");
         assert_eq!(lm.anthropic_api_key.as_deref(), Some("ak"));
         assert_eq!(lm.openrouter_api_key.as_deref(), Some("ok"));
         assert_eq!(lm.ollama_host, "http://one:1");
@@ -403,10 +404,10 @@ mod tests {
     fn the_openai_builders_replace_the_env_resolved_endpoint() {
         let lm = LM::new("openai/llama-3.3-70b")
             .expect("valid ref")
-            .with_openai_base_url("http://localhost:8000/v1")
-            .with_openai_key("sk-local")
-            .with_openai_json_format(JsonFormat::Schema)
-            .with_openai_token_limit_rule(TokenLimitRule::AlwaysMaxTokens);
+            .openai_base_url("http://localhost:8000/v1")
+            .openai_api_key("sk-local")
+            .openai_json_format(JsonFormat::Schema)
+            .openai_token_limit_rule(TokenLimitRule::AlwaysMaxTokens);
         assert_eq!(lm.openai.base_url, "http://localhost:8000/v1");
         assert_eq!(lm.openai.api_key.as_deref(), Some("sk-local"));
         assert_eq!(lm.openai.json_format, JsonFormat::Schema);
@@ -420,13 +421,13 @@ mod tests {
     fn a_named_key_variable_is_read_and_kept_for_the_error_message() {
         let present = LM::new("openai/gpt-4o-mini")
             .expect("valid ref")
-            .with_openai_key_env("PATH");
+            .openai_key_var("PATH");
         assert_eq!(present.openai.key_var, "PATH");
         assert_eq!(present.openai.api_key, std::env::var("PATH").ok());
 
         let missing = LM::new("openai/gpt-4o-mini")
             .expect("valid ref")
-            .with_openai_key_env("DSRS_KEY_VAR_THAT_IS_NOT_SET");
+            .openai_key_var("DSRS_KEY_VAR_THAT_IS_NOT_SET");
         assert_eq!(missing.openai.key_var, "DSRS_KEY_VAR_THAT_IS_NOT_SET");
         assert_eq!(missing.openai.api_key, None);
     }

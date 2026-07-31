@@ -80,7 +80,7 @@ impl DummyLM {
     }
 
     /// Answer with this when nothing else matches, instead of erroring.
-    pub fn with_fallback(mut self, answer: Example) -> Self {
+    pub fn fallback(mut self, answer: Example) -> Self {
         self.fallback = Some(answer);
         self
     }
@@ -307,7 +307,7 @@ mod tests {
 
     #[test]
     fn a_fallback_answers_anything_the_script_did_not_plan() {
-        let lm = DummyLM::new([]).with_fallback(example! { answer: "whatever" });
+        let lm = DummyLM::new([]).fallback(example! { answer: "whatever" });
         assert!(ask(&lm, "anything").unwrap().contains("whatever"));
     }
 
