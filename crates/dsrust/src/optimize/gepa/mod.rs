@@ -21,7 +21,11 @@ mod conformance;
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
-use gepa::{Candidate, CandidateSelection, ComponentSelection, GepaEngine};
+use gepa::{CandidateSelection, ComponentSelection, GepaEngine};
+
+/// gepa's `Candidate`, re-exported so a caller writing an `InstructionProposer` can name the type it
+/// is handed without depending on the `gepa` crate itself.
+pub use gepa::Candidate;
 
 pub use gepa::GepaOutcome;
 pub use gepa::Reflective;

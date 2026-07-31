@@ -110,24 +110,24 @@ fn both_selectors_choose_what_gepa_chooses() {
 /// `current_best` had. The cursor matters as much as the choice: it is inherited by every candidate
 /// a family produces, so a round that advances it differently diverges a generation later.
 ///
-/// **This records a divergence rather than a match.** gepa walks `candidate.keys()` — a Python
-/// dict, insertion-ordered, which for dspy is the program's declaration order — and this crate's
-/// `Candidate` is a `BTreeMap`, so the walk is alphabetical. The two agree for a single-predictor
-/// program and wherever the names sort into declaration order, which is every other golden here.
-/// Filed as `gepa-candidate-order`; when it lands, the two walks become equal and this test says so.
+/// The golden's components are deliberately *not* alphabetical — sorted they are hints,
+/// instructions, style — because that is the only arrangement in which a walk over a sorted map and
+/// a walk over gepa's insertion-ordered dict disagree. They did, until `Candidate` stopped being a
+/// `BTreeMap`; every other golden here is single-component or happens to sort into declaration
+/// order, which is why nothing else caught it.
 #[test]
 fn both_component_selectors_choose_what_gepa_chooses() {
     let golden = golden();
     let components = &golden["components"];
-    // serde_json's default map is sorted, and so is `Candidate` — which is the divergence itself,
-    // so the crate's order is read as the sorted one deliberately rather than from this object.
-    let mut sorted_names: Vec<String> = components["candidate"]
-        .as_object()
-        .expect("a candidate")
-        .keys()
-        .cloned()
+    // Read from the recorded list, not from the `candidate` object: JSON keeps the order but
+    // serde_json's default map does not, so parsing the object would silently sort it back and the
+    // test would pass against exactly the bug it exists to catch.
+    let declared: Vec<String> = components["declaration_order"]
+        .as_array()
+        .expect("the golden records the declaration order")
+        .iter()
+        .map(|name| name.as_str().expect("a component").to_owned())
         .collect();
-    sorted_names.sort();
 
     let rounds = components["rounds"].as_array().expect("rounds");
     let mut ours = Vec::new();
@@ -135,7 +135,7 @@ fn both_component_selectors_choose_what_gepa_chooses() {
 
     for round in rounds {
         let cursor = round["cursor"].as_u64().expect("cursor") as usize;
-        let mut state = gepa::GepaState::for_components(sorted_names.clone(), cursor);
+        let mut state = gepa::GepaState::for_components(declared.clone(), cursor);
         ours.push(state.select_component(0));
         theirs.push(
             round["round_robin"][0]
@@ -154,25 +154,39 @@ fn both_component_selectors_choose_what_gepa_chooses() {
 
         // `All` is every component, so it differs from gepa's only in order — a different *set*
         // would be a real bug rather than this one.
-        let mut every: Vec<String> = round["all"]
+        let every: Vec<String> = round["all"]
             .as_array()
             .expect("all")
             .iter()
             .map(|name| name.as_str().expect("a component").to_owned())
             .collect();
-        every.sort();
         assert_eq!(
-            sorted_names, every,
-            "`all` selected a different set of components"
+            declared, every,
+            "`all` selected the components in a different order"
         );
     }
 
+    assert_eq!(ours, theirs, "the round-robin walk should be gepa's");
+    // And it is declaration order that it walks, not some other order that happens to match here.
     assert_eq!(
-        ours, sorted_names,
-        "the crate walks components in sorted order"
+        ours, declared,
+        "the walk should follow the declaration order"
     );
-    assert_ne!(
-        ours, theirs,
-        "the walks now agree — gepa-candidate-order is fixed, so assert equality and delete this"
+
+    // Through the real constructor, which is what a run uses: `GepaState::new` reads the walk off
+    // the seed candidate's keys. Handing `for_components` a list above proves the state walks what
+    // it is given and says nothing about what a `Candidate` gives it — so a `Candidate` that sorted
+    // its keys again would leave every assertion above green.
+    let mut seed = gepa::Candidate::new();
+    for name in &declared {
+        seed.insert(name.clone(), String::new());
+    }
+    let mut from_seed = gepa::GepaState::new(seed, vec![1.0]);
+    let walk: Vec<String> = (0..declared.len())
+        .map(|_| from_seed.select_component(0))
+        .collect();
+    assert_eq!(
+        walk, theirs,
+        "the walk a seed candidate produces should be gepa's"
     );
 }

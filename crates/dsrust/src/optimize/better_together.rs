@@ -24,12 +24,15 @@ use super::rng::Rng;
 /// dspy's separator between the steps of a strategy: `"p -> w -> p"`.
 const STRATEGY_SEPARATOR: &str = " -> ";
 
-/// One program the search evaluated, and what it scored.
+/// What one step of a strategy produced: the program it left behind and what that scored.
+///
+/// Not `Candidate` — that is gepa's word for a map of component instructions, re-exported beside
+/// this — and not `Attempt`, which BootstrapRandomSearch already uses for its own scored try.
 ///
 /// dspy keeps a `deepcopy` of the program itself; here it is the program's compiled state, which
 /// is what a copy would have carried and what [`Module::load_state`] puts back.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Candidate {
+pub struct StepResult {
     /// The metric's mean over the validation set as a percentage — dspy's `Evaluate.score` — or
     /// nothing where there was no validation set to score against.
     pub score: Option<f64>,
@@ -102,7 +105,7 @@ where
         trainset: &[Example],
         valset: Option<&[Example]>,
         strategy: &str,
-    ) -> Result<Vec<Candidate>> {
+    ) -> Result<Vec<StepResult>> {
         let steps = self.parse_strategy(strategy)?;
         let (mut trainset, valset) = self.split(trainset, valset)?;
 
@@ -128,9 +131,9 @@ where
         }
 
         // dspy sorts by score, and a tie keeps the one found earlier.
-        let mut ranked: Vec<(usize, Candidate)> = candidates.into_iter().enumerate().collect();
+        let mut ranked: Vec<(usize, StepResult)> = candidates.into_iter().enumerate().collect();
         ranked.sort_by(|(left_at, left), (right_at, right)| {
-            let score = |candidate: &Candidate| candidate.score.unwrap_or(f64::NEG_INFINITY);
+            let score = |candidate: &StepResult| candidate.score.unwrap_or(f64::NEG_INFINITY);
             score(right)
                 .partial_cmp(&score(left))
                 .unwrap_or(std::cmp::Ordering::Equal)
@@ -155,12 +158,12 @@ where
         student: &mut dyn Module,
         strategy: String,
         valset: Option<&[Example]>,
-    ) -> Candidate {
+    ) -> StepResult {
         let score = match valset {
             None => None,
             Some(valset) => Some(self.score(student, valset).await),
         };
-        Candidate {
+        StepResult {
             score,
             strategy,
             state: student.dump_state(),

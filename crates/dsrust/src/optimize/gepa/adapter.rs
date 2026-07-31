@@ -219,7 +219,7 @@ where
         candidate: &Candidate,
         components: &[String],
         _captured: &EvalBatch,
-    ) -> BTreeMap<String, String> {
+    ) -> Candidate {
         // A component whose runs produced nothing is left out of both paths: upstream skips it
         // rather than proposing against an empty dataset, and a caller's proposer is not handed one
         // it cannot use either.
@@ -238,7 +238,7 @@ where
                 .await;
         }
 
-        let mut new_texts = BTreeMap::new();
+        let mut new_texts = Candidate::new();
         for (name, dataset) in &datasets {
             let prompt = render_prompt(&candidate[name], dataset, None);
             if let Some(raw) = self.reflect(&prompt).await {

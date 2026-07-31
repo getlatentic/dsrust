@@ -5,8 +5,9 @@
 //! `gepa` package. [`engine::GepaEngine`] runs the reflective-mutation loop; [`pareto`] selects the
 //! candidate to evolve each iteration and [`batch`] samples its minibatch, both off one shared RNG.
 
-pub mod adapter;
+mod adapter;
 pub mod batch;
+pub mod candidate;
 pub mod engine;
 pub mod instruction_proposal;
 pub mod merge;

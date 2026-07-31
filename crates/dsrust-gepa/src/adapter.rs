@@ -3,12 +3,9 @@
 //! reflective flow's `make_reflective_dataset` is folded into `propose_new_texts` — the engine only
 //! ever calls the two back-to-back, passing the captured evaluation between them.
 
-use std::collections::BTreeMap;
 use std::future::Future;
 
-/// A GEPA candidate: component name → component text (dspy's `dict[str, str]`). Ordered, so the seed
-/// candidate's keys give `list_of_named_predictors` and the round-robin component order.
-pub type Candidate = BTreeMap<String, String>;
+pub use crate::candidate::Candidate;
 
 /// What the engine reads back from an evaluation: the per-example scores (their sum drives the
 /// minibatch accept test; their mean over the valset drives selection and the best program), and
@@ -69,5 +66,5 @@ pub trait GepaAdapter {
         candidate: &Candidate,
         components: &[String],
         captured: &EvalBatch,
-    ) -> impl Future<Output = BTreeMap<String, String>> + Send;
+    ) -> impl Future<Output = Candidate> + Send;
 }

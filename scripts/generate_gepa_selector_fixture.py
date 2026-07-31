@@ -126,6 +126,9 @@ def main() -> None:
 
     # The component selectors, which choose *which* components a reflection rewrites. `all` was
     # built from reading gepa's source and had never been compared against it either.
+    # Deliberately *not* alphabetical: sorted, these are hints, instructions, style. dspy builds the
+    # seed candidate from `student.named_predictors()`, so the order is the program's declaration
+    # order, and a port over a sorted map walks them in the wrong one.
     candidate = {"instructions": "a", "hints": "b", "style": "c"}
     components = []
     for cursor in range(len(candidate)):
@@ -151,7 +154,13 @@ def main() -> None:
         ),
         "seeds": SEEDS,
         "cases": cases,
-        "components": {"candidate": candidate, "rounds": components},
+        "components": {
+            "candidate": candidate,
+            # Recorded as a list beside the object: JSON preserves the order but serde_json's
+            # default map does not, so the crate could not read it back from `candidate` alone.
+            "declaration_order": list(candidate),
+            "rounds": components,
+        },
     }
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / "gepa_selectors.json"

@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1057
+rust_tests = 1060
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -577,7 +577,8 @@ existing — and the pieces they reach for already live beside them.
 id = "gepa-candidate-order"
 sprint = "api"
 title = "GEPA walks a program's components alphabetically where gepa walks them in declaration order"
-state = "todo"
+state = "done"
+shipped = "2026-07-31"
 size = "M"
 suites = []
 plan = """
@@ -607,6 +608,40 @@ crosses `dsrust-gepa` and `dsrust`'s GEPA adapter, and both are published crates
 **What proves it.** `both_component_selectors_choose_what_gepa_chooses` flips from `assert_ne` to
 `assert_eq` on the two walks, and a multi-predictor GEPA conformance case is generated with
 predictors whose declaration order is not alphabetical.
+"""
+outcome = """
+`Candidate` is its own insertion-ordered type now, hand-rolled over a `Vec` for the reason
+`PyIntSet` is: the ordering *is* the thing being reproduced, so it belongs where it can be read
+against the Python rather than delegated to `indexmap`. Assigning to a component already present
+keeps its position, as a Python dict does — otherwise a merge would move a rewritten component to
+the end and shift every later round-robin pick. Equality ignores order, as `dict.__eq__` does.
+
+Reading the pinned gepa to fix the third call site found the module note on `merge.rs` was wrong.
+It said the predicate loop iterates `set(candidate.keys())` and left the CPython set-order caveat
+there. gepa reads a candidate's components **twice, differently**: `filter_program_candidates` walks
+`list(...keys())` — dict order, now exact — and `merge_programs_by_common_predictors` walks
+`set(...keys())`, which is the one that randomises under siphash. The caveat was real and attached
+to the wrong loop; it is now on the loop that has it, and the note says it was corrected.
+
+**The first version of the test could not fail.** Flipping `both_component_selectors_choose_what_gepa_chooses`
+from `assert_ne` to `assert_eq` passed immediately — because it builds the state with
+`GepaState::for_components(names, cursor)`, handing the order in. That proves the state walks what it
+is given and says nothing about what a `Candidate` gives it, so a `Candidate` that sorted again would
+have left it green. It now also goes through `GepaState::new(seed_candidate, scores)`, the
+constructor a run uses, and reverting `Candidate` to sorted turns it red.
+
+One public name had to move. `optimize::Candidate` was BetterTogether's own struct — a scored
+program state, our word, not upstream's — and gepa's `Candidate` is the name gepa and dspy both use.
+The upstream name won: BetterTogether's is `StepResult` now (`Attempt` was taken by
+BootstrapRandomSearch), and `Candidate` is re-exported from `dsrust`, so a caller writing an
+`InstructionProposer` can name the type it is handed without depending on the `gepa` crate. That
+regression was live for one compile: the trait's parameter had gone from `BTreeMap<String, String>`,
+which anyone can name, to a type only reachable through another crate.
+
+The golden gained one more thing it needed: `declaration_order` as a list beside the `candidate`
+object. JSON preserves key order and serde_json's default map does not, so reading the order out of
+the parsed object would have sorted it back — the test would have passed against exactly the bug it
+exists to catch.
 """
 
 [[story]]

@@ -1417,6 +1417,11 @@
       "hints": "b",
       "style": "c"
     },
+    "declaration_order": [
+      "instructions",
+      "hints",
+      "style"
+    ],
     "rounds": [
       {
         "cursor": 0,

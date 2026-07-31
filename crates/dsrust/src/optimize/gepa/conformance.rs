@@ -10,6 +10,7 @@
 //! candidate in discovery order, its parents, its validation score, the eval bookkeeping, the
 //! reflection-call count, and the winner.
 
+use gepa::Candidate;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -127,12 +128,12 @@ async fn a_callers_proposer_replaces_the_reflection_tree() {
         fn propose<'a>(
             &'a self,
             reflection: &'a Arc<dyn crate::lm::DynChatModel>,
-            candidate: &'a BTreeMap<String, String>,
+            candidate: &'a Candidate,
             components: &'a [String],
             datasets: &'a BTreeMap<String, super::ReflectiveDataset>,
-        ) -> std::pin::Pin<Box<dyn Future<Output = BTreeMap<String, String>> + Send + 'a>> {
+        ) -> std::pin::Pin<Box<dyn Future<Output = Candidate> + Send + 'a>> {
             Box::pin(async move {
-                let mut proposed = BTreeMap::new();
+                let mut proposed = Candidate::new();
                 for name in components {
                     // The dataset it was handed is the one the reflection tree would have read.
                     assert!(!datasets[name].is_empty(), "handed an empty dataset");

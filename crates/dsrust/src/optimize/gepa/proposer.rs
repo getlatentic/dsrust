@@ -13,6 +13,7 @@
 //! the model GEPA was given without being passed it; there is no such ambient here, and a proposer
 //! that could not reach it would be strictly less able than upstream's.
 
+use gepa::Candidate;
 use std::collections::BTreeMap;
 use std::future::Future;
 use std::pin::Pin;
@@ -39,7 +40,8 @@ pub type ReflectiveDataset = Vec<Vec<(String, Reflective)>>;
 /// # use std::pin::Pin;
 /// # use std::sync::Arc;
 /// # use dsrust::lm::DynChatModel;
-/// use dsrust::optimize::{InstructionProposer, ReflectiveDataset};
+/// # use std::future::Future;
+/// use dsrust::optimize::{Candidate, InstructionProposer, ReflectiveDataset};
 ///
 /// struct Counting;
 ///
@@ -47,10 +49,10 @@ pub type ReflectiveDataset = Vec<Vec<(String, Reflective)>>;
 ///     fn propose<'a>(
 ///         &'a self,
 ///         _reflection: &'a Arc<dyn DynChatModel>,
-///         candidate: &'a BTreeMap<String, String>,
+///         candidate: &'a Candidate,
 ///         components: &'a [String],
 ///         datasets: &'a BTreeMap<String, ReflectiveDataset>,
-///     ) -> Pin<Box<dyn Future<Output = BTreeMap<String, String>> + Send + 'a>> {
+///     ) -> Pin<Box<dyn Future<Output = Candidate> + Send + 'a>> {
 ///         Box::pin(async move {
 ///             components
 ///                 .iter()
@@ -77,8 +79,8 @@ pub trait InstructionProposer: Send + Sync {
     fn propose<'a>(
         &'a self,
         reflection: &'a Arc<dyn DynChatModel>,
-        candidate: &'a BTreeMap<String, String>,
+        candidate: &'a Candidate,
         components: &'a [String],
         datasets: &'a BTreeMap<String, ReflectiveDataset>,
-    ) -> Pin<Box<dyn Future<Output = BTreeMap<String, String>> + Send + 'a>>;
+    ) -> Pin<Box<dyn Future<Output = Candidate> + Send + 'a>>;
 }

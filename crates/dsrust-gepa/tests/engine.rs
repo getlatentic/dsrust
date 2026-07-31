@@ -8,8 +8,6 @@
 //! full-valset re-evaluation, the metric-call budget, and the state bookkeeping (parents, discovery
 //! eval-counts, per-candidate mean valset score, and the best index).
 
-use std::collections::BTreeMap;
-
 use gepa::{Candidate, EvalBatch, GepaAdapter, GepaEngine};
 use gepa::{CandidateSelection, ComponentSelection};
 use serde_json::Value;
@@ -80,7 +78,7 @@ impl GepaAdapter for MirrorAdapter {
         candidate: &Candidate,
         components: &[String],
         _captured: &EvalBatch,
-    ) -> BTreeMap<String, String> {
+    ) -> Candidate {
         components
             .iter()
             .map(|name| {

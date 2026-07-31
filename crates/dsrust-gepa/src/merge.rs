@@ -7,14 +7,25 @@
 //! CPython's set iteration order ([`crate::pyset`]), not sorted, so the same draw lands on a
 //! different program unless that order is reproduced.
 //!
-//! **One bounded edge.** The predicate loop iterates `set(candidate.keys())` — the *component*
-//! names, which are strings, whose set order CPython randomises per process (siphash under
-//! `PYTHONHASHSEED`). A candidate with a single component — one predictor, which is what GEPA over
-//! a `Predict` produces — has a one-element set, so the order is fixed and this is exact. With
-//! several components the order only reaches the generator in the rare branch where both
-//! descendants changed the same component to different values at equal aggregate score; there the
-//! draw order would follow CPython's string-set order, which this iterates by name instead. That
-//! case is left to a later siphash port rather than papered over.
+//! **Two different orders, and only one of them is an edge.** gepa reads a candidate's components
+//! twice and not the same way:
+//!
+//!   - the predicate (`merge.py`, `filter_program_candidates`) walks
+//!     `list(program_candidates[ancestor].keys())` — dict order, so the program's declaration order.
+//!     Exact here, since [`Candidate`] keeps it.
+//!   - the construction (`merge_programs_by_common_predictors`) walks
+//!     `set(program_candidates[ancestor].keys())` — a *set* of strings, whose iteration order
+//!     CPython randomises per process under siphash.
+//!
+//! The second is the bounded edge. A single-component candidate — one predictor, which is what GEPA
+//! over a `Predict` produces — has a one-element set, so the order is fixed and this is exact. With
+//! several components it reaches the generator only in the branch where both descendants changed the
+//! same component to different values, where a descendant is drawn at random; there the draw would
+//! follow CPython's string-set order, which this walks in declaration order instead. Left to a later
+//! siphash port rather than papered over.
+//!
+//! This note used to attribute the set to the predicate loop, which reads a list. Corrected against
+//! the pinned gepa when `Candidate` became insertion-ordered.
 
 use pyrng::Random;
 
@@ -300,9 +311,10 @@ impl MergesPerformed {
     }
 }
 
-/// The candidate's component names in a stable order. A single-component candidate — GEPA over a
-/// `Predict` — has one, so this matches dspy's `set(keys)` exactly; see the module note on the
-/// multi-component edge.
+/// The candidate's component names in declaration order — gepa's `list(candidate.keys())`.
+///
+/// Exact for the predicate. The construction loop reads the same names out of a *set* upstream; see
+/// the module note on why that one is still an approximation.
 fn components(candidate: &Candidate) -> impl Iterator<Item = &String> {
     candidate.keys()
 }
@@ -310,10 +322,9 @@ fn components(candidate: &Candidate) -> impl Iterator<Item = &String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::BTreeMap;
 
     fn candidate(instruction: &str) -> Candidate {
-        BTreeMap::from([("self".to_owned(), instruction.to_owned())])
+        Candidate::from([("self".to_owned(), instruction.to_owned())])
     }
 
     /// The ancestor kept `A`; id1 changed it, id2 did not — so the merge takes id1's value, with no
