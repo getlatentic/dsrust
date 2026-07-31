@@ -13,6 +13,7 @@
 
 mod adapter;
 mod metric;
+mod proposer;
 
 #[cfg(test)]
 mod conformance;
@@ -20,10 +21,12 @@ mod conformance;
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
-use gepa::{Candidate, GepaEngine};
+use gepa::{Candidate, CandidateSelection, ComponentSelection, GepaEngine};
 
 pub use gepa::GepaOutcome;
+pub use gepa::Reflective;
 pub use metric::Feedback;
+pub use proposer::{InstructionProposer, ReflectiveDataset};
 
 use adapter::{Adapter, set_instructions};
 
@@ -52,6 +55,14 @@ pub struct GEPA<M> {
     use_merge: bool,
     /// dspy `max_merge_invocations`: the cap on accepted merges over a run (default 5).
     max_merge_invocations: usize,
+    /// dspy `num_threads`: how many examples one evaluation runs at once (default one).
+    num_threads: usize,
+    /// dspy `candidate_selection_strategy`. See [`CandidateSelection`].
+    candidate_selection: CandidateSelection,
+    /// dspy `component_selector`. See [`ComponentSelection`].
+    component_selection: ComponentSelection,
+    /// dspy `instruction_proposer`. See [`InstructionProposer`].
+    proposer: Option<Arc<dyn InstructionProposer>>,
 }
 
 impl<M> GEPA<M>
@@ -72,7 +83,49 @@ where
             seed: 0,
             use_merge: true,
             max_merge_invocations: 5,
+            num_threads: 1,
+            candidate_selection: CandidateSelection::default(),
+            component_selection: ComponentSelection::default(),
+            proposer: None,
         }
+    }
+
+    /// dspy `instruction_proposer`: rewrite components with this instead of GEPA's reflection tree.
+    ///
+    /// It replaces the whole proposal step, as upstream's does — the built-in prompt is not
+    /// consulted at all — and it is handed only the components whose runs produced something to
+    /// reflect on.
+    pub fn instruction_proposer(mut self, proposer: Arc<dyn InstructionProposer>) -> Self {
+        self.proposer = Some(proposer);
+        self
+    }
+
+    /// dspy `num_threads`: how many examples one evaluation runs at once, default one as upstream's
+    /// `num_threads=None` is. Order is preserved whatever the count, so the reflection reads the
+    /// same dataset.
+    ///
+    /// GEPA spends nearly all of its budget in evaluation, so this is most of a run's wall clock
+    /// against a hosted model.
+    pub fn num_threads(mut self, num_threads: usize) -> Self {
+        self.num_threads = num_threads.max(1);
+        self
+    }
+
+    /// dspy `candidate_selection_strategy`: which candidate each iteration reflects on, `"pareto"`
+    /// by default.
+    ///
+    /// Not a preference over one sequence: the Pareto selector draws from the shared generator and
+    /// the current-best one does not, so switching moves every later draw in the run.
+    pub fn candidate_selection(mut self, strategy: CandidateSelection) -> Self {
+        self.candidate_selection = strategy;
+        self
+    }
+
+    /// dspy `component_selector`: which of a candidate's components one reflection rewrites,
+    /// round-robin by default.
+    pub fn component_selection(mut self, selector: ComponentSelection) -> Self {
+        self.component_selection = selector;
+        self
     }
 
     /// The rollout budget: GEPA stops once this many metric calls have been spent. Required — GEPA
@@ -212,6 +265,8 @@ where
                 trainset,
                 valset,
                 self.failure_score,
+                self.num_threads,
+                self.proposer.clone(),
             ),
             trainset_size: trainset.len(),
             valset_size: valset.len(),
@@ -222,6 +277,8 @@ where
             seed: self.seed,
             use_merge: self.use_merge,
             max_merge_invocations: self.max_merge_invocations,
+            candidate_selection: self.candidate_selection,
+            component_selection: self.component_selection,
         };
         let outcome = engine.optimize(seed_candidate).await;
         set_instructions(student, &outcome.best);

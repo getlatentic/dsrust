@@ -102,6 +102,105 @@ async fn gepa_evolves_the_instruction_that_scores() {
     assert_eq!(student.signature.instructions, PROPOSAL);
 }
 
+/// A caller's proposer replaces the reflection tree entirely — upstream's "overrides everything".
+///
+/// The reflection model is scripted to a proposal that would win if it were asked. It is not asked:
+/// the compiled instruction is the caller's, and the reflector recorded no call.
+#[tokio::test]
+async fn a_callers_proposer_replaces_the_reflection_tree() {
+    use std::collections::BTreeMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct Counting(AtomicUsize);
+    impl ChatModel for Counting {
+        async fn forward(&self, _request: &api::LmRequest) -> Result<LmResponse> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            Ok(LmResponse::text(format!("```\n{PROPOSAL}\n```")))
+        }
+    }
+
+    struct Shouting;
+    impl super::InstructionProposer for Shouting {
+        fn propose<'a>(
+            &'a self,
+            candidate: &'a BTreeMap<String, String>,
+            components: &'a [String],
+            datasets: &'a BTreeMap<String, super::ReflectiveDataset>,
+        ) -> std::pin::Pin<Box<dyn Future<Output = BTreeMap<String, String>> + Send + 'a>> {
+            Box::pin(async move {
+                components
+                    .iter()
+                    .map(|name| {
+                        // The dataset it was handed is the one the reflection tree would have read,
+                        // so a proposer that ignores it is the caller's choice and not a gap here.
+                        assert!(!datasets[name].is_empty(), "handed an empty dataset");
+                        // A proposal that outscores the seed, so the accept/reject step is not what
+                        // decides this test. `GOOD` is what `TaskCoach` reads.
+                        let _ = &candidate[name];
+                        (name.clone(), format!("Caller says: {PROPOSAL}"))
+                    })
+                    .collect()
+            })
+        }
+    }
+
+    let reflector = Arc::new(Counting(AtomicUsize::new(0)));
+    let mut student = Predict::parse("question -> answer")
+        .expect("parses")
+        .with_lm(Arc::new(TaskCoach));
+    student.signature.instructions = "Answer the question.".to_owned();
+
+    GEPA::new(metric, reflector.clone())
+        .max_metric_calls(20)
+        .reflection_minibatch_size(2)
+        .instruction_proposer(Arc::new(Shouting))
+        .compile(&mut student, &trainset(), &trainset())
+        .await
+        .expect("compiles");
+
+    assert_eq!(
+        reflector.0.load(Ordering::Relaxed),
+        0,
+        "the reflection model was asked despite a caller's proposer"
+    );
+    assert_eq!(
+        student.signature.instructions,
+        format!("Caller says: {PROPOSAL}"),
+        "the caller's proposal did not reach the student"
+    );
+}
+
+/// Evaluating several examples at once changes when they run and not what the run decides.
+///
+/// The claim `num_threads` is documented with. Evaluation is order-preserving, so a trace still
+/// lines up with the example that produced it and the reflection reads the same dataset — but
+/// nothing said so until this compared the two runs, and `buffer_unordered` would have passed every
+/// other test in the file.
+#[tokio::test]
+async fn a_threaded_evaluation_reaches_the_same_instruction() {
+    let mut compiled = Vec::new();
+    for threads in [1, 4] {
+        let mut student = Predict::parse("question -> answer")
+            .expect("parses")
+            .with_lm(Arc::new(TaskCoach));
+        student.signature.instructions = "Answer the question.".to_owned();
+
+        GEPA::new(metric, Arc::new(Reflector))
+            .max_metric_calls(20)
+            .reflection_minibatch_size(2)
+            .num_threads(threads)
+            .compile(&mut student, &trainset(), &trainset())
+            .await
+            .expect("compiles");
+        compiled.push(student.signature.instructions.clone());
+    }
+    assert_eq!(
+        compiled[0], compiled[1],
+        "the thread count moved the search"
+    );
+    assert_eq!(compiled[0], PROPOSAL);
+}
+
 /// The `GOOD-<k>` marker in an instruction, if any. Written by hand because the crate carries no
 /// regex; the marker is always `GOOD-` followed by digits.
 fn marker(text: &str) -> Option<u64> {

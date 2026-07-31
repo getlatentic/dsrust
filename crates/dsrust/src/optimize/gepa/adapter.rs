@@ -3,6 +3,7 @@
 //! reflection), assembles the reflective dataset from those traces, and calls the reflection model to
 //! rewrite an instruction — the LLM work the [`gepa`] engine drives through [`gepa::GepaAdapter`].
 
+use futures_util::StreamExt;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -49,6 +50,12 @@ pub(super) struct Adapter<'a, S: Module + ?Sized, M> {
     valset: &'a [Example],
     failure_score: f64,
     captured: Vec<Captured>,
+    /// dspy `num_threads`: how many examples one evaluation runs at once. One at a time by default,
+    /// which is upstream's `num_threads=None`.
+    num_threads: usize,
+    /// dspy `instruction_proposer`: a caller's own proposal step, replacing the reflection tree
+    /// entirely when set. See [`InstructionProposer`](super::InstructionProposer).
+    proposer: Option<Arc<dyn super::InstructionProposer>>,
 }
 
 impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
@@ -59,6 +66,8 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
         trainset: &'a [Example],
         valset: &'a [Example],
         failure_score: f64,
+        num_threads: usize,
+        proposer: Option<Arc<dyn super::InstructionProposer>>,
     ) -> Self {
         Self {
             student,
@@ -68,6 +77,8 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
             valset,
             failure_score,
             captured: Vec::new(),
+            num_threads,
+            proposer,
         }
     }
 }
@@ -90,9 +101,22 @@ where
         if capture_traces {
             self.captured.clear();
         }
-        let mut scores = Vec::with_capacity(examples.len());
+        // Order-preserving, so a trace still lines up with the example that produced it and the
+        // reflection reads the same dataset whatever the thread count. `buffered` and not
+        // `buffer_unordered`, for the same reason `Evaluate` uses it.
+        // Built in a plain loop rather than through `map`: a closure returning a future that
+        // borrows both its argument and `self` needs a higher-ranked bound the compiler will not
+        // infer, and there is no closure here to need one.
+        let mut running = Vec::with_capacity(examples.len());
         for example in examples {
-            let (score, captured) = self.run_one(example, capture_traces).await;
+            running.push(self.run_one(example, capture_traces));
+        }
+        let ran: Vec<(f64, Option<Captured>)> = futures_util::stream::iter(running)
+            .buffered(self.num_threads.max(1))
+            .collect()
+            .await;
+        let mut scores = Vec::with_capacity(examples.len());
+        for (score, captured) in ran {
             scores.push(score);
             if let Some(captured) = captured {
                 self.captured.push(captured);
@@ -196,13 +220,25 @@ where
         components: &[String],
         _captured: &EvalBatch,
     ) -> BTreeMap<String, String> {
+        // A component whose runs produced nothing is left out of both paths: upstream skips it
+        // rather than proposing against an empty dataset, and a caller's proposer is not handed one
+        // it cannot use either.
+        let datasets: BTreeMap<String, super::ReflectiveDataset> = components
+            .iter()
+            .map(|name| (name.clone(), self.reflective_dataset(name)))
+            .filter(|(_, dataset)| !dataset.is_empty())
+            .collect();
+
+        // dspy: when a custom proposer is given it "overrides everything" — the reflection tree is
+        // not consulted at all, only the components it was asked about.
+        if let Some(proposer) = &self.proposer {
+            let asked: Vec<String> = datasets.keys().cloned().collect();
+            return proposer.propose(candidate, &asked, &datasets).await;
+        }
+
         let mut new_texts = BTreeMap::new();
-        for name in components {
-            let dataset = self.reflective_dataset(name);
-            if dataset.is_empty() {
-                continue;
-            }
-            let prompt = render_prompt(&candidate[name], &dataset, None);
+        for (name, dataset) in &datasets {
+            let prompt = render_prompt(&candidate[name], dataset, None);
             if let Some(raw) = self.reflect(&prompt).await {
                 new_texts.insert(name.clone(), extract_new_instruction(&raw));
             }

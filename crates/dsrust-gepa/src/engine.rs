@@ -14,6 +14,18 @@ use crate::adapter::{Candidate, GepaAdapter};
 use crate::batch::BatchSampler;
 use crate::merge::{MergesPerformed, sample_and_attempt_merge, select_eval_subsample};
 use crate::pareto::{find_dominator_programs, select_candidate};
+
+/// gepa's `idxmax`: the first index holding the maximum. `lst.index(max(lst))` in Python, so a tie
+/// resolves to the earliest — which for candidates means the one found first.
+fn idxmax(scores: &[f64]) -> usize {
+    let mut best = 0;
+    for (index, score) in scores.iter().enumerate() {
+        if score > &scores[best] {
+            best = index;
+        }
+    }
+    best
+}
 use crate::state::GepaState;
 
 /// The engine's merge bookkeeping, dspy's counters on the `MergeProposer`: how many merges are due,
@@ -65,6 +77,39 @@ pub struct GepaEngine<A: GepaAdapter> {
     pub use_merge: bool,
     /// dspy `max_merge_invocations`: the cap on accepted merges over a run (default 5).
     pub max_merge_invocations: usize,
+    /// Which candidate each iteration reflects on. See [`CandidateSelection`].
+    pub candidate_selection: CandidateSelection,
+    /// Which of a candidate's components a reflection rewrites. See [`ComponentSelection`].
+    pub component_selection: ComponentSelection,
+}
+
+/// gepa's `CandidateSelector`: which candidate an iteration mutates.
+///
+/// The two differ in more than their choice. [`Pareto`](Self::Pareto) draws from the shared
+/// generator and [`CurrentBest`](Self::CurrentBest) does not, so switching moves every later draw in
+/// the run — the batch sample, the merge attempt, the next selection. It is not a preference applied
+/// to the same sequence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum CandidateSelection {
+    /// `ParetoCandidateSelector`: the survivor set of the per-testcase fronts, then a
+    /// frequency-weighted draw. gepa's default, and dspy's.
+    #[default]
+    Pareto,
+    /// `CurrentBestCandidateSelector`: `idxmax` over the aggregate valset scores — the first index
+    /// holding the maximum, ties going to the earliest candidate found.
+    CurrentBest,
+}
+
+/// gepa's `ReflectionComponentSelector`: which components one reflection rewrites.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ComponentSelection {
+    /// `RoundRobinReflectionComponentSelector`: one component per iteration, the parent's cursor
+    /// advancing so a family cycles through its components across generations. gepa's default.
+    #[default]
+    RoundRobin,
+    /// `AllReflectionComponentSelector`: every component of the candidate, in the seed candidate's
+    /// key order. One reflection rewrites the whole program rather than a predictor of it.
+    All,
 }
 
 /// The number of validation ids a merged candidate is scored on before the full re-evaluation, and
@@ -220,7 +265,14 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         rng: &mut Random,
         sampler: &mut BatchSampler,
     ) -> Option<Proposal> {
-        let parent = select_candidate(state.fronts(), &state.mean_scores(), rng);
+        let parent = match self.candidate_selection {
+            CandidateSelection::Pareto => {
+                select_candidate(state.fronts(), &state.mean_scores(), rng)
+            }
+            // gepa's `idxmax`: `lst.index(max(lst))`, so a tie goes to the earliest candidate. No
+            // draw from the generator, unlike the Pareto arm.
+            CandidateSelection::CurrentBest => idxmax(&state.mean_scores()),
+        };
         let subsample = sampler.next_minibatch_ids(self.trainset_size, state.i as usize, rng);
         let parent_candidate = state.candidates[parent].clone();
 
@@ -236,7 +288,10 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             return None;
         }
 
-        let components = vec![state.select_component(parent)];
+        let components = match self.component_selection {
+            ComponentSelection::RoundRobin => vec![state.select_component(parent)],
+            ComponentSelection::All => parent_candidate.keys().cloned().collect(),
+        };
         let new_texts = self
             .adapter
             .propose_new_texts(&parent_candidate, &components, &eval_parent)

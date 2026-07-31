@@ -28,7 +28,7 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 1013 passing |
+| Rust tests | 1020 passing |
 | Upstream dspy tests | 897 passing, 479 crossing into Rust, 529 deciding a signature |
 | Upstream files run | 52 of 86, every other one excused by name |
 | Strict-xfail backlog | 5 entries in `conftest.py` |
@@ -209,7 +209,9 @@ crates/dsrust/src/  the library itself
                     demos.rs, history.rs, blocks.rs, parse/, python_json.rs
   predict.rs        Predict + the recovery engine; chain_of_thought.rs
   react/            ReAct, Trajectory, Tool
-  optimize/         rng, labeled, bootstrap, copro, mipro, gepa
+  optimize/         rng, labeled, bootstrap, copro, mipro (instructions *and* demos, the search
+                    space interleaved per predictor as optuna draws it), gepa (five caller seams:
+                    num_threads, candidate/component selection, InstructionProposer)
   interpreter/      the CodeInterpreter seam, and deno/ — dspy's runner.js under pyodide
   callback.rs       dspy's BaseCallback as a trait of twelve defaulted methods; context.rs is
                     ACTIVE_CALL_ID, entered per poll so interleaved rows keep their own parent

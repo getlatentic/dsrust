@@ -11,6 +11,7 @@
 use std::collections::BTreeMap;
 
 use gepa::{Candidate, EvalBatch, GepaAdapter, GepaEngine};
+use gepa::{CandidateSelection, ComponentSelection};
 use serde_json::Value;
 
 /// The Rust mirror of the fixture's scripted adapter: a component text is "vN", a candidate's versions
@@ -143,6 +144,10 @@ async fn reproduces_the_runs_gepa_produces() {
             use_merge: case["use_merge"].as_bool().unwrap_or(false),
             max_merge_invocations: 5,
             seed: case["seed"].as_u64().expect("seed"),
+            // The golden was recorded from gepa under its defaults; naming them keeps a later
+            // change of default from silently re-pointing this at another strategy.
+            candidate_selection: CandidateSelection::Pareto,
+            component_selection: ComponentSelection::RoundRobin,
         };
         let outcome = engine.optimize(candidate_of(&case["seed_candidate"])).await;
         let result = &case["result"];

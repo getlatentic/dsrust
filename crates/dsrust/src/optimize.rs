@@ -75,7 +75,10 @@ pub use better_together::{BetterTogether, Candidate};
 pub use bootstrap::BootstrapFewShot;
 pub use copro::COPRO;
 pub use ensemble::{Ensemble, Ensembled};
-pub use gepa::{Feedback, GEPA, GepaOutcome};
+// `Reflective` travels with the two: a caller implementing `InstructionProposer` cannot read the
+// dataset it is handed without naming the type its entries are, and reaching for it would mean
+// depending on the engine crate directly.
+pub use gepa::{Feedback, GEPA, GepaOutcome, InstructionProposer, Reflective, ReflectiveDataset};
 pub use labeled::LabeledFewShot;
 pub use mipro::MIPROv2;
 pub use random_search::{Attempt, BootstrapRandomSearch};

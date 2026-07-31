@@ -312,7 +312,10 @@ pub(crate) fn responses_body(request: &str) -> PyResult<String> {
         config.response_format = Some(schema.clone());
     }
     let call = LmRequest::new(model, messages).configured(config);
-    let body = dsrust::lm::openai::responses::request(model, &call, dsrust::lm::JsonFormat::Schema);
+    // Fallible since the builder validates first: an OpenAI reasoning model asked to reason at a
+    // chosen temperature is refused before a body exists, which is dspy's own check.
+    let body = dsrust::lm::openai::responses::request(model, &call, dsrust::lm::JsonFormat::Schema)
+        .map_err(|error| PyValueError::new_err(format!("{error:#}")))?;
     serde_json::to_string(&body).map_err(|error| PyValueError::new_err(format!("{error}")))
 }
 
