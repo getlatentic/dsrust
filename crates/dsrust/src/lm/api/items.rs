@@ -83,13 +83,13 @@ macro_rules! items {
 
 /// dspy `dspy.User(*parts)`: one user turn from parts written positionally.
 ///
-/// The function [`User`](crate::User) takes an iterable, because that is what a Rust function can
+/// The function [`User`](fn@crate::User) takes an iterable, because that is what a Rust function can
 /// take. Upstream's takes `*parts`, and the difference shows the moment the parts differ in type:
 /// `["Describe this:", image]` is an array, and an array holds one type. The macro converts each
 /// expression on its own, so a string and an [`Image`](crate::Image) sit side by side the way they
 /// do in `dspy.User("Describe this:", image)`.
 ///
-/// Thin on purpose — it expands to the same [`User`](crate::User) the typed API offers, so nothing
+/// Thin on purpose — it expands to the same [`User`](fn@crate::User) the typed API offers, so nothing
 /// this crate decides lives inside a macro.
 ///
 /// **An image part here is [`LmPart::image_url`](crate::lm::api::LmPart::image_url), not
@@ -368,5 +368,36 @@ mod macros {
         let messages = super::messages_from_items(conversation).expect("all turns");
         let roles: Vec<&str> = messages.iter().map(|m| m.role.as_str()).collect();
         assert_eq!(roles, ["system", "user", "assistant"]);
+    }
+
+    /// dspy's `name=` keyword reaches the OpenAI wire as `messages[].name`, right after the role —
+    /// measured against `to_openai_chat_request`, which emits
+    /// `{"role": "user", "name": "alice", "content": "hello"}`.
+    ///
+    /// It is what keeps two `user` turns apart in a multi-agent transcript, and nothing could set
+    /// it here until the builder existed: the wire renderer had emitted it all along.
+    #[test]
+    fn a_speakers_name_reaches_the_wire() {
+        let request = crate::lm::api::LmRequest::from_items(
+            "openai/gpt-4o-mini",
+            [User!["hello"].name("alice"), Assistant!["hi"].name("bot")],
+        )
+        .expect("all turns");
+
+        let wire = request.wire_messages();
+        assert_eq!(wire[0]["role"], "user");
+        assert_eq!(wire[0]["name"], "alice");
+        assert_eq!(wire[1]["name"], "bot");
+    }
+
+    /// A turn with no name carries no `name` key at all, rather than a null — upstream omits it,
+    /// and a provider that rejects unknown nulls would refuse the call.
+    #[test]
+    fn an_unnamed_turn_carries_no_name_key() {
+        let request = crate::lm::api::LmRequest::from_items("m", [User!["hello"]]).expect("a turn");
+        assert!(
+            request.wire_messages()[0].get("name").is_none(),
+            "an unnamed turn should not carry the key"
+        );
     }
 }

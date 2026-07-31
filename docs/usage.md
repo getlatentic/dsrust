@@ -362,6 +362,9 @@ let next = lm.call(items![answered, User!["And of Belgium?"]]).await?;
 
 // Prose and an image are one multimodal turn, not two.
 lm.call(items![User!["Describe this.", LmPart::image_url(url)]]).await?;
+
+// A named speaker, which is how two `user` turns stay apart.
+lm.call(items![User!["hello"].name("alice"), Assistant!["hi"].name("bot")]).await?;
 ```
 
 `User`, `Assistant`, `System` and `Developer` are DSPy's own names for the four role constructors —
@@ -379,6 +382,11 @@ An image in a turn is `LmPart::image_url(url)`, DSPy's `LMImagePart`. It is *not
 the type a declared signature field carries — a different layer. DSPy 3.3.0b1's own `User` docstring
 shows `dspy.Image(...)` in this position and that raises; upstream's main has since rewritten those
 examples to `LMImagePart(url=…)`, so this spelling is the corrected one rather than a divergence.
+
+A speaker's name is `.name("alice")`, DSPy's `name=` keyword. It reaches the wire — OpenAI takes
+`messages[].name` right after the role — which is how a multi-agent transcript keeps two `user`
+turns apart. `.metadata(…)` is DSPy's other keyword and stays runtime-only, so it is a place for a
+trace id rather than a way to reach the provider.
 
 `items!` is the same idea one level up, for the conversation rather than the turn: a run mixing a
 turn, a reply and a string needs each element converted — the same reason `call!` and `input!`

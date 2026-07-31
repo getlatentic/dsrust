@@ -20,6 +20,32 @@ pub struct LmMessage {
 }
 
 impl LmMessage {
+    /// Who is speaking, where the role alone does not say — dspy's `name=` keyword on every role
+    /// constructor.
+    ///
+    /// It reaches the wire: OpenAI takes `messages[].name` right after the role, which is how a
+    /// multi-agent transcript keeps two `user` turns apart. A builder rather than an argument
+    /// because a Rust function has no keyword arguments, and the name is dspy's own.
+    ///
+    /// ```
+    /// # use dsrust::{LmMessage, User};
+    /// let turn = User!["hello"].name("alice");
+    /// assert_eq!(turn.name.as_deref(), Some("alice"));
+    /// ```
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
+        self
+    }
+
+    /// dspy's `metadata=` keyword: anything a caller wants to carry beside a turn.
+    ///
+    /// Runtime-only, as upstream's is — it travels with the message and no provider sees it, so it
+    /// is a place to put a trace id rather than a way to reach the wire.
+    pub fn metadata(mut self, metadata: Metadata) -> Self {
+        self.metadata = metadata;
+        self
+    }
+
     /// Anything that reads as a part — dspy's role constructors are variadic and turn a bare string
     /// into an `LMTextPart` themselves, which is why its call sites read as prose.
     ///

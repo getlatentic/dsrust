@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1035
+rust_tests = 1038
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -513,32 +513,35 @@ taking a type back off that path, which nothing here has asked for.
 [[story]]
 id = "message-constructor-shape"
 sprint = "api"
-title = "dspy.User takes parts positionally and carries name and metadata; this one takes a list and drops both"
-state = "todo"
+title = "dspy.User takes parts positionally and carries name and metadata; this one took a list and dropped both"
+state = "done"
 size = "S"
 suites = ["tests/core/test_types.py"]
-plan = """
-Upstream: `def User(*parts: Any, name: str | None = None, metadata: dict | None = None)`. So
-`dspy.User("look:", dspy.Image(url))` is two parts positionally, and a caller can name the speaker
-or attach metadata — both of which reach `LMMessage` and therefore the wire.
+done = """
+Two halves, and the second turned out smaller than filed.
 
-Here: `pub fn User(parts: impl IntoIterator<Item = impl Into<LmPart>>) -> LmMessage`. One argument,
-an iterable, so the spelling is `User(["look:", …])` — and `name`/`metadata` cannot be set at all,
-though `LmMessage` has both fields.
+**Positional parts** are the `User!`/`Assistant!`/`System!`/`Developer!` macros, shipped with the
+gate-timeout work. dspy's constructors take `*parts`; a Rust function cannot, because
+`User(["Describe this:", part])` is an array and every element of an array is one type. Each macro
+converts its expressions independently and expands to the function beside it, so nothing this crate
+decides lives inside a macro.
 
-The list is not the problem on its own: Rust has no varargs, and an iterable is the honest
-translation of `*parts`. Two things are:
+**`name` and `metadata`** are builders on `LmMessage`, carrying dspy's own keyword names:
+`User!["hello"].name("alice")`. Measured before building: `to_openai_chat_request` emits
+`{"role": "user", "name": "alice", "content": "hello"}`, so `name` is a wire byte and `metadata` is
+runtime-only.
 
-  - README and docs/usage.md present `lm.call(items![User(["…"])])` as "DSPy's `lm(dspy.User(...))`",
-    which reads as the same call and is not the same shape. Either the claim narrows or the spelling
-    moves closer — a macro could take `User!["look:", image]` and read positionally.
-  - `name` and `metadata` are simply missing. A named speaker is what multi-agent transcripts use,
-    and `LMMessage.name` reaches the OpenAI wire as `messages[].name`.
+The gap was narrower than the story assumed. `wire_message` had been emitting `name` in dspy's exact
+position — right after the role — all along; nothing could *set* it. So this was a missing
+constructor, not a missing wire path, and the story would have read as the larger thing if the wire
+had not been checked first.
 
-The second is the one that loses information; the first is a documentation claim to make accurate.
+`a_speakers_name_reaches_the_wire` holds it, and `an_unnamed_turn_carries_no_name_key` holds the
+other side: an unnamed turn carries no key rather than a null, which upstream also omits and which a
+provider rejecting unknown nulls would refuse.
 
-**What proves it.** A golden from `LMRequest.from_call(items=(dspy.User("a", name="alice"),))`
-showing `name` on the wire, and the same call spelled here reaching the same bytes.
+The README's claim that `items![User!["…"]]` *is* dspy's `lm(dspy.User(...))` is now accurate rather
+than approximate, which was the other half of what this story objected to.
 """
 
 [[story]]
@@ -827,6 +830,24 @@ module uses: `max_iters` for most, `max_iterations` for `RLM`. A uniform name wo
 them actually have." That was true of the pin and is exactly the sentence main deletes — upstream
 converged on `max_iters`. The guide has been softened to say the split is the pin's rather than
 permanent; the rename itself waits for the pin.
+
+**The tool cannot see a body change, and one this session found matters.** `check_pin_drift.py`
+compares each ported module's public *surface* — names, and each one's parameter list. A behaviour
+change inside a function is invisible to it. Diffing five files by hand while building the MIPROv2
+and GEPA work turned up exactly that: `teleprompt/utils.py`'s `get_program_with_highest_avg_score`
+falls through to the last valid program on the pin and raises `ValueError` on main, with an identical
+signature. It is the helper `mipro-auto-minibatch` will port, and it is recorded there — but nothing
+would have surfaced it, and nothing will surface the next one.
+
+Two other main-vs-pin findings from the same sweep, both recorded where they will be read rather
+than here: `clients/openai_format.py` gained `enforce_reasoning_temperature=True` on the Responses
+wire only (noted at `lm/openai/reasoning_temperature.rs`, which always enforces, as the pin does),
+and `core/types.py`'s `User` docstring stopped showing `dspy.Image(...)` in a message part — because
+it raises, which is measured at `lm/api/items.rs`. A docstring is not surface either.
+
+So this story has a second half: whether drift detection should read bodies at all, and if not, that
+a hand diff of the files a change is built from belongs in the change rather than in a tool. The
+second is cheap and already paid off three times.
 
 **Two additions, neither breaking.** `primitives/code_interpreter.py` gains `CodeExecutionError`,
 which this crate answers today with an `anyhow::Error` carrying the sandbox's message — a typed
