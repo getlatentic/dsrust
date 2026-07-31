@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1020
+rust_tests = 1022
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -511,6 +511,37 @@ list is what lets a caller take one off it. Its two ledger entries name this sto
 `anthropic/` model and against an `openai/` one, so both arms of the carve-out are pinned — the
 field absent from one render and present in the other. `tests/adapters/test_citation.py` already
 runs; its one adapter-reaching case is what would move.
+"""
+
+[[story]]
+id = "message-constructor-shape"
+sprint = "api"
+title = "dspy.User takes parts positionally and carries name and metadata; this one takes a list and drops both"
+state = "todo"
+size = "S"
+suites = ["tests/core/test_types.py"]
+plan = """
+Upstream: `def User(*parts: Any, name: str | None = None, metadata: dict | None = None)`. So
+`dspy.User("look:", dspy.Image(url))` is two parts positionally, and a caller can name the speaker
+or attach metadata — both of which reach `LMMessage` and therefore the wire.
+
+Here: `pub fn User(parts: impl IntoIterator<Item = impl Into<LmPart>>) -> LmMessage`. One argument,
+an iterable, so the spelling is `User(["look:", …])` — and `name`/`metadata` cannot be set at all,
+though `LmMessage` has both fields.
+
+The list is not the problem on its own: Rust has no varargs, and an iterable is the honest
+translation of `*parts`. Two things are:
+
+  - README and docs/usage.md present `lm.call(items![User(["…"])])` as "DSPy's `lm(dspy.User(...))`",
+    which reads as the same call and is not the same shape. Either the claim narrows or the spelling
+    moves closer — a macro could take `User!["look:", image]` and read positionally.
+  - `name` and `metadata` are simply missing. A named speaker is what multi-agent transcripts use,
+    and `LMMessage.name` reaches the OpenAI wire as `messages[].name`.
+
+The second is the one that loses information; the first is a documentation claim to make accurate.
+
+**What proves it.** A golden from `LMRequest.from_call(items=(dspy.User("a", name="alice"),))`
+showing `name` on the wire, and the same call spelled here reaching the same bytes.
 """
 
 [[story]]

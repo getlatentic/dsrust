@@ -117,7 +117,10 @@ pub trait ChatModel {
         // that reached the provider hook instead would leave the one entry named after the decorated
         // method as the one entry with no point on it. It did, until
         // `asking_a_model_directly_fires_the_lm_point` said so.
-        async move { self.forward_dyn(&request).await }
+        async move {
+            let request = request?;
+            self.forward_dyn(&request).await
+        }
     }
 
     /// Watchers attached to this model rather than to the process — dspy's

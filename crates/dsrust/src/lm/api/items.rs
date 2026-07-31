@@ -13,6 +13,8 @@
 //! why `from_call`'s "pass messages or direct-call inputs, not both" is a `ValueError` there and
 //! unwritable here.
 
+use anyhow::{Result, bail};
+
 use super::{LmMessage, LmPart, LmResponse};
 
 /// One argument of a direct call: a whole turn, a whole previous reply, or a part of one message.
@@ -88,29 +90,43 @@ macro_rules! items {
 /// * **Every item a turn or a reply** is a conversation, each [`LmResponse`] expanded into one
 ///   assistant turn per output.
 /// * **Anything else** is one user message whose parts are the items, which is what makes
-///   `lm("Describe this.", image)` a single multimodal turn rather than two.
-pub fn messages_from_items(items: impl IntoIterator<Item = impl Into<LmItem>>) -> Vec<LmMessage> {
+///   `lm("Describe this.", image)` a single multimodal turn rather than two. A turn or a reply
+///   *among* those parts is the one shape upstream refuses, and so does this — see below.
+///
+/// Fallible for that last reason only. `_coerce_part` handles a part, a string and a tagged dict
+/// and raises `TypeError` on anything else, so `lm(dspy.User("a"), "b")` — a message beside a bare
+/// part — raises upstream rather than producing a conversation. Measured, not read: the branch
+/// condition here (`any Part`) is exactly upstream's `not all(message or reply)`, so this arm is
+/// reached by the same inputs. It used to flatten the message to its text and call itself
+/// unreachable, which silently turned two turns into one.
+pub fn messages_from_items(
+    items: impl IntoIterator<Item = impl Into<LmItem>>,
+) -> Result<Vec<LmMessage>> {
     let items: Vec<LmItem> = items.into_iter().map(Into::into).collect();
     if items.is_empty() {
-        return vec![LmMessage::user([""])];
+        return Ok(vec![LmMessage::user([""])]);
     }
     if items.iter().any(|item| matches!(item, LmItem::Part(_))) {
-        return vec![LmMessage::user(items.into_iter().map(|item| match item {
-            LmItem::Part(part) => part,
-            // Unreachable given the guard above; a turn among parts would be a caller mixing the
-            // two shapes, and reading it as its own text loses less than dropping it.
-            LmItem::Message(message) => LmPart::text(message.text().unwrap_or_default()),
-            LmItem::Response(response) => LmPart::text(response.first_text()),
-        }))];
+        let mut parts = Vec::with_capacity(items.len());
+        for item in items {
+            parts.push(match item {
+                LmItem::Part(part) => part,
+                // dspy's `_coerce_part` raises for both, and its message names the type it could
+                // not convert.
+                LmItem::Message(_) => bail!("cannot convert a message to a part"),
+                LmItem::Response(_) => bail!("cannot convert a reply to a part"),
+            });
+        }
+        return Ok(vec![LmMessage::user(parts)]);
     }
-    items
+    Ok(items
         .into_iter()
         .flat_map(|item| match item {
             LmItem::Message(message) => vec![message],
             LmItem::Response(response) => messages_from_response(&response),
             LmItem::Part(part) => vec![LmMessage::user([part])],
         })
-        .collect()
+        .collect())
 }
 
 /// dspy `_messages_from_response`: one assistant turn per output, so a reply handed back into the
@@ -130,7 +146,8 @@ mod tests {
 
     #[test]
     fn a_bare_string_is_one_user_turn() {
-        let messages = messages_from_items(["What is the capital of France?"]);
+        let messages =
+            messages_from_items(["What is the capital of France?"]).expect("these items normalise");
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].role, "user");
         assert_eq!(
@@ -146,7 +163,8 @@ mod tests {
         let messages = messages_from_items([
             LmItem::from("Describe this image."),
             LmItem::Part(LmPart::image_url("https://example.com/a.jpg")),
-        ]);
+        ])
+        .expect("these items normalise");
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].parts.len(), 2);
     }
@@ -157,7 +175,8 @@ mod tests {
         let messages = messages_from_items([
             LmItem::Message(LmMessage::system(["Be brief."])),
             LmItem::Message(LmMessage::user(["Hello?"])),
-        ]);
+        ])
+        .expect("these items normalise");
         assert_eq!(
             messages.iter().map(|m| m.role.as_str()).collect::<Vec<_>>(),
             vec!["system", "user"]
@@ -176,7 +195,8 @@ mod tests {
             LmItem::Message(LmMessage::user(["Capital of France?"])),
             LmItem::Response(earlier),
             LmItem::Message(LmMessage::user(["And of Belgium?"])),
-        ]);
+        ])
+        .expect("these items normalise");
         assert_eq!(
             messages.iter().map(|m| m.role.as_str()).collect::<Vec<_>>(),
             vec!["user", "assistant", "user"]
@@ -188,9 +208,56 @@ mod tests {
     /// answer rather than an empty conversation to reject.
     #[test]
     fn nothing_at_all_is_one_empty_turn() {
-        let messages = messages_from_items(Vec::<LmItem>::new());
+        let messages = messages_from_items(Vec::<LmItem>::new()).expect("these items normalise");
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].role, "user");
         assert_eq!(messages[0].parts.len(), 1);
+    }
+
+    /// A turn beside a bare part is what upstream refuses, and the arm that refuses it was written
+    /// as "unreachable" while being reached by exactly these inputs.
+    ///
+    /// Measured against dspy 3.3.0b1: `LMRequest.from_call(items=(dspy.User("a"), "b"))` raises
+    /// `TypeError: Cannot convert <class 'LMMessage'> to an LMPart.` Flattening it here turned two
+    /// turns into one user turn holding both, silently.
+    #[test]
+    fn a_turn_among_parts_is_refused_as_dspy_refuses_it() {
+        let mixed = messages_from_items([
+            LmItem::Message(LmMessage::user(["a"])),
+            LmItem::Part(LmPart::text("b")),
+        ]);
+        assert!(
+            mixed.is_err(),
+            "a message beside a part should not normalise"
+        );
+
+        let replied = messages_from_items([
+            LmItem::Response(LmResponse::text("a")),
+            LmItem::Part(LmPart::text("b")),
+        ]);
+        assert!(
+            replied.is_err(),
+            "a reply beside a part should not normalise"
+        );
+    }
+
+    /// The two shapes that *do* normalise still do, so the refusal above is not over-broad: every
+    /// item a turn is a conversation, and every item a part is one multimodal turn.
+    #[test]
+    fn the_unmixed_shapes_still_normalise() {
+        let conversation = messages_from_items([
+            LmItem::Message(LmMessage::user(["a"])),
+            LmItem::Message(LmMessage::assistant(["b"])),
+        ])
+        .expect("all turns");
+        assert_eq!(conversation.len(), 2);
+
+        let multimodal = messages_from_items([
+            LmItem::Part(LmPart::text("look:")),
+            LmItem::Part(LmPart::text("b")),
+        ])
+        .expect("all parts");
+        assert_eq!(multimodal.len(), 1);
+        assert_eq!(multimodal[0].parts.len(), 2);
     }
 }

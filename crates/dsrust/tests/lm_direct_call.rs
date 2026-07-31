@@ -148,7 +148,8 @@ async fn a_model_implementing_only_forward_still_has_call() {
 fn both_doors_build_the_same_request() {
     let written =
         LmRequest::from_messages("openai/gpt-4o-mini", vec![User(["Capital of France?"])]);
-    let direct = LmRequest::from_items("openai/gpt-4o-mini", ["Capital of France?"]);
+    let direct = LmRequest::from_items("openai/gpt-4o-mini", ["Capital of France?"])
+        .expect("one string normalises");
     assert_eq!(written, direct);
 }
 
@@ -157,7 +158,8 @@ fn both_doors_build_the_same_request() {
 #[test]
 fn the_vocabulary_is_at_the_crate_root() {
     let _: LmPart = LmPart::text("hello");
-    let _: LmRequest = LmRequest::from_items("openai/gpt-4o-mini", ["hello"]);
+    let _: LmRequest =
+        LmRequest::from_items("openai/gpt-4o-mini", ["hello"]).expect("one string normalises");
     let _: LmResponse = LmResponse::text("hi");
 }
 

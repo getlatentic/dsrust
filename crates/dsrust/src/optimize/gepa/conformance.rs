@@ -141,10 +141,10 @@ async fn a_callers_proposer_replaces_the_reflection_tree() {
                     // `with dspy.context(lm=reflection_lm)` gives its own. Asking it is how this
                     // test tells "handed the model" from "handed nothing".
                     let asked = reflection
-                        .forward_dyn(&api::LmRequest::from_items(
-                            "",
-                            ["propose something better"],
-                        ))
+                        .forward_dyn(
+                            &api::LmRequest::from_items("", ["propose something better"])
+                                .expect("one string normalises"),
+                        )
                         .await
                         .expect("the reflection model answers");
                     proposed.insert(name.clone(), asked.first_text());

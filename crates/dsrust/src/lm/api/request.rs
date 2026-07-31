@@ -46,8 +46,8 @@ impl LmRequest {
     pub fn from_items(
         model: impl Into<String>,
         items: impl IntoIterator<Item = impl Into<super::LmItem>>,
-    ) -> Self {
-        Self::new(model, super::messages_from_items(items))
+    ) -> anyhow::Result<Self> {
+        Ok(Self::new(model, super::messages_from_items(items)?))
     }
 
     pub fn new(model: impl Into<String>, messages: Vec<LmMessage>) -> Self {
