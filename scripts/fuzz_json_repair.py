@@ -30,7 +30,24 @@ OUT = pathlib.Path(__file__).parent.parent / "target" / "json_repair_fuzz.json"
 QUOTES = ['"', "'", "“", "„", "”"]
 SCALARS = ["1", "-2.5", "1e3", "1_000", "1,234", "3/4", "true", "True", "null", "None", "NaN", ""]
 NOISE = ["", " ", "\n", "\t", ",", ":", "}", "]", "#", "//", "```", "\\", "...", "„", "”"]
-WORDS = ["a", "answer", "Paris", "北京", "x y", "he said \"hi\"", "[a-z\"]+", "", "café"]
+#: Keys and values. The `_`-prefixed and digit-bearing ones are here because the bare-key scan
+#: accepts `_` and `-` inside a name and alphanumerics to start one, and a grammar spelling every
+#: key in plain letters never tells those rules apart.
+WORDS = ["a", "answer", "Paris", "北京", "x y", "he said \"hi\"", "[a-z\"]+", "", "café",
+         "_id", "k2", "a-b", "_", "9", "true story"]
+
+#: Shapes that reach the lookahead helpers and nothing else does: a fenced snippet after a closing
+#: brace, a container opened straight after a separator, a comment before a member, a stray `...`.
+INTERJECTIONS = [
+    "} ```json {\"k\": 1}```",
+    ", {\"k\": [1, 2]}",
+    ", [{\"k\": 1}]",
+    ", # note\n\"k\": 1",
+    ", // note\n`k`: 1",
+    ", /* note */ k: 1",
+    ", ...",
+    ", \"k\": ",
+]
 
 
 def quoted(rng: random.Random, text: str) -> str:
@@ -70,6 +87,9 @@ def value(rng: random.Random, depth: int) -> str:
         return f"({', '.join(rng.choice(SCALARS) for _ in range(rng.randint(0, 3)))})"
     if roll < 0.5:
         return quoted(rng, rng.choice(WORDS) + escaped(rng))
+    if roll < 0.58:
+        # An unterminated value with something after it that only the lookahead can classify.
+        return f'"{rng.choice(WORDS)}{rng.choice(INTERJECTIONS)}'
     return quoted(rng, rng.choice(WORDS))
 
 

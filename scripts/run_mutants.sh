@@ -70,8 +70,16 @@ BASELINES=(
 # that are nothing of the sort — measured at 24 against a serial 0 for the same crate, all six
 # escape arms of a `json.dumps` reimplementation among them, each of which fails on its own in
 # under a second. A wrong number here is worse than a slow one: it is a ratchet nobody can trust.
-export CARGO_BUILD_BUILD_DIR="${TMPDIR:-/tmp}/dsrs-mutants-build"
-mkdir -p "$CARGO_BUILD_BUILD_DIR"
+#
+# **And the path is per-run, not fixed.** This repo is worked in many worktrees over one machine, so
+# a constant `dsrs-mutants-build` is the same collision one directory further out: two sessions
+# mutating two crates wrote the same shared dir, each linking the other's mutants, and whichever
+# finished first deleted it out from under the other — the trap below removes the directory it
+# names. Both runs' numbers were rubbish and neither said so. `mktemp -d` keeps the isolation the
+# override is for and takes the collision away; the cost is one crate's object code per concurrent
+# run, which is what isolation costs.
+CARGO_BUILD_BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/dsrs-mutants-build.XXXXXX")"
+export CARGO_BUILD_BUILD_DIR
 trap 'rm -rf "$CARGO_BUILD_BUILD_DIR" "$ROOT/mutants.out" "$ROOT/mutants.out.old"' EXIT
 
 if ! cargo mutants --version > /dev/null 2>&1; then
