@@ -166,6 +166,9 @@ mod tests {
         assert_eq!(float_repr(-0.0), "-0.0");
         assert_eq!(float_repr(2.5), "2.5");
         assert_eq!(float_repr(f64::INFINITY), "Infinity");
+        assert_eq!(float_repr(f64::NEG_INFINITY), "-Infinity");
+        assert!(float_repr(f64::NAN) == "NaN");
+        // Neither is JSON, and `json.dumps` writes both anyway.
     }
 
     #[test]
@@ -174,6 +177,22 @@ mod tests {
         assert_eq!(dumps(&Value::Str("\u{1f642}".into())), "\"\\ud83d\\ude42\"");
         assert_eq!(dumps(&Value::Str("a\"b\\c\n".into())), r#""a\"b\\c\n""#);
         assert_eq!(dumps(&Value::Str("\u{7f}".into())), "\"\\u007f\"");
+    }
+
+    #[test]
+    fn every_escape_json_dumps_has_a_short_name_for() {
+        // `\b`, `\f` and `\r` reach no value in the conformance corpus — a model does not write
+        // them and `json.dumps` is the only thing that ever names them — so without this each is a
+        // match arm nothing distinguishes from the `\u00XX` fallback.
+        assert_eq!(dumps(&Value::Str("\u{8}\u{c}\r\t".into())), r#""\b\f\r\t""#);
+    }
+
+    #[test]
+    fn the_boundary_between_an_escape_and_a_surrogate_pair_is_where_python_puts_it() {
+        // U+FFFF is the last code point with one escape and U+10000 the first with two, which is
+        // the only pair that tells `code_point < 0x10000` from `<=`.
+        assert_eq!(dumps(&Value::Str("\u{ffff}".into())), "\"\\uffff\"");
+        assert_eq!(dumps(&Value::Str("\u{10000}".into())), "\"\\ud800\\udc00\"");
     }
 
     #[test]
