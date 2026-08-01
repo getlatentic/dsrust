@@ -1412,7 +1412,8 @@ chose, and component names that do not sort into insertion order.
 id = "surface-the-other-way"
 sprint = "api"
 title = "Nothing asks whether a public Rust symbol has a dspy counterpart, which is how an uncalled setter survived"
-state = "todo"
+state = "in-progress"
+progress = "Extractor, ratchet and first tranche landed 2026-08-01: 767 public items, 445 unclassified. The triage is the remaining work."
 size = "M"
 suites = []
 plan = """
@@ -1442,6 +1443,29 @@ crate invented, which is a claim about the port nobody has had to make yet.
 **What proves it.** A fourth table in `check_api_surface.py`, failing on an unclassified public
 symbol the way the first three fail on an unmapped dspy one, and a first pass that classifies what
 it finds rather than mass-justifying it.
+"""
+notes = """
+**The measurement exists now: 767 public items across the four crates, 445 of which no ledger entry
+mentions.** `scripts/rust_surface.py` enumerates them by reachability from each crate root — an item
+is surface only when every module between it and the root is public too — and cross-checks against
+the names `tests/public_api.rs` imports, which it finds all of.
+
+`scripts/check_rust_surface.py` gates the count as a **ratchet**, not a target of zero, for the same
+reason `run_mutants.sh` is one: a gate that starts four hundred red either blocks every run or gets
+switched off. Verified by adding a public struct and watching it fail at 446.
+
+Two things about the extractor are worth keeping in mind for whoever continues this. It is text
+rather than rustdoc JSON, because that needs a nightly toolchain this machine does not carry and a
+check nobody can run is not a check. And its first version reported **138 items**, which would have
+been shipped as the finding: a guard meant to skip `pub(crate) mod` tested `pub({name}` against a
+`^\\s*pub\\(` pattern, which matches every module, so the walk never descended past the crate root.
+The tell was the per-module breakdown showing everything at depth zero — the total alone looked
+plausible.
+
+Seven items are classified so far, chosen as the ones this story names: `Steering`, both `Feedback`
+re-exports, `Scoring`, and the three interpreter seams. The rest is triage, and it is the real work:
+each entry is a claim about why this crate has something dspy does not, and 445 of those have never
+been made.
 """
 
 [[story]]
