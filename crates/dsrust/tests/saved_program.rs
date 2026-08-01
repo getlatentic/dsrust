@@ -127,7 +127,13 @@ fn dspy_loads_and_runs_what_this_crate_saved() {
     }
     compiled.save(&path).expect("saves");
 
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    // Two levels up: `CARGO_MANIFEST_DIR` is the crate, and both the venv and the script are the
+    // workspace's. Written as though it were the workspace root, and wrong for as long as it was
+    // — a test carrying `#[ignore]` and no gate to run it is a test that has never been red.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(std::path::Path::parent)
+        .expect("the crate sits two levels under the workspace root");
     let checked = std::process::Command::new(root.join(".dspy-venv/bin/python"))
         .arg(root.join("scripts/check_saved_program.py"))
         .arg(&path)

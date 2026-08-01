@@ -79,6 +79,20 @@ echo "==> file sizes"
 ./scripts/check_external_consumer.sh
 ./scripts/check_docs.py
 
+# The one ignored test the gate can actually satisfy: dspy's own reader, on a file this crate
+# wrote. It is `#[ignore]` because it needs `.dspy-venv`, which not every checkout has — but this
+# script needs that venv anyway for the suite below, so here the reason to skip does not apply.
+#
+# It had never run. The paths inside it were written as though `CARGO_MANIFEST_DIR` were the
+# workspace root, so it could only ever have failed, and the interop claim on the README — that
+# `dspy.load` opens what this saves — rested on a test nothing executed.
+if [ "${DSRS_SKIP_UPSTREAM:-0}" = "1" ]; then
+  echo "==> dspy reads a saved program (SKIPPED: DSRS_SKIP_UPSTREAM=1)"
+else
+  echo "==> dspy reads a saved program"
+  cargo test -p dsrust --test saved_program -- --ignored
+fi
+
 # The upstream pytest suite, through the bridge. Last because it is the slowest — about four
 # minutes — and because everything above must hold before Python's opinion is worth having.
 #

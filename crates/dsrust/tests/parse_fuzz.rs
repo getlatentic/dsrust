@@ -4,10 +4,16 @@
 //! exactly the method that leaves the branches nobody thought of. This closes that: both sides are
 //! pure functions from a string to a value-or-error and dspy is on hand as the reference.
 //!
-//! **Skips unless the corpus is there.** `scripts/fuzz_parse.py` writes `target/parse_fuzz.json`,
-//! which is a campaign artifact rather than a golden — ten thousand random strings are evidence, not
-//! documentation, and they do not belong in git. Run the script, run this, promote whatever
-//! disagrees into `generate_parse_fixture.py` as a named case with its reason.
+//! **Never skips.** A committed 1500-case sweep at a fixed seed always runs, and the campaign
+//! corpus at `target/parse_fuzz.json` runs as well when a campaign has left one — that one is
+//! evidence rather than documentation and stays out of git. This test *did* skip, for as long as
+//! the sweep did not exist: cargo-mutants copies the source tree, a copied tree has no `target/`,
+//! and so did a fresh clone. The comparison was absent from every mutation run of the parser and
+//! nothing said so, because an early return reports the same green as a run.
+//!
+//! Run `scripts/fuzz_parse.py` for a campaign, run this, and promote whatever disagrees into
+//! `generate_parse_fixture.py` as a named case with its reason. Regenerate the sweep with
+//! `--sweep` when the grammar widens.
 //!
 //! Reports **every** disagreement rather than failing on the first, because the useful output is the
 //! shape of the disagreements, not the earliest one.
