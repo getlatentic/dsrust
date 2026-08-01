@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1068
+rust_tests = 1073
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -512,6 +512,17 @@ see it. And the Coach takes `baseline_solves`, so a case can give the baseline s
 and get real demos bootstrapped. Existing cases pass an empty set and are unchanged.
 
 Both mutations go red: removing the adjacent-set rotation, and removing the `augmented` filter.
+
+**The cross-check after writing found one more.** dspy walks
+`range(num_demos)[:min(N, num_demos)]`, so the proposal count is capped by how many demo sets Step 1
+built — `N` is `num_instruct_candidates` and `num_demos` is the set count. They are the same number
+on the explicit path and `n/2` against `n` under a preset, where the instruction count is already the
+smaller, so the cap has never bitten and no golden could have shown it. Reproduced anyway: without
+it a caller whose counts disagree gets more candidates than dspy would, and indexes past the end of
+the sets. The same re-read confirmed three things that were already right — `Signature.fields` is
+inputs-then-outputs, the prefix is always resolved upstream (so the crate's `None` fallback to
+`infer_prefix` lands on the same string), and the empty-gather case reaches the fallback through
+`"\n\n".strip()` rather than by a separate branch.
 """
 
 [[story]]

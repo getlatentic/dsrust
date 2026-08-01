@@ -56,10 +56,20 @@ impl GroundedProposer {
         demo_sets: Option<&[Vec<Vec<crate::Example>>]>,
         rng: &mut Rng,
     ) -> Result<Vec<Vec<String>>> {
+        // dspy walks `range(num_demos)[:min(N, num_demos)]`, so the proposal count is capped by the
+        // number of demo sets: `N` is `num_instruct_candidates` and `num_demos` is how many sets
+        // Step 1 built. They are the same number on the explicit path and `n/2` against `n` under a
+        // preset, where the instruction count is already the smaller — so the cap has never bitten.
+        // Reproduced anyway, because without it a caller whose counts disagree gets more candidates
+        // than dspy would and an index past the end of the sets.
+        let per_predictor = match demo_sets.filter(|_| self.fewshot_aware) {
+            Some(sets) => num_candidates.min(sets.first().map_or(num_candidates, Vec::len)),
+            None => num_candidates,
+        };
         let mut proposed = Vec::with_capacity(predictors.len());
         for (predictor, signature) in predictors.iter().enumerate() {
-            let mut candidates = Vec::with_capacity(num_candidates);
-            for chosen in 0..num_candidates {
+            let mut candidates = Vec::with_capacity(per_predictor);
+            for chosen in 0..per_predictor {
                 let tip = self.select_tip(rng);
                 // dspy asks for each proposal through `prompt_model.copy(rollout_id=…,
                 // temperature=init_temperature)`. The draw also advances the shared generator, which
@@ -178,5 +188,76 @@ fn task_demos(signature: &Signature, sets: &[Vec<crate::Example>], chosen: usize
     match gathered.is_empty() {
         true => NO_DEMOS.to_owned(),
         false => format!("{}\n\n", gathered.join("\n\n")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::example;
+
+    fn signature() -> Signature {
+        "question -> answer".parse().expect("parses")
+    }
+
+    fn earned(question: &str, answer: &str) -> crate::Example {
+        example! { augmented: true, question: question, answer: answer }
+    }
+
+    /// Candidate zero is shown nothing however many demos exist — upstream's `or demo_set_i == 0`,
+    /// which keeps the baseline proposal ungrounded.
+    #[test]
+    fn the_baseline_candidate_is_shown_no_demos() {
+        let sets = vec![vec![earned("a?", "a")], vec![earned("b?", "b")]];
+        assert_eq!(task_demos(&signature(), &sets, 0), NO_DEMOS);
+    }
+
+    /// A candidate reads its own set first, then the ones after it, then the ones before —
+    /// upstream's `[current] + [after] + [before]`, not the sets in order.
+    #[test]
+    fn a_candidate_reads_its_own_set_first_then_wraps() {
+        let sets = vec![
+            vec![earned("first?", "1")],
+            vec![earned("second?", "2")],
+            vec![earned("third?", "3")],
+        ];
+        let shown = task_demos(&signature(), &sets, 1);
+        let order: Vec<&str> = shown
+            .lines()
+            .filter(|line| line.starts_with("Question:"))
+            .collect();
+        assert_eq!(
+            order,
+            ["Question: second?", "Question: third?", "Question: first?"]
+        );
+    }
+
+    /// Only demos the teacher earned are shown. A labelled one drawn from the trainset carries no
+    /// `augmented` marker and demonstrates nothing about what the program can do.
+    #[test]
+    fn a_labelled_demo_is_not_shown() {
+        let labelled = example! { question: "plain?", answer: "plain" };
+        let sets = vec![vec![labelled.clone()], vec![labelled]];
+        assert_eq!(task_demos(&signature(), &sets, 1), NO_DEMOS);
+    }
+
+    /// Three at most, whichever sets they came from — upstream's `num_demos_in_context`.
+    #[test]
+    fn at_most_three_demos_reach_a_proposal() {
+        let sets = vec![
+            vec![earned("a?", "a"), earned("b?", "b")],
+            vec![earned("c?", "c"), earned("d?", "d")],
+        ];
+        let shown = task_demos(&signature(), &sets, 1);
+        assert_eq!(shown.matches("Question:").count(), DEMOS_IN_CONTEXT);
+    }
+
+    /// A field the demo never recorded prints as Python's `None`, since upstream interpolates
+    /// `example.get(name)` straight into an f-string.
+    #[test]
+    fn a_field_the_demo_lacks_prints_as_none() {
+        let partial = example! { augmented: true, question: "q?" };
+        let shown = task_demos(&signature(), &vec![vec![], vec![partial]], 1);
+        assert_eq!(shown, "Question: q?\nAnswer: None\n\n");
     }
 }
