@@ -99,7 +99,9 @@ async fn runs_the_minibatch_trials_dspy_runs() {
                 case["minibatch_full_eval_steps"].as_u64().expect("steps") as usize
             )
             .max_bootstrapped_demos(case["max_bootstrapped_demos"].as_u64().expect("boot") as usize)
-            .max_labeled_demos(case["max_labeled_demos"].as_u64().expect("labeled") as usize);
+            .max_labeled_demos(case["max_labeled_demos"].as_u64().expect("labeled") as usize)
+            // The golden's own `data_aware_proposer=False`.
+            .data_aware_proposer(false);
         // Mutually exclusive upstream, which raises on the pair — so a case carries one or the
         // other, and the generator's counts are what the non-preset cases get.
         optimizer = match preset(case) {

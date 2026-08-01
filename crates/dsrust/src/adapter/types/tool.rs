@@ -386,37 +386,10 @@ pub fn format_tool(name: &str, description: &str, args: &Value) -> String {
         // dspy flattens newlines so a multi-line description cannot break a numbered list.
         false => format!(", whose description is <desc>{description}</desc>.").replace('\n', "  "),
     };
-    format!("{name}{desc} It takes arguments {}.", python_repr(args))
-}
-
-/// Render a JSON value the way Python's `repr` prints a dict, because that is literally what dspy
-/// interpolates: `str(tool)` formats `self.args`, a dict.
-///
-/// The difference is visible to the model: `{'city': {'type': 'string'}}` rather than
-/// `{"city":{"type":"string"}}`. Matching it keeps the prompt bytes identical, which is the
-/// standard the conformance fixtures hold everything else to.
-fn python_repr(value: &Value) -> String {
-    match value {
-        Value::Null => "None".to_owned(),
-        Value::Bool(true) => "True".to_owned(),
-        Value::Bool(false) => "False".to_owned(),
-        Value::String(text) => format!("'{}'", text.replace('\\', "\\\\").replace('\'', "\\'")),
-        Value::Array(items) => {
-            format!(
-                "[{}]",
-                items.iter().map(python_repr).collect::<Vec<_>>().join(", ")
-            )
-        }
-        Value::Object(fields) => format!(
-            "{{{}}}",
-            fields
-                .iter()
-                .map(|(key, value)| format!("'{key}': {}", python_repr(value)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        number => number.to_string(),
-    }
+    format!(
+        "{name}{desc} It takes arguments {}.",
+        crate::python::repr(args)
+    )
 }
 
 #[cfg(test)]

@@ -41,7 +41,9 @@ use crate::module::Module;
 use crate::signature::Signature;
 
 mod building;
+mod dataset_summary;
 mod demos;
+mod grounded;
 pub mod minibatch;
 mod proposer;
 mod search;
@@ -52,8 +54,7 @@ mod conformance;
 
 pub use minibatch::Auto;
 
-use proposer::GenerateModuleInstruction;
-use signatures::InstructionInputs;
+use grounded::GroundedProposer;
 
 /// dspy `BOOTSTRAPPED_FEWSHOT_EXAMPLES_IN_CONTEXT` / `LABELED_FEWSHOT_EXAMPLES_IN_CONTEXT`: the demo
 /// budgets Step 1 uses in the zero-shot case, where the sets ground the proposer rather than being
@@ -61,92 +62,12 @@ use signatures::InstructionInputs;
 const ZEROSHOT_BOOTSTRAPPED: usize = 3;
 const ZEROSHOT_LABELED: usize = 0;
 
-/// dspy GroundedProposer's tips, in declaration order — the order `random.choice` indexes into. The
-/// empty `none` tip is a real member: choosing it turns the tip field off for that candidate.
-const TIPS: [&str; 6] = [
-    "",
-    "Don't be afraid to be creative when creating the new instruction!",
-    "Keep the instruction clear and concise.",
-    "Make sure your instruction is very informative and descriptive.",
-    "The instruction should include a high stakes scenario in which the LM must solve the task!",
-    "Include a persona that is relevant to the task in the instruction (ie. \"You are a ...\")",
-];
-
 /// One search trial: the candidate index chosen per predictor, and the score it earned — one
 /// entry of dspy's `trial_logs`, as the optuna study records it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Trial {
     pub params: Vec<usize>,
     pub score: f64,
-}
-
-/// The grounded proposer, in its zero-shot form: propose `num_candidates` instructions per predictor,
-/// each optionally program-aware and carrying a randomly chosen tip.
-struct GroundedProposer {
-    program_code: Option<String>,
-    tip_aware: bool,
-    prompt_model: Arc<dyn DynChatModel>,
-    /// dspy `init_temperature`, carried from the optimizer to the one call that proposes.
-    init_temperature: f64,
-}
-
-impl GroundedProposer {
-    /// dspy `propose_instructions_for_program`: for each predictor, `num_candidates` proposals, with
-    /// candidate zero forced back to the predictor's current instruction — the baseline the search
-    /// starts from. The RNG is CPython's, drawing a tip then a rollout id per proposal, in dspy's order.
-    async fn propose(
-        &self,
-        predictors: &[Signature],
-        num_candidates: usize,
-        rng: &mut Rng,
-    ) -> Result<Vec<Vec<String>>> {
-        let mut proposed = Vec::with_capacity(predictors.len());
-        for signature in predictors {
-            let mut candidates = Vec::with_capacity(num_candidates);
-            for _ in 0..num_candidates {
-                let tip = self.select_tip(rng);
-                // dspy asks for each proposal through `prompt_model.copy(rollout_id=…,
-                // temperature=init_temperature)`. The draw also advances the shared generator, which
-                // is why it happens whether or not the id is used.
-                let rollout = rng.randint(0, 1_000_000_000);
-                let sampling = crate::lm::Sampling {
-                    temperature: Some(self.init_temperature),
-                    ..crate::lm::Sampling::rollout(rollout)
-                };
-                let inputs = InstructionInputs {
-                    dataset_summary: false,
-                    program_aware: self.program_code.is_some(),
-                    instruct_history: false,
-                    tip: tip.is_some(),
-                };
-                let generator = GenerateModuleInstruction::new(
-                    self.program_code.clone(),
-                    inputs,
-                    self.prompt_model.clone(),
-                    sampling,
-                );
-                let instruction = generator
-                    .forward(signature, "No task demos provided.", "", "", tip)
-                    .await?;
-                candidates.push(instruction);
-            }
-            if !candidates.is_empty() {
-                candidates[0] = signature.instructions.clone();
-            }
-            proposed.push(candidates);
-        }
-        Ok(proposed)
-    }
-
-    /// dspy's `random.choice(list(TIPS.keys()))` when tips are on: a draw is made regardless of which
-    /// tip lands, and the empty `none` tip reads as no tip. Off, no draw is made and there is no tip.
-    fn select_tip(&self, rng: &mut Rng) -> Option<&'static str> {
-        if !self.tip_aware {
-            return None;
-        }
-        let tip = TIPS[rng.choice_index(TIPS.len())];
-        (!tip.is_empty()).then_some(tip)
-    }
 }
 
 /// dspy `MIPROv2`: an instruction optimizer that searches proposed instructions with Bayesian
@@ -189,6 +110,11 @@ pub struct MIPROv2<M> {
     /// dspy `minibatch_full_eval_steps`: how often a full evaluation interrupts the minibatch
     /// trials (default 5).
     minibatch_full_eval_steps: usize,
+    /// dspy `data_aware_proposer`: show the proposer a summary of the trainset, on by default as
+    /// upstream's is. See [`data_aware_proposer`](Self::data_aware_proposer).
+    data_aware_proposer: bool,
+    /// dspy `view_data_batch_size`: how many examples each summarising call reads (default 10).
+    view_data_batch_size: usize,
 }
 
 /// What one run's hyperparameters resolve to once `auto` has had its say — dspy's
@@ -269,7 +195,20 @@ where
             .await?;
 
         // Step 2: propose instruction candidates, off the RNG Step 1 advanced.
+        // Upstream summarises in `GroundedProposer.__init__`, before any tip is drawn, and takes no
+        // draw of its own — so this sits here rather than inside the proposal loop.
+        let dataset_summary = match self.data_aware_proposer {
+            true => dataset_summary::create_dataset_summary(
+                &trainset,
+                self.view_data_batch_size,
+                &self.prompt_model,
+            )
+            .await
+            .ok(),
+            false => None,
+        };
         let proposer = GroundedProposer {
+            dataset_summary,
             program_code: self.program_code.clone(),
             tip_aware: self.tip_aware,
             prompt_model: self.prompt_model.clone(),
@@ -488,6 +427,7 @@ mod tests {
             .num_candidates(2)
             .num_trials(4)
             .minibatch(false)
+            .data_aware_proposer(false)
             .compile(&mut student, &trainset, Some(&trainset))
             .await
             .expect("compiles");

@@ -8,7 +8,7 @@
 
 use crate::signature::{InField, OutField, Signature};
 
-fn input(name: &str, desc: &str) -> InField {
+pub(super) fn input(name: &str, desc: &str) -> InField {
     InField {
         name: name.into(),
         desc: desc.into(),
@@ -16,7 +16,7 @@ fn input(name: &str, desc: &str) -> InField {
     }
 }
 
-fn output(name: &str, desc: &str) -> OutField {
+pub(super) fn output(name: &str, desc: &str) -> OutField {
     OutField {
         name: name.into(),
         desc: desc.into(),

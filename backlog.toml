@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1061
+rust_tests = 1068
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -392,6 +392,7 @@ sprint = "api"
 title = "Two of MIPROv2's four proposer switches are not wired"
 state = "todo"
 size = "M"
+progress = "data_aware_proposer and view_data_batch_size shipped 2026-08-01; fewshot_aware_proposer remains"
 suites = []
 plan = """
 `compile` takes four `*_aware_proposer` flags. `tip_aware_proposer` and `program_aware_proposer` are
@@ -407,6 +408,30 @@ built; the other two are not, and until the parameter table landed nothing recor
 
 A run today matches dspy with both set to False, which is what the module doc says. The work is the
 two signatures, their fixtures, and the RNG order around them.
+"""
+notes = """
+**Two of the three are done.** `data_aware_proposer` and `view_data_batch_size` shipped: the three
+signatures of `propose/dataset_summary_generator.py` byte-verified as rendered system prompts, the
+batch loop with both of upstream's odd bounds (`max_calls = 10` tested *before* the call, so nine
+batches are read; five `COMPLETE` replies end it early), and the swallowed exception that runs
+without a summary rather than losing the compile. On by default, as upstream's argument is.
+
+The samples reach the prompt as **Python source**, not JSON — `order_input_keys_in_string(repr(...))`
+— and that turned up a defect well outside this story:
+
+  **`repr` of a string picks its quote from what the string holds.** An apostrophe and no double
+  quote switches CPython to `"` and leaves the apostrophe *unescaped*: `repr("it's")` is `"it's"`,
+  not the single-quoted escaped form. The crate escaped unconditionally, so it disagreed with Python on every value
+  carrying an apostrophe — and this was not new code. It was in the helper that renders a **tool's
+  arguments** into the ReAct prompt and an **RLM submission**, both shipped. There were two copies of
+  that helper, one handling containers and one only scalars; they are one `src/python.rs` now, and
+  the quoting rule is measured against CPython rather than assumed.
+
+`fewshot_aware_proposer` is what remains: `use_task_demos` builds `task_demos` from the demo sets as
+`[current] + [after] + [before]` and gathers examples up to `num_demos_in_context`, falling back to
+"No task demos provided." when nothing was gathered *or* when `demo_set_i == 0`. The crate passes
+that fallback unconditionally today. It needs the proposal loop to know which demo set a candidate
+index corresponds to, which it does not thread through yet.
 """
 
 [[story]]

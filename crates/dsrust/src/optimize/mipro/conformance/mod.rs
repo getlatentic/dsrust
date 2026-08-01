@@ -138,7 +138,7 @@ fn the_proposers_tips_are_dspys() {
         .iter()
         .map(|tip| tip.as_str().expect("a tip"))
         .collect();
-    assert_eq!(super::TIPS.as_slice(), recorded.as_slice());
+    assert_eq!(super::grounded::TIPS.as_slice(), recorded.as_slice());
 }
 
 use super::{Auto, Trial};
@@ -182,6 +182,9 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
             // The golden's own `minibatch=False`. On by default in both, and these cases are the
             // non-minibatch regime; `minibatch.rs` carries the other one.
             .minibatch(false)
+            .data_aware_proposer(false)
+            // The golden's own `data_aware_proposer=False`.
+            .data_aware_proposer(false)
             .seed(case["seed"].as_u64().expect("seed"))
             .max_bootstrapped_demos(case["max_bootstrapped_demos"].as_u64().expect("boot") as usize)
             .max_labeled_demos(case["max_labeled_demos"].as_u64().expect("labeled") as usize)
@@ -329,6 +332,8 @@ async fn the_task_model_runs_the_program_and_the_prompt_model_writes_the_proposa
         .num_candidates(2)
         .num_trials(1)
         .minibatch(false)
+        // The summary would be three more calls on the prompt model, which this test counts.
+        .data_aware_proposer(false)
         .seed(0)
         .max_bootstrapped_demos(0)
         .max_labeled_demos(0)

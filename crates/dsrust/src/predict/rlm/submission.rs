@@ -91,8 +91,8 @@ fn member_of(members: &[LiteralValue], value: Value) -> Result<Value, String> {
     }
     Err(format!(
         "{} is not one of {}",
-        repr(&value),
-        tuple(&allowed)
+        crate::python::repr(&value),
+        crate::python::tuple(&allowed)
     ))
 }
 
@@ -111,26 +111,6 @@ fn unwrapped(text: &str) -> &str {
     {
         true => &inner[1..inner.len() - 1],
         false => inner,
-    }
-}
-
-/// Python's `repr` for the values a closed set can hold.
-fn repr(value: &Value) -> String {
-    match value {
-        Value::String(text) => format!("'{}'", text.replace('\\', "\\\\").replace('\'', "\\'")),
-        Value::Bool(true) => "True".to_owned(),
-        Value::Bool(false) => "False".to_owned(),
-        Value::Null => "None".to_owned(),
-        other => other.to_string(),
-    }
-}
-
-/// Python's `repr` of a tuple, whose one-element form carries a trailing comma.
-fn tuple(values: &[Value]) -> String {
-    let members: Vec<String> = values.iter().map(repr).collect();
-    match members.len() {
-        1 => format!("({},)", members[0]),
-        _ => format!("({})", members.join(", ")),
     }
 }
 

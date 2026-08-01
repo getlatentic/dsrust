@@ -40,6 +40,8 @@ where
             minibatch: true,
             minibatch_size: 35,
             minibatch_full_eval_steps: 5,
+            data_aware_proposer: true,
+            view_data_batch_size: 10,
         }
     }
 
@@ -89,6 +91,25 @@ where
     /// trials, default 5.
     pub fn minibatch_full_eval_steps(mut self, minibatch_full_eval_steps: usize) -> Self {
         self.minibatch_full_eval_steps = minibatch_full_eval_steps;
+        self
+    }
+
+    /// dspy `data_aware_proposer`: show the instruction proposer a summary of the trainset,
+    /// written by the prompt model reading it [`view_data_batch_size`](Self::view_data_batch_size)
+    /// examples at a time. On by default, as upstream's `compile` argument is.
+    ///
+    /// It costs model calls before any candidate is proposed — three at minimum, up to eleven —
+    /// and, like upstream, a failure anywhere in the summarising is swallowed and the run carries on
+    /// without a summary rather than losing the compile.
+    pub fn data_aware_proposer(mut self, data_aware_proposer: bool) -> Self {
+        self.data_aware_proposer = data_aware_proposer;
+        self
+    }
+
+    /// dspy `view_data_batch_size`: how many trainset examples each summarising call reads,
+    /// default 10. Read only when [`data_aware_proposer`](Self::data_aware_proposer) is on.
+    pub fn view_data_batch_size(mut self, view_data_batch_size: usize) -> Self {
+        self.view_data_batch_size = view_data_batch_size;
         self
     }
 

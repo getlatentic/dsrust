@@ -23,6 +23,7 @@ pub mod module;
 pub mod observe;
 pub mod optimize;
 pub mod predict;
+mod python;
 pub mod react;
 pub mod signature;
 
