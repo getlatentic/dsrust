@@ -165,8 +165,14 @@ fn example_string(signature: &Signature, demo: &crate::Example) -> String {
         .join("\n")
 }
 
-/// dspy's `task_demos` for one candidate: up to three *augmented* demos, taken from this
-/// candidate's own demo set first and then the ones after and before it.
+/// dspy's `task_demos` for one candidate: up to three *augmented* demos, read from the demo sets
+/// **rotated to start at this candidate's own set**.
+///
+/// Upstream writes the rotation in three pieces — `[sets[i]] + sets[i+1:] + sets[:i]` — which is
+/// `sets[i..]` followed by `sets[..i]`. So candidate k reads set k, then k+1, and wraps round to
+/// the ones before it, taking demos until it has three. Deterministic, and the reason it is a
+/// rotation rather than plain order is that each candidate should be grounded in its *own* set and
+/// borrow from the neighbours only to make up the number.
 ///
 /// Only augmented demos count — `gather_examples_from_sets` tests `"augmented" in example.keys()`,
 /// which is the marker a bootstrap puts on a demo the teacher earned. A labelled demo drawn from
@@ -212,8 +218,10 @@ mod tests {
         assert_eq!(task_demos(&signature(), &sets, 0), NO_DEMOS);
     }
 
-    /// A candidate reads its own set first, then the ones after it, then the ones before —
-    /// upstream's `[current] + [after] + [before]`, not the sets in order.
+    /// A candidate reads the sets rotated to start at its own — upstream's
+    /// `[sets[i]] + sets[i+1:] + sets[:i]`, not the sets in declaration order. dspy's own recorded
+    /// output shows it: with three sets, candidate 4 is shown France, Spain, Germany where
+    /// candidate 1 is shown France, Germany, Spain.
     #[test]
     fn a_candidate_reads_its_own_set_first_then_wraps() {
         let sets = vec![
