@@ -1,0 +1,118 @@
+{
+ "source": "json_repair 0.61.7, CPython 3.13.5, Unicode 15.1.0",
+ "what": "Input and output as hex, so the comparison never passes through a text encoder that could normalise either one.",
+ "cases": [
+  {
+   "name": "bom",
+   "why": "a byte-order mark, which is a character and not a marker",
+   "ensure_ascii": true,
+   "input_hex": "efbbbf7b613a20317d",
+   "output_hex": "7b2261223a20317d"
+  },
+  {
+   "name": "crlf",
+   "why": "CRLF line endings, which nothing may fold",
+   "ensure_ascii": true,
+   "input_hex": "7b2261223a2022780d0a79227d",
+   "output_hex": "7b2261223a2022785c725c6e79227d"
+  },
+  {
+   "name": "nul",
+   "why": "a NUL inside a string",
+   "ensure_ascii": true,
+   "input_hex": "7b2261223a2022780079227d",
+   "output_hex": "7b2261223a2022785c753030303079227d"
+  },
+  {
+   "name": "astral",
+   "why": "one code point, two UTF-16 units, one surrogate pair on the way out",
+   "ensure_ascii": true,
+   "input_hex": "7b2261223a2022f09f9982227d",
+   "output_hex": "7b2261223a20225c75643833645c7564653432227d"
+  },
+  {
+   "name": "astral_raw",
+   "why": "and the same with ensure_ascii off, where it stays four UTF-8 bytes",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a2022f09f9982227d",
+   "output_hex": "7b2261223a2022f09f9982227d"
+  },
+  {
+   "name": "combining",
+   "why": "a combining sequence, which has a composed form nothing may normalise to",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a202265cc81227d",
+   "output_hex": "7b2261223a202265cc81227d"
+  },
+  {
+   "name": "composed",
+   "why": "and the composed form, which must stay distinct from it",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a2022c3a9227d",
+   "output_hex": "7b2261223a2022c3a9227d"
+  },
+  {
+   "name": "cjk",
+   "why": "a reply in Chinese, escaped",
+   "ensure_ascii": true,
+   "input_hex": "7be7ad94e6a1883a2022e58c97e4baac227d",
+   "output_hex": "7b225c75376235345c7536383438223a20225c75353331375c7534656163227d"
+  },
+  {
+   "name": "cjk_raw",
+   "why": "and unescaped",
+   "ensure_ascii": false,
+   "input_hex": "7be7ad94e6a1883a2022e58c97e4baac227d",
+   "output_hex": "7b22e7ad94e6a188223a2022e58c97e4baac227d"
+  },
+  {
+   "name": "smart_quotes",
+   "why": "the curly pair, which the parser reads and the writer must give back",
+   "ensure_ascii": false,
+   "input_hex": "7be2809c61e2809d3a20e2809c62e2809d7d",
+   "output_hex": "7b2261223a202262227d"
+  },
+  {
+   "name": "low_smart_quote",
+   "why": "the low one, which opens a span no other rule closes",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a202273617920e2809e686922207468657265e2809d227d",
+   "output_hex": "7b2261223a202273617920e2809e68695c22207468657265e2809d227d"
+  },
+  {
+   "name": "control_run",
+   "why": "every control character JSON has a short name for",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a2022080c0a0d09227d",
+   "output_hex": "7b2261223a20225c625c665c6e5c725c74227d"
+  },
+  {
+   "name": "control_no_short_name",
+   "why": "and one that has none, which stays escaped even with ensure_ascii off, since JSON requires it either way",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a2022780179227d",
+   "output_hex": "7b2261223a2022785c753030303179227d"
+  },
+  {
+   "name": "del",
+   "why": "DEL, which is escaped only when ensure_ascii is on",
+   "ensure_ascii": true,
+   "input_hex": "7b2261223a20227f227d",
+   "output_hex": "7b2261223a20225c7530303766227d"
+  },
+  {
+   "name": "del_raw",
+   "why": "and left alone when it is not",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a20227f227d",
+   "output_hex": "7b2261223a20227f227d"
+  },
+  {
+   "name": "latin1_high",
+   "why": "a high Latin-1 character, two UTF-8 bytes",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a2022c3bf227d",
+   "output_hex": "7b2261223a2022c3bf227d"
+  }
+ ]
+}

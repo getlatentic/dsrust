@@ -20,7 +20,7 @@ anyhow = "1"
 base64 = "0.22.1"
 dsrust-derive = { version = "0.1.0-alpha.1", path = "../dsrust-derive" }
 gepa = { version = "0.1.0-alpha.1", path = "../dsrust-gepa", package = "dsrust-gepa" }
-json_repair = { version = "0.1.0-alpha.1", path = "../dsrust-json-repair", package = "dsrust-json-repair" }
+json_repair = { version = "0.1.0-alpha.1", path = "../dsrust-json-repair", package = "dsrust-json-repair", features = ["serde"] }
 pyrng = { version = "0.1.0-alpha.1", path = "../pyrng" }
 bytes = "1"
 futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }

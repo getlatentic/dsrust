@@ -65,7 +65,10 @@ fn write_string(text: &str, ascii: bool, out: &mut String) {
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
             ' '..='~' => out.push(ch),
-            ch if !ascii => out.push(ch),
+            // `ensure_ascii=False` stops the `\uXXXX` fallback for ordinary characters and not for
+            // the control ones: JSON requires those escaped whichever way the flag is set, and
+            // `py_encode_basestring`'s pattern is `[\x00-\x1f\\"]` for exactly that reason.
+            ch if !ascii && ch >= ' ' => out.push(ch),
             _ => {
                 let code_point = ch as u32;
                 if code_point < 0x10000 {
@@ -204,6 +207,9 @@ mod tests {
         );
         assert_eq!(dumps(&Value::Str("a\"b\n".into()), false), r#""a\"b\n""#);
         assert_eq!(dumps(&Value::Str("\u{7f}".into()), false), "\"\u{7f}\"");
+        // A control character stays escaped either way; only the fallback for ordinary code points
+        // is what `ensure_ascii` turns off.
+        assert_eq!(dumps(&Value::Str("\u{1}".into()), false), "\"\\u0001\"");
     }
 
     #[test]
