@@ -68,10 +68,16 @@ class Coach(BaseLM):
     stateful, and a cache hit would skip `forward` and swallow an increment.
     """
 
-    def __init__(self, table=None, profiles=None):
+    def __init__(self, table=None, profiles=None, baseline_solves=frozenset()):
         super().__init__("coach", "chat", 0.0, 1000, False)
         self.tally = {"proposal_calls": 0}
         self.proposals = []
+        self.task_demos = []
+        # Which questions the *unmarked* baseline instruction answers. Empty — the default — means
+        # the baseline scores zero and nothing is ever bootstrapped, so every candidate set holds
+        # only labelled demos and `fewshot_aware_proposer` has nothing to show. Non-empty is what
+        # makes that flag observable at all.
+        self.baseline_solves = baseline_solves
         self.table = TABLE if table is None else table
         self.profiles = PROFILES if profiles is None else profiles
 
@@ -79,13 +85,19 @@ class Coach(BaseLM):
         system, last = messages[0]["content"], messages[-1]["content"]
         if "generate a new instruction that will be used" in system:
             self.tally["proposal_calls"] += 1
+            shown = re.search(r"\[\[ ## task_demos ## \]\]\n(.*?)\n\n\[\[ ## ", last, re.S)
+            self.task_demos.append(shown.group(1) if shown else None)
             proposal = f"Answer with GOOD-{self.tally['proposal_calls']} precision."
             self.proposals.append(proposal)
             content = f"[[ ## proposed_instruction ## ]]\n{proposal}\n\n[[ ## completed ## ]]"
         else:
             question = next((q for q in self.table if q in last), None)
             marker = re.search(r"GOOD-(\d+)", system)
-            solved = self.profiles.get(int(marker.group(1)), set()) if marker else set()
+            solved = (
+                self.profiles.get(int(marker.group(1)), set())
+                if marker
+                else set(self.baseline_solves)
+            )
             answer = self.table[question] if question in solved else "wrong"
             content = f"[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]"
         message = dotdict(content=content, tool_calls=None)
@@ -118,6 +130,10 @@ def metric(example, prediction, trace=None) -> float:
 #: rather than one and the trial sequence therefore differs at the sampler. Zero-shot cases alone
 #: could not tell an interleaved search space from a grouped one, because with one parameter per
 #: predictor the two orders are the same list.
+#: The last two turn `fewshot_aware_proposer` on, which grounds each proposal in its own candidate's
+#: demos. It only bites in a few-shot run with more than one demo set, and candidate zero is shown
+#: nothing whatever the flag says — so a port that ignored the flag would still agree on every
+#: zero-shot case and on the first proposal of every other one.
 CASES = [
     (5, 3, 0, 0, 0),
     (5, 3, 1, 0, 0),
@@ -129,6 +145,8 @@ CASES = [
     (5, 6, 1, 4, 4),
     (5, 4, 5, 2, 0),
     (4, 6, 3, 2, 4),
+    (5, 3, 0, 4, 4, True),
+    (4, 4, 7, 2, 2, True),
 ]
 
 #: The minibatch regime needs a valset bigger than one batch, and `auto` needs one bigger than
@@ -180,8 +198,12 @@ def compile_once(
     seed: int,
     max_bootstrapped_demos: int,
     max_labeled_demos: int,
+    fewshot_aware_proposer: bool = False,
 ) -> dict:
-    coach = Coach()
+    # A baseline that solves something is what lets Step 1 bootstrap a demo at all, and only a
+    # bootstrapped demo is ever shown to the proposer.
+    baseline = set(TABLE) if fewshot_aware_proposer else frozenset()
+    coach = Coach(baseline_solves=baseline)
     dspy.configure(lm=coach)
     trainset = [dspy.Example(question=q, answer=a).with_inputs("question") for q, a in TRAINSET]
 
@@ -205,7 +227,7 @@ def compile_once(
         compiled = optimizer.compile(
             Program(), trainset=trainset, valset=trainset, num_trials=num_trials, minibatch=False,
             requires_permission_to_run=False, program_aware_proposer=False, data_aware_proposer=False,
-            tip_aware_proposer=True, fewshot_aware_proposer=False,
+            tip_aware_proposer=True, fewshot_aware_proposer=fewshot_aware_proposer,
         )
     finally:
         optuna.create_study = orig_create_study
@@ -218,7 +240,12 @@ def compile_once(
         "seed": seed,
         "max_bootstrapped_demos": max_bootstrapped_demos,
         "max_labeled_demos": max_labeled_demos,
+        "fewshot_aware_proposer": fewshot_aware_proposer,
+        "baseline_solves": sorted(baseline),
         "proposals": list(coach.proposals),
+        # What each proposal was actually shown, in call order — the `task_demos` field is what
+        # `fewshot_aware_proposer` changes, and comparing only the proposals would not see it.
+        "task_demos": list(coach.task_demos),
         "trials": trials,
         "compiled": [p.signature.instructions for _, p in compiled.named_predictors()],
         # The demos the winning trial left on each predictor, as the field values a set carries.

@@ -39,6 +39,10 @@ pub(super) struct GroundedProposer {
     pub(super) prompt_model: Arc<dyn DynChatModel>,
     /// dspy `init_temperature`, carried from the optimizer to the one call that proposes.
     pub(super) init_temperature: f64,
+    /// dspy `fewshot_aware_proposer`: show each proposal the demos its own candidate set carries.
+    /// Read together with the demo sets — upstream's `use_task_demos and demo_candidates`, so a
+    /// zero-shot run has nothing to show whatever the flag says.
+    pub(super) fewshot_aware: bool,
 }
 
 impl GroundedProposer {
@@ -49,12 +53,13 @@ impl GroundedProposer {
         &self,
         predictors: &[Signature],
         num_candidates: usize,
+        demo_sets: Option<&[Vec<Vec<crate::Example>>]>,
         rng: &mut Rng,
     ) -> Result<Vec<Vec<String>>> {
         let mut proposed = Vec::with_capacity(predictors.len());
-        for signature in predictors {
+        for (predictor, signature) in predictors.iter().enumerate() {
             let mut candidates = Vec::with_capacity(num_candidates);
-            for _ in 0..num_candidates {
+            for chosen in 0..num_candidates {
                 let tip = self.select_tip(rng);
                 // dspy asks for each proposal through `prompt_model.copy(rollout_id=…,
                 // temperature=init_temperature)`. The draw also advances the shared generator, which
@@ -76,10 +81,16 @@ impl GroundedProposer {
                     self.prompt_model.clone(),
                     sampling,
                 );
+                // dspy's `demo_set_i` is the candidate index, so candidate k is grounded in demo
+                // set k — which is why the two counts are the same number upstream.
+                let demos = match (self.fewshot_aware, demo_sets) {
+                    (true, Some(sets)) => task_demos(signature, &sets[predictor], chosen),
+                    _ => NO_DEMOS.to_owned(),
+                };
                 let instruction = generator
                     .forward(
                         signature,
-                        "No task demos provided.",
+                        &demos,
                         self.dataset_summary.as_deref().unwrap_or_default(),
                         "",
                         tip,
@@ -103,5 +114,69 @@ impl GroundedProposer {
         }
         let tip = TIPS[rng.choice_index(TIPS.len())];
         (!tip.is_empty()).then_some(tip)
+    }
+}
+
+/// dspy `num_demos_in_context`: how many demos a proposal is shown, whichever set they come from.
+const DEMOS_IN_CONTEXT: usize = 3;
+
+/// dspy's `task_demos` fallback, and what an untouched proposal carries.
+const NO_DEMOS: &str = "No task demos provided.";
+
+/// dspy `create_example_string`: one demo as `prefix value` per signature field, newline-joined.
+///
+/// Every field of the signature, in its own order — a field the demo never recorded prints as
+/// Python's `None`, since upstream interpolates `example.get(name)` into an f-string.
+fn example_string(signature: &Signature, demo: &crate::Example) -> String {
+    let prefixes = signature
+        .inputs
+        .iter()
+        .map(|field| (field.name.as_str(), field.prefix.as_deref()))
+        .chain(
+            signature
+                .outputs
+                .iter()
+                .map(|field| (field.name.as_str(), field.prefix.as_deref())),
+        );
+    prefixes
+        .map(|(name, prefix)| {
+            let prefix = match prefix {
+                Some(prefix) => prefix.to_owned(),
+                None => format!("{}:", crate::signature::infer_prefix(name)),
+            };
+            let value = match demo.get(name) {
+                Some(serde_json::Value::String(text)) => text.clone(),
+                Some(value) => crate::python::repr(value),
+                None => "None".to_owned(),
+            };
+            format!("{prefix} {value}")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// dspy's `task_demos` for one candidate: up to three *augmented* demos, taken from this
+/// candidate's own demo set first and then the ones after and before it.
+///
+/// Only augmented demos count — `gather_examples_from_sets` tests `"augmented" in example.keys()`,
+/// which is the marker a bootstrap puts on a demo the teacher earned. A labelled demo drawn from
+/// the trainset is not shown, because it demonstrates nothing about what the program can do.
+///
+/// Candidate zero is always given the fallback even when demos were gathered, which is upstream's
+/// `or demo_set_i == 0` — the baseline proposal is deliberately ungrounded.
+fn task_demos(signature: &Signature, sets: &[Vec<crate::Example>], chosen: usize) -> String {
+    if chosen == 0 || sets.is_empty() {
+        return NO_DEMOS.to_owned();
+    }
+    let adjacent = sets[chosen..].iter().chain(sets[..chosen].iter());
+    let gathered: Vec<String> = adjacent
+        .flatten()
+        .filter(|demo| demo.get("augmented").is_some())
+        .take(DEMOS_IN_CONTEXT)
+        .map(|demo| example_string(signature, demo))
+        .collect();
+    match gathered.is_empty() {
+        true => NO_DEMOS.to_owned(),
+        false => format!("{}\n\n", gathered.join("\n\n")),
     }
 }

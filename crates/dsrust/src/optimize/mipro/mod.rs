@@ -115,6 +115,8 @@ pub struct MIPROv2<M> {
     data_aware_proposer: bool,
     /// dspy `view_data_batch_size`: how many examples each summarising call reads (default 10).
     view_data_batch_size: usize,
+    /// dspy `fewshot_aware_proposer`: ground each proposal in its own candidate's demos.
+    fewshot_aware_proposer: bool,
 }
 
 /// What one run's hyperparameters resolve to once `auto` has had its say — dspy's
@@ -213,9 +215,15 @@ where
             tip_aware: self.tip_aware,
             prompt_model: self.prompt_model.clone(),
             init_temperature: self.init_temperature,
+            fewshot_aware: self.fewshot_aware_proposer,
         };
         let candidates = proposer
-            .propose(&predictors, mode.instruction_candidates, &mut rng)
+            .propose(
+                &predictors,
+                mode.instruction_candidates,
+                (!zeroshot).then_some(demo_sets.as_slice()),
+                &mut rng,
+            )
             .await?;
 
         // Step 3: search the combinations. A zero-shot run hands the search no demo sets, which is

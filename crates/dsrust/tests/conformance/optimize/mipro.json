@@ -49,12 +49,21 @@
       "seed": 0,
       "max_bootstrapped_demos": 0,
       "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
         "Answer with GOOD-3 precision.",
         "Answer with GOOD-4 precision.",
         "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
       ],
       "trials": [
         {
@@ -95,12 +104,21 @@
       "seed": 1,
       "max_bootstrapped_demos": 0,
       "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
         "Answer with GOOD-3 precision.",
         "Answer with GOOD-4 precision.",
         "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
       ],
       "trials": [
         {
@@ -141,12 +159,21 @@
       "seed": 5,
       "max_bootstrapped_demos": 0,
       "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
         "Answer with GOOD-3 precision.",
         "Answer with GOOD-4 precision.",
         "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
       ],
       "trials": [
         {
@@ -187,12 +214,21 @@
       "seed": 9,
       "max_bootstrapped_demos": 0,
       "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
         "Answer with GOOD-3 precision.",
         "Answer with GOOD-4 precision.",
         "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
       ],
       "trials": [
         {
@@ -233,6 +269,8 @@
       "seed": 7,
       "max_bootstrapped_demos": 0,
       "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
@@ -240,6 +278,14 @@
         "Answer with GOOD-4 precision.",
         "Answer with GOOD-5 precision.",
         "Answer with GOOD-6 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
       ],
       "trials": [
         {
@@ -310,11 +356,19 @@
       "seed": 3,
       "max_bootstrapped_demos": 0,
       "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
         "Answer with GOOD-3 precision.",
         "Answer with GOOD-4 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
       ],
       "trials": [
         {
@@ -373,12 +427,21 @@
       "seed": 0,
       "max_bootstrapped_demos": 4,
       "max_labeled_demos": 4,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
         "Answer with GOOD-3 precision.",
         "Answer with GOOD-4 precision.",
         "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
       ],
       "trials": [
         {
@@ -436,12 +499,21 @@
       "seed": 1,
       "max_bootstrapped_demos": 4,
       "max_labeled_demos": 4,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
         "Answer with GOOD-3 precision.",
         "Answer with GOOD-4 precision.",
         "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
       ],
       "trials": [
         {
@@ -520,12 +592,21 @@
       "seed": 5,
       "max_bootstrapped_demos": 2,
       "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
         "Answer with GOOD-3 precision.",
         "Answer with GOOD-4 precision.",
         "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
       ],
       "trials": [
         {
@@ -577,11 +658,19 @@
       "seed": 3,
       "max_bootstrapped_demos": 2,
       "max_labeled_demos": 4,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
       "proposals": [
         "Answer with GOOD-1 precision.",
         "Answer with GOOD-2 precision.",
         "Answer with GOOD-3 precision.",
         "Answer with GOOD-4 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
       ],
       "trials": [
         {
@@ -652,6 +741,137 @@
             "answer": "Paris"
           }
         ]
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 3,
+      "seed": 0,
+      "max_bootstrapped_demos": 4,
+      "max_labeled_demos": 4,
+      "fewshot_aware_proposer": true,
+      "baseline_solves": [
+        "capital of France?",
+        "capital of Germany?",
+        "capital of Spain?"
+      ],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "Question: capital of France?\nAnswer: Paris\n\nQuestion: capital of Germany?\nAnswer: Berlin\n\nQuestion: capital of Spain?\nAnswer: Madrid\n\n",
+        "Question: capital of France?\nAnswer: Paris\n\nQuestion: capital of Germany?\nAnswer: Berlin\n\nQuestion: capital of Spain?\nAnswer: Madrid\n\n",
+        "Question: capital of France?\nAnswer: Paris\n\nQuestion: capital of France?\nAnswer: Paris\n\nQuestion: capital of Spain?\nAnswer: Madrid\n\n",
+        "Question: capital of France?\nAnswer: Paris\n\nQuestion: capital of Spain?\nAnswer: Madrid\n\nQuestion: capital of Germany?\nAnswer: Berlin\n\n"
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 100.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 3
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 4
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 2
+          },
+          "score": 100.0
+        }
+      ],
+      "compiled": [
+        "Given the fields `question`, produce the fields `answer`."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "num_candidates": 4,
+      "num_trials": 4,
+      "seed": 7,
+      "max_bootstrapped_demos": 2,
+      "max_labeled_demos": 2,
+      "fewshot_aware_proposer": true,
+      "baseline_solves": [
+        "capital of France?",
+        "capital of Germany?",
+        "capital of Spain?"
+      ],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "Question: capital of France?\nAnswer: Paris\n\nQuestion: capital of Germany?\nAnswer: Berlin\n\nQuestion: capital of Spain?\nAnswer: Madrid\n\n",
+        "Question: capital of France?\nAnswer: Paris\n\nQuestion: capital of Germany?\nAnswer: Berlin\n\nQuestion: capital of Spain?\nAnswer: Madrid\n\n",
+        "Question: capital of Spain?\nAnswer: Madrid\n\nQuestion: capital of France?\nAnswer: Paris\n\nQuestion: capital of France?\nAnswer: Paris\n\n"
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 100.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 0
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 3
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 1
+          },
+          "score": 100.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 100.0
+        }
+      ],
+      "compiled": [
+        "Given the fields `question`, produce the fields `answer`."
+      ],
+      "compiled_demos": [
+        []
       ]
     }
   ],

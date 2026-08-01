@@ -387,12 +387,57 @@ was generated under, so it surfaces as a diff here rather than as a sandbox synt
 """
 
 [[story]]
+id = "can-the-suite-fail"
+sprint = "conformance"
+title = "Measure whether the conformance suite can fail, rather than that it passes"
+state = "todo"
+size = "L"
+suites = []
+plan = """
+Every conformance miss found in the 2026-07-31/08-01 sessions had one shape: **a check that could
+not fail**. Not a wrong assertion — an assertion with nothing behind it.
+
+  - the comparison *filtered out* the field (`augmented` was stripped from dspy's side);
+  - the generator *invented* the field (`augmented: False`, which dspy never writes) — and the two
+    cancelled, so nineteen recorded cases agreed about a key neither side really had;
+  - the test *supplied the input it claimed to test* (`for_components(names, cursor)` hands the walk
+    order in, so a `Candidate` that sorted again left it green);
+  - a *hand-written expectation* stood in for a golden (`NOT_SUPPLIED`, wrong for as long as it
+    existed, with a unit test asserting the wrong bytes);
+  - the fixture *stopped short of the regime that diverges* (every TPE case at six categories or
+    fewer; every few-shot case with equal cardinalities; no case past the ten-trial startup);
+  - a *transcribed constant* had no oracle at all (`TIPS` — right, and unwatched).
+
+A gate that counts passing tests cannot see any of these. What sees all of them is asking the
+inverse question: **change the Rust, and does anything go red?**
+
+`cargo-mutants` is the tool. It mutates a function body and reruns the tests; a mutant that survives
+is a line no test constrains. Scoped to the byte-critical modules — `adapter`, `signature`,
+`lm/{openai,anthropic,ollama}`, `optimize`, and the `tpe`/`gepa`/`pyrng` crates — the survivors are
+exactly the "could not fail" list, enumerated rather than stumbled on.
+
+Expect this to be slow and expect the first run to be ugly. Both are the point. The work is:
+
+  1. run it scoped, record the survivor count as a baseline;
+  2. triage — a survivor is either a missing case, a comparison that filters, or genuinely dead code;
+  3. gate the *count*, not zero: a ratchet that fails when survivors increase, the way the
+     API-surface tables fail when something new goes unclassified.
+
+Two disciplines already in the generators are the manual version of this and should become a rule
+rather than a habit: `generate_mipro_fixture.py` refuses to write a case set that compiles the same
+instruction every time, `generate_gepa_selector_fixture.py` refuses one that never takes both
+epsilon branches, and `generate_dataset_summary_fixture.py` refuses one that never exercises repr's
+double-quote branch. **A generator that cannot state what its corpus discriminates is writing a
+golden that cannot fail.**
+"""
+
+[[story]]
 id = "mipro-remaining-proposers"
 sprint = "api"
 title = "Two of MIPROv2's four proposer switches are not wired"
-state = "todo"
+state = "done"
+shipped = "2026-08-01"
 size = "M"
-progress = "data_aware_proposer and view_data_batch_size shipped 2026-08-01; fewshot_aware_proposer remains"
 suites = []
 plan = """
 `compile` takes four `*_aware_proposer` flags. `tip_aware_proposer` and `program_aware_proposer` are
@@ -446,6 +491,27 @@ Now set, recorded as dspy writes it, and compared rather than stripped.
 "No task demos provided." when nothing was gathered *or* when `demo_set_i == 0`. The crate passes
 that fallback unconditionally today. It needs the proposal loop to know which demo set a candidate
 index corresponds to, which it does not thread through yet.
+"""
+outcome = """
+All three shipped. `fewshot_aware_proposer` grounds candidate k in demo set k — dspy's `demo_set_i`
+*is* the candidate index — reading its own set first and then the ones after and before it, taking
+up to three **augmented** demos and rendering each as `create_example_string` does. Candidate zero
+gets the fallback whatever the flag says, which is upstream's `or demo_set_i == 0`: the baseline
+proposal is deliberately ungrounded.
+
+**The first golden for it could not fail, and recording what the model was shown is what said so.**
+Turning the flag on in two new cases changed nothing: every proposal still read "No task demos
+provided." The reason was in the corpus, not the port — the Coach's *baseline* instruction answers
+nothing, so Step 1 bootstraps no traces, so every candidate set holds only labelled demos, and
+`gather_examples_from_sets` yields only augmented ones. A port that ignored the flag entirely would
+have passed.
+
+Two things fixed it. The golden now records `task_demos` — what each proposal was actually shown,
+in call order, which is the only place this flag is visible; comparing the proposals alone cannot
+see it. And the Coach takes `baseline_solves`, so a case can give the baseline something to answer
+and get real demos bootstrapped. Existing cases pass an empty set and are unchanged.
+
+Both mutations go red: removing the adjacent-set rotation, and removing the `augmented` filter.
 """
 
 [[story]]

@@ -87,7 +87,7 @@ async fn runs_the_minibatch_trials_dspy_runs() {
     );
 
     for case in cases {
-        let model = coach(&table, &profiles);
+        let model = coach(&table, &profiles, &[]);
         let mut student = Predict::parse("question -> answer")
             .expect("parses")
             .set_lm(model.clone());

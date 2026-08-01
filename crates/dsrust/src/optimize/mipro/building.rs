@@ -42,6 +42,7 @@ where
             minibatch_full_eval_steps: 5,
             data_aware_proposer: true,
             view_data_batch_size: 10,
+            fewshot_aware_proposer: true,
         }
     }
 
@@ -110,6 +111,18 @@ where
     /// default 10. Read only when [`data_aware_proposer`](Self::data_aware_proposer) is on.
     pub fn view_data_batch_size(mut self, view_data_batch_size: usize) -> Self {
         self.view_data_batch_size = view_data_batch_size;
+        self
+    }
+
+    /// dspy `fewshot_aware_proposer`: show each proposal the demos its own candidate set carries,
+    /// so an instruction can be written to suit the examples it will sit beside. On by default, as
+    /// upstream's is.
+    ///
+    /// Only *bootstrapped* demos are shown — a labelled one drawn straight from the trainset
+    /// demonstrates nothing about what the program can do — and candidate zero is shown none
+    /// whatever this says, since the baseline proposal is deliberately ungrounded.
+    pub fn fewshot_aware_proposer(mut self, fewshot_aware_proposer: bool) -> Self {
+        self.fewshot_aware_proposer = fewshot_aware_proposer;
         self
     }
 

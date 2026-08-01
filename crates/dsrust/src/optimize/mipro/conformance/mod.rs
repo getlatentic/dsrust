@@ -36,6 +36,24 @@ struct Coach {
     profiles: HashMap<u64, Vec<String>>,
     proposal_calls: AtomicUsize,
     proposals: std::sync::Mutex<Vec<String>>,
+    /// What each proposal was shown in its `task_demos` field, in call order — which is the only
+    /// place `fewshot_aware_proposer` is visible. Comparing the proposals alone would not see it.
+    task_demos: std::sync::Mutex<Vec<String>>,
+    /// Which questions the *unmarked* baseline answers. Empty means it answers none, so nothing is
+    /// ever bootstrapped and every candidate set holds only labelled demos — the regime in which
+    /// `fewshot_aware_proposer` has nothing to show.
+    baseline_solves: Vec<String>,
+}
+
+/// One `[[ ## name ## ]]` section's body out of a rendered turn.
+fn section(turn: &str, name: &str) -> String {
+    let opened = format!("[[ ## {name} ## ]]\n");
+    let Some(start) = turn.find(&opened).map(|at| at + opened.len()) else {
+        return String::new();
+    };
+    let rest = &turn[start..];
+    let end = rest.find("\n\n[[ ## ").unwrap_or(rest.len());
+    rest[..end].to_owned()
 }
 
 /// The `GOOD-<k>` marker in an instruction, if any. Written by hand because the crate carries no
@@ -60,16 +78,20 @@ impl ChatModel for Coach {
         let content = if system.contains("generate a new instruction that will be used") {
             let call = self.proposal_calls.fetch_add(1, Ordering::SeqCst) + 1;
             let proposal = format!("Answer with GOOD-{call} precision.");
+            self.task_demos
+                .lock()
+                .expect("task demos lock")
+                .push(section(&last, "task_demos"));
             self.proposals
                 .lock()
                 .expect("proposals lock")
                 .push(proposal.clone());
             format!("[[ ## proposed_instruction ## ]]\n{proposal}\n\n[[ ## completed ## ]]")
         } else {
-            let solved = marker(system)
-                .and_then(|k| self.profiles.get(&k))
-                .map(Vec::as_slice)
-                .unwrap_or_default();
+            let solved = match marker(system) {
+                Some(k) => self.profiles.get(&k).map(Vec::as_slice).unwrap_or_default(),
+                None => self.baseline_solves.as_slice(),
+            };
             let answer = self
                 .table
                 .iter()
@@ -171,7 +193,7 @@ async fn runs_the_trials_dspy_runs_and_compiles_what_dspy_compiles() {
     );
 
     for case in fixture["cases"].as_array().expect("cases") {
-        let model = coach(&table, &profiles);
+        let model = coach(&table, &profiles, &baseline_solves(case));
         let mut student = Predict::parse("question -> answer")
             .expect("parses")
             .set_lm(model.clone());
@@ -211,6 +233,18 @@ fn agrees_with(case: &Value, model: &Coach, trials: &[Trial], student: &Predict)
         .map(|proposal| proposal.as_str().unwrap())
         .collect();
     assert_eq!(proposed, expected, "proposals for case {case}");
+
+    // What each proposal was *shown*, which is where `fewshot_aware_proposer` lives. A case that
+    // never bootstraps a demo shows the fallback every time, so the golden records the baseline's
+    // own answers and the cases that turn the flag on give it something to solve.
+    if let Some(shown) = case["task_demos"].as_array() {
+        let ours: Vec<String> = model.task_demos.lock().expect("task demos lock").clone();
+        let theirs: Vec<&str> = shown
+            .iter()
+            .map(|demos| demos.as_str().unwrap_or_default())
+            .collect();
+        assert_eq!(ours, theirs, "task demos for case {case}");
+    }
 
     // Every trial: the candidate index it chose and the score it earned, the baseline first —
     // the search path, not merely its destination.
@@ -264,13 +298,32 @@ fn agrees_with(case: &Value, model: &Coach, trials: &[Trial], student: &Predict)
     }
 }
 
+/// Which questions a case's baseline instruction answers, if the golden says.
+fn baseline_solves(case: &Value) -> Vec<String> {
+    case["baseline_solves"]
+        .as_array()
+        .map(|solved| {
+            solved
+                .iter()
+                .map(|question| question.as_str().expect("a question").to_owned())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// A fresh proposer-and-answerer for one case. Each case needs its own: the proposal tally is what
 /// makes replies distinct, and sharing one across cases would carry the count over.
-fn coach(table: &[(String, String)], profiles: &HashMap<u64, Vec<String>>) -> Arc<Coach> {
+fn coach(
+    table: &[(String, String)],
+    profiles: &HashMap<u64, Vec<String>>,
+    baseline: &[String],
+) -> Arc<Coach> {
     Arc::new(Coach {
         table: table.to_vec(),
         profiles: profiles.clone(),
         proposal_calls: AtomicUsize::new(0),
+        task_demos: std::sync::Mutex::new(Vec::new()),
+        baseline_solves: baseline.to_vec(),
         proposals: std::sync::Mutex::new(Vec::new()),
     })
 }
