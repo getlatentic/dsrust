@@ -503,10 +503,10 @@
 "clients/base_lm.py::BaseLM.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
 "clients/base_lm.py::BaseLM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
 "clients/base_lm.py::BaseLM.copy" = { status = "divergence", reason = "reproduced as `Clone` plus the per-call `LmConfig`, which is where a rollout differs" }
-"clients/base_lm.py::BaseLM.dump_state" = { status = "divergence", reason = "serialising a model into a program's state; the crate stores the model reference, not its credentials" }
+"clients/base_lm.py::BaseLM.dump_state" = { status = "mapped", rust = "ChatModel::dump_state", reason = "what a model states about itself in a saved program. Defaulted on the trait as upstream's is on the base class, so a model with nothing reconstructible to say writes the `null` dspy writes. No credential is dumped on either side" }
 "clients/base_lm.py::BaseLM.forward" = { status = "divergence", rust = "ChatModel::forward", reason = "same contract — one LmRequest in, one LmResponse out — with one parameter upstream has not: `http: &reqwest::Client`. litellm holds a module-level session, so dspy's signature names no client and its own docstring example constructs one inside `forward`. A caller implementing this trait therefore has to name a reqwest type, which is why the crate re-exports it. Closeable, and filed as lm-shared-client" }
 "clients/base_lm.py::BaseLM.inspect_history" = { status = "divergence", reason = "Python REPL history printing" }
-"clients/base_lm.py::BaseLM.load_state" = { status = "divergence", reason = "as `dump_state`" }
+"clients/base_lm.py::BaseLM.load_state" = { status = "mapped", rust = "saved::rebuild", reason = "the model a saved block names, built again. dspy imports the class the block names when the file is trusted; a Rust binary has no importer, so a block naming a subclass is refused either way" }
 "clients/base_lm.py::BaseLM.supported_params" = { status = "divergence", reason = "dspy's only consumer is JSONAdapter checking whether response_format is in lm.supported_params, and that branch is unreachable here: litellm answers this per *provider* once a model carries a prefix, and `ModelRef` refuses anything but `provider/model-id`. `gpt-4` lacks it; `openai/gpt-4` has it, and only the second is a model this crate can hold. The premise is pinned by `tests/lm_capabilities.rs::every_model_this_crate_can_hold_takes_a_response_format`, so it cannot quietly stop being true. The other predicate that adapter reads, supports_response_schema, is on `Capabilities`" }
 "clients/base_lm.py::BaseLM.supports_function_calling" = { status = "mapped", rust = "capabilities" }
 "clients/base_lm.py::BaseLM.supports_reasoning" = { status = "mapped", rust = "capabilities" }
@@ -515,13 +515,13 @@
 
 # LM
 "clients/lm.py::LM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
-"clients/lm.py::LM.dump_state" = { status = "divergence", reason = "as `BaseLM.dump_state`" }
+"clients/lm.py::LM.dump_state" = { status = "mapped", rust = "saved::dump", reason = "upstream's override: the three finetuning keys appended, and a reasoning model's cap popped from `max_completion_tokens` and re-set as `max_tokens`, which moves it to the end of the block. Both reproduced, byte-compared in tests/saved_lm.rs" }
 "clients/lm.py::LM.finetune" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
 "clients/lm.py::LM.forward" = { status = "mapped", rust = "forward" }
 "clients/lm.py::LM.infer_provider" = { status = "mapped", rust = "Provider" }
 "clients/lm.py::LM.kill" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
 "clients/lm.py::LM.launch" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
-"clients/lm.py::LM.load_state" = { status = "divergence", reason = "as `BaseLM.dump_state`" }
+"clients/lm.py::LM.load_state" = { status = "mapped", rust = "saved::rebuild", reason = "upstream's override reads `max_completion_tokens` where `max_tokens` is absent; `rebuild` takes either" }
 "clients/lm.py::LM.reinforce" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
 "clients/lm.py::LM.supported_params" = { status = "divergence", reason = "dspy's only consumer is JSONAdapter checking whether response_format is in lm.supported_params, and that branch is unreachable here: litellm answers this per *provider* once a model carries a prefix, and `ModelRef` refuses anything but `provider/model-id`. `gpt-4` lacks it; `openai/gpt-4` has it, and only the second is a model this crate can hold. The premise is pinned by `tests/lm_capabilities.rs::every_model_this_crate_can_hold_takes_a_response_format`, so it cannot quietly stop being true. The other predicate that adapter reads, supports_response_schema, is on `Capabilities`" }
 "clients/lm.py::LM.supports_function_calling" = { status = "mapped", rust = "capabilities" }
@@ -989,7 +989,7 @@
 "predict/parallel.py::Parallel.forward.num_threads" = { status = "divergence", rust = "Parallel", reason = "Parallel::max_in_flight; see primitives/module.py::Module.batch.num_threads" }
 "predict/predict.py::Predict.dump_state.json_mode" = { status = "divergence", rust = "dump_state", reason = "dspy's flag chooses between two on-disk shapes; the crate writes the one dspy.load reads, so there is nothing to choose" }
 "predict/predict.py::Predict.load_state.state" = { status = "mapped", rust = "load_state", reason = "the saved state to restore, as the ProgramState the file parses to" }
-"predict/predict.py::Predict.load_state.allow_unsafe_lm_state" = { status = "divergence", reason = "nothing to gate, measured rather than assumed. dspy sanitises a saved `lm` block on load — `_sanitize_lm_state` drops api_base, base_url and model_list and keeps the rest, so its round-trip preserves the model pin and the flag decides whether the three endpoint keys come with it. This crate drops the whole block: load_state restores a signature and its demos, and dump_state rebuilds from the predictor, which has nowhere to hold a saved LM dict. So a redirect can neither be acted on nor passed onward, and there is no arm for the flag to select. Stricter than upstream rather than looser; what it costs is the pin, filed as `saved-lm-round-trip`. tests/lm_state.rs holds both halves against dspy's own round-trip" }
+"predict/predict.py::Predict.load_state.allow_unsafe_lm_state" = { status = "divergence", rust = "load_state_trusted", reason = "the flag is a method rather than a parameter: `load_state` is the safe call nearly everyone makes and a bare `false` at every site says less than the name does. What it gates is upstream's, measured against dspy's own round-trip in tests/lm_state.rs — an ordinary load drops api_base, base_url and model_list and keeps the pin; a trusted one keeps the endpoint. It is narrower than dspy in two places, both asserted: `base_url` and `model_list` are kept by the sanitiser and then not honoured, the first being litellm's alias for a field already set and the second its router's, which this crate has no counterpart to; and dspy's flag also permits importing the LM class a block names, which no Rust binary can do. This entry read `nothing to gate` until `saved-lm-round-trip` gave it something" }
 "predict/predict.py::Predict.update_config.kwargs" = { status = "divergence", rust = "Sampling", reason = "per-predictor overrides are a typed `Sampling` rather than loose keys; see clients/lm.py::LM.forward.kwargs" }
 "predict/react.py::ReAct.truncate_trajectory.trajectory" = { status = "mapped", rust = "truncate_oldest", reason = "the trajectory to shorten when the context will not hold it" }
 "primitives/code_interpreter.py::CodeInterpreter.execute.code" = { status = "mapped", rust = "execute", reason = "the Python to run in the sandbox" }
@@ -1028,7 +1028,20 @@
 "signatures/signature.py::make_signature.instructions" = { status = "divergence", rust = "with_instructions", reason = "dspy takes the instructions beside the string; the macro takes the string alone and `Signature::with_instructions` sets them, which is also how a signature parsed at runtime gets them" }
 "signatures/signature.py::make_signature.custom_types" = { status = "divergence", reason = "a map from a name in the string to the Python type it means, needed because dspy resolves an annotation by looking it up. A Rust type is in scope where the macro expands, so there is nothing to hand it" }
 
+"clients/lm.py::LM.load_state.state" = { status = "mapped", rust = "saved::rebuild", reason = "the block itself" }
+"clients/lm.py::LM.load_state.allow_custom_lm_class" = { status = "divergence", rust = "saved::rebuild", reason = "dspy's inner flag, which permits importing the LM class a block names. A Rust binary has no importer, so the trusted path refuses too — with a message saying to construct the model and set it rather than with upstream's" }
+
+"clients/base_lm.py::BaseLM.load_state.state" = { status = "mapped", rust = "saved::rebuild", reason = "as `LM.load_state.state`" }
+"clients/base_lm.py::BaseLM.load_state.allow_custom_lm_class" = { status = "divergence", rust = "saved::rebuild", reason = "as `LM.load_state.allow_custom_lm_class`" }
+
 [rust_only]
+"dsrust::lm::saved::CLASS_KEY" = { status = "mapped", reason = "dspy's `LM_CLASS_STATE_KEY`, the key naming which BaseLM subclass wrote a saved block" }
+"dsrust::lm::saved::BUILTIN_CLASS" = { status = "mapped", reason = "dspy's `_BUILTIN_LM_CLASS_PATH`. A block naming anything else was written by a subclass, and neither side loads one without being told the file is trusted" }
+"dsrust::lm::saved::UNSAFE_KEYS" = { status = "mapped", reason = "dspy's `UNSAFE_LM_STATE_KEYS` — the three that decide where a call goes" }
+"dsrust::lm::saved::dump" = { status = "mapped", reason = "dspy's `LM.dump_state`, reached through `ChatModel::dump_state`; public so a caller writing their own saved-state path can produce the same block" }
+"dsrust::lm::saved::sanitize" = { status = "mapped", reason = "dspy's `_sanitize_lm_state`, which is module-level there too" }
+"dsrust::lm::saved::rebuild" = { status = "mapped", reason = "dspy's `LM.load_state`: the model a block names, built again" }
+"dsrust::module::Trust" = { status = "divergence", reason = "dspy's `allow_unsafe_lm_state` keyword, as a type. A bool at the call site says nothing about which of the two things it widens, and only one of them — where a call goes — is a thing a Rust binary can widen at all" }
 "dsrust::lm::Capabilities" = { status = "reexport", reason = "where `dsrust::Capabilities` is declared; the root re-export is the classified one" }
 "dsrust::lm::ChatTurn" = { status = "reexport", reason = "where `dsrust::ChatTurn` is declared; the root re-export is the classified one" }
 "dsrust::lm::DEFAULT_PROVIDER_TIMEOUT" = { status = "reexport", reason = "where `dsrust::DEFAULT_PROVIDER_TIMEOUT` is declared; the root re-export is the classified one" }

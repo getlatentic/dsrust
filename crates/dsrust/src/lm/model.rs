@@ -32,6 +32,9 @@ pub trait DynChatModel: Send + Sync {
     /// clashing with the inherent one on a model that implements both.
     fn native_reasoning_usable_dyn(&self) -> bool;
 
+    /// The object-safe form of [`ChatModel::dump_state`].
+    fn dump_state_dyn(&self) -> Option<serde_json::Map<String, serde_json::Value>>;
+
     /// The object-safe form of [`ChatModel::native_citations_usable`].
     fn native_citations_usable_dyn(&self) -> bool;
 }
@@ -67,6 +70,10 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
 
     fn native_citations_usable_dyn(&self) -> bool {
         ChatModel::native_citations_usable(self)
+    }
+
+    fn dump_state_dyn(&self) -> Option<serde_json::Map<String, serde_json::Value>> {
+        ChatModel::dump_state(self)
     }
 }
 
@@ -128,6 +135,18 @@ pub trait ChatModel {
             let request = request?;
             self.forward_dyn(&request).await
         }
+    }
+
+    /// What this model states about itself in a saved program's `lm` block.
+    ///
+    /// dspy's `BaseLM.dump_state`, and defaulted for the same reason upstream's has a default: a
+    /// model whose settings are not reconstructible from a dict — a scripted double, a caller's own
+    /// wrapper — has nothing honest to say, and saying nothing is what dspy writes as `null`. [`LM`]
+    /// overrides it; see [`saved::dump`](super::saved::dump).
+    ///
+    /// [`LM`]: super::LM
+    fn dump_state(&self) -> Option<serde_json::Map<String, serde_json::Value>> {
+        None
     }
 
     /// Watchers attached to this model rather than to the process — dspy's

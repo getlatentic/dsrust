@@ -18,9 +18,11 @@ use crate::lm::Sampling;
 use crate::signature::Signature;
 
 mod state;
+mod trust;
 
 use state::demo_from_fields;
 pub use state::{DSPY_VERSION, FieldState, Metadata, PredictorState, ProgramState, SignatureState};
+pub use trust::Trust;
 
 /// One predictor inside a program: its signature and its demos, borrowed for inspection or
 /// mutation. An optimizer's whole job is reading these and writing back better ones.
@@ -41,6 +43,13 @@ pub struct NamedPredictor<'a> {
     /// than per program because that is what upstream's advice is: `OfferFeedback` answers with a
     /// map keyed by module name, so the module that went wrong is the one told about it.
     pub hint: &'a mut Option<String>,
+    /// The model this predictor was pinned to, which a saved program records and restores.
+    ///
+    /// dspy's `Predict.lm`, and on the walk for the same reason the other three are: `dump_state`
+    /// writes one block per predictor and `load_state` reads them back, and reaching every
+    /// predictor is that same problem again. Unset on a predictor that was never pinned, which is
+    /// the `null` dspy writes.
+    pub lm: &'a mut Option<std::sync::Arc<dyn crate::lm::DynChatModel>>,
 }
 
 /// One predictor call: which predictor ran, what it was asked, and what it answered.
@@ -123,7 +132,11 @@ pub trait Module: Send + Sync {
             self.named_predictors()
                 .into_iter()
                 .map(|predictor| {
-                    let state = PredictorState::of(predictor.signature, predictor.demos);
+                    let lm = predictor
+                        .lm
+                        .as_ref()
+                        .and_then(|model| model.dump_state_dyn());
+                    let state = PredictorState::of(predictor.signature, predictor.demos, lm);
                     (predictor.name, state)
                 })
                 .collect(),
@@ -140,6 +153,21 @@ pub trait Module: Send + Sync {
     /// leaves the program as it was rather than half-loaded — dspy gets the same from its
     /// `_apply(self.deepcopy())` trial run.
     fn load_state(&mut self, state: &ProgramState) -> Result<()> {
+        self.load_state_with(state, Trust::Default)
+    }
+
+    /// [`load_state`](Self::load_state) for a file the caller vouches for.
+    ///
+    /// dspy's `load_state(state, allow_unsafe_lm_state=True)`. Split into its own method rather
+    /// than taking a flag because the safe call is the one nearly everybody makes, and a bare
+    /// `false` at every call site says less than the name does. What it widens is described on
+    /// [`Trust`].
+    fn load_state_trusted(&mut self, state: &ProgramState) -> Result<()> {
+        self.load_state_with(state, Trust::File)
+    }
+
+    /// The body of both, so neither can drift from the other.
+    fn load_state_with(&mut self, state: &ProgramState, trust: Trust) -> Result<()> {
         let missing: Vec<String> = self
             .named_predictors()
             .iter()
@@ -166,6 +194,16 @@ pub trait Module: Send + Sync {
                 .iter()
                 .map(|fields| demo_from_fields(fields, &inputs))
                 .collect();
+
+            // dspy sanitises the block and rebuilds a live model from it, so a loaded program asks
+            // what it was compiled against rather than whatever this process configured. A block
+            // that names a model this crate cannot build fails the load, as upstream's does —
+            // answering from somewhere else would be the one outcome nobody could detect.
+            if let Some(block) = saved.lm.as_ref().and_then(|lm| lm.as_object()) {
+                let block = crate::lm::saved::sanitize(block, trust.allows_redirect());
+                let model = crate::lm::saved::rebuild(&block, trust.allows_redirect())?;
+                *predictor.lm = Some(std::sync::Arc::new(model));
+            }
         }
         Ok(())
     }
@@ -181,6 +219,13 @@ pub trait Module: Send + Sync {
     /// Load a compiled state saved by [`save`](Self::save) onto this program.
     fn load(&mut self, path: &Path) -> Result<()> {
         self.load_state(&serde_json::from_str(&std::fs::read_to_string(path)?)?)?;
+        Ok(())
+    }
+
+    /// [`load`](Self::load) for a file the caller vouches for — dspy's
+    /// `dspy.load(path, allow_unsafe_lm_state=True)`. See [`Trust`].
+    fn load_trusted(&mut self, path: &Path) -> Result<()> {
+        self.load_state_trusted(&serde_json::from_str(&std::fs::read_to_string(path)?)?)?;
         Ok(())
     }
 
@@ -244,6 +289,9 @@ mod tests {
 
     /// A module written outside the crate's own types, to prove the trait is implementable.
     struct Echo {
+        /// This double's pinned model, which a saved program records. Never set — it is here
+        /// because a `NamedPredictor` names one and two of them cannot borrow the same slot.
+        saved_lm_0: Option<std::sync::Arc<dyn crate::lm::DynChatModel>>,
         signature: Signature,
         demos: Vec<Example>,
         config: Sampling,
@@ -271,12 +319,14 @@ mod tests {
                 demos: &mut self.demos,
                 config: &mut self.config,
                 hint: &mut self.hint,
+                lm: &mut self.saved_lm_0,
             }]
         }
     }
 
     fn echo() -> Echo {
         Echo {
+            saved_lm_0: None,
             signature: Signature::single_input("Echo the request.", Vec::new()),
             demos: Vec::new(),
             config: Sampling::default(),

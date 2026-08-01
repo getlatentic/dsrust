@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1085
+rust_tests = 1096
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -546,34 +546,29 @@ they disagreed with dspy.
 id = "saved-lm-round-trip"
 sprint = "api"
 title = "A dspy-saved program loses its model pin through a load and save here"
-state = "todo"
+state = "done"
 size = "M"
 suites = []
-plan = """
-Measured 2026-08-01 while closing `trusted-lm-state`. dspy's `Predict.dump_state` writes an `lm`
-block naming the model a predictor was pinned to — `model`, `model_type`, `temperature`,
-`max_tokens`, `cache`, `num_retries` and so on — and its load sanitises that block rather than
-dropping it: `_sanitize_lm_state` removes `api_base`, `base_url` and `model_list` and keeps the
-rest. So a dspy round-trip preserves the pin.
+done = """
+Shipped. The block is written, sanitised on load and rebuilt into a live model, so a program
+compiled against a model asks that model again — the decision the plan left open was settled by
+faithfulness: dspy's own behaviour is reconstructible here, so carrying the block sanitised is the
+only one of the three alternatives that is not a divergence anyone has to be told about.
 
-This crate drops the whole block. `load_state` restores a signature and its demos, `dump_state`
-rebuilds from the predictor, and `Predict` has nowhere to hold a saved LM dict — its own `lm` field
-is a live `Arc<dyn DynChatModel>`, not saved state. Load a dspy-compiled program here, save it
-again, and the model it named is gone from the file.
+`ChatModel::dump_state` is defaulted, as `BaseLM.dump_state` is overridable, so a scripted double
+states nothing and writes dspy's `null`. `NamedPredictor` carries the model for the same reason it
+carries the other three: reaching every predictor is one problem. `Trust` is the shape
+`allow_unsafe_lm_state` takes here.
 
-That is good for `allow_unsafe_lm_state`, which is why that entry is a divergence rather than a gap:
-a redirect can neither be acted on nor passed onward. It is bad for the claim on the README that
-`dspy.load` opens what this crate saves — it does, but a program that went through here has lost
-something a dspy user put in it.
+Key order is upstream's and is pinned byte for byte against a generated corpus — including the two
+places nobody would guess: `temperature: null` is present for a model that set none, and a
+reasoning model's `max_tokens` lands *after* the three finetuning keys, because dspy pops
+`max_completion_tokens` and re-sets it. Three controls confirmed the comparison can fail.
 
-The work is a decision before it is code. Carrying the block means holding data on `Predict` that the
-crate never reads and only echoes, which is a real cost on a core type; a Rust `LM` is not
-reconstructible from that dict, so it cannot be honoured, only preserved. The alternatives are to
-carry it sanitised, to carry it whole and sanitise on save, or to keep dropping it and say so in the
-README beside the interop claim.
-
-`tests/lm_state.rs::the_model_pin_does_not_survive_a_round_trip` asserts the current behaviour
-against what dspy's own round-trip kept, and says which story to resolve when it changes.
+Narrower than dspy in two places, both asserted rather than left to a diff: `base_url` and
+`model_list` survive a trusted load and are not honoured, and no `allow_custom_lm_class` path can
+exist because a Rust binary has no importer. Writing the trusted-load test is what found `api_base`
+being kept but never applied.
 """
 
 [[story]]

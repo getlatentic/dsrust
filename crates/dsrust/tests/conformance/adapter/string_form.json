@@ -1,0 +1,98 @@
+{
+  "source": "generated from dspy==3.3.0b1 via scripts/generate_string_form_fixture.py",
+  "dspy_version": "3.3.0b1",
+  "note": "Whether pydantic validates a bare string for each annotation a signature can name. `annotation_name` is what get_annotation_name gives, which is the string the crate matches on.",
+  "arbitrary_probe": "print('hi')",
+  "well_formed_probes": {
+    "datetime": "2024-01-01T12:00:00",
+    "date": "2024-01-01",
+    "time": "12:00:00",
+    "timedelta": "P1DT2H"
+  },
+  "rows": [
+    {
+      "type": "Audio",
+      "annotation_name": "Audio",
+      "accepts_arbitrary": false,
+      "well_formed_probe": "2024-01-01T12:00:00",
+      "accepts_well_formed": false
+    },
+    {
+      "type": "Code",
+      "annotation_name": "Code",
+      "accepts_arbitrary": true,
+      "well_formed_probe": "2024-01-01T12:00:00",
+      "accepts_well_formed": true
+    },
+    {
+      "type": "Code[java]",
+      "annotation_name": "Code_java",
+      "accepts_arbitrary": true,
+      "well_formed_probe": "2024-01-01T12:00:00",
+      "accepts_well_formed": true
+    },
+    {
+      "type": "File",
+      "annotation_name": "File",
+      "accepts_arbitrary": false,
+      "well_formed_probe": "2024-01-01T12:00:00",
+      "accepts_well_formed": false
+    },
+    {
+      "type": "Image",
+      "annotation_name": "Image",
+      "accepts_arbitrary": false,
+      "well_formed_probe": "2024-01-01T12:00:00",
+      "accepts_well_formed": false
+    },
+    {
+      "type": "Reasoning",
+      "annotation_name": "str",
+      "accepts_arbitrary": true,
+      "well_formed_probe": "2024-01-01T12:00:00",
+      "accepts_well_formed": true
+    },
+    {
+      "type": "Tool",
+      "annotation_name": "Tool",
+      "accepts_arbitrary": false,
+      "well_formed_probe": "2024-01-01T12:00:00",
+      "accepts_well_formed": false
+    },
+    {
+      "type": "ToolCalls",
+      "annotation_name": "ToolCalls",
+      "accepts_arbitrary": false,
+      "well_formed_probe": "2024-01-01T12:00:00",
+      "accepts_well_formed": false
+    },
+    {
+      "type": "date",
+      "annotation_name": "date",
+      "accepts_arbitrary": false,
+      "well_formed_probe": "2024-01-01",
+      "accepts_well_formed": true
+    },
+    {
+      "type": "datetime",
+      "annotation_name": "datetime",
+      "accepts_arbitrary": false,
+      "well_formed_probe": "2024-01-01T12:00:00",
+      "accepts_well_formed": true
+    },
+    {
+      "type": "time",
+      "annotation_name": "time",
+      "accepts_arbitrary": false,
+      "well_formed_probe": "12:00:00",
+      "accepts_well_formed": true
+    },
+    {
+      "type": "timedelta",
+      "annotation_name": "timedelta",
+      "accepts_arbitrary": false,
+      "well_formed_probe": "P1DT2H",
+      "accepts_well_formed": true
+    }
+  ]
+}

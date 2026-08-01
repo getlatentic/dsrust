@@ -58,6 +58,11 @@ impl DynChatModel for NotOnThisSide {
     fn native_citations_usable_dyn(&self) -> bool {
         false
     }
+
+    /// A model that exists only to be unused has nothing to state, which is dspy's `null`.
+    fn dump_state_dyn(&self) -> Option<serde_json::Map<String, serde_json::Value>> {
+        None
+    }
 }
 
 /// A model backed by a Python LM object, so this crate's own `Predict::forward` can run under
@@ -122,6 +127,23 @@ impl PyLM {
 const MODULE_UNSUPPORTED: &str = "MODULE_UNSUPPORTED: the LM reply carried non-text channels";
 
 impl DynChatModel for PyLM {
+    /// Ask the Python LM itself, which is the object dspy would have asked.
+    ///
+    /// The bridge exists so upstream's own suite answers for this crate; a block invented on the
+    /// Rust side would make a saved-state test compare Rust against Rust with Python's name on it.
+    /// A model with no `dump_state` — a bare `DummyLM`, a test's lambda — states nothing.
+    fn dump_state_dyn(&self) -> Option<serde_json::Map<String, serde_json::Value>> {
+        Python::attach(|py| {
+            let state = self.inner.bind(py).call_method0("dump_state").ok()?;
+            let json = py
+                .import("json")
+                .ok()?
+                .call_method1("dumps", (state,))
+                .ok()?;
+            serde_json::from_str(&json.extract::<String>().ok()?).ok()
+        })
+    }
+
     fn forward_dyn<'a>(
         &'a self,
         request: &'a dsrust::lm::api::LmRequest,

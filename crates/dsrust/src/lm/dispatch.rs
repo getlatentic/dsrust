@@ -21,6 +21,13 @@ use super::{
 };
 
 impl ChatModel for LM {
+    /// What this model states about itself in a saved program. dspy's `LM.dump_state`, which
+    /// overrides `BaseLM`'s to add the three finetuning keys and to rename a reasoning model's
+    /// token cap back. See [`saved::dump`](crate::lm::saved::dump).
+    fn dump_state(&self) -> Option<serde_json::Map<String, serde_json::Value>> {
+        Some(crate::lm::saved::dump(self))
+    }
+
     async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
         self.answer(&self.with_defaults(request)).await
     }

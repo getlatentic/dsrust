@@ -38,9 +38,11 @@ pub struct PredictorState {
     #[serde(default)]
     pub demos: Vec<Map<String, Value>>,
     pub signature: SignatureState,
-    /// dspy saves the model a predictor was pinned to. This crate writes `null`: a Rust `LM` is
-    /// not reconstructible from a dict, and dspy 3.3 refuses to import a saved LM class without
-    /// an explicit opt-in anyway.
+    /// The model this predictor was pinned to, as it states itself.
+    ///
+    /// dspy's `Predict.dump_state`'s `lm` key. `null` for a predictor that was never pinned, and
+    /// for one pinned to a model with nothing reconstructible to say — see
+    /// [`ChatModel::dump_state`](crate::ChatModel::dump_state). Never carries a credential.
     #[serde(default)]
     pub lm: Option<Value>,
 }
@@ -108,14 +110,14 @@ impl ProgramState {
 }
 
 impl PredictorState {
-    /// What one predictor's signature and demos amount to on disk.
-    pub fn of(signature: &Signature, demos: &[Example]) -> Self {
+    /// What one predictor's signature, demos and pinned model amount to on disk.
+    pub fn of(signature: &Signature, demos: &[Example], lm: Option<Map<String, Value>>) -> Self {
         Self {
             traces: Vec::new(),
             train: Vec::new(),
             demos: demos.iter().map(demo_fields).collect(),
             signature: SignatureState::of(signature),
-            lm: None,
+            lm: lm.map(Value::Object),
         }
     }
 }
@@ -281,7 +283,7 @@ mod tests {
     fn a_program_writes_its_predictors_beside_the_metadata() {
         let state = ProgramState::new(BTreeMap::from([(
             "predict".to_owned(),
-            PredictorState::of(&signature(), &[]),
+            PredictorState::of(&signature(), &[], None),
         )]));
         let written = serde_json::to_value(&state).expect("serializes");
         assert!(written["predict"]["signature"]["instructions"].is_string());

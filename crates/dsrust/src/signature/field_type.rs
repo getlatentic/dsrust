@@ -338,8 +338,22 @@ fn coerce_json(name: &str, annotation: &str, value: &mut Value) -> Result<()> {
 
 /// Annotations whose Python type validates a bare, non-JSON string, so such a value is its own
 /// form rather than malformed JSON. dspy's `TypeAdapter` accepts the string for each of these.
+///
+/// The four temporal types accept a *well-formed* one — `"2024-01-01"` and not `"print('hi')"` —
+/// and are here anyway: what refuses a bad one is the caller's typing, one layer on. `Code` accepts
+/// any string at all, its `validate_input` taking `isinstance(data, str)` and running `_filter_code`
+/// over it, which is how a model that answered with a markdown block is understood.
+/// `dspy.Code["java"]` builds a distinct class named `Code_java`, so the subscripted spelling is
+/// matched by prefix rather than by naming every language.
+///
+/// `Reasoning` belongs to this set too and is not in it: `get_annotation_name` gives it `str`, so a
+/// field of that type never reaches here. Which annotations have a string form is measured — see
+/// `tests/string_form.rs` — rather than read off the type list, because being one short is exactly
+/// what this was, and the two upstream tests that said so were not in any gate.
 fn accepts_string_form(annotation: &str) -> bool {
     matches!(annotation, "datetime" | "date" | "time" | "timedelta")
+        || annotation == "Code"
+        || annotation.starts_with("Code_")
 }
 
 /// The content of a ```json ... ``` (or bare ```) block, when the whole text is one fence.

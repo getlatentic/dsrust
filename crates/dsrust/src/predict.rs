@@ -923,6 +923,7 @@ impl<S: Send + Sync> Module for Predict<S> {
             demos: &mut self.demos,
             config: &mut self.config,
             hint: &mut self.hint,
+            lm: &mut self.lm,
         }]
     }
 

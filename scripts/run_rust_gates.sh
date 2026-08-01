@@ -78,3 +78,17 @@ echo "==> file sizes"
 # *outside* the workspace — the only place a leaked dependency is visible.
 ./scripts/check_external_consumer.sh
 ./scripts/check_docs.py
+
+# The upstream pytest suite, through the bridge. Last because it is the slowest — about four
+# minutes — and because everything above must hold before Python's opinion is worth having.
+#
+# Not in this script until `dspy.Code` was found red here: two adapter tests had been failing at
+# HEAD for as long as nobody remembered to run the suite by hand, and every gate anyone did run
+# passed the whole time. A gate is what a script runs. Set DSRS_SKIP_UPSTREAM=1 for a fast local
+# loop; CI must not.
+if [ "${DSRS_SKIP_UPSTREAM:-0}" = "1" ]; then
+  echo "==> upstream pytest suite (SKIPPED: DSRS_SKIP_UPSTREAM=1)"
+else
+  echo "==> upstream pytest suite"
+  ./scripts/run_upstream_tests.sh
+fi

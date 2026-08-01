@@ -530,6 +530,11 @@ mod truncation_tests {
         fn native_citations_usable_dyn(&self) -> bool {
             false
         }
+
+        /// A scripted double states nothing, which is the `null` dspy writes for an unpinned predictor.
+        fn dump_state_dyn(&self) -> Option<serde_json::Map<String, serde_json::Value>> {
+            None
+        }
     }
 
     fn long_trajectory(steps: usize) -> Trajectory {
@@ -668,6 +673,11 @@ mod truncation_tests {
 
             fn native_citations_usable_dyn(&self) -> bool {
                 false
+            }
+
+            /// A scripted double states nothing, which is the `null` dspy writes for an unpinned predictor.
+            fn dump_state_dyn(&self) -> Option<serde_json::Map<String, serde_json::Value>> {
+                None
             }
         }
 

@@ -1,19 +1,19 @@
-//! What a saved LM block does *not* survive, and why nothing gates it here.
+//! What a saved LM block survives, and what `allow_unsafe_lm_state` gates.
 //!
 //! dspy 3.3 sanitises the block on load — `_sanitize_lm_state` drops `api_base`, `base_url` and
-//! `model_list` unless `allow_unsafe_lm_state=True` — because those three decide *where* a call
-//! goes, and a compiled program is something people pass around. The rest of the block names a
-//! model or a sampling setting and is kept, so a dspy round-trip preserves the model pin.
+//! `model_list` unless the caller vouches for the file — because those three decide *where* a call
+//! goes, and a compiled program is something people pass around. The rest names a model or a
+//! sampling setting and is kept, then rebuilt into a live LM the predictor actually asks.
 //!
-//! This crate drops the **whole** block instead: `load_state` restores a signature and its demos,
-//! and `dump_state` rebuilds from the predictor, which has nowhere to hold a saved LM dict. So
-//! there is nothing for a trust flag to gate — a redirect cannot be acted on, and cannot be
-//! laundered onward either. What is lost is the pin dspy would have kept.
+//! This crate does the same, through [`dsrust::module::Trust`]. It did not until
+//! `saved-lm-round-trip`: `load_state` restored a signature and its demos and dropped the block
+//! whole, so a dspy-compiled program lost the model its author pinned it to. Both halves are
+//! measured here — what a default load drops, and what it keeps — because a port that dropped
+//! everything would pass a test that only checked the redirect was gone.
 //!
-//! Both halves are measured here rather than argued, because the first reading of this went the
-//! other way: a `ProgramState` deserialised and reserialised *does* carry the block, and that was
-//! briefly mistaken for a program round-trip preserving it. It is a different path.
+//! The block's own bytes are `tests/saved_lm.rs`; this is the program-level path around them.
 
+use dsrust::module::Trust;
 use dsrust::{Module, predict::Predict};
 use serde_json::Value;
 
@@ -43,51 +43,115 @@ fn saved_with_lm(name: &str, lm: &Value) -> std::path::PathBuf {
     path
 }
 
-/// A loaded program carries no LM state at all, so re-saving it cannot pass on an endpoint
-/// redirect that a dspy load would have dropped.
-///
-/// This is what makes `allow_unsafe_lm_state` have nothing to gate here. It is a stronger position
-/// than upstream's rather than a weaker one — dspy keeps the safe keys and drops three; this keeps
-/// none — and the cost is on the other side, in `the_model_pin_does_not_survive_a_round_trip`.
-#[test]
-fn a_loaded_program_carries_no_saved_lm_state() {
-    let fixture = fixture();
-    let path = saved_with_lm("carries-none", &fixture["saved_lm"]);
-
+/// The block a program carries after loading the golden and saving itself again.
+fn round_tripped(name: &str, lm: &Value, load: fn(&mut Predict, &std::path::Path)) -> Value {
+    let path = saved_with_lm(name, lm);
     let mut program = Predict::parse("question -> answer").expect("parses");
-    program.load(&path).expect("loads");
-
+    load(&mut program, &path);
     let carried = serde_json::to_value(program.dump_state()).expect("serialises");
-    assert_eq!(
-        carried["self"]["lm"],
-        Value::Null,
-        "a re-saved program should carry no LM block at all"
-    );
     let _ = std::fs::remove_file(&path);
+    carried["self"]["lm"].clone()
 }
 
-/// The divergence that costs something: dspy's own load-then-save keeps `model`, `temperature` and
-/// the rest, so a program that pinned a model still names it. Here the pin is gone.
+/// An ordinary load keeps the model pin, which is the whole reason dspy writes the block.
 ///
-/// Asserted against what dspy actually kept, so it says exactly what is lost rather than "we drop
-/// it". Filed as `saved-lm-round-trip`; when that lands this test says so.
+/// Compared against what dspy's own load-then-save kept, key for key — not against a list written
+/// here, which would agree with whatever this crate happened to do.
 #[test]
-fn the_model_pin_does_not_survive_a_round_trip() {
+fn an_ordinary_load_keeps_what_dspy_keeps() {
     let fixture = fixture();
     let kept = fixture["sanitized"].as_object().expect("what dspy kept");
+    let ours = round_tripped("keeps", &fixture["saved_lm"], |program, path| {
+        program.load(path).expect("loads");
+    });
+    let ours = ours.as_object().expect("a block survives an ordinary load");
+
+    for (key, value) in kept {
+        assert_eq!(
+            ours.get(key),
+            Some(value),
+            "dspy kept {key} through its own round-trip and this did not"
+        );
+    }
     assert!(
         kept.contains_key("model") && kept.contains_key("temperature"),
-        "dspy should keep the model pin through its own round-trip"
+        "the golden must carry a pin for this to be testing anything"
+    );
+}
+
+/// An ordinary load drops the three keys that decide where a call goes, so re-saving the program
+/// cannot pass a redirect on to whoever opens it next.
+#[test]
+fn an_ordinary_load_drops_the_redirect() {
+    let fixture = fixture();
+    let unsafe_keys: Vec<&str> = fixture["unsafe_keys"]
+        .as_array()
+        .expect("the golden names them")
+        .iter()
+        .map(|key| key.as_str().expect("a string"))
+        .collect();
+    assert_eq!(unsafe_keys.len(), 3, "dspy names three");
+
+    let saved = fixture["saved_lm"].as_object().expect("the block");
+    for key in &unsafe_keys {
+        assert!(saved.contains_key(*key), "the golden must carry {key}");
+    }
+
+    let ours = round_tripped("drops", &fixture["saved_lm"], |program, path| {
+        program.load(path).expect("loads");
+    });
+    let ours = ours.as_object().expect("a block");
+    for key in &unsafe_keys {
+        assert!(!ours.contains_key(*key), "{key} was laundered onward");
+    }
+}
+
+/// Vouching for the file keeps the redirect, which is what dspy's flag is for.
+///
+/// The flag is only observable as the difference between the two loads, so both are asserted
+/// against the golden's own two arms rather than against each other.
+#[test]
+fn a_trusted_load_keeps_the_redirect() {
+    let fixture = fixture();
+    let trusted = fixture["trusted"]
+        .as_object()
+        .expect("what dspy kept when trusted");
+    let ours = round_tripped("trusted", &fixture["saved_lm"], |program, path| {
+        program.load_trusted(path).expect("loads");
+    });
+    let ours = ours.as_object().expect("a block");
+
+    assert!(
+        trusted.contains_key("api_base"),
+        "the golden's trusted arm must differ from its default one"
+    );
+    assert_eq!(
+        ours.get("api_base"),
+        trusted.get("api_base"),
+        "a trusted load should reach the endpoint it was compiled against"
     );
 
-    let path = saved_with_lm("pin-lost", &fixture["saved_lm"]);
-    let mut program = Predict::parse("question -> answer").expect("parses");
-    program.load(&path).expect("loads");
-    let carried = serde_json::to_value(program.dump_state()).expect("serialises");
-    assert_eq!(
-        carried["self"]["lm"],
-        Value::Null,
-        "the pin now survives — resolve `saved-lm-round-trip` and assert what is kept instead"
-    );
-    let _ = std::fs::remove_file(&path);
+    // The other two are kept by the sanitiser and then not honoured, so they do not come back out.
+    // `base_url` is litellm's alias for the field `api_base` already set — restoring both would
+    // mean deciding which wins, which is a question only litellm's resolution order answers.
+    // `model_list` configures its router, and this crate has no router to configure. Asserted
+    // rather than left unsaid: a trusted round-trip here is narrower than dspy's, and the place to
+    // find that out is a test rather than a diff of two saved files.
+    for key in ["base_url", "model_list"] {
+        assert!(
+            trusted.contains_key(key),
+            "the golden's trusted arm should carry {key}"
+        );
+        assert!(
+            !ours.contains_key(key),
+            "{key} came back, so this comment is now wrong"
+        );
+    }
+}
+
+/// `Trust` says what it gates rather than leaving a `true` at the call site to explain itself.
+#[test]
+fn trust_names_what_it_widens() {
+    assert!(!Trust::Default.allows_redirect());
+    assert!(Trust::File.allows_redirect());
 }

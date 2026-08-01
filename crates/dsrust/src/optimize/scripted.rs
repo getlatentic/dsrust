@@ -55,6 +55,9 @@ pub(crate) enum Answers {
 
 /// One predictor, one rule for answering it.
 pub(crate) struct Solver {
+    /// This double's pinned model, which a saved program records. Never set — it is here
+    /// because a `NamedPredictor` names one and two of them cannot borrow the same slot.
+    saved_lm_0: Option<std::sync::Arc<dyn crate::lm::DynChatModel>>,
     signature: Signature,
     config: Sampling,
     hint: Option<String>,
@@ -66,6 +69,7 @@ pub(crate) struct Solver {
 impl Solver {
     pub(crate) fn new(answers: Answers) -> Self {
         Self {
+            saved_lm_0: None,
             signature: Signature::single_input("Answer.", Vec::new()),
             config: Sampling::default(),
             hint: None,
@@ -139,6 +143,7 @@ impl Module for Solver {
             demos: &mut self.demos,
             config: &mut self.config,
             hint: &mut self.hint,
+            lm: &mut self.saved_lm_0,
         }]
     }
 }
@@ -146,6 +151,12 @@ impl Module for Solver {
 /// Two predictors, so the decisions `_train` makes per predictor are observable. It answers
 /// correctly and records nothing: what is under test is which demos each half ends up with.
 pub(crate) struct Pair {
+    /// This double's pinned model, which a saved program records. Never set — it is here
+    /// because a `NamedPredictor` names one and two of them cannot borrow the same slot.
+    saved_lm_0: Option<std::sync::Arc<dyn crate::lm::DynChatModel>>,
+    /// This double's pinned model, which a saved program records. Never set — it is here
+    /// because a `NamedPredictor` names one and two of them cannot borrow the same slot.
+    saved_lm_1: Option<std::sync::Arc<dyn crate::lm::DynChatModel>>,
     first_sampling: Sampling,
     first_hint: Option<String>,
     second_sampling: Sampling,
@@ -159,6 +170,8 @@ pub(crate) struct Pair {
 impl Pair {
     pub(crate) fn new() -> Self {
         Self {
+            saved_lm_0: None,
+            saved_lm_1: None,
             first: Signature::single_input("Answer.", Vec::new()),
             first_demos: Vec::new(),
             first_sampling: Sampling::default(),
@@ -231,6 +244,7 @@ impl Module for Pair {
                 demos: &mut self.first_demos,
                 config: &mut self.first_sampling,
                 hint: &mut self.first_hint,
+                lm: &mut self.saved_lm_0,
             },
             NamedPredictor {
                 name: "second".to_owned(),
@@ -238,6 +252,7 @@ impl Module for Pair {
                 demos: &mut self.second_demos,
                 config: &mut self.second_sampling,
                 hint: &mut self.second_hint,
+                lm: &mut self.saved_lm_1,
             },
         ]
     }
@@ -247,6 +262,12 @@ impl Module for Pair {
 /// an optimizer. dspy starts every predictor's traces at an empty list, so the idle half is
 /// taught by nothing rather than by its sibling's work.
 pub(crate) struct Lopsided {
+    /// This double's pinned model, which a saved program records. Never set — it is here
+    /// because a `NamedPredictor` names one and two of them cannot borrow the same slot.
+    saved_lm_0: Option<std::sync::Arc<dyn crate::lm::DynChatModel>>,
+    /// This double's pinned model, which a saved program records. Never set — it is here
+    /// because a `NamedPredictor` names one and two of them cannot borrow the same slot.
+    saved_lm_1: Option<std::sync::Arc<dyn crate::lm::DynChatModel>>,
     ran_sampling: Sampling,
     ran_hint: Option<String>,
     idle_sampling: Sampling,
@@ -260,6 +281,8 @@ pub(crate) struct Lopsided {
 impl Lopsided {
     pub(crate) fn new() -> Self {
         Self {
+            saved_lm_0: None,
+            saved_lm_1: None,
             ran: Signature::single_input("Answer.", Vec::new()),
             ran_demos: Vec::new(),
             ran_sampling: Sampling::default(),
@@ -313,6 +336,7 @@ impl Module for Lopsided {
                 demos: &mut self.ran_demos,
                 config: &mut self.ran_sampling,
                 hint: &mut self.ran_hint,
+                lm: &mut self.saved_lm_0,
             },
             NamedPredictor {
                 name: "idle".to_owned(),
@@ -320,6 +344,7 @@ impl Module for Lopsided {
                 demos: &mut self.idle_demos,
                 config: &mut self.idle_sampling,
                 hint: &mut self.idle_hint,
+                lm: &mut self.saved_lm_1,
             },
         ]
     }
