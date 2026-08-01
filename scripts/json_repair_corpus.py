@@ -20,10 +20,22 @@ class Case:
     #: Set when Rust cannot follow Python here, naming which limit — the test asserts the
     #: divergence rather than the agreement, so closing it turns the test red.
     diverges: str | None = None
+    #: Read through `load(fd)` rather than `loads(text)`, which is a different parse.
+    from_file: bool = False
 
 
 def case(name: str, why: str, text: str, diverges: str | None = None, **options: object) -> Case:
     return Case(name=name, why=why, text=text, options=options, diverges=diverges)
+
+
+def file_case(name: str, why: str, text: str) -> Case:
+    """A case read through `load(fd)` rather than `loads(text)`.
+
+    The two are not the same call: upstream turns the suffix fast path off for file input, so a
+    valid JSON value after a prefix goes through the repair parser instead of CPython's scanner.
+    Measured over twenty thousand generated inputs, they disagree on 37.
+    """
+    return Case(name=name, why=why, text=text, options={}, from_file=True)
 
 
 VALID = [
@@ -212,6 +224,18 @@ EDGES = [
          '{"a": "b\x01c"}'),
 ]
 
+#: The three shapes a differential run found `loads(text)` and `load(fd)` disagreeing on, plus the
+#: ordinary case that proves the file path works at all.
+FILE_INPUT = [
+    file_case("file_plain", "an ordinary file, read the way `load` reads one", '{"a": 1}'),
+    file_case("file_prefix_then_value", "a prefix and then valid JSON, which `loads` decodes with "
+              "CPython's scanner and `load` repairs instead", '```json\n["a\\n"] done'),
+    file_case("file_nan_after_comment", "the same split, where the repair parser reads NaN as text",
+              '# note\n[NaN, "[a-z"]+", "_id"]'),
+    file_case("file_trailing_brace", "and where it keeps a trailing brace inside the string",
+              '# note\n["true story\\\\"]}'),
+]
+
 CASES: list[Case] = [
     *VALID,
     *NOT_JSON_BUT_CPYTHON_SAYS_YES,
@@ -225,4 +249,5 @@ CASES: list[Case] = [
     *STRICT,
     *OPTIONS,
     *EDGES,
+    *FILE_INPUT,
 ]

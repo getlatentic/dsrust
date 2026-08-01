@@ -21,6 +21,7 @@ hundred green cases that between them never enter `_handle_right_delimiter_candi
 
 from __future__ import annotations
 
+import io
 import json
 import pathlib
 import sys
@@ -69,8 +70,13 @@ def run(case: Case) -> dict[str, object]:
     two: it names which branch the parser took to get there, so a port that reaches the right
     answer by the wrong route is still caught. A value alone cannot tell those apart.
     """
+    read = (
+        (lambda text, **kwargs: json_repair.load(io.StringIO(text), **kwargs))
+        if case.from_file
+        else json_repair.loads
+    )
     try:
-        value, log = json_repair.loads(case.text, logging=True, **case.options)
+        value, log = read(case.text, logging=True, **case.options)
     except Exception as error:  # noqa: BLE001 — the refusal itself is the record
         return {"ok": False, "error": type(error).__name__, "message": str(error)}
     return {"ok": True, "dumps": json.dumps(value), "log": log}
@@ -137,6 +143,8 @@ def main() -> None:
             record["options"] = case.options
         if case.diverges:
             record["diverges"] = case.diverges
+        if case.from_file:
+            record["from_file"] = True
         cases.append(record | run(case))
 
     coverage = traced_line_counts()

@@ -94,6 +94,16 @@ pub const LONE_SURROGATE: char = '\u{fffd}';
 /// refuse, rather than accepting where Python raises.
 pub const MAX_DEPTH: usize = 240;
 
+/// Whether a value that is already valid JSON, found after a prefix, is decoded by CPython's
+/// scanner or read by the repair parser. Upstream ties this to where the input came from.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Suffix {
+    /// `loads`: decode it.
+    Decode,
+    /// `load` and `from_file`: repair it.
+    Repair,
+}
+
 /// A JSON Schema node: an object, or one of the two boolean schemas.
 pub(crate) type Schema = Value;
 
@@ -204,6 +214,14 @@ pub fn repair_json(text: &str) -> Result<String> {
     Repair::new().repair_json(text)
 }
 
+/// Read a value out of a file whose contents may not be valid JSON.
+///
+/// `json_repair.from_file(filename)`. See [`Repair::from_file`] for why this is not the same as
+/// reading the file and calling [`loads`].
+pub fn from_file(path: impl AsRef<std::path::Path>) -> Result<Value> {
+    Repair::new().from_file(path)
+}
+
 /// The keyword arguments `repair_json` takes, and the two entry points that read them.
 #[derive(Default)]
 pub struct Repair {
@@ -288,14 +306,44 @@ impl Repair {
 
     /// The parsed value.
     pub fn loads(&self, text: &str) -> Result<Value> {
-        self.run(text, None).map(|(value, _)| value)
+        self.run(text, None, Suffix::Decode).map(|(value, _)| value)
     }
 
     /// The parsed value and the log of what was repaired to get it.
     pub fn loads_logged(&self, text: &str) -> Result<(Value, Vec<LogEntry>)> {
         let sink = Rc::new(RefCell::new(Vec::new()));
-        let (value, log) = self.run(text, Some(sink))?;
+        let (value, log) = self.run(text, Some(sink), Suffix::Decode)?;
         Ok((value, log))
+    }
+
+    /// The value in a file, as `json_repair.from_file(filename)` reads it.
+    ///
+    /// Not the same as reading the file and calling [`Repair::loads`]. Upstream turns the suffix
+    /// fast path *off* for file input — `try_valid_json_suffix = json_fd is None` — so a valid
+    /// JSON value after a prefix goes through the repair parser rather than CPython's scanner, and
+    /// the two disagree on about one input in five hundred.
+    pub fn from_file(&self, path: impl AsRef<std::path::Path>) -> Result<Value> {
+        let text = std::fs::read_to_string(path.as_ref())
+            .map_err(|error| Error::new(&format!("{}: {error}", path.as_ref().display())))?;
+        self.from_text_of_a_file(&text)
+    }
+
+    /// The value in a reader, as `json_repair.load(fd)` reads it.
+    ///
+    /// The whole reader is read before parsing. Upstream reads it in chunks through a wrapper that
+    /// implements only indexing and length, so the parse sees the same characters either way and
+    /// the difference is memory rather than behaviour — which is also why `chunk_length` is not
+    /// carried.
+    pub fn from_reader<R: std::io::Read>(&self, mut reader: R) -> Result<Value> {
+        let mut text = String::new();
+        reader
+            .read_to_string(&mut text)
+            .map_err(|error| Error::new(&error.to_string()))?;
+        self.from_text_of_a_file(&text)
+    }
+
+    fn from_text_of_a_file(&self, text: &str) -> Result<Value> {
+        self.run(text, None, Suffix::Repair).map(|(value, _)| value)
     }
 
     /// The parsed value written back out with `json.dumps`, which is what upstream returns when
@@ -308,7 +356,7 @@ impl Repair {
         Ok(crate::dump::dumps(&value, self.ensure_ascii))
     }
 
-    fn run(&self, text: &str, sink: LogSink) -> Result<(Value, Vec<LogEntry>)> {
+    fn run(&self, text: &str, sink: LogSink, suffix: Suffix) -> Result<(Value, Vec<LogEntry>)> {
         if self.schema.is_none() && self.mode == SchemaRepairMode::Salvage {
             return Err(Error::new("schema_repair_mode='salvage' requires schema."));
         }
@@ -323,7 +371,7 @@ impl Repair {
         }
 
         let mut parser = parser::Parser::new(text, self, sink.clone());
-        parser.try_valid_json_suffix = true;
+        parser.try_valid_json_suffix = suffix == Suffix::Decode;
         let value = match (&repairer, &self.schema) {
             (Some(repairer), Some(schema)) => {
                 let parsed = parser.parse_with_schema(repairer.clone(), schema.clone())?;

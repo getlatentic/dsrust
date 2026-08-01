@@ -30,11 +30,19 @@ fn options(case: &Json) -> Repair {
 
 /// What one case answered, as the fixture spells it: the dumped value, or the refusal.
 fn answer(case: &Json) -> Result<String, String> {
-    let input = case["input"].as_str().expect("an input");
-    options(case)
-        .loads(input)
+    read(case)
         .map(|value| value.to_string())
         .map_err(|error| error.message().to_owned())
+}
+
+/// The value, through whichever entry point the case was recorded from. `load(fd)` is a different
+/// parse from `loads(text)`, not an alias for it.
+fn read(case: &Json) -> Result<json_repair::Value, json_repair::Error> {
+    let input = case["input"].as_str().expect("an input");
+    match case["from_file"].as_bool().unwrap_or(false) {
+        true => options(case).from_reader(input.as_bytes()),
+        false => options(case).loads(input),
+    }
 }
 
 /// The repair log, as the fixture spells it: one `{"text", "context"}` object per entry.
@@ -89,6 +97,40 @@ fn every_recorded_input_parses_to_the_bytes_json_repair_produced() {
 }
 
 #[test]
+fn reading_a_file_is_not_the_same_call_as_reading_a_string() {
+    // Upstream ties the suffix fast path to where the input came from, so the same bytes read two
+    // ways can answer two things. Asserted as a *difference* on the cases where one was measured,
+    // because an equality here would pass just as well if `from_file` were an alias for `loads`.
+    let fixture = fixture();
+    let mut differing = 0;
+    for case in fixture["cases"].as_array().expect("cases") {
+        if !case["from_file"].as_bool().unwrap_or(false) {
+            continue;
+        }
+        let input = case["input"].as_str().expect("an input");
+        let as_file = read(case).expect("the file path parses").to_string();
+        assert_eq!(
+            as_file,
+            case["dumps"].as_str().expect("a dumps"),
+            "{}",
+            case["name"]
+        );
+        if json_repair::loads(input)
+            .expect("the string path parses")
+            .to_string()
+            != as_file
+        {
+            differing += 1;
+        }
+    }
+    assert!(
+        differing >= 3,
+        "only {differing} file cases read differently from the string path — the corpus stopped \
+         covering the distinction, or the two paths have become the same"
+    );
+}
+
+#[test]
 fn repair_json_returns_the_text_json_dumps_writes() {
     // `repair_json` is `loads` written back out, which is the same bytes the fixture already
     // records — except for the empty string, which upstream returns as itself rather than as a
@@ -96,7 +138,10 @@ fn repair_json_returns_the_text_json_dumps_writes() {
     let fixture = fixture();
     let mut empty_strings = 0;
     for case in fixture["cases"].as_array().expect("cases") {
-        if case.get("diverges").is_some() || !case["ok"].as_bool().expect("ok") {
+        if case.get("diverges").is_some()
+            || !case["ok"].as_bool().expect("ok")
+            || case["from_file"].as_bool().unwrap_or(false)
+        {
             continue;
         }
         let name = case["name"].as_str().expect("a name");
@@ -125,7 +170,10 @@ fn every_repair_is_logged_the_way_json_repair_logs_it() {
     let fixture = fixture();
     let mut entries = 0;
     for case in fixture["cases"].as_array().expect("cases") {
-        if case.get("diverges").is_some() || !case["ok"].as_bool().expect("ok") {
+        if case.get("diverges").is_some()
+            || !case["ok"].as_bool().expect("ok")
+            || case["from_file"].as_bool().unwrap_or(false)
+        {
             continue;
         }
         let name = case["name"].as_str().expect("a name");
