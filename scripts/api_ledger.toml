@@ -66,7 +66,7 @@
 "signatures/signature.py::SignatureMeta" = { status = "divergence", reason = "Python metaclass; a Rust signature is built by #[derive(Signature)]" }
 "signatures/signature.py::ensure_signature" = { status = "divergence", reason = "string/Signature coercion; Rust uses a typed SignatureSpec" }
 "signatures/signature.py::infer_prefix" = { status = "mapped", rust = "infer_prefix" }
-"signatures/signature.py::make_signature" = { status = "divergence", reason = "dynamic string-signature construction; Rust uses the derive/builder" }
+"signatures/signature.py::make_signature" = { status = "mapped", rust = "make_signature", reason = "the `make_signature!` proc macro, which builds a signature from a string literal. dspy builds one at runtime and raises on a bad string; this fails the build, pointing at the literal. This entry read `divergence — Rust uses the derive/builder` until the reverse surface walk put the macro in front of it" }
 "signatures/field.py::InputField" = { status = "mapped", rust = "InField" }
 "signatures/field.py::OutputField" = { status = "mapped", rust = "OutField" }
 "signatures/field.py::OldField" = { status = "divergence", reason = "dspy's deprecated legacy field class; not reproduced" }
@@ -1022,7 +1022,105 @@
 "signatures/field.py::OutputField.kwargs" = { status = "divergence", rust = "OutputField", reason = "dspy takes **kwargs and keeps whichever pydantic FieldInfo attributes it recognises; the crate's field carries the ones a signature renders — desc, prefix, format — as typed members, so a key it does not understand cannot be silently kept" }
 "utils/exceptions.py::is_retryable_lm_error.error" = { status = "divergence", rust = "is_retryable", reason = "a method on the error rather than a free function taking one: the crate's LmFailure knows its own kind, so `failure.is_retryable()` needs no dispatch on a foreign exception type" }
 
+"signatures/signature.py::make_signature.signature" = { status = "mapped", rust = "make_signature", reason = "the string literal the macro takes, `\"question -> answer\"`. dspy also accepts a dict of names to (type, FieldInfo) pairs, which is what a Rust caller writes as a derived struct instead" }
+"signatures/signature.py::make_signature.signature_name" = { status = "divergence", rust = "make_signature", reason = "dspy names the class it builds so a traceback and a repr have something to say; the macro expands to a value rather than a type, so there is no name to give" }
+
+"signatures/signature.py::make_signature.instructions" = { status = "divergence", rust = "with_instructions", reason = "dspy takes the instructions beside the string; the macro takes the string alone and `Signature::with_instructions` sets them, which is also how a signature parsed at runtime gets them" }
+"signatures/signature.py::make_signature.custom_types" = { status = "divergence", reason = "a map from a name in the string to the Python type it means, needed because dspy resolves an annotation by looking it up. A Rust type is in scope where the macro expands, so there is nothing to hand it" }
+
 [rust_only]
+"dsrust::lm::Capabilities" = { status = "reexport", reason = "where `dsrust::Capabilities` is declared; the root re-export is the classified one" }
+"dsrust::lm::ChatTurn" = { status = "reexport", reason = "where `dsrust::ChatTurn` is declared; the root re-export is the classified one" }
+"dsrust::lm::DEFAULT_PROVIDER_TIMEOUT" = { status = "reexport", reason = "where `dsrust::DEFAULT_PROVIDER_TIMEOUT` is declared; the root re-export is the classified one" }
+"dsrust::lm::LmItem" = { status = "reexport", reason = "where `dsrust::LmItem` is declared; the root re-export is the classified one" }
+"dsrust::lm::LmResponse" = { status = "reexport", reason = "where `dsrust::LmResponse` is declared; the root re-export is the classified one" }
+"dsrust::lm::ModelRef" = { status = "reexport", reason = "where `dsrust::ModelRef` is declared; the root re-export is the classified one" }
+"dsrust::lm::OutputMode" = { status = "reexport", reason = "where `dsrust::OutputMode` is declared; the root re-export is the classified one" }
+"dsrust::lm::Role" = { status = "reexport", reason = "where `dsrust::Role` is declared; the root re-export is the classified one" }
+"dsrust::lm::Scope" = { status = "reexport", reason = "where `dsrust::Scope` is declared; the root re-export is the classified one" }
+"dsrust::lm::configure" = { status = "reexport", reason = "where `dsrust::configure` is declared; the root re-export is the classified one" }
+"dsrust::lm::configure_with_client" = { status = "reexport", reason = "where `dsrust::configure_with_client` is declared; the root re-export is the classified one" }
+"dsrust::lm::context_model" = { status = "reexport", reason = "where `dsrust::context_model` is declared; the root re-export is the classified one" }
+"dsrust::lm::context_with_client" = { status = "reexport", reason = "where `dsrust::context_with_client` is declared; the root re-export is the classified one" }
+"dsrust::lm::DynChatModel" = { status = "divergence", reason = "the object-safe form of `ChatModel`, so a program can hold whichever model was configured. dspy needs no such split — any callable will do" }
+"dsrust::lm::LmBuilder" = { status = "mapped", reason = "what `dspy.LM(...)`'s keyword arguments become when the target is a struct: the same settings, checked at the call rather than accepted into a dict" }
+"dsrust::lm::LM::builder" = { status = "mapped", reason = "opens an `LmBuilder`; this is `dspy.LM(model)` before any keyword is given" }
+"dsrust::lm::LmSource" = { status = "divergence", reason = "where a setting came from — the caller, the environment, or a default. dspy resolves the same precedence inside litellm and never says which won" }
+"dsrust::lm::LmFailure" = { status = "divergence", reason = "why a call failed, as the cases a caller can act on. dspy raises whatever litellm raised, so the type is the provider SDK's" }
+"dsrust::lm::Retry" = { status = "mapped", reason = "dspy's `num_retries` and the backoff litellm applies under it, as one value rather than a number whose policy lives elsewhere" }
+"dsrust::lm::LmUsage" = { status = "mapped", reason = "the `usage` block of a reply — dspy reads the same fields off litellm's response" }
+"dsrust::lm::UsageTracker" = { status = "mapped", reason = "dspy's `dspy.utils.usage_tracker.UsageTracker`" }
+"dsrust::lm::track_usage" = { status = "mapped", reason = "dspy's `track_usage()` context manager, as a future adapter for the reason in `dsrust::Scope`" }
+"dsrust::lm::Content" = { status = "divergence", reason = "a message's body: text, or the parts a multimodal request carries. dspy puts either a string or a list of dicts in the same field and lets the provider sort it out" }
+"dsrust::lm::Detail" = { status = "mapped", reason = "the `detail` on an image part, which dspy sets from `dspy.Image`" }
+"dsrust::lm::JsonFormat" = { status = "divergence", reason = "which of the two JSON mechanisms a provider gets — the old `json_object` or a schema. dspy picks inside `JSONAdapter` by asking litellm what the model supports" }
+"dsrust::lm::OpenAiConfig" = { status = "divergence", reason = "the OpenAI wire's own settings. dspy has no per-provider config object; the equivalent keywords go into `LM(**kwargs)` and litellm routes them" }
+"dsrust::lm::TokenLimitField" = { status = "divergence", reason = "which field carries the cap — `max_tokens` or `max_completion_tokens`. dspy's `_get_max_tokens_key` decides the same thing by matching the model name" }
+"dsrust::lm::TokenLimitRule" = { status = "divergence", reason = "the rule mapping a model to its token-limit field, exposed so a caller can add one. dspy's equivalent is a name check that a caller cannot extend" }
+"dsrust::lm::DEFAULT_OPENAI_BASE_URL" = { status = "divergence", reason = "the OpenAI endpoint. dspy never names it — the openai SDK holds it" }
+"dsrust::lm::DEFAULT_OPENAI_KEY_VAR" = { status = "divergence", reason = "the environment variable read for the key, named so a caller can point at another one" }
+"dsrust::lm::DEFAULT_OLLAMA_HOST" = { status = "divergence", reason = "ollama's default host, which litellm holds for dspy" }
+"dsrust::lm::LM::openai_api_key" = { status = "divergence", reason = "sets the key on a builder. dspy passes `api_key=` to `LM` and litellm decides which provider it belongs to; here the wire is already chosen" }
+"dsrust::lm::LM::openai_base_url" = { status = "divergence", reason = "dspy's `api_base=`, on the wire it applies to" }
+"dsrust::lm::LM::openai_key_var" = { status = "divergence", reason = "reads the key from a named variable rather than the default one — dspy has no equivalent, since litellm reads a fixed name per provider" }
+"dsrust::lm::LM::openai_json_format" = { status = "divergence", reason = "picks the JSON mechanism by hand; see `JsonFormat`" }
+"dsrust::lm::LM::openai_responses_api" = { status = "mapped", reason = "dspy's `model_type='responses'`, which selects the Responses API over Chat Completions" }
+"dsrust::lm::LM::openai_token_limit_rule" = { status = "divergence", reason = "registers a `TokenLimitRule`; see that entry" }
+"dsrust::lm::LM::anthropic_api_key" = { status = "divergence", reason = "the Anthropic key, per the reason on `openai_api_key`" }
+"dsrust::lm::LM::ollama_api_key" = { status = "divergence", reason = "the ollama key, per the reason on `openai_api_key`" }
+"dsrust::lm::LM::ollama_host" = { status = "divergence", reason = "the ollama host, per the reason on `openai_api_key`" }
+"dsrust::lm::builder::LmBuilder::ollama_host" = { status = "divergence", reason = "the ollama host, per the reason on `openai_api_key`" }
+"dsrust::lm::LM::openrouter_api_key" = { status = "divergence", reason = "the OpenRouter key, per the reason on `openai_api_key`" }
+"dsrust::lm::LM::with_capabilities" = { status = "divergence", reason = "states what a model supports when the build-time snapshot cannot know — see `dsrust::Capabilities`. Had no caller anywhere until this gate went looking for one, which is the defect that prompted the gate" }
+"dsrust::Answered" = { status = "divergence", reason = "what `Parallel::run` hands back: the results and, when asked for, the branches that failed. dspy returns a bare list and puts the failures nowhere" }
+"dsrust::Ask" = { status = "divergence", reason = "one rendered request as an adapter produced it. dspy passes a list of message dicts, which has no name because Python does not need one" }
+"dsrust::Formatted" = { status = "divergence", reason = "a rendered prompt as the callback point sees it — dspy's handler is given the kwargs dict its `format` was called with" }
+"dsrust::Rendered" = { status = "divergence", reason = "what an adapter's format returned, so `on_adapter_format_end` can be handed a typed value where dspy's receives whatever `format` returned" }
+"dsrust::Scored" = { status = "divergence", reason = "one row of an evaluation: the example, the prediction and the metric's number. dspy carries the same triple as a tuple" }
+"dsrust::TraceStep" = { status = "divergence", reason = "one recorded predictor call — dspy's trace is a list of `(predictor, inputs, outputs)` tuples, and a bootstrap indexes into them positionally" }
+"dsrust::NamedPredictor" = { status = "mapped", reason = "what `named_predictors` yields: dspy's `(name, predictor)` pair, as a value that also carries the mutable handles an optimizer needs to write demos and instructions through" }
+"dsrust::Side" = { status = "divergence", reason = "which half of a signature a field joins, so `append`/`prepend`/`insert` take one value rather than dspy's three loose arguments that must agree" }
+"dsrust::FieldKind" = { status = "divergence", reason = "a field's declared type as this crate models it. dspy holds a Python annotation and asks pydantic; there is no annotation object here to ask" }
+"dsrust::LiteralValue" = { status = "divergence", reason = "a member of an enum-typed field. dspy's is whatever `Literal[...]` was given and is validated by pydantic" }
+"dsrust::SignatureSpec" = { status = "divergence", reason = "what a derived signature struct implements, so a task declared as a Rust type and one parsed from a string reach the same `Predict`" }
+"dsrust::Forward" = { status = "divergence", reason = "the half of `Module` a caller writes. dspy has one class with a `forward` method to override; splitting it is what lets `Module` be derived while `forward` stays hand-written" }
+"dsrust::ProgramState" = { status = "mapped", reason = "the dict `dump_state` returns and `load_state` takes, as a type. Same on-disk shape — that is what makes `dspy.load` open what this saves" }
+"dsrust::Attempt" = { status = "mapped", reason = "one entry of BootstrapFewShotWithRandomSearch's `candidate_programs`: the seed, its score and the program it produced" }
+"dsrust::Ensembled" = { status = "divergence", reason = "what `Ensemble` produces. dspy returns a plain `Module` whose forward closes over the programs; naming it is what lets a caller hold one" }
+"dsrust::Extraction" = { status = "divergence", reason = "the second half of a two-step exchange, where dspy's `TwoStepAdapter` keeps the extraction signature on the instance" }
+"dsrust::Trajectory" = { status = "mapped", reason = "ReAct's trajectory. dspy keeps it as a dict field on the prediction with numbered keys; this names the sequence it is" }
+"dsrust::GepaOutcome" = { status = "mapped", reason = "gepa's `GEPAResult`, narrowed to what a caller reads back" }
+"dsrust::Scope" = { status = "divergence", reason = "what `context_model` returns — a future adapter rather than a block guard, because a guard held across an await would be read by whatever the runtime polled next. dspy's `with dspy.context(...)` has no such hazard" }
+"dsrust::DynOptimizer" = { status = "divergence", reason = "the object-safe form of `Optimizer`, which `BetterTogether` needs to hold other optimizers. Python needs no such split" }
+"dsrust::OutputMode" = { status = "divergence", reason = "how an adapter asks a provider to shape its reply — JSON mode, a schema, or nothing. dspy assembles the equivalent kwargs inline per adapter" }
+"dsrust::ChatTurn" = { status = "mapped", reason = "one message of a request: dspy's `{'role': ..., 'content': ...}` dict, typed" }
+"dsrust::Role" = { status = "mapped", reason = "the `role` of a message, as the four values a wire accepts rather than a free string" }
+"dsrust::LmResponse" = { status = "mapped", reason = "what a provider replied, which dspy takes from litellm's `ModelResponse`" }
+"dsrust::LmItem" = { status = "mapped", reason = "one element of `lm(...)`'s varargs — dspy's `dspy.User(...)`, a bare string, or a previous reply handed back" }
+"dsrust::MediaType" = { status = "divergence", reason = "a media type on a part. dspy carries it inside the data URI it builds and never names it" }
+"dsrust::ModelRef" = { status = "divergence", reason = "a model name split into its wire and its model, which is what the `openai/gpt-4o-mini` prefix means. dspy hands the whole string to litellm and lets it decide" }
+"dsrust::Capabilities" = { status = "divergence", reason = "what a model supports. dspy reads litellm's live registry per call; this crate has a snapshot frozen at build time, so a caller needs a way to state what the snapshot cannot know" }
+"dsrust::ReasoningEffort" = { status = "mapped", reason = "dspy's `reasoning_effort`, as the values the wires accept rather than a free string" }
+"dsrust::NativeFunctionCalling" = { status = "mapped", reason = "dspy's `use_native_function_calling`, as the tri-state it actually is: on, off, or decided by what the model supports" }
+"dsrust::ToolCall" = { status = "mapped", reason = "dspy's `ToolCall` — a tool the model asked for, with its arguments" }
+"dsrust::ToolCallResult" = { status = "mapped", reason = "one element of dspy's `ToolCallResults`, which is the plural of this" }
+"dsrust::Citation" = { status = "mapped", reason = "one of dspy's `Citations`, which is the plural of this" }
+"dsrust::DEFAULT_PROVIDER_TIMEOUT" = { status = "divergence", reason = "how long a request waits. dspy leaves it to litellm's own default and names nothing" }
+"dsrust::DummyLM" = { status = "mapped", reason = "dspy's `dspy.utils.dummies.DummyLM`: a scripted model for tests, in the crate rather than a test helper because a caller testing their own program needs it too" }
+"dsrust::reqwest" = { status = "divergence", reason = "the HTTP client crate, re-exported because `configure_with_client` takes one and a caller must be able to name the type they pass" }
+"dsrust::configure" = { status = "mapped", reason = "dspy's `dspy.configure(lm=...)`, setting the process-wide model" }
+"dsrust::configure_model" = { status = "divergence", reason = "`configure` for a caller who already holds a `DynChatModel` rather than an `LM`, which dspy needs no equivalent of because its `lm=` takes anything callable" }
+"dsrust::configure_with_client" = { status = "divergence", reason = "`configure` with the caller's own HTTP client, so connection pooling and timeouts are theirs. dspy has no seam here; litellm owns the transport" }
+"dsrust::context_model" = { status = "mapped", reason = "dspy's `with dspy.context(lm=...)`, as a future adapter — see `dsrust::Scope`" }
+"dsrust::context_with_client" = { status = "divergence", reason = "the same scope carrying an HTTP client; see `configure_with_client`" }
+"dsrust::configure_callbacks" = { status = "mapped", reason = "dspy's `dspy.configure(callbacks=[...])`, which is the same registration under the same settings object" }
+"dsrust::exact_match" = { status = "divergence", reason = "the metric an optimizer is usually given in an example: `example.answer == prediction.answer` as a number. dspy's `answer_exact_match` normalises the text first and is mapped separately" }
+"dsrust::json_field_schema" = { status = "divergence", reason = "the inlined JSON schema a derived structured field carries. dspy asks pydantic for one at render time; a Rust field's schema is known when it compiles" }
+"dsrust::make_signature" = { status = "divergence", reason = "a proc macro building a signature from a string literal, so a bad one fails the build. dspy's `make_signature` does the same at runtime and raises — the dspy-to-Rust entry calling this unported predates the macro and is now stale" }
+"dsrust::TypedPredict" = { status = "divergence", reason = "an alias for `Predict` naming the derived-signature spelling. dspy had `TypedPredictor` until 3.x folded it into `Predict`, which is where this points too" }
+"dsrust::TypedChainOfThought" = { status = "divergence", reason = "the same alias for `ChainOfThought`; see `TypedPredict`" }
+"dsrust::mcp_tool_args" = { status = "mapped", reason = "the argument half of dspy's `Tool.from_mcp_tool`, exposed on its own so a caller wiring MCP by hand can reach it" }
+"dsrust::mcp_tool_result" = { status = "mapped", reason = "the result half of the same conversion" }
 "dsrust::Steering" = { status = "divergence", reason = "no dspy counterpart. dspy passes a per-call `config` dict that a provider reads or ignores; `Steering` is the typed union of what the wires this crate speaks actually honour, so a setting a provider cannot take is a compile error instead of a silently dropped key" }
 "dsrust::Feedback" = { status = "mapped", reason = "GEPA's metric returns `dspy.Prediction(score=..., feedback=...)` — an untyped bag with two conventional keys. `Feedback` is that pair as a type, so a metric that forgets the feedback does not compile rather than reflecting on nothing" }
 "dsrust::adapter::Feedback" = { status = "divergence", reason = "the same pair reached through the adapter module, where a custom adapter needs it. dspy has no adapter-level name for it because there is nothing to name" }

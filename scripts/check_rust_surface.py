@@ -5,7 +5,7 @@ other direction, so anything this crate added on its own has never been checked 
 is how `LM::with_capabilities` survived with no callers at all, not in `src`, not in tests, not in
 the docs, not in the README.
 
-Measured 2026-08-01: **767 public items, 445 of which no ledger entry mentions.** That is a floor to
+Measured 2026-08-01: **781 public items, 445 of which no ledger entry mentioned.** That is a floor to
 work down rather than a failure to fix in one go — an item is fine to have invented, and the point
 is that having invented it is a claim somebody wrote down.
 
@@ -36,7 +36,7 @@ from rust_surface import surface
 LEDGER = pathlib.Path(__file__).parent / "api_ledger.toml"
 
 #: The measured floor. Lower it when the count falls; never raise it to make a run pass.
-BASELINE = 445
+BASELINE = 356
 
 
 def named_in_ledger(ledger: dict) -> set[str]:

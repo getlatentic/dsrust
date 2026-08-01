@@ -43,6 +43,14 @@ ITEM = re.compile(
 PUB_MOD = re.compile(r"^\s*pub\s+mod\s+(\w+)\s*;", re.M)
 PUB_USE = re.compile(r"^\s*pub\s+use\s+([^;]+);", re.M)
 
+#: An inherent `impl Type` or a `trait Type`, at column zero — where rustfmt puts a top-level item,
+#: and the block ends at the matching `}` in column zero. Brace counting would have to survive a `{`
+#: inside a string literal or a comment; this does not.
+#:
+#: `impl Trait for Type` is deliberately not matched. Its methods are the trait's, the trait is
+#: recorded where it is declared, and counting them again would tally every impl of `Display`.
+OWNER = re.compile(r"^(?:impl(?:<[^>]*>)?\s+(?!.*\bfor\b)|pub\s+trait\s+)([A-Za-z_][A-Za-z0-9_]*)")
+
 #: Only bare `pub` is surface: `pub(crate)` and `pub(super)` cannot be named by a caller, and the
 #: patterns above require a space after `pub` so a restricted item never matches in the first place.
 
@@ -81,10 +89,17 @@ def walk(crate: str, path: pathlib.Path, prefix: str, seen: set[pathlib.Path]) -
     source = path.read_text()
     found = set()
 
+    owner: str | None = None
     for line in source.splitlines():
-        match = ITEM.match(line)
-        if match:
-            found.add(f"{prefix}::{match.group(2)}")
+        if owner and line == "}":
+            owner = None
+        # The item first, then the block it opens: `pub trait Foo` matches both patterns, and it is
+        # declared at the module — only what follows it belongs to `Foo`.
+        if match := ITEM.match(line):
+            where = f"{prefix}::{owner}" if owner else prefix
+            found.add(f"{where}::{match.group(2)}")
+        if not line[:1].isspace() and (start := OWNER.match(line)):
+            owner = start.group(1)
 
     for clause in PUB_USE.findall(source):
         for name in reexported(clause):
