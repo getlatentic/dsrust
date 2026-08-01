@@ -135,3 +135,69 @@ impl GepaState {
 fn mean(scores: &[f64]) -> f64 {
     scores.iter().sum::<f64>() / scores.len() as f64
 }
+
+#[cfg(test)]
+mod best_program_tests {
+    use super::*;
+
+    fn candidate(text: &str) -> Candidate {
+        Candidate::from_iter([("instructions".to_owned(), text.to_owned())])
+    }
+
+    /// A state whose programs carry these valset subscores.
+    ///
+    /// Written onto the field rather than through `add_program`, because that folds each program
+    /// into the pareto front and the front is sized by the seed's valset — so a program evaluated
+    /// on a *different* number of examples cannot be added that way at all. Coverage varies only
+    /// under a partial evaluation policy, which is the case the tie clause exists for and the case
+    /// no test had. `best_program` reads nothing but this field.
+    fn with_scores(all: &[&[f64]]) -> GepaState {
+        let mut state = GepaState::new(candidate("seed"), vec![0.0]);
+        state.subscores = all.iter().map(|scores| scores.to_vec()).collect();
+        state
+    }
+
+    /// The highest mean wins, which is the rule's whole first clause.
+    #[test]
+    fn the_highest_mean_wins() {
+        assert_eq!(
+            with_scores(&[&[0.2, 0.2], &[0.9, 0.9], &[0.5, 0.5]]).best_program(),
+            1
+        );
+    }
+
+    /// An exact tie in mean goes to the wider coverage — upstream's second clause.
+    ///
+    /// Both `==` and `>` in that clause survived mutation: nothing had two programs with the same
+    /// mean and different coverage, so breaking the tie the other way, or on the wrong comparison
+    /// entirely, changed no test. This is the case that separates them.
+    #[test]
+    fn an_exact_tie_goes_to_the_wider_coverage() {
+        // Same mean, 0.5; the second is evaluated on four examples rather than two.
+        let state = with_scores(&[&[0.5, 0.5], &[0.5, 0.5, 0.5, 0.5]]);
+        assert_eq!(state.best_program(), 1);
+
+        // And the other order, so passing cannot be an artifact of which came first.
+        let state = with_scores(&[&[0.5, 0.5, 0.5, 0.5], &[0.5, 0.5]]);
+        assert_eq!(state.best_program(), 0);
+    }
+
+    /// Wider coverage does *not* beat a better mean — the tie clause is a tie-break, not a rank.
+    ///
+    /// The `==` mutation reads as `avg != best && coverage > best_coverage`, which lets a program
+    /// with a *worse* mean win on coverage alone. Only a case with both a lower mean and wider
+    /// coverage tells the two apart.
+    #[test]
+    fn wider_coverage_does_not_beat_a_better_mean() {
+        let state = with_scores(&[&[0.9, 0.9], &[0.4, 0.4, 0.4, 0.4, 0.4, 0.4]]);
+        assert_eq!(state.best_program(), 0);
+    }
+
+    /// An unevaluated program scores negative infinity rather than dividing by zero, so it never
+    /// wins against one that was evaluated — upstream's `avg = ... if coverage else float("-inf")`.
+    #[test]
+    fn an_unevaluated_program_never_wins() {
+        let state = with_scores(&[&[], &[0.1]]);
+        assert_eq!(state.best_program(), 1);
+    }
+}

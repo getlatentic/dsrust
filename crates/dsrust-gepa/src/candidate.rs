@@ -197,4 +197,60 @@ mod tests {
             built(&[("plan", "b"), ("write", "a")])
         );
     }
+
+    /// And the direction that was missing: candidates that differ are *not* equal.
+    ///
+    /// Only the equal case was asserted, so `eq` could return `true` unconditionally with the whole
+    /// suite green — and equality is what decides whether a proposed candidate is a duplicate, so
+    /// an always-equal `eq` makes every proposal a repeat of the seed. Each clause of the
+    /// comparison gets a case: a differing text, a differing name, and a differing count.
+    #[test]
+    fn candidates_that_differ_are_not_equal() {
+        let base = built(&[("write", "a"), ("plan", "b")]);
+
+        assert_ne!(base, built(&[("write", "a"), ("plan", "CHANGED")]));
+        assert_ne!(base, built(&[("write", "a"), ("review", "b")]));
+        assert_ne!(base, built(&[("write", "a")]));
+        assert_ne!(
+            base,
+            built(&[("write", "a"), ("plan", "b"), ("check", "c")])
+        );
+        assert_ne!(base, Candidate::default());
+    }
+
+    /// The accessors a caller reaches for, none of which anything read.
+    ///
+    /// `len`, `is_empty` and `contains_key` could each be replaced by a constant without a test
+    /// noticing. They are small enough that the risk is not that they are wrong today — it is that
+    /// nothing would say so if the entry list stopped being the backing store.
+    #[test]
+    fn the_accessors_report_what_the_candidate_holds() {
+        let candidate = built(&[("write", "a"), ("plan", "b")]);
+        assert_eq!(candidate.len(), 2);
+        assert!(!candidate.is_empty());
+        assert!(candidate.contains_key("write"));
+        assert!(!candidate.contains_key("absent"));
+
+        assert_eq!(Candidate::default().len(), 0);
+        assert!(Candidate::default().is_empty());
+        assert!(!Candidate::default().contains_key("write"));
+    }
+
+    /// Borrowing iteration yields every pair, in declaration order — the same order `keys` walks.
+    ///
+    /// `into_iter` on `&Candidate` could return an empty iterator unnoticed, which would make a
+    /// `for (name, text) in &candidate` loop silently do nothing.
+    #[test]
+    fn borrowed_iteration_yields_every_pair_in_order() {
+        let candidate = built(&[("write", "a"), ("plan", "b")]);
+        let seen: Vec<(&str, &str)> = (&candidate)
+            .into_iter()
+            .map(|(name, text)| (name.as_str(), text.as_str()))
+            .collect();
+        assert_eq!(seen, [("write", "a"), ("plan", "b")]);
+
+        let owned: Vec<(String, String)> = candidate.clone().into_iter().collect();
+        assert_eq!(owned.len(), 2);
+        assert_eq!(owned[0].0, "write");
+    }
 }

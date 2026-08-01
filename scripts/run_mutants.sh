@@ -31,13 +31,20 @@ cd "$ROOT"
 #                  the all-zero weights that would be the only other way there. The three timeouts
 #                  are `bisect_right`'s comparison and `below`'s rejection loop, where the mutant
 #                  spins instead of answering — detected, but as a hang rather than a failure.
-#   dsrust-gepa 46 — 35 survivors and 11 non-terminating, and the largest gap measured so far. The
-#                    survivors cluster in `engine.rs` (the optimize and propose loops), `merge.rs`
-#                    and `instruction_proposal.rs`'s fence parsing; the non-terminating ones are all
-#                    `pyset.rs` arithmetic where the mutant spins instead of answering. `pyset`'s
-#                    intersection tie was in that list and is not any more — see the note in
-#                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
-#                    finished state.
+#   dsrust-gepa 35 — 24 survivors and 11 non-terminating, and still the largest gap measured. Was
+#                    46, and re-measured at exactly 46 under the fixed methodology before any of it
+#                    was closed — so unlike the adapter slice, this number was never an artifact.
+#                    What closed the eleven: `state.rs::best_program`, whose tie clause decides
+#                    which program GEPA hands back and which no case with a mean tie or a
+#                    lower-mean-wider-coverage program could reach; and `candidate.rs`, where the
+#                    only equality test asserted two candidates were *equal*, so `eq` could return
+#                    `true` unconditionally — with equality being what makes a proposal a duplicate.
+#                    What is left clusters in `engine.rs` (the optimize and propose loops),
+#                    `merge.rs`, and `instruction_proposal.rs`'s fence parsing; the non-terminating
+#                    ones are all `pyset.rs` arithmetic where the mutant spins instead of answering,
+#                    which is the shape `adapter/parse.rs::next_tag` had — a loop whose termination
+#                    rests on an invariant nothing checks. A floor to work down, not a finished
+#                    state.
 #   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours, so it
 #               is scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
 #               history, parse) is a ratchet of its own below, at 1.
@@ -54,7 +61,7 @@ cd "$ROOT"
 BASELINES=(
   "dsrust-tpe:1"
   "pyrng:4"
-  "dsrust-gepa:46"
+  "dsrust-gepa:35"
 )
 
 # The one `dsrust` slice with a floor. Scoped by file because the whole crate is a five-hour run,
