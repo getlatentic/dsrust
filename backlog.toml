@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1079
+rust_tests = 1080
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -482,10 +482,26 @@ Python's literals. Three genuine differences, all fixed:
 One divergence recorded rather than closed: `json_repair` recovers an unescaped quote inside a
 string and this crate's repair does not. Matching json_repair in full is a library, not a fix.
 
-Remaining: the differential fuzzer this corpus argues for. Every case here was chosen by reading a
-branch, which is exactly the method that leaves the branches nobody thought of — and the setup is
-ideal for it, since both sides are pure functions from a string to a value-or-error with a reference
-implementation to hand.
+**The differential fuzzer landed too, and its first run answered the question the goldens could not.**
+`scripts/fuzz_parse.py` generates seeded random replies — mangled markers, malformed tags, broken
+JSON — runs all three of dspy's parsers over them and records the answers; `parse_fuzz.rs` replays
+them through the crate and groups every disagreement by adapter and direction. The corpus is a
+campaign artifact under `target/`, not a committed golden: ten thousand random strings are evidence,
+not documentation.
+
+Two thousand replies, and the result is remarkably clean: **226 disagreements, all of them
+`[json] dspy parsed, we refused`**. Zero for the marker parser, zero for the tag parser, and zero in
+the direction that would hand a caller a wrong value. That is what turned the `json_repair` question
+from "should we?" into a scoped story with a measurement attached — see `json-repair-port`.
+
+The rule the test enforces is that category and nothing else, rather than "no disagreements", because
+a blanket assertion against a known gap either blocks every run or gets switched off.
+
+**And the fuzzer's own control found a hole in the fuzzer.** Breaking first-occurrence-wins in the
+marker parser on purpose left it green — `rng.sample` draws without replacement, so no generated
+reply ever named a field twice and the rule went untested. With repeats allowed the same break
+produces four disagreements outside the known gap. A fuzzer that has never been shown to fail is
+worth as much as a golden that has never been shown to fail.
 """
 
 [[story]]
@@ -524,6 +540,42 @@ test goes red and says which flag to drop. It cannot be closed by accident or fo
 
 Note that `parse_tags` (XML) already casts at parse. The two paths disagreed with each other before
 they disagreed with dspy.
+"""
+
+[[story]]
+id = "json-repair-port"
+sprint = "conformance"
+title = "json_repair is an external library, and it is the only thing the parsers still disagree on"
+state = "todo"
+size = "L"
+suites = []
+plan = """
+`JSONAdapter.parse` opens with `json_repair.loads(completion)`. That is **not dspy's code** — it is
+`json-repair>=0.54.2` from PyPI, twelve modules and about 3,500 lines — so there is nothing to copy
+from upstream. Rust has several crates of the same name and none of them is this one: matching
+"repairs malformed JSON" is not matching *these* repairs, the same reason `tpe` reproduces optuna's
+sampler rather than depending on a Bayesian-optimisation crate.
+
+**The differential fuzzer measured how much it matters, which is the point of having built it.** Two
+thousand random replies through all three adapters, 2026-08-01:
+
+  - **226 disagreements, every one of them `[json] dspy parsed, we refused`.**
+  - Zero for the marker parser. Zero for the tag parser.
+  - Zero in the direction that matters most — *we* parsed where dspy refused — for any adapter. The
+    crate is stricter, never looser, so no wrong value reaches a caller through this.
+
+And the ones it refuses are severely mangled: `{answer: "{}", "unknown: "7", reasoning": "[]"` —
+asymmetric quotes, which `json_repair` recovers by heuristic. The ordinary malformations a model
+actually produces already pass: a trailing comma, single quotes, unquoted keys, a missing closing
+brace, Python's literals.
+
+So this is real but bounded, and worth doing *after* the cheaper conformance work rather than before.
+Scope it by reaching only what `loads(text)` touches with default arguments — `parser_schema.py` and
+`schema_repair.py` are not on that path — and byte-verify against the pinned version the way `pyrng`
+and `tpe` are.
+
+`parse_fuzz.rs` already allows exactly this category and nothing else, so the day it lands the
+allowance can be deleted and the rule becomes "no disagreements at all".
 """
 
 [[story]]
