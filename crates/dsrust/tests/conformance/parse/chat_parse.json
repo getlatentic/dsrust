@@ -453,6 +453,258 @@
         "error": "AdapterParseError"
       },
       "diverges": false
+    },
+    {
+      "name": "json_plain",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{\"reasoning\": \"Because.\", \"answer\": \"Paris\"}",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_in_prose",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "Sure! {\"reasoning\": \"Because.\", \"answer\": \"Paris\"} there you go.",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_in_a_fence",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "```json\n{\"reasoning\": \"Because.\", \"answer\": \"Paris\"}\n```",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_nested_object_in_prose",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "text {\"reasoning\": {\"why\": \"Because.\"}, \"answer\": \"Paris\"} more",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "{'why': 'Because.'}",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_array_holding_the_object",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[{\"reasoning\": \"Because.\", \"answer\": \"Paris\"}]",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_trailing_comma",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{\"reasoning\": \"Because.\", \"answer\": \"Paris\",}",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_single_quotes",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{'reasoning': 'Because.', 'answer': 'Paris'}",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_unquoted_keys",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{reasoning: \"Because.\", answer: \"Paris\"}",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_missing_closing_brace",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{\"reasoning\": \"Because.\", \"answer\": \"Paris\"",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_python_literals",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{'reasoning': None, 'answer': 'Paris'}",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "None",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_extra_field",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{\"reasoning\": \"Because.\", \"answer\": \"Paris\", \"confidence\": \"high\"}",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_field_missing",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{\"answer\": \"Paris\"}",
+      "adapter": "json",
+      "chat": {
+        "ok": false,
+        "error": "AdapterParseError"
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_not_an_object_at_all",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "just some prose with no braces",
+      "adapter": "json",
+      "chat": {
+        "ok": false,
+        "error": "AdapterParseError"
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_empty",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "",
+      "adapter": "json",
+      "chat": {
+        "ok": false,
+        "error": "AdapterParseError"
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_typed_native",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "{\"answer\": \"Paris\", \"score\": 7, \"tags\": [\"a\", \"b\"]}",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_typed_as_strings",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "{\"answer\": \"Paris\", \"score\": \"7\", \"tags\": \"[\\\"a\\\", \\\"b\\\"]\"}",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_unescaped_quote_inside_a_string",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "{\"answer\": \"Paris\", \"score\": \"7\", \"tags\": \"[\"a\", \"b\"]\"}",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": true
+    },
+    {
+      "name": "json_typed_that_will_not_parse",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "{\"answer\": \"Paris\", \"score\": \"very high\", \"tags\": [\"a\"]}",
+      "adapter": "json",
+      "chat": {
+        "ok": false,
+        "error": "ValidationError"
+      },
+      "diverges": false
     }
   ]
 }

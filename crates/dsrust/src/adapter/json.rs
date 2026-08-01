@@ -82,12 +82,23 @@ impl Adapter for JsonAdapter {
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
-        super::parse::declared_fields(
+        let mut value = super::parse::declared_fields(
             signature,
             super::parse::parse_json(raw)?,
             "JSONAdapter",
             raw,
-        )
+        )?;
+        // dspy casts *every* field here with `parse_value(v, annotation)` — structured ones
+        // included, and unwrapped, so a value that will not fit raises rather than becoming an
+        // `AdapterParseError`. Two consequences worth naming: a `str` field handed an object comes
+        // back as Python's `str()` of it, `{'why': 'Because.'}` rather than JSON; and a `list[str]`
+        // handed the *text* that spells a list is read as the list.
+        //
+        // The full `coerce` rather than `coerce_scalars`, unlike the marker and tag paths: those
+        // two receive every field as text and cannot tell JSON from a type's own spelling, while a
+        // JSON reply has already told them apart.
+        signature.coerce(&mut value)?;
+        Ok(value)
     }
 
     fn output_mode<'a>(&self, schema: &'a Value) -> OutputMode<'a> {

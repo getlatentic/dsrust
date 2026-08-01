@@ -10,13 +10,16 @@
 //! before the first marker, an indented marker, a marker inside a value. For the XML one, whose scan
 //! is `<(?P<name>\w+)>(.*?)</\1>` under DOTALL: a non-greedy body, a same-name nest, a hyphenated
 //! name, an attribute, an unclosed tag, a mismatched close, and tags buried in prose. None of these
-//! are shapes the end-to-end tests produce, which is exactly why the parsers went unchecked.
+//! are shapes the end-to-end tests produce, which is exactly why the parsers went unchecked. And for
+//! the JSON one, which is `json_repair.loads` followed by a *recursive* brace regex when that did not
+//! yield an object: an object buried in prose or a fence, a nested object, an array holding one, a
+//! trailing comma, single quotes, unquoted keys, a missing brace, and Python's literals.
 //!
 //! **Refusals are compared too.** A reply the crate accepts where dspy raises reaches the caller as
 //! a wrong value instead of an error, which is the worse direction to diverge in.
 
 use dsrust::signature::Signature;
-use dsrust::{Adapter, ChatAdapter, XmlAdapter};
+use dsrust::{Adapter, ChatAdapter, JsonAdapter, XmlAdapter};
 use serde_json::Value;
 
 fn fixture() -> Value {
@@ -45,19 +48,22 @@ fn the_parser_reads_what_dspys_reads_and_refuses_what_dspy_refuses() {
 
         let adapter: Box<dyn Adapter> = match case["adapter"].as_str().unwrap_or("chat") {
             "xml" => Box::new(XmlAdapter::default()),
+            "json" => Box::new(JsonAdapter::default()),
             _ => Box::new(ChatAdapter::default()),
         };
         let ours = adapter.parse(&signature, completion);
         match expected["ok"].as_bool().expect("ok") {
             true if case["diverges"].as_bool().unwrap_or(false) => {
-                // Accepted by both, but the crate hands back the text a scalar was written as
-                // where dspy hands back the cast value. Same cause as the refusals below.
+                // dspy accepts this and the crate does not agree — either it refuses, or it hands
+                // back a different value. Asserted as *disagreement* rather than as a specific
+                // wrong answer, so the case still says something while staying honest about which
+                // way it differs.
                 diverging += 1;
-                let ours = ours.expect("the crate parses this");
-                assert_ne!(
-                    ours, expected["fields"],
-                    "case {name}: this now matches dspy — resolve `parse-time-casting` and drop \
-                     the `diverges` flag"
+                let agrees = ours.as_ref().is_ok_and(|ours| *ours == expected["fields"]);
+                assert!(
+                    !agrees,
+                    "case {name}: this now matches dspy — drop its `diverges` flag in the generator \
+                     and let it be compared like the rest"
                 );
             }
             true => {
@@ -98,7 +104,7 @@ fn the_parser_reads_what_dspys_reads_and_refuses_what_dspy_refuses() {
         "the golden no longer exercises both arms: {accepted} accepted, {refused} refused"
     );
     assert_eq!(
-        diverging, 3,
-        "the recorded parse-time-casting divergences changed count; if one was fixed, say so"
+        diverging, 4,
+        "the recorded divergences changed count; if one was fixed, say so"
     );
 }

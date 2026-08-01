@@ -94,6 +94,62 @@ XML_CASES = [
     ),
 ]
 
+#: `JSONAdapter.parse` is `json_repair.loads`, then — if that did not yield a dict — a *recursive*
+#: brace regex to pull the outermost object out of surrounding text and repair that, then a filter to
+#: the declared fields, then a cast. Each case below is one of those steps.
+JSON_CASES = [
+    ("json_plain", QA, '{"reasoning": "Because.", "answer": "Paris"}'),
+    # Not a dict at the top: the brace regex has to find the object inside.
+    ("json_in_prose", QA, 'Sure! {"reasoning": "Because.", "answer": "Paris"} there you go.'),
+    ("json_in_a_fence", QA, '```json\n{"reasoning": "Because.", "answer": "Paris"}\n```'),
+    # The regex is recursive, so a nested object does not stop the outer match early.
+    (
+        "json_nested_object_in_prose",
+        QA,
+        'text {"reasoning": {"why": "Because."}, "answer": "Paris"} more',
+    ),
+    ("json_array_holding_the_object", QA, '[{"reasoning": "Because.", "answer": "Paris"}]'),
+    # Shapes json_repair fixes rather than refuses.
+    ("json_trailing_comma", QA, '{"reasoning": "Because.", "answer": "Paris",}'),
+    ("json_single_quotes", QA, "{'reasoning': 'Because.', 'answer': 'Paris'}"),
+    ("json_unquoted_keys", QA, '{reasoning: "Because.", answer: "Paris"}'),
+    ("json_missing_closing_brace", QA, '{"reasoning": "Because.", "answer": "Paris"'),
+    ("json_python_literals", QA, "{'reasoning': None, 'answer': 'Paris'}"),
+    # Filtered, not refused.
+    ("json_extra_field", QA, '{"reasoning": "Because.", "answer": "Paris", "confidence": "high"}'),
+    ("json_field_missing", QA, '{"answer": "Paris"}'),
+    ("json_not_an_object_at_all", QA, "just some prose with no braces"),
+    ("json_empty", QA, ""),
+    # Typed values, native and as the strings a model often writes.
+    (
+        "json_typed_native",
+        Typed,
+        '{"answer": "Paris", "score": 7, "tags": ["a", "b"]}',
+    ),
+    (
+        "json_typed_as_strings",
+        Typed,
+        # Built rather than written out: a `tags` whose value is a *string* containing JSON
+        # needs escaped quotes, and spelling those in a literal is how this case silently
+        # became malformed instead of testing what it meant to.
+        json.dumps({"answer": "Paris", "score": "7", "tags": json.dumps(["a", "b"])}),
+    ),
+    (
+        # The malformed shape that mistake produced, kept because it is a real one:
+        # `json_repair` recovers an unescaped quote inside a string and this crate's repair
+        # does not. Recorded as a divergence rather than chased — matching json_repair in full
+        # is a library, not a fix.
+        "json_unescaped_quote_inside_a_string",
+        Typed,
+        '{"answer": "Paris", "score": "7", "tags": "["a", "b"]"}',
+    ),
+    (
+        "json_typed_that_will_not_parse",
+        Typed,
+        '{"answer": "Paris", "score": "very high", "tags": ["a"]}',
+    ),
+]
+
 #: (name, signature, completion). Each is a branch of `parse`, not a plausible reply.
 CASES = [
     ("plain", QA, "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]"),
@@ -168,6 +224,11 @@ CASES = [
 ]
 
 
+def which(name: str) -> str:
+    """Which adapter a case belongs to, by its name's prefix."""
+    return name.split("_", 1)[0] if name.startswith(("xml_", "json_")) else "chat"
+
+
 def spelling(annotation) -> str:
     """The annotation as a signature string spells it: `list[str]`, not `list`."""
     text = str(annotation)
@@ -189,7 +250,7 @@ def main() -> None:
         "xml": dspy.XMLAdapter(),
     }
     cases = []
-    for name, signature, completion in CASES + XML_CASES:
+    for name, signature, completion in CASES + XML_CASES + JSON_CASES:
         cases.append(
             {
                 "name": name,
@@ -206,17 +267,20 @@ def main() -> None:
                     ]
                 ),
                 "completion": completion,
-                "adapter": "xml" if name.startswith("xml_") else "chat",
-                "chat": parsed(
-                    adapters["xml" if name.startswith("xml_") else "chat"], signature, completion
-                ),
+                "adapter": which(name),
+                "chat": parsed(adapters[which(name)], signature, completion),
                 # The crate casts a scalar during *validation* rather than during parse. So a good
                 # `int` comes back as the text that spells it, and the two values that will not fit
                 # are accepted here and fail later with a typed message instead of at parse.
                 # Recorded as a divergence so the comparison stays honest and turns red when
                 # `parse-time-casting` resolves it, rather than being quietly skipped.
                 "diverges": name
-                in {"typed_fields", "typed_field_that_will_not_parse", "typed_field_empty"},
+                in {
+                    "typed_fields",
+                    "typed_field_that_will_not_parse",
+                    "typed_field_empty",
+                    "json_unescaped_quote_inside_a_string",
+                },
             }
         )
 

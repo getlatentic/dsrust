@@ -391,7 +391,7 @@ id = "parse-side-goldens"
 sprint = "conformance"
 title = "Nineteen fixtures pin what we send and none pin what we read"
 state = "in-progress"
-progress = "ChatAdapter and XMLAdapter parse goldens landed 2026-08-01, 34 cases. parse.rs survivors 35 -> 6. JSONAdapter remains."
+progress = "All three parse goldens landed 2026-08-01, 51 cases. parse.rs survivors 35 -> 6. The differential fuzzer remains."
 size = "M"
 suites = []
 plan = """
@@ -463,9 +463,29 @@ was anything that would fail rather than hang.
 **Measured after: 35 survivors down to 6 missed** (with 24 non-terminating). The 34-case golden is
 what closed them.
 
-Remaining: `JSONAdapter`, and then the differential fuzzer this corpus argues for — the cases here
-were each chosen by reading a branch, which is exactly the method that leaves the branches nobody
-thought of.
+**The JSON half landed, and it was the one with real divergences in it.** Seventeen cases from
+`json_repair.loads` followed by a recursive brace regex: an object buried in prose or a fence, a
+nested object, an array holding one, a trailing comma, single quotes, unquoted keys, a missing brace,
+Python's literals. Three genuine differences, all fixed:
+
+  - **A `str` field handed an object** came back as JSON. dspy's `parse_value(v, str)` is Python's
+    `str()`, so it is `{'why': 'Because.'}` — single quotes, `None`, `True`. The `python::repr`
+    written for the dataset summary turned out to be exactly what this needed.
+  - **A top-level array was accepted as an answer.** dspy asks `isinstance(fields, dict)` and falls
+    through to the brace search when it is not, so `[{"answer": "Paris"}]` reaches the object inside.
+    The crate took the array and then failed on it.
+  - **A structured field handed the text that spells it** stayed text. The JSON path now uses the
+    full `coerce` rather than `coerce_scalars`, which the other two paths cannot: they receive every
+    field as text and cannot tell JSON from a type's own spelling, where a JSON reply has already
+    told them apart.
+
+One divergence recorded rather than closed: `json_repair` recovers an unescaped quote inside a
+string and this crate's repair does not. Matching json_repair in full is a library, not a fix.
+
+Remaining: the differential fuzzer this corpus argues for. Every case here was chosen by reading a
+branch, which is exactly the method that leaves the branches nobody thought of — and the setup is
+ideal for it, since both sides are pure functions from a string to a value-or-error with a reference
+implementation to hand.
 """
 
 [[story]]

@@ -262,7 +262,16 @@ fn quoted_member(value: &str) -> String {
 pub(crate) fn coerce_value(kind: &FieldKind, name: &str, value: &mut Value) -> Result<()> {
     match kind {
         // `Reasoning` carries its content as text, exactly as a `Str` does.
-        FieldKind::Str | FieldKind::Reasoning => Ok(()),
+        //
+        // A value that is not already text becomes text the way Python's `str()` does, which is
+        // what `parse_value(v, str)` calls: a JSON adapter can hand a `str` field a whole object,
+        // and dspy renders it `{'why': 'Because.'}` — single quotes, `None`, `True` — not as JSON.
+        FieldKind::Str | FieldKind::Reasoning => {
+            if !value.is_string() {
+                *value = Value::String(crate::python::repr(value));
+            }
+            Ok(())
+        }
         FieldKind::Bool => coerce_bool(name, value),
         FieldKind::Int => coerce_int(name, value),
         FieldKind::Float => coerce_float(name, value),

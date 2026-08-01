@@ -254,24 +254,36 @@ pub(super) fn declared_fields(
 }
 
 pub(super) fn parse_json(raw: &str) -> Result<Value> {
-    if let Ok(value) = serde_json::from_str(raw) {
+    // dspy reads the whole reply, and then asks `isinstance(fields, dict)` — a reply that parses as
+    // an *array* or a scalar is not an answer, so it falls through to the brace search below rather
+    // than being handed on. `[{"answer": "Paris"}]` is a real reply shape and reaches the object
+    // that way.
+    if let Ok(value) = serde_json::from_str::<Value>(raw)
+        && value.is_object()
+    {
         return Ok(value);
     }
     if let (Some(start), Some(end)) = (raw.find('{'), raw.rfind('}'))
         && start < end
     {
         let embedded = &raw[start..=end];
-        if let Ok(value) = serde_json::from_str(embedded) {
+        if let Ok(value) = serde_json::from_str::<Value>(embedded)
+            && value.is_object()
+        {
             return Ok(value);
         }
         // A model asked for JSON often answers in Python's spelling instead, which upstream
         // reads through json-repair before deciding the reply failed. The same reading already
         // serves the marker adapter's structured fields.
-        if let Some(value) = repair::python_literal(embedded) {
+        if let Some(value) = repair::python_literal(embedded)
+            && value.is_object()
+        {
             return Ok(value);
         }
     }
-    if let Some(value) = repair::python_literal(raw) {
+    if let Some(value) = repair::python_literal(raw)
+        && value.is_object()
+    {
         return Ok(value);
     }
     Err(anyhow!("model returned invalid JSON"))
