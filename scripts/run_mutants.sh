@@ -37,11 +37,26 @@ cd "$ROOT"
 #                    intersection tie was in that list and is not any more — see the note in
 #                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
 #                    finished state.
+#   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours. Run it
+#               scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
+#               history, parse) measured 43 of 143 viable on 2026-08-01, 35 of them in `parse.rs`,
+#               because nineteen fixtures pin the prompt this crate *sends* and none pin what it
+#               *reads*. Filed as `parse-side-goldens`; no ratchet entry until that lands, since a
+#               five-hour floor nobody runs is not a gate.
 BASELINES=(
   "dsrust-tpe:1"
   "pyrng:4"
   "dsrust-gepa:46"
 )
+
+# This machine points `build.build-dir` at a shared cache outside the project, which defeats
+# cargo-mutants' isolation: it copies the source tree, but every copy then compiles into the *same*
+# build dir as the real one, and a mutated rlib gets linked into an ordinary `cargo test` afterwards.
+# That is not hypothetical — it left `xyzzy`, the mutation marker, in a BAML prompt assertion and
+# forty-one tests failing with the working tree clean. A per-run build dir keeps the copies to
+# themselves.
+export CARGO_BUILD_BUILD_DIR="${TMPDIR:-/tmp}/dsrs-mutants-build"
+mkdir -p "$CARGO_BUILD_BUILD_DIR"
 
 if ! cargo mutants --version > /dev/null 2>&1; then
   echo "cargo-mutants is not installed: cargo install cargo-mutants --locked" >&2

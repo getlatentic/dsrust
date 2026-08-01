@@ -387,6 +387,45 @@ was generated under, so it surfaces as a diff here rather than as a sandbox synt
 """
 
 [[story]]
+id = "parse-side-goldens"
+sprint = "conformance"
+title = "Nineteen fixtures pin what we send and none pin what we read"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+Measured 2026-08-01 by mutation testing the byte-critical adapter path — `chat.rs`, `prompt.rs`,
+`exchange.rs`, `demos.rs`, `history.rs`, `parse.rs`. **43 survivors of 143 viable mutants, 35 of them
+in `parse.rs` and 20 in `next_tag` alone.**
+
+The cause is structural rather than a scatter of missing cases. Nineteen adapter fixtures record
+`expected_system` and `expected_turns` — the rendered prompt. **None record a parsed reply.** The
+claim this project makes is that the bytes match dspy's in both directions, and only one direction
+has an oracle. `next_tag` can have its arithmetic changed almost arbitrarily, or return
+`Some(("xyzzy", "xyzzy", "xyzzy"))` outright, with 1078 tests still green.
+
+The parser is exercised, but only incidentally: end-to-end tests script a reply, and every scripted
+reply is well-formed. Nothing shows it a reply with a marker in the prose, an unterminated block, a
+field out of order, an unknown field, a repeated field, or the whitespace variations a real model
+produces — which is exactly the corpus `parse` exists for.
+
+The work is the mirror of `generate_fixtures.py`: a corpus of raw completion strings, run through
+dspy's own `ChatAdapter.parse` / `JSONAdapter.parse` / `XMLAdapter.parse`, recording what each
+returns *and what it raises*. The failures matter as much as the successes here — a reply the crate
+accepts and dspy rejects is a divergence that reaches the caller as a wrong value rather than an
+error.
+
+Corpus shapes that must be in it, since each is a survivor today: a marker string appearing inside a
+field's value; a field whose block never closes; fields in a different order from the signature;
+a field the signature does not declare; the same field twice; leading and trailing blank lines
+around a marker; and `[[ ## completed ## ]]` missing entirely.
+
+Expect this to close most of the 35 and to find divergences on the way — the same shape as
+`citations-native`, where comparing whole prompts rather than a `contains` found a missing type line
+and a reordered schema note.
+"""
+
+[[story]]
 id = "can-the-suite-fail"
 sprint = "conformance"
 title = "Measure whether the conformance suite can fail, rather than that it passes"

@@ -18,3 +18,8 @@ default-members = [
 # to change nothing. It has to live here, in the root.
 [profile.release]
 strip = "none"
+
+# Full debug info dominates target/debug (25 GiB at its peak). Line tables keep
+# file/line in backtraces and panics, which is all this suite reads.
+[profile.dev]
+debug = "line-tables-only"
