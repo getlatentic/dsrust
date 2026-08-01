@@ -63,12 +63,17 @@ COVERAGE_FLOOR = {
 
 
 def run(case: Case) -> dict[str, object]:
-    """What `json_repair` answers for one case, or how it refuses."""
+    """What `json_repair` answers for one case, or how it refuses.
+
+    The **repair log** is recorded alongside the value, and it is the more discriminating of the
+    two: it names which branch the parser took to get there, so a port that reaches the right
+    answer by the wrong route is still caught. A value alone cannot tell those apart.
+    """
     try:
-        value = json_repair.loads(case.text, **case.options)
+        value, log = json_repair.loads(case.text, logging=True, **case.options)
     except Exception as error:  # noqa: BLE001 — the refusal itself is the record
         return {"ok": False, "error": type(error).__name__, "message": str(error)}
-    return {"ok": True, "dumps": json.dumps(value)}
+    return {"ok": True, "dumps": json.dumps(value), "log": log}
 
 
 def traced_line_counts() -> dict[str, int]:

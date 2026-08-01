@@ -20,7 +20,7 @@ use crate::parser::{LogEntry, Parser};
 use crate::value::Value;
 use crate::{Error, LogSink, Result, Schema};
 
-pub use validate::SchemaValidator;
+pub use validate::{SchemaValidator, ValidationError};
 
 /// How hard the repairer tries before giving up on a value.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

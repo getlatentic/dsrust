@@ -37,6 +37,15 @@ fn answer(case: &Json) -> Result<String, String> {
         .map_err(|error| error.message().to_owned())
 }
 
+/// The repair log, as the fixture spells it: one `{"text", "context"}` object per entry.
+fn repair_log(case: &Json) -> Vec<Json> {
+    let input = case["input"].as_str().expect("an input");
+    let (_, log) = options(case).loads_logged(input).expect("this case parses");
+    log.into_iter()
+        .map(|entry| serde_json::json!({ "text": entry.text, "context": entry.context }))
+        .collect()
+}
+
 #[test]
 fn every_recorded_input_parses_to_the_bytes_json_repair_produced() {
     let fixture = fixture();
@@ -77,6 +86,69 @@ fn every_recorded_input_parses_to_the_bytes_json_repair_produced() {
         "only {checked} cases — the fixture is not the one that was generated"
     );
     eprintln!("  {checked} cases against {}", fixture["source"]);
+}
+
+#[test]
+fn repair_json_returns_the_text_json_dumps_writes() {
+    // `repair_json` is `loads` written back out, which is the same bytes the fixture already
+    // records — except for the empty string, which upstream returns as itself rather than as a
+    // pair of quotes, and which nothing else in the suite reaches.
+    let fixture = fixture();
+    let mut empty_strings = 0;
+    for case in fixture["cases"].as_array().expect("cases") {
+        if case.get("diverges").is_some() || !case["ok"].as_bool().expect("ok") {
+            continue;
+        }
+        let name = case["name"].as_str().expect("a name");
+        let input = case["input"].as_str().expect("an input");
+        let ours = options(case).repair_json(input).expect("this case parses");
+        let dumped = case["dumps"].as_str().expect("a dumps");
+        if dumped == "\"\"" {
+            assert_eq!(ours, "", "{name}: the empty string comes back as itself");
+            empty_strings += 1;
+            continue;
+        }
+        assert_eq!(ours, dumped, "{name}");
+    }
+    assert!(
+        empty_strings > 0,
+        "no case reaches the empty-string branch, so it is untested"
+    );
+}
+
+#[test]
+fn every_repair_is_logged_the_way_json_repair_logs_it() {
+    // The stronger of the two oracles. A value says where the parse arrived; the log says which
+    // branch it took to get there, so a port that reaches the right answer by the wrong route is
+    // caught here and nowhere else. The context window — ten code points either side of the
+    // cursor — pins *where* it was when it decided.
+    let fixture = fixture();
+    let mut entries = 0;
+    for case in fixture["cases"].as_array().expect("cases") {
+        if case.get("diverges").is_some() || !case["ok"].as_bool().expect("ok") {
+            continue;
+        }
+        let name = case["name"].as_str().expect("a name");
+        let expected = case["log"].as_array().expect("a log");
+        let ours = repair_log(case);
+        assert_eq!(
+            ours.len(),
+            expected.len(),
+            "{name}: {} log entries against json_repair's {}\n  ours: {ours:#?}\n  theirs: {expected:#?}",
+            ours.len(),
+            expected.len(),
+        );
+        assert_eq!(&ours, expected, "{name}: the repairs differ");
+        entries += ours.len();
+    }
+    // Cases that repair *nothing* log nothing, so a fixture of only-valid inputs would pass this
+    // while pinning no branch at all. A floor at the measured count rather than a round number:
+    // adding cases raises it, and losing coverage fails here instead of quietly passing.
+    assert!(
+        entries >= 191,
+        "only {entries} logged repairs across the corpus"
+    );
+    eprintln!("  {entries} logged repairs match");
 }
 
 #[test]

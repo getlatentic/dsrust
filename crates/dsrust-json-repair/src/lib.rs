@@ -44,7 +44,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub use parser::LogEntry;
-pub use schema::{SchemaRepairMode, SchemaValidator};
+pub use schema::{SchemaRepairMode, SchemaValidator, ValidationError};
 pub use value::{Object, Value};
 
 /// The delimiters a string may open or close with, smart quotes among them.
@@ -64,32 +64,62 @@ pub(crate) type Schema = Value;
 /// The repair log, shared between the parser and the schema repairer as upstream shares one list.
 pub(crate) type LogSink = Option<Rc<RefCell<Vec<LogEntry>>>>;
 
-/// A refusal, carrying the message upstream's `ValueError` carries.
+/// A refusal, carrying the message upstream's exception carries.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Error {
     message: String,
-    definition: bool,
+    kind: Kind,
+}
+
+/// Which of upstream's exceptions this is, which decides where it is *caught*.
+///
+/// `except ValueError` appears at six places in the library and each one changes the answer, so
+/// the distinction is not cosmetic: a schema branch that fails is tried again, and a validator
+/// that cannot answer at all is not.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kind {
+    /// A `ValueError`: the ordinary refusal, caught wherever upstream catches one.
+    Value,
+    /// `SchemaDefinitionError`, a `ValueError` subclass the array and list-mapping paths re-raise
+    /// before they would catch it — but which the union branches do *not*, since they catch the
+    /// base class alone.
+    Definition,
+    /// Something that is not a `ValueError` at all — `jsonschema` refusing a schema it cannot
+    /// read, which nothing in `json_repair` catches and which reaches the caller.
+    Foreign,
 }
 
 impl Error {
     pub(crate) fn new(message: &str) -> Self {
         Self {
             message: message.to_owned(),
-            definition: false,
+            kind: Kind::Value,
         }
     }
 
-    /// `SchemaDefinitionError`: the schema itself is wrong, which the union branches re-raise
-    /// rather than treating as "this branch did not match".
+    /// `SchemaDefinitionError`: the schema itself is wrong.
     pub(crate) fn definition(message: &str) -> Self {
         Self {
             message: message.to_owned(),
-            definition: true,
+            kind: Kind::Definition,
+        }
+    }
+
+    /// The validator could not answer, which is not a refusal of the value.
+    pub(crate) fn foreign(message: &str) -> Self {
+        Self {
+            message: message.to_owned(),
+            kind: Kind::Foreign,
         }
     }
 
     pub(crate) fn is_definition(&self) -> bool {
-        self.definition
+        self.kind == Kind::Definition
+    }
+
+    /// Whether `except ValueError` would let this through.
+    pub(crate) fn is_foreign(&self) -> bool {
+        self.kind == Kind::Foreign
     }
 
     pub fn message(&self) -> &str {
@@ -201,7 +231,7 @@ impl Repair {
         }
         let repairer = self.repairer(sink.clone())?;
 
-        if let Some(value) = self.try_whole_input(text, repairer.as_deref()) {
+        if let Some(value) = self.try_whole_input(text, repairer.as_deref())? {
             let log = sink.map(|sink| sink.borrow().clone()).unwrap_or_default();
             return Ok((value, log));
         }
@@ -234,33 +264,45 @@ impl Repair {
 
     /// The `json.loads` fast path, and the schema pass over what it returns.
     ///
-    /// Every refusal here is swallowed, upstream's `except (JSONDecodeError, TypeError,
-    /// ValueError)` included — so a schema repairer with no validator falls through to the parser
-    /// rather than raising, and raises later where `validate` is not guarded.
+    /// Upstream wraps all of this in `except (JSONDecodeError, TypeError, ValueError)`, so a
+    /// refusal here is not a refusal of the input — it falls through to the parser. A repairer
+    /// with no validator raises a `ValueError` and takes that route, and raises for real later,
+    /// where the final `validate` is not guarded. What that `except` does *not* cover is a
+    /// validator that could not read the schema, which reaches the caller from here.
     fn try_whole_input(
         &self,
         text: &str,
         repairer: Option<&schema::SchemaRepairer>,
-    ) -> Option<Value> {
+    ) -> Result<Option<Value>> {
         if self.skip_json_loads {
-            return None;
+            return Ok(None);
         }
-        let parsed = strict_json::loads(&text.chars().collect::<Vec<_>>()).ok()?;
-        let (Some(repairer), Some(schema)) = (repairer, &self.schema) else {
-            return Some(parsed);
+        let Ok(parsed) = strict_json::loads(&text.chars().collect::<Vec<_>>()) else {
+            return Ok(None);
         };
-        if repairer.is_valid(&parsed, Some(schema)).ok()? {
-            return Some(parsed);
+        let (Some(repairer), Some(schema)) = (repairer, &self.schema) else {
+            return Ok(Some(parsed));
+        };
+        if caught(repairer.is_valid(&parsed, Some(schema)))?.unwrap_or(false) {
+            return Ok(Some(parsed));
         }
         // A value the schema rejects is repaired and re-checked, and only a value that passes the
         // second check skips the parser.
-        let repaired = repairer
-            .repair_value(Some(parsed), Some(schema), "$")
-            .ok()?;
-        repairer
-            .is_valid(&repaired, Some(schema))
-            .ok()?
-            .then_some(repaired)
+        let Some(repaired) = caught(repairer.repair_value(Some(parsed), Some(schema), "$"))? else {
+            return Ok(None);
+        };
+        let valid = caught(repairer.is_valid(&repaired, Some(schema)))?.unwrap_or(false);
+        Ok(valid.then_some(repaired))
+    }
+}
+
+/// `except (JSONDecodeError, TypeError, ValueError): pass`, and the inner `except ValueError`
+/// around the repair attempt — the same set either way. Anything else propagates.
+fn caught<T>(outcome: Result<T>) -> Result<Option<T>> {
+    match outcome {
+        Ok(value) => Ok(Some(value)),
+        Err(error) if error.is_foreign() => Err(error),
+        Err(_) => Ok(None),
     }
 }
 

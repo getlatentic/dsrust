@@ -9,13 +9,37 @@
 use crate::value::Value;
 use crate::{Error, Result};
 
+/// Why a validator would not pass a value.
+///
+/// The two are not interchangeable. `json_repair` catches `ValueError` in six places, and
+/// `jsonschema`'s `ValidationError` is re-raised as one — so a union branch that fails is simply
+/// the next branch's turn. A validator that cannot *read* the schema raises something else
+/// entirely, which nothing catches and which reaches the caller.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ValidationError {
+    /// The value does not satisfy the schema.
+    Invalid(String),
+    /// The schema itself could not be read — `jsonschema` answers `{"type": "date"}` this way.
+    Unreadable(String),
+}
+
+impl ValidationError {
+    fn into_error(self) -> Error {
+        match self {
+            ValidationError::Invalid(message) => Error::new(&message),
+            ValidationError::Unreadable(message) => Error::foreign(&message),
+        }
+    }
+}
+
 /// Whether a value satisfies a schema. One implementation of `jsonschema`'s two entry points.
 pub trait SchemaValidator {
     /// `validator.is_valid(value)`.
-    fn is_valid(&self, value: &Value, schema: &Value) -> bool;
+    fn is_valid(&self, value: &Value, schema: &Value)
+    -> std::result::Result<bool, ValidationError>;
 
     /// `validator.validate(value)`, whose message becomes the `ValueError`'s.
-    fn validate(&self, value: &Value, schema: &Value) -> std::result::Result<(), String>;
+    fn validate(&self, value: &Value, schema: &Value) -> std::result::Result<(), ValidationError>;
 }
 
 impl super::SchemaRepairer {
@@ -23,7 +47,10 @@ impl super::SchemaRepairer {
         match self.resolve_schema(schema)? {
             Value::Bool(true) => Ok(true),
             Value::Bool(false) => Ok(false),
-            resolved => Ok(self.require_validator()?.is_valid(value, &resolved)),
+            resolved => self
+                .require_validator()?
+                .is_valid(value, &resolved)
+                .map_err(ValidationError::into_error),
         }
     }
 
@@ -34,7 +61,7 @@ impl super::SchemaRepairer {
             resolved => self
                 .require_validator()?
                 .validate(value, &resolved)
-                .map_err(|message| Error::new(&message)),
+                .map_err(ValidationError::into_error),
         }
     }
 

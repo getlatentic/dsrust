@@ -184,7 +184,7 @@ impl SchemaRepairer {
             let key_path = format!("{path}.{key}");
             match self.repair_value(Some(item.clone()), Some(prop_schema), &key_path) {
                 Ok(value) => mapped.insert(key.to_owned(), value),
-                Err(error) if error.is_definition() => return Err(error),
+                Err(error) if error.is_definition() || error.is_foreign() => return Err(error),
                 Err(_) => return Ok(None),
             }
         }

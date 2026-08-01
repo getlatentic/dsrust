@@ -1,0 +1,139 @@
+"""The schema-guided cases `generate_json_repair_schema_fixture.py` runs.
+
+One group per decision in `schema_repair.py` and `parser_schema.py`, named for the decision rather
+than for the shape of the input. The generator refuses to write a fixture whose cases between them
+skip a keyword named there, which is what keeps this list from drifting into whatever still passes.
+"""
+
+from __future__ import annotations
+
+
+def case(name: str, why: str, schema: object, text: str, mode: str = "standard") -> dict:
+    return {"name": name, "why": why, "schema": schema, "input": text, "mode": mode}
+
+
+COERCION = [
+    case("number_to_string", "a number where a string was declared", {"type": "string"}, "7"),
+    case("string_to_integer", "and the reverse", {"type": "integer"}, '"7"'),
+    case("float_to_integer", "a whole float narrows", {"type": "integer"}, "7.0"),
+    case("float_that_will_not_narrow", "and a fractional one does not", {"type": "integer"}, "7.5"),
+    case("string_to_number", "a decimal in quotes", {"type": "number"}, '"1.5"'),
+    case("yes_is_true", "one of the ten spellings a boolean takes", {"type": "boolean"}, '"yes"'),
+    case("bool_is_not_an_integer", "even though Python says True == 1", {"type": "integer"}, "true"),
+    case("null_type", "the only value a null schema takes", {"type": "null"}, "null"),
+    case("unsupported_type", "a type the coercions have no rule for", {"type": "date"}, '"today"'),
+]
+
+OBJECTS = [
+    case("required_present", "the ordinary path",
+         {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["a"]}, '{a: "1"}'),
+    case("required_missing", "a required property with nothing to fill it",
+         {"type": "object", "properties": {"a": {"type": "integer"}}, "required": ["a"]}, "{}"),
+    # There are two default-insertion paths and `{}` reaches neither: it is valid JSON *and* valid
+    # against the schema, so the fast path hands it back untouched. Each case below is shaped to
+    # reach one of them — the parser's `_finalize_object`, and the repairer's `_repair_object`.
+    case("default_inserted_while_parsing", "the parser fills an absent optional",
+         {"type": "object", "properties": {"a": {"type": "integer", "default": 3}}}, "{b: 1"),
+    case("default_inserted_while_repairing", "and so does the repair pass over a valid-JSON value "
+         "the schema rejected",
+         {"type": "object", "properties": {"a": {"type": "integer", "default": 3},
+                                           "b": {"type": "integer"}}, "required": ["b"]},
+         '{"b": "1"}'),
+    case("value_missing_takes_default", "a member with no value at all takes it too",
+         {"type": "object", "properties": {"a": {"type": "integer", "default": 3}}}, '{"a": }'),
+    case("additional_properties_false", "a key the schema forbids is dropped",
+         {"type": "object", "properties": {"a": {"type": "integer"}}, "additionalProperties": False},
+         '{a: 1, b: 2}'),
+    case("additional_properties_schema", "and one it constrains is coerced",
+         {"type": "object", "properties": {}, "additionalProperties": {"type": "string"}}, "{a: 1}"),
+    case("pattern_properties", "a key matched by an anchored literal",
+         {"type": "object", "patternProperties": {"^id": {"type": "string"}}}, "{id_x: 7}"),
+    case("pattern_properties_unsupported", "a real regex, which is skipped rather than matched",
+         {"type": "object", "patternProperties": {"^a.*z$": {"type": "string"}}}, "{abcz: 7}"),
+    case("min_properties", "an object that does not carry enough",
+         {"type": "object", "minProperties": 2, "properties": {"a": {"type": "integer"}}}, "{a: 1}"),
+    case("object_from_json_string", "a value that is an object inside quotes",
+         {"type": "object", "properties": {"a": {"type": "integer"}}}, '"{\\"a\\": 1}"'),
+]
+
+ARRAYS = [
+    case("items_schema", "one schema for every item",
+         {"type": "array", "items": {"type": "integer"}}, '["1", "2"]'),
+    case("items_tuple", "a schema per position",
+         {"type": "array", "items": [{"type": "string"}, {"type": "integer"}]}, "[1, '2']"),
+    case("additional_items_false", "a tuple that forbids the rest",
+         {"type": "array", "items": [{"type": "string"}], "additionalItems": False}, "['a', 'b']"),
+    case("additional_items_schema", "and one that constrains them",
+         {"type": "array", "items": [{"type": "string"}], "additionalItems": {"type": "integer"}},
+         "['a', '2']"),
+    case("min_items", "an array that is too short", {"type": "array", "minItems": 3}, "[1, 2"),
+    case("wrapped_in_array", "a scalar where an array was declared",
+         {"type": "array", "items": {"type": "integer"}}, "7"),
+    case("array_from_json_string", "an array inside quotes",
+         {"type": "array", "items": {"type": "integer"}}, '"[1, 2]"'),
+]
+
+UNIONS = [
+    case("one_of_second_branch", "the first branch fails and the second takes it",
+         {"oneOf": [{"type": "integer"}, {"type": "string"}]}, '"abc"'),
+    case("any_of_no_branch", "neither branch takes it",
+         {"anyOf": [{"type": "integer"}, {"type": "boolean"}]}, '"abc"'),
+    case("all_of", "every subschema applied in turn",
+         {"allOf": [{"type": "string"}, {"enum": ["7"]}]}, "7"),
+    case("type_union", "a `type` that lists several", {"type": ["integer", "string"]}, '"abc"'),
+    case("type_union_first_wins", "and the first that fits wins",
+         {"type": ["integer", "string"]}, '"12"'),
+    # `_repair_union` catches plain `ValueError`, and `SchemaDefinitionError` is one — so a broken
+    # subschema is *not* re-raised here the way it is inside an array or a list mapping. The port
+    # had it the other way round until this case existed.
+    # The input has to be *malformed*, or the whole-input fast path asks the validator about the
+    # union before the repairer ever gets to the branches — which is what the first attempt at this
+    # case did, and it proved nothing.
+    case("one_of_with_a_broken_branch", "a subschema the repairer cannot read is a branch that "
+         "failed, not an error",
+         {"type": "object", "properties": {"a": {"oneOf": [{"type": "date"}, {"type": "string"}]}}},
+         "{a: 7"),
+]
+
+ENUMS_AND_REFS = [
+    case("enum_match", "a value that is one of them", {"enum": ["a", "b"]}, "'a'"),
+    case("enum_miss", "and one that is not", {"enum": ["a", "b"]}, "'c'"),
+    case("const_match", "a fixed value", {"const": 5}, "5"),
+    case("const_miss", "and the wrong one", {"const": 5}, "6"),
+    case("enum_fills_a_missing_value", "the first enum value stands in for nothing at all",
+         {"type": "object", "properties": {"a": {"enum": ["x", "y"]}}}, '{"a": }'),
+    case("ref_resolved", "a `$ref` into the root schema",
+         {"type": "object", "properties": {"a": {"$ref": "#/$defs/small"}},
+          "$defs": {"small": {"type": "integer"}}}, '{a: "4"}'),
+    case("ref_unresolvable", "a pointer to nothing",
+         {"type": "object", "properties": {"a": {"$ref": "#/$defs/missing"}}}, "{a: 1}"),
+    case("ref_not_local", "a pointer out of the document",
+         {"type": "object", "properties": {"a": {"$ref": "http://x/y"}}}, "{a: 1}"),
+    case("boolean_schema_true", "the schema that accepts anything", True, "{a: 1}"),
+    case("boolean_schema_false", "and the one that accepts nothing", False, "{a: 1}"),
+]
+
+SALVAGE = [
+    case("salvage_drops_a_bad_item", "an item that will not fit is dropped rather than fatal",
+         {"type": "array", "items": {"type": "integer"}}, '[1, "x", 3]', mode="salvage"),
+    case("salvage_fills_required", "a required property filled from its default",
+         {"type": "object", "properties": {"a": {"type": "integer", "default": 9}}, "required": ["a"]},
+         "{}", mode="salvage"),
+    case("salvage_fills_required_while_parsing", "the same fill, reached through the parser rather "
+         "than the repair pass — `_finalize_object` skips a *required* key, leaving it to salvage",
+         {"type": "object", "properties": {"a": {"type": "integer", "default": 9},
+                                           "b": {"type": "integer"}}, "required": ["a"]},
+         "{b: 1", mode="salvage"),
+    case("salvage_maps_a_list", "a list mapped onto the properties in order",
+         {"type": "object", "properties": {"a": {"type": "integer"}, "b": {"type": "string"}}},
+         "[1, 'x']", mode="salvage"),
+    case("salvage_unwraps_the_root", "a single-item root array unwrapped",
+         {"type": "object", "properties": {"a": {"type": "integer"}, "b": {"type": "integer"}}},
+         '[{"a": 1, "b": 2}]', mode="salvage"),
+    case("salvage_repairs_a_json_string", "a malformed object inside quotes, repaired first",
+         {"type": "object", "properties": {"a": {"type": "integer"}}}, "\"{a: 1\"", mode="salvage"),
+    case("salvage_set_like_object", "set-like members read as keys with null values",
+         {"type": "object", "properties": {"a": {}, "b": {}}}, '{"a", "b"}', mode="salvage"),
+]
+
+CASES: list[dict] = [*COERCION, *OBJECTS, *ARRAYS, *UNIONS, *ENUMS_AND_REFS, *SALVAGE]

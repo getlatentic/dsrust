@@ -95,7 +95,10 @@ impl SchemaRepairer {
                 });
             match candidate {
                 Ok(candidate) => return Ok(candidate),
-                Err(error) if error.is_definition() => return Err(error),
+                // `except ValueError` here, and nothing narrower: a `SchemaDefinitionError` is a
+                // `ValueError`, so this branch swallows it and tries the next subschema. Only
+                // something that is not a `ValueError` at all reaches the caller.
+                Err(error) if error.is_foreign() => return Err(error),
                 Err(error) => last_error = Some(error),
             }
         }
@@ -129,7 +132,10 @@ impl SchemaRepairer {
                 });
             match candidate {
                 Ok(candidate) => return Ok(candidate),
-                Err(error) if error.is_definition() => return Err(error),
+                // `except ValueError` here, and nothing narrower: a `SchemaDefinitionError` is a
+                // `ValueError`, so this branch swallows it and tries the next subschema. Only
+                // something that is not a `ValueError` at all reaches the caller.
+                Err(error) if error.is_foreign() => return Err(error),
                 Err(error) => last_error = Some(error),
             }
         }
@@ -263,7 +269,9 @@ impl SchemaRepairer {
     ) -> Result<Option<Value>> {
         match self.repair_value(Some(item), schema, item_path) {
             Ok(value) => Ok(Some(value)),
-            Err(error) if error.is_definition() || !self.salvages() => Err(error),
+            Err(error) if error.is_definition() || error.is_foreign() || !self.salvages() => {
+                Err(error)
+            }
             Err(_) => {
                 self.log("Dropped invalid array item while salvaging", item_path);
                 Ok(None)
