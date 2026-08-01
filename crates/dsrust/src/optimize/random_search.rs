@@ -41,6 +41,11 @@ pub struct BootstrapRandomSearch<M> {
     min_num_samples: usize,
     /// What a scoring pass is bounded by. See [`Scoring`](super::Scoring).
     scoring: super::Scoring,
+    /// dspy `labeled_sample`: whether the labels-only candidate draws its demos or takes the first
+    /// few. See [`labeled_sample`](Self::labeled_sample).
+    labeled_sample: bool,
+    /// dspy `restrict`: which seeds to attempt at all. See [`restrict`](Self::restrict).
+    restrict: Option<Vec<i64>>,
 }
 
 impl<M> BootstrapRandomSearch<M>
@@ -58,6 +63,8 @@ where
             stop_at_score: None,
             metric_threshold: None,
             min_num_samples: 1,
+            labeled_sample: true,
+            restrict: None,
             scoring: super::Scoring::default(),
         }
     }
@@ -105,9 +112,37 @@ where
         self
     }
 
-    /// dspy's seed sequence: the three baselines, then one per candidate program.
+    /// dspy `labeled_sample`: whether the labels-only candidate draws its demos at random or takes
+    /// the first few in order, on by default as upstream's is.
+    ///
+    /// It reaches one attempt of the search — seed `-2`, which is `LabeledFewShot` alone — and none
+    /// of the others, so turning it off changes one candidate out of `n + 3` rather than the run.
+    pub fn labeled_sample(mut self, labeled_sample: bool) -> Self {
+        self.labeled_sample = labeled_sample;
+        self
+    }
+
+    /// dspy `restrict`: attempt only these seeds, skipping the rest.
+    ///
+    /// The three baselines are `-3`, `-2` and `-1`; a candidate program is `0` upward. Unset
+    /// attempts them all, which is upstream's `restrict=None`.
+    ///
+    /// Skipping does not move the others: each shuffled attempt seeds its own generator with its own
+    /// seed, so what seed 4 draws is the same whether or not seed 3 ran. That is what makes this
+    /// usable for resuming a search or narrowing one, rather than a way to get a different answer.
+    pub fn restrict(mut self, seeds: impl IntoIterator<Item = i64>) -> Self {
+        self.restrict = Some(seeds.into_iter().collect());
+        self
+    }
+
+    /// dspy's seed sequence: the three baselines, then one per candidate program, less whatever
+    /// `restrict` excludes.
     fn seeds(&self) -> impl Iterator<Item = i64> + '_ {
-        -3..self.num_candidate_programs as i64
+        (-3..self.num_candidate_programs as i64).filter(move |seed| {
+            self.restrict
+                .as_ref()
+                .is_none_or(|only| only.contains(seed))
+        })
     }
 
     /// The trainset this seed bootstraps from, and how many demos it asks for.
@@ -156,7 +191,11 @@ where
             match seed {
                 // Zero-shot: the student as it came, with no demos at all.
                 -3 => {}
-                -2 => LabeledFewShot::new(self.max_labeled_demos).compile(student, trainset),
+                -2 => LabeledFewShot {
+                    sample: self.labeled_sample,
+                    ..LabeledFewShot::new(self.max_labeled_demos)
+                }
+                .compile(student, trainset),
                 // The unshuffled bootstrap, asking for the full demo budget rather than a draw.
                 -1 => {
                     self.bootstrap(self.max_bootstrapped_demos)
@@ -218,6 +257,116 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Which attempts each search makes, against the seeds dspy's own `score_data` recorded.
+    ///
+    /// `restrict` is only observable as which seeds are *absent*, so this compares the whole
+    /// sequence rather than a count — and the golden carries a case naming a seed the range never
+    /// reaches, which must be dropped rather than added or refused.
+    #[test]
+    fn the_attempts_are_the_ones_dspy_makes() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/conformance/optimize/random_search.json");
+        let text = std::fs::read_to_string(&path).expect("the random-search golden is committed");
+        let golden: serde_json::Value = serde_json::from_str(&text).expect("the golden parses");
+        let cases = golden["cases"].as_array().expect("cases");
+        assert!(!cases.is_empty(), "the golden records no cases");
+
+        for case in cases {
+            let mut search = BootstrapRandomSearch::new(|_: &Example, _: &Prediction| 0.0)
+                .num_candidate_programs(
+                    case["num_candidate_programs"].as_u64().expect("programs") as usize
+                );
+            if let Some(only) = case["restrict"].as_array() {
+                search = search.restrict(only.iter().map(|seed| seed.as_i64().expect("a seed")));
+            }
+            let theirs: Vec<i64> = case["seeds"]
+                .as_array()
+                .expect("seeds")
+                .iter()
+                .map(|seed| seed.as_i64().expect("a seed"))
+                .collect();
+            assert_eq!(
+                search.seeds().collect::<Vec<_>>(),
+                theirs,
+                "attempts for {case}"
+            );
+        }
+    }
+
+    /// `labeled_sample` reaches exactly one attempt — seed `-2`, the labels-only one — and is only
+    /// observable in the demos it keeps. The golden records both arms on a trainset where drawing
+    /// and taking-in-order disagree, and its generator refuses to write one where they do not.
+    #[tokio::test]
+    async fn labeled_sample_decides_what_the_labels_only_attempt_keeps() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/conformance/optimize/random_search.json");
+        let text = std::fs::read_to_string(&path).expect("the random-search golden is committed");
+        let golden: serde_json::Value = serde_json::from_str(&text).expect("the golden parses");
+        let trainset: Vec<Example> = golden["trainset"]
+            .as_array()
+            .expect("trainset")
+            .iter()
+            .map(|row| {
+                crate::example! {
+                    question: row["question"].clone(),
+                    answer: row["answer"].clone(),
+                }
+                .with_inputs(["question"])
+            })
+            .collect();
+
+        let mut compared = 0;
+        for case in golden["cases"].as_array().expect("cases") {
+            if case["restrict"].as_array().map(Vec::as_slice) != Some(&[serde_json::json!(-2)]) {
+                continue;
+            }
+            compared += 1;
+            let sample = case["labeled_sample"].as_bool().expect("labeled_sample");
+            let mut student = crate::predict::Predict::parse("question -> answer").expect("parses");
+            LabeledFewShot {
+                sample,
+                ..LabeledFewShot::new(2)
+            }
+            .compile(&mut student, &trainset);
+
+            let theirs: Vec<&str> = case["labels_only_demos"]
+                .as_array()
+                .expect("demos")
+                .iter()
+                .map(|demo| demo["question"].as_str().expect("a question"))
+                .collect();
+            let ours: Vec<&str> = student
+                .demos
+                .iter()
+                .map(|demo| demo.get("question").and_then(|q| q.as_str()).unwrap_or(""))
+                .collect();
+            assert_eq!(ours, theirs, "labels-only demos at labeled_sample={sample}");
+        }
+        assert_eq!(
+            compared, 2,
+            "the golden should record both arms of labeled_sample"
+        );
+    }
+
+    /// What a shuffled attempt draws depends on its own seed and nothing else, so restricting the
+    /// search does not change what the surviving attempts do. That is the property that makes
+    /// `restrict` usable for resuming a search rather than a way to get a different answer.
+    #[test]
+    fn restricting_does_not_move_what_the_remaining_seeds_draw() {
+        let trainset: Vec<Example> = (0..8)
+            .map(|n| crate::example! { question: format!("q{n}") })
+            .collect();
+        let whole =
+            BootstrapRandomSearch::new(|_: &Example, _: &Prediction| 0.0).num_candidate_programs(5);
+        let narrowed = BootstrapRandomSearch::new(|_: &Example, _: &Prediction| 0.0)
+            .num_candidate_programs(5)
+            .restrict([3]);
+        assert_eq!(
+            whole.shuffled(3, &trainset),
+            narrowed.shuffled(3, &trainset)
+        );
+    }
 
     /// The seed sequence is three baselines then one per candidate program, which is what makes a
     /// "16 candidate" search 19 attempts.

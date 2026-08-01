@@ -1,0 +1,173 @@
+{
+  "source": "generated from dspy==3.3.0b1 via scripts/generate_random_search_fixture.py",
+  "dspy_version": "3.3.0b1",
+  "note": "Which seeds each search attempted. `restrict` filters the range the loop already walks, so it narrows and never extends, and it does not spare the three baselines.",
+  "trainset": [
+    {
+      "question": "capital of France?",
+      "answer": "Paris"
+    },
+    {
+      "question": "capital of Spain?",
+      "answer": "Madrid"
+    },
+    {
+      "question": "capital of Italy?",
+      "answer": "Rome"
+    },
+    {
+      "question": "capital of Japan?",
+      "answer": "Tokyo"
+    }
+  ],
+  "cases": [
+    {
+      "num_candidate_programs": 4,
+      "restrict": null,
+      "labeled_sample": true,
+      "seeds": [
+        -3,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        3
+      ],
+      "labels_only_demos": [
+        {
+          "question": "capital of Japan?",
+          "answer": "Tokyo"
+        },
+        {
+          "question": "capital of Spain?",
+          "answer": "Madrid"
+        }
+      ]
+    },
+    {
+      "num_candidate_programs": 4,
+      "restrict": [
+        -2
+      ],
+      "labeled_sample": true,
+      "seeds": [
+        -2
+      ],
+      "labels_only_demos": [
+        {
+          "question": "capital of Japan?",
+          "answer": "Tokyo"
+        },
+        {
+          "question": "capital of Spain?",
+          "answer": "Madrid"
+        }
+      ]
+    },
+    {
+      "num_candidate_programs": 4,
+      "restrict": [
+        -2
+      ],
+      "labeled_sample": false,
+      "seeds": [
+        -2
+      ],
+      "labels_only_demos": [
+        {
+          "question": "capital of France?",
+          "answer": "Paris"
+        },
+        {
+          "question": "capital of Spain?",
+          "answer": "Madrid"
+        }
+      ]
+    },
+    {
+      "num_candidate_programs": 4,
+      "restrict": [
+        -2,
+        1,
+        3
+      ],
+      "labeled_sample": true,
+      "seeds": [
+        -2,
+        1,
+        3
+      ],
+      "labels_only_demos": [
+        {
+          "question": "capital of Japan?",
+          "answer": "Tokyo"
+        },
+        {
+          "question": "capital of Spain?",
+          "answer": "Madrid"
+        }
+      ]
+    },
+    {
+      "num_candidate_programs": 4,
+      "restrict": [
+        0,
+        2
+      ],
+      "labeled_sample": true,
+      "seeds": [
+        0,
+        2
+      ],
+      "labels_only_demos": null
+    },
+    {
+      "num_candidate_programs": 2,
+      "restrict": [
+        1,
+        99
+      ],
+      "labeled_sample": true,
+      "seeds": [
+        1
+      ],
+      "labels_only_demos": null
+    },
+    {
+      "num_candidate_programs": 4,
+      "restrict": [
+        -3
+      ],
+      "labeled_sample": true,
+      "seeds": [
+        -3
+      ],
+      "labels_only_demos": null
+    },
+    {
+      "num_candidate_programs": 4,
+      "restrict": null,
+      "labeled_sample": false,
+      "seeds": [
+        -3,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        3
+      ],
+      "labels_only_demos": [
+        {
+          "question": "capital of France?",
+          "answer": "Paris"
+        },
+        {
+          "question": "capital of Spain?",
+          "answer": "Madrid"
+        }
+      ]
+    }
+  ]
+}

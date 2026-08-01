@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1080
+rust_tests = 1083
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -819,7 +819,8 @@ The three `Teleprompter.compile.valset` ledger entries that pointed here are `ma
 id = "random-search-remaining-args"
 sprint = "api"
 title = "BootstrapFewShotWithRandomSearch drops two of its compile arguments"
-state = "todo"
+state = "done"
+shipped = "2026-08-01"
 size = "S"
 suites = []
 plan = """
@@ -833,6 +834,33 @@ rather than all of them.
 Both are small. They are here because the parameter gate caught the ledger claiming a Rust name that
 does not exist — the entries said `mapped` and named `labeled_sample`, and `is_defined` refused it.
 That is the gate working on its first run.
+"""
+outcome = """
+Both shipped, and the search gained its first conformance golden on the way — it had none, only unit
+tests.
+
+`restrict` filters the range the loop already walks, so it narrows and never extends: a seed the
+search would not have reached is dropped rather than added or refused, and the three baselines get no
+special treatment. Skipping moves nothing, because each shuffled attempt seeds its own generator with
+its own seed — which is the property that makes it usable for resuming a search rather than a way to
+get a different answer, and there is a test for exactly that.
+
+`labeled_sample` reaches one attempt of `n + 3`, seed `-2`, where it becomes `LabeledFewShot`'s
+`sample`.
+
+**Writing the controls is what made this more than a pass-through.** The first `restrict` control was
+fine. The first `labeled_sample` control was not: flipping `LabeledFewShot`'s `sample` *default* left
+everything green, because the test constructs the optimizer with `sample` set explicitly and the
+default never reads. Replacing the sampling itself with take-in-order is the control that bites, and
+that is the one recorded.
+
+The golden records which seeds dspy actually attempted — read off `score_data`, so the search is
+asked to compile and then says what it did rather than having its loop read — plus the demos the
+labels-only attempt kept under both arms of `labeled_sample`. Its generator refuses to write a case
+set where no `restrict` drops an attempt, or where drawing and taking-in-order happen to agree on the
+trainset: either would pass against a port that ignored the argument entirely.
+
+Method-parameter coverage 244/247 to 246/247.
 """
 
 [[story]]
