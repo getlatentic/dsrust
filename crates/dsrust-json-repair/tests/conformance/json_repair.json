@@ -1,0 +1,840 @@
+{
+ "source": "json_repair 0.61.7, CPython 3.13.5",
+ "what": "What json_repair.loads returns for each input, as the bytes json.dumps writes for it. Recorded by running the library, never by hand: the value distinguishes int from float, keeps a key at the position it was first assigned, and holds an integer wider than a machine word exactly, and all three are observable here.",
+ "coverage": {
+  "json_context.py": 21,
+  "json_parser.py": 142,
+  "json_repair.py": 47,
+  "object_comparer.py": 11,
+  "object_value_context.py": 47,
+  "parse_array.py": 41,
+  "parse_boolean_or_null.py": 16,
+  "parse_comment.py": 47,
+  "parse_json_llm_block.py": 6,
+  "parse_number.py": 22,
+  "parse_object.py": 202,
+  "parse_string.py": 394,
+  "parser_parenthesized.py": 71,
+  "parser_schema.py": 4,
+  "schema_repair.py": 3
+ },
+ "cases": [
+  {
+   "name": "valid_object",
+   "why": "the fast path: json.loads answers and no repair runs",
+   "input": "{\"a\": 1}",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "valid_nested",
+   "why": "containers through the fast path",
+   "input": "{\"a\": [1, {\"b\": null}], \"c\": true}",
+   "ok": true,
+   "dumps": "{\"a\": [1, {\"b\": null}], \"c\": true}"
+  },
+  {
+   "name": "valid_float_vs_int",
+   "why": "7 and 7.0 are different answers",
+   "input": "{\"i\": 7, \"f\": 7.0}",
+   "ok": true,
+   "dumps": "{\"i\": 7, \"f\": 7.0}"
+  },
+  {
+   "name": "valid_big_int",
+   "why": "wider than a machine word, and exact",
+   "input": "{\"n\": 123456789012345678901234567890}",
+   "ok": true,
+   "dumps": "{\"n\": 123456789012345678901234567890}"
+  },
+  {
+   "name": "valid_escapes",
+   "why": "the escapes CPython's scanner resolves",
+   "input": "{\"s\": \"a\\tbé🙂\"}",
+   "ok": true,
+   "dumps": "{\"s\": \"a\\tb\\u00e9\\ud83d\\ude42\"}"
+  },
+  {
+   "name": "valid_empty_containers",
+   "why": "an empty object is not a missing one",
+   "input": "{\"a\": {}, \"b\": []}",
+   "ok": true,
+   "dumps": "{\"a\": {}, \"b\": []}"
+  },
+  {
+   "name": "valid_unicode_keys",
+   "why": "a reply in Chinese takes the isalnum branch",
+   "input": "{\"答案\": \"北京\"}",
+   "ok": true,
+   "dumps": "{\"\\u7b54\\u6848\": \"\\u5317\\u4eac\"}"
+  },
+  {
+   "name": "nan",
+   "why": "json.loads accepts NaN and serde does not",
+   "input": "{\"n\": NaN}",
+   "ok": true,
+   "dumps": "{\"n\": NaN}"
+  },
+  {
+   "name": "infinity",
+   "why": "and Infinity, which JSON has no spelling for",
+   "input": "{\"n\": Infinity, \"m\": -Infinity}",
+   "ok": true,
+   "dumps": "{\"n\": Infinity, \"m\": -Infinity}"
+  },
+  {
+   "name": "leading_zero",
+   "why": "01 is two tokens, so the fast path fails and the repair runs",
+   "input": "{[01]}",
+   "ok": true,
+   "dumps": "[[1]]"
+  },
+  {
+   "name": "trailing_comma",
+   "why": "the commonest one",
+   "input": "{\"a\": 1,}",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "single_quotes",
+   "why": "Python's spelling of a string",
+   "input": "{'a': 'b'}",
+   "ok": true,
+   "dumps": "{\"a\": \"b\"}"
+  },
+  {
+   "name": "unquoted_key",
+   "why": "a bare key, which reaches parse_string with missing_quotes",
+   "input": "{a: 1}",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "missing_closing_brace",
+   "why": "the reply was cut off",
+   "input": "{\"a\": 1",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "missing_closing_bracket",
+   "why": "the same, in an array",
+   "input": "{\"a\": [1, 2",
+   "ok": true,
+   "dumps": "{\"a\": [1, 2]}"
+  },
+  {
+   "name": "python_literals",
+   "why": "True/False/None reach parse_boolean_or_null",
+   "input": "{'a': True, 'b': False, 'c': None}",
+   "ok": true,
+   "dumps": "{\"a\": true, \"b\": false, \"c\": \"None\"}"
+  },
+  {
+   "name": "missing_colon",
+   "why": "a key with no separator after it",
+   "input": "{\"a\" 1}",
+   "ok": true,
+   "dumps": "{\"a\": \"\"}"
+  },
+  {
+   "name": "colon_before_key",
+   "why": "a stray separator before the key",
+   "input": "{: \"a\": 1}",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "stray_value_comma",
+   "why": "a member with no value at all",
+   "input": "{\"a\": , \"b\": 2}",
+   "ok": true,
+   "dumps": "{\"a\": \"\", \"b\": 2}"
+  },
+  {
+   "name": "double_comma",
+   "why": "a run of separators inside an array",
+   "input": "[1,,2]",
+   "ok": true,
+   "dumps": "[1, 2]"
+  },
+  {
+   "name": "prose_around",
+   "why": "the model explained itself first",
+   "input": "Sure! Here you go: {\"a\": 1} — done",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "code_fence",
+   "why": "a fenced block, which parse_json_llm_block unwraps",
+   "input": "```json\n{\"a\": 1}\n```",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "code_fence_not_json",
+   "why": "fences that do not enclose JSON, so the fences stay text",
+   "input": "\"```notjson```\"",
+   "ok": true,
+   "dumps": "\"```notjson```\""
+  },
+  {
+   "name": "fenced_value",
+   "why": "a fenced block as a quoted value, the only way into parse_json_llm_block",
+   "input": "{\"a\": \"```json {\"b\": 1}```\"}",
+   "ok": true,
+   "dumps": "{\"a\": {\"b\": 1}}"
+  },
+  {
+   "name": "fenced_value_wrong_language",
+   "why": "fences the block reader declines, so the string goes on",
+   "input": "{\"a\": \"```js {\"b\": 1}```\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"```js {\\\"b\\\": 1}```\"}"
+  },
+  {
+   "name": "bare_word_value",
+   "why": "an unquoted value",
+   "input": "{a: hello}",
+   "ok": true,
+   "dumps": "{\"a\": \"hello\"}"
+  },
+  {
+   "name": "array_of_objects",
+   "why": "the shape dspy sees when a model wraps its answer",
+   "input": "[{\"a\": 1}]",
+   "ok": true,
+   "dumps": "[{\"a\": 1}]"
+  },
+  {
+   "name": "fuzz_shape",
+   "why": "the exact shape the fuzzer refused, from backlog `json-repair-port`",
+   "input": "{answer: \"{}\", \"unknown: \"7\", reasoning\": \"[]\"",
+   "ok": true,
+   "dumps": "{\"answer\": \"{}\", \"unknown\": \"7\", \"reasoning\": \"[]\"}"
+  },
+  {
+   "name": "key_missing_open_quote",
+   "why": "a key whose opening quote is gone",
+   "input": "{answer\": \"Paris\"}",
+   "ok": true,
+   "dumps": "{\"answer\": \"Paris\"}"
+  },
+  {
+   "name": "key_missing_close_quote",
+   "why": "and one whose closing quote is",
+   "input": "{\"answer: \"Paris\"}",
+   "ok": true,
+   "dumps": "{\"answer\": \"Paris\"}"
+  },
+  {
+   "name": "value_missing_close_quote",
+   "why": "a value that never closes, then another member",
+   "input": "{\"a\": \"one, \"b\": \"two\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"one\", \"b\": \"two\"}"
+  },
+  {
+   "name": "quote_inside_value",
+   "why": "a quote in the middle of a value that is not the end of it",
+   "input": "{\"a\": \"he said \"hi\" to me\", \"b\": 2}",
+   "ok": true,
+   "dumps": "{\"a\": \"he said \\\"hi\\\" to me\", \"b\": 2}"
+  },
+  {
+   "name": "quote_then_colon",
+   "why": "the quote opens the next key rather than closing this value",
+   "input": "{\"a\": \"one\" \"b\": \"two\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"one\", \"b\": \"two\"}"
+  },
+  {
+   "name": "array_even_delimiters",
+   "why": "an even count of quotes before the bracket keeps them inside",
+   "input": "[\"a \"b\" c\"]",
+   "ok": true,
+   "dumps": "[\"a \\\"b\\\" c\"]"
+  },
+  {
+   "name": "array_odd_delimiters",
+   "why": "an odd count does not",
+   "input": "[\"a \"b c\"]",
+   "ok": true,
+   "dumps": "[\"a \", \"b c\"]"
+  },
+  {
+   "name": "unquoted_value_with_comma",
+   "why": "a comma inside an unquoted value, which is prose not a member",
+   "input": "{\"a\": one, two, \"b\": 3}",
+   "ok": true,
+   "dumps": "{\"a\": \"one\", \"b\": 3}"
+  },
+  {
+   "name": "comma_then_bare_key",
+   "why": "a comma followed by something that really is the next member",
+   "input": "{\"a\": one, b: 2}",
+   "ok": true,
+   "dumps": "{\"a\": \"one\", \"b\": 2}"
+  },
+  {
+   "name": "comma_then_bare_key_no_value",
+   "why": "a bare key with nothing recoverable after it stays in the string",
+   "input": "{\"a\": one, floof: explanation",
+   "ok": true,
+   "dumps": "{\"a\": \"one, floof: explanation\"}"
+  },
+  {
+   "name": "brace_inside_value",
+   "why": "a balanced object inside an unterminated value belongs to it",
+   "input": "{\"a\": text {\"k\": 1} more\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"text {\", \"k\": 1}"
+  },
+  {
+   "name": "brace_closes_object",
+   "why": "and an unbalanced one closes the object",
+   "input": "{\"a\": text}",
+   "ok": true,
+   "dumps": "{\"a\": \"text\"}"
+  },
+  {
+   "name": "regex_character_class",
+   "why": "a bare quote inside [...] is a character class, not a delimiter",
+   "input": "{\"pattern\": \"[\\\"']+\", \"b\": 1}",
+   "ok": true,
+   "dumps": "{\"pattern\": \"[\\\"']+\", \"b\": 1}"
+  },
+  {
+   "name": "doubled_opening_quote",
+   "why": "two quotes where one was meant",
+   "input": "{\"\"a\"\": 1}",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "doubled_quote_empty",
+   "why": "two quotes that really are an empty value",
+   "input": "{\"a\": \"\", \"b\": 1}",
+   "ok": true,
+   "dumps": "{\"a\": \"\", \"b\": 1}"
+  },
+  {
+   "name": "smart_quotes",
+   "why": "the curly pair, which opens and closes differently",
+   "input": "{“a”: “b”}",
+   "ok": true,
+   "dumps": "{\"a\": \"b\"}"
+  },
+  {
+   "name": "low_smart_quote",
+   "why": "„ … ” is a quote pair no other rule knows about",
+   "input": "{\"a\": \"say „hi\" there”\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"say \\u201ehi\\\" there\\u201d\"}"
+  },
+  {
+   "name": "stray_escape",
+   "why": "a backslash before a character that is not an escape",
+   "input": "{\"a\": \"b\\qc\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"b\\\\qc\"}"
+  },
+  {
+   "name": "hex_escape",
+   "why": "\\x41, which JSON has no escape for",
+   "input": "{\"a\": \"\\x41\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"A\"}"
+  },
+  {
+   "name": "unicode_escape",
+   "why": "a \\u escape resolved by the repair parser rather than the scanner",
+   "input": "{\"a\": \"\\u00e9\" ",
+   "ok": true,
+   "dumps": "{\"a\": \"\\u00e9\"}"
+  },
+  {
+   "name": "lone_surrogate",
+   "why": "a Rust char cannot hold one; the crate substitutes U+FFFD",
+   "input": "{\"a\": \"\\ud800\" ",
+   "diverges": "lone-surrogate",
+   "ok": true,
+   "dumps": "{\"a\": \"\\ud800\"}"
+  },
+  {
+   "name": "backslash_run",
+   "why": "an even run halves",
+   "input": "{\"a\": \"b\\\\\\\\c\"",
+   "ok": true,
+   "dumps": "{\"a\": \"b\\\\\\\\c\"}"
+  },
+  {
+   "name": "escaped_delimiter",
+   "why": "a delimiter escaped that had no business being",
+   "input": "{\"a\": \"b\\'c\" ",
+   "ok": true,
+   "dumps": "{\"a\": \"b'c\"}"
+  },
+  {
+   "name": "escaped_object_keys",
+   "why": "keys whose quotes arrived escaped, reparsed as an object",
+   "input": "{\\\"a\\\": 1, \\\"b\\\": 2}",
+   "ok": true,
+   "dumps": "{\"a\": 1, \"b\": 2}"
+  },
+  {
+   "name": "trailing_backslash",
+   "why": "the reply stopped on a backslash",
+   "input": "{\"a\": \"b\\\\",
+   "ok": true,
+   "dumps": "{\"a\": \"b\\\\\"}"
+  },
+  {
+   "name": "trailing_backslash_streaming",
+   "why": "and the same under stream_stable",
+   "input": "{\"a\": \"b\\\\",
+   "options": {
+    "stream_stable": true
+   },
+   "ok": true,
+   "dumps": "{\"a\": \"b\\\\\"}"
+  },
+  {
+   "name": "hash_comment",
+   "why": "a line comment between members",
+   "input": "{\"a\": 1, # note\n \"b\": 2}",
+   "ok": true,
+   "dumps": "{\"a\": 1, \"b\": 2}"
+  },
+  {
+   "name": "slash_comment",
+   "why": "the other line comment",
+   "input": "{\"a\": 1, // note\n \"b\": 2}",
+   "ok": true,
+   "dumps": "{\"a\": 1, \"b\": 2}"
+  },
+  {
+   "name": "block_comment",
+   "why": "a block comment",
+   "input": "{\"a\": /* note */ 1}",
+   "ok": true,
+   "dumps": "{\"a\": \"\"}"
+  },
+  {
+   "name": "unclosed_block_comment",
+   "why": "one that never closes",
+   "input": "{\"a\": /* note 1}",
+   "ok": true,
+   "dumps": "{\"a\": \"\"}"
+  },
+  {
+   "name": "comment_holding_a_colon",
+   "why": "a colon inside a comment is not a member separator",
+   "input": "{# note: here\n}",
+   "ok": true,
+   "dumps": "{\"\": \"here\"}"
+  },
+  {
+   "name": "top_level_comments",
+   "why": "a run of them before the value",
+   "input": "# one\n// two\n{\"a\": 1}",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "comment_terminated_by_structure",
+   "why": "a comment that runs into the closing bracket",
+   "input": "[1, # note]",
+   "ok": true,
+   "dumps": "[1, \"\"]"
+  },
+  {
+   "name": "set_like_object",
+   "why": "an object with no separators is read as an array",
+   "input": "{\"a\", \"b\"}",
+   "ok": true,
+   "dumps": "[\"a\", \"b\"]"
+  },
+  {
+   "name": "empty_object_with_junk",
+   "why": "an object that consumed characters and produced nothing",
+   "input": "{ x }",
+   "ok": true,
+   "dumps": "[\"x }\"]"
+  },
+  {
+   "name": "duplicate_key_splits",
+   "why": "a duplicate key means a second object, not an overwrite",
+   "input": "[{\"a\": 1 \"a\": 2}]",
+   "ok": true,
+   "dumps": "[{\"a\": 1}, {\"a\": 2}]"
+  },
+  {
+   "name": "duplicate_key_overwrites",
+   "why": "a duplicate key with an ordinary comma keeps the last value",
+   "input": "[{\"a\": 1, \"a\": 2}]",
+   "ok": true,
+   "dumps": "[{\"a\": 2}]"
+  },
+  {
+   "name": "object_closed_by_bracket",
+   "why": "a `]` says the object belongs to an array",
+   "input": "[{\"a\": 1]",
+   "ok": true,
+   "dumps": "[{\"a\": 1}]"
+  },
+  {
+   "name": "object_closed_by_bracket_mid_array",
+   "why": "and the cursor rolls back onto it, so what follows is read as the next item",
+   "input": "[{\"a\": 1], {\"b\": 2}]",
+   "ok": true,
+   "dumps": "[[{\"a\": 1}], {\"b\": 2}]"
+  },
+  {
+   "name": "object_closed_by_bracket_then_value",
+   "why": "the same rollback with a bare value after it",
+   "input": "[{\"a\": 1], 2]",
+   "ok": true,
+   "dumps": "[{\"a\": 1}]"
+  },
+  {
+   "name": "extra_closing_brace",
+   "why": "one brace too many",
+   "input": "{\"a\": 1}}",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "members_after_brace",
+   "why": "a comma after the closing brace carrying more members",
+   "input": "{\"a\": 1}, \"b\": 2",
+   "ok": true,
+   "dumps": "{\"a\": 1, \"b\": 2}"
+  },
+  {
+   "name": "array_row_continuation",
+   "why": "rows written one array per line, merged into the first member",
+   "input": "{\"rows\": [[1, 2]\n[3, 4]]}",
+   "ok": true,
+   "dumps": "{\"rows\": [[1, 2], [3, 4]]}"
+  },
+  {
+   "name": "array_row_regrouping",
+   "why": "loose values regrouped to the width the rows agree on",
+   "input": "{\"rows\": [[1, 2], 3, 4\n[5, 6]]}",
+   "ok": true,
+   "dumps": "{\"rows\": [[1, 2], 3, 4, [5, 6]]}"
+  },
+  {
+   "name": "string_then_colon_in_array",
+   "why": "a quoted item followed by a colon is an object nobody opened",
+   "input": "[\"a\": 1]",
+   "ok": true,
+   "dumps": "[{\"a\": 1}]"
+  },
+  {
+   "name": "stray_ellipsis",
+   "why": "a `...` the model left in an array",
+   "input": "[1, ..., 2]",
+   "ok": true,
+   "dumps": "[1, 2]"
+  },
+  {
+   "name": "multiple_top_level",
+   "why": "two values, gathered into a list",
+   "input": "{\"a\": 1} {\"b\": 2}",
+   "ok": true,
+   "dumps": "[{\"a\": 1}, {\"b\": 2}]"
+  },
+  {
+   "name": "repeated_same_shape",
+   "why": "the same shape twice is an update, and the newest wins",
+   "input": "{\"a\": 1} {\"a\": 2}",
+   "ok": true,
+   "dumps": "{\"a\": 2}"
+  },
+  {
+   "name": "comma_separated_top_level",
+   "why": "and with a comma between them both survive",
+   "input": "{\"a\": 1}, {\"a\": 2}",
+   "ok": true,
+   "dumps": "[{\"a\": 1}, {\"a\": 2}]"
+  },
+  {
+   "name": "tuple",
+   "why": "a Python tuple literal",
+   "input": "(1, 2)",
+   "ok": true,
+   "dumps": "[1, 2]"
+  },
+  {
+   "name": "grouped_value",
+   "why": "a single grouped value is not a tuple",
+   "input": "(1)",
+   "ok": true,
+   "dumps": "1"
+  },
+  {
+   "name": "empty_tuple",
+   "why": "empty brackets are",
+   "input": "()",
+   "ok": true,
+   "dumps": "[]"
+  },
+  {
+   "name": "tuple_in_object",
+   "why": "one inside an object, where the test is permissive",
+   "input": "{\"a\": (1, 2)}",
+   "ok": true,
+   "dumps": "{\"a\": [1, 2]}"
+  },
+  {
+   "name": "prose_parenthesis",
+   "why": "an aside, which must not swallow the JSON after it",
+   "input": "the answer (see below): {\"a\": 1}",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "parenthesis_own_line",
+   "why": "brackets alone on their line do open a value",
+   "input": "\n(1, 2)\n",
+   "ok": true,
+   "dumps": "[1, 2]"
+  },
+  {
+   "name": "number_with_underscore",
+   "why": "digit groups, and the rollback that ignores them",
+   "input": "{a: 1_000}",
+   "ok": true,
+   "dumps": "{\"a\": 1000}"
+  },
+  {
+   "name": "number_with_comma",
+   "why": "a thousands separator makes it a string",
+   "input": "{a: 1,234}",
+   "ok": true,
+   "dumps": "{\"a\": \"1,234\"}"
+  },
+  {
+   "name": "fraction",
+   "why": "a slash makes it a string too",
+   "input": "{a: 3/4}",
+   "ok": true,
+   "dumps": "{\"a\": \"3/4\"}"
+  },
+  {
+   "name": "trailing_minus",
+   "why": "a number ending on a character a number cannot end on",
+   "input": "{a: 1-}",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "number_then_letters",
+   "why": "a run that turns out to be a word",
+   "input": "{a: 12abc}",
+   "ok": true,
+   "dumps": "{\"a\": \"12abc\"}"
+  },
+  {
+   "name": "leading_dot",
+   "why": "a value starting with a dot",
+   "input": "{a: .5}",
+   "ok": true,
+   "dumps": "{\"a\": 0.5}"
+  },
+  {
+   "name": "exponent",
+   "why": "an exponent, which makes it a float",
+   "input": "{a: 1e3}",
+   "ok": true,
+   "dumps": "{\"a\": 1000.0}"
+  },
+  {
+   "name": "negative_zero",
+   "why": "the sign survives",
+   "input": "{a: -0.0}",
+   "ok": true,
+   "dumps": "{\"a\": -0.0}"
+  },
+  {
+   "name": "huge_exponent",
+   "why": "a float that overflows to infinity",
+   "input": "{a: 1e400}",
+   "ok": true,
+   "dumps": "{\"a\": Infinity}"
+  },
+  {
+   "name": "strict_valid",
+   "why": "strict mode leaves valid JSON alone",
+   "input": "{\"a\": 1}",
+   "options": {
+    "strict": true
+   },
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "strict_duplicate_key",
+   "why": "and refuses a duplicate",
+   "input": "[{\"a\": 1, \"a\": 2}]",
+   "options": {
+    "strict": true
+   },
+   "ok": true,
+   "dumps": "[{\"a\": 2}]"
+  },
+  {
+   "name": "strict_missing_colon",
+   "why": "and a missing separator",
+   "input": "{\"a\" 1}",
+   "options": {
+    "strict": true
+   },
+   "ok": false,
+   "error": "ValueError",
+   "message": "Missing ':' after key in strict mode while parsing object."
+  },
+  {
+   "name": "strict_empty_key",
+   "why": "and an empty key",
+   "input": "{\"\": 1}",
+   "options": {
+    "strict": true
+   },
+   "ok": true,
+   "dumps": "{\"\": 1}"
+  },
+  {
+   "name": "strict_empty_value",
+   "why": "and an empty value",
+   "input": "{\"a\": }",
+   "options": {
+    "strict": true
+   },
+   "ok": false,
+   "error": "ValueError",
+   "message": "Parsed value is empty in strict mode while parsing object."
+  },
+  {
+   "name": "strict_multiple_top_level",
+   "why": "and a second top-level element",
+   "input": "{\"a\": 1} {\"b\": 2}",
+   "options": {
+    "strict": true
+   },
+   "ok": false,
+   "error": "ValueError",
+   "message": "Multiple top-level JSON elements found in strict mode."
+  },
+  {
+   "name": "strict_doubled_quotes",
+   "why": "and doubled quotes",
+   "input": "{\"\"a\"\": 1}",
+   "options": {
+    "strict": true
+   },
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "skip_json_loads_valid",
+   "why": "the whole-input check skipped, so the parser reads valid JSON",
+   "input": "{\"a\": 1}",
+   "options": {
+    "skip_json_loads": true
+   },
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "skip_json_loads_suffix",
+   "why": "and the suffix fast path still applies after a prefix",
+   "input": "text {\"a\": 1}",
+   "options": {
+    "skip_json_loads": true
+   },
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "stream_stable_partial",
+   "why": "a value still arriving keeps its trailing whitespace",
+   "input": "{\"a\": \"val ",
+   "options": {
+    "stream_stable": true
+   },
+   "ok": true,
+   "dumps": "{\"a\": \"val \"}"
+  },
+  {
+   "name": "stream_stable_newline",
+   "why": "and its trailing newline",
+   "input": "{\"a\": \"val\\n",
+   "options": {
+    "stream_stable": true
+   },
+   "ok": true,
+   "dumps": "{\"a\": \"val\\n\"}"
+  },
+  {
+   "name": "empty_input",
+   "why": "nothing at all",
+   "input": "",
+   "ok": true,
+   "dumps": "\"\""
+  },
+  {
+   "name": "whitespace_only",
+   "why": "only whitespace",
+   "input": "   \n\t",
+   "ok": true,
+   "dumps": "\"\""
+  },
+  {
+   "name": "prose_only",
+   "why": "a reply with no JSON in it",
+   "input": "I could not answer that.",
+   "ok": true,
+   "dumps": "\"\""
+  },
+  {
+   "name": "brace_only",
+   "why": "an opening brace and nothing else",
+   "input": "{",
+   "ok": true,
+   "dumps": "{}"
+  },
+  {
+   "name": "bracket_only",
+   "why": "an opening bracket and nothing else",
+   "input": "[",
+   "ok": true,
+   "dumps": "[]"
+  },
+  {
+   "name": "cpython_space",
+   "why": "a file separator, which CPython calls a space and Rust does not",
+   "input": "{a:\u001c1}",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "nbsp_between",
+   "why": "a non-breaking space, which both call one",
+   "input": "{ \"a\" : 1}",
+   "ok": true,
+   "dumps": "{\"a\": 1}"
+  },
+  {
+   "name": "control_char_in_string",
+   "why": "a raw control character, which the fast path refuses",
+   "input": "{\"a\": \"b\u0001c\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"b\\u0001c\"}"
+  }
+ ]
+}

@@ -1,0 +1,18 @@
+[package]
+name = "dsrust-json-repair"
+version = "0.1.0-alpha.1"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/getlatentic/dsrust"
+authors = ["Tosin Amuda"]
+include = ["src/**/*"]
+description = "A faithful Rust reproduction of the json_repair Python package, the malformed-JSON reader dspy's JSONAdapter parses every reply with."
+
+[lib]
+name = "json_repair"
+
+[dev-dependencies]
+# `float_roundtrip`: goldens carry floats at full precision and are compared exactly, so the
+# default best-effort parser — which loses the last bit of a 17-significant-digit float — is not an
+# option. See the note in dsrust-gepa/Cargo.toml.
+serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }

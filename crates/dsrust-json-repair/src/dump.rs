@@ -1,0 +1,193 @@
+//! `json.dumps(value)` with its default arguments, which is what `repair_json` returns.
+//!
+//! Not `serde_json::to_string`: Python separates with `", "` and `": "`, escapes every code point
+//! outside `\x20`-`\x7e`, writes `NaN`/`Infinity` where JSON has no spelling at all, and renders a
+//! float with `float.__repr__` — shortest round-trip, switching to an exponent outside a window
+//! that is Python's rather than Rust's.
+
+use crate::value::Value;
+
+/// The text `json.dumps` would produce for `value`.
+pub(crate) fn dumps(value: &Value) -> String {
+    let mut out = String::new();
+    write(value, &mut out);
+    out
+}
+
+fn write(value: &Value, out: &mut String) {
+    match value {
+        Value::Null => out.push_str("null"),
+        Value::Bool(true) => out.push_str("true"),
+        Value::Bool(false) => out.push_str("false"),
+        Value::Int(number) => out.push_str(&number.to_string()),
+        Value::BigInt(digits) => out.push_str(digits),
+        Value::Float(number) => out.push_str(&float_repr(*number)),
+        Value::Str(text) => write_string(text, out),
+        Value::Array(items) => {
+            out.push('[');
+            for (position, item) in items.iter().enumerate() {
+                if position > 0 {
+                    out.push_str(", ");
+                }
+                write(item, out);
+            }
+            out.push(']');
+        }
+        Value::Object(fields) => {
+            out.push('{');
+            for (position, (key, item)) in fields.iter().enumerate() {
+                if position > 0 {
+                    out.push_str(", ");
+                }
+                write_string(key, out);
+                out.push_str(": ");
+                write(item, out);
+            }
+            out.push('}');
+        }
+    }
+}
+
+/// `py_encode_basestring_ascii`: everything outside `\x20`-`\x7e` leaves as an escape.
+fn write_string(text: &str, out: &mut String) {
+    out.push('"');
+    for ch in text.chars() {
+        match ch {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            ' '..='~' => out.push(ch),
+            _ => {
+                let code_point = ch as u32;
+                if code_point < 0x10000 {
+                    out.push_str(&format!("\\u{code_point:04x}"));
+                } else {
+                    let offset = code_point - 0x10000;
+                    out.push_str(&format!("\\u{:04x}", 0xd800 + (offset >> 10)));
+                    out.push_str(&format!("\\u{:04x}", 0xdc00 + (offset & 0x3ff)));
+                }
+            }
+        }
+    }
+    out.push('"');
+}
+
+/// `float.__repr__`, except for the two values JSON cannot spell and `json.dumps` names anyway.
+fn float_repr(number: f64) -> String {
+    if number.is_nan() {
+        return "NaN".to_owned();
+    }
+    if number.is_infinite() {
+        return if number > 0.0 {
+            "Infinity"
+        } else {
+            "-Infinity"
+        }
+        .to_owned();
+    }
+    if number == 0.0 {
+        return if number.is_sign_negative() {
+            "-0.0"
+        } else {
+            "0.0"
+        }
+        .to_owned();
+    }
+
+    let (sign, digits, decimal_point) = shortest_digits(number);
+    // CPython's `format_float_short` leaves the fixed form for an exponent below -4 or above 16,
+    // so `1e15` prints in full and `1e16` does not.
+    let body = if decimal_point <= -4 || decimal_point > 16 {
+        exponential(&digits, decimal_point)
+    } else {
+        fixed(&digits, decimal_point)
+    };
+    format!("{sign}{body}")
+}
+
+/// The shortest round-tripping digits, and where the decimal point sits relative to them: the
+/// value is `0.<digits> * 10^decimal_point`.
+fn shortest_digits(number: f64) -> (&'static str, String, i32) {
+    let rendered = format!("{number:e}");
+    let (mantissa, exponent) = rendered.split_once('e').expect("`{:e}` writes an exponent");
+    let exponent: i32 = exponent.parse().expect("`{:e}` writes a decimal exponent");
+    let (sign, mantissa) = match mantissa.strip_prefix('-') {
+        Some(rest) => ("-", rest),
+        None => ("", mantissa),
+    };
+    let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
+    (sign, digits, exponent + 1)
+}
+
+fn exponential(digits: &str, decimal_point: i32) -> String {
+    let exponent = decimal_point - 1;
+    let (leading, rest) = digits.split_at(1);
+    let mantissa = if rest.is_empty() {
+        leading.to_owned()
+    } else {
+        format!("{leading}.{rest}")
+    };
+    let sign = if exponent < 0 { '-' } else { '+' };
+    format!("{mantissa}e{sign}{:02}", exponent.abs())
+}
+
+fn fixed(digits: &str, decimal_point: i32) -> String {
+    let point = decimal_point as usize;
+    if decimal_point <= 0 {
+        let zeros = "0".repeat(decimal_point.unsigned_abs() as usize);
+        format!("0.{zeros}{digits}")
+    } else if point >= digits.len() {
+        let zeros = "0".repeat(point - digits.len());
+        format!("{digits}{zeros}.0")
+    } else {
+        let (whole, fraction) = digits.split_at(point);
+        format!("{whole}.{fraction}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::value::Object;
+
+    #[test]
+    fn floats_switch_to_an_exponent_where_python_switches() {
+        assert_eq!(float_repr(1e15), "1000000000000000.0");
+        assert_eq!(float_repr(1e16), "1e+16");
+        assert_eq!(float_repr(1e-4), "0.0001");
+        assert_eq!(float_repr(1e-5), "1e-05");
+        assert_eq!(float_repr(1.5e-5), "1.5e-05");
+        assert_eq!(float_repr(1e100), "1e+100");
+        assert_eq!(float_repr(1.0 / 3.0), "0.3333333333333333");
+        assert_eq!(float_repr(-0.0), "-0.0");
+        assert_eq!(float_repr(2.5), "2.5");
+        assert_eq!(float_repr(f64::INFINITY), "Infinity");
+    }
+
+    #[test]
+    fn strings_leave_as_ascii_the_way_ensure_ascii_does() {
+        assert_eq!(dumps(&Value::Str("\u{e9}".into())), "\"\\u00e9\"");
+        assert_eq!(dumps(&Value::Str("\u{1f642}".into())), "\"\\ud83d\\ude42\"");
+        assert_eq!(dumps(&Value::Str("a\"b\\c\n".into())), r#""a\"b\\c\n""#);
+        assert_eq!(dumps(&Value::Str("\u{7f}".into())), "\"\\u007f\"");
+    }
+
+    #[test]
+    fn containers_carry_pythons_separators() {
+        let object: Object = [
+            ("a".to_owned(), Value::Int(1)),
+            ("b".to_owned(), Value::Null),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(dumps(&Value::Object(object)), r#"{"a": 1, "b": null}"#);
+        assert_eq!(
+            dumps(&Value::Array(vec![Value::Int(1), Value::Int(2)])),
+            "[1, 2]"
+        );
+    }
+}

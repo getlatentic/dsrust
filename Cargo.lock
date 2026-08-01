@@ -193,6 +193,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "dsrust-json-repair"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "serde_json",
+]
+
+[[package]]
 name = "dsrust-tpe"
 version = "0.1.0-alpha.1"
 dependencies = [

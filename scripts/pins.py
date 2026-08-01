@@ -22,6 +22,8 @@ PINS = {
     "dspy": (HERE / "DSPY_VERSION").read_text().strip(),
     # dspy 3.3.0b1 requires `gepa[dspy]==0.1.1`, so this pin follows dspy's.
     "gepa": "0.1.1",
+    # dspy asks for `json-repair>=0.54.2`; this is what resolved, and what the port reproduces.
+    "json_repair": "0.61.7",
 }
 
 
