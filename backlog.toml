@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1083
+rust_tests = 1085
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -543,6 +543,40 @@ they disagreed with dspy.
 """
 
 [[story]]
+id = "saved-lm-round-trip"
+sprint = "api"
+title = "A dspy-saved program loses its model pin through a load and save here"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+Measured 2026-08-01 while closing `trusted-lm-state`. dspy's `Predict.dump_state` writes an `lm`
+block naming the model a predictor was pinned to — `model`, `model_type`, `temperature`,
+`max_tokens`, `cache`, `num_retries` and so on — and its load sanitises that block rather than
+dropping it: `_sanitize_lm_state` removes `api_base`, `base_url` and `model_list` and keeps the
+rest. So a dspy round-trip preserves the pin.
+
+This crate drops the whole block. `load_state` restores a signature and its demos, `dump_state`
+rebuilds from the predictor, and `Predict` has nowhere to hold a saved LM dict — its own `lm` field
+is a live `Arc<dyn DynChatModel>`, not saved state. Load a dspy-compiled program here, save it
+again, and the model it named is gone from the file.
+
+That is good for `allow_unsafe_lm_state`, which is why that entry is a divergence rather than a gap:
+a redirect can neither be acted on nor passed onward. It is bad for the claim on the README that
+`dspy.load` opens what this crate saves — it does, but a program that went through here has lost
+something a dspy user put in it.
+
+The work is a decision before it is code. Carrying the block means holding data on `Predict` that the
+crate never reads and only echoes, which is a real cost on a core type; a Rust `LM` is not
+reconstructible from that dict, so it cannot be honoured, only preserved. The alternatives are to
+carry it sanitised, to carry it whole and sanitise on save, or to keep dropping it and say so in the
+README beside the interop claim.
+
+`tests/lm_state.rs::the_model_pin_does_not_survive_a_round_trip` asserts the current behaviour
+against what dspy's own round-trip kept, and says which story to resolve when it changes.
+"""
+
+[[story]]
 id = "json-repair-port"
 sprint = "conformance"
 title = "json_repair is an external library, and it is the only thing the parsers still disagree on"
@@ -867,7 +901,8 @@ Method-parameter coverage 244/247 to 246/247.
 id = "trusted-lm-state"
 sprint = "api"
 title = "A saved program can carry its model's state, and restoring it is a trust decision"
-state = "todo"
+state = "done"
+shipped = "2026-08-01"
 size = "S"
 suites = []
 plan = """
@@ -881,6 +916,32 @@ saved program carries anything the loader would act on, and it should land *with
 after: a flag added later defaults the wrong way for everyone who already has files.
 
 Reached through the parameter table, which is the first thing to have counted it.
+"""
+outcome = """
+The premise held, but only after being wrong in the middle, and the middle is the useful part.
+
+The story said there was nothing to gate because the crate never saves the model. Checking that
+turned up what looked like the opposite: a `ProgramState` deserialised and reserialised **does**
+carry an `lm` block, `api_base` and all, where dspy's load-then-save strips it — which reads as
+laundering, and had a sanitising `load` written for it.
+
+It was a different path. A *program* load-then-save goes `load_state` (signature and demos) then
+`dump_state` (rebuilt from the predictor), and `Predict` has nowhere to hold a saved LM dict. The
+block is dropped whole. Measured, after the sanitising change failed its own tests for the reason
+that its premise was false, and reverted.
+
+So `allow_unsafe_lm_state` is a **divergence with nothing to select**: a redirect can neither be
+acted on here nor passed onward, which is stricter than upstream rather than looser. Recorded that
+way, with `tests/lm_state.rs` holding both halves against dspy's own round-trip.
+
+What it costs is the model pin, which dspy keeps and this loses — filed as `saved-lm-round-trip`,
+with a test asserting the current behaviour that names the story when it changes.
+
+Two smaller things fell out. `Predict.load_state.allow_unsafe_lm_state` was the last `todo` in the
+parameter table, so the API surface is 247/247 across all four tables. And writing the tests
+reproduced the fixed-temp-path race one process wide — two tests in the same binary sharing a path
+and running in parallel, one removing the file as the other read it. The process id alone does not
+separate them; the test name does.
 """
 
 [[story]]
