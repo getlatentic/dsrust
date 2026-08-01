@@ -216,7 +216,7 @@ where
             program: solved_turn(&inputs, &prediction.example),
             per_predictor: trace
                 .into_iter()
-                .map(|step| (step.predictor, solved_turn(&step.inputs, &step.outputs)))
+                .map(|step| (step.predictor, augmented_turn(&step.inputs, &step.outputs)))
                 .collect(),
         }))
     }
@@ -309,6 +309,28 @@ fn restore_config<T: Module + ?Sized>(teacher: &mut T, resting: &[Sampling]) {
 /// `propose/grounded_proposer.py`, which belongs to MIPROv2 rather than to this optimizer.
 /// Setting it here would put a field on every demo that every adapter would then have to know
 /// to ignore.
+/// dspy `Example(augmented=True, **inputs, **outputs)`: a demo the teacher earned, marked as such.
+///
+/// The marker is read, not decoration. MIPROv2's grounded proposer shows the proposer *only*
+/// augmented demos, and a compiled program carries it to disk — so a program compiled here and
+/// opened in Python must have it where dspy's would. It comes first because dspy passes it first
+/// and a Python dict keeps insertion order.
+///
+/// Only the per-predictor trace demos are marked. The program-level demo is not, in either.
+fn augmented_turn(inputs: &Example, outputs: &Example) -> Example {
+    let demo = solved_turn(inputs, outputs);
+    let keys: Vec<String> = demo
+        .fields()
+        .filter(|(name, _)| demo.is_input(name))
+        .map(|(name, _)| name.to_owned())
+        .collect();
+    let mut marked = Example::new([("augmented", serde_json::Value::Bool(true))]);
+    for (name, value) in demo.fields() {
+        marked.set(name, value.clone());
+    }
+    marked.with_inputs(keys)
+}
+
 fn solved_turn(inputs: &Example, outputs: &Example) -> Example {
     let mut demo = inputs.clone();
     for (name, value) in outputs.fields() {

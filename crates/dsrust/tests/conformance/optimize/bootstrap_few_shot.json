@@ -47,34 +47,30 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             }
           ]
         }
@@ -154,33 +150,27 @@
           "demos": [
             {
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": false
+              "answer": "Paris"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": false
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             }
           ]
         }
@@ -198,34 +188,29 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": false
+              "answer": "Berlin"
             }
           ]
         }
@@ -254,34 +239,30 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             }
           ]
         }
@@ -320,14 +301,14 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             }
           ]
         }
@@ -370,14 +351,14 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             }
           ]
         }
@@ -430,14 +411,14 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             }
           ]
         }
@@ -496,24 +477,22 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             }
           ]
         }
@@ -582,14 +561,13 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             }
           ]
         }
@@ -615,19 +593,18 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             }
           ]
         }
@@ -661,34 +638,30 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             }
           ]
         }
@@ -807,29 +780,26 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             }
           ]
         }
@@ -866,34 +836,32 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
+              "augmented": true,
               "question": "riddle 0?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
+              "augmented": true,
               "question": "riddle 1?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             }
           ]
         }
@@ -952,34 +920,30 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             }
           ]
         }
@@ -1058,24 +1022,22 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             }
           ]
         }
@@ -1110,24 +1072,22 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             }
           ]
         }
@@ -1162,34 +1122,32 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
+              "augmented": true,
               "question": "riddle 0?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
+              "augmented": true,
               "question": "riddle 1?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             }
           ]
         }
@@ -1248,34 +1206,30 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             }
           ]
         }
@@ -1354,24 +1308,22 @@
           "predictor": "self",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             }
           ]
         }
@@ -1408,34 +1360,30 @@
           "predictor": "first",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "draft": "draft: Paris",
-              "augmented": true
+              "draft": "draft: Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "draft": "draft: Berlin",
-              "augmented": true
+              "draft": "draft: Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             }
           ]
         },
@@ -1443,34 +1391,30 @@
           "predictor": "second",
           "demos": [
             {
+              "augmented": true,
               "draft": "draft: Paris",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "draft": "draft: Berlin",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             }
           ]
         }
@@ -1487,34 +1431,29 @@
           "predictor": "first",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "draft": "draft: Paris",
-              "augmented": true
+              "draft": "draft: Paris"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": false
+              "answer": "Berlin"
             }
           ]
         },
@@ -1522,34 +1461,29 @@
           "predictor": "second",
           "demos": [
             {
+              "augmented": true,
               "draft": "draft: Paris",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": false
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             }
           ]
         }
@@ -1566,19 +1500,18 @@
           "predictor": "first",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "draft": "draft: Paris",
-              "augmented": true
+              "draft": "draft: Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "draft": "draft: Berlin",
-              "augmented": true
+              "draft": "draft: Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             }
           ]
         },
@@ -1586,19 +1519,18 @@
           "predictor": "second",
           "demos": [
             {
+              "augmented": true,
               "draft": "draft: Paris",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "draft": "draft: Berlin",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             }
           ]
         }
@@ -1615,24 +1547,22 @@
           "predictor": "first",
           "demos": [
             {
+              "augmented": true,
               "question": "capital of France?",
-              "draft": "draft: Paris",
-              "augmented": true
+              "draft": "draft: Paris"
             },
             {
+              "augmented": true,
               "question": "capital of Germany?",
-              "draft": "draft: Berlin",
-              "augmented": true
+              "draft": "draft: Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             }
           ]
         },
@@ -1640,24 +1570,22 @@
           "predictor": "second",
           "demos": [
             {
+              "augmented": true,
               "draft": "draft: Paris",
-              "answer": "Paris",
-              "augmented": true
+              "answer": "Paris"
             },
             {
+              "augmented": true,
               "draft": "draft: Berlin",
-              "answer": "Berlin",
-              "augmented": true
+              "answer": "Berlin"
             },
             {
               "question": "riddle 3?",
-              "answer": "riddle 3!",
-              "augmented": false
+              "answer": "riddle 3!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             }
           ]
         }
@@ -1675,28 +1603,23 @@
           "demos": [
             {
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": false
+              "answer": "Paris"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": false
+              "answer": "Berlin"
             }
           ]
         },
@@ -1705,28 +1628,23 @@
           "demos": [
             {
               "question": "riddle 0?",
-              "answer": "riddle 0!",
-              "augmented": false
+              "answer": "riddle 0!"
             },
             {
               "question": "riddle 2?",
-              "answer": "riddle 2!",
-              "augmented": false
+              "answer": "riddle 2!"
             },
             {
               "question": "riddle 1?",
-              "answer": "riddle 1!",
-              "augmented": false
+              "answer": "riddle 1!"
             },
             {
               "question": "capital of Germany?",
-              "answer": "Berlin",
-              "augmented": false
+              "answer": "Berlin"
             },
             {
               "question": "capital of France?",
-              "answer": "Paris",
-              "augmented": false
+              "answer": "Paris"
             }
           ]
         }

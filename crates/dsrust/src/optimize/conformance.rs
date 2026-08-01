@@ -142,21 +142,31 @@ async fn keeps_the_demos_dspy_keeps() {
 /// Every field a demo carries. Which fields those are is the evidence once a program has more
 /// than one predictor, because a demo the drafting half earned names a draft and one the
 /// answering half earned names no question.
+///
+/// `augmented` is one of them, and used not to be: it was filtered out of dspy's side, so the
+/// marker distinguishing an earned demo from a labelled one went uncompared for as long as the
+/// crate did not set it.
 fn fields(demo: &Example) -> BTreeMap<String, String> {
     demo.fields()
-        .map(|(name, value)| {
-            let text = value.as_str().unwrap_or_default().to_owned();
-            (name.to_owned(), text)
-        })
+        .map(|(name, value)| (name.to_owned(), rendered(value)))
         .collect()
+}
+
+/// A field value as text, keeping a bool distinguishable from an absent string — `augmented` is a
+/// bool on both sides, and mapping it through `as_str` would flatten it to the empty string and
+/// compare equal to anything.
+fn rendered(value: &Value) -> String {
+    match value {
+        Value::Bool(flag) => flag.to_string(),
+        other => other.as_str().unwrap_or_default().to_owned(),
+    }
 }
 
 fn expected_fields(demo: &Value) -> BTreeMap<String, String> {
     demo.as_object()
         .expect("a demo")
         .iter()
-        .filter(|(name, _)| name.as_str() != "augmented")
-        .map(|(name, value)| (name.clone(), value.as_str().unwrap_or_default().to_owned()))
+        .map(|(name, value)| (name.clone(), rendered(value)))
         .collect()
 }
 

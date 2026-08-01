@@ -427,6 +427,20 @@ The samples reach the prompt as **Python source**, not JSON — `order_input_key
   that helper, one handling containers and one only scalars; they are one `src/python.rs` now, and
   the quoting rule is measured against CPython rather than assumed.
 
+**`augmented` is a prerequisite, and it was missing.** `gather_examples_from_sets` yields only demos
+carrying `augmented`, which dspy sets on the per-predictor trace demos and nowhere else. The crate
+never set it. Three things followed from that, found in order:
+
+  - a compiled program's demos were missing a key dspy's carry, so what this crate saves and what
+    Python saves differ on it;
+  - `optimize/conformance.rs` **filtered the key out of dspy's side** before comparing, so nothing
+    could see the absence;
+  - and `generate_bootstrap_fixture.py` *invented* `augmented: False` on every demo that lacked it,
+    which dspy does not write — whether the key is there at all is the distinction. The filter and
+    the invention cancelled, which is why 19 recorded cases agreed.
+
+Now set, recorded as dspy writes it, and compared rather than stripped.
+
 `fewshot_aware_proposer` is what remains: `use_task_demos` builds `task_demos` from the demo sets as
 `[current] + [after] + [before]` and gathers examples up to `num_demos_in_context`, falling back to
 "No task demos provided." when nothing was gathered *or* when `demo_set_i == 0`. The crate passes
