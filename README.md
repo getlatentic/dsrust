@@ -200,8 +200,8 @@ cargo run --example quickstart
 
 ## How the fidelity claim is tested
 
-Two layers, both against the pinned upstream (`dspy==3.3.0b1`, `gepa==0.1.1`, `optuna==4.9.0`),
-never against a transcription of it:
+Two layers, both against the pinned upstream (`dspy==3.3.0b1`, `gepa==0.1.1`, `optuna==4.9.0`,
+`json-repair==0.61.7`), never against a transcription of it:
 
 1. **Committed goldens** (`crates/dsrust/tests/conformance/**`), the exact bytes and decisions
    captured from *running* the pinned Python. `cargo test` checks against them, no Python needed.
@@ -215,7 +215,9 @@ Today: **1080 Rust tests pass**, and **897 of DSPy's own**, across 52 of its 86 
 <!-- /status -->
 
 Plus byte-verified reproductions of CPython's Mersenne Twister (against CPython's *own*
-`test_guaranteed_stable` vector), numpy's RNG, optuna's TPE sampler, and the gepa engine.
+`test_guaranteed_stable` vector), numpy's RNG, optuna's TPE sampler, the gepa engine, and
+`json-repair` — the malformed-JSON reader `JSONAdapter.parse` opens with, which is a PyPI package
+rather than DSPy's code and is not the crates.io crate of the same name.
 
 A third check puts a recording proxy between both libraries and one engine. Neither library reports
 on itself:

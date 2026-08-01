@@ -546,9 +546,48 @@ they disagreed with dspy.
 id = "json-repair-port"
 sprint = "conformance"
 title = "json_repair is an external library, and it is the only thing the parsers still disagree on"
-state = "todo"
+state = "done"
 size = "L"
 suites = []
+outcome = """
+`crates/dsrust-json-repair` reproduces json-repair 0.61.7 whole — the parser, the entry points,
+CPython's own `json` grammar for the fast paths it takes, and the schema modules the plan set aside.
+`parse_fuzz.rs`'s allowance is deleted: the rule is now every disagreement, no category excused, and
+it holds at zero over seeds 0, 1 and 7 at five thousand replies each.
+
+**Three representation decisions carry the port**, and each was a divergence waiting to happen. The
+cursor counts *code points*, because Python's `get_char_at(-1)` wraps to the end of the input and
+`_should_split_duplicate_object` reaches it with a lookback well below zero. The character
+predicates are *CPython's*, generated from the interpreter dspy runs on: `char::is_whitespace`
+refuses `\\x1c` where `str.isspace()` accepts it, `char::is_alphabetic` accepts combining marks where
+`str.isalpha()` refuses them, and unicode-general-category is Unicode 16.0 against CPython 3.13's
+15.1. And an integer keeps every digit, because Python's are unbounded.
+
+**The adapter's fuzzer was not enough to find the bugs.** It reaches this library through one reply
+shape — no nesting, no comments, no escapes, no tuples — and reported zero while two real defects
+were still in. A grammar that builds malformed JSON directly found both in its first five thousand
+inputs, and both were the same mistake: when `_handle_right_delimiter_candidate` breaks, Python
+breaks with the character it stepped *back* onto, and the translation broke with the old one. Zero
+over five seeds since, sixty thousand inputs.
+
+**Two schema cases were named for what they did not test**, and the fixture found that too:
+`default_inserted` passed `{}`, valid JSON *and* valid against its schema, so the fast path handed it
+back without inserting anything.
+
+**The log is the stronger oracle.** The value says where a parse arrived; the log says which branch
+took it there, context window and all. 191 entries on the parser side and 40 on the schema side,
+matching exactly.
+
+Two things Rust cannot follow. A lone surrogate is a Python `str` and not a Rust `String`, so
+`"\\ud800"` becomes U+FFFD — one declared case, asserted the other way round so closing it goes red.
+And recursion: Python's limit belongs to the *caller's* stack, measured at 330 nested arrays from a
+top-level call, 247 nested objects and 317 arrays from forty frames deeper, so there is no single
+number to match and the limit here is fixed.
+
+What is *not* reproduced is JSON Schema validation, which is `jsonschema` — a fourth library.
+It is a `SchemaValidator` seam, and with none plugged in the crate answers exactly as a Python
+environment without `jsonschema` does.
+"""
 plan = """
 `JSONAdapter.parse` opens with `json_repair.loads(completion)`. That is **not dspy's code** — it is
 `json-repair>=0.54.2` from PyPI, twelve modules and about 3,500 lines — so there is nothing to copy

@@ -62,6 +62,14 @@ BASELINES=(
 # content-addressed it cannot be poisoned — a mutated source hashes differently, so it gets its own
 # entry rather than overwriting anyone's. A private build dir therefore costs disk for the length of
 # the run and almost no rebuilding, and it is removed on the way out.
+#
+# **It also means the runs below must stay serial.** One fixed build dir is exactly what cargo-mutants
+# gives each parallel job its own of, and overriding it takes that away: every job writes the same
+# `libjson_repair-<hash>.rlib`, because the metadata hash is the crate, not the mutation. Adding
+# `-j` therefore has test binaries linking *someone else's* mutant, and the run reports survivors
+# that are nothing of the sort — measured at 24 against a serial 0 for the same crate, all six
+# escape arms of a `json.dumps` reimplementation among them, each of which fails on its own in
+# under a second. A wrong number here is worse than a slow one: it is a ratchet nobody can trust.
 export CARGO_BUILD_BUILD_DIR="${TMPDIR:-/tmp}/dsrs-mutants-build"
 mkdir -p "$CARGO_BUILD_BUILD_DIR"
 trap 'rm -rf "$CARGO_BUILD_BUILD_DIR" "$ROOT/mutants.out" "$ROOT/mutants.out.old"' EXIT

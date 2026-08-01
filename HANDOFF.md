@@ -185,6 +185,20 @@ passed five unimplemented cases.
 **Watch the conftest copy.** The script copies `conftest.py` into `target/upstream-tests/`, so
 running pytest there directly uses a stale list. Always go through the script.
 
+**Differential fuzzers, where both sides are pure functions of a string.** `scripts/fuzz_parse.py`
+writes random replies and dspy's answers to `target/parse_fuzz.json`; `scripts/fuzz_json_repair.py`
+does the same for json-repair. Neither corpus is committed — ten thousand random strings are
+evidence, not documentation — and both tests skip when the corpus is absent and **fail loudly when
+it is present and unreadable**, which is a distinction one of them used to get wrong.
+
+A fuzzer only covers the grammar it generates, and that is not a detail. `fuzz_parse.py` reaches
+json-repair through one reply shape and reported zero disagreements while two real defects were
+still in the parser; a grammar that built malformed JSON directly found both in five thousand
+inputs. When a fuzz run is green, ask what its generator cannot produce.
+
+**Anything a fuzzer finds gets promoted** into the generated fixture as a named case with its
+reason, or it is only ever a run that happened to be red once.
+
 ## The bridge
 
 `crates/dsrs-bridge/` is a PyO3 extension letting dspy's Python tests drive Rust. The division is deliberate:
@@ -220,12 +234,20 @@ crates/dsrust/src/  the library itself
                     api (request/response/items), builder, dispatch (which wire serves a model),
                     retry, cache (+disk), error, usage, anthropic, ollama, openai, dummy
 crates/             every member, each published under its own name
-  dsrust-derive/    #[derive(Signature)], #[derive(Module)], Predict!, ChainOfThought!
-  dsrust-gepa/      the gepa engine reproduced, byte for byte
-  dsrust-tpe/       optuna's TPE sampler reproduced
-  pyrng/            CPython's and numpy's RNGs reproduced
-  dsrs-bridge/      the PyO3 harness; never published
+  dsrust-derive/       #[derive(Signature)], #[derive(Module)], Predict!, ChainOfThought!
+  dsrust-gepa/         the gepa engine reproduced, byte for byte
+  dsrust-json-repair/  json-repair reproduced — the reader JSONAdapter.parse opens with
+  dsrust-tpe/          optuna's TPE sampler reproduced
+  pyrng/               CPython's and numpy's RNGs reproduced
+  dsrs-bridge/         the PyO3 harness; never published
 ```
+
+**Four of those reproduce a Python library dspy depends on, rather than dspy itself** — optuna's
+sampler, the gepa package, CPython's and numpy's RNGs, and json-repair. Each is pinned by version,
+each is verified against the installed package rather than against a reading of it, and none of
+them is a Rust crate that does something similar. `json-repair` is the clearest case: three crates
+on crates.io carry that name and none is this one, because "repairs malformed JSON" is not the
+same claim as "makes *these* repairs".
 
 **Adapters share everything but three seams:** the structure block, the user trailer, and
 `exchange::Style` (how a field is wrapped, how a value is laid out, how the assistant half
