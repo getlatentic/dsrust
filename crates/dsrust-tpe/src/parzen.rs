@@ -133,19 +133,30 @@ fn mixture_weights(observations: usize, prior_weight: f64) -> Vec<f64> {
 
 /// optuna `default_weights`: ones until 25 observations, then a ramp from `1/n` to `1` over the
 /// oldest `n - 25` and a flat one over the newest 25.
+///
+/// The ramp is `np.linspace(1/n, 1.0, num=n-25)` and is computed the way `linspace` computes it —
+/// `i * step + start` with `step = (stop - start) / (num - 1)`, and the last element assigned
+/// `stop` outright rather than arrived at. Writing it as `start + delta * (i / div)` is the same
+/// algebra and rounds differently: it disagreed with optuna in the last bit at two indices out of
+/// fifty. That would be pedantic if the weights were only weights, but they reach an acquisition
+/// whose ties `np.argmax` breaks by first index, so a last-bit difference picks a different trial.
 fn default_weights(n: usize) -> Vec<f64> {
     if n < 25 {
         return vec![1.0; n];
     }
     let ramp = n - 25;
+    let start = 1.0 / n as f64;
     let mut weights = Vec::with_capacity(n);
-    for i in 0..ramp {
-        let fraction = if ramp == 1 {
-            0.0
-        } else {
-            i as f64 / (ramp - 1) as f64
-        };
-        weights.push(1.0 / n as f64 + (1.0 - 1.0 / n as f64) * fraction);
+    if ramp > 0 {
+        let step = (1.0 - start) / (ramp - 1).max(1) as f64;
+        for i in 0..ramp {
+            weights.push(i as f64 * step + start);
+        }
+        // `linspace` assigns the endpoint rather than computing it, but only when it was asked for
+        // more than one point — `np.linspace(a, b, num=1)` is `[a]`.
+        if ramp > 1 {
+            weights[ramp - 1] = 1.0;
+        }
     }
     weights.extend(std::iter::repeat_n(1.0, 25));
     weights
@@ -196,4 +207,100 @@ fn pick_category(weights: &[f64], quantile: f64) -> usize {
         }
     }
     category
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn golden() -> serde_json::Value {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/conformance/parzen_arithmetic.json");
+        let text = std::fs::read_to_string(&path).expect("the arithmetic golden is committed");
+        serde_json::from_str(&text).expect("the golden parses")
+    }
+
+    fn floats(value: &serde_json::Value) -> Vec<f64> {
+        value
+            .as_array()
+            .expect("an array")
+            .iter()
+            .map(|number| match number {
+                serde_json::Value::String(text) => text.parse().expect("a float"),
+                other => other.as_f64().expect("a float"),
+            })
+            .collect()
+    }
+
+    /// `pairwise_sum` against numpy's own `add.reduce`, at every length that straddles a branch:
+    /// under eight, the eight-accumulator path, the 128-element block boundary, and past it where
+    /// numpy splits and recurses.
+    ///
+    /// Every corpus is built so a *left fold* disagrees — one large leading value and many small
+    /// ones — and the golden records which lengths that holds for. Without that the case would pass
+    /// against a plain `iter().sum()`, which is what this function exists not to be.
+    #[test]
+    fn the_sum_is_numpys_at_every_length_that_changes_branch() {
+        let golden = golden();
+        let cases = golden["sums"].as_array().expect("sums");
+        let mut discriminating = 0;
+        for case in cases {
+            let values = floats(&case["values"]);
+            let expected: f64 = case["sum"]
+                .as_str()
+                .expect("a sum")
+                .parse()
+                .expect("a float");
+            let n = case["n"].as_u64().expect("n");
+            assert_eq!(pairwise_sum(&values), expected, "sum of {n} values");
+
+            if case["order_matters"].as_bool().unwrap_or(false) {
+                discriminating += 1;
+                let left_fold: f64 = case["left_fold"]
+                    .as_str()
+                    .expect("a left fold")
+                    .parse()
+                    .expect("a float");
+                assert_ne!(
+                    expected, left_fold,
+                    "the golden says {n} discriminates but the two agree"
+                );
+            }
+        }
+        assert!(
+            discriminating >= 4,
+            "the corpus no longer tells pairwise summation from a left fold"
+        );
+    }
+
+    /// `default_weights` against optuna's, including the `n >= 25` ramp — which no case reached,
+    /// because the *below* group never grows that large in the recorded studies.
+    #[test]
+    fn the_weights_are_optunas_past_the_ramp() {
+        let golden = golden();
+        for case in golden["default_weights"].as_array().expect("weights") {
+            let n = case["n"].as_u64().expect("n") as usize;
+            assert_eq!(
+                default_weights(n),
+                floats(&case["weights"]),
+                "weights for {n}"
+            );
+        }
+    }
+
+    /// The last cumulative weight is pinned to one, so a quantile just under one cannot fall off the
+    /// end — optuna's `cum_probs[:, -1] = 1`, guarding the rounding in the cumulative sum.
+    #[test]
+    fn a_quantile_just_under_one_lands_on_the_last_category() {
+        // A row whose cumulative sum falls clearly short of one, and a quantile in the gap. Without
+        // the pin the count runs past the last category and returns an index out of range; with it
+        // the last bound is one and the quantile stays inside. A row that only just falls short
+        // would leave both answers equal and prove nothing.
+        let weights = [0.1, 0.2, 0.6];
+        assert!(weights.iter().sum::<f64>() < 1.0);
+        assert_eq!(pick_category(&weights, 0.95), weights.len() - 1);
+        // And the strict `<` keeps a quantile exactly on a boundary in the lower category.
+        assert_eq!(pick_category(&[0.5, 0.5], 0.5), 0);
+        assert_eq!(pick_category(&[0.5, 0.5], 0.500_000_001), 1);
+    }
 }

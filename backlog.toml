@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1073
+rust_tests = 1076
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -390,7 +390,8 @@ was generated under, so it surfaces as a diff here rather than as a sandbox synt
 id = "can-the-suite-fail"
 sprint = "conformance"
 title = "Measure whether the conformance suite can fail, rather than that it passes"
-state = "todo"
+state = "in-progress"
+progress = "dsrust-tpe measured and ratcheted 2026-08-01: 18 survivors -> 1. The other crates are unmeasured."
 size = "L"
 suites = []
 plan = """
@@ -429,6 +430,37 @@ instruction every time, `generate_gepa_selector_fixture.py` refuses one that nev
 epsilon branches, and `generate_dataset_summary_fixture.py` refuses one that never exercises repr's
 double-quote branch. **A generator that cannot state what its corpus discriminates is writing a
 golden that cannot fail.**
+"""
+notes = """
+**First measurement, `dsrust-tpe`: 18 survivors of 153.** Every one in `parzen.rs`, and every one in
+a function whose correctness the module doc *asserts*:
+
+  - `pairwise_sum`'s `n < 8` boundary and its entire `n > 128` recursive split. Written this session
+    from numpy's C, cited in three doc comments as the reason the crate agrees with numpy — and no
+    sum in any fixture is longer than a few dozen kernels, so the branch that splits and recurses had
+    never run once.
+  - `default_weights`'s `n >= 25` ramp. The *below* group never grows that large in a recorded study,
+    so the ramp arm never ran either.
+  - `pick_category`'s pinned last cumulative weight.
+
+Closing them found a real defect. **The ramp disagreed with optuna in the last bit.** It was written
+as `start + delta * (i / div)`; `np.linspace` computes `i * step + start` with `step = delta / div`
+and then *assigns* the endpoint rather than arriving at it. Same algebra, different rounding —
+two indices out of fifty differed at n=50. That would be pedantic if weights were only weights, but
+they reach an acquisition whose ties `np.argmax` breaks by first index, which is the same mechanism
+that made the ratio-versus-log-difference bug flip a trial.
+
+**Two of my own new tests could not fail**, which the second mutation run said and I would not have.
+The `pick_category` case used a row that only just fell short of one, so the answer was the same with
+the pin and without it; and the `default_weights` corpus had no length whose endpoint the arithmetic
+misses, so the assignment was unobservable. n=29 is the smallest that shows it, and the generator now
+refuses to write a fixture without such a length.
+
+18 → 1. The survivor is equivalent: `n < 25` against `n <= 25`, where at n=25 the ramp is empty
+either way. `scripts/run_mutants.sh` holds the ratchet — the number may fall, never rise.
+
+Remaining: `pyrng`, `dsrust-gepa`, and the byte-critical modules of `dsrust` itself, which is the
+large half. Expect the `dsrust` run to be slow enough to want scoping by file.
 """
 
 [[story]]

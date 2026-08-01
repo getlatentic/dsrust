@@ -29,3 +29,7 @@ __pycache__/
 
 # Local-only comparison against other projects (never tracked)
 /local-compare/
+
+# cargo-mutants scratch trees and logs
+mutants.out/
+mutants.out.old/
