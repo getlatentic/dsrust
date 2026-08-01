@@ -430,6 +430,19 @@ not offer it again as work.
 
 The corpus was `chat_parse.json` holding all three adapters with the result under a `chat` key. It is
 `adapter_parse.json` with the result under `dspy`.
+
+**Measured clean, 2026-08-01: 150 mutants, 132 caught, 17 unviable, 0 timeouts, 1 missed.** Opened
+at 43 of 143 viable. Recorded as a ratchet of 1 in `run_mutants.sh` under `adapter`, beside the
+three package baselines and sharing their pass/fail check.
+
+**Two earlier numbers from this story are void and should not be quoted.** One run shared a build
+directory with another session's — `dsrust` depends on `dsrust-json-repair`, so a mutated rlib
+landed where the other's test binaries link from, and the cleanup `rm -rf` deleted whichever
+directory finished second. And every run before `fuzz_sweep.json` was committed had `parse_fuzz`
+skipping: its corpus lived in `target/`, a copied source tree has no `target/`, and the test
+returned early rather than failing. Tens of thousands of differential cases contributed nothing to
+any survivor count, which is most of why `parse.rs` looked as bad as it did. Both are fixed, and
+both are one lesson: an early return reports the same green as a run.
 """
 notes = """
 **The ChatAdapter half landed, and the first golden found two divergences immediately.**

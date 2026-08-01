@@ -14,8 +14,9 @@
 # a change the compiler accepts and no behaviour can distinguish — and chasing those is wasted work.
 # What matters is that the number never rises: a new survivor is a new line nothing checks.
 #
-#     ./scripts/run_mutants.sh            # every scoped crate
+#     ./scripts/run_mutants.sh            # the adapter slice, then every scoped crate
 #     ./scripts/run_mutants.sh dsrust-tpe # one of them
+#     ./scripts/run_mutants.sh adapter    # just the adapter slice (~55 minutes)
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -37,17 +38,40 @@ cd "$ROOT"
 #                    intersection tie was in that list and is not any more — see the note in
 #                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
 #                    finished state.
-#   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours. Run it
-#               scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
-#               history, parse) measured 43 of 143 viable on 2026-08-01, 35 of them in `parse.rs`,
-#               because nineteen fixtures pin the prompt this crate *sends* and none pin what it
-#               *reads*. Filed as `parse-side-goldens`; no ratchet entry until that lands, since a
-#               five-hour floor nobody runs is not a gate.
+#   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours, so it
+#               is scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
+#               history, parse) is a ratchet of its own below, at 1.
+#
+#               Its history is the case for doing this at all. It first measured 43 survivors of 143
+#               viable, 35 in `parse.rs`, because nineteen fixtures pinned the prompt this crate
+#               *sends* and none pinned what it *reads* — `parse-side-goldens`. Two later runs are
+#               void and their numbers should not be quoted: one shared a build directory with
+#               another session (see below), and every run before `fuzz_sweep.json` was committed
+#               had `parse_fuzz` skipping, because its corpus lived in `target/` and a copied tree
+#               has no `target/`. The parser's strongest oracle was absent from all of them.
+#
+#               Clean, on 2026-08-01: 150 mutants, 132 caught, 17 unviable, 0 timeouts, 1 missed.
 BASELINES=(
   "dsrust-tpe:1"
   "pyrng:4"
   "dsrust-gepa:46"
 )
+
+# The one `dsrust` slice with a floor. Scoped by file because the whole crate is a five-hour run,
+# and a gate nobody runs is not a gate.
+#
+#   1 — `parse_json`'s `start < end` against `start <= end`. `find('{')` and `rfind('}')` cannot
+#       return the same index, because a byte is not both braces, so nothing can tell the two apart.
+#       Equivalent, and recorded in the source so a later run does not offer it again as work.
+ADAPTER_SLICE=(
+  crates/dsrust/src/adapter/parse.rs
+  crates/dsrust/src/adapter/chat.rs
+  crates/dsrust/src/adapter/prompt.rs
+  crates/dsrust/src/adapter/exchange.rs
+  crates/dsrust/src/adapter/demos.rs
+  crates/dsrust/src/adapter/types/history.rs
+)
+ADAPTER_BASELINE=1
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each
 # holding their own copy of the same dependency object code. That is the right default and it is why
@@ -77,7 +101,41 @@ if ! cargo mutants --version > /dev/null 2>&1; then
   exit 127
 fi
 
+# One place that decides pass or fail, so a package run and a file-scoped run cannot drift apart.
+check_ratchet() {
+  local label="$1" allowed="$2" log="$3"
+  # TIMEOUT counts too. A mutant that hangs was detected only in the sense that the suite never
+  # finished — it is a line whose behaviour no assertion pins, same as a survivor, and letting it
+  # go uncounted would let the number fall silently as tests got slower.
+  local missed
+  missed=$(grep -cE "^(MISSED|TIMEOUT)" "$log" || true)
+  tail -1 "$log"
+  if [ "$missed" -gt "$allowed" ]; then
+    echo "  RATCHET BROKEN: $missed survivors, baseline $allowed" >&2
+    grep -E "^(MISSED|TIMEOUT)" "$log" | sed 's/ in [0-9].*//' >&2
+    return 1
+  elif [ "$missed" -lt "$allowed" ]; then
+    echo "  $missed survivors, below the baseline of $allowed — lower the baseline in this script"
+  else
+    echo "  $missed survivors, at the baseline"
+  fi
+  return 0
+}
+
 status=0
+
+# The adapter slice, run whenever no package was named or `adapter` was.
+if [ "$#" -eq 0 ] || [ "$1" = "adapter" ]; then
+  echo "==> cargo mutants -p dsrust, adapter slice (baseline $ADAPTER_BASELINE)"
+  log="target/mutants-adapter.log"
+  files=()
+  for file in "${ADAPTER_SLICE[@]}"; do files+=(--file "$file"); done
+  set +e
+  cargo mutants -p dsrust --timeout 120 "${files[@]}" > "$log" 2>&1
+  set -e
+  check_ratchet "adapter" "$ADAPTER_BASELINE" "$log" || status=1
+fi
+
 for entry in "${BASELINES[@]}"; do
   package="${entry%%:*}"
   allowed="${entry##*:}"
@@ -89,19 +147,6 @@ for entry in "${BASELINES[@]}"; do
   set +e
   cargo mutants -p "$package" --timeout 120 > "$log" 2>&1
   set -e
-  # TIMEOUT counts too. A mutant that hangs was detected only in the sense that the suite never
-  # finished — it is a line whose behaviour no assertion pins, same as a survivor, and letting it
-  # go uncounted would let the number fall silently as tests got slower.
-  missed=$(grep -cE "^(MISSED|TIMEOUT)" "$log" || true)
-  tail -1 "$log"
-  if [ "$missed" -gt "$allowed" ]; then
-    echo "  RATCHET BROKEN: $missed survivors, baseline $allowed" >&2
-    grep -E "^(MISSED|TIMEOUT)" "$log" | sed 's/ in [0-9].*//' >&2
-    status=1
-  elif [ "$missed" -lt "$allowed" ]; then
-    echo "  $missed survivors, below the baseline of $allowed — lower the baseline in this script"
-  else
-    echo "  $missed survivors, at the baseline"
-  fi
+  check_ratchet "$package" "$allowed" "$log" || status=1
 done
 exit "$status"
