@@ -49,8 +49,11 @@ const STYLE: Style = Style {
 pub struct XmlAdapter;
 
 impl super::Adapter for XmlAdapter {
+    /// dspy's class name, not this crate's type name: it is what a callback watcher
+    /// reads, where upstream hands the handler the instance and it takes
+    /// `type(instance).__name__`.
     fn name(&self) -> &'static str {
-        "XmlAdapter"
+        "XMLAdapter"
     }
 
     fn system_message(&self, signature: &Signature) -> Result<String> {

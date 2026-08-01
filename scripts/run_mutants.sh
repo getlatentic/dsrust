@@ -62,8 +62,14 @@ BASELINES=(
 # content-addressed it cannot be poisoned — a mutated source hashes differently, so it gets its own
 # entry rather than overwriting anyone's. A private build dir therefore costs disk for the length of
 # the run and almost no rebuilding, and it is removed on the way out.
-export CARGO_BUILD_BUILD_DIR="${TMPDIR:-/tmp}/dsrs-mutants-build"
-mkdir -p "$CARGO_BUILD_BUILD_DIR"
+#
+# Unique per run, not a fixed path. Several worktree sessions share this machine, and a fixed path
+# put two of them in the same directory — measured, with two concrete failures rather than mere
+# contention. `dsrust` depends on `dsrust-json-repair`, so one run's mutated rlib landed where the
+# other's `dsrust` test binaries link from: the poisoning this override exists to prevent, one
+# directory further out. And the cleanup below is `rm -rf`, so whichever run finished first deleted
+# the other's build directory mid-run. Neither shows up as a failure; both show up as a number.
+export CARGO_BUILD_BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/dsrs-mutants-build.XXXXXX")"
 trap 'rm -rf "$CARGO_BUILD_BUILD_DIR" "$ROOT/mutants.out" "$ROOT/mutants.out.old"' EXIT
 
 if ! cargo mutants --version > /dev/null 2>&1; then

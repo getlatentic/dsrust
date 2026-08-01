@@ -44,8 +44,11 @@ impl Default for JsonAdapter {
 }
 
 impl Adapter for JsonAdapter {
+    /// dspy's class name, not this crate's type name: it is what a callback watcher
+    /// reads, where upstream hands the handler the instance and it takes
+    /// `type(instance).__name__`.
     fn name(&self) -> &'static str {
-        "JsonAdapter"
+        "JSONAdapter"
     }
 
     fn native_function_calling(&self) -> super::NativeFunctionCalling {

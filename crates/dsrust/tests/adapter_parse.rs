@@ -1,4 +1,4 @@
-//! What `ChatAdapter` reads *out* of a reply, against dspy's own parser.
+//! What each adapter reads *out* of a reply, against dspy's own parser.
 //!
 //! Nineteen fixtures in this repo pin the prompt the crate **sends**. Until this one, none pinned
 //! what it **reads** — and mutation testing put a number on that: 35 survivors in `adapter/parse.rs`,
@@ -24,7 +24,7 @@ use serde_json::Value;
 
 fn fixture() -> Value {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/conformance/parse/chat_parse.json");
+        .join("tests/conformance/parse/adapter_parse.json");
     let text = std::fs::read_to_string(&path).expect("the parse golden is committed");
     serde_json::from_str(&text).expect("the golden parses")
 }
@@ -44,7 +44,7 @@ fn the_parser_reads_what_dspys_reads_and_refuses_what_dspy_refuses() {
             .parse()
             .unwrap_or_else(|error| panic!("case {name}: signature does not parse: {error}"));
         let completion = case["completion"].as_str().expect("a completion");
-        let expected = &case["chat"];
+        let expected = &case["dspy"];
 
         let adapter: Box<dyn Adapter> = match case["adapter"].as_str().unwrap_or("chat") {
             "xml" => Box::new(XmlAdapter::default()),

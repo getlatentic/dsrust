@@ -142,3 +142,67 @@ fn typed_demo_value(field: &crate::signature::OutField, value: Value) -> Value {
         Err(_) => value,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::signature::{FieldKind, InField, JsonType, OutField};
+    use serde_json::json;
+
+    /// `answer: str` beside `tags: list[str]`, which render differently for the same value.
+    fn two_kinds() -> Signature {
+        Signature {
+            instructions: "Answer.".into(),
+            inputs: vec![InField {
+                name: "question".into(),
+                ..Default::default()
+            }],
+            outputs: vec![
+                OutField {
+                    name: "answer".into(),
+                    ..Default::default()
+                },
+                OutField {
+                    name: "tags".into(),
+                    kind: FieldKind::Json(JsonType::plain("list[str]")),
+                    ..Default::default()
+                },
+            ],
+        }
+    }
+
+    /// A field renders under *its own* declared kind, not under some other field's.
+    ///
+    /// dspy resolves `signature.fields[name]` and hands that field's info to
+    /// `format_field_value`, so the lookup is the whole of the behaviour. Two outputs with
+    /// different kinds are what makes a wrong lookup visible: given the same list, a `str` field
+    /// renders dspy's enumerated form and a structured one renders JSON, so which field was found
+    /// decides the bytes. Both spellings are upstream's `format_field_value`, checked against it.
+    ///
+    /// Nothing had a demo with two differently-kinded outputs, so mutating the output lookup's
+    /// `==` to `!=` — take the first field whose name does *not* match — left the suite green.
+    #[test]
+    fn a_field_renders_under_its_own_kind() {
+        let signature = two_kinds();
+        let list = json!(["a", "b"]);
+
+        assert_eq!(plain(&signature, "tags", &list), "[\"a\", \"b\"]");
+        assert_eq!(
+            plain(&signature, "answer", &list),
+            "[1] \u{ab}a\u{bb}\n[2] \u{ab}b\u{bb}"
+        );
+    }
+
+    /// The lookup reads inputs first and outputs second, as dspy's merged `fields` dict does, and
+    /// a name in neither half falls back to rendering the bare value.
+    #[test]
+    fn the_lookup_spans_both_halves_of_a_signature() {
+        let signature = two_kinds();
+        assert_eq!(kind_of(&signature, "question"), Some(&FieldKind::Str));
+        assert!(matches!(
+            kind_of(&signature, "tags"),
+            Some(FieldKind::Json(_))
+        ));
+        assert_eq!(kind_of(&signature, "nowhere"), None);
+    }
+}

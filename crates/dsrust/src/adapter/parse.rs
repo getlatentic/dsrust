@@ -130,6 +130,15 @@ pub(super) fn parse_tags(signature: &Signature, raw: &str) -> Result<Value> {
             // as the value it spells rather than kept as the text spelling it.
             found.insert(name.to_owned(), section_value(field, content.trim()));
         }
+        // The loop advances only because `next_tag` hands back a suffix of what it was given —
+        // which it does, and which nothing else enforced. A parser reading model output is reading
+        // input nobody wrote, and one that spins instead of answering hangs the caller's process
+        // rather than returning a wrong value it could notice. Twelve mutations of `next_tag` hung
+        // the whole suite for three minutes each until this was here; now each one terminates and
+        // answers wrongly, which the goldens catch.
+        if after.len() >= rest.len() {
+            break;
+        }
         rest = after;
     }
     let mut value = declared_fields(signature, Value::Object(found), "XMLAdapter", raw)?;
@@ -145,13 +154,15 @@ pub(super) fn parse_tags(signature: &Signature, raw: &str) -> Result<Value> {
 ///
 /// A tag name is a word, matching upstream's `\w+`, so punctuation or a space rules a `<`
 /// out as an opening tag and the scan moves past it.
+///
+/// Over `match_indices` rather than a cursor it advances itself. The cursor version was correct and
+/// its termination rested on one `cursor = open + 1` at the bottom of a `loop`: mutating that line
+/// hung the whole test suite instead of failing it, and no assertion can catch a function that
+/// never returns. The iterator makes the progress structural.
 fn next_tag(text: &str) -> Option<(&str, &str, &str)> {
-    let mut cursor = 0;
-    loop {
-        let open = text[cursor..].find('<')? + cursor;
-        let Some(shut) = text[open..].find('>').map(|at| at + open) else {
-            return None;
-        };
+    for (open, _) in text.match_indices('<') {
+        // No `>` after this `<` means none after any later one either — they are all further right.
+        let shut = text[open..].find('>').map(|at| at + open)?;
         let name = &text[open + 1..shut];
         let is_word = !name.is_empty()
             && name
@@ -163,8 +174,8 @@ fn next_tag(text: &str) -> Option<(&str, &str, &str)> {
                 return Some((name, &text[shut + 1..end], &text[end + closing.len()..]));
             }
         }
-        cursor = open + 1;
     }
+    None
 }
 
 /// A reply that read as JSON but did not carry the fields the signature declared.
@@ -263,6 +274,10 @@ pub(super) fn parse_json(raw: &str) -> Result<Value> {
     {
         return Ok(value);
     }
+    // `start < end` and `start <= end` cannot be told apart: a byte is not both `{` and `}`, so
+    // the two indices are never equal. Left as the strict comparison because it says what is
+    // meant — an opening brace *before* a closing one — and recorded here because a mutation
+    // testing run will keep offering the other one as a survivor nobody can kill.
     if let (Some(start), Some(end)) = (raw.find('{'), raw.rfind('}'))
         && start < end
     {

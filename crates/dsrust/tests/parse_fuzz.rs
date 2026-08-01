@@ -1,6 +1,6 @@
 //! Differential fuzzing against dspy's parsers: random replies, both sides, every disagreement.
 //!
-//! The committed goldens hold 51 cases, each chosen by reading a branch of `parse` — which is
+//! The committed goldens hold a case per branch of `parse`, each chosen by reading it — which is
 //! exactly the method that leaves the branches nobody thought of. This closes that: both sides are
 //! pure functions from a string to a value-or-error and dspy is on hand as the reference.
 //!
@@ -16,7 +16,23 @@ use dsrust::signature::Signature;
 use dsrust::{Adapter, ChatAdapter, JsonAdapter, XmlAdapter};
 use serde_json::Value;
 
-fn corpus() -> Option<Value> {
+/// The committed slice: a fixed seed of the same grammar, compared against dspy's own answers.
+///
+/// It exists because the campaign corpus lives in `target/`, and a tree without one — a fresh
+/// clone, a copied source tree, every single cargo-mutants run — silently skipped this whole
+/// comparison. The parser's strongest oracle contributed nothing to any survivor count, which is
+/// most of why `parse.rs` had so many. Regenerate with
+/// `.venv/bin/python scripts/fuzz_parse.py 1500 0 --sweep`.
+fn sweep() -> Value {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/conformance/parse/fuzz_sweep.json");
+    let text = std::fs::read_to_string(&path).expect("the fuzz sweep is committed");
+    serde_json::from_str(&text).expect("the sweep parses")
+}
+
+/// The scratch corpus a campaign leaves behind, when there is one. Deliberately not committed: ten
+/// thousand random strings are evidence, not documentation.
+fn campaign() -> Option<Value> {
     let path =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/parse_fuzz.json");
     let text = std::fs::read_to_string(path).ok()?;
@@ -44,12 +60,15 @@ enum Shape {
 
 #[test]
 fn no_random_reply_parses_differently_from_dspys() {
-    let Some(corpus) = corpus() else {
-        eprintln!(
-            "no target/parse_fuzz.json — run `.venv/bin/python scripts/fuzz_parse.py` to generate one"
-        );
-        return;
-    };
+    // The committed sweep always, the campaign corpus as well when one is lying around. Never a
+    // silent skip: a comparison that returns early when its input is missing reports the same
+    // green as one that ran, and this one was doing that in every copied tree.
+    for corpus in [Some(sweep()), campaign()].into_iter().flatten() {
+        check(&corpus);
+    }
+}
+
+fn check(corpus: &Value) {
     let signature: Signature = corpus["signature"]
         .as_str()
         .expect("a signature")

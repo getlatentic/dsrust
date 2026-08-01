@@ -350,3 +350,47 @@ mod live_input_order {
         assert_eq!(names, ["alpha", "beta"]);
     }
 }
+
+#[cfg(test)]
+mod adapter_names {
+    use super::*;
+    use crate::{BamlAdapter, XmlAdapter};
+
+    /// Each adapter reports the name of the dspy class it is a port of.
+    ///
+    /// dspy dispatches a callback by the instance's *type* and hands the handler that instance, so
+    /// what a watcher reads is `type(instance).__name__`. A Rust callback cannot hand over a `dyn
+    /// Adapter` for the caller to downcast, so [`Adapter::name`] stands in — and it is a stand-in
+    /// only if it says what upstream's class is called.
+    ///
+    /// Three of the five said the Rust type's name instead (`JsonAdapter` for `JSONAdapter`, and
+    /// so on). Nothing asserted any of them: mutating `ChatAdapter::name` to the empty string left
+    /// the whole suite green, which is how the disagreement surfaced.
+    #[test]
+    fn every_adapter_reports_its_dspy_class_name() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/conformance/constants/tables.json");
+        let text = std::fs::read_to_string(&path).expect("the constants golden is committed");
+        let tables: serde_json::Value = serde_json::from_str(&text).expect("the golden parses");
+        let recorded = tables["adapter_names"].as_object().expect("adapter names");
+
+        let ours: Vec<(&str, &str)> = vec![
+            ("chat", ChatAdapter::default().name()),
+            ("json", JsonAdapter::default().name()),
+            ("xml", XmlAdapter.name()),
+            ("baml", BamlAdapter.name()),
+        ];
+        for (wire, name) in &ours {
+            assert_eq!(
+                Some(*name),
+                recorded[*wire].as_str(),
+                "the {wire} adapter should report dspy's class name"
+            );
+        }
+        assert_eq!(
+            recorded.len(),
+            ours.len() + 1,
+            "the golden records TwoStepAdapter too, which needs a model to build"
+        );
+    }
+}

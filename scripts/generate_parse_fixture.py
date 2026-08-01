@@ -58,6 +58,13 @@ class Typed(dspy.Signature):
     tags: list[str] = dspy.OutputField()
 
 
+class Underscored(dspy.Signature):
+    """Answer the question."""
+
+    question: str = dspy.InputField()
+    final_answer: str = dspy.OutputField()
+
+
 #: The XML adapter scans with `<(?P<name>\w+)>(.*?)</\1>` under DOTALL — a *global* find, a
 #: non-greedy body, a backreferenced closing name, and `\w+` for the name. Every case below is one
 #: of those properties, and none of them is a shape a well-behaved model emits.
@@ -82,6 +89,18 @@ XML_CASES = [
     ("xml_buried_in_prose", QA, "Sure! <reasoning>Because.</reasoning> and so <answer>Paris</answer> there."),
     ("xml_empty_body", QA, "<reasoning></reasoning>\n<answer>Paris</answer>"),
     ("xml_nothing_at_all", QA, ""),
+    # `\w` includes the underscore, so an underscored name opens a tag like any other. Nothing
+    # exercised one, and a mutation reading `letter != '_'` instead of `== '_'` survived on that:
+    # it rejects exactly the names most signatures use.
+    ("xml_underscored_name", Underscored, "<final_answer>Paris</final_answer>"),
+    # A declared field *inside* a non-word tag. The hyphenated case above only showed that such a
+    # tag is not itself a field; this shows the scan resumes one character past the `<` and finds
+    # what the tag wraps, rather than swallowing it whole.
+    (
+        "xml_field_inside_a_non_word_tag",
+        QA,
+        "<my-wrapper><reasoning>Because.</reasoning></my-wrapper>\n<answer>Paris</answer>",
+    ),
     (
         "xml_typed_fields",
         Typed,
@@ -187,6 +206,22 @@ CASES = [
         "\n\n[[ ## reasoning ## ]]\n\n\nBecause.\n\n\n\n[[ ## answer ## ]]\n\nParis\n\n\n",
     ),
     # The pattern is matched against `line.strip()`, so an indented marker still counts.
+    # dspy's header pattern is `\[\[ ## (?P<name>\w+) ## \]\]`, so a name with punctuation in it
+    # does not open a section and the line is content. A mutation reading the name check as an
+    # *or* survived without this: it makes every such line a header.
+    (
+        "non_word_marker_name",
+        QA,
+        "[[ ## reasoning ## ]]\nBecause.\n[[ ## my-note ## ]]\nstill reasoning\n"
+        "[[ ## answer ## ]]\nParis\n[[ ## completed ## ]]",
+    ),
+    # The same, with an empty name — the other half of that check.
+    (
+        "empty_marker_name",
+        QA,
+        "[[ ## reasoning ## ]]\nBecause.\n[[ ##  ## ]]\nstill reasoning\n"
+        "[[ ## answer ## ]]\nParis\n[[ ## completed ## ]]",
+    ),
     (
         "indented_marker",
         QA,
@@ -268,7 +303,7 @@ def main() -> None:
                 ),
                 "completion": completion,
                 "adapter": which(name),
-                "chat": parsed(adapters[which(name)], signature, completion),
+                "dspy": parsed(adapters[which(name)], signature, completion),
                 # The crate casts a scalar during *validation* rather than during parse. So a good
                 # `int` comes back as the text that spells it, and the two values that will not fit
                 # are accepted here and fail later with a typed message instead of at parse.
@@ -288,19 +323,19 @@ def main() -> None:
         "source": f"generated from dspy=={PINNED} via scripts/generate_parse_fixture.py",
         "dspy_version": PINNED,
         "note": (
-            "What ChatAdapter.parse returns for each reply, and which it refuses. The refusals "
+            "What each adapter's parse returns for a reply, and which it refuses. The refusals "
             "matter as much as the successes: a reply the crate accepts where dspy raises reaches "
             "the caller as a wrong value rather than an error."
         ),
         "cases": cases,
     }
     OUT.mkdir(parents=True, exist_ok=True)
-    path = OUT / "chat_parse.json"
+    path = OUT / "adapter_parse.json"
     path.write_text(json.dumps(fixture, indent=2, ensure_ascii=False) + "\n")
     print(f"  wrote {path.relative_to(OUT.parent.parent.parent)}", file=sys.stderr)
 
-    refused = [case["name"] for case in cases if not case["chat"]["ok"]]
-    accepted = [case["name"] for case in cases if case["chat"]["ok"]]
+    refused = [case["name"] for case in cases if not case["dspy"]["ok"]]
+    accepted = [case["name"] for case in cases if case["dspy"]["ok"]]
     # A corpus of only-valid replies pins nothing about the refusals, which is half of what parse
     # decides. Refuse to write one.
     if not refused or not accepted:

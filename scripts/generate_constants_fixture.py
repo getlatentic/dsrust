@@ -12,6 +12,11 @@ Two are recorded here, each from its own oracle rather than from a reading:
     upstream's one addition. Being a list rather than a predicate is itself a divergence: a keyword
     added by a later CPython would reach dspy and not the crate, which is worth knowing and is why
     the interpreter version is recorded beside it.
+  - each adapter's own name. dspy dispatches a callback by the instance's *type* and hands the
+    handler the instance, so what a watcher sees is `type(instance).__name__`. A Rust callback
+    cannot hand over a `dyn Adapter` for the caller to downcast, so `Adapter::name` stands in — and
+    it is only a stand-in if it says what upstream's class is called. Three of five did not
+    (`JsonAdapter` for `JSONAdapter`, and so on), found because nothing asserted any of them.
   - the headers `_exception_request_id` tries, in its order. They are literals inside the function
     body, so they are read out of dspy's own AST rather than copied.
 
@@ -57,6 +62,25 @@ def string_constants(function) -> list[str]:
     ]
 
 
+def adapter_names() -> dict[str, str]:
+    """Each adapter class's own name, keyed by the wire this crate calls it.
+
+    Read off the classes rather than written down: the names are what `type(instance).__name__`
+    gives a callback handler, and a transcribed list would agree with whatever it was transcribed
+    from.
+    """
+    import dspy
+    from dspy.adapters.baml_adapter import BAMLAdapter
+
+    return {
+        "chat": dspy.ChatAdapter.__name__,
+        "json": dspy.JSONAdapter.__name__,
+        "xml": dspy.XMLAdapter.__name__,
+        "baml": BAMLAdapter.__name__,
+        "two_step": dspy.TwoStepAdapter.__name__,
+    }
+
+
 def main() -> None:
     # `_inject_variables` refuses a name when `keyword.iskeyword(key) or key == "json"`.
     refused = sorted(keyword.kwlist) + ["json"]
@@ -75,6 +99,7 @@ def main() -> None:
             "upstream asks keyword.iskeyword rather than holding a list — a keyword added by a "
             "later CPython would reach dspy and not a static list."
         ),
+        "adapter_names": adapter_names(),
         "refused_variable_names": refused,
         "request_id_headers": headers,
     }

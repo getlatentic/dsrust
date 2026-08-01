@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1096
+rust_tests = 1099
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -390,45 +390,51 @@ was generated under, so it surfaces as a diff here rather than as a sandbox synt
 id = "parse-side-goldens"
 sprint = "conformance"
 title = "Nineteen fixtures pin what we send and none pin what we read"
-state = "in-progress"
+state = "done"
 progress = "All three parse goldens landed 2026-08-01, 51 cases. parse.rs survivors 35 -> 6. The differential fuzzer remains."
 size = "M"
 suites = []
-plan = """
-Measured 2026-08-01 by mutation testing the byte-critical adapter path — `chat.rs`, `prompt.rs`,
-`exchange.rs`, `demos.rs`, `history.rs`, `parse.rs`. **43 survivors of 143 viable mutants, 35 of them
-in `parse.rs` and 20 in `next_tag` alone.**
+done = """
+Closed by measurement rather than by judgement: the story was opened by a mutation count and the
+same run closes it. 56 cases now record what dspy's own `ChatAdapter.parse`, `JSONAdapter.parse` and
+`XMLAdapter.parse` return for a reply — and which they refuse, which is 15 of them. BAML needed no
+cases of its own: upstream's `BAMLAdapter` subclasses `JSONAdapter` with no `parse`, and the crate
+delegates the same way.
 
-The cause is structural rather than a scatter of missing cases. Nineteen adapter fixtures record
-`expected_system` and `expected_turns` — the rendered prompt. **None record a parsed reply.** The
-claim this project makes is that the bytes match dspy's in both directions, and only one direction
-has an oracle. `next_tag` can have its arithmetic changed almost arbitrarily, or return
-`Some(("xyzzy", "xyzzy", "xyzzy"))` outright, with 1078 tests still green.
+**The four cases the survivors asked for.** Re-running the slice found seven missed and twelve
+timeouts, and each one named a shape the corpus lacked. A marker whose name is not a word
+(`[[ ## my-note ## ]]`) and one whose name is empty, for `split_header`'s name check. An XML tag with
+an underscore in its name — Python's word class includes it, so `final_answer` opens a tag, and a
+mutation reading the check as `letter != '_'` rejected exactly the names most signatures use. And a
+declared field *inside* a non-word tag, which shows the scan resumes one character past the `<`
+rather than swallowing what the tag wraps; the hyphenated case only showed such a tag is not itself
+a field.
 
-The parser is exercised, but only incidentally: end-to-end tests script a reply, and every scripted
-reply is well-formed. Nothing shows it a reply with a marker in the prose, an unterminated block, a
-field out of order, an unknown field, a repeated field, or the whitespace variations a real model
-produces — which is exactly the corpus `parse` exists for.
+**The twelve timeouts were one missing guard.** Every one mutated `next_tag`, and every one made
+`parse_tags` spin for the full three minutes. The loop advanced only because `next_tag` returns a
+suffix of what it was given — true, and enforced by nothing. A parser reading model output is
+reading input nobody wrote, and one that spins hangs the caller instead of returning a wrong value
+they could notice. The loop now breaks unless the remainder actually shrank.
 
-The work is the mirror of `generate_fixtures.py`: a corpus of raw completion strings, run through
-dspy's own `ChatAdapter.parse` / `JSONAdapter.parse` / `XMLAdapter.parse`, recording what each
-returns *and what it raises*. The failures matter as much as the successes here — a reply the crate
-accepts and dspy rejects is a divergence that reaches the caller as a wrong value rather than an
-error.
+**Two findings the mutants surfaced that the corpus could not have.** `Adapter::name` was
+unasserted, and three of five said the Rust type's name where dspy's class is `JSONAdapter`,
+`XMLAdapter`, `BAMLAdapter` — the string a callback watcher reads, since upstream dispatches by type
+and hands over the instance for `type(instance).__name__`. And `kind_of`'s output lookup had no test
+with two differently-kinded outputs, so taking the *wrong* field went unnoticed; given a list, a
+`str` field renders dspy's enumerated form and a structured one renders JSON, which is what makes a
+wrong lookup visible at all.
 
-Corpus shapes that must be in it, since each is a survivor today: a marker string appearing inside a
-field's value; a field whose block never closes; fields in a different order from the signature;
-a field the signature does not declare; the same field twice; leading and trailing blank lines
-around a marker; and `[[ ## completed ## ]]` missing entirely.
+**One survivor is equivalent and stays.** `parse_json`'s `start < end` against `start <= end`: a byte
+is not both `{` and `}`, so the indices are never equal. Recorded in the source so a later run does
+not offer it again as work.
 
-Expect this to close most of the 35 and to find divergences on the way — the same shape as
-`citations-native`, where comparing whole prompts rather than a `contains` found a missing type line
-and a reordered schema note.
+The corpus was `chat_parse.json` holding all three adapters with the result under a `chat` key. It is
+`adapter_parse.json` with the result under `dspy`.
 """
 notes = """
 **The ChatAdapter half landed, and the first golden found two divergences immediately.**
 
-`tests/conformance/parse/chat_parse.json` records what dspy parses out of eighteen replies chosen
+`tests/conformance/parse/adapter_parse.json` records what dspy parses out of eighteen replies chosen
 from `parse`'s branches rather than from what a well-behaved model emits — and which five it
 refuses, since a reply the crate accepts where dspy raises reaches the caller as a wrong value
 rather than an error.
@@ -533,8 +539,8 @@ this needs deciding rather than patching: either the crate follows dspy's routin
 it keeps its own routing and the divergence is declared at the top level rather than in a parse
 function.
 
-**What holds it meanwhile.** `tests/conformance/parse/chat_parse.json` marks the three affected
-cases `diverges`, and `chat_parse.rs` asserts them *the other way round* — `assert_ne!` on the value
+**What holds it meanwhile.** `tests/conformance/parse/adapter_parse.json` marks the three affected
+cases `diverges`, and `adapter_parse.rs` asserts them *the other way round* — `assert_ne!` on the value
 and `assert!(ours.is_ok())` on the refusals — with a count check. So the day this is resolved the
 test goes red and says which flag to drop. It cannot be closed by accident or forgotten.
 

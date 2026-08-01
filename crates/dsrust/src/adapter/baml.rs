@@ -69,8 +69,11 @@ impl BamlAdapter {
 }
 
 impl Adapter for BamlAdapter {
+    /// dspy's class name, not this crate's type name: it is what a callback watcher
+    /// reads, where upstream hands the handler the instance and it takes
+    /// `type(instance).__name__`.
     fn name(&self) -> &'static str {
-        "BamlAdapter"
+        "BAMLAdapter"
     }
 
     fn system_message(&self, signature: &Signature) -> Result<String> {
