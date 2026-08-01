@@ -1,42 +1,75 @@
-//! A faithful Rust reproduction of the [`json_repair`](https://pypi.org/project/json-repair/)
-//! Python package, pinned to **0.61.7** — the malformed-JSON reader `dspy.JSONAdapter.parse` opens
-//! with on every reply.
+//! Read JSON that is not quite JSON.
 //!
-//! It is not dspy's code and there is nothing upstream to copy: `json-repair` is a separate
-//! dependency, and the Rust crates sharing its name are different implementations. Matching
-//! "repairs malformed JSON" is not matching *these* repairs — the same reason `dsrust-tpe`
-//! reproduces optuna's sampler rather than depending on a Bayesian-optimisation crate.
+//! A port of the Python package [`json-repair`](https://pypi.org/project/json-repair/), pinned to
+//! **0.61.7** and held to its answers byte for byte. Give it a trailing comma, a missing brace, a
+//! bare key, single quotes, smart quotes, a code fence, or prose wrapped around the whole thing,
+//! and it returns the value the text was reaching for.
 //!
 //! ```
 //! use json_repair::{Value, loads};
 //!
-//! let fields = loads(r#"{answer: "Paris", "why": 'it is the capital',}"#).expect("repaired");
-//! assert_eq!(fields.get("answer"), Some(&Value::Str("Paris".into())));
+//! let value = loads(r#"{answer: "Paris", "why": 'the capital',}"#)?;
+//! assert_eq!(value.get("answer"), Some(&Value::Str("Paris".into())));
+//! # Ok::<(), json_repair::Error>(())
 //! ```
+//!
+//! Language models are the usual source of such text, but nothing here knows that: the input is a
+//! string and the output is a value.
+//!
+//! # Why a port rather than another repairing parser
+//!
+//! Several Rust crates repair malformed JSON, and each repairs it its own way. This one is not a
+//! new set of heuristics — it is *these* heuristics, so a program moving from Python gets the same
+//! answers for the same input, including the strange ones. Where the original is surprising, so is
+//! this. That is the whole promise, and [the test suite](https://github.com/getlatentic/dsrust)
+//! checks it by running the Python package and comparing the bytes.
+//!
+//! # Getting a value out
+//!
+//! [`loads`] returns a [`Value`], the Rust spelling of what Python's `json` module produces —
+//! object, array, string, integer, float, boolean, null. [`repair_json`] returns the text
+//! `json.dumps` would write for it instead, which is useful when the destination is another
+//! program that wants JSON.
+//!
+//! ```
+//! assert_eq!(json_repair::repair_json("{a: 1,}")?, r#"{"a": 1}"#);
+//! # Ok::<(), json_repair::Error>(())
+//! ```
+//!
+//! [`Repair`] carries the options — strict mode, streaming, a JSON Schema to repair against — and
+//! is the entry point for anything past the defaults.
+//!
+//! With the `serde` feature on, [`Value`] implements `Serialize` and `Deserialize`, converts to and
+//! from `serde_json::Value`, and [`Repair::loads_as`] deserializes straight into your own type.
 //!
 //! # What is reproduced, and what is a seam
 //!
-//! The whole parser: the entry points, the repair heuristics, CPython's own `json` grammar for the
-//! fast paths it takes, and the schema-guided repairs. The one thing that is *not* reproduced is
-//! JSON Schema **validation** — upstream imports `jsonschema`, a separate package again, and
-//! raises when it is absent. So this exposes [`SchemaValidator`] and, with none plugged in,
-//! answers exactly as a Python environment without `jsonschema` does.
+//! The whole parser: both entry points, every repair heuristic, CPython's own `json` grammar for
+//! the fast paths the parser takes, and the schema-guided repairs.
+//!
+//! The one thing not reproduced is JSON Schema **validation**. The Python package delegates that
+//! to `jsonschema`, a separate library, and raises when it is not installed. Reimplementing a
+//! validator here would be a different project, so it is a [`SchemaValidator`] you plug in — and
+//! with none plugged in this answers exactly as a Python environment without `jsonschema` does.
 //!
 //! # Two places Rust cannot follow Python
 //!
 //! - **A lone surrogate.** `"\ud800"` is a valid Python `str` and not a valid Rust `String`, so an
-//!   escape naming one produces [`LONE_SURROGATE`] here. Python keeps the surrogate.
-//! - **Recursion.** Python answers deep nesting with `RecursionError`, at a depth that belongs to
-//!   the *caller's* stack rather than to the library: measured against 0.61.7 it is 330 nested
+//!   escape naming one yields [`LONE_SURROGATE`] here where Python keeps the surrogate.
+//! - **Recursion depth.** Python answers deep nesting with `RecursionError`, at a depth belonging
+//!   to the *caller's* stack rather than to the library — measured against 0.61.7 at 330 nested
 //!   arrays from a top-level call, 247 nested objects, and 317 arrays from forty frames deeper.
-//!   There is no single number to match, and a Rust stack overflow is not catchable, so the limit
+//!   There is no single number to match, and a Rust stack overflow cannot be caught, so the limit
 //!   here is the fixed [`MAX_DEPTH`].
+#![deny(missing_docs)]
 
 mod dump;
 mod parser;
 mod pychar;
 mod pynum;
 mod schema;
+#[cfg(feature = "serde")]
+mod serde_support;
 mod strict_json;
 mod value;
 
@@ -46,6 +79,9 @@ use std::rc::Rc;
 pub use parser::LogEntry;
 pub use schema::{SchemaRepairMode, SchemaValidator, ValidationError};
 pub use value::{Object, Value};
+
+#[cfg(feature = "serde")]
+pub use serde_support::loads_as;
 
 /// The delimiters a string may open or close with, smart quotes among them.
 pub(crate) const STRING_DELIMITERS: [char; 4] = ['"', '\'', '“', '”'];
@@ -122,6 +158,7 @@ impl Error {
         self.kind == Kind::Foreign
     }
 
+    /// The message the original's `ValueError` carries.
     pub fn message(&self) -> &str {
         &self.message
     }
@@ -135,14 +172,34 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// What every entry point returns.
 pub type Result<T> = std::result::Result<T, Error>;
 
-/// `json_repair.loads(text)` with its default arguments — the call `dspy.JSONAdapter.parse` makes.
+/// Read a value out of text that may not be valid JSON.
+///
+/// `json_repair.loads(text)` with its default arguments. Text with nothing readable in it yields
+/// the empty string rather than an error, which is what the original does.
+///
+/// ```
+/// use json_repair::{Value, loads};
+///
+/// assert_eq!(loads("[1, 2,")?, Value::Array(vec![Value::Int(1), Value::Int(2)]));
+/// assert_eq!(loads("no json here")?, Value::Str(String::new()));
+/// # Ok::<(), json_repair::Error>(())
+/// ```
 pub fn loads(text: &str) -> Result<Value> {
     Repair::new().loads(text)
 }
 
-/// `json_repair.repair_json(text)`: the repaired value, written back out by `json.dumps`.
+/// Read a value out of text that may not be valid JSON, and write it back out as JSON.
+///
+/// `json_repair.repair_json(text)`. The bytes are Python's `json.dumps`: `", "` between items,
+/// `": "` after a key, every code point outside `\x20`-`\x7e` escaped.
+///
+/// ```
+/// assert_eq!(json_repair::repair_json("{'a': [1, 2,}")?, r#"{"a": [1, 2]}"#);
+/// # Ok::<(), json_repair::Error>(())
+/// ```
 pub fn repair_json(text: &str) -> Result<String> {
     Repair::new().repair_json(text)
 }
@@ -159,6 +216,7 @@ pub struct Repair {
 }
 
 impl Repair {
+    /// The default arguments: no schema, not strict, not streaming.
     pub fn new() -> Self {
         Self::default()
     }
@@ -184,11 +242,14 @@ impl Repair {
         self
     }
 
+    /// Repairs the value against a JSON Schema: coercing scalars, filling defaults, dropping what
+    /// the schema forbids. Needs a [`Repair::validator`] to check the result against.
     pub fn schema(mut self, schema: Value) -> Self {
         self.schema = Some(schema);
         self
     }
 
+    /// How hard the schema pass tries before giving up on a value.
     pub fn schema_repair_mode(mut self, mode: SchemaRepairMode) -> Self {
         self.mode = mode;
         self

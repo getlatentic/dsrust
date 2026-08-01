@@ -9,7 +9,9 @@ use std::fmt;
 /// A parsed JSON value, in the shapes Python's `json` produces.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
+    /// Python's `None`, JSON's `null`.
     Null,
+    /// `true` or `false`, which Python keeps distinct from `0` and `1` by type.
     Bool(bool),
     /// A Python `int` that fits a machine word.
     Int(i64),
@@ -17,9 +19,13 @@ pub enum Value {
     /// integers are unbounded and the parser reaches them by reading a long run of digits, so
     /// narrowing here would silently answer a different number than `json_repair` does.
     BigInt(String),
+    /// A Python `float`. Kept apart from [`Value::Int`], so `7` and `7.0` are different answers.
     Float(f64),
+    /// A Python `str`.
     Str(String),
+    /// A Python `list`.
     Array(Vec<Value>),
+    /// A Python `dict`, ordered by first assignment.
     Object(Object),
 }
 
@@ -79,6 +85,7 @@ impl Value {
 
     /// A field of this value, when it is an object. `None` for every other shape, which is
     /// what reading a schema node's keyword needs.
+    /// The value stored under `key`.
     pub fn get(&self, key: &str) -> Option<&Value> {
         match self {
             Value::Object(fields) => fields.get(key),
@@ -130,11 +137,13 @@ impl Value {
 pub struct Object(Vec<(String, Value)>);
 
 impl Object {
+    /// An object with no entries.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// `obj[key] = value`. A key that is already present keeps the position it was first given.
+    /// Assigns `value` to `key`. A key already present keeps the position it was first given, as a
+    /// Python `dict` does.
     pub fn insert(&mut self, key: String, value: Value) {
         match self.0.iter_mut().find(|(existing, _)| *existing == key) {
             Some(entry) => entry.1 = value,
@@ -142,13 +151,15 @@ impl Object {
         }
     }
 
-    /// `dict.update(other)`.
+    /// Inserts every entry of `other`, as `dict.update` does. A key already present keeps its
+    /// position and takes the new value.
     pub fn update(&mut self, other: Object) {
         for (key, value) in other.0 {
             self.insert(key, value);
         }
     }
 
+    /// The value stored under `key`.
     pub fn get(&self, key: &str) -> Option<&Value> {
         self.0
             .iter()
@@ -156,23 +167,27 @@ impl Object {
             .map(|(_, value)| value)
     }
 
+    /// Whether `key` is present.
     pub fn contains_key(&self, key: &str) -> bool {
         self.get(key).is_some()
     }
 
+    /// How many entries the object holds.
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    /// Whether the object holds no entries.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
-    /// The last key assigned a position, which `_merge_object_array_continuation` reads.
+    /// The key assigned a position most recently.
     pub fn last_key(&self) -> Option<&str> {
         self.0.last().map(|(key, _)| key.as_str())
     }
 
+    /// The value stored under `key`, to modify in place.
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
         self.0
             .iter_mut()
@@ -180,10 +195,12 @@ impl Object {
             .map(|(_, value)| value)
     }
 
+    /// Every entry, in the order its key was first assigned.
     pub fn iter(&self) -> impl Iterator<Item = (&str, &Value)> {
         self.0.iter().map(|(key, value)| (key.as_str(), value))
     }
 
+    /// Every key, in the order it was first assigned.
     pub fn keys(&self) -> impl Iterator<Item = &str> {
         self.0.iter().map(|(key, _)| key.as_str())
     }

@@ -7,9 +7,9 @@
 //! `char::is_alphabetic` follows Alphabetic and so accepts combining marks and Nl, which
 //! `str.isalpha()` refuses.
 //!
-//! The tables come from the interpreter dspy runs on rather than from a Rust crate's Unicode
-//! version — `scripts/generate_python_char_tables.py` writes [`DATA`], and
-//! `tests/python_char_classes.rs` walks every code point back through these functions.
+//! The tables are generated from CPython itself rather than taken from a Rust crate's idea of
+//! Unicode, whose version moves independently: `unicode-general-category` 1.1.0 is Unicode 16.0
+//! where CPython 3.13 is 15.1, which is several thousand code points of disagreement.
 
 /// The ranges each predicate accepts, generated from CPython.
 const DATA: &str = include_str!("pychar_data.txt");
