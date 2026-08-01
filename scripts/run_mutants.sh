@@ -30,9 +30,17 @@ cd "$ROOT"
 #                  the all-zero weights that would be the only other way there. The three timeouts
 #                  are `bisect_right`'s comparison and `below`'s rejection loop, where the mutant
 #                  spins instead of answering — detected, but as a hang rather than a failure.
+#   dsrust-gepa 46 — 35 survivors and 11 non-terminating, and the largest gap measured so far. The
+#                    survivors cluster in `engine.rs` (the optimize and propose loops), `merge.rs`
+#                    and `instruction_proposal.rs`'s fence parsing; the non-terminating ones are all
+#                    `pyset.rs` arithmetic where the mutant spins instead of answering. `pyset`'s
+#                    intersection tie was in that list and is not any more — see the note in
+#                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
+#                    finished state.
 BASELINES=(
   "dsrust-tpe:1"
   "pyrng:4"
+  "dsrust-gepa:46"
 )
 
 if ! cargo mutants --version > /dev/null 2>&1; then
