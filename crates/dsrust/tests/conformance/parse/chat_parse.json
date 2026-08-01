@@ -223,6 +223,91 @@
       "diverges": true
     },
     {
+      "name": "tags_unclosed",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[\"a\", \"b\"",
+      "adapter": "chat",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_single_quoted",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n['a', 'b']",
+      "adapter": "chat",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_bare_words",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[a, b]",
+      "adapter": "chat",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_asymmetric_quotes",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[\"a, \"b\"]",
+      "adapter": "chat",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a, ",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_smart_quotes",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[“a”, “b”]",
+      "adapter": "chat",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
       "name": "typed_field_that_will_not_parse",
       "signature": "question -> answer: str, score: int, tags: list[str]",
       "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\nvery high\n\n[[ ## tags ## ]]\n[\"a\"]",
@@ -703,6 +788,20 @@
       "chat": {
         "ok": false,
         "error": "ValidationError"
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_two_objects_and_prose",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "first {\"reasoning\": \"Because.\", \"answer\": \"Paris\"} then {\"answer\": \"Berlin\"}",
+      "adapter": "json",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
       },
       "diverges": false
     }

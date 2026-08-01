@@ -58,6 +58,19 @@ class Typed(dspy.Signature):
     tags: list[str] = dspy.OutputField()
 
 
+class Tagged(dspy.Signature):
+    """Answer with a list, and no scalar to cast.
+
+    `Typed` cannot isolate what json-repair does to a structured field, because its `score: int`
+    drags in `parse-time-casting` and every case using it is recorded as a divergence for a reason
+    that has nothing to do with the field under test.
+    """
+
+    question: str = dspy.InputField()
+    answer: str = dspy.OutputField()
+    tags: list[str] = dspy.OutputField()
+
+
 #: The XML adapter scans with `<(?P<name>\w+)>(.*?)</\1>` under DOTALL — a *global* find, a
 #: non-greedy body, a backreferenced closing name, and `\w+` for the name. Every case below is one
 #: of those properties, and none of them is a shape a well-behaved model emits.
@@ -148,6 +161,13 @@ JSON_CASES = [
         Typed,
         '{"answer": "Paris", "score": "very high", "tags": ["a"]}',
     ),
+    (
+        # Two objects in one reply: dspy's `\\{(?:[^{}]|(?R))*\\}` takes the *first*, where a search
+        # from the first brace to the last would take both and the prose between them.
+        "json_two_objects_and_prose",
+        QA,
+        'first {"reasoning": "Because.", "answer": "Paris"} then {"answer": "Berlin"}',
+    ),
 ]
 
 #: (name, signature, completion). Each is a branch of `parse`, not a plausible reply.
@@ -210,6 +230,37 @@ CASES = [
         "typed_fields",
         Typed,
         '[[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\n7\n\n[[ ## tags ## ]]\n["a", "b"]\n\n[[ ## completed ## ]]',
+    ),
+    # A structured field written the ways a model writes one. Each reaches `parse_value`, which
+    # hands the section to json-repair before the annotation ever sees it — so an unclosed bracket
+    # and Python's quoting both land as `list[str]` rather than as the text spelling one.
+    (
+        "tags_unclosed",
+        Tagged,
+        '[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n["a", "b"',
+    ),
+    (
+        "tags_single_quoted",
+        Tagged,
+        "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n['a', 'b']",
+    ),
+    (
+        # The shapes only json-repair recovers. This crate's own literal reader closes a container
+        # and rewrites Python's spelling; it does none of these, so each is a section that used to
+        # arrive as the text spelling a list rather than as one.
+        "tags_bare_words",
+        Tagged,
+        "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[a, b]",
+    ),
+    (
+        "tags_asymmetric_quotes",
+        Tagged,
+        '[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n["a, "b"]',
+    ),
+    (
+        "tags_smart_quotes",
+        Tagged,
+        "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[\u201ca\u201d, \u201cb\u201d]",
     ),
     (
         "typed_field_that_will_not_parse",
