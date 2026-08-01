@@ -49,14 +49,22 @@ BASELINES=(
   "dsrust-gepa:46"
 )
 
-# This machine points `build.build-dir` at a shared cache outside the project, which defeats
-# cargo-mutants' isolation: it copies the source tree, but every copy then compiles into the *same*
-# build dir as the real one, and a mutated rlib gets linked into an ordinary `cargo test` afterwards.
-# That is not hypothetical — it left `xyzzy`, the mutation marker, in a BAML prompt assertion and
-# forty-one tests failing with the working tree clean. A per-run build dir keeps the copies to
-# themselves.
+# This machine shares `build.build-dir` across every project, to keep agent worktrees from each
+# holding their own copy of the same dependency object code. That is the right default and it is why
+# it cannot be used here: cargo-mutants isolates by copying the *source* tree, so every copy then
+# compiles into the same build dir as the real one, and a mutated rlib is left where an ordinary
+# `cargo test` will link it. Not hypothetical — it put `xyzzy`, the mutation marker, inside a BAML
+# prompt assertion, with forty-one tests failing and `git status` clean, and it had spread past
+# `dsrust` into the shared dependencies.
+#
+# The override is affordable because the *other* half of the setup still applies. `build-dir`
+# deduplicates object files on disk; `sccache` deduplicates the compilation itself, and being
+# content-addressed it cannot be poisoned — a mutated source hashes differently, so it gets its own
+# entry rather than overwriting anyone's. A private build dir therefore costs disk for the length of
+# the run and almost no rebuilding, and it is removed on the way out.
 export CARGO_BUILD_BUILD_DIR="${TMPDIR:-/tmp}/dsrs-mutants-build"
 mkdir -p "$CARGO_BUILD_BUILD_DIR"
+trap 'rm -rf "$CARGO_BUILD_BUILD_DIR" "$ROOT/mutants.out" "$ROOT/mutants.out.old"' EXIT
 
 if ! cargo mutants --version > /dev/null 2>&1; then
   echo "cargo-mutants is not installed: cargo install cargo-mutants --locked" >&2
