@@ -208,6 +208,7 @@ pub fn repair_json(text: &str) -> Result<String> {
 #[derive(Default)]
 pub struct Repair {
     skip_json_loads: bool,
+    ensure_ascii: bool,
     pub(crate) stream_stable: bool,
     pub(crate) strict: bool,
     schema: Option<Value>,
@@ -218,7 +219,31 @@ pub struct Repair {
 impl Repair {
     /// The default arguments: no schema, not strict, not streaming.
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            ensure_ascii: true,
+            ..Self::default()
+        }
+    }
+
+    /// `json.dumps`'s `ensure_ascii`, which [`Repair::repair_json`] forwards. On — the default, as
+    /// it is Python's — every code point outside `\x20`-`\x7e` leaves as an escape.
+    ///
+    /// ```
+    /// use json_repair::Repair;
+    ///
+    /// assert_eq!(Repair::new().repair_json("{'k': '统一码'}")?, r#"{"k": "\u7edf\u4e00\u7801"}"#);
+    /// assert_eq!(
+    ///     Repair::new().ensure_ascii(false).repair_json("{'k': '统一码'}")?,
+    ///     r#"{"k": "统一码"}"#,
+    /// );
+    /// # Ok::<(), json_repair::Error>(())
+    /// ```
+    ///
+    /// The other `**json_dumps_args` upstream forwards are `json.dumps`'s surface rather than this
+    /// library's, and are not carried: dump the [`Value`] yourself if you need them.
+    pub fn ensure_ascii(mut self, ascii: bool) -> Self {
+        self.ensure_ascii = ascii;
+        self
     }
 
     /// Skips the whole-input `json.loads` check. The *suffix* fast path still applies: once the
@@ -280,7 +305,7 @@ impl Repair {
         if value.is_empty_string() {
             return Ok(String::new());
         }
-        Ok(value.to_string())
+        Ok(crate::dump::dumps(&value, self.ensure_ascii))
     }
 
     fn run(&self, text: &str, sink: LogSink) -> Result<(Value, Vec<LogEntry>)> {

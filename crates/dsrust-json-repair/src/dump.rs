@@ -8,13 +8,16 @@
 use crate::value::Value;
 
 /// The text `json.dumps` would produce for `value`.
-pub(crate) fn dumps(value: &Value) -> String {
+///
+/// `ascii` is `json.dumps`'s `ensure_ascii`: on, every code point outside `\x20`-`\x7e` leaves as
+/// an escape; off, only the characters JSON itself requires do.
+pub(crate) fn dumps(value: &Value, ascii: bool) -> String {
     let mut out = String::new();
-    write(value, &mut out);
+    write(value, ascii, &mut out);
     out
 }
 
-fn write(value: &Value, out: &mut String) {
+fn write(value: &Value, ascii: bool, out: &mut String) {
     match value {
         Value::Null => out.push_str("null"),
         Value::Bool(true) => out.push_str("true"),
@@ -22,14 +25,14 @@ fn write(value: &Value, out: &mut String) {
         Value::Int(number) => out.push_str(&number.to_string()),
         Value::BigInt(digits) => out.push_str(digits),
         Value::Float(number) => out.push_str(&float_repr(*number)),
-        Value::Str(text) => write_string(text, out),
+        Value::Str(text) => write_string(text, ascii, out),
         Value::Array(items) => {
             out.push('[');
             for (position, item) in items.iter().enumerate() {
                 if position > 0 {
                     out.push_str(", ");
                 }
-                write(item, out);
+                write(item, ascii, out);
             }
             out.push(']');
         }
@@ -39,17 +42,18 @@ fn write(value: &Value, out: &mut String) {
                 if position > 0 {
                     out.push_str(", ");
                 }
-                write_string(key, out);
+                write_string(key, ascii, out);
                 out.push_str(": ");
-                write(item, out);
+                write(item, ascii, out);
             }
             out.push('}');
         }
     }
 }
 
-/// `py_encode_basestring_ascii`: everything outside `\x20`-`\x7e` leaves as an escape.
-fn write_string(text: &str, out: &mut String) {
+/// `py_encode_basestring_ascii` when `ascii` is set, and `py_encode_basestring` when it is not —
+/// the two escaping tables `json.dumps` chooses between on `ensure_ascii`.
+fn write_string(text: &str, ascii: bool, out: &mut String) {
     out.push('"');
     for ch in text.chars() {
         match ch {
@@ -61,6 +65,7 @@ fn write_string(text: &str, out: &mut String) {
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
             ' '..='~' => out.push(ch),
+            ch if !ascii => out.push(ch),
             _ => {
                 let code_point = ch as u32;
                 if code_point < 0x10000 {
@@ -154,6 +159,10 @@ mod tests {
     use super::*;
     use crate::value::Object;
 
+    fn dumps_ascii(value: &Value) -> String {
+        dumps(value, true)
+    }
+
     #[test]
     fn floats_switch_to_an_exponent_where_python_switches() {
         assert_eq!(float_repr(1e15), "1000000000000000.0");
@@ -173,10 +182,28 @@ mod tests {
 
     #[test]
     fn strings_leave_as_ascii_the_way_ensure_ascii_does() {
-        assert_eq!(dumps(&Value::Str("\u{e9}".into())), "\"\\u00e9\"");
-        assert_eq!(dumps(&Value::Str("\u{1f642}".into())), "\"\\ud83d\\ude42\"");
-        assert_eq!(dumps(&Value::Str("a\"b\\c\n".into())), r#""a\"b\\c\n""#);
-        assert_eq!(dumps(&Value::Str("\u{7f}".into())), "\"\\u007f\"");
+        assert_eq!(dumps_ascii(&Value::Str("\u{e9}".into())), "\"\\u00e9\"");
+        assert_eq!(
+            dumps_ascii(&Value::Str("\u{1f642}".into())),
+            "\"\\ud83d\\ude42\""
+        );
+        assert_eq!(
+            dumps_ascii(&Value::Str("a\"b\\c\n".into())),
+            r#""a\"b\\c\n""#
+        );
+        assert_eq!(dumps_ascii(&Value::Str("\u{7f}".into())), "\"\\u007f\"");
+    }
+
+    #[test]
+    fn ensure_ascii_off_leaves_the_characters_json_does_not_require_escaping() {
+        // The escapes JSON *requires* still happen; only the `\\uXXXX` fallback stops.
+        assert_eq!(dumps(&Value::Str("统一码".into()), false), "\"统一码\"");
+        assert_eq!(
+            dumps(&Value::Str("统一码".into()), true),
+            "\"\\u7edf\\u4e00\\u7801\""
+        );
+        assert_eq!(dumps(&Value::Str("a\"b\n".into()), false), r#""a\"b\n""#);
+        assert_eq!(dumps(&Value::Str("\u{7f}".into()), false), "\"\u{7f}\"");
     }
 
     #[test]
@@ -184,15 +211,21 @@ mod tests {
         // `\b`, `\f` and `\r` reach no value in the conformance corpus — a model does not write
         // them and `json.dumps` is the only thing that ever names them — so without this each is a
         // match arm nothing distinguishes from the `\u00XX` fallback.
-        assert_eq!(dumps(&Value::Str("\u{8}\u{c}\r\t".into())), r#""\b\f\r\t""#);
+        assert_eq!(
+            dumps_ascii(&Value::Str("\u{8}\u{c}\r\t".into())),
+            r#""\b\f\r\t""#
+        );
     }
 
     #[test]
     fn the_boundary_between_an_escape_and_a_surrogate_pair_is_where_python_puts_it() {
         // U+FFFF is the last code point with one escape and U+10000 the first with two, which is
         // the only pair that tells `code_point < 0x10000` from `<=`.
-        assert_eq!(dumps(&Value::Str("\u{ffff}".into())), "\"\\uffff\"");
-        assert_eq!(dumps(&Value::Str("\u{10000}".into())), "\"\\ud800\\udc00\"");
+        assert_eq!(dumps_ascii(&Value::Str("\u{ffff}".into())), "\"\\uffff\"");
+        assert_eq!(
+            dumps_ascii(&Value::Str("\u{10000}".into())),
+            "\"\\ud800\\udc00\""
+        );
     }
 
     #[test]
@@ -203,9 +236,12 @@ mod tests {
         ]
         .into_iter()
         .collect();
-        assert_eq!(dumps(&Value::Object(object)), r#"{"a": 1, "b": null}"#);
         assert_eq!(
-            dumps(&Value::Array(vec![Value::Int(1), Value::Int(2)])),
+            dumps_ascii(&Value::Object(object)),
+            r#"{"a": 1, "b": null}"#
+        );
+        assert_eq!(
+            dumps_ascii(&Value::Array(vec![Value::Int(1), Value::Int(2)])),
             "[1, 2]"
         );
     }

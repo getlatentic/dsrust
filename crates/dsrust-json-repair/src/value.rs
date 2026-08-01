@@ -83,9 +83,7 @@ impl Value {
         }
     }
 
-    /// A field of this value, when it is an object. `None` for every other shape, which is
-    /// what reading a schema node's keyword needs.
-    /// The value stored under `key`.
+    /// A field of this value, when it is an object; `None` for every other shape.
     pub fn get(&self, key: &str) -> Option<&Value> {
         match self {
             Value::Object(fields) => fields.get(key),
@@ -226,9 +224,9 @@ impl IntoIterator for Object {
 }
 
 impl fmt::Display for Value {
-    /// `json.dumps(value)` with its default arguments, which is what `repair_json` returns.
+    /// `json.dumps(value)` with its default arguments, `ensure_ascii` among them.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(&crate::dump::dumps(self))
+        formatter.write_str(&crate::dump::dumps(self, true))
     }
 }
 
