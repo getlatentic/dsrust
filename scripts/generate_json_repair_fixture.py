@@ -47,19 +47,19 @@ OUT = (
 #: case group fails here instead of quietly narrowing what the fixture tests. Raise one only by
 #: adding cases; a *lower* number is a corpus that stopped covering something it used to.
 COVERAGE_FLOOR = {
-    "json_parser.py": 142,
-    "json_repair.py": 47,
+    "json_parser.py": 154,
+    "json_repair.py": 65,
     "parse_array.py": 41,
     "parse_comment.py": 47,
     "parse_number.py": 22,
     "parse_object.py": 202,
-    "parse_string.py": 405,
+    "parse_string.py": 425,
     "parser_parenthesized.py": 71,
     "object_value_context.py": 47,
     "parse_boolean_or_null.py": 16,
     "parse_json_llm_block.py": 6,
     "json_context.py": 21,
-    "object_comparer.py": 11,
+    "object_comparer.py": 13,
 }
 
 

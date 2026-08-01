@@ -5,7 +5,7 @@
   "json_context.py": 21,
   "json_parser.py": 154,
   "json_repair.py": 65,
-  "object_comparer.py": 11,
+  "object_comparer.py": 13,
   "object_value_context.py": 47,
   "parse_array.py": 41,
   "parse_boolean_or_null.py": 16,
@@ -114,6 +114,132 @@
     {
      "text": "While parsing an array we missed the closing ], ignoring it",
      "context": "{[01]}"
+    }
+   ]
+  },
+  {
+   "name": "bare_leading_zero",
+   "why": "and at the top level it is `Extra data`",
+   "input": "01",
+   "ok": true,
+   "dumps": "\"\"",
+   "log": []
+  },
+  {
+   "name": "plus_sign",
+   "why": "a number may not open with one",
+   "input": "+1",
+   "ok": true,
+   "dumps": "\"\"",
+   "log": []
+  },
+  {
+   "name": "bare_leading_dot",
+   "why": "nor with a dot",
+   "input": ".5",
+   "ok": true,
+   "dumps": "\"\"",
+   "log": []
+  },
+  {
+   "name": "trailing_dot",
+   "why": "nor end on one",
+   "input": "5.",
+   "ok": true,
+   "dumps": "\"\"",
+   "log": []
+  },
+  {
+   "name": "float_overflows_to_infinity",
+   "why": "which json.loads reads without complaint",
+   "input": "1e999",
+   "ok": true,
+   "dumps": "Infinity",
+   "log": []
+  },
+  {
+   "name": "negative_overflow",
+   "why": "and in the other direction",
+   "input": "-1e999",
+   "ok": true,
+   "dumps": "-Infinity",
+   "log": []
+  },
+  {
+   "name": "duplicate_key_last_wins",
+   "why": "a dict assignment, so the position is the first one's",
+   "input": "{\"a\": 1, \"a\": 2}",
+   "ok": true,
+   "dumps": "{\"a\": 2}",
+   "log": []
+  },
+  {
+   "name": "empty_key",
+   "why": "an empty key is a key",
+   "input": "{\"\": 0}",
+   "ok": true,
+   "dumps": "{\"\": 0}",
+   "log": []
+  },
+  {
+   "name": "escaped_solidus",
+   "why": "the one escape JSON has that nothing needs",
+   "input": "{\"a\": \"\\/\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"/\"}",
+   "log": []
+  },
+  {
+   "name": "underscore_in_unicode_escape",
+   "why": "the C scanner refuses it; the pure-Python `_decode_uXXXX` would take it, because it ends in `int(esc, 16)`",
+   "input": "{\"a\": \"\\u1_23\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"\\\\u1_23\"}",
+   "log": [
+    {
+     "text": "Found a stray escape sequence, normalizing it",
+     "context": "{\"a\": \"\\u1_23\"}"
+    }
+   ]
+  },
+  {
+   "name": "vertical_tab_is_not_json_whitespace",
+   "why": "the scanner takes four characters and this is not one of them, though `str.isspace()` says otherwise",
+   "input": "\u000b1",
+   "ok": true,
+   "dumps": "\"\"",
+   "log": []
+  },
+  {
+   "name": "extra_data",
+   "why": "two values at the top level",
+   "input": "1 2",
+   "ok": true,
+   "dumps": "\"\"",
+   "log": []
+  },
+  {
+   "name": "space_around_the_colon",
+   "why": "which is fine",
+   "input": "{\"a\" : 1}",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": []
+  },
+  {
+   "name": "two_arrays",
+   "why": "and this is not",
+   "input": "[1][2]",
+   "ok": true,
+   "dumps": "[2]",
+   "log": [
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "[1][2]"
+    },
+    {
+     "text": "There were no more elements, returning the element without the array",
+     "context": "[1][2]"
     }
    ]
   },

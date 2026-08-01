@@ -48,10 +48,31 @@ VALID = [
     case("valid_unicode_keys", "a reply in Chinese takes the isalnum branch", '{"答案": "北京"}'),
 ]
 
-NOT_JSON_BUT_CPYTHON_SAYS_YES = [
+# `repair_json` opens with `json.loads`, so what CPython's scanner accepts decides whether any
+# repair happens at all. This group is that boundary, and it matters more than it looks: the
+# scanner is the one part of the port written without its source to hand — `json/decoder.py`
+# describes the *pure-Python* fallback, and the C accelerator is what actually runs.
+CPYTHON_SCANNER = [
     case("nan", "json.loads accepts NaN and serde does not", '{"n": NaN}'),
     case("infinity", "and Infinity, which JSON has no spelling for", '{"n": Infinity, "m": -Infinity}'),
     case("leading_zero", "01 is two tokens, so the fast path fails and the repair runs", "{[01]}"),
+    case("bare_leading_zero", "and at the top level it is `Extra data`", "01"),
+    case("plus_sign", "a number may not open with one", "+1"),
+    case("bare_leading_dot", "nor with a dot", ".5"),
+    case("trailing_dot", "nor end on one", "5."),
+    case("float_overflows_to_infinity", "which json.loads reads without complaint", "1e999"),
+    case("negative_overflow", "and in the other direction", "-1e999"),
+    case("duplicate_key_last_wins", "a dict assignment, so the position is the first one's",
+         '{"a": 1, "a": 2}'),
+    case("empty_key", "an empty key is a key", '{"": 0}'),
+    case("escaped_solidus", "the one escape JSON has that nothing needs", r'{"a": "\/"}'),
+    case("underscore_in_unicode_escape", "the C scanner refuses it; the pure-Python "
+         "`_decode_uXXXX` would take it, because it ends in `int(esc, 16)`", r'{"a": "\u1_23"}'),
+    case("vertical_tab_is_not_json_whitespace", "the scanner takes four characters and this is "
+         "not one of them, though `str.isspace()` says otherwise", "\x0b1"),
+    case("extra_data", "two values at the top level", "1 2"),
+    case("space_around_the_colon", "which is fine", '{"a" : 1}'),
+    case("two_arrays", "and this is not", "[1][2]"),
 ]
 
 ORDINARY_MALFORMATIONS = [
@@ -238,7 +259,7 @@ FILE_INPUT = [
 
 CASES: list[Case] = [
     *VALID,
-    *NOT_JSON_BUT_CPYTHON_SAYS_YES,
+    *CPYTHON_SCANNER,
     *ORDINARY_MALFORMATIONS,
     *ASYMMETRIC_QUOTES,
     *ESCAPES,
