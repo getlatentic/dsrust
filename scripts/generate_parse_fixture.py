@@ -58,6 +58,42 @@ class Typed(dspy.Signature):
     tags: list[str] = dspy.OutputField()
 
 
+#: The XML adapter scans with `<(?P<name>\w+)>(.*?)</\1>` under DOTALL — a *global* find, a
+#: non-greedy body, a backreferenced closing name, and `\w+` for the name. Every case below is one
+#: of those properties, and none of them is a shape a well-behaved model emits.
+XML_CASES = [
+    ("xml_plain", QA, "<reasoning>Because.</reasoning>\n<answer>Paris</answer>"),
+    # Non-greedy: the body stops at the *first* close, and the trailing one is left as text.
+    ("xml_non_greedy", QA, "<reasoning>Because.</reasoning><answer>Paris</answer>extra</answer>"),
+    # Same name nested: the non-greedy body ends at the inner close, so the body keeps a tag.
+    ("xml_same_name_nested", QA, "<reasoning><reasoning>inner</reasoning></reasoning>\n<answer>Paris</answer>"),
+    # A name that is not `\w+` does not open a tag at all.
+    ("xml_hyphenated_name", QA, "<my-reasoning>Because.</my-reasoning>\n<reasoning>R</reasoning>\n<answer>Paris</answer>"),
+    # An attribute puts a space after the name, so `\w+>` never matches.
+    ("xml_tag_with_attribute", QA, '<reasoning id="1">Because.</reasoning>\n<answer>Paris</answer>'),
+    ("xml_first_wins", QA, "<reasoning>first</reasoning>\n<reasoning>second</reasoning>\n<answer>Paris</answer>"),
+    ("xml_unknown_tag", QA, "<reasoning>Because.</reasoning>\n<confidence>high</confidence>\n<answer>Paris</answer>"),
+    ("xml_field_missing", QA, "<answer>Paris</answer>"),
+    ("xml_unclosed", QA, "<reasoning>Because.\n<answer>Paris</answer>"),
+    ("xml_mismatched_close", QA, "<reasoning>Because.</thinking>\n<answer>Paris</answer>"),
+    # DOTALL, so a body spans lines; and the body is stripped.
+    ("xml_multiline_body", QA, "<reasoning>\n  line one\n  line two\n</reasoning>\n<answer>Paris</answer>"),
+    # Tags buried in prose are still found — `finditer` scans the whole string.
+    ("xml_buried_in_prose", QA, "Sure! <reasoning>Because.</reasoning> and so <answer>Paris</answer> there."),
+    ("xml_empty_body", QA, "<reasoning></reasoning>\n<answer>Paris</answer>"),
+    ("xml_nothing_at_all", QA, ""),
+    (
+        "xml_typed_fields",
+        Typed,
+        '<answer>Paris</answer>\n<score>7</score>\n<tags>["a", "b"]</tags>',
+    ),
+    (
+        "xml_typed_that_will_not_parse",
+        Typed,
+        "<answer>Paris</answer>\n<score>very high</score>\n<tags>[\"a\"]</tags>",
+    ),
+]
+
 #: (name, signature, completion). Each is a branch of `parse`, not a plausible reply.
 CASES = [
     ("plain", QA, "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]"),
@@ -153,7 +189,7 @@ def main() -> None:
         "xml": dspy.XMLAdapter(),
     }
     cases = []
-    for name, signature, completion in CASES:
+    for name, signature, completion in CASES + XML_CASES:
         cases.append(
             {
                 "name": name,
@@ -170,7 +206,10 @@ def main() -> None:
                     ]
                 ),
                 "completion": completion,
-                "chat": parsed(adapters["chat"], signature, completion),
+                "adapter": "xml" if name.startswith("xml_") else "chat",
+                "chat": parsed(
+                    adapters["xml" if name.startswith("xml_") else "chat"], signature, completion
+                ),
                 # The crate casts a scalar during *validation* rather than during parse. So a good
                 # `int` comes back as the text that spells it, and the two values that will not fit
                 # are accepted here and fail later with a typed message instead of at parse.

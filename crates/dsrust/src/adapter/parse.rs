@@ -122,8 +122,13 @@ pub(super) fn parse_tags(signature: &Signature, raw: &str) -> Result<Value> {
     let mut found = serde_json::Map::new();
     let mut rest = raw;
     while let Some((name, content, after)) = next_tag(rest) {
-        if signature.outputs.iter().any(|field| field.name == name) && !found.contains_key(name) {
-            found.insert(name.to_owned(), Value::String(content.trim().to_owned()));
+        if let Some(field) = signature.outputs.iter().find(|field| field.name == name)
+            && !found.contains_key(name)
+        {
+            // Through `section_value` for the same reason the marker path is: dspy hands the body
+            // to the field's own Python type, so a structured field written as strict JSON is read
+            // as the value it spells rather than kept as the text spelling it.
+            found.insert(name.to_owned(), section_value(field, content.trim()));
         }
         rest = after;
     }

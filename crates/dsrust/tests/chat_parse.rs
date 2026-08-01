@@ -5,16 +5,18 @@
 //! twenty in `next_tag` alone, which could be made to return `Some(("xyzzy", "xyzzy", "xyzzy"))`
 //! with the whole suite green. The byte claim runs both ways and only one way had an oracle.
 //!
-//! The corpus is dspy's branches rather than a well-behaved model's output: a marker with content on
-//! the same line, a repeated field, an undeclared field, a missing one, prose before the first
-//! marker, an indented marker, a marker inside a value. None of these are shapes the end-to-end
-//! tests produce, which is exactly why the parser went unchecked.
+//! The corpus is dspy's branches rather than a well-behaved model's output. For the marker parser: a
+//! marker with content on the same line, a repeated field, an undeclared field, a missing one, prose
+//! before the first marker, an indented marker, a marker inside a value. For the XML one, whose scan
+//! is `<(?P<name>\w+)>(.*?)</\1>` under DOTALL: a non-greedy body, a same-name nest, a hyphenated
+//! name, an attribute, an unclosed tag, a mismatched close, and tags buried in prose. None of these
+//! are shapes the end-to-end tests produce, which is exactly why the parsers went unchecked.
 //!
 //! **Refusals are compared too.** A reply the crate accepts where dspy raises reaches the caller as
 //! a wrong value instead of an error, which is the worse direction to diverge in.
 
 use dsrust::signature::Signature;
-use dsrust::{Adapter, ChatAdapter};
+use dsrust::{Adapter, ChatAdapter, XmlAdapter};
 use serde_json::Value;
 
 fn fixture() -> Value {
@@ -41,7 +43,11 @@ fn the_parser_reads_what_dspys_reads_and_refuses_what_dspy_refuses() {
         let completion = case["completion"].as_str().expect("a completion");
         let expected = &case["chat"];
 
-        let ours = ChatAdapter::default().parse(&signature, completion);
+        let adapter: Box<dyn Adapter> = match case["adapter"].as_str().unwrap_or("chat") {
+            "xml" => Box::new(XmlAdapter::default()),
+            _ => Box::new(ChatAdapter::default()),
+        };
+        let ours = adapter.parse(&signature, completion);
         match expected["ok"].as_bool().expect("ok") {
             true if case["diverges"].as_bool().unwrap_or(false) => {
                 // Accepted by both, but the crate hands back the text a scalar was written as

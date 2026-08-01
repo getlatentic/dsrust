@@ -391,7 +391,7 @@ id = "parse-side-goldens"
 sprint = "conformance"
 title = "Nineteen fixtures pin what we send and none pin what we read"
 state = "in-progress"
-progress = "ChatAdapter parse golden landed 2026-08-01, 18 cases; JSON and XML remain."
+progress = "ChatAdapter and XMLAdapter parse goldens landed 2026-08-01, 34 cases. parse.rs survivors 35 -> 6. JSONAdapter remains."
 size = "M"
 suites = []
 plan = """
@@ -447,8 +447,25 @@ crate casts them during validation, which `Predict::feedback_retry` is built on.
 `parse-time-casting`, with the three affected cases asserted the other way round so the day it is
 resolved the test says so.
 
-Remaining: the same treatment for `JSONAdapter` and `XMLAdapter`. The XML scanner is where 20 of the
-35 `parse.rs` survivors were — `next_tag` — so that is the half with the most left in it.
+**The XML half landed too, and it was in better shape than the mutation count implied.** Sixteen
+cases built from the properties of the tag pattern under DOTALL — a word-character name, a
+non-greedy body, and a closing tag backreferenced to the opening one — a non-greedy body, a
+same-name nest, a hyphenated name, an attribute, an unclosed tag, a mismatched close, tags buried in
+prose — and **fourteen passed on the first run**. The one real gap was the same strict-JSON reading
+the marker path had: `parse_tags` inserted the body as a raw string rather than through
+`section_value`, so a `list[str]` written as `["a", "b"]` came back as the text that spells it.
+
+That is worth separating from the survivor count. Twenty of the thirty-five were in `next_tag`, but
+most were *non-terminating* — flipping a `+` to a `-` in a cursor makes the scan loop forever, which
+the suite detects by hanging rather than by failing. The scanner was largely right; what it lacked
+was anything that would fail rather than hang.
+
+**Measured after: 35 survivors down to 6 missed** (with 24 non-terminating). The 34-case golden is
+what closed them.
+
+Remaining: `JSONAdapter`, and then the differential fuzzer this corpus argues for — the cases here
+were each chosen by reading a branch, which is exactly the method that leaves the branches nobody
+thought of.
 """
 
 [[story]]

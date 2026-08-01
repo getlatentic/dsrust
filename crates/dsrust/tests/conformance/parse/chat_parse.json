@@ -7,6 +7,7 @@
       "name": "plain",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -20,6 +21,7 @@
       "name": "no_completed_marker",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -33,6 +35,7 @@
       "name": "content_on_the_header_line",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## reasoning ## ]] Because.\n[[ ## answer ## ]] Paris",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -46,6 +49,7 @@
       "name": "field_repeated",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## reasoning ## ]]\nfirst\n\n[[ ## answer ## ]]\nParis\n\n[[ ## reasoning ## ]]\nsecond",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -59,6 +63,7 @@
       "name": "fields_out_of_order",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## reasoning ## ]]\nBecause.",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -72,6 +77,7 @@
       "name": "unknown_field",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## confidence ## ]]\nhigh\n\n[[ ## answer ## ]]\nParis",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -85,6 +91,7 @@
       "name": "field_missing",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]",
+      "adapter": "chat",
       "chat": {
         "ok": false,
         "error": "AdapterParseError"
@@ -95,6 +102,7 @@
       "name": "nothing_at_all",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "",
+      "adapter": "chat",
       "chat": {
         "ok": false,
         "error": "AdapterParseError"
@@ -105,6 +113,7 @@
       "name": "prose_only",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "I think the answer is Paris.",
+      "adapter": "chat",
       "chat": {
         "ok": false,
         "error": "AdapterParseError"
@@ -115,6 +124,7 @@
       "name": "prose_before_the_first_marker",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "Sure! Here you go.\n\n[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -128,6 +138,7 @@
       "name": "blank_lines_around_markers",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "\n\n[[ ## reasoning ## ]]\n\n\nBecause.\n\n\n\n[[ ## answer ## ]]\n\nParis\n\n\n",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -141,6 +152,7 @@
       "name": "indented_marker",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## reasoning ## ]]\nBecause.\n\n    [[ ## answer ## ]]\nParis",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -154,6 +166,7 @@
       "name": "marker_inside_a_value",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## reasoning ## ]]\nthe model wrote [[ ## answer ## ]] in the middle\n\n[[ ## answer ## ]]\nParis",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -167,6 +180,7 @@
       "name": "multiline_value",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## reasoning ## ]]\nline one\nline two\n\nline four\n\n[[ ## answer ## ]]\nParis",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -180,6 +194,7 @@
       "name": "completed_repeated",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]\n\n[[ ## completed ## ]]",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -193,6 +208,7 @@
       "name": "typed_fields",
       "signature": "question -> answer: str, score: int, tags: list[str]",
       "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\n7\n\n[[ ## tags ## ]]\n[\"a\", \"b\"]\n\n[[ ## completed ## ]]",
+      "adapter": "chat",
       "chat": {
         "ok": true,
         "fields": {
@@ -210,6 +226,7 @@
       "name": "typed_field_that_will_not_parse",
       "signature": "question -> answer: str, score: int, tags: list[str]",
       "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\nvery high\n\n[[ ## tags ## ]]\n[\"a\"]",
+      "adapter": "chat",
       "chat": {
         "ok": false,
         "error": "AdapterParseError"
@@ -220,11 +237,222 @@
       "name": "typed_field_empty",
       "signature": "question -> answer: str, score: int, tags: list[str]",
       "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\n\n\n[[ ## tags ## ]]\n[\"a\"]",
+      "adapter": "chat",
       "chat": {
         "ok": false,
         "error": "AdapterParseError"
       },
       "diverges": true
+    },
+    {
+      "name": "xml_plain",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>Because.</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_non_greedy",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>Because.</reasoning><answer>Paris</answer>extra</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_same_name_nested",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning><reasoning>inner</reasoning></reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "<reasoning>inner",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_hyphenated_name",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<my-reasoning>Because.</my-reasoning>\n<reasoning>R</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "R",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_tag_with_attribute",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning id=\"1\">Because.</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": false,
+        "error": "AdapterParseError"
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_first_wins",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>first</reasoning>\n<reasoning>second</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "first",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_unknown_tag",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>Because.</reasoning>\n<confidence>high</confidence>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_field_missing",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<answer>Paris</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": false,
+        "error": "AdapterParseError"
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_unclosed",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>Because.\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": false,
+        "error": "AdapterParseError"
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_mismatched_close",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>Because.</thinking>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": false,
+        "error": "AdapterParseError"
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_multiline_body",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>\n  line one\n  line two\n</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "line one\n  line two",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_buried_in_prose",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "Sure! <reasoning>Because.</reasoning> and so <answer>Paris</answer> there.",
+      "adapter": "xml",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_empty_body",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning></reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_nothing_at_all",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "",
+      "adapter": "xml",
+      "chat": {
+        "ok": false,
+        "error": "AdapterParseError"
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_typed_fields",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "<answer>Paris</answer>\n<score>7</score>\n<tags>[\"a\", \"b\"]</tags>",
+      "adapter": "xml",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_typed_that_will_not_parse",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "<answer>Paris</answer>\n<score>very high</score>\n<tags>[\"a\"]</tags>",
+      "adapter": "xml",
+      "chat": {
+        "ok": false,
+        "error": "AdapterParseError"
+      },
+      "diverges": false
     }
   ]
 }
