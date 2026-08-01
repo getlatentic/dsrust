@@ -24,6 +24,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 import json_repair  # noqa: E402
 from json_repair.schema_repair import SchemaRepairer  # noqa: E402
+from json_repair.schema_repair import (  # noqa: E402
+    _prepare_schema_for_validation_node as prepare,
+)
 from json_repair_schema_corpus import CASES  # noqa: E402
 from pins import require  # noqa: E402
 
@@ -88,10 +91,15 @@ class Recorder:
         the import. The Rust seam sits on the far side of that same short-circuit, so recording
         those would put a question in the table that the crate is right never to ask.
         """
-        if isinstance(repairer.resolve_schema(schema), bool):
+        resolved = repairer.resolve_schema(schema)
+        if isinstance(resolved, bool):
             return
+        # The schema `jsonschema` is handed, not the one the caller wrote: `_get_validator` runs
+        # `_prepare_schema_for_validation` first, which rewrites a draft-4 tuple `items` into
+        # 2020-12's `prefixItems`. Recording the caller's version would key the replay table on a
+        # schema no validator ever sees — and would let a port that skipped the rewrite pass.
         self.calls.append(
-            {"method": method, "value": dumps(value), "schema": dumps(schema)} | answer
+            {"method": method, "value": dumps(value), "schema": dumps(prepare(resolved))} | answer
         )
 
 

@@ -728,7 +728,7 @@
     {
      "method": "validate",
      "value": "[\"1\", 2]",
-     "schema": "{\"type\": \"array\", \"items\": [{\"type\": \"string\"}, {\"type\": \"integer\"}]}",
+     "schema": "{\"type\": \"array\", \"prefixItems\": [{\"type\": \"string\"}, {\"type\": \"integer\"}]}",
      "ok": true
     }
    ]
@@ -759,7 +759,7 @@
     {
      "method": "validate",
      "value": "[\"a\"]",
-     "schema": "{\"type\": \"array\", \"items\": [{\"type\": \"string\"}], \"additionalItems\": false}",
+     "schema": "{\"type\": \"array\", \"prefixItems\": [{\"type\": \"string\"}], \"items\": false}",
      "ok": true
     }
    ]
@@ -792,7 +792,7 @@
     {
      "method": "validate",
      "value": "[\"a\", 2]",
-     "schema": "{\"type\": \"array\", \"items\": [{\"type\": \"string\"}], \"additionalItems\": {\"type\": \"integer\"}}",
+     "schema": "{\"type\": \"array\", \"prefixItems\": [{\"type\": \"string\"}], \"items\": {\"type\": \"integer\"}}",
      "ok": true
     }
    ]

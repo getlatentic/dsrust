@@ -551,8 +551,8 @@ note = "Absent with `schema_from_input`'s pydantic branch — see that entry."
 [[symbol]]
 name = 'schema_repair.py::_prepare_schema_for_validation_node'
 python = '(node)'
-rust = ''
-note = 'Absent. It rewrites `items`/`additionalItems` into `prefixItems` for a draft the validator understands, which is preparation *for jsonschema* and therefore the job of whatever implements `SchemaValidator`.'
+rust = 'prepare_for_validation'
+note = '''Ported. It was recorded absent, on the reasoning that rewriting `items`/`additionalItems` into `prefixItems` is preparation *for jsonschema* and so the implementer's job. That was wrong on the facts: it is `json_repair`'s own code, it takes no dependency, and it runs before *every* validator call — so the schema a validator sees is never the one the caller wrote. Nor is it a difference of degree. Under 2020-12 `items` means "every item matches this schema", so a validator handed the unprepared `{"items": [...]}` reaches for `$id` on a list and raises. Python never sees that, because it prepares first.'''
 
 [[symbol]]
 name = 'schema_repair.py::load_schema_model'
@@ -594,7 +594,7 @@ note = ''
 name = 'schema_repair.py::_get_validator'
 python = '(self, schema)'
 rust = ''
-note = 'Absent with the cache — see `__init__`.'
+note = 'Absent, but only the caching: it also calls `_prepare_schema_for_validation`, and that half *is* ported — see that entry. Building and memoising a validator object is work for whatever implements `SchemaValidator`; preparing the schema handed to it is not.'
 
 [[symbol]]
 name = 'schema_repair.py::_get_root_validator'
@@ -731,8 +731,8 @@ note = ''
 [[symbol]]
 name = 'schema_repair.py::_prepare_schema_for_validation'
 python = '(self, schema)'
-rust = ''
-note = 'Absent with `_prepare_schema_for_validation_node` — see that entry.'
+rust = 'prepare_for_validation'
+note = 'The method is the free function plus a check that the result is a dict, which the Rust signature carries in its type.'
 
 [[symbol]]
 name = 'schema_repair.py::repair_or_drop'
@@ -768,7 +768,7 @@ note = 'Singular, since it names one.'
 name = 'utils/json_context.py::_JsonContextEntry'
 python = 'class'
 rust = ''
-note = 'The context-manager object. Rust has no `with`, so the two calls are made where the block began and ended.'
+note = '''The context-manager object. Rust has no `with`, so the two calls are made where the block began and ended — and, as `with` does, the reset runs on the failing path too: all five sites bind the result to a local, reset, and only then propagate with `?`.'''
 
 [[symbol]]
 name = 'utils/json_context.py::JsonContext'
@@ -852,7 +852,7 @@ note = 'The same literal-and-anchor subset, so a real regex matches nothing rath
 name = 'utils/string_file_wrapper.py::StringFileWrapper'
 python = 'class'
 rust = ''
-note = 'Absent, and its eight methods with it. It exists to let a file be indexed like a string without loading it; `from_reader` reads the whole thing instead. The parse sees the same characters either way, so the difference is memory rather than behaviour — the *behavioural* difference between file and string input is the suffix fast path, and that is reproduced.'
+note = '''Absent, and its eight methods with it. It exists to let a file be indexed like a string without loading it; `from_reader` reads the whole thing instead. Measured rather than argued: 25,030 parses — five thousand generated inputs at five chunk lengths — with the wrapper as the only variable, standing it against a plain string that leaves the descriptor where it found it. No disagreement. `chunk_length` is not carried for the same reason.'''
 
 [[symbol]]
 name = 'utils/string_file_wrapper.py::__init__'

@@ -42,6 +42,44 @@ pub trait SchemaValidator {
     fn validate(&self, value: &Value, schema: &Value) -> std::result::Result<(), ValidationError>;
 }
 
+/// `_prepare_schema_for_validation_node`: draft-4 tuple `items` rewritten to 2020-12.
+///
+/// This is `json_repair`'s own code, not `jsonschema`'s, and it runs before *every* validator call
+/// — so the schema a validator receives is never the one the caller wrote. Skipping it does not
+/// merely validate differently: `{"items": [...]}` under 2020-12 means "every item matches this
+/// schema", and the schema is a list, so `jsonschema` raises `AttributeError` reaching for `$id`
+/// on it. Python never sees that because it prepares first.
+pub(crate) fn prepare_for_validation(node: &Value) -> Value {
+    match node {
+        Value::Array(items) => Value::Array(items.iter().map(prepare_for_validation).collect()),
+        Value::Object(fields) => {
+            let mut normalized: crate::value::Object = fields
+                .iter()
+                .map(|(key, value)| (key.to_owned(), prepare_for_validation(value)))
+                .collect();
+            let Some(Value::Array(tuple)) = normalized.get("items").cloned() else {
+                return Value::Object(normalized);
+            };
+            normalized.remove("items");
+            normalized.insert("prefixItems".to_owned(), Value::Array(tuple));
+            // `additionalItems` becomes the *new* `items`, which is what 2020-12 calls the rule for
+            // everything past the tuple. Only `false` and an object schema carry over; `true` and a
+            // missing key both mean "anything", which 2020-12 spells by leaving `items` out.
+            match normalized.remove("additionalItems") {
+                Some(Value::Bool(false)) => {
+                    normalized.insert("items".to_owned(), Value::Bool(false));
+                }
+                Some(extra @ Value::Object(_)) => {
+                    normalized.insert("items".to_owned(), extra);
+                }
+                _ => {}
+            }
+            Value::Object(normalized)
+        }
+        scalar => scalar.clone(),
+    }
+}
+
 impl super::SchemaRepairer {
     pub(crate) fn is_valid(&self, value: &Value, schema: Option<&Value>) -> Result<bool> {
         match self.resolve_schema(schema)? {
@@ -49,7 +87,7 @@ impl super::SchemaRepairer {
             Value::Bool(false) => Ok(false),
             resolved => self
                 .require_validator()?
-                .is_valid(value, &resolved)
+                .is_valid(value, &prepare_for_validation(&resolved))
                 .map_err(ValidationError::into_error),
         }
     }
@@ -60,7 +98,7 @@ impl super::SchemaRepairer {
             Value::Bool(false) => Err(Error::new("Schema does not allow any values.")),
             resolved => self
                 .require_validator()?
-                .validate(value, &resolved)
+                .validate(value, &prepare_for_validation(&resolved))
                 .map_err(ValidationError::into_error),
         }
     }

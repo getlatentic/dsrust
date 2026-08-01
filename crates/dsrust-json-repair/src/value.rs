@@ -165,6 +165,12 @@ impl Object {
             .map(|(_, value)| value)
     }
 
+    /// `dict.pop(key, None)`: the value if it was there, and the key gone from the order.
+    pub fn remove(&mut self, key: &str) -> Option<Value> {
+        let at = self.0.iter().position(|(existing, _)| existing == key)?;
+        Some(self.0.remove(at).1)
+    }
+
     /// Whether `key` is present.
     pub fn contains_key(&self, key: &str) -> bool {
         self.get(key).is_some()
