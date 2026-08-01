@@ -51,17 +51,35 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
             expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
         }));
     }
+    // **A known divergence, recorded rather than papered over.** dspy's `ChatAdapter.parse` casts
+    // every section with `parse_value(v, annotation)` and raises `AdapterParseError` when a value
+    // will not fit, and `ChatAdapter.__call__` answers *any* exception by re-asking through
+    // `JSONAdapter`. So upstream a bad number switches adapters. Here it does not: the cast happens
+    // in validation, which is what `Predict::feedback_retry` is built on — it re-asks on the same
+    // adapter carrying "amount must be a number, got \"abc\"", which upstream has no equivalent of.
+    //
+    // Calling `coerce_scalars` here makes the parse side match dspy exactly and takes the feedback
+    // retry with it, so the two cannot both stand. Filed as `parse-time-casting`; the parse golden
+    // records both typed refusals as divergences and goes red when this is resolved.
     Ok(Value::Object(fields))
 }
 
 /// A section's text as the value it denotes. dspy runs every section through json-repair
 /// before validating it, so a `Json` field answered in Python's literal syntax — single
 /// quotes, `True`/`False`/`None`, digit-group underscores — lands as its declared type
-/// rather than as the text that spells it. Every other section stays text for
-/// [`Signature::coerce`], which is also where strict JSON is still read.
+/// rather than as the text that spells it. Every other section stays text here and is cast by
+/// `coerce_scalars` on the way out of [`parse_markers`], which is where a value that will not fit
+/// its declared type becomes a parse failure as upstream's does.
 fn section_value(field: &OutField, text: &str) -> Value {
     match field.kind {
-        FieldKind::Json(_) => repair::python_literal(text).unwrap_or_else(|| Value::from(text)),
+        // Strict JSON first, because that case is not a guess: dspy hands the text to the field's
+        // own Python type, which reads `["a", "b"]` as a list, and so does this. Python's literal
+        // spelling next. Anything else stays text for the caller's own typing to judge, which is
+        // what `coerce_scalars` skips a structured field for.
+        FieldKind::Json(_) => serde_json::from_str(text)
+            .ok()
+            .or_else(|| repair::python_literal(text))
+            .unwrap_or_else(|| Value::from(text)),
         _ => Value::from(text),
     }
 }
@@ -70,9 +88,25 @@ fn section_value(field: &OutField, text: &str) -> Value {
 /// keeping any trailing text on the line as that section's first content.
 fn split_header(line: &str) -> Option<(&str, &str)> {
     let after_open = line.trim_start().strip_prefix("[[ ## ")?;
-    let (name, rest) = after_open.split_once(" ## ]]")?;
+    let (name, _) = after_open.split_once(" ## ]]")?;
     let word = !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-    word.then_some((name, rest.trim()))
+    if !word {
+        return None;
+    }
+    // dspy matches the header against `line.strip()` and then slices the **unstripped** line at
+    // that match's end — `line[match.end():]` — so an indented marker cuts as many characters off
+    // the front of what follows as the indent was wide. `    [[ ## answer ## ]]` yields `# ]]`,
+    // not an empty rest.
+    //
+    // That is upstream's off-by-the-indent and it is reproduced rather than corrected, because a
+    // model that indents a marker gets these bytes from dspy and must get them here. The offset is
+    // in *characters*, as Python's slicing is, not bytes.
+    let header = "[[ ## ".len() + name.chars().count() + " ## ]]".len();
+    let rest = match line.char_indices().nth(header) {
+        Some((at, _)) => &line[at..],
+        None => "",
+    };
+    Some((name, rest.trim()))
 }
 
 /// A JSON object anywhere in the reply. Providers in JSON mode return the bare object;
@@ -328,10 +362,14 @@ mod tests {
     }
 
     #[test]
-    fn parse_markers_leaves_a_strict_json_field_as_text_to_coerce() {
+    fn parse_markers_reads_a_strict_json_field_as_the_value_it_spells() {
         let raw = "[[ ## ideas ## ]]\n[\"a\", \"b\"]";
         let value = parse_markers(&json_signature(), raw).expect("parses");
-        assert_eq!(value["ideas"], json!("[\"a\", \"b\"]"));
+        // dspy hands the section to the field's own Python type, which reads this as a list, and
+        // the parse golden records that. This used to assert the text instead, on the reasoning
+        // that a structured field should be left for the caller's typing to judge — true of text
+        // that only *might* be JSON, and not of text that is.
+        assert_eq!(value["ideas"], json!(["a", "b"]));
     }
 
     #[test]

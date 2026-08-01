@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1078
+rust_tests = 1079
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -390,7 +390,8 @@ was generated under, so it surfaces as a diff here rather than as a sandbox synt
 id = "parse-side-goldens"
 sprint = "conformance"
 title = "Nineteen fixtures pin what we send and none pin what we read"
-state = "todo"
+state = "in-progress"
+progress = "ChatAdapter parse golden landed 2026-08-01, 18 cases; JSON and XML remain."
 size = "M"
 suites = []
 plan = """
@@ -423,6 +424,69 @@ around a marker; and `[[ ## completed ## ]]` missing entirely.
 Expect this to close most of the 35 and to find divergences on the way — the same shape as
 `citations-native`, where comparing whole prompts rather than a `contains` found a missing type line
 and a reordered schema note.
+"""
+notes = """
+**The ChatAdapter half landed, and the first golden found two divergences immediately.**
+
+`tests/conformance/parse/chat_parse.json` records what dspy parses out of eighteen replies chosen
+from `parse`'s branches rather than from what a well-behaved model emits — and which five it
+refuses, since a reply the crate accepts where dspy raises reaches the caller as a wrong value
+rather than an error.
+
+  - **An indented marker.** dspy matches the header against `line.strip()` and then slices the
+    *unstripped* line at that match's end, so `    [[ ## answer ## ]]` cuts four characters off what
+    follows and yields `# ]]` rather than an empty rest. Upstream's off-by-the-indent, now
+    reproduced — a model that indents a marker has to get the same bytes from both.
+  - **Strict JSON in a structured field.** The crate left `["a", "b"]` as the text that spells it,
+    on the reasoning that a structured field should be judged by the caller's own typing. That is
+    true of text which only *might* be JSON and not of text which is, and dspy hands the section to
+    the field's Python type, which reads it as a list. Narrowed to the unambiguous case.
+
+A third divergence is real and needed its own story: dspy casts scalars *while parsing* and this
+crate casts them during validation, which `Predict::feedback_retry` is built on. Filed as
+`parse-time-casting`, with the three affected cases asserted the other way round so the day it is
+resolved the test says so.
+
+Remaining: the same treatment for `JSONAdapter` and `XMLAdapter`. The XML scanner is where 20 of the
+35 `parse.rs` survivors were — `next_tag` — so that is the half with the most left in it.
+"""
+
+[[story]]
+id = "parse-time-casting"
+sprint = "conformance"
+title = "dspy casts a scalar while parsing; this crate casts it during validation, and one feature rests on that"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+Found by the first parse-side golden, 2026-08-01. `ChatAdapter.parse` runs every section through
+`parse_value(v, annotation)` and raises `AdapterParseError` when a value will not fit its declared
+type. So upstream:
+
+  - a good `int` field comes back as `7`, not `"7"`;
+  - `score: int` answered `very high` is a **parse** failure;
+  - and `ChatAdapter.__call__` answers *any* exception by re-asking through `JSONAdapter`, so a bad
+    number switches adapters.
+
+Here the cast happens during validation instead. That is not an oversight — `Predict::feedback_retry`
+is built on it, and re-asks on the *same* adapter carrying `amount must be a number, got "abc"`,
+which upstream has no equivalent of. `a_type_error_rides_the_feedback_retry_not_the_adapter_fallback`
+states that intent in its name.
+
+Calling `coerce_scalars` at the end of `parse_markers` makes the parse side match dspy exactly and
+takes the feedback retry with it — measured, it turns that test red. The two cannot both stand, so
+this needs deciding rather than patching: either the crate follows dspy's routing and
+`feedback_retry` becomes something layered above the adapter fallback rather than instead of it, or
+it keeps its own routing and the divergence is declared at the top level rather than in a parse
+function.
+
+**What holds it meanwhile.** `tests/conformance/parse/chat_parse.json` marks the three affected
+cases `diverges`, and `chat_parse.rs` asserts them *the other way round* — `assert_ne!` on the value
+and `assert!(ours.is_ok())` on the refusals — with a count check. So the day this is resolved the
+test goes red and says which flag to drop. It cannot be closed by accident or forgotten.
+
+Note that `parse_tags` (XML) already casts at parse. The two paths disagreed with each other before
+they disagreed with dspy.
 """
 
 [[story]]
