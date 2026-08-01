@@ -24,8 +24,15 @@ cd "$ROOT"
 #
 #   dsrust-tpe 1 — `n < 25` against `n <= 25` in `default_weights`. At n=25 the ramp is empty either
 #                  way and both arms return twenty-five ones, so nothing can tell them apart.
+#   pyrng      4 — one equivalent and three that hang rather than fail. `hi = len - 1` in `choices`
+#                  against `hi = len`: the bound is unreachable because `random()` is strictly below
+#                  one, so the target never reaches the top cumulative weight, and CPython refuses
+#                  the all-zero weights that would be the only other way there. The three timeouts
+#                  are `bisect_right`'s comparison and `below`'s rejection loop, where the mutant
+#                  spins instead of answering — detected, but as a hang rather than a failure.
 BASELINES=(
   "dsrust-tpe:1"
+  "pyrng:4"
 )
 
 if ! cargo mutants --version > /dev/null 2>&1; then
@@ -45,11 +52,14 @@ for entry in "${BASELINES[@]}"; do
   set +e
   cargo mutants -p "$package" --timeout 120 > "$log" 2>&1
   set -e
-  missed=$(grep -c "^MISSED" "$log" || true)
+  # TIMEOUT counts too. A mutant that hangs was detected only in the sense that the suite never
+  # finished — it is a line whose behaviour no assertion pins, same as a survivor, and letting it
+  # go uncounted would let the number fall silently as tests got slower.
+  missed=$(grep -cE "^(MISSED|TIMEOUT)" "$log" || true)
   tail -1 "$log"
   if [ "$missed" -gt "$allowed" ]; then
     echo "  RATCHET BROKEN: $missed survivors, baseline $allowed" >&2
-    grep "^MISSED" "$log" | sed 's/ in [0-9].*//' >&2
+    grep -E "^(MISSED|TIMEOUT)" "$log" | sed 's/ in [0-9].*//' >&2
     status=1
   elif [ "$missed" -lt "$allowed" ]; then
     echo "  $missed survivors, below the baseline of $allowed — lower the baseline in this script"

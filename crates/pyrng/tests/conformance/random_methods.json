@@ -1,0 +1,1227 @@
+{
+  "source": "generated from CPython 3.13.5 via scripts/generate_pyrng_methods_fixture.py",
+  "python_version": "3.13.5",
+  "note": "Every derived Random method, interleaved against one generator per seed so that how far each call advances the stream is pinned as well as what it returns. A method that returns the right value after consuming the wrong number of words is correct once and wrong for the rest of the run.",
+  "runs": [
+    {
+      "seed": 0,
+      "steps": [
+        {
+          "call": "random",
+          "value": "0.8444218515250481"
+        },
+        {
+          "call": "random",
+          "value": "0.7579544029403025"
+        },
+        {
+          "call": "randint 0 3",
+          "value": 3
+        },
+        {
+          "call": "randint 0 4",
+          "value": 0
+        },
+        {
+          "call": "randint 1 6",
+          "value": 3
+        },
+        {
+          "call": "randint 0 1000000000",
+          "value": 548977048
+        },
+        {
+          "call": "randint 5 5",
+          "value": 5
+        },
+        {
+          "call": "choice_index 2",
+          "value": 1
+        },
+        {
+          "call": "choice_index 3",
+          "value": 1
+        },
+        {
+          "call": "choice_index 5",
+          "value": 3
+        },
+        {
+          "call": "choice_index 8",
+          "value": 5
+        },
+        {
+          "call": "choice_index 16",
+          "value": 6
+        },
+        {
+          "call": "choice_index 17",
+          "value": 16
+        },
+        {
+          "call": "random",
+          "value": "0.13927370519815263"
+        },
+        {
+          "call": "choices [1.0,1.0,1.0] 3",
+          "value": [
+            0,
+            0,
+            2
+          ]
+        },
+        {
+          "call": "choices [0.1,0.7,0.2] 4",
+          "value": [
+            2,
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "call": "choices [5.0,1.0] 2",
+          "value": [
+            0,
+            0
+          ]
+        },
+        {
+          "call": "choices [0.5,0.5,0.0] 6",
+          "value": [
+            0,
+            1,
+            0,
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "call": "choices [0.0,0.5,0.5] 4",
+          "value": [
+            2,
+            1,
+            2,
+            1
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.5213536341525041"
+        },
+        {
+          "call": "sample 10 2",
+          "value": [
+            0,
+            8
+          ]
+        },
+        {
+          "call": "sample 10 9",
+          "value": [
+            0,
+            1,
+            6,
+            5,
+            7,
+            9,
+            3,
+            8,
+            4
+          ]
+        },
+        {
+          "call": "sample 100 3",
+          "value": [
+            93,
+            41,
+            90
+          ]
+        },
+        {
+          "call": "sample 100 60",
+          "value": [
+            8,
+            24,
+            72,
+            28,
+            30,
+            18,
+            69,
+            57,
+            11,
+            10,
+            40,
+            65,
+            62,
+            13,
+            38,
+            70,
+            37,
+            15,
+            84,
+            42,
+            93,
+            26,
+            77,
+            81,
+            75,
+            36,
+            56,
+            91,
+            49,
+            89,
+            95,
+            83,
+            23,
+            98,
+            67,
+            4,
+            33,
+            79,
+            64,
+            5,
+            43,
+            48,
+            99,
+            73,
+            9,
+            2,
+            53,
+            60,
+            44,
+            34,
+            59,
+            25,
+            45,
+            63,
+            17,
+            46,
+            82,
+            86,
+            68,
+            78
+          ]
+        },
+        {
+          "call": "sample 5 5",
+          "value": [
+            4,
+            2,
+            1,
+            3,
+            0
+          ]
+        },
+        {
+          "call": "sample 30 1",
+          "value": [
+            2
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.3243248433827095"
+        },
+        {
+          "call": "shuffle 12",
+          "value": [
+            6,
+            10,
+            4,
+            8,
+            2,
+            0,
+            11,
+            3,
+            5,
+            9,
+            7,
+            1
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.3720601930810732"
+        }
+      ]
+    },
+    {
+      "seed": 1,
+      "steps": [
+        {
+          "call": "random",
+          "value": "0.13436424411240122"
+        },
+        {
+          "call": "random",
+          "value": "0.8474337369372327"
+        },
+        {
+          "call": "randint 0 3",
+          "value": 0
+        },
+        {
+          "call": "randint 0 4",
+          "value": 2
+        },
+        {
+          "call": "randint 1 6",
+          "value": 1
+        },
+        {
+          "call": "randint 0 1000000000",
+          "value": 531969374
+        },
+        {
+          "call": "randint 5 5",
+          "value": 5
+        },
+        {
+          "call": "choice_index 2",
+          "value": 1
+        },
+        {
+          "call": "choice_index 3",
+          "value": 2
+        },
+        {
+          "call": "choice_index 5",
+          "value": 3
+        },
+        {
+          "call": "choice_index 8",
+          "value": 3
+        },
+        {
+          "call": "choice_index 16",
+          "value": 3
+        },
+        {
+          "call": "choice_index 17",
+          "value": 15
+        },
+        {
+          "call": "random",
+          "value": "0.02834747652200631"
+        },
+        {
+          "call": "choices [1.0,1.0,1.0] 3",
+          "value": [
+            2,
+            1,
+            2
+          ]
+        },
+        {
+          "call": "choices [0.1,0.7,0.2] 4",
+          "value": [
+            0,
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "call": "choices [5.0,1.0] 2",
+          "value": [
+            1,
+            1
+          ]
+        },
+        {
+          "call": "choices [0.5,0.5,0.0] 6",
+          "value": [
+            0,
+            0,
+            1,
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "call": "choices [0.0,0.5,0.5] 4",
+          "value": [
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.49581224138185065"
+        },
+        {
+          "call": "sample 10 2",
+          "value": [
+            3,
+            5
+          ]
+        },
+        {
+          "call": "sample 10 9",
+          "value": [
+            3,
+            9,
+            7,
+            2,
+            0,
+            8,
+            5,
+            4,
+            1
+          ]
+        },
+        {
+          "call": "sample 100 3",
+          "value": [
+            15,
+            95,
+            42
+          ]
+        },
+        {
+          "call": "sample 100 60",
+          "value": [
+            92,
+            91,
+            64,
+            54,
+            97,
+            85,
+            24,
+            38,
+            36,
+            75,
+            63,
+            95,
+            50,
+            90,
+            4,
+            61,
+            31,
+            51,
+            53,
+            22,
+            46,
+            70,
+            47,
+            11,
+            56,
+            65,
+            13,
+            20,
+            66,
+            87,
+            77,
+            62,
+            3,
+            60,
+            5,
+            39,
+            78,
+            41,
+            10,
+            84,
+            32,
+            14,
+            0,
+            49,
+            12,
+            34,
+            35,
+            58,
+            25,
+            59,
+            80,
+            98,
+            86,
+            29,
+            17,
+            42,
+            81,
+            99,
+            57,
+            93
+          ]
+        },
+        {
+          "call": "sample 5 5",
+          "value": [
+            4,
+            1,
+            2,
+            0,
+            3
+          ]
+        },
+        {
+          "call": "sample 30 1",
+          "value": [
+            1
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.4811018174142402"
+        },
+        {
+          "call": "shuffle 12",
+          "value": [
+            4,
+            1,
+            0,
+            11,
+            7,
+            2,
+            10,
+            6,
+            3,
+            8,
+            9,
+            5
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.4581468000997244"
+        }
+      ]
+    },
+    {
+      "seed": 9,
+      "steps": [
+        {
+          "call": "random",
+          "value": "0.46300735781502145"
+        },
+        {
+          "call": "random",
+          "value": "0.37331193139504204"
+        },
+        {
+          "call": "randint 0 3",
+          "value": 1
+        },
+        {
+          "call": "randint 0 4",
+          "value": 1
+        },
+        {
+          "call": "randint 1 6",
+          "value": 6
+        },
+        {
+          "call": "randint 0 1000000000",
+          "value": 6909588
+        },
+        {
+          "call": "randint 5 5",
+          "value": 5
+        },
+        {
+          "call": "choice_index 2",
+          "value": 1
+        },
+        {
+          "call": "choice_index 3",
+          "value": 2
+        },
+        {
+          "call": "choice_index 5",
+          "value": 0
+        },
+        {
+          "call": "choice_index 8",
+          "value": 5
+        },
+        {
+          "call": "choice_index 16",
+          "value": 1
+        },
+        {
+          "call": "choice_index 17",
+          "value": 12
+        },
+        {
+          "call": "random",
+          "value": "0.16941420513004346"
+        },
+        {
+          "call": "choices [1.0,1.0,1.0] 3",
+          "value": [
+            2,
+            2,
+            1
+          ]
+        },
+        {
+          "call": "choices [0.1,0.7,0.2] 4",
+          "value": [
+            1,
+            0,
+            1,
+            2
+          ]
+        },
+        {
+          "call": "choices [5.0,1.0] 2",
+          "value": [
+            1,
+            0
+          ]
+        },
+        {
+          "call": "choices [0.5,0.5,0.0] 6",
+          "value": [
+            1,
+            1,
+            1,
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "call": "choices [0.0,0.5,0.5] 4",
+          "value": [
+            2,
+            2,
+            2,
+            2
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.3965429088561565"
+        },
+        {
+          "call": "sample 10 2",
+          "value": [
+            5,
+            0
+          ]
+        },
+        {
+          "call": "sample 10 9",
+          "value": [
+            3,
+            0,
+            6,
+            8,
+            9,
+            5,
+            1,
+            7,
+            2
+          ]
+        },
+        {
+          "call": "sample 100 3",
+          "value": [
+            54,
+            94,
+            14
+          ]
+        },
+        {
+          "call": "sample 100 60",
+          "value": [
+            76,
+            0,
+            15,
+            74,
+            25,
+            95,
+            42,
+            1,
+            10,
+            17,
+            69,
+            2,
+            64,
+            91,
+            73,
+            63,
+            68,
+            94,
+            53,
+            8,
+            50,
+            24,
+            11,
+            96,
+            18,
+            22,
+            5,
+            6,
+            34,
+            19,
+            71,
+            4,
+            97,
+            51,
+            30,
+            20,
+            85,
+            47,
+            23,
+            54,
+            43,
+            33,
+            37,
+            36,
+            49,
+            44,
+            84,
+            99,
+            7,
+            57,
+            61,
+            28,
+            13,
+            82,
+            12,
+            56,
+            92,
+            78,
+            38,
+            21
+          ]
+        },
+        {
+          "call": "sample 5 5",
+          "value": [
+            0,
+            3,
+            4,
+            2,
+            1
+          ]
+        },
+        {
+          "call": "sample 30 1",
+          "value": [
+            14
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.2696373188846525"
+        },
+        {
+          "call": "shuffle 12",
+          "value": [
+            6,
+            2,
+            8,
+            5,
+            9,
+            3,
+            7,
+            0,
+            11,
+            10,
+            4,
+            1
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.709447911216192"
+        }
+      ]
+    },
+    {
+      "seed": 42,
+      "steps": [
+        {
+          "call": "random",
+          "value": "0.6394267984578837"
+        },
+        {
+          "call": "random",
+          "value": "0.025010755222666936"
+        },
+        {
+          "call": "randint 0 3",
+          "value": 2
+        },
+        {
+          "call": "randint 0 4",
+          "value": 1
+        },
+        {
+          "call": "randint 1 6",
+          "value": 2
+        },
+        {
+          "call": "randint 0 1000000000",
+          "value": 149827706
+        },
+        {
+          "call": "randint 5 5",
+          "value": 5
+        },
+        {
+          "call": "choice_index 2",
+          "value": 0
+        },
+        {
+          "call": "choice_index 3",
+          "value": 2
+        },
+        {
+          "call": "choice_index 5",
+          "value": 3
+        },
+        {
+          "call": "choice_index 8",
+          "value": 0
+        },
+        {
+          "call": "choice_index 16",
+          "value": 0
+        },
+        {
+          "call": "choice_index 17",
+          "value": 2
+        },
+        {
+          "call": "random",
+          "value": "0.21863797480360336"
+        },
+        {
+          "call": "choices [1.0,1.0,1.0] 3",
+          "value": [
+            1,
+            0,
+            0
+          ]
+        },
+        {
+          "call": "choices [0.1,0.7,0.2] 4",
+          "value": [
+            1,
+            1,
+            1,
+            1
+          ]
+        },
+        {
+          "call": "choices [5.0,1.0] 2",
+          "value": [
+            0,
+            0
+          ]
+        },
+        {
+          "call": "choices [0.5,0.5,0.0] 6",
+          "value": [
+            1,
+            1,
+            0,
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "call": "choices [0.0,0.5,0.5] 4",
+          "value": [
+            1,
+            1,
+            2,
+            2
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.8071282732743802"
+        },
+        {
+          "call": "sample 10 2",
+          "value": [
+            7,
+            8
+          ]
+        },
+        {
+          "call": "sample 10 9",
+          "value": [
+            1,
+            6,
+            9,
+            4,
+            2,
+            8,
+            5,
+            3,
+            0
+          ]
+        },
+        {
+          "call": "sample 100 3",
+          "value": [
+            90,
+            8,
+            5
+          ]
+        },
+        {
+          "call": "sample 100 60",
+          "value": [
+            84,
+            29,
+            37,
+            10,
+            98,
+            12,
+            48,
+            35,
+            58,
+            81,
+            46,
+            20,
+            47,
+            45,
+            26,
+            34,
+            82,
+            9,
+            77,
+            21,
+            68,
+            31,
+            88,
+            59,
+            93,
+            99,
+            71,
+            28,
+            41,
+            7,
+            95,
+            4,
+            40,
+            51,
+            74,
+            8,
+            27,
+            91,
+            60,
+            36,
+            56,
+            86,
+            90,
+            13,
+            73,
+            78,
+            25,
+            55,
+            69,
+            83,
+            16,
+            64,
+            15,
+            92,
+            65,
+            49,
+            97,
+            63,
+            43,
+            53
+          ]
+        },
+        {
+          "call": "sample 5 5",
+          "value": [
+            2,
+            1,
+            0,
+            3,
+            4
+          ]
+        },
+        {
+          "call": "sample 30 1",
+          "value": [
+            24
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.04711637542473457"
+        },
+        {
+          "call": "shuffle 12",
+          "value": [
+            0,
+            7,
+            9,
+            5,
+            4,
+            8,
+            3,
+            11,
+            6,
+            10,
+            2,
+            1
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.9710783776136181"
+        }
+      ]
+    },
+    {
+      "seed": 2024,
+      "steps": [
+        {
+          "call": "random",
+          "value": "0.47009071843107064"
+        },
+        {
+          "call": "random",
+          "value": "0.7282642914232076"
+        },
+        {
+          "call": "randint 0 3",
+          "value": 2
+        },
+        {
+          "call": "randint 0 4",
+          "value": 1
+        },
+        {
+          "call": "randint 1 6",
+          "value": 6
+        },
+        {
+          "call": "randint 0 1000000000",
+          "value": 440329269
+        },
+        {
+          "call": "randint 5 5",
+          "value": 5
+        },
+        {
+          "call": "choice_index 2",
+          "value": 0
+        },
+        {
+          "call": "choice_index 3",
+          "value": 2
+        },
+        {
+          "call": "choice_index 5",
+          "value": 3
+        },
+        {
+          "call": "choice_index 8",
+          "value": 5
+        },
+        {
+          "call": "choice_index 16",
+          "value": 13
+        },
+        {
+          "call": "choice_index 17",
+          "value": 16
+        },
+        {
+          "call": "random",
+          "value": "0.727759134886051"
+        },
+        {
+          "call": "choices [1.0,1.0,1.0] 3",
+          "value": [
+            2,
+            0,
+            2
+          ]
+        },
+        {
+          "call": "choices [0.1,0.7,0.2] 4",
+          "value": [
+            1,
+            1,
+            2,
+            1
+          ]
+        },
+        {
+          "call": "choices [5.0,1.0] 2",
+          "value": [
+            0,
+            0
+          ]
+        },
+        {
+          "call": "choices [0.5,0.5,0.0] 6",
+          "value": [
+            1,
+            1,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "call": "choices [0.0,0.5,0.5] 4",
+          "value": [
+            1,
+            1,
+            1,
+            2
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.7628111714654963"
+        },
+        {
+          "call": "sample 10 2",
+          "value": [
+            6,
+            5
+          ]
+        },
+        {
+          "call": "sample 10 9",
+          "value": [
+            5,
+            3,
+            9,
+            8,
+            6,
+            2,
+            1,
+            7,
+            0
+          ]
+        },
+        {
+          "call": "sample 100 3",
+          "value": [
+            26,
+            5,
+            95
+          ]
+        },
+        {
+          "call": "sample 100 60",
+          "value": [
+            28,
+            97,
+            2,
+            33,
+            64,
+            40,
+            72,
+            90,
+            53,
+            78,
+            14,
+            42,
+            83,
+            77,
+            29,
+            30,
+            59,
+            46,
+            17,
+            25,
+            47,
+            63,
+            76,
+            18,
+            96,
+            49,
+            43,
+            88,
+            87,
+            21,
+            16,
+            93,
+            26,
+            8,
+            12,
+            22,
+            0,
+            57,
+            9,
+            99,
+            45,
+            15,
+            95,
+            89,
+            5,
+            65,
+            51,
+            86,
+            58,
+            44,
+            85,
+            38,
+            69,
+            84,
+            75,
+            27,
+            68,
+            67,
+            54,
+            4
+          ]
+        },
+        {
+          "call": "sample 5 5",
+          "value": [
+            2,
+            4,
+            1,
+            0,
+            3
+          ]
+        },
+        {
+          "call": "sample 30 1",
+          "value": [
+            16
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.10061154138460227"
+        },
+        {
+          "call": "shuffle 12",
+          "value": [
+            1,
+            4,
+            5,
+            7,
+            0,
+            9,
+            8,
+            10,
+            2,
+            6,
+            11,
+            3
+          ]
+        },
+        {
+          "call": "random",
+          "value": "0.1185506077822176"
+        }
+      ]
+    }
+  ]
+}

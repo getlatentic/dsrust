@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1076
+rust_tests = 1078
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -391,7 +391,7 @@ id = "can-the-suite-fail"
 sprint = "conformance"
 title = "Measure whether the conformance suite can fail, rather than that it passes"
 state = "in-progress"
-progress = "dsrust-tpe measured and ratcheted 2026-08-01: 18 survivors -> 1. The other crates are unmeasured."
+progress = "dsrust-tpe 18 -> 1 and pyrng 16 -> 4, both ratcheted 2026-08-01. dsrust-gepa and dsrust itself are unmeasured."
 size = "L"
 suites = []
 plan = """
@@ -459,8 +459,27 @@ refuses to write a fixture without such a length.
 18 → 1. The survivor is equivalent: `n < 25` against `n <= 25`, where at n=25 the ramp is empty
 either way. `scripts/run_mutants.sh` holds the ratchet — the number may fall, never rise.
 
-Remaining: `pyrng`, `dsrust-gepa`, and the byte-critical modules of `dsrust` itself, which is the
-large half. Expect the `dsrust` run to be slow enough to want scoping by file.
+**Second measurement, `pyrng`: 16 survivors of 221**, and worse in kind than the first. `random()`,
+`randint()` and `choice_index()` could each be replaced by a **constant** with nothing failing. The
+reason is structural rather than careless: every faithfulness test for these lives in `dsrust`,
+`dsrust-tpe` or `dsrust-gepa`, so the raw Mersenne-Twister stream was pinned in `pyrng` and
+everything built on top of it was pinned only in the consumers — and `pyrng` is published on its
+own, so a consumer of it alone had nothing at all.
+
+`tests/random_methods.rs` now drives all seven derived methods against CPython's own answers, over
+five seeds, **interleaved against one generator** rather than each from a fresh one. That last part
+is the point: how far a call advances the stream matters as much as what it returns, and a method
+that answers correctly after consuming the wrong number of words is right once and wrong for the
+rest of the run. It passed on the first attempt, which says the port was right and merely unwatched.
+
+16 → 4: one equivalent (`hi = len - 1` against `hi = len` in `choices`, unreachable because
+`random()` is strictly below one and CPython refuses the all-zero weights that would be the only
+other route) and three that hang rather than fail. The ratchet counts a timeout as a survivor —
+a mutant the suite never finishes on is a line no assertion pins, and letting timeouts go uncounted
+would let the number fall silently as tests got slower.
+
+Remaining: `dsrust-gepa`, and the byte-critical modules of `dsrust` itself, which is the large half.
+Expect the `dsrust` run to be slow enough to want scoping by file.
 """
 
 [[story]]
