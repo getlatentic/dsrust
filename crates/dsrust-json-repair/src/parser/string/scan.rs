@@ -15,8 +15,12 @@ use crate::{Result, pychar};
 
 /// What one rule decided about the character in hand.
 enum Step {
-    /// The string ends here.
-    Stop,
+    /// The string ends here, on the character named — which is not always the one the rule was
+    /// handed. `handle_right_delimiter_candidate` steps the cursor *back* onto the character
+    /// before a misplaced quote, and `finalize_string_result` then reads that character to decide
+    /// whether the string closed on its delimiter or ran out. Breaking with the old one moves the
+    /// cursor a character past where the next key starts.
+    Stop(Option<char>),
     /// Handled; look at the character the rule left the cursor on.
     Again(Option<char>),
     /// No rule applied.
@@ -42,7 +46,10 @@ impl Parser {
                 break;
             }
             match self.before_appending(state, current)? {
-                Step::Stop => break,
+                Step::Stop(next) => {
+                    char = next;
+                    break;
+                }
                 Step::Again(next) => {
                     char = next;
                     continue;
@@ -69,7 +76,10 @@ impl Parser {
                 char = next;
             }
             match self.after_appending(state, char)? {
-                Step::Stop => break,
+                Step::Stop(next) => {
+                    char = next;
+                    break;
+                }
                 Step::Again(next) => char = next,
                 Step::Fall => {}
             }
@@ -84,13 +94,13 @@ impl Parser {
                 self.log(
                     "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
                 );
-                return Ok(Step::Stop);
+                return Ok(Step::Stop(Some(char)));
             }
             if self.context.is(ContextValue::Array) && (char == ']' || char == ',') {
                 self.log(
                     "While parsing a string missing the left delimiter in array context, we found a ] or ,, stopping here",
                 );
-                return Ok(Step::Stop);
+                return Ok(Step::Stop(Some(char)));
             }
         }
 
@@ -106,7 +116,7 @@ impl Parser {
         if let Step::Again(next) = self.keep_inline_container(state, char) {
             return Ok(Step::Again(next));
         }
-        if let step @ (Step::Stop | Step::Again(_)) = self.object_value_comma(state, char) {
+        if let step @ (Step::Stop(_) | Step::Again(_)) = self.object_value_comma(state, char) {
             return Ok(step);
         }
 
@@ -120,7 +130,9 @@ impl Parser {
             return Ok(Step::Again(self.append_literal_char(state, char)));
         }
 
-        if let step @ (Step::Stop | Step::Again(_)) = self.object_value_closing_brace(state, char) {
+        if let step @ (Step::Stop(_) | Step::Again(_)) =
+            self.object_value_closing_brace(state, char)
+        {
             return Ok(step);
         }
         if !self.stream_stable
@@ -131,7 +143,7 @@ impl Parser {
                 .get_char_at(self.skip_to_character(&[state.outer_rstring_delimiter()], 0))
                 .is_none()
         {
-            return Ok(Step::Stop);
+            return Ok(Step::Stop(Some(char)));
         }
         Ok(self.closing_brace_before_code_fence(state, char))
     }
@@ -148,7 +160,7 @@ impl Parser {
         let outer = state.outer_rstring_delimiter();
 
         if char == ':' && !state.missing_quotes && self.context.is(ContextValue::ObjectKey) {
-            return Ok(self.object_key_colon(state));
+            return Ok(self.object_key_colon(state, char));
         }
         if state.in_low_smart_quote_span() && char == '"' {
             state.pop_low_smart_quote_span();
@@ -164,7 +176,7 @@ impl Parser {
         if char == outer && state.last_acc().is_some_and(|last| last != '\\') {
             let (handled, next, should_break) = self.handle_right_delimiter_candidate(state, char);
             if should_break {
-                return Ok(Step::Stop);
+                return Ok(Step::Stop(next));
             }
             if handled {
                 return Ok(Step::Again(next));
@@ -220,7 +232,7 @@ impl Parser {
             self.log(
                 "While parsing a string missing the right delimiter in object value context, we found a comma that starts the next object member. Stopping here",
             );
-            return Step::Stop;
+            return Step::Stop(Some(char));
         }
         if meaning == CommaMeaning::StrNoFutureDelimiter {
             state.object_value_has_no_future_delimiter = true;
@@ -270,7 +282,7 @@ impl Parser {
         } else {
             let i = self.skip_to_character(&[':'], 1);
             if self.get_char_at(i).is_some() {
-                return Step::Stop;
+                return Step::Stop(Some(char));
             }
             let i = self.scroll_whitespaces(1);
             let j = self.skip_to_character(&['}'], i);
@@ -282,7 +294,7 @@ impl Parser {
             self.log(
                 "While parsing a string missing the left delimiter in object value context, we found a , or } and we couldn't determine that a right delimiter was present. Stopping here",
             );
-            return Step::Stop;
+            return Step::Stop(Some(char));
         }
         Step::Fall
     }
@@ -312,25 +324,25 @@ impl Parser {
             self.log(
                 "While parsing a string in object value context, we found a } that closes the object before code fences, stopping here",
             );
-            return Step::Stop;
+            return Step::Stop(Some(char));
         }
         if next_c.is_none() {
             self.log("While parsing a string in object value context, we found a } that closes the object, stopping here");
-            return Step::Stop;
+            return Step::Stop(Some(char));
         }
         Step::Fall
     }
 
     /// A `:` inside what was supposed to be a key: the key ended before it, unless a quoted value
     /// and a separator can still be found after it.
-    fn object_key_colon(&mut self, state: &mut StringParseState) -> Step {
+    fn object_key_colon(&mut self, state: &mut StringParseState, char: char) -> Step {
         let outer = state.outer_rstring_delimiter();
         let mut i = self.skip_to_character(&[state.lstring_delimiter], 1);
         if self.get_char_at(i).is_none() {
             self.log(
                 "While parsing a string missing the right delimiter in object key context, we found a :, stopping here",
             );
-            return Step::Stop;
+            return Step::Stop(Some(char));
         }
         i = self.skip_to_character(&[outer], i + 1);
         if self.get_char_at(i).is_none() {
@@ -341,7 +353,7 @@ impl Parser {
             self.log(&format!(
                 "While parsing a string missing the right delimiter in object key context, we found a {ch} stopping here"
             ));
-            return Step::Stop;
+            return Step::Stop(Some(char));
         }
         Step::Fall
     }

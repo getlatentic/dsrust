@@ -13,7 +13,7 @@
   "parse_json_llm_block.py": 6,
   "parse_number.py": 22,
   "parse_object.py": 202,
-  "parse_string.py": 394,
+  "parse_string.py": 405,
   "parser_parenthesized.py": 71,
   "parser_schema.py": 4,
   "schema_repair.py": 3
@@ -333,6 +333,20 @@
    "input": "{\"a\": \"say „hi\" there”\"}",
    "ok": true,
    "dumps": "{\"a\": \"say \\u201ehi\\\" there\\u201d\"}"
+  },
+  {
+   "name": "unquoted_value_ends_before_the_next_key",
+   "why": "the cursor steps back onto the character before a quote that opened the next key",
+   "input": "{\"a\":Paris\", 'b' :1, \": {}}",
+   "ok": true,
+   "dumps": "{\"a\": \"Paris\", \"s\": \"b\"}"
+  },
+  {
+   "name": "unquoted_value_ends_before_a_backslash_run",
+   "why": "the same step-back, with the run of backslashes that made it visible",
+   "input": "[\"answer\", {\"北京\"\"a\", a\": he said \"hi\"\\\\\"}, \"Paris\"",
+   "ok": true,
+   "dumps": "[\"answer\", {\"\\u5317\\u4eac\": \"a\", \"a\": \"a\", \"hi\": \"\"}, \"Paris\"]"
   },
   {
    "name": "stray_escape",

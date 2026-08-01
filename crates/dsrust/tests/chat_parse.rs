@@ -103,8 +103,12 @@ fn the_parser_reads_what_dspys_reads_and_refuses_what_dspy_refuses() {
         accepted > 0 && refused > 0,
         "the golden no longer exercises both arms: {accepted} accepted, {refused} refused"
     );
+    // Three, all of them `parse-time-casting`. The fourth was
+    // `json_unescaped_quote_inside_a_string`, which closed when `dsrust-json-repair` landed —
+    // and this count, plus the assertion above it, is what said so rather than letting a golden
+    // quietly go on recording a gap that no longer exists.
     assert_eq!(
-        diverging, 4,
+        diverging, 3,
         "the recorded divergences changed count; if one was fixed, say so"
     );
 }

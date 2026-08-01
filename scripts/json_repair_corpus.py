@@ -93,6 +93,14 @@ ASYMMETRIC_QUOTES = [
     case("doubled_quote_empty", "two quotes that really are an empty value", '{"a": "", "b": 1}'),
     case("smart_quotes", "the curly pair, which opens and closes differently", "{“a”: “b”}"),
     case("low_smart_quote", "„ … ” is a quote pair no other rule knows about", '{"a": "say „hi" there”"}'),
+    # Both found by scripts/fuzz_json_repair.py, seed 0. The misplaced quote steps the cursor
+    # *back* onto the character before it, and where the string is then judged to have ended
+    # decides whether the next key starts on that character or one past it — so the key comes out
+    # as `s` rather than `Paris`.
+    case("unquoted_value_ends_before_the_next_key", "the cursor steps back onto the character "
+         "before a quote that opened the next key", '{"a":Paris", \'b\' :1, ": {}}'),
+    case("unquoted_value_ends_before_a_backslash_run", "the same step-back, with the run of "
+         "backslashes that made it visible", '["answer", {"北京""a", a": he said "hi"\\\\"}, "Paris"'),
 ]
 
 ESCAPES = [

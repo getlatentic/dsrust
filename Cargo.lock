@@ -157,6 +157,7 @@ dependencies = [
  "bytes",
  "dsrust-derive",
  "dsrust-gepa",
+ "dsrust-json-repair",
  "dsrust-tpe",
  "futures-util",
  "lru",

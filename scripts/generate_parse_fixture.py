@@ -135,10 +135,10 @@ JSON_CASES = [
         json.dumps({"answer": "Paris", "score": "7", "tags": json.dumps(["a", "b"])}),
     ),
     (
-        # The malformed shape that mistake produced, kept because it is a real one:
-        # `json_repair` recovers an unescaped quote inside a string and this crate's repair
-        # does not. Recorded as a divergence rather than chased — matching json_repair in full
-        # is a library, not a fix.
+        # The malformed shape that mistake produced, kept because it is a real one: an
+        # unescaped quote inside a string, which only `json_repair`'s heuristics recover.
+        # It was recorded as a divergence until `dsrust-json-repair` landed, and the test
+        # asserting the divergence is what said so.
         "json_unescaped_quote_inside_a_string",
         Typed,
         '{"answer": "Paris", "score": "7", "tags": "["a", "b"]"}',
@@ -279,7 +279,6 @@ def main() -> None:
                     "typed_fields",
                     "typed_field_that_will_not_parse",
                     "typed_field_empty",
-                    "json_unescaped_quote_inside_a_string",
                 },
             }
         )

@@ -72,14 +72,17 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
 /// its declared type becomes a parse failure as upstream's does.
 fn section_value(field: &OutField, text: &str) -> Value {
     match field.kind {
-        // Strict JSON first, because that case is not a guess: dspy hands the text to the field's
-        // own Python type, which reads `["a", "b"]` as a list, and so does this. Python's literal
-        // spelling next. Anything else stays text for the caller's own typing to judge, which is
-        // what `coerce_scalars` skips a structured field for.
-        FieldKind::Json(_) => serde_json::from_str(text)
-            .ok()
-            .or_else(|| repair::python_literal(text))
-            .unwrap_or_else(|| Value::from(text)),
+        // `parse_value`'s order for a non-`str` annotation, and the order matters: json-repair
+        // first, and Python's own literal syntax only where json-repair answered with the empty
+        // string — which is how it reports having found nothing. `'a'` is the case that separates
+        // them, since a bare quoted string at the top level is a literal and not a JSON value.
+        FieldKind::Json(_) => {
+            let candidate = repair::loads(text).unwrap_or_else(|_| Value::from(""));
+            match candidate == Value::from("") && !text.is_empty() {
+                true => repair::python_literal(text).unwrap_or_else(|| Value::from(text)),
+                false => candidate,
+            }
+        }
         _ => Value::from(text),
     }
 }
@@ -254,39 +257,48 @@ pub(super) fn declared_fields(
 }
 
 pub(super) fn parse_json(raw: &str) -> Result<Value> {
-    // dspy reads the whole reply, and then asks `isinstance(fields, dict)` — a reply that parses as
-    // an *array* or a scalar is not an answer, so it falls through to the brace search below rather
-    // than being handed on. `[{"answer": "Paris"}]` is a real reply shape and reaches the object
-    // that way.
-    if let Ok(value) = serde_json::from_str::<Value>(raw)
+    // `JSONAdapter.parse` opens with `json_repair.loads(completion)` and then asks
+    // `isinstance(fields, dict)` — a reply that reads as an *array* or a scalar is not an answer,
+    // so it falls through to the brace search rather than being handed on. `[{"answer": "Paris"}]`
+    // is a real reply shape and reaches the object that way.
+    if let Ok(value) = repair::loads(raw)
         && value.is_object()
     {
         return Ok(value);
     }
-    if let (Some(start), Some(end)) = (raw.find('{'), raw.rfind('}'))
-        && start < end
-    {
-        let embedded = &raw[start..=end];
-        if let Ok(value) = serde_json::from_str::<Value>(embedded)
-            && value.is_object()
-        {
-            return Ok(value);
-        }
-        // A model asked for JSON often answers in Python's spelling instead, which upstream
-        // reads through json-repair before deciding the reply failed. The same reading already
-        // serves the marker adapter's structured fields.
-        if let Some(value) = repair::python_literal(embedded)
-            && value.is_object()
-        {
-            return Ok(value);
-        }
-    }
-    if let Some(value) = repair::python_literal(raw)
+    if let Some(embedded) = first_balanced_braces(raw)
+        && let Ok(value) = repair::loads(embedded)
         && value.is_object()
     {
         return Ok(value);
     }
     Err(anyhow!("model returned invalid JSON"))
+}
+
+/// The first balanced `{…}` run, which is what dspy's `\{(?:[^{}]|(?R))*\}` finds.
+///
+/// Not the span from the first `{` to the last `}`: for `{"a": 1} and {"b": 2}` the recursive
+/// pattern matches the first object alone, where the outermost span takes both and the prose
+/// between them. The scan is blind to quoting, as the pattern is — a `}` inside a string closes
+/// the run for both.
+fn first_balanced_braces(raw: &str) -> Option<&str> {
+    let opens: Vec<usize> = raw.match_indices('{').map(|(at, _)| at).collect();
+    for start in opens {
+        let mut depth = 0_usize;
+        for (offset, letter) in raw[start..].char_indices() {
+            match letter {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(&raw[start..start + offset + 1]);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]

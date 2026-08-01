@@ -1,0 +1,150 @@
+"""Generate random malformed JSON, run `json_repair` over it, and record what it answered.
+
+`scripts/fuzz_parse.py` reaches this library only through `JSONAdapter.parse`, so it exercises one
+shape of reply and nothing else: no nesting, no comments, no escapes, no tuples. That is enough to
+check the *adapter* and far too little to check a 3,500-line heuristic parser. This grammar builds
+malformed JSON directly, and every generator below names a decision in the library rather than a
+kind of typo.
+
+A campaign artifact, not a golden: run it with a seed, run
+`cargo test -p dsrust-json-repair --test fuzz` to see what disagrees, and promote anything it finds
+into `scripts/json_repair_corpus.py` as a named case with its reason.
+
+    .venv/bin/python scripts/fuzz_json_repair.py            # 5000 cases, seed 0
+    .venv/bin/python scripts/fuzz_json_repair.py 20000 7    # more, different seed
+"""
+
+from __future__ import annotations
+
+import json
+import pathlib
+import random
+import sys
+
+import json_repair
+
+OUT = pathlib.Path(__file__).parent.parent / "target" / "json_repair_fuzz.json"
+
+#: The quote characters the library knows, including the two smart pairs and the low one that
+#: opens a span no other rule closes.
+QUOTES = ['"', "'", "“", "„", "”"]
+SCALARS = ["1", "-2.5", "1e3", "1_000", "1,234", "3/4", "true", "True", "null", "None", "NaN", ""]
+NOISE = ["", " ", "\n", "\t", ",", ":", "}", "]", "#", "//", "```", "\\", "...", "„", "”"]
+WORDS = ["a", "answer", "Paris", "北京", "x y", "he said \"hi\"", "[a-z\"]+", "", "café"]
+
+
+def quoted(rng: random.Random, text: str) -> str:
+    """A string, quoted the several ways a model gets wrong."""
+    style = rng.random()
+    if style < 0.45:
+        return f'"{text}"'
+    if style < 0.6:
+        return f"'{text}'"
+    if style < 0.7:
+        return f"“{text}”"
+    if style < 0.8:
+        return text  # no quotes at all
+    if style < 0.9:
+        return f'"{text}'  # never closed
+    return f'{text}"'  # never opened
+
+
+def escaped(rng: random.Random) -> str:
+    """A backslash run, which has its own normalisation rules.
+
+    No `\\ud800`. A lone surrogate is a Python `str` and not a Rust `String`, which is a declared
+    divergence with a named case and a test asserting it — leaving it in this grammar buries that
+    one known gap under a hundred rediscoveries of it every run, and a fuzz report nobody reads is
+    a fuzz report that has stopped working.
+    """
+    return rng.choice([r"\n", r"\t", r"\\", r"\\\\", r"\x41", r"\u00e9", r"\q", "\\"])
+
+
+def value(rng: random.Random, depth: int) -> str:
+    roll = rng.random()
+    if depth > 0 and roll < 0.18:
+        return container(rng, depth - 1)
+    if roll < 0.3:
+        return rng.choice(SCALARS)
+    if roll < 0.4:
+        return f"({', '.join(rng.choice(SCALARS) for _ in range(rng.randint(0, 3)))})"
+    if roll < 0.5:
+        return quoted(rng, rng.choice(WORDS) + escaped(rng))
+    return quoted(rng, rng.choice(WORDS))
+
+
+def member(rng: random.Random, depth: int) -> str:
+    key = quoted(rng, rng.choice(WORDS))
+    separator = rng.choice([":", ":", ":", "", " :", ": "])
+    return f"{key}{separator}{value(rng, depth)}"
+
+
+def container(rng: random.Random, depth: int) -> str:
+    """An object or an array, with the closing bracket a model sometimes forgets."""
+    count = rng.randint(0, 3)
+    if rng.random() < 0.6:
+        body = ", ".join(member(rng, depth) for _ in range(count))
+        opener, closer = "{", rng.choice(["}", "}", "}", "", "]", "}}"])
+    else:
+        body = ", ".join(value(rng, depth) for _ in range(count))
+        opener, closer = "[", rng.choice(["]", "]", "]", "", "}"])
+    if rng.random() < 0.15:
+        body += ","
+    if rng.random() < 0.1:
+        body += rng.choice([" # note", " // note", " /* note */"])
+    return f"{opener}{body}{closer}"
+
+
+def reply(rng: random.Random) -> str:
+    """One whole input, wrapped the ways a model wraps an answer."""
+    body = container(rng, depth=2)
+    prefix = rng.choice(["", "", "Sure! ", "```json\n", "Here (see below): ", "# note\n"])
+    suffix = rng.choice(["", "", "\n```", " done", "\n", rng.choice(NOISE)])
+    return prefix + body + suffix
+
+
+def run(text: str) -> dict[str, object]:
+    try:
+        return {"ok": True, "dumps": json.dumps(json_repair.loads(text))}
+    except Exception as error:  # noqa: BLE001 — the refusal is part of the record
+        return {"ok": False, "error": type(error).__name__}
+
+
+def main() -> None:
+    count = int(sys.argv[1]) if len(sys.argv) > 1 else 5000
+    seed = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+    rng = random.Random(seed)
+
+    cases, seen = [], set()
+    while len(cases) < count:
+        text = reply(rng)
+        if text in seen:
+            continue
+        seen.add(text)
+        cases.append({"input": text} | run(text))
+
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(json.dumps({"seed": seed, "cases": cases}, indent=1, ensure_ascii=False) + "\n")
+
+    # A corpus that is mostly valid JSON tests CPython's scanner; one whose answers are mostly the
+    # empty string tests the parser giving up. Both look like a passing fuzz run and check nothing.
+    malformed = sum(1 for case in cases if not valid_json(case["input"]))
+    empty = sum(1 for case in cases if case.get("dumps") == '""')
+    print(f"  wrote {OUT} — {len(cases)} cases, seed {seed}", file=sys.stderr)
+    print(f"  {malformed} malformed, {empty} parsed to the empty string", file=sys.stderr)
+    if malformed < len(cases) * 0.8:
+        raise SystemExit(f"only {malformed}/{len(cases)} malformed — most never reach the repairs")
+    if empty > len(cases) * 0.2:
+        raise SystemExit(f"{empty}/{len(cases)} answered '' — the grammar mostly produces nothing")
+
+
+def valid_json(text: str) -> bool:
+    try:
+        json.loads(text)
+    except ValueError:
+        return False
+    return True
+
+
+if __name__ == "__main__":
+    main()
