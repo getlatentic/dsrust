@@ -208,3 +208,37 @@ fn a_value_reads_back_the_way_a_caller_would_use_it() {
     assert_eq!(fields.get("why"), Some(&Value::Str("the capital".into())));
     assert_eq!(fields.get("missing"), None);
 }
+
+#[test]
+fn the_two_free_functions_are_the_default_arguments_and_nothing_else() {
+    // `loads` and `repair_json` are the whole API most callers touch, and each is the builder with
+    // no options set. The rest of this file goes through `Repair`, so without this the two
+    // shorthands are reachable and unexercised.
+    assert_eq!(
+        json_repair::repair_json("{a: 1,}").expect("repaired"),
+        r#"{"a": 1}"#
+    );
+    assert_eq!(
+        json_repair::repair_json("prose").expect("repaired"),
+        "",
+        "the empty string is itself"
+    );
+    assert_eq!(
+        json_repair::loads("{a: 1,}").expect("repaired"),
+        Repair::new().loads("{a: 1,}").expect("repaired"),
+    );
+}
+
+#[test]
+fn a_refusal_prints_the_message_upstream_raises_with() {
+    // Upstream's is a `ValueError`, so its text *is* what a caller sees. Reading it off `Display`
+    // rather than off `message()` is what pins the impl.
+    let error = Repair::new()
+        .strict(true)
+        .loads("{\"a\" 1}")
+        .expect_err("strict mode refuses a missing separator");
+    assert_eq!(
+        error.to_string(),
+        "Missing ':' after key in strict mode while parsing object."
+    );
+}

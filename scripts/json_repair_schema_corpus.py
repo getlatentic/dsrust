@@ -116,6 +116,9 @@ ENUMS_AND_REFS = [
 SALVAGE = [
     case("salvage_drops_a_bad_item", "an item that will not fit is dropped rather than fatal",
          {"type": "array", "items": {"type": "integer"}}, '[1, "x", 3]', mode="salvage"),
+    case("salvage_does_not_drop_a_broken_schema", "an item schema the repairer cannot *read* is "
+         "re-raised instead, which is the one place `SchemaDefinitionError` is told apart from an "
+         "ordinary refusal", {"type": "array", "items": {"type": "date"}}, "[1, 2", mode="salvage"),
     case("salvage_fills_required", "a required property filled from its default",
          {"type": "object", "properties": {"a": {"type": "integer", "default": 9}}, "required": ["a"]},
          "{}", mode="salvage"),

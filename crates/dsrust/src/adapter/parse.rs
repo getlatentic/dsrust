@@ -383,6 +383,27 @@ mod tests {
     /// Upstream's `test_chat_adapter_parses_float_with_underscores` sends exactly this reply
     /// for a field declared as a model with one float, and expects 123456.789.
     #[test]
+    fn the_brace_search_finds_what_dspys_recursive_pattern_finds() {
+        // Checked case by case against `regex.search(r"\{(?:[^{}]|(?R))*\}", …)` on the pinned
+        // dspy. Four of these are the reason the search is not `find('{')..rfind('}')`: the
+        // pattern backtracks past a `{` that never balances, it stops at the *first* complete
+        // object rather than spanning to the last brace in the reply, and it is blind to quoting.
+        for (raw, expected) in [
+            (r#"{"a": 1} and {"b": 2}"#, Some(r#"{"a": 1}"#)),
+            ("x {a{b}c} y", Some("{a{b}c}")),
+            ("{a{b}", Some("{b}")),
+            ("{{a}", Some("{a}")),
+            (r#"{"a": "}"}"#, Some(r#"{"a": "}"#)),
+            (r#"text {"a": {"b": 1}} tail"#, Some(r#"{"a": {"b": 1}}"#)),
+            ("a } b { \"c\": 2 }", Some("{ \"c\": 2 }")),
+            (r#"{"a": 1"#, None),
+            ("no braces", None),
+        ] {
+            assert_eq!(first_balanced_braces(raw), expected, "for {raw:?}");
+        }
+    }
+
+    #[test]
     fn parse_markers_reads_a_json_field_written_as_a_python_literal() {
         let raw = "[[ ## ideas ## ]]\n{'score': 123_456.789}\n[[ ## completed ## ]]";
         let value = parse_markers(&json_signature(), raw).expect("parses");

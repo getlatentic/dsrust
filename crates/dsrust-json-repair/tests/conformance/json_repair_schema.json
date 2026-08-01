@@ -1356,6 +1356,22 @@
    ]
   },
   {
+   "name": "salvage_does_not_drop_a_broken_schema",
+   "why": "an item schema the repairer cannot *read* is re-raised instead, which is the one place `SchemaDefinitionError` is told apart from an ordinary refusal",
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "date"
+    }
+   },
+   "input": "[1, 2",
+   "mode": "salvage",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "Unsupported schema type date at $[0].",
+   "calls": []
+  },
+  {
    "name": "salvage_fills_required",
    "why": "a required property filled from its default",
    "schema": {
