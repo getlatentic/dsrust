@@ -4,10 +4,16 @@
 //! the method that leaves the branches nobody thought of. This closes that: both sides are pure
 //! functions from a string to a value, and the library is on hand as the reference.
 //!
-//! **Skips unless the corpus is there.** `scripts/fuzz_json_repair.py` writes
+//! **Runs only when a campaign has been run.** `scripts/fuzz_json_repair.py` writes
 //! `target/json_repair_fuzz.json`, a campaign artifact rather than a golden — twenty thousand
 //! random strings are evidence, not documentation. Run the script, run this, and promote whatever
 //! disagrees into `scripts/json_repair_corpus.py` as a named case with its reason.
+//!
+//! `target/` is gitignored, and cargo-mutants copies only the source tree, so under mutation this
+//! corpus is always absent and every one of those cases scores nothing. `sweep.rs` is what covers
+//! the regime there: five hundred generated cases committed under `tests/conformance/`. The absent
+//! path below asserts that file is present rather than returning quietly, so this can never be the
+//! last thing standing between a change and the differential oracle.
 
 use json_repair::Repair;
 use serde_json::Value as Json;
@@ -38,15 +44,37 @@ enum Shape {
     DifferentValue,
 }
 
+/// The committed differential corpus, which is what covers this regime when no campaign has run.
+const SWEEP: &str = "tests/conformance/json_repair_sweep.json";
+
+/// A campaign small enough to be a leftover rather than a run.
+const A_CAMPAIGN: usize = 100;
+
 #[test]
-fn no_random_input_repairs_differently_from_json_repairs() {
+fn a_fuzz_campaign_agrees_with_json_repair_when_one_has_been_run() {
     let Some(corpus) = corpus() else {
-        eprintln!(
-            "no target/json_repair_fuzz.json — run `.venv/bin/python scripts/fuzz_json_repair.py`"
+        // `eprintln!` is captured by the harness, so the old name plus a swallowed line read as
+        // "no random input repairs differently" having compared nothing at all. The name says what
+        // is conditional now, and the absent path still asserts the one thing that must hold: that
+        // something covers this regime. `sweep.rs` reads the committed corpus below and panics
+        // without it, and cargo-mutants copies only the source tree — so under mutation the
+        // campaign artifact in `target/` is *always* absent and the sweep is the whole oracle.
+        let sweep = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(SWEEP);
+        assert!(
+            sweep.exists(),
+            "no campaign corpus and no {SWEEP} either — nothing in this crate compares random \
+             input against json_repair. Run `.venv/bin/python scripts/fuzz_json_repair.py`, or \
+             regenerate the sweep."
         );
         return;
     };
     let cases = corpus["cases"].as_array().expect("cases");
+    assert!(
+        cases.len() >= A_CAMPAIGN,
+        "{} cases is not a campaign — a stale or truncated corpus passing here says as little as \
+         an absent one",
+        cases.len()
+    );
 
     let mut disagreements: Vec<(Shape, String)> = Vec::new();
     for case in cases {
