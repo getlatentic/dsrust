@@ -3,6 +3,673 @@
  "what": "What a schema-guided repair returns, and every question the repairer asked the validator to get there. The Rust seam replays the answers and fails on a question that was never asked, so the repair decisions are tested without reimplementing JSON Schema.",
  "cases": [
   {
+   "name": "pattern_0",
+   "why": "pattern '' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_1",
+   "why": "pattern '^' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_2",
+   "why": "pattern '$' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_3",
+   "why": "pattern '^$' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": 1}",
+   "log": [],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_4",
+   "why": "pattern '^$' against key ''",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$."
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_5",
+   "why": "pattern 'id' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_6",
+   "why": "pattern 'id' against key 'idx'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"idx\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"idx\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.idx"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"idx\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_7",
+   "why": "pattern 'id' against key 'xid'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"xid\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"xid\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.xid"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"xid\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_8",
+   "why": "pattern 'id' against key 'a'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": [],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_9",
+   "why": "pattern '^id' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_10",
+   "why": "pattern '^id' against key 'idx'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"idx\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"idx\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.idx"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"idx\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_11",
+   "why": "pattern '^id' against key 'xid'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"xid\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"xid\": 1}",
+   "log": [],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"xid\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_12",
+   "why": "pattern 'id$' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_13",
+   "why": "pattern 'id$' against key 'idx'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"idx\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"idx\": 1}",
+   "log": [],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"idx\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_14",
+   "why": "pattern 'id$' against key 'xid'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"xid\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"xid\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.xid"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"xid\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_15",
+   "why": "pattern '^id$' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^id$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id\": \"1\"}",
+   "log": [
+    {
+     "text": "Coerced number to string",
+     "context": "$.id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^id$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_16",
+   "why": "pattern '^id$' against key 'idx'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^id$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"idx\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"idx\": 1}",
+   "log": [],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"idx\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^id$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_17",
+   "why": "pattern '^a.*z$' against key 'abcz'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^a.*z$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"abcz\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"abcz\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^a.*z$\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_18",
+   "why": "pattern 'a|b' against key 'a'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "a|b": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"a|b\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_19",
+   "why": "pattern 'a+' against key 'aa'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "a+": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"aa\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"aa\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"a+\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_20",
+   "why": "pattern '[ab]' against key 'a'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "[ab]": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"[ab]\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_21",
+   "why": "pattern '(a)' against key 'a'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "(a)": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"(a)\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_22",
+   "why": "pattern '^^id' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^^id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^^id\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_23",
+   "why": "pattern 'id$$' against key 'id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id$$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id$$\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
    "name": "numeric_text_integer_0",
    "why": "`integer({ text!r})`",
    "schema": {

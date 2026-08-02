@@ -216,4 +216,27 @@ NUMERIC_TEXT = [
     ])
 ]
 
-CASES: list[dict] = [*NUMERIC_TEXT, *WRONG_TYPES, *COERCION, *OBJECTS, *ARRAYS, *UNIONS, *ENUMS_AND_REFS, *SALVAGE]
+#: `patternProperties` over the literal-and-anchor subset upstream supports, and the shapes where
+#: the slicing that strips the anchors is easy to get wrong: a pattern that is *only* an anchor
+#: leaves an empty literal, and an empty literal matches everything by `in`, `startswith` or
+#: `endswith` depending on which anchor it was. Anything with a real regex token is skipped, which
+#: the repair log says and the value does not.
+PATTERNS = [
+    case(f"pattern_{index}", f"pattern {pattern!r} against key {key!r}",
+         {"type": "object", "patternProperties": {pattern: {"type": "string"}}},
+         # Malformed on purpose. Valid JSON that satisfies the schema never reaches the matcher —
+         # the whole-input fast path hands it straight back, which is how the first attempt at
+         # this group proved nothing.
+         '{"' + key + '": 1')
+    for index, (pattern, key) in enumerate([
+        ("", "id"), ("^", "id"), ("$", "id"), ("^$", "id"), ("^$", ""),
+        ("id", "id"), ("id", "idx"), ("id", "xid"), ("id", "a"),
+        ("^id", "id"), ("^id", "idx"), ("^id", "xid"),
+        ("id$", "id"), ("id$", "idx"), ("id$", "xid"),
+        ("^id$", "id"), ("^id$", "idx"),
+        ("^a.*z$", "abcz"), ("a|b", "a"), ("a+", "aa"), ("[ab]", "a"), ("(a)", "a"),
+        ("^^id", "id"), ("id$$", "id"),
+    ])
+]
+
+CASES: list[dict] = [*PATTERNS, *NUMERIC_TEXT, *WRONG_TYPES, *COERCION, *OBJECTS, *ARRAYS, *UNIONS, *ENUMS_AND_REFS, *SALVAGE]

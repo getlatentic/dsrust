@@ -19,13 +19,16 @@ pub(crate) fn match_pattern_properties<'a>(
     for (pattern, schema) in pattern_properties {
         let anchored_start = pattern.starts_with('^');
         let anchored_end = pattern.ends_with('$');
+        // `pattern[1 if anchored_start else 0 : -1 if anchored_end else None]`. Both anchors are
+        // one byte, and `anchored_end` cannot hold for an empty remainder — `"^"` does not end in
+        // `$` — so neither slice needs a guard of its own.
         let literal = {
             let without_start = if anchored_start {
                 &pattern[1..]
             } else {
                 pattern.as_str()
             };
-            match anchored_end && !without_start.is_empty() {
+            match anchored_end {
                 true => &without_start[..without_start.len() - 1],
                 false => without_start,
             }
