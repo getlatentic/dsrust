@@ -149,7 +149,65 @@ ENUMS_AND_REFS = [
     case("boolean_schema_false", "and the one that accepts nothing", False, "{a: 1}"),
 ]
 
+#: `_fill_missing` decides what a *present key with no value* becomes — `{"a": }`, not an absent
+#: `a`. That distinction is the whole group: an absent required key goes to the salvage fill below,
+#: which only knows default, const, enum, array and object, while this one has an arm per JSON type
+#: and two that refuse. Tracing the pin said every one of those arms was cold, in a function whose
+#: catch-all was already found to be a bug once.
+MISSING_VALUES = [
+    case("missing_value_string", "an empty string, since a string has one",
+         {"type": "object", "properties": {"a": {"type": "string"}}}, '{"a": }'),
+    case("missing_value_boolean", "and a boolean has false",
+         {"type": "object", "properties": {"a": {"type": "boolean"}}}, '{"a": }'),
+    case("missing_value_null", "null is a value, not the absence of one",
+         {"type": "object", "properties": {"a": {"type": "null"}}}, '{"a": }'),
+    case("missing_value_array", "an empty array where none is required",
+         {"type": "object", "properties": {"a": {"type": "array"}}}, '{"a": }'),
+    case("missing_value_array_min", "and a refusal where `minItems` says it cannot be empty",
+         {"type": "object", "properties": {"a": {"type": "array", "minItems": 2}}}, '{"a": }'),
+    case("missing_value_object", "the same pair for objects",
+         {"type": "object", "properties": {"a": {"type": "object"}}}, '{"a": }'),
+    case("missing_value_object_min", "held by `minProperties` rather than `minItems`",
+         {"type": "object", "properties": {"a": {"type": "object", "minProperties": 1}}}, '{"a": }'),
+    case("missing_value_union", "a union tries each member in order and takes the first that fills",
+         {"type": "object", "properties": {"a": {"type": ["array", "string"]}}}, '{"a": }'),
+    case("missing_value_union_unfillable", "and refuses when no member can",
+         {"type": "object", "properties": {"a": {"type": ["date", "time"]}}}, '{"a": }'),
+    case("missing_value_inferred_object", "no `type`, so the shape decides: `properties` means object",
+         {"type": "object", "properties": {"a": {"properties": {"z": {"type": "integer"}}}}}, '{"a": }'),
+    case("missing_value_inferred_array", "and `items` means array",
+         {"type": "object", "properties": {"a": {"items": {"type": "integer"}}}}, '{"a": }'),
+    case("missing_value_untyped", "a schema with neither is not a container and cannot be filled",
+         {"type": "object", "properties": {"a": {"description": "no type"}}}, '{"a": }'),
+]
+
 SALVAGE = [
+    # `_copy_json_value` recurses through a filled value, and its dict arm was never reached: every
+    # const, enum and default in the corpus was a scalar. A non-string key inside one is the only
+    # way to its refusal.
+    case("salvage_const_is_an_object", "a const deep-copied rather than shared",
+         {"type": "object", "properties": {"a": {"const": {"k": [1, 2]}}}, "required": ["a"]},
+         "{b: 1", mode="salvage"),
+    case("salvage_default_is_an_object", "the same copy, reached through `default` and logged as one",
+         {"type": "object", "properties": {"a": {"default": {"k": {"deep": True}}}}, "required": ["a"]},
+         "{b: 1", mode="salvage"),
+    case("salvage_enum_first_is_an_object", "and through the first enum value",
+         {"type": "object", "properties": {"a": {"enum": [{"k": 1}, 2]}}, "required": ["a"]},
+         "{b: 1", mode="salvage"),
+    case("salvage_fills_empty_array", "a required array with no default is filled empty",
+         {"type": "object", "properties": {"a": {"type": "array"}}, "required": ["a"]},
+         "{b: 1", mode="salvage"),
+    case("salvage_fills_empty_object", "and a required object likewise",
+         {"type": "object", "properties": {"a": {"type": "object"}}, "required": ["a"]},
+         "{b: 1", mode="salvage"),
+    case("salvage_fills_inferred_object", "the salvage fill infers a container from its shape too, "
+         "and asks `is_array_schema` before `is_object_schema` where `_fill_missing` asks the other "
+         "way round",
+         {"type": "object", "properties": {"a": {"properties": {"z": {"type": "integer"}}}},
+          "required": ["a"]}, "{b: 1", mode="salvage"),
+    case("salvage_fills_inferred_array", "and the array half of that same order",
+         {"type": "object", "properties": {"a": {"items": {"type": "integer"}}}, "required": ["a"]},
+         "{b: 1", mode="salvage"),
     case("salvage_drops_a_bad_item", "an item that will not fit is dropped rather than fatal",
          {"type": "array", "items": {"type": "integer"}}, '[1, "x", 3]', mode="salvage"),
     case("salvage_does_not_drop_a_broken_schema", "an item schema the repairer cannot *read* is "
@@ -243,4 +301,4 @@ PATTERNS = [
     ])
 ]
 
-CASES: list[dict] = [*PATTERNS, *NUMERIC_TEXT, *WRONG_TYPES, *COERCION, *OBJECTS, *ARRAYS, *UNIONS, *ENUMS_AND_REFS, *SALVAGE]
+CASES: list[dict] = [*PATTERNS, *NUMERIC_TEXT, *WRONG_TYPES, *COERCION, *OBJECTS, *ARRAYS, *UNIONS, *ENUMS_AND_REFS, *SALVAGE, *MISSING_VALUES]

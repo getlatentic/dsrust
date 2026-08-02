@@ -5598,6 +5598,341 @@
    "calls": []
   },
   {
+   "name": "salvage_const_is_an_object",
+   "why": "a const deep-copied rather than shared",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "const": {
+       "k": [
+        1,
+        2
+       ]
+      }
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": {\"k\": [1, 2]}, \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {\"k\": [1, 2]}, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"const\": {\"k\": [1, 2]}}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_default_is_an_object",
+   "why": "the same copy, reached through `default` and logged as one",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "default": {
+       "k": {
+        "deep": true
+       }
+      }
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": {\"k\": {\"deep\": true}}, \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {\"k\": {\"deep\": true}}, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"default\": {\"k\": {\"deep\": true}}}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_enum_first_is_an_object",
+   "why": "and through the first enum value",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [
+       {
+        "k": 1
+       },
+       2
+      ]
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": {\"k\": 1}, \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {\"k\": 1}, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"enum\": [{\"k\": 1}, 2]}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_fills_empty_array",
+   "why": "a required array with no default is filled empty",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "array"
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": [], \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": [], \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"array\"}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_fills_empty_object",
+   "why": "and a required object likewise",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "object"
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": {}, \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {}, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"object\"}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_fills_inferred_object",
+   "why": "the salvage fill infers a container from its shape too, and asks `is_array_schema` before `is_object_schema` where `_fill_missing` asks the other way round",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": {
+       "z": {
+        "type": "integer"
+       }
+      }
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": {}, \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {}, \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": {\"z\": {\"type\": \"integer\"}}}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "salvage_fills_inferred_array",
+   "why": "and the array half of that same order",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": {
+       "type": "integer"
+      }
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": true,
+   "dumps": "{\"a\": [], \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{b: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{b: 1"
+    },
+    {
+     "text": "Filled missing required property while salvaging",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": [], \"b\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"items\": {\"type\": \"integer\"}}}, \"required\": [\"a\"]}",
+     "ok": true
+    }
+   ]
+  },
+  {
    "name": "salvage_drops_a_bad_item",
    "why": "an item that will not fit is dropped rather than fatal",
    "schema": {
@@ -5906,6 +6241,370 @@
      "ok": true
     }
    ]
+  },
+  {
+   "name": "missing_value_string",
+   "why": "an empty string, since a string has one",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": \"\"}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with empty string",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": \"\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_boolean",
+   "why": "and a boolean has false",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "boolean"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": false}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with false",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": false}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"boolean\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_null",
+   "why": "null is a value, not the absence of one",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "null"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": null}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with null",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": null}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"null\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_array",
+   "why": "an empty array where none is required",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "array"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": []}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with empty array",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": []}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"array\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_array_min",
+   "why": "and a refusal where `minItems` says it cannot be empty",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "array",
+      "minItems": 2
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Array at $.a requires at least 2 items.",
+   "calls": []
+  },
+  {
+   "name": "missing_value_object",
+   "why": "the same pair for objects",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "object"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": {}}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with empty object",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {}}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"object\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_object_min",
+   "why": "held by `minProperties` rather than `minItems`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "object",
+      "minProperties": 1
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Object at $.a requires at least 1 properties.",
+   "calls": []
+  },
+  {
+   "name": "missing_value_union",
+   "why": "a union tries each member in order and takes the first that fills",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": [
+       "array",
+       "string"
+      ]
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": []}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with empty array",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "[]",
+     "schema": "{\"type\": \"array\"}",
+     "ok": true
+    },
+    {
+     "method": "validate",
+     "value": "{\"a\": []}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": [\"array\", \"string\"]}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_union_unfillable",
+   "why": "and refuses when no member can",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": [
+       "date",
+       "time"
+      ]
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Cannot infer missing value at $.a.",
+   "calls": []
+  },
+  {
+   "name": "missing_value_inferred_object",
+   "why": "no `type`, so the shape decides: `properties` means object",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": {
+       "z": {
+        "type": "integer"
+       }
+      }
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": {}}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with empty object",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {}}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": {\"z\": {\"type\": \"integer\"}}}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_inferred_array",
+   "why": "and `items` means array",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": {
+       "type": "integer"
+      }
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": []}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with empty array",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": []}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"items\": {\"type\": \"integer\"}}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "missing_value_untyped",
+   "why": "a schema with neither is not a container and cannot be filled",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "description": "no type"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Cannot infer missing value at $.a.",
+   "calls": []
   }
  ]
 }
