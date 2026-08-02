@@ -236,6 +236,10 @@ PATTERNS = [
         ("^id$", "id"), ("^id$", "idx"),
         ("^a.*z$", "abcz"), ("a|b", "a"), ("a+", "aa"), ("[ab]", "a"), ("(a)", "a"),
         ("^^id", "id"), ("id$$", "id"),
+        # A key that *contains* the regex token, which is the only way the token list itself shows.
+        # With `^` treated as an ordinary character, `^^id` would strip one anchor and match the
+        # key `^id` — Python skips the pattern and matches nothing.
+        ("^^id", "^id"), ("id$$", "id$"), ("a.b", "a.b"), ("a|b", "a|b"), ("a+", "a+"),
     ])
 ]
 

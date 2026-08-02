@@ -670,6 +670,152 @@
    ]
   },
   {
+   "name": "pattern_24",
+   "why": "pattern '^^id' against key '^id'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "^^id": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"^id\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"^id\": 1}",
+   "log": [
+    {
+     "text": "Skipped unsupported patternProperties regex '^^id' while parsing object key '^id'",
+     "context": "{\"^id\": 1"
+    },
+    {
+     "text": "Skipped unsupported patternProperties regex '^^id'",
+     "context": "$.^id"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"^id\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"^^id\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_25",
+   "why": "pattern 'id$$' against key 'id$'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "id$$": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"id$\": 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"id$\": 1}",
+   "log": [
+    {
+     "text": "Skipped unsupported patternProperties regex 'id$$' while parsing object key 'id$'",
+     "context": "{\"id$\": 1"
+    },
+    {
+     "text": "Skipped unsupported patternProperties regex 'id$$'",
+     "context": "$.id$"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"id$\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"id$$\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "pattern_26",
+   "why": "pattern 'a.b' against key 'a.b'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "a.b": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a.b\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a.b\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"a.b\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_27",
+   "why": "pattern 'a|b' against key 'a|b'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "a|b": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a|b\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a|b\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"a|b\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
+   "name": "pattern_28",
+   "why": "pattern 'a+' against key 'a+'",
+   "schema": {
+    "type": "object",
+    "patternProperties": {
+     "a+": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{\"a+\": 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "1 is not of type 'string'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a+\": 1}",
+     "schema": "{\"type\": \"object\", \"patternProperties\": {\"a+\": {\"type\": \"string\"}}}",
+     "ok": false,
+     "message": "1 is not of type 'string'"
+    }
+   ]
+  },
+  {
    "name": "numeric_text_integer_0",
    "why": "`integer({ text!r})`",
    "schema": {

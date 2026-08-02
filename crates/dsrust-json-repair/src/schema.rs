@@ -250,12 +250,13 @@ impl Parser {
         let (matched, unsupported) =
             pattern::match_pattern_properties(&config.pattern_properties, key);
         for unsupported_pattern in unsupported {
-            self.repairer_log(
-                &format!(
-                    "Skipped unsupported patternProperties regex '{unsupported_pattern}' while parsing object key '{key}'"
-                ),
-                key,
-            );
+            // The *parser's* log, not the repairer's: upstream writes this one with `self.log`
+            // from inside `JSONParser`, so its context is the window around the cursor rather
+            // than the schema path. The near-identical message in `repair_extra_properties` is
+            // the repairer's and does carry a path.
+            self.log(&format!(
+                "Skipped unsupported patternProperties regex '{unsupported_pattern}' while parsing object key '{key}'"
+            ));
         }
         if let Some((primary, rest)) = matched.split_first() {
             let extra = rest
