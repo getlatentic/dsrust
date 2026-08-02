@@ -9,6 +9,7 @@
 //! random strings are evidence, not documentation. Run the script, run this, and promote whatever
 //! disagrees into `scripts/json_repair_corpus.py` as a named case with its reason.
 
+use json_repair::Repair;
 use serde_json::Value as Json;
 
 fn corpus() -> Option<Json> {
@@ -50,7 +51,9 @@ fn no_random_input_repairs_differently_from_json_repairs() {
     let mut disagreements: Vec<(Shape, String)> = Vec::new();
     for case in cases {
         let input = case["input"].as_str().expect("an input");
-        let ours = json_repair::loads(input);
+        let ours = Repair::new()
+            .strict(case["strict"].as_bool().unwrap_or(false))
+            .loads(input);
         let shape = match (case["ok"].as_bool().expect("ok"), &ours) {
             (true, Ok(ours)) if ours.to_string() == case["dumps"].as_str().expect("dumps") => {
                 continue;

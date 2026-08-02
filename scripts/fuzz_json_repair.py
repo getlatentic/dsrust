@@ -123,9 +123,9 @@ def reply(rng: random.Random) -> str:
     return prefix + body + suffix
 
 
-def run(text: str) -> dict[str, object]:
+def run(text: str, strict: bool = False) -> dict[str, object]:
     try:
-        return {"ok": True, "dumps": json.dumps(json_repair.loads(text))}
+        return {"ok": True, "dumps": json.dumps(json_repair.loads(text, strict=strict))}
     except Exception as error:  # noqa: BLE001 — the refusal is part of the record
         return {"ok": False, "error": type(error).__name__, "message": str(error)}
 
@@ -141,7 +141,10 @@ def main() -> None:
         if text in seen:
             continue
         seen.add(text)
-        cases.append({"input": text} | run(text))
+        # Half the corpus in strict mode. It is where the grammar was blindest: eight of the
+        # library's raise sites are strict-only, and nothing generated ever reached one.
+        strict = len(cases) % 2 == 1
+        cases.append({"input": text, "strict": strict} | run(text, strict))
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps({"seed": seed, "cases": cases}, indent=1, ensure_ascii=False) + "\n")
