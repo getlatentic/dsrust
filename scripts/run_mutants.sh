@@ -31,7 +31,7 @@ cd "$ROOT"
 #                  the all-zero weights that would be the only other way there. The three timeouts
 #                  are `bisect_right`'s comparison and `below`'s rejection loop, where the mutant
 #                  spins instead of answering — detected, but as a hang rather than a failure.
-#   dsrust-gepa 28 — 25 survivors and 3 non-terminating, and still the largest gap measured. Was
+#   dsrust-gepa 27 — 27 survivors and no non-terminating ones left. Still the largest gap. Was
 #                    46, and re-measured at exactly 46 under the fixed methodology before any of it
 #                    was closed — so unlike the adapter slice, this number was never an artifact.
 #                    What closed the eleven: `state.rs::best_program`, whose tie clause decides
@@ -41,7 +41,11 @@ cd "$ROOT"
 #                    `true` unconditionally — with equality being what makes a proposal a duplicate.
 #                    What is left clusters in `engine.rs` (the optimize and propose loops),
 #                    `merge.rs`, and `instruction_proposal.rs`'s fence parsing; the non-terminating
-#                    ones are in `engine.rs::propose`. `pyset.rs` was ten of these and is three:
+#                    ones are gone: `optimize`'s loop ends when the budget is spent and so ends
+#                    only if every iteration spends some, which nothing enforced — an empty
+#                    minibatch spins it forever on a real run, not just a mutated one. The whole
+#                    campaign now takes 8 minutes rather than 30, because each hang cost two.
+#                    `pyset.rs` was ten of these and is three:
 #                    both its loops terminated only on invariants they could not see — the probe
 #                    on `add` having resized, the size search on the shift growing the value — so
 #                    eight mutations hung the suite rather than failing it. Bounded, they fail; the
@@ -67,7 +71,7 @@ cd "$ROOT"
 BASELINES=(
   "dsrust-tpe:1"
   "pyrng:4"
-  "dsrust-gepa:28"
+  "dsrust-gepa:27"
 )
 
 # The one `dsrust` slice with a floor. Scoped by file because the whole crate is a five-hour run,

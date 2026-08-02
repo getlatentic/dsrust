@@ -212,7 +212,18 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         let mut sampler = BatchSampler::new(self.minibatch_size);
         let mut merge = MergeSchedule::default();
 
+        // The loop ends when the budget is spent, so it ends only if every iteration spends some
+        // of it. Nothing enforced that. `propose` counts a minibatch before each of its two early
+        // returns, so the one way through without spending is an *empty* minibatch — which an
+        // empty trainset produces, and which then spins here forever on a real run rather than on
+        // a mutated one. Upstream asserts the sampler has enough ids; this checks the effect
+        // instead, which also covers an adapter that reports no evaluations.
+        let mut spent_last_iteration = state.total_num_evals;
         while state.total_num_evals < self.max_metric_calls {
+            if state.i > 0 && state.total_num_evals == spent_last_iteration {
+                break;
+            }
+            spent_last_iteration = state.total_num_evals;
             state.i += 1;
 
             // dspy attempts a merge before the reflective step, but only right after an iteration
