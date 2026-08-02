@@ -3099,6 +3099,214 @@
    "calls": []
   },
   {
+   "name": "ref_circular",
+   "why": "a pointer that comes back to itself",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "#/$defs/loop"
+     }
+    },
+    "$defs": {
+     "loop": {
+      "$ref": "#/$defs/loop"
+     }
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "Circular $ref detected: #/$defs/loop",
+   "calls": []
+  },
+  {
+   "name": "ref_circular_pair",
+   "why": "and a two-step cycle, which identity catches and a ref-name set catches for a different reason",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "#/$defs/x"
+     }
+    },
+    "$defs": {
+     "x": {
+      "$ref": "#/$defs/y"
+     },
+     "y": {
+      "$ref": "#/$defs/x"
+     }
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "Circular $ref detected: #/$defs/y",
+   "calls": []
+  },
+  {
+   "name": "ref_not_a_string",
+   "why": "`$ref` present but a number",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": 7
+     }
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "$ref must be a string.",
+   "calls": []
+  },
+  {
+   "name": "ref_to_a_boolean_schema",
+   "why": "a pointer at `true`, which resolves to the schema that accepts anything",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "#/$defs/any"
+     }
+    },
+    "$defs": {
+     "any": true
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"$ref\": \"#/$defs/any\"}}, \"$defs\": {\"any\": true}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "ref_chain",
+   "why": "three hops to a real schema",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "#/$defs/one"
+     }
+    },
+    "$defs": {
+     "one": {
+      "$ref": "#/$defs/two"
+     },
+     "two": {
+      "$ref": "#/$defs/three"
+     },
+     "three": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": \"1\"}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1"
+    },
+    {
+     "text": "Coerced number to string",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"$ref\": \"#/$defs/one\"}}, \"$defs\": {\"one\": {\"$ref\": \"#/$defs/two\"}, \"two\": {\"$ref\": \"#/$defs/three\"}, \"three\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "ref_escaped_pointer",
+   "why": "a pointer whose segment holds `~1` and `~0`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "$ref": "#/$defs/a~1b~0c"
+     }
+    },
+    "$defs": {
+     "a/b~c": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": \"1\"}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 1"
+    },
+    {
+     "text": "Coerced number to string",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": \"1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"$ref\": \"#/$defs/a~1b~0c\"}}, \"$defs\": {\"a/b~c\": {\"type\": \"string\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
    "name": "ref_not_local",
    "why": "a pointer out of the document",
    "schema": {

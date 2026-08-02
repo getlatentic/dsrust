@@ -13,7 +13,6 @@ pub(crate) mod object;
 pub(crate) mod pattern;
 pub(crate) mod validate;
 
-use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::parser::{LogEntry, Parser};
@@ -50,8 +49,6 @@ pub struct SchemaRepairer {
     log: LogSink,
     pub(crate) mode: SchemaRepairMode,
     validator: Option<Rc<dyn SchemaValidator>>,
-    /// Schemas currently being resolved, so a `$ref` cycle is reported rather than followed.
-    resolving: RefCell<Vec<String>>,
 }
 
 impl SchemaRepairer {
@@ -61,7 +58,6 @@ impl SchemaRepairer {
             log,
             mode,
             validator: None,
-            resolving: RefCell::new(Vec::new()),
         }
     }
 
@@ -96,20 +92,26 @@ impl SchemaRepairer {
             return Err(Error::definition("Schema must be an object."));
         };
 
+        // Upstream remembers `id(schema_dict)` — the node it is *leaving* — not the reference it
+        // is about to follow, so it notices a cycle one hop later and names the other pointer.
+        // `#/x -> #/y -> #/x` is "Circular $ref detected: #/$defs/y", not `#/$defs/x`. A pointer
+        // stands in for identity here: within one document the same pointer is the same node.
         let mut current = schema.clone();
-        self.resolving.borrow_mut().clear();
+        let mut produced_by: Option<String> = None;
+        let mut visited: Vec<Option<String>> = Vec::new();
         while let Some(reference) = current.get("$ref") {
             let Value::Str(reference) = reference else {
                 return Err(Error::definition("$ref must be a string."));
             };
             let reference = reference.clone();
-            if self.resolving.borrow().contains(&reference) {
+            if visited.contains(&produced_by) {
                 return Err(Error::definition(&format!(
                     "Circular $ref detected: {reference}"
                 )));
             }
-            self.resolving.borrow_mut().push(reference.clone());
+            visited.push(produced_by);
             current = self.resolve_ref(&reference)?;
+            produced_by = Some(reference);
             if matches!(current, Value::Bool(_)) {
                 return Ok(current);
             }
