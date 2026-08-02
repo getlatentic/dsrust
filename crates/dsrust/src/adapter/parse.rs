@@ -87,13 +87,23 @@ fn section_value(field: &OutField, text: &str) -> Value {
     }
 }
 
+/// Python's `\w`: what `str.isalnum()` accepts, plus `_`.
+///
+/// Both of dspy's scans over a reply are spelled `\w+` — `\[\[ ## (\w+) ## \]\]` for a marker and
+/// `<(?P<name>\w+)>` for a tag — and neither is ASCII. A Python identifier may be any of these, so
+/// `réponse` and `答え` are field names dspy renders markers for and reads back. Rust's own
+/// `is_alphanumeric` is not this predicate either: it follows `Alphabetic`, which carries combining
+/// marks that `str.isalnum()` refuses, so it answers wrongly in the other direction.
+fn is_word(letter: char) -> bool {
+    json_repair::pychar::is_alnum(letter) || letter == '_'
+}
+
 /// A section header at the start of a line: `[[ ## name ## ]]` with a word-character name,
 /// keeping any trailing text on the line as that section's first content.
 fn split_header(line: &str) -> Option<(&str, &str)> {
     let after_open = line.trim_start().strip_prefix("[[ ## ")?;
     let (name, _) = after_open.split_once(" ## ]]")?;
-    let word = !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-    if !word {
+    if name.is_empty() || !name.chars().all(is_word) {
         return None;
     }
     // dspy matches the header against `line.strip()` and then slices the **unstripped** line at
@@ -156,11 +166,7 @@ fn next_tag(text: &str) -> Option<(&str, &str, &str)> {
             return None;
         };
         let name = &text[open + 1..shut];
-        let is_word = !name.is_empty()
-            && name
-                .chars()
-                .all(|letter| letter.is_alphanumeric() || letter == '_');
-        if is_word {
+        if !name.is_empty() && name.chars().all(is_word) {
             let closing = format!("</{name}>");
             if let Some(end) = text[shut + 1..].find(&closing).map(|at| at + shut + 1) {
                 return Some((name, &text[shut + 1..end], &text[end + closing.len()..]));
@@ -378,6 +384,50 @@ mod tests {
     #[test]
     fn parse_markers_rejects_a_reply_with_no_sections() {
         assert!(parse_markers(&signature(), "red, because it is calm").is_err());
+    }
+
+    /// The other direction of the same predicate, and it loses a field rather than a marker.
+    ///
+    /// A `<…>` the scan calls a tag is consumed whole, so the scan resumes *after* its closing tag
+    /// and never looks inside. `char::is_alphanumeric` follows `Alphabetic` and accepts a combining
+    /// mark that `str.isalnum()` refuses, which makes `<xֺ>` a tag here and not in dspy — and the
+    /// `<answer>` it wraps is skipped with it. Measured: `dspy.XMLAdapter().parse` returns Paris.
+    #[test]
+    fn a_tag_python_would_not_call_a_tag_does_not_swallow_the_one_inside_it() {
+        let signature = Signature::single_input(
+            "Answer.",
+            vec![OutField {
+                name: "answer".into(),
+                ..Default::default()
+            }],
+        );
+        let raw = "<x\u{5b0}><answer>Paris</answer></x\u{5b0}>";
+        let value = parse_tags(&signature, raw).expect("dspy reads the inner tag");
+        assert_eq!(value, json!({ "answer": "Paris" }));
+    }
+
+    /// Upstream's header pattern is `\[\[ ## (\w+) ## \]\]`, and Python's `\w` is every code point
+    /// `str.isalnum()` accepts plus `_` — not ASCII. A Python identifier may be non-ASCII, so
+    /// `réponse` and `答え` are field names dspy renders markers for and parses back, measured
+    /// against `dspy.ChatAdapter().parse` on the pin.
+    #[test]
+    fn a_marker_names_a_field_the_way_python_spells_an_identifier() {
+        let signature = Signature::single_input(
+            "Answer.",
+            vec![
+                OutField {
+                    name: "réponse".into(),
+                    ..Default::default()
+                },
+                OutField {
+                    name: "答え".into(),
+                    ..Default::default()
+                },
+            ],
+        );
+        let raw = "[[ ## réponse ## ]]\nParis\n\n[[ ## 答え ## ]]\nはい\n\n[[ ## completed ## ]]\n";
+        let value = parse_markers(&signature, raw).expect("dspy parses this");
+        assert_eq!(value, json!({ "réponse": "Paris", "答え": "はい" }));
     }
 
     /// Upstream's `test_chat_adapter_parses_float_with_underscores` sends exactly this reply

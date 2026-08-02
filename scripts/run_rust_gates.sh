@@ -43,6 +43,23 @@ bounded() {
 cd "$ROOT"
 mkdir -p target
 
+# A build directory belonging to *this* checkout.
+#
+# `~/.cargo/config.toml` sets one `build-dir` for the machine, and cargo's metadata hash is over the
+# package name, version and features — not the path. Two checkouts of this repo therefore write the
+# same `deps/gepa-434c7ff1220d564a`, and the second run to build clobbers the first's binary while
+# `cargo test` happily runs whatever is sitting there.
+#
+# That is not hypothetical: this gate reported 1153 tests from a worktree whose source has 1145,
+# because a sibling checkout's uncommitted `dsrust-gepa` had eight more and had built last. A test
+# count is one of the few numbers this repo publishes about itself, and it was reading another
+# working tree's.
+#
+# Per-checkout rather than `mktemp -d`, which would be unique and would also discard every
+# incremental artifact on each run — the same reasoning `run_mutants.sh` records, in the other
+# direction: it needs isolation per *run*, this needs isolation per *checkout*.
+export CARGO_BUILD_BUILD_DIR="$ROOT/target/build-dir"
+
 echo "==> cargo test --workspace"
 # Teed rather than piped, so this script exits with the run's own status and not the tee's. The
 # recorder reads the copy, and writes nothing when the run was not green.

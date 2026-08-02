@@ -17,7 +17,13 @@
 //!
 //! **Refusals are compared too.** A reply the crate accepts where dspy raises reaches the caller as
 //! a wrong value instead of an error, which is the worse direction to diverge in.
+//!
+//! Both scans name their field with `\w+`, which is `str.isalnum()` plus `_` — neither ASCII nor
+//! `char::is_alphanumeric`. The crate shipped one of each, in opposite directions, and 58 cases
+//! said nothing about either: an all-ASCII corpus cannot see that predicate at all. The generator
+//! refuses to write one now.
 
+use dsrust::adapter::Input;
 use dsrust::signature::Signature;
 use dsrust::{Adapter, ChatAdapter, JsonAdapter, XmlAdapter};
 use serde_json::Value;
@@ -27,6 +33,52 @@ fn fixture() -> Value {
         .join("tests/conformance/parse/chat_parse.json");
     let text = std::fs::read_to_string(&path).expect("the parse golden is committed");
     serde_json::from_str(&text).expect("the golden parses")
+}
+
+/// The two halves have to agree about what a field may be called.
+///
+/// dspy names a field with `\w+` on both sides, so a signature whose fields are not ASCII renders
+/// markers it can also read back. The crate rendered them and then refused them — `split_header`
+/// asked for `is_ascii_alphanumeric`, so every reply to such a signature came back as "reply has no
+/// [[ ## field ## ]] sections". A render golden alone could not see it and a parse golden alone
+/// would not have said the prompt was fine; the pair is the statement worth making.
+#[test]
+fn a_signature_whose_fields_are_not_ascii_renders_markers_it_can_read_back() {
+    let signature: Signature = "question -> réponse: str, 答え: str"
+        .parse()
+        .expect("a signature may name its fields the way Python names an identifier");
+    let (system, turns) = ChatAdapter::default()
+        .format(
+            &signature,
+            &[],
+            &[Input::record(
+                "question",
+                Value::from("Quelle est la capitale?"),
+            )],
+        )
+        .expect("renders");
+
+    // dspy==3.3.0b1, `ChatAdapter().format(U, [], {...})`, copied from its output.
+    assert!(
+        system.contains("[[ ## réponse ## ]]\n{réponse}\n\n[[ ## 答え ## ]]\n{答え}"),
+        "the system prompt does not carry the markers dspy renders:\n{system}"
+    );
+    assert_eq!(
+        turns[0].content,
+        "[[ ## question ## ]]\nQuelle est la capitale?\n\nRespond with the corresponding output \
+         fields, starting with the field `[[ ## réponse ## ]]`, then `[[ ## 答え ## ]]`, and then \
+         ending with the marker for `[[ ## completed ## ]]`."
+            .into()
+    );
+
+    let reply = "[[ ## réponse ## ]]\nParis\n\n[[ ## 答え ## ]]\nはい\n\n[[ ## completed ## ]]\n";
+    let read = ChatAdapter::default()
+        .parse(&signature, reply)
+        .expect("and reads back what it asked for");
+    assert_eq!(
+        read,
+        serde_json::json!({ "réponse": "Paris", "答え": "はい" })
+    );
 }
 
 #[test]

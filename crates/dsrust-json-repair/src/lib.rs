@@ -89,7 +89,7 @@
 mod dump;
 mod error;
 mod parser;
-mod pychar;
+pub mod pychar;
 mod pynum;
 mod repair;
 mod schema;

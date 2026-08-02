@@ -163,6 +163,20 @@
       "diverges": false
     },
     {
+      "name": "marker_name_beyond_ascii",
+      "signature": "question -> réponse: str, 答え: str",
+      "completion": "[[ ## réponse ## ]]\nParis\n\n[[ ## 答え ## ]]\nはい\n\n[[ ## completed ## ]]\n",
+      "adapter": "chat",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "réponse": "Paris",
+          "答え": "はい"
+        }
+      },
+      "diverges": false
+    },
+    {
       "name": "marker_inside_a_value",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## reasoning ## ]]\nthe model wrote [[ ## answer ## ]] in the middle\n\n[[ ## answer ## ]]\nParis",
@@ -381,6 +395,34 @@
         "fields": {
           "reasoning": "R",
           "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_name_with_a_combining_mark",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<xְ><reasoning>Because.</reasoning></xְ>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_name_beyond_ascii",
+      "signature": "question -> réponse: str, 答え: str",
+      "completion": "<réponse>Paris</réponse>\n<答え>はい</答え>",
+      "adapter": "xml",
+      "chat": {
+        "ok": true,
+        "fields": {
+          "réponse": "Paris",
+          "答え": "はい"
         }
       },
       "diverges": false

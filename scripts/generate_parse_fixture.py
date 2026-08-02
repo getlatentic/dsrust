@@ -58,6 +58,19 @@ class Typed(dspy.Signature):
     tags: list[str] = dspy.OutputField()
 
 
+class Unicode(dspy.Signature):
+    """Answer in the caller's language.
+
+    Both scans are spelled `\\w+`, and Python's `\\w` is `str.isalnum()` plus `_` rather than ASCII.
+    A Python identifier may be any of it, so these are field names dspy renders markers for and
+    reads back — and the crate refused every one of them until this signature was added.
+    """
+
+    question: str = dspy.InputField()
+    réponse: str = dspy.OutputField()
+    答え: str = dspy.OutputField()
+
+
 class Tagged(dspy.Signature):
     """Answer with a list, and no scalar to cast.
 
@@ -82,6 +95,12 @@ XML_CASES = [
     ("xml_same_name_nested", QA, "<reasoning><reasoning>inner</reasoning></reasoning>\n<answer>Paris</answer>"),
     # A name that is not `\w+` does not open a tag at all.
     ("xml_hyphenated_name", QA, "<my-reasoning>Because.</my-reasoning>\n<reasoning>R</reasoning>\n<answer>Paris</answer>"),
+    # `\w` is `str.isalnum()` plus `_`, which is neither ASCII nor `char::is_alphanumeric`. A
+    # combining mark is Alphabetic and *not* alnum, so `<xֺ>` opens a tag in Rust's predicate and
+    # not in Python's — and a tag is consumed whole, so the `<reasoning>` it wraps goes with it.
+    ("xml_name_with_a_combining_mark", QA, "<xְ><reasoning>Because.</reasoning></xְ>\n<answer>Paris</answer>"),
+    # And the other end of the same predicate: a tag named in a script an ASCII test never reaches.
+    ("xml_name_beyond_ascii", Unicode, "<réponse>Paris</réponse>\n<答え>はい</答え>"),
     # An attribute puts a space after the name, so `\w+>` never matches.
     ("xml_tag_with_attribute", QA, '<reasoning id="1">Because.</reasoning>\n<answer>Paris</answer>'),
     ("xml_first_wins", QA, "<reasoning>first</reasoning>\n<reasoning>second</reasoning>\n<answer>Paris</answer>"),
@@ -211,6 +230,15 @@ CASES = [
         "indented_marker",
         QA,
         "[[ ## reasoning ## ]]\nBecause.\n\n    [[ ## answer ## ]]\nParis",
+    ),
+    # `\[\[ ## (\w+) ## \]\]` names the field with `\w+`, which is `str.isalnum()` plus `_` and not
+    # ASCII. A Python identifier may be non-ASCII, so dspy renders and reads these markers — and
+    # `split_header` required `is_ascii_alphanumeric`, refusing the whole reply as having no
+    # sections at all.
+    (
+        "marker_name_beyond_ascii",
+        Unicode,
+        "[[ ## réponse ## ]]\nParis\n\n[[ ## 答え ## ]]\nはい\n\n[[ ## completed ## ]]\n",
     ),
     # A marker inside a value: this line does not *start* with one, so it stays content.
     (
@@ -355,7 +383,23 @@ def main() -> None:
     # decides. Refuse to write one.
     if not refused or not accepted:
         raise SystemExit("the corpus must contain both accepted and refused replies")
+
+    # Both scans name their field with `\w+`, and an all-ASCII corpus cannot tell that predicate
+    # from `is_ascii_alphanumeric` or from `char::is_alphanumeric` — the crate shipped one of each,
+    # in opposite directions, and 58 cases said nothing about either. A corpus that loses these is
+    # blind to the whole class again, so it is refused rather than left to a reader.
+    beyond_ascii = [
+        case["name"]
+        for case in cases
+        if not (case["signature"] + case["completion"]).isascii()
+    ]
+    if not beyond_ascii:
+        raise SystemExit(
+            "no case has a field or tag name beyond ASCII — the corpus cannot see the `\\w+` "
+            "predicate, which is what both scans decide a name with"
+        )
     print(f"  {len(accepted)} accepted, {len(refused)} refused: {refused}", file=sys.stderr)
+    print(f"  {len(beyond_ascii)} beyond ASCII: {beyond_ascii}", file=sys.stderr)
 
 
 if __name__ == "__main__":

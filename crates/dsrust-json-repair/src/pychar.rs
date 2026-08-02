@@ -105,7 +105,11 @@ pub(crate) fn is_digit(ch: char) -> bool {
 }
 
 /// CPython's `str.isalnum()` for one character.
-pub(crate) fn is_alnum(ch: char) -> bool {
+///
+/// Public because Python's `\w` is defined as this plus `_`, and a caller reproducing one of
+/// dspy's regexes needs the same answer CPython gives rather than `char::is_alphanumeric`, which
+/// accepts the combining marks `Alphabetic` carries and `str.isalnum()` refuses.
+pub fn is_alnum(ch: char) -> bool {
     classes().alnum.accepts(ch)
 }
 
