@@ -138,14 +138,9 @@ impl SchemaRepairer {
             return self.copy_json_value(constant, path, "const");
         }
         if let Some(allowed) = schema.get("enum") {
-            let Some(Value::Array(allowed)) = Some(allowed) else {
-                return Err(Error::new(&format!("Enum at {path} has no values.")));
-            };
-            let Some(first) = allowed.first() else {
-                return Err(Error::new(&format!("Enum at {path} has no values.")));
-            };
+            let first = first_enum_value(allowed, path)?;
             self.log("Filled missing value with first enum value", path);
-            return self.copy_json_value(first, path, "enum");
+            return self.copy_json_value(&first, path, "enum");
         }
         if let Some(default) = schema.get("default") {
             self.log("Filled missing value with default", path);
@@ -167,11 +162,15 @@ impl SchemaRepairer {
             )));
         }
 
+        // `if expected_type is None:` guards the inference upstream, so a `type` that is present
+        // but is not a string — `{"type": 7}` — blocks it and reaches no branch at all. A `_` arm
+        // here would infer `object` from a stray `properties` and fill where Python refuses.
         let expected_type = match schema.get("type") {
             Some(Value::Str(name)) => Some(name.clone()),
-            _ if self.is_object_schema(Some(schema)) => Some("object".to_owned()),
-            _ if self.is_array_schema(Some(schema)) => Some("array".to_owned()),
-            _ => None,
+            Some(_) => None,
+            None if self.is_object_schema(Some(schema)) => Some("object".to_owned()),
+            None if self.is_array_schema(Some(schema)) => Some("array".to_owned()),
+            None => None,
         };
         self.empty_value_for(expected_type.as_deref(), schema, path)
     }
@@ -240,11 +239,13 @@ impl SchemaRepairer {
             return Ok(Some(self.copy_json_value(first, path, "enum")?));
         }
 
+        // The same `is None` guard as `fill_missing`, and the same trap.
         let expected_type = match resolved.get("type") {
             Some(Value::Str(name)) => Some(name.clone()),
-            _ if self.is_array_schema(Some(&resolved)) => Some("array".to_owned()),
-            _ if self.is_object_schema(Some(&resolved)) => Some("object".to_owned()),
-            _ => None,
+            Some(_) => None,
+            None if self.is_array_schema(Some(&resolved)) => Some("array".to_owned()),
+            None if self.is_object_schema(Some(&resolved)) => Some("object".to_owned()),
+            None => None,
         };
         match expected_type.as_deref() {
             Some("array") if !resolved.get("minItems").is_some_and(Value::is_truthy) => {
@@ -283,6 +284,31 @@ impl SchemaRepairer {
 
     pub(crate) fn salvages(&self) -> bool {
         self.mode == SchemaRepairMode::Salvage
+    }
+}
+
+/// `enum_values[0]` after `if not enum_values: raise`.
+///
+/// Upstream subscripts whatever `enum` holds rather than requiring a list, so a *string* enum
+/// yields its first character. Anything truthy that Python cannot subscript by `0` raises a
+/// `TypeError` or a `KeyError`, neither of which `except ValueError` catches — hence a foreign
+/// error rather than a refusal.
+fn first_enum_value(allowed: &Value, path: &str) -> Result<Value> {
+    if !allowed.is_truthy() {
+        return Err(Error::new(&format!("Enum at {path} has no values.")));
+    }
+    match allowed {
+        Value::Array(items) => Ok(items[0].clone()),
+        Value::Str(text) => Ok(Value::Str(
+            text.chars()
+                .next()
+                .expect("truthy is non-empty")
+                .to_string(),
+        )),
+        other => Err(Error::foreign(&format!(
+            "'{}' object is not subscriptable",
+            crate::schema::container::type_name(other)
+        ))),
     }
 }
 

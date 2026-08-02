@@ -102,6 +102,17 @@ ENUMS_AND_REFS = [
     case("const_miss", "and the wrong one", {"const": 5}, "6"),
     case("enum_fills_a_missing_value", "the first enum value stands in for nothing at all",
          {"type": "object", "properties": {"a": {"enum": ["x", "y"]}}}, '{"a": }'),
+    # Malformed schemas, which say more about the translation than well-formed ones do: each of
+    # these reaches a branch where upstream's `if expected_type is None` or `if not enum_values`
+    # decides, and a `_` arm in their place answers differently.
+    case("type_present_but_not_a_string", "blocks the inference from the schema's shape, so "
+         "nothing is filled — a `_` arm would read `properties` and fill `{}`",
+         {"type": "object", "properties": {"a": {"type": 7, "properties": {}}}}, '{"a": }'),
+    case("enum_present_but_empty", "no first value to take",
+         {"type": "object", "properties": {"a": {"enum": []}}}, '{"a": }'),
+    case("enum_present_but_a_string", "upstream subscripts whatever `enum` holds, so a string "
+         "yields its first character", {"type": "object", "properties": {"a": {"enum": "abc"}}},
+         '{"a": }'),
     case("ref_resolved", "a `$ref` into the root schema",
          {"type": "object", "properties": {"a": {"$ref": "#/$defs/small"}},
           "$defs": {"small": {"type": "integer"}}}, '{a: "4"}'),
@@ -122,6 +133,10 @@ SALVAGE = [
     case("salvage_fills_required", "a required property filled from its default",
          {"type": "object", "properties": {"a": {"type": "integer", "default": 9}}, "required": ["a"]},
          "{}", mode="salvage"),
+    case("salvage_type_not_a_string", "the same `is None` guard on the salvage path: nothing is "
+         "filled, so the required property is still missing",
+         {"type": "object", "properties": {"a": {"type": 7, "items": {}}}, "required": ["a"]},
+         "{b: 1", mode="salvage"),
     case("salvage_fills_required_while_parsing", "the same fill, reached through the parser rather "
          "than the repair pass — `_finalize_object` skips a *required* key, leaving it to salvage",
          {"type": "object", "properties": {"a": {"type": "integer", "default": 9},

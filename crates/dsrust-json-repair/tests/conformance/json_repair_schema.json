@@ -1204,6 +1204,77 @@
    ]
   },
   {
+   "name": "type_present_but_not_a_string",
+   "why": "blocks the inference from the schema's shape, so nothing is filled — a `_` arm would read `properties` and fill `{}`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": 7,
+      "properties": {}
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Cannot infer missing value at $.a.",
+   "calls": []
+  },
+  {
+   "name": "enum_present_but_empty",
+   "why": "no first value to take",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": []
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Enum at $.a has no values.",
+   "calls": []
+  },
+  {
+   "name": "enum_present_but_a_string",
+   "why": "upstream subscripts whatever `enum` holds, so a string yields its first character",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": "abc"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": \"a\"}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with first enum value",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": \"a\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"enum\": \"abc\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
    "name": "ref_resolved",
    "why": "a `$ref` into the root schema",
    "schema": {
@@ -1410,6 +1481,28 @@
      "ok": true
     }
    ]
+  },
+  {
+   "name": "salvage_type_not_a_string",
+   "why": "the same `is None` guard on the salvage path: nothing is filled, so the required property is still missing",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": 7,
+      "items": {}
+     }
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "salvage",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Missing required properties at $: a",
+   "calls": []
   },
   {
    "name": "salvage_fills_required_while_parsing",
