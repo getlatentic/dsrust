@@ -173,22 +173,26 @@ class _RustBacked:
                 completion,
             )
         except ValueError as error:
-            # Rust sends the declared fields it did find as a second argument when the reply
-            # named the wrong ones; dspy reports those on the error rather than only the text.
-            message, *partial = error.args
-            # dspy states no message of its own for a field mismatch — the fields it recovered
-            # are the report — so passing one would prepend text upstream never writes.
+            # Rust sends what dspy reports on the error: the declared fields it did find, and the
+            # reply the failure is *about* — which the JSON adapter rebinds to the object its brace
+            # search pulled out, so it is not always the completion.
+            message, *reported = error.args
             detail = (
-                {"parsed_result": json.loads(partial[0])}
-                if partial
-                else {"message": message}
+                {"parsed_result": json.loads(reported[0]), "lm_response": reported[1]}
+                if reported
+                else {"message": message, "lm_response": completion}
             )
-            raise AdapterParseError(
-                adapter_name=self.ADAPTER_NAME,
-                signature=signature,
-                lm_response=completion,
-                **detail,
-            ) from error
+            raised = AdapterParseError(
+                adapter_name=self.ADAPTER_NAME, signature=signature, **detail
+            )
+            # The text a caller reads is the crate's, not this constructor's. Rebuilding it here
+            # meant every upstream assertion on that text was checking dspy's own formatter: the
+            # suite stayed green through a release where `FieldMismatch` omitted a clause dspy
+            # always writes, and through this bridge naming the wrong reply. The class and its
+            # attributes still come from dspy, because callers catch and read those.
+            raised.args = (message,)
+            raised.message = message
+            raise raised from error
         parsed = json.loads(rendered)
         # Rust hands back strings; dspy's callers expect the signature's declared types.
         return {

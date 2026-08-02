@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1148
+rust_tests = 1150
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -3556,9 +3556,33 @@ caller reaches, which is why only the reachable branch was ported.
 id = "bridge-answers-for-rust"
 sprint = "conformance"
 title = "The bridge rebuilds AdapterParseError in Python, so upstream's assertion on its text tests dspy"
-state = "todo"
+state = "done"
 size = "M"
 suites = []
+outcome = """
+Closed, with the defect it was filed on demonstrated and fixed.
+
+`rust_adapter.py` was the only site that discarded the crate's rendering. The audit found the other
+five forward it verbatim, and the TwoStep wrapper matches dspy's own
+`message=f"Failed to parse response from the original completion: {e}"` exactly.
+
+**The hole was not theoretical.** Same input, `[{"reasoning": "Because."}] trailing`: dspy writes
+`LM Response: {"reasoning": "Because."}` and the bridge wrote `LM Response: [{"reasoning":
+"Because."}] trailing`. dspy rebinds `completion = match.group(0)` when its brace search fires; the
+bridge rebuilt the message from the original reply and had no way to know. The crate's own
+`FieldMismatch` carries the right one — the bridge was throwing it away.
+
+The fix keeps the reconstruction, because dspy's callers catch `AdapterParseError` by class and read
+its attributes, and replaces the rendered text with the crate's: `raised.args = (message,)`. Rust
+now sends `lm_response` alongside the partial fields so the attributes are right too.
+
+Controlled both ways, by breaking a clause in `FieldMismatch::fmt` and rebuilding:
+with the fix the broken clause reaches Python; without it, it does not — dspy's formatter answers.
+That is the whole finding in one line.
+
+Gates exit 0 at 1150 tests. The upstream suite still cannot run end to end here: its API-surface
+step needs `third_party/dspy`, which a worktree does not check out.
+"""
 plan = """
 `rust_adapter.py` catches the Rust `ValueError`, pulls `message, *partial = error.args`, and
 **constructs a fresh `AdapterParseError`** from `adapter_name`, `signature`, `lm_response` and

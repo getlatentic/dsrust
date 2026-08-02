@@ -770,9 +770,15 @@ fn parse_reply(
         // it did have. dspy reports those on the error, so they cross as a second argument
         // rather than being flattened into the message.
         .map_err(|error| match error.downcast_ref::<FieldMismatch>() {
-            Some(mismatch) => {
-                PyValueError::new_err((format!("{error:#}"), mismatch.parsed.to_string()))
-            }
+            // Everything dspy reports on the error, so the Python side can rebuild the class it
+            // raises without re-deriving any of it. `lm_response` is not always the reply: the JSON
+            // adapter's brace search rebinds it to the object it pulled out, and rebuilding it from
+            // the completion is how the bridge came to write text dspy does not.
+            Some(mismatch) => PyValueError::new_err((
+                format!("{error:#}"),
+                mismatch.parsed.to_string(),
+                mismatch.lm_response.clone(),
+            )),
             None => PyValueError::new_err(format!("{error:#}")),
         })
 }
