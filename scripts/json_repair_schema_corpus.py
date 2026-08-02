@@ -60,6 +60,18 @@ OBJECTS = [
          {"type": "object", "properties": {"a": None}, "required": ["a"]}, "{b: 1"),
     case("object_from_json_string", "a value that is an object inside quotes",
          {"type": "object", "properties": {"a": {"type": "integer"}}}, '"{\\"a\\": 1}"'),
+    # `parser_schema.py` decides these while *parsing*, which the `wrong_type_` group cannot reach:
+    # it puts the bad keyword on a nested property, and a nested schema is only read once the value
+    # is known to be an object. The keyword has to be on the schema the parser enters with.
+    case("parser_schema_is_not_an_object", "an object arriving where the schema is a scalar, so the "
+         "parser carries no object config and the repair pass refuses it",
+         {"type": "object", "properties": {"a": {"type": "string"}}}, '{a: {b: 1}'),
+    case("parser_properties_not_a_dict", "`properties` guarded to `{}` for the parser, and handed "
+         "to jsonschema unguarded — the validator raises `AttributeError` from `_keywords.py`, "
+         "which is neither a refusal nor an answer",
+         {"type": "object", "properties": 7}, "{a: 1"),
+    case("parser_pattern_properties_not_a_dict", "the same guard and the same crash one keyword over",
+         {"type": "object", "properties": {}, "patternProperties": 7}, "{a: 1"),
 ]
 
 ARRAYS = [

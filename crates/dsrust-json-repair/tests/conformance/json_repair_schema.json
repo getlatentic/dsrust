@@ -4655,6 +4655,71 @@
    ]
   },
   {
+   "name": "parser_schema_is_not_an_object",
+   "why": "an object arriving where the schema is a scalar, so the parser carries no object config and the repair pass refuses it",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "string"
+     }
+    }
+   },
+   "input": "{a: {b: 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected string at $.a.",
+   "calls": []
+  },
+  {
+   "name": "parser_properties_not_a_dict",
+   "why": "`properties` guarded to `{}` for the parser, and handed to jsonschema unguarded — the validator raises `AttributeError` from `_keywords.py`, which is neither a refusal nor an answer",
+   "schema": {
+    "type": "object",
+    "properties": 7
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "AttributeError",
+   "message": "'int' object has no attribute 'items'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": 7}",
+     "ok": false,
+     "raised": "'int' object has no attribute 'items'",
+     "raised_type": "AttributeError"
+    }
+   ]
+  },
+  {
+   "name": "parser_pattern_properties_not_a_dict",
+   "why": "the same guard and the same crash one keyword over",
+   "schema": {
+    "type": "object",
+    "properties": {},
+    "patternProperties": 7
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "AttributeError",
+   "message": "'int' object has no attribute 'items'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {}, \"patternProperties\": 7}",
+     "ok": false,
+     "raised": "'int' object has no attribute 'items'",
+     "raised_type": "AttributeError"
+    }
+   ]
+  },
+  {
    "name": "items_schema",
    "why": "one schema for every item",
    "schema": {
