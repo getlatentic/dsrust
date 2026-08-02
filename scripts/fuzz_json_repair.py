@@ -127,7 +127,7 @@ def run(text: str) -> dict[str, object]:
     try:
         return {"ok": True, "dumps": json.dumps(json_repair.loads(text))}
     except Exception as error:  # noqa: BLE001 — the refusal is part of the record
-        return {"ok": False, "error": type(error).__name__}
+        return {"ok": False, "error": type(error).__name__, "message": str(error)}
 
 
 def main() -> None:

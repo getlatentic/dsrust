@@ -27,6 +27,8 @@ fn corpus() -> Option<Json> {
 /// How a case disagreed.
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Shape {
+    /// Both refused, for different reasons.
+    DifferentRefusal,
     /// json_repair parsed it and we refused.
     WeRefused,
     /// We parsed it and json_repair refused.
@@ -53,7 +55,14 @@ fn no_random_input_repairs_differently_from_json_repairs() {
             (true, Ok(ours)) if ours.to_string() == case["dumps"].as_str().expect("dumps") => {
                 continue;
             }
-            (false, Err(_)) => continue,
+            // Including *why*: matching a refusal against a refusal without comparing the
+            // message is how a wrong error passes for a right one, which the schema suite proved.
+            (false, Err(ours))
+                if ours.message() == case["message"].as_str().unwrap_or_default() =>
+            {
+                continue;
+            }
+            (false, Err(_)) => Shape::DifferentRefusal,
             (true, Err(_)) => Shape::WeRefused,
             (false, Ok(_)) => Shape::WeAccepted,
             (true, Ok(_)) => Shape::DifferentValue,
@@ -106,5 +115,6 @@ fn label(shape: &Shape) -> &'static str {
         Shape::WeRefused => "json_repair parsed, we refused",
         Shape::WeAccepted => "we parsed, json_repair refused",
         Shape::DifferentValue => "both parsed, differently",
+        Shape::DifferentRefusal => "both refused, differently",
     }
 }
