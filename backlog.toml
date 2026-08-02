@@ -3551,3 +3551,36 @@ types. The taxonomy stayed deliberately small — a caller branches on error *id
 one place upstream, and that one is built. Adding the other seventeen would be API surface no
 caller reaches, which is why only the reachable branch was ported.
 """
+
+[[story]]
+id = "bridge-answers-for-rust"
+sprint = "conformance"
+title = "The bridge rebuilds AdapterParseError in Python, so upstream's assertion on its text tests dspy"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+`rust_adapter.py` catches the Rust `ValueError`, pulls `message, *partial = error.args`, and
+**constructs a fresh `AdapterParseError`** from `adapter_name`, `signature`, `lm_response` and
+either `parsed_result` or `message`. The rendered text a caller would read is discarded at that
+boundary and rebuilt by dspy's own formatter.
+
+So `test_json_adapter_parse_raise_error_on_mismatch_fields`, which asserts that text byte for byte,
+passed throughout the period when this crate's `FieldMismatch` was appending the wrong clause — it
+omitted `Actual output fields parsed from the LM response: []` for an empty parse, under a comment
+claiming upstream did the same. The upstream suite could not have caught it. Two independent
+sessions found it by comparing refusal *messages* in a differential fuzzer instead.
+
+This is the `conformance-harness-integrity` shape: a place where Python answers a question the Rust
+was supposed to answer. The bridge has to reconstruct *something* — dspy's callers catch
+`AdapterParseError` by class, and a bare `ValueError` would not be caught — but reconstructing the
+**message** is what makes the assertion vacuous. Passing the rendered text through as the message,
+rather than re-deriving it from parts, would let those tests read the Rust.
+
+Audit the rest of the bridge for the same shape before changing anything: every `raise` that builds
+a dspy exception from parts rather than forwarding what Rust rendered is one of these, and the count
+is the finding.
+
+**What proves it.** A control: break the clause in `FieldMismatch::fmt`, run the upstream suite, and require the
+test that asserts it to go red. It stays green today.
+"""
