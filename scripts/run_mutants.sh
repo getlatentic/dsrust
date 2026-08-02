@@ -37,16 +37,20 @@ cd "$ROOT"
 #                    intersection tie was in that list and is not any more — see the note in
 #                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
 #                    finished state.
-#   dsrust-json-repair 375 — 296 missed and 79 non-terminating of 1688 viable, measured over two
-#                    hours on a frozen tree at `-j 2`, with `parenthesized.rs` re-run serially to
-#                    confirm the two agree (52 either way, identical lists). Two clusters carry most
-#                    of it. `parenthesized.rs` takes 52, twenty-one in `Nesting::open_or_close`
-#                    alone, where whole match arms delete and both guards flip either way unnoticed —
-#                    and its Python counterpart is the module the corpus reaches least, at 59.8% of
-#                    statements against the package's 82.1%. `lookahead.rs` takes 60 across the two
-#                    cached scans. The 79 timeouts are one shape: `+= 1` becoming `*= 1` leaves a
-#                    cursor that never advances, so the parse hangs rather than answers — detected,
-#                    but as a hang, and a loop whose exit nothing constrains is its own defect.
+#   dsrust-json-repair 339 — 259 missed and 80 non-terminating of 1688 viable, measured over two
+#                    hours on a frozen tree at `-j 2`, and cross-checked by re-running two files
+#                    scoped and serially against the whole-run figures (16 and 12, both exact).
+#                    Down from 375: the tuple subsystem had no generated coverage at all, since no
+#                    token table in `fuzz_json_repair.py` held a `(`, and `parenthesized.rs` fell
+#                    from 52 to 16 once the corpus and the grammar reached it.
+#                    `lookahead.rs` is now the largest cluster at 61, across the two cached scans.
+#                    The 80 timeouts are one shape: `+= 1` becoming `*= 1` leaves a cursor that
+#                    never advances, so the parse hangs rather than answers — detected, but as a
+#                    hang, and a loop whose exit nothing constrains is its own defect.
+#                    Sixteen in `Nesting::open_or_close` resist every input tried: flipping `+=` to
+#                    `-=` on either bracket counter gives byte-identical output over 66 hand-built
+#                    shapes and all 654 committed inputs. Unresolved rather than equivalent, which
+#                    would be a claim about the whole input space.
 #   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours. Run it
 #               scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
 #               history, parse) measured 43 of 143 viable on 2026-08-01, 35 of them in `parse.rs`,
@@ -57,7 +61,7 @@ BASELINES=(
   "dsrust-tpe:1"
   "pyrng:4"
   "dsrust-gepa:46"
-  "dsrust-json-repair:375"
+  "dsrust-json-repair:339"
 )
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each
