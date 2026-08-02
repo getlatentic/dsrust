@@ -102,7 +102,17 @@ impl PyIntSet {
     fn slot_of(&self, key: usize) -> Option<usize> {
         let mut perturb = key;
         let mut i = key & self.mask;
-        loop {
+        // Bounded, because the probe terminates on an invariant this function cannot see: `add`
+        // resizes so the table always holds a free slot. Once `perturb` shifts to zero the
+        // sequence degenerates to `i = 5i + 1` under the mask, which visits every slot, so one
+        // pass plus the shifts it takes to exhaust a `usize` is already generous. A table that has
+        // lost the invariant now fails here instead of spinning — and a hang is the one outcome no
+        // assertion can report, which is why four mutations of the resize trigger sat as timeouts
+        // rather than as failures.
+        // The bound's arithmetic is deliberately loose — any larger bound is still a bound, so a
+        // mutation that widens it changes nothing and cannot be killed. It is here to turn a hang
+        // into a failure, not to be tight.
+        for _ in 0..=(self.mask + usize::BITS as usize) {
             match self.table[i] {
                 None => return Some(i),
                 Some(present) if present == key => return None,
@@ -120,15 +130,27 @@ impl PyIntSet {
             perturb >>= PERTURB_SHIFT;
             i = i.wrapping_mul(5).wrapping_add(1).wrapping_add(perturb) & self.mask;
         }
+        panic!(
+            "no free slot for {key} in a table of {} with {} filled — `add` should have resized",
+            self.mask + 1,
+            self.fill
+        )
     }
 
     /// Grow to the smallest power of two above `minused`, re-inserting every key in slot order —
     /// which is where the resize can reorder the set, since a key rehashes against the new mask.
     fn resize(&mut self, minused: usize) {
-        let mut size = MINSIZE;
-        while size <= minused {
-            size <<= 1;
-        }
+        // The smallest power of two strictly above `minused`, floored at `MINSIZE` — CPython's
+        // `while newsize <= minused: newsize <<= 1`, without the loop. Doubling in a loop
+        // terminates only because the shift grows the value, which nothing checked: shifting the
+        // other way walks 8, 4, 2, 1, 0 and then never exceeds `minused` again. A search that
+        // cannot spin is worth more than one that mirrors upstream's spelling.
+        // `+ 1` makes it *strictly* above, as upstream's `<=` loop was. Unreachable as a
+        // difference: `add` only ever calls this with `fill * 4`, and the fill that trips the
+        // trigger is 5, 19, 77, … — never a power of two, so `minused` and `minused + 1` round to
+        // the same size. Written the faithful way anyway, and recorded here because a mutation run
+        // will keep offering the other spellings.
+        let size = MINSIZE.max((minused + 1).next_power_of_two());
         let old = std::mem::replace(&mut self.table, vec![None; size]);
         self.mask = size - 1;
         self.fill = 0;
@@ -206,5 +228,20 @@ mod tests {
         assert_eq!(set.len(), 5, "duplicates fold");
         assert!(set.contains(72) && set.contains(1));
         assert!(!set.contains(73));
+    }
+    /// `len` and `is_empty` report the fill, which nothing read — `is_empty` could return a
+    /// constant unnoticed, and it is what a caller checks before iterating.
+    #[test]
+    fn the_size_accessors_report_the_fill() {
+        let mut set = PyIntSet::default();
+        assert!(set.is_empty());
+        assert_eq!(set.len(), 0);
+
+        set.add(3);
+        assert!(!set.is_empty());
+        assert_eq!(set.len(), 1);
+
+        set.add(3);
+        assert_eq!(set.len(), 1, "a repeat is a no-op");
     }
 }

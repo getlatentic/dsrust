@@ -43,6 +43,16 @@ BUILD_CASES = [
     list(range(100)),
     [40, 8, 72, 8, 40, 1, 99, 50, 17, 17, 3],
     [i * 8 for i in range(12)],  # every key collides on the low 3 bits, forcing the probe chain
+    # A collision *near the top of the table*, which is the only way the perturb step runs at all:
+    # the nine-slot linear window is tried first and absorbs every collision where
+    # `slot + 9 <= mask`, so the cases above reach `perturb` almost never. These keys are all
+    # congruent to the last slot, and they differ above bit five — which is what the perturb shift
+    # reads. Without them, shifting `perturb` the wrong way changed no recorded order.
+    [31, 63, 95, 127, 159, 191, 223, 255],
+    [7, 15, 23, 39, 71, 135, 263, 519],
+    # The same idea one table size up, so the case survives the resize to mask 31 rather than
+    # being decided entirely at mask 7.
+    list(range(24)) + [31, 63, 95, 127, 159],
     [i * 7 for i in range(20)],
     [100, 50, 25, 12, 6, 3, 1, 0, 200, 150],
 ]
