@@ -5,7 +5,7 @@
   "json_context.py": 21,
   "json_parser.py": 154,
   "json_repair.py": 65,
-  "object_comparer.py": 13,
+  "object_comparer.py": 14,
   "object_value_context.py": 47,
   "parse_array.py": 41,
   "parse_boolean_or_null.py": 16,
@@ -13,7 +13,7 @@
   "parse_json_llm_block.py": 6,
   "parse_number.py": 22,
   "parse_object.py": 202,
-  "parse_string.py": 425,
+  "parse_string.py": 497,
   "parser_parenthesized.py": 71,
   "parser_schema.py": 4,
   "schema_repair.py": 3,
@@ -442,6 +442,135 @@
     {
      "text": "While parsing a string, we found a misplaced quote that would have closed the string but has a different meaning here, ignoring it",
      "context": ": \"```js {\"b\": 1}```"
+    }
+   ]
+  },
+  {
+   "name": "fence_then_array_at_end",
+   "why": "the container ends the input, so it starts the next member",
+   "input": "{\"a\": text}```[1,2]",
+   "ok": true,
+   "dumps": "[{\"a\": \"text\"}, [1, 2]]",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{\"a\": text}```[1"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a } that closes the object before code fences, stopping here",
+     "context": "{\"a\": text}```[1,2]"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{\"a\": text}```[1,2]"
+    },
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "\"a\": text}```[1,2]"
+    }
+   ]
+  },
+  {
+   "name": "fence_then_array_closed",
+   "why": "a closing fence after it, so it does not",
+   "input": "{\"a\": text}```[1,2]```",
+   "ok": true,
+   "dumps": "[{\"a\": \"text\"}, [1, 2]]",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{\"a\": text}```[1"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a } that closes the object before code fences, stopping here",
+     "context": "{\"a\": text}```[1,2]`"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{\"a\": text}```[1,2]`"
+    },
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "\"a\": text}```[1,2]``"
+    }
+   ]
+  },
+  {
+   "name": "fence_then_array_inside_string",
+   "why": "the string closes after the fence, keeping all of it",
+   "input": "{\"a\": text}```[1,2]```\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"text}```[1,2]```\"}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{\"a\": text}```[1"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\": text}```[1,2]`"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": ": text}```[1,2]```\"}"
+    }
+   ]
+  },
+  {
+   "name": "fence_then_paren_at_end",
+   "why": "the parenthesised form of the same decision",
+   "input": "{\"a\": text}```(1)",
+   "ok": true,
+   "dumps": "{\"a\": \"text\"}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{\"a\": text}```(1"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a } that closes the object before code fences, stopping here",
+     "context": "{\"a\": text}```(1)"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{\"a\": text}```(1)"
+    },
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "\"a\": text}```(1)"
+    },
+    {
+     "text": "There were no more elements, returning the element without the array",
+     "context": "xt}```(1)"
+    }
+   ]
+  },
+  {
+   "name": "fence_then_paren_closed",
+   "why": "and its closed form, which answers the other way",
+   "input": "{\"a\": text}```(1)```",
+   "ok": true,
+   "dumps": "{\"a\": \"text\"}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{\"a\": text}```(1"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a } that closes the object before code fences, stopping here",
+     "context": "{\"a\": text}```(1)```"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{\"a\": text}```(1)```"
+    },
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "\"a\": text}```(1)```"
+    },
+    {
+     "text": "There were no more elements, returning the element without the array",
+     "context": "```(1)```"
     }
    ]
   },

@@ -93,6 +93,20 @@ ORDINARY_MALFORMATIONS = [
          '{"a": "```json {"b": 1}```"}'),
     case("fenced_value_wrong_language", "fences the block reader declines, so the string goes on",
          '{"a": "```js {"b": 1}```"}'),
+    # `_post_fence_container_starts_next_member` was the one ported function in `parse_string.py`
+    # that no corpus ever entered — found by tracing the pin rather than by reading it. Reaching it
+    # takes an unterminated object *value* that hits `}` with a fence right after, and a container
+    # right after that: the question it answers is whether that container is the next member of the
+    # object or part of the string. Both answers appear below, and where the value comes out the
+    # same the repair log does not.
+    case("fence_then_array_at_end", "the container ends the input, so it starts the next member",
+         '{"a": text}```[1,2]'),
+    case("fence_then_array_closed", "a closing fence after it, so it does not", '{"a": text}```[1,2]```'),
+    case("fence_then_array_inside_string", "the string closes after the fence, keeping all of it",
+         '{"a": text}```[1,2]```"}'),
+    case("fence_then_paren_at_end", "the parenthesised form of the same decision", '{"a": text}```(1)'),
+    case("fence_then_paren_closed", "and its closed form, which answers the other way",
+         '{"a": text}```(1)```'),
     case("bare_word_value", "an unquoted value", "{a: hello}"),
     case("array_of_objects", "the shape dspy sees when a model wraps its answer", '[{"a": 1}]'),
 ]

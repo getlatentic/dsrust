@@ -106,6 +106,45 @@ def skeleton(symbols: dict[str, str], source: str) -> str:
     return "\n".join(lines)
 
 
+#: Mapped functions no corpus enters, each with the reason that is acceptable.
+#:
+#: One entry, and it is a two-line wrapper: `from_file(path)` opens the file and calls `load(fd)`.
+#: Every file case in the corpus goes through `load(fd)` directly, so the only untested statement is
+#: `Path(filename).open()`. Reaching it would mean writing a temporary file to record a golden,
+#: which buys one line and costs the corpus its property of being pure text.
+NOT_RUN = {
+    "json_repair.py::from_file": "a two-line wrapper over load(fd), which every file case runs",
+}
+
+
+def unrun_counterparts(ledger: list[dict], symbols: dict[str, str]) -> list[str]:
+    """Mapped functions the committed corpora never actually execute.
+
+    A mapping asserts two functions agree. Until something runs the Python one, the entry rests on a
+    reading and nothing else — and `parse_string.py::_post_fence_container_starts_next_member` sat
+    exactly that way in the file this port calls the hard third: mapped, correct as it turned out,
+    and never once executed by any of the twelve hundred recorded cases.
+    """
+    from json_repair_replay import entered
+
+    ran, replayed = entered()
+    problems = []
+    for entry in ledger:
+        name = entry["name"]
+        if not entry["rust"] or symbols.get(name) == "class" or name in NOT_RUN:
+            continue
+        if name not in ran:
+            problems.append(
+                f"{name}: mapped to `{entry['rust']}`, and no case in any corpus runs it — "
+                f"add one that does, or excuse it in NOT_RUN with the reason"
+            )
+    for name, why in NOT_RUN.items():
+        if name in ran:
+            problems.append(f"{name}: excused as `{why}`, and a corpus now runs it — drop it")
+    print(f"  {len(ran)} functions entered replaying {replayed} recorded cases")
+    return problems
+
+
 def main() -> int:
     symbols = python_symbols()
     source = rust_source()
@@ -143,6 +182,8 @@ def main() -> int:
             )
     for name in mapped.keys() - symbols.keys():
         problems.append(f"{name}: in the ledger and not in the pinned source")
+
+    problems.extend(unrun_counterparts(ledger, symbols))
 
     for problem in sorted(problems):
         print(f"  {problem}", file=sys.stderr)
