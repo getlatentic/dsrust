@@ -37,12 +37,16 @@ cd "$ROOT"
 #                    intersection tie was in that list and is not any more — see the note in
 #                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
 #                    finished state.
-#   dsrust-json-repair — no entry yet, deliberately. A run was started and abandoned: the crate was
-#                        edited four times while it was in flight, so its copies held 217 schema
-#                        cases against the tree's 220 and no `fuzz.rs` guard, and its log carried 80
-#                        MISSED and 30 TIMEOUT against a tree that no longer existed. A floor has to
-#                        come from a still tree. Freeze the crate, run it whole, then write the
-#                        number the run produced.
+#   dsrust-json-repair 375 — 296 missed and 79 non-terminating of 1688 viable, measured over two
+#                    hours on a frozen tree at `-j 2`, with `parenthesized.rs` re-run serially to
+#                    confirm the two agree (52 either way, identical lists). Two clusters carry most
+#                    of it. `parenthesized.rs` takes 52, twenty-one in `Nesting::open_or_close`
+#                    alone, where whole match arms delete and both guards flip either way unnoticed —
+#                    and its Python counterpart is the module the corpus reaches least, at 59.8% of
+#                    statements against the package's 82.1%. `lookahead.rs` takes 60 across the two
+#                    cached scans. The 79 timeouts are one shape: `+= 1` becoming `*= 1` leaves a
+#                    cursor that never advances, so the parse hangs rather than answers — detected,
+#                    but as a hang, and a loop whose exit nothing constrains is its own defect.
 #   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours. Run it
 #               scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
 #               history, parse) measured 43 of 143 viable on 2026-08-01, 35 of them in `parse.rs`,
@@ -53,6 +57,7 @@ BASELINES=(
   "dsrust-tpe:1"
   "pyrng:4"
   "dsrust-gepa:46"
+  "dsrust-json-repair:375"
 )
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each
@@ -111,12 +116,14 @@ if ! cargo mutants --version > /dev/null 2>&1; then
 fi
 
 status=0
+matched=0
 for entry in "${BASELINES[@]}"; do
   package="${entry%%:*}"
   allowed="${entry##*:}"
   if [ "$#" -gt 0 ] && [ "$1" != "$package" ]; then
     continue
   fi
+  matched=1
   echo "==> cargo mutants -p $package (baseline $allowed, -j $JOBS x $CARGO_BUILD_JOBS)"
   log="target/mutants-$package.log"
   set +e
@@ -137,4 +144,14 @@ for entry in "${BASELINES[@]}"; do
     echo "  $missed survivors, at the baseline"
   fi
 done
+
+# A named package with no entry ran nothing and exited 0, which reads as a clean run. A crate has to
+# be measurable before it has a floor, so say what to do rather than succeed silently.
+if [ "$#" -gt 0 ] && [ "$matched" -eq 0 ]; then
+  echo "no baseline entry for '$1'. To measure a crate for the first time:" >&2
+  echo "  CARGO_BUILD_BUILD_DIR=mutants-build CARGO_BUILD_JOBS=1 \\" >&2
+  echo "    nice -n 15 cargo mutants -p $1 --timeout 120 -j 2" >&2
+  echo "then add \"$1:<missed+timeout>\" to BASELINES with the survivors accounted for." >&2
+  exit 2
+fi
 exit "$status"
