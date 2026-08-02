@@ -27,6 +27,10 @@ ROOT = pathlib.Path(__file__).parent.parent
 RUST = ROOT / "crates" / "dsrust-json-repair" / "src"
 LEDGER = ROOT / "scripts" / "json_repair_parity.toml"
 
+#: How long a note has to be before it counts as one. A crude floor, and it is there because the
+#: obvious way to satisfy a "must have a note" rule is to write "ported" 149 times.
+MEANINGFUL_NOTE = 30
+
 
 def package() -> pathlib.Path:
     """The pinned package, read from the installed one rather than a checkout.
@@ -127,6 +131,16 @@ def main() -> int:
             problems.append(f"{name}: ledger names `{entry['rust']}`, which the Rust does not define")
         if not entry["rust"] and not entry["note"]:
             problems.append(f"{name}: no counterpart and no reason given")
+        # **Every** entry needs a note, not only the absences. A mapping on its own says a Rust
+        # function of about that name exists — it would pass against a body that returns the wrong
+        # answer, and fifteen defects were found by reading those bodies after this file was
+        # written, none of which it could see. The note is where the reading is recorded, so a
+        # blank one means "nobody has compared these two" and has to fail.
+        elif len(entry["note"].strip()) < MEANINGFUL_NOTE:
+            problems.append(
+                f"{name}: no note, or too short to be one — say what the Rust does differently, "
+                f"or what it took to be sure it does not"
+            )
     for name in mapped.keys() - symbols.keys():
         problems.append(f"{name}: in the ledger and not in the pinned source")
 

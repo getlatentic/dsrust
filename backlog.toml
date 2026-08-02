@@ -621,9 +621,34 @@ allowance can be deleted and the rule becomes "no disagreements at all".
 id = "json-repair-parity-is-a-gate-nobody-runs"
 sprint = "conformance"
 title = "The json-repair parity ledger checks a symbol exists, and no gate runs it"
-state = "todo"
+state = "done"
 size = "S"
 suites = []
+outcome = """
+Both halves closed. `run_rust_gates.sh` runs it, and every entry now has to say what the reading
+found.
+
+The script was "the gates that need no Python" and is now the gates that run in a worktree, which
+is the distinction that actually mattered — `run_upstream_tests.sh` was the only other home and it
+runs only in the main checkout, exactly where the agent who drops a function is not. It wants
+`.venv` the way that script does and says `run: uv sync` rather than skipping, because a skipped
+check is a checklist item with extra steps.
+
+**And the ledger now fails on silence.** 97 of its 149 entries carried no note, which meant that for
+those it asserted a Rust function of about that name exists — it would have passed against a body
+returning the wrong answer, and fifteen defects were found by reading those bodies after it was
+written. A note is required on every entry, with a floor on its length, because the obvious way to
+satisfy "must have a note" is to write `ported` a hundred and forty-nine times. Ten of the notes
+written for this failed that floor on the first run.
+
+Twenty-one thousand characters of them, and they carry the things a reader would otherwise have to
+re-derive: that `rstring_delimiter` is a stack and `[0]` and `[-1]` are different questions, that
+`classify_object_value_comma` uses the *uncached* lookahead in its quoted branch and the cached one
+in its tail, that `_allows_schema_type`'s catch-all is right where `_fill_missing`'s was wrong.
+
+Four controls: an emptied note, a one-word note, a mapping renamed to something absent, and a
+deleted entry. All four fail the gate.
+"""
 plan = """
 `scripts/check_json_repair_parity.py` holds all 149 functions of the pinned package against a named
 Rust counterpart and fails on an unmapped symbol, a mapping pointing at nothing, a signature that

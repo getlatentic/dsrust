@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The gates that need no Python: cargo's four, plus the file-size rule.
+# The gates that run in a worktree: cargo's four, the file-size rule, an outside caller, the guides,
+# and the ports held to the libraries they reproduce.
 #
 # `scripts/run_upstream_tests.sh` is the fifth, and it records what it observed into
 # `backlog.toml`'s `[status]`. This one exists so `rust_tests` is recorded the same way. It was the
@@ -78,3 +79,20 @@ echo "==> file sizes"
 # *outside* the workspace — the only place a leaked dependency is visible.
 ./scripts/check_external_consumer.sh
 ./scripts/check_docs.py
+
+# The parity ledgers, which need the pinned Python packages and so need the environment.
+#
+# This script used to be "the gates that need no Python", and `check_json_repair_parity.py` was
+# written, passed, and then run by nobody — a command someone had to remember, which is the shape
+# `gates-were-a-checklist` is about. `run_upstream_tests.sh` was the only other home and it runs
+# only in the main checkout, which is precisely where the agent who drops a function is not.
+#
+# So this script now wants `.venv`, the same way that one does, and says so rather than skipping.
+# A skipped check is a checklist item with extra steps.
+echo "==> library parity"
+VENV="$ROOT/.venv"
+[ -x "$VENV/bin/python" ] || {
+  echo "  no .venv — run: uv sync   (a worktree can build its own, or symlink the main checkout's)" >&2
+  exit 1
+}
+"$VENV/bin/python" "$ROOT/scripts/check_json_repair_parity.py"

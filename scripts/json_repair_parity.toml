@@ -18,31 +18,31 @@ note = 'The struct in `parser.rs`. Python hangs the parse methods off it by dele
 name = 'json_parser.py::parse_array'
 python = "(self, schema=None, path='$', closing_delimiter=']')"
 rust = 'parse_array'
-note = ''
+note = '''Delegates, as upstream's method does. The `closing_delimiter` argument is what `parse_parenthesized` reuses it with.'''
 
 [[symbol]]
 name = 'json_parser.py::parse_comment'
 python = '(self)'
 rust = 'parse_comment'
-note = ''
+note = '''Delegates. The Rust returns `Result` because a comment can re-enter `parse_json`, which can hit the depth limit.'''
 
 [[symbol]]
 name = 'json_parser.py::parse_number'
 python = '(self)'
 rust = 'parse_number'
-note = ''
+note = '''Delegates to the free function, as upstream's method does. The split is upstream's own — it says so in a comment, because the class was three thousand lines.'''
 
 [[symbol]]
 name = 'json_parser.py::parse_object'
 python = "(self, schema=None, path='$')"
 rust = 'parse_object'
-note = ''
+note = '''Delegates. The `schema`/`path` pair is threaded even unguided, where it reaches nothing but a message.'''
 
 [[symbol]]
 name = 'json_parser.py::parse_string'
 python = '(self)'
 rust = 'parse_string'
-note = ''
+note = '''Delegates. Answers a `Value` and not a string: a bare `true` or a fenced block returns from inside the string parser.'''
 
 [[symbol]]
 name = 'json_parser.py::__init__'
@@ -60,37 +60,37 @@ note = "Both entry points go through `parse_top_level`, as upstream's do through
 name = 'json_parser.py::parse_with_schema'
 python = '(self, repairer, schema)'
 rust = 'parse_with_schema'
-note = ''
+note = '''Sets the repairer on the parser and runs the top-level walk with the schema, as upstream does.'''
 
 [[symbol]]
 name = 'json_parser.py::_parse_top_level'
 python = '(self, parse_element)'
 rust = 'parse_top_level'
-note = ''
+note = '''Gathers repeated values and decides append-or-replace by `is_same_object` plus whether a comma separated them. Truthiness is Python's `if j:` — `0`, `""` and `[]` are all false.'''
 
 [[symbol]]
 name = 'json_parser.py::_next_top_level_value_is_comma_separated'
 python = '(self)'
 rust = 'next_top_level_value_is_comma_separated'
-note = ''
+note = '''Looks forward past whitespace for a comma, then backward from the cursor for one. The backward walk indexes the string directly, so it stops at zero rather than wrapping.'''
 
 [[symbol]]
 name = 'json_parser.py::_try_parse_valid_json_value'
 python = '(self)'
 rust = 'try_parse_valid_json_value'
-note = ''
+note = '''The suffix fast path. Upstream's `not isinstance(self.json_str, str)` guard has no counterpart because the Rust holds one representation; the `try_valid_json_suffix` flag is what distinguishes file from string input.'''
 
 [[symbol]]
 name = 'json_parser.py::parse_json'
 python = "(self, schema=None, path='$')"
 rust = 'parse_json'
-note = ''
+note = '''The dispatch, in upstream's order — the suffix path, `{`, `[`, `(`, comments, then string and number, each guarded by a non-empty context. The depth counter is the addition, since a Rust stack overflow is not catchable.'''
 
 [[symbol]]
 name = 'json_parser.py::_resolve_schema_for_parse'
 python = '(self, schema)'
 rust = 'resolve_schema_for_parse'
-note = ''
+note = '''Answers whether the repairer applies here and the resolved schema. `schema not in (None, True)` is one condition in Rust because `resolve_schema` maps a null schema to `True`.'''
 
 [[symbol]]
 name = 'json_parser.py::_finalize_parsed_value'
@@ -108,43 +108,43 @@ note = "Reproduces Python's negative-index wrap: at index 0, `get_char_at(-1)` i
 name = 'json_parser.py::skip_whitespaces'
 python = '(self)'
 rust = 'skip_whitespaces'
-note = ''
+note = '''Moves the cursor over `str.isspace()` characters, which is CPython's set and not Rust's.'''
 
 [[symbol]]
 name = 'json_parser.py::scroll_whitespaces'
 python = '(self, idx=0)'
 rust = 'scroll_whitespaces'
-note = ''
+note = '''The same walk without moving, returning an offset. Takes and returns a signed offset, as the callers pass negative ones.'''
 
 [[symbol]]
 name = 'json_parser.py::skip_to_character'
 python = '(self, character, idx=0)'
 rust = 'skip_to_character'
-note = ''
+note = '''Counts the run of backslashes immediately before the character, so `\\"` closes a string and `\"` does not. Returns the distance to the end when the target is absent.'''
 
 [[symbol]]
 name = 'json_parser.py::parenthesized_is_explicit_tuple'
 python = '(self)'
 rust = 'parenthesized_is_explicit_tuple'
-note = ''
+note = '''Delegates to the free function in `parser_parenthesized.py`, which is where the scan lives.'''
 
 [[symbol]]
 name = 'json_parser.py::top_level_parenthesized_can_start_value'
 python = '(self)'
 rust = 'top_level_parenthesized_can_start_value'
-note = ''
+note = '''Delegates to the free function in `parser_parenthesized.py`. Its scan is the one that decrements the bracket counter past zero, so the counters are signed.'''
 
 [[symbol]]
 name = 'json_parser.py::parse_parenthesized'
 python = "(self, schema=None, path='$')"
 rust = 'parse_parenthesized'
-note = ''
+note = '''A tuple keeps its brackets and a single grouped value does not, which is the `explicit_tuple or len(values) != 1` test.'''
 
 [[symbol]]
 name = 'json_parser.py::_log'
 python = '(self, text)'
 rust = 'log'
-note = ''
+note = '''The context is the twenty code points around the cursor, clamped at both ends — compared entry by entry against upstream's, window included.'''
 
 [[symbol]]
 name = 'json_repair.py::repair_json'
@@ -180,19 +180,19 @@ note = 'Deliberately absent. It is a program, not a library: `argparse`, `sys.st
 name = 'parse_array.py::_resolve_array_item_schema'
 python = '(schema_config, idx)'
 rust = 'resolve_array_item_schema'
-note = ''
+note = '''The schema for one position, and whether the schema forbids the item. A tuple `items` past its end takes `additionalItems`; anything else is one schema for every item.'''
 
 [[symbol]]
 name = 'parse_array.py::parse_array'
 python = "(self, schema=None, path='$', closing_delimiter=']')"
 rust = 'parse_array'
-note = ''
+note = '''A `}` ends the array as surely as a `]`, a quoted item followed by a colon is an object nobody opened, and a run of separators is skipped wholesale. The `...` skip tests the value *and* the character before the cursor.'''
 
 [[symbol]]
 name = 'parse_comment.py::parse_comment'
 python = '(self)'
 rust = 'parse_comment'
-note = ''
+note = '''`#` stops at a terminator the surrounding context widens — `]` in an array, `}` in an object value, `:` in a key — and `//` stops only at a newline. That asymmetry is upstream's.'''
 
 [[symbol]]
 name = 'parse_number.py::parse_number'
@@ -204,7 +204,7 @@ note = 'Including the rollback that ignores underscores: `self.index -= len(numb
 name = 'parse_object.py::_finalize_object'
 python = '(obj, schema_repairer, schema_config, path)'
 rust = 'finalize_object'
-note = ''
+note = '''Required properties must be present unless salvaging, and an absent optional that is not required takes its default. Reached through the parser, where `_repair_object` is the repair pass's own.'''
 
 [[symbol]]
 name = 'parse_object.py::_strip_comments_for_empty_object_classification'
@@ -216,25 +216,25 @@ note = 'Shortened; it is a free function in `parser/object/empty.rs`, where the 
 name = 'parse_object.py::_classify_empty_object_repair'
 python = '(self, start_index, schema, schema_repairer)'
 rust = 'classify_empty_object_repair'
-note = ''
+note = '''Keep, reparse as an object, salvage as keys, or read as an array — decided by scanning the text the failed attempt covered for a `:` outside any string, with comments stripped first.'''
 
 [[symbol]]
 name = 'parse_object.py::_merge_object_array_continuation'
 python = '(self, obj)'
 rust = 'merge_object_array_continuation'
-note = ''
+note = '''Regroups loose values into rows of the width the existing rows agree on. `if expected_len:` is falsy for zero, so rows of width zero fall through to the flat append.'''
 
 [[symbol]]
 name = 'parse_object.py::_parse_object_key'
 python = '(self, obj)'
 rust = 'parse_object_key'
-note = ''
+note = '''Loops until a key is found or the character says to stop, recording where each attempt began. Upstream asserts the key is a string; a fenced block is the one way past that assert, and it ends the parse here as it does there.'''
 
 [[symbol]]
 name = 'parse_object.py::_should_split_duplicate_object'
 python = '(self, rollback_index)'
 rust = 'should_split_duplicate_object'
-note = ''
+note = '''A quoted key with a comma before it and a colon after is an ordinary duplicate; anything else is two objects run together. The lookback reaches a negative offset, which indexes from the end as Python's does.'''
 
 [[symbol]]
 name = 'parse_object.py::_split_object_on_duplicate_key'
@@ -246,79 +246,79 @@ note = 'Inlined into its only caller, together with the branch that decides whet
 name = 'parse_object.py::_resolve_object_property_schema'
 python = '(self, schema_repairer, schema_config, key)'
 rust = 'resolve_object_property_schema'
-note = ''
+note = '''A named property, then `patternProperties`, then `additionalProperties`. The unsupported-pattern message goes to the *parser's* log, which is where upstream writes it — its context is the cursor window and not a schema path.'''
 
 [[symbol]]
 name = 'parse_object.py::_parse_object_value'
 python = '(self, schema_repairer, prop_schema, key_path)'
 rust = 'parse_object_value'
-note = ''
+note = '''A stray `,` or `}` means the member has no value: the empty string unguided, and `MISSING_VALUE` through the repairer, which is `None` in an `Option<Value>` here.'''
 
 [[symbol]]
 name = 'parse_object.py::_repair_empty_object_result'
 python = '(self, obj, start_index, schema, path, schema_repairer)'
 rust = 'repair_empty_object_result'
-note = ''
+note = '''Only when the object is empty and consumed more than two characters. Each branch re-reads from the same index inside a key context, and leaves that context *deferred* so the caller's next parse is read in it too.'''
 
 [[symbol]]
 name = 'parse_object.py::_complete_object_parse'
 python = '(self, obj, schema, path, schema_repairer, schema_config)'
 rust = 'complete_object_parse'
-note = ''
+note = '''A stray closing brace belonging to an enclosing container is stepped over, and a comma after the brace can carry members that were never inside it.'''
 
 [[symbol]]
 name = 'parse_object.py::parse_object'
 python = "(self, schema=None, path='$')"
 rust = 'parse_object'
-note = ''
+note = '''The member loop, including the `continue` that reads as a break, the duplicate-key split that splices a `{` into the input, and the `]` that rolls the cursor back one.'''
 
 [[symbol]]
 name = 'parse_string.py::StringParseState'
 python = 'class'
 rust = 'StringParseState'
-note = ''
+note = '''The scan's state. `rstring_delimiter` is a *stack* — the delimiter the string opened with, plus a sentinel per open `„` span — so `[0]` and `[-1]` are two different questions upstream asks separately.'''
 
 [[symbol]]
 name = 'parse_string.py::_outer_rstring_delimiter'
 python = '(state)'
 rust = 'outer_rstring_delimiter'
-note = ''
+note = '''The delimiter the string opened with, `[0]` of the stack.'''
 
 [[symbol]]
 name = 'parse_string.py::_active_rstring_delimiter'
 python = '(state)'
 rust = 'active_rstring_delimiter'
-note = ''
+note = '''The innermost, `[-1]` of the stack, which is the `„` sentinel inside a low-smart-quote span.'''
 
 [[symbol]]
 name = 'parse_string.py::_in_low_smart_quote_span'
 python = '(state)'
 rust = 'in_low_smart_quote_span'
-note = ''
+note = '''Whether the innermost delimiter is the sentinel.'''
 
 [[symbol]]
 name = 'parse_string.py::_push_low_smart_quote_span'
 python = '(state)'
 rust = 'push_low_smart_quote_span'
-note = ''
+note = '''Pushes the sentinel, which is `\0` on both sides.'''
 
 [[symbol]]
 name = 'parse_string.py::_pop_low_smart_quote_span'
 python = '(state)'
 rust = 'pop_low_smart_quote_span'
-note = ''
+note = '''Pops the sentinel off the delimiter stack. Paired with the push, and both are reached from three places in the scan — the `„`, the `”` that closes it, and the escaped `"` inside it.'''
 
 [[symbol]]
 name = 'parse_string.py::_try_parse_simple_quoted_string'
 python = '(self)'
 rust = 'try_parse_simple_quoted_string'
-note = ''
+note = '''The fast path: a plain `"..."` with no backslash or newline, and a following character the surrounding context expects. An empty context requires the end of the input, which is the branch that is easy to drop.'''
 
 [[symbol]]
 name = 'parse_string.py::_append_literal_char'
 python = '(self, state, current_char)'
 rust = 'append_literal_char'
-note = ''
+note = '''Appends, advances, and answers with the next character. The append is the one that tracks brace depth and the last `[`, not a plain push.'''
 
 [[symbol]]
 name = 'parse_string.py::_append_string_content'
@@ -330,91 +330,91 @@ note = 'A method on `StringParseState`, since every call is `_append_string_cont
 name = 'parse_string.py::_quote_belongs_to_regex_character_class'
 python = '(self, state)'
 rust = 'quote_belongs_to_regex_character_class'
-note = ''
+note = '''A bare quote inside a compact `[...]` run with no whitespace in it, where a `]` follows. The slice of the accumulator is clamped, as Python's is.'''
 
 [[symbol]]
 name = 'parse_string.py::_rebuild_unmatched_opening_braces'
 python = '(state)'
 rust = 'rebuild_unmatched_opening_braces'
-note = ''
+note = '''Recounts brace depth and the last `[` from scratch, which the escape rules need after rewriting the tail of the accumulator.'''
 
 [[symbol]]
 name = 'parse_string.py::_cached_skip_to_character'
 python = '(self, state, character, idx=0)'
 rust = 'cached_skip_to_character'
-note = ''
+note = '''Remembers one answer per target set for the length of a string, keyed on absolute indices, and only when the match is not backslash-escaped. Used for the tail of the comma classification and not for its quoted branch, which upstream leaves uncached.'''
 
 [[symbol]]
 name = 'parse_string.py::_prepare_string_entry'
 python = '(self)'
 rust = 'prepare_string_entry'
-note = ''
+note = '''Where the string starts: the delimiter, whether one exists at all, and the three shapes that answer before any scanning — a comment, a bare boolean or null, and a fenced block. `”` opens a string whose delimiters are both `"`.'''
 
 [[symbol]]
 name = 'parse_string.py::_normalize_escape_sequence'
 python = '(self, state, char)'
 rust = 'normalize_escape_sequence'
-note = ''
+note = '''Halves an even backslash run that does not end at the closing quote, resolves `\x` as well as `\u`, and strips an escape from a delimiter that had no business carrying one. The `u`/`x` branch and the delimiter branch are one `if`/`elif`, so a bad `\u` does not fall through.'''
 
 [[symbol]]
 name = 'parse_string.py::_brace_before_code_fence_belongs_to_string'
 python = '(self, state, fence_idx)'
 rust = 'brace_before_code_fence_belongs_to_string'
-note = ''
+note = '''Whether a `}` before ``` closes the object or belongs to the value, decided by finding a later quote followed by `,`, `}`, `]` or the end. Sets `pending_inline_container` when a container after the fence is kept.'''
 
 [[symbol]]
 name = 'parse_string.py::_matching_string_delimiter'
 python = '(delimiter)'
 rust = 'matching_string_delimiter'
-note = ''
+note = '''`“` closes with `”`; everything else closes with itself.'''
 
 [[symbol]]
 name = 'parse_string.py::_bare_key_is_followed_by_colon'
 python = '(self, key_idx)'
 rust = 'bare_key_is_followed_by_colon'
-note = ''
+note = '''Alphanumeric or `_` to start, then alphanumerics, `_` and `-`, then whitespace, then a colon.'''
 
 [[symbol]]
 name = 'parse_string.py::_post_fence_container_starts_next_member'
 python = '(self, container_end_idx)'
 rust = 'post_fence_container_starts_next_member'
-note = ''
+note = '''Whether what follows a container after a code fence is the next member rather than more of the same value.'''
 
 [[symbol]]
 name = 'parse_string.py::_starts_nested_inline_container'
 python = '(self, idx)'
 rust = 'starts_nested_inline_container'
-note = ''
+note = '''Walks back to the first non-space. The offset stops at zero rather than going negative, so it never wraps.'''
 
 [[symbol]]
 name = 'parse_string.py::_skip_inline_container'
 python = '(self, idx)'
 rust = 'skip_inline_container'
-note = ''
+note = '''Past a balanced container, treating a quoted run as opaque and refusing when a string or the container never closes.'''
 
 [[symbol]]
 name = 'parse_string.py::_scroll_comment_prefixed_member_start'
 python = '(self, idx)'
 rust = 'scroll_comment_prefixed_member_start'
-note = ''
+note = '''Past whitespace and any run of `#`, `//` and `/* */`. An unterminated block comment returns the end rather than looping.'''
 
 [[symbol]]
 name = 'parse_string.py::_quoted_object_member_follows'
 python = '(self, quote_idx)'
 rust = 'quoted_object_member_follows'
-note = ''
+note = '''A quote, then a comma, then something that starts an object member.'''
 
 [[symbol]]
 name = 'parse_string.py::_object_member_starts_at'
 python = '(self, next_member_idx)'
 rust = 'object_member_starts_at'
-note = ''
+note = '''A key — quoted with its matching delimiter, or bare — with a colon after it. `}` and the end of input are both not-a-member.'''
 
 [[symbol]]
 name = 'parse_string.py::_handle_right_delimiter_candidate'
 python = '(self, state, char)'
 rust = 'handle_right_delimiter_candidate'
-note = ''
+note = '''Where every asymmetric-quote case is decided. It answers with three things, and the *character* is one of them: on the break path it has stepped the cursor back, and `finalize_string_result` reads that character to decide whether the string closed on its delimiter.'''
 
 [[symbol]]
 name = 'parse_string.py::_scan_string_body'
@@ -426,7 +426,7 @@ note = "The `Step` enum carries the character a rule stopped on, because Python'
 name = 'parse_string.py::_finalize_string_result'
 python = '(self, state, char)'
 rust = 'finalize_string_result'
-note = ''
+note = '''The corner case first — a missing-quote key that ran into whitespace — then the closing quote, then the two rstrips. `stream_stable` suppresses both.'''
 
 [[symbol]]
 name = 'parse_string.py::parse_string'
@@ -438,37 +438,37 @@ note = 'Split across `string/{entry,scan,delimiter,escape,lookahead,helpers}.rs`
 name = 'parse_string.py::_only_whitespace_until'
 python = '(self, end)'
 rust = 'only_whitespace_until'
-note = ''
+note = '''Offsets 1 to `end`, where a character past the end counts as whitespace and an empty range is vacuously true.'''
 
 [[symbol]]
 name = 'parse_string.py::cached_skip_to_character'
 python = '(character, idx=0)'
 rust = 'cached_skip_to_character'
-note = ''
+note = '''The closure upstream builds over the state; the Rust threads the state explicitly, so there is one function rather than a closure and the function it closes over.'''
 
 [[symbol]]
 name = 'parse_string_helpers/object_value_context.py::_bare_member_has_recoverable_value'
 python = '(parser, value_idx, skip_to_character)'
 rust = 'bare_member_has_recoverable_value'
-note = ''
+note = '''A bare key only ends a member when its value looks recoverable — a delimiter, a container, a sign, a digit, or one of the three literals followed by a boundary. Otherwise the object must close before the string can.'''
 
 [[symbol]]
 name = 'parse_string_helpers/object_value_context.py::classify_object_value_comma'
 python = '(parser, cached_skip_to_character=None)'
 rust = 'classify_object_value_comma'
-note = ''
+note = '''Container, member, string, or string-with-no-future-delimiter. The quoted branch uses the *uncached* lookahead and the tail uses the cached one, which is upstream's split and not an oversight.'''
 
 [[symbol]]
 name = 'parse_string_helpers/object_value_context.py::update_inline_container_stack'
 python = '(char, pending_inline_container, inline_container_stack)'
 rust = 'update_inline_container_stack'
-note = ''
+note = '''Answers whether the pending flag survives and whether the character is kept. A closer with nothing open is not kept.'''
 
 [[symbol]]
 name = 'parse_string_helpers/parse_boolean_or_null.py::parse_boolean_or_null'
 python = '(parser)'
 rust = 'parse_boolean_or_null'
-note = ''
+note = '''Matches lowercased character by character and rewinds the index on failure. Lowercasing can widen — `İ` is two code points — so the comparison is against a string rather than a char.'''
 
 [[symbol]]
 name = 'parse_string_helpers/parse_json_llm_block.py::parse_json_llm_block'
@@ -480,49 +480,49 @@ note = 'Answers `None` both for no block and for a block that parsed to `false`,
 name = 'parser_parenthesized.py::parenthesized_is_explicit_tuple'
 python = '(parser)'
 rust = 'parenthesized_is_explicit_tuple'
-note = ''
+note = '''Empty brackets are a tuple and a comma at the top level makes one; a single grouped value does not. Opening a quote counts as top-level content, which is easy to lose when the quote handling is factored out.'''
 
 [[symbol]]
 name = 'parser_parenthesized.py::top_level_parenthesized_can_start_value'
 python = '(parser)'
 rust = 'top_level_parenthesized_can_start_value'
-note = ''
+note = '''Nothing but whitespace before it on its line, something that could begin a value inside it, and its closing bracket ending the line. The nesting counter decrements past zero here, so it is signed.'''
 
 [[symbol]]
 name = 'parser_schema.py::ObjectSchemaConfig'
 python = 'class'
 rust = 'ObjectSchemaConfig'
-note = ''
+note = '''`properties` and `patternProperties` keep insertion order here, which upstream's dicts do too. `required` is a `set` upstream — see `_repair_object` for the one place that shows.'''
 
 [[symbol]]
 name = 'parser_schema.py::ArraySchemaConfig'
 python = 'class'
 rust = 'ArraySchemaConfig'
-note = ''
+note = '''`items` and `additionalItems`, read once per array.'''
 
 [[symbol]]
 name = 'parser_schema.py::resolve_parser_object_schema'
 python = '(repairer, schema)'
 rust = 'resolve_parser_object_schema'
-note = ''
+note = '''Answers whether the repairer guides this object and the property table if so. A schema that is not an object schema is not guided even when a repairer exists.'''
 
 [[symbol]]
 name = 'parser_schema.py::resolve_parser_array_schema'
 python = '(repairer, schema)'
 rust = 'resolve_parser_array_schema'
-note = ''
+note = '''Whether the repairer guides this array and its `items` table if so. A schema that is not an array schema is not guided, even when a repairer exists.'''
 
 [[symbol]]
 name = 'parser_schema.py::object_schema_config'
 python = '(schema)'
 rust = 'object_schema_config'
-note = ''
+note = '''A `properties` or `patternProperties` that is not an object reads as empty, and `required` keeps only the string entries.'''
 
 [[symbol]]
 name = 'parser_schema.py::array_schema_config'
 python = '(schema)'
 rust = 'array_schema_config'
-note = ''
+note = '''A straight read of `items` and `additionalItems`, whatever they hold.'''
 
 [[symbol]]
 name = 'schema_repair.py::SchemaDefinitionError'
@@ -564,7 +564,7 @@ note = 'Absent. It imports a module by name and pulls a pydantic class out of it
 name = 'schema_repair.py::normalize_missing_values'
 python = '(value)'
 rust = 'normalize_missing_values'
-note = ''
+note = '''The sentinel becomes the empty string. Upstream also walks containers for it and raises on a non-JSON value; here the sentinel is `None` in an `Option<Value>` and cannot be inside one, and every other value is already a `Value`.'''
 
 [[symbol]]
 name = 'schema_repair.py::schema_from_input'
@@ -576,7 +576,7 @@ note = 'The pydantic branch is absent: a Rust caller passes the schema, not a mo
 name = 'schema_repair.py::SchemaRepairer'
 python = 'class'
 rust = 'SchemaRepairer'
-note = ''
+note = '''Holds the root schema, the shared log and the mode. The validator cache is absent — see `_get_validator`.'''
 
 [[symbol]]
 name = 'schema_repair.py::__init__'
@@ -588,7 +588,7 @@ note = 'The validator cache is absent: it caches a `jsonschema` object, and ther
 name = 'schema_repair.py::_log'
 python = '(self, text, path)'
 rust = 'log'
-note = ''
+note = '''Appends to the same list the parser writes to, which is why both are one shared sink here.'''
 
 [[symbol]]
 name = 'schema_repair.py::_get_validator'
@@ -618,37 +618,37 @@ note = 'Delegates to the `SchemaValidator` seam.'
 name = 'schema_repair.py::resolve_schema'
 python = '(self, schema)'
 rust = 'resolve_schema'
-note = ''
+note = '''Follows `$ref` and detects a cycle by the node it is *leaving*, as `id(schema_dict)` does — which notices one hop later than a set of pointer names and reports the other pointer. Also the single place that maps Python's `None`, a null schema included, to `True`.'''
 
 [[symbol]]
 name = 'schema_repair.py::is_object_schema'
 python = '(self, schema)'
 rust = 'is_object_schema'
-note = ''
+note = '''`type` naming object, or any of the four object keywords being present. A `type` that is not a string or list simply does not name it.'''
 
 [[symbol]]
 name = 'schema_repair.py::is_array_schema'
 python = '(self, schema)'
 rust = 'is_array_schema'
-note = ''
+note = '''`type` naming array, or `items` being present at all.'''
 
 [[symbol]]
 name = 'schema_repair.py::_allows_schema_type'
 python = '(self, schema, schema_type)'
 rust = 'allows_schema_type'
-note = ''
+note = '''A string or list `type` answers directly; anything else — present or absent — falls through to the object or array shape test. There is no `is None` guard here, unlike `_fill_missing`, so the catch-all arm is right.'''
 
 [[symbol]]
 name = 'schema_repair.py::_can_salvage_list_as_object'
 python = '(self, schema)'
 rust = 'can_salvage_list_as_object'
-note = ''
+note = '''Allows object and not array, which is what stops a list being mapped onto properties when the schema would have taken the list.'''
 
 [[symbol]]
 name = 'schema_repair.py::repair_value'
 python = '(self, value, schema, path)'
 rust = 'repair_value'
-note = ''
+note = '''The dispatch. `allOf` is subscripted and `oneOf`/`anyOf` are iterated, neither with a type check, so what they do with a keyword of the wrong type is Python's and not JSON Schema's.'''
 
 [[symbol]]
 name = 'schema_repair.py::_repair_union'
@@ -660,73 +660,73 @@ note = "Catches everything except a validator that could not read the schema. Up
 name = 'schema_repair.py::_repair_type_union'
 python = '(self, value, types, schema, path)'
 rust = 'repair_type_union'
-note = ''
+note = '''Each declared type in turn, repaired against the *whole* schema and validated against the narrowed branch. A non-string entry is not skipped: it reaches `_coerce_scalar`, which names it in the refusal.'''
 
 [[symbol]]
 name = 'schema_repair.py::_repair_by_type'
 python = '(self, value, schema_type, schema, path)'
 rust = 'repair_by_type'
-note = ''
+note = '''Array, object, or a scalar coercion.'''
 
 [[symbol]]
 name = 'schema_repair.py::_load_json_string_container'
 python = '(self, value, expected_type, path, unwrap_log_message, salvage_log_message)'
 rust = 'load_json_string_container'
-note = ''
+note = '''A string holding the wanted container is unwrapped; in salvage mode a malformed one is repaired first, through a fresh parse with the whole-input check skipped.'''
 
 [[symbol]]
 name = 'schema_repair.py::_repair_array'
 python = '(self, value, schema, path)'
 rust = 'repair_array'
-note = ''
+note = '''A non-list is wrapped, a tuple `items` is positional with `additionalItems` for the rest, and salvage drops an item that will not fit — but re-raises a schema that cannot be *read*.'''
 
 [[symbol]]
 name = 'schema_repair.py::_repair_object'
 python = '(self, value, schema, path)'
 rust = 'repair_object'
-note = ''
+note = '''Declared properties in the *schema's* order, then everything else by pattern and `additionalProperties`. Salvage fills required properties first. The refusal names the missing ones in a `set`'s order, which Python randomises per process — the generator refuses to record a case with more than one.'''
 
 [[symbol]]
 name = 'schema_repair.py::_map_list_to_object'
 python = '(self, value, schema, path)'
 rust = 'map_list_to_object'
-note = ''
+note = '''Only when the counts match, and it answers `None` — not an error — when any item will not fit, so the caller can fall back.'''
 
 [[symbol]]
 name = 'schema_repair.py::_fill_missing_required_for_salvage'
 python = '(self, schema, path)'
 rust = 'fill_missing_required_for_salvage'
-note = ''
+note = '''Default, then const, then the first enum value, then an empty container when the type allows one. The type inference is guarded by `is None`, so a `type` that is present but not a string blocks it.'''
 
 [[symbol]]
 name = 'schema_repair.py::_fill_missing'
 python = '(self, schema, path)'
 rust = 'fill_missing'
-note = ''
+note = '''Const, enum, default, then a type. The enum is *subscripted* rather than required to be a list, so a string enum yields its first character; and the inference is guarded by `is None`.'''
 
 [[symbol]]
 name = 'schema_repair.py::_coerce_scalar'
 python = '(self, value, schema_type, path)'
 rust = 'coerce_scalar'
-note = ''
+note = '''One-directional and specific: a number becomes a string, ten spellings become a boolean, and `true` is never an integer even though Python says `True == 1`. The string conversions are Python's `int()` and `float()`, which take Unicode digits and underscores.'''
 
 [[symbol]]
 name = 'schema_repair.py::_apply_enum_const'
 python = '(self, value, schema, path)'
 rust = 'apply_enum_const'
-note = ''
+note = '''Compared with Python's `==`, which crosses `1` and `1.0` — so `python_eq` and not the structural equality.'''
 
 [[symbol]]
 name = 'schema_repair.py::_resolve_ref'
 python = '(self, ref)'
 rust = 'resolve_ref'
-note = ''
+note = '''Local pointers only, with `~1` and `~0` unescaped in each segment. A pointer at a boolean resolves to that boolean.'''
 
 [[symbol]]
 name = 'schema_repair.py::_copy_json_value'
 python = '(self, value, path, label)'
 rust = 'copy_json_value'
-note = ''
+note = '''A deep copy of a schema's own literal, checked for being JSON at all as it goes.'''
 
 [[symbol]]
 name = 'schema_repair.py::_prepare_schema_for_validation'
@@ -738,7 +738,7 @@ note = 'The method is the free function plus a check that the result is a dict, 
 name = 'schema_repair.py::repair_or_drop'
 python = '(raw_item, item_schema, item_path)'
 rust = 'repair_or_drop'
-note = ''
+note = '''The closure inside `_repair_array`. A `SchemaDefinitionError` is re-raised here rather than dropped, which is the one place the definition kind is told apart from an ordinary refusal.'''
 
 [[symbol]]
 name = 'utils/constants.py::MissingValueType'
@@ -762,7 +762,7 @@ note = 'Keeps the sentinel a singleton under `copy.deepcopy`. `Option<Value>` is
 name = 'utils/json_context.py::ContextValues'
 python = 'class'
 rust = 'ContextValue'
-note = 'Singular, since it names one.'
+note = '''Three values. The Rust is `Copy`, so the stack holds them rather than references.'''
 
 [[symbol]]
 name = 'utils/json_context.py::_JsonContextEntry'
@@ -774,25 +774,25 @@ note = '''The context-manager object. Rust has no `with`, so the two calls are m
 name = 'utils/json_context.py::JsonContext'
 python = 'class'
 rust = 'JsonContext'
-note = ''
+note = '''The stack, the innermost value and the emptiness flag, kept in step. Both `current` and the whole stack are read, and by different rules.'''
 
 [[symbol]]
 name = 'utils/json_context.py::__init__'
 python = '(self)'
 rust = 'JsonContext::new'
-note = ''
+note = '''An empty stack, no current value, empty true.'''
 
 [[symbol]]
 name = 'utils/json_context.py::__enter__'
 python = '(self)'
 rust = ''
-note = 'See `_JsonContextEntry`.'
+note = '''Part of the context manager, which has no Rust counterpart: the set happens where the `with` block opens. See `_JsonContextEntry`.'''
 
 [[symbol]]
 name = 'utils/json_context.py::__exit__'
 python = '(self, _exc_type, _exc, _traceback)'
 rust = ''
-note = 'See `_JsonContextEntry`.'
+note = '''The other half. What it guarantees — the reset runs when the block exits by raising — is what the five Rust sites reproduce by binding the result, resetting, and only then propagating.'''
 
 [[symbol]]
 name = 'utils/json_context.py::enter'
@@ -804,19 +804,19 @@ note = 'Returns the context manager. See `_JsonContextEntry`.'
 name = 'utils/json_context.py::set'
 python = '(self, value)'
 rust = 'set'
-note = ''
+note = '''Pushes and updates both derived fields.'''
 
 [[symbol]]
 name = 'utils/json_context.py::reset'
 python = '(self)'
 rust = 'reset'
-note = ''
+note = '''Pops and uncovers the frame below rather than emptying — upstream reads `self.context[-1]` and catches `IndexError`.'''
 
 [[symbol]]
 name = 'utils/json_context.py::clear'
 python = '(self)'
 rust = 'clear'
-note = ''
+note = '''Empties all three, which `_parse_top_level` does between values.'''
 
 [[symbol]]
 name = 'utils/object_comparer.py::ObjectComparer'
@@ -840,7 +840,7 @@ note = 'Renamed for what it does: it compares types and lengths, never values.'
 name = 'utils/object_comparer.py::is_strictly_empty'
 python = '(value)'
 rust = 'is_strictly_empty'
-note = ''
+note = '''An empty container, where `None` and `0` are not. A method on `Value` here.'''
 
 [[symbol]]
 name = 'utils/pattern_properties.py::match_pattern_properties'
