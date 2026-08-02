@@ -209,6 +209,42 @@ TUPLES = [
     case("grouped_value", "a single grouped value is not a tuple", "(1)"),
     case("empty_tuple", "empty brackets are", "()"),
     case("tuple_in_object", "one inside an object, where the test is permissive", '{"a": (1, 2)}'),
+    # Both parenthesis tests walk the text themselves, tracking quotes, backslashes and every
+    # bracket depth, and the corpus reached neither loop: every parenthesised case here held bare
+    # numbers. `parenthesized.rs` carried 52 surviving mutants against that, twenty-one in
+    # `Nesting::open_or_close` alone, where whole match arms delete unnoticed.
+    case("tuple_of_quoted", "a quote inside the brackets, which is the whole quoting loop",
+         "('a', 'b')"),
+    case("tuple_with_an_escaped_quote", "and a backslash before one, where the parity decides "
+         "whether the string ends", '("a\\", b", 2)'),
+    case("tuple_nested", "a tuple inside a tuple, so the parenthesis depth is not just 0 or 1",
+         "((1, 2), 3)"),
+    case("tuple_holding_an_array", "square brackets tracked separately from parentheses",
+         "(1, [2, 3])"),
+    case("tuple_holding_an_object", "and braces from both", '({"a": 1}, 2)'),
+    case("tuple_of_containers", "each depth counter moving at once", "([1], {2: 3})"),
+    # The lookahead refuses a `(` that starts prose, and reads four characters for `true`/`null`
+    # and five for `false` to tell a grouped literal from one.
+    case("grouped_true", "a grouped literal, which the four-character read admits", "(true)"),
+    case("grouped_false", "the five-character one", "(false)"),
+    case("parenthesis_starts_prose", "words after the bracket, which is not a value", "(a for a in b)"),
+    # A comma at the top level of the brackets *is* what makes it a tuple, so each of these hangs on
+    # one depth counter being tracked: forget the opener and the inner comma reads as top level, and
+    # a grouped container becomes a tuple holding it. Nothing else in the corpus can tell those
+    # apart, which is why every arm of `Nesting::open_or_close` could be deleted unnoticed.
+    case("grouped_array", "one list in brackets is the list, not a tuple holding it", "([1, 2])"),
+    case("grouped_object", "and one object is the object", '({"a": 1, "b": 2})'),
+    case("grouped_tuple", "a tuple inside brackets, where the counter is parentheses", "((1, 2))"),
+    case("array_then_comma", "a top-level comma after a bracketed one, which does make a tuple",
+         "([1, 2], 3)"),
+    case("comma_inside_a_string", "quoted, so it is text rather than a separator", '("a, b")'),
+    case("comma_inside_a_single_quoted_string", "the same through the other delimiter", "('a, b')"),
+    # A closer with no opener, which is what the `> 0` guards on each closing arm are for.
+    case("stray_close_bracket", "a `]` with nothing open, which must not take the count below zero",
+         "(] 1, 2)"),
+    case("stray_close_brace", "and a `}`", "(} 1, 2)"),
+    case("unclosed_array_in_parens", "a bracket that never closes before the parenthesis does",
+         "([1, 2)"),
     case("prose_parenthesis", "an aside, which must not swallow the JSON after it",
          'the answer (see below): {"a": 1}'),
     case("parenthesis_own_line", "brackets alone on their line do open a value", "\n(1, 2)\n"),

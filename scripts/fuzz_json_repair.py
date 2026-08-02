@@ -100,9 +100,27 @@ def member(rng: random.Random, depth: int) -> str:
 
 
 def container(rng: random.Random, depth: int) -> str:
-    """An object or an array, with the closing bracket a model sometimes forgets."""
+    """An object, an array, or a Python tuple, with the bracket a model sometimes forgets.
+
+    The parenthesised form is a third of the library's container handling — `parser_parenthesized.py`
+    and the two lookaheads that decide whether a `(` opens a tuple or prose — and no token table
+    here held a `(`, so none of it ever saw a generated input. Mutation testing put a number on the
+    consequence: `parenthesized.rs` carried the second-largest cluster of surviving mutants in the
+    crate, against a module the committed corpus reached at 59.8% of its statements.
+
+    A tuple is not a shape a model emits often, which is the argument for a low weight rather than
+    for leaving it out: it is the shape `json_repair` grew a whole module to accept.
+    """
     count = rng.randint(0, 3)
-    if rng.random() < 0.6:
+    roll = rng.random()
+    if roll < 0.12:
+        body = ", ".join(value(rng, depth) for _ in range(count))
+        # A trailing comma is what tells a one-element tuple from a grouped value, so it is worth
+        # more here than in the other two.
+        if count == 1 and rng.random() < 0.5:
+            body += ","
+        opener, closer = "(", rng.choice([")", ")", ")", "", "]", "))"])
+    elif roll < 0.6:
         body = ", ".join(member(rng, depth) for _ in range(count))
         opener, closer = "{", rng.choice(["}", "}", "}", "", "]", "}}"])
     else:

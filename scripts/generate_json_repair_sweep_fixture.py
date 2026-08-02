@@ -44,7 +44,10 @@ OUT = (
 #: a differential oracle at all, and a fixture an order of magnitude larger than every other one in
 #: the repo is a cost paid on every clone.
 SEED = 20260801
-COUNT = 500
+#: Raised with the grammar. A tuple logs fewer repairs than an object of the same size, so adding
+#: the shape cut the recorded total by a tenth at 500 — and lowering the floor to match would have
+#: weakened the guard to accommodate a change that was meant to widen coverage.
+COUNT = 620
 
 
 def run(text: str) -> dict[str, object]:

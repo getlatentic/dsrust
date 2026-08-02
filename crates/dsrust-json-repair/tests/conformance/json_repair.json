@@ -7,14 +7,14 @@
   "json_repair.py": 65,
   "object_comparer.py": 14,
   "object_value_context.py": 47,
-  "parse_array.py": 41,
+  "parse_array.py": 42,
   "parse_boolean_or_null.py": 16,
   "parse_comment.py": 47,
   "parse_json_llm_block.py": 6,
   "parse_number.py": 22,
   "parse_object.py": 202,
   "parse_string.py": 497,
-  "parser_parenthesized.py": 71,
+  "parser_parenthesized.py": 116,
   "parser_schema.py": 4,
   "schema_repair.py": 3,
   "string_file_wrapper.py": 59
@@ -1614,6 +1614,177 @@
    "ok": true,
    "dumps": "{\"a\": [1, 2]}",
    "log": []
+  },
+  {
+   "name": "tuple_of_quoted",
+   "why": "a quote inside the brackets, which is the whole quoting loop",
+   "input": "('a', 'b')",
+   "ok": true,
+   "dumps": "[\"a\", \"b\"]",
+   "log": []
+  },
+  {
+   "name": "tuple_with_an_escaped_quote",
+   "why": "and a backslash before one, where the parity decides whether the string ends",
+   "input": "(\"a\\\", b\", 2)",
+   "ok": true,
+   "dumps": "[\"a\\\", b\", 2]",
+   "log": [
+    {
+     "text": "Found a stray escape sequence, normalizing it",
+     "context": "(\"a\\\", b\", 2)"
+    }
+   ]
+  },
+  {
+   "name": "tuple_nested",
+   "why": "a tuple inside a tuple, so the parenthesis depth is not just 0 or 1",
+   "input": "((1, 2), 3)",
+   "ok": true,
+   "dumps": "[[1, 2], 3]",
+   "log": []
+  },
+  {
+   "name": "tuple_holding_an_array",
+   "why": "square brackets tracked separately from parentheses",
+   "input": "(1, [2, 3])",
+   "ok": true,
+   "dumps": "[1, [2, 3]]",
+   "log": []
+  },
+  {
+   "name": "tuple_holding_an_object",
+   "why": "and braces from both",
+   "input": "({\"a\": 1}, 2)",
+   "ok": true,
+   "dumps": "[{\"a\": 1}, 2]",
+   "log": []
+  },
+  {
+   "name": "tuple_of_containers",
+   "why": "each depth counter moving at once",
+   "input": "([1], {2: 3})",
+   "ok": true,
+   "dumps": "[[1], {\"2\": 3}]",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "([1], {2: 3})"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "([1], {2: 3})"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "([1], {2: 3})"
+    }
+   ]
+  },
+  {
+   "name": "grouped_true",
+   "why": "a grouped literal, which the four-character read admits",
+   "input": "(true)",
+   "ok": true,
+   "dumps": "true",
+   "log": []
+  },
+  {
+   "name": "grouped_false",
+   "why": "the five-character one",
+   "input": "(false)",
+   "ok": true,
+   "dumps": "false",
+   "log": []
+  },
+  {
+   "name": "parenthesis_starts_prose",
+   "why": "words after the bracket, which is not a value",
+   "input": "(a for a in b)",
+   "ok": true,
+   "dumps": "\"\"",
+   "log": []
+  },
+  {
+   "name": "grouped_array",
+   "why": "one list in brackets is the list, not a tuple holding it",
+   "input": "([1, 2])",
+   "ok": true,
+   "dumps": "[1, 2]",
+   "log": []
+  },
+  {
+   "name": "grouped_object",
+   "why": "and one object is the object",
+   "input": "({\"a\": 1, \"b\": 2})",
+   "ok": true,
+   "dumps": "{\"a\": 1, \"b\": 2}",
+   "log": []
+  },
+  {
+   "name": "grouped_tuple",
+   "why": "a tuple inside brackets, where the counter is parentheses",
+   "input": "((1, 2))",
+   "ok": true,
+   "dumps": "[1, 2]",
+   "log": []
+  },
+  {
+   "name": "array_then_comma",
+   "why": "a top-level comma after a bracketed one, which does make a tuple",
+   "input": "([1, 2], 3)",
+   "ok": true,
+   "dumps": "[[1, 2], 3]",
+   "log": []
+  },
+  {
+   "name": "comma_inside_a_string",
+   "why": "quoted, so it is text rather than a separator",
+   "input": "(\"a, b\")",
+   "ok": true,
+   "dumps": "\"a, b\"",
+   "log": []
+  },
+  {
+   "name": "comma_inside_a_single_quoted_string",
+   "why": "the same through the other delimiter",
+   "input": "('a, b')",
+   "ok": true,
+   "dumps": "\"a, b\"",
+   "log": []
+  },
+  {
+   "name": "stray_close_bracket",
+   "why": "a `]` with nothing open, which must not take the count below zero",
+   "input": "(] 1, 2)",
+   "ok": true,
+   "dumps": "\"\"",
+   "log": []
+  },
+  {
+   "name": "stray_close_brace",
+   "why": "and a `}`",
+   "input": "(} 1, 2)",
+   "ok": true,
+   "dumps": "\"\"",
+   "log": []
+  },
+  {
+   "name": "unclosed_array_in_parens",
+   "why": "a bracket that never closes before the parenthesis does",
+   "input": "([1, 2)",
+   "ok": true,
+   "dumps": "[1, 2]",
+   "log": [
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "([1, 2)"
+    },
+    {
+     "text": "While parsing an array we missed the closing ), ignoring it",
+     "context": "([1, 2)"
+    }
+   ]
   },
   {
    "name": "prose_parenthesis",
