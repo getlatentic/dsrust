@@ -395,6 +395,19 @@ progress = "All three parse goldens landed 2026-08-01, 51 cases. parse.rs surviv
 size = "M"
 suites = []
 plan = """
+**2026-08-02.** The corpus is built: 61 cases across the three adapters, every shape this plan
+named, and both arms — 46 accepted, 15 refused. What is *not* done is the number that justified the
+story: the survivor count has to be re-measured, and that waits on `json-repair-mutation-baseline`.
+
+Reading the corpus against `parse.rs` rather than running it found what an all-ASCII corpus
+structurally could not see. dspy names a field with `\\w+` in **both** scans, and `\\w` is
+`str.isalnum()` plus `_`. `split_header` asked for `is_ascii_alphanumeric` — so a signature with a
+field named `réponse` rendered its markers byte-perfectly and then refused every reply to them.
+`next_tag` asked for `char::is_alphanumeric`, which is wider than Python's and let a `<xֺ>` swallow
+the real tag inside it. One too narrow, one too wide, 58 cases blind to both.
+
+The generator refuses an all-ASCII corpus now, which is the part that stays fixed.
+
 Measured 2026-08-01 by mutation testing the byte-critical adapter path — `chat.rs`, `prompt.rs`,
 `exchange.rs`, `demos.rs`, `history.rs`, `parse.rs`. **43 survivors of 143 viable mutants, 35 of them
 in `parse.rs` and 20 in `next_tag` alone.**
