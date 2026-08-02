@@ -78,9 +78,26 @@ BASELINES=(
 # names. Both runs' numbers were rubbish and neither said so. `mktemp -d` keeps the isolation the
 # override is for and takes the collision away; the cost is one crate's object code per concurrent
 # run, which is what isolation costs.
-CARGO_BUILD_BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/dsrs-mutants-build.XXXXXX")"
+#
+# **A relative path restores `-j`.** Everything above is true of an *absolute* override, and that is
+# the only kind this had. Cargo resolves a relative `build-dir` against the workspace root it is
+# building — measured, not assumed — and cargo-mutants gives every parallel job its own copy of the
+# tree. So a relative name lands inside each job's own copy, which is exactly the per-job isolation
+# the absolute path took away, while still keeping the run out of `~/.cargo/build-dir` where an
+# ordinary `cargo test` would link a mutant. It is also per-worktree for free, since two sessions
+# have two trees. Validated by running one file serially and at `-j`, which must agree.
+CARGO_BUILD_BUILD_DIR="mutants-build"
 export CARGO_BUILD_BUILD_DIR
-trap 'rm -rf "$CARGO_BUILD_BUILD_DIR" "$ROOT/mutants.out" "$ROOT/mutants.out.old"' EXIT
+
+# How many mutants run at once, and how many rustc processes each may spawn.
+#
+# The product is what lands on the machine: `-j 3` with cargo's default inner parallelism is three
+# concurrent builds each taking every core it can find. This box is shared with whoever is using it,
+# so both ends are capped and the whole thing is niced.
+JOBS=${DSRS_MUTANT_JOBS:-2}
+export CARGO_BUILD_JOBS=${DSRS_MUTANT_BUILD_JOBS:-2}
+
+trap 'rm -rf "$ROOT/mutants.out" "$ROOT/mutants.out.old"' EXIT
 
 if ! cargo mutants --version > /dev/null 2>&1; then
   echo "cargo-mutants is not installed: cargo install cargo-mutants --locked" >&2
@@ -94,10 +111,10 @@ for entry in "${BASELINES[@]}"; do
   if [ "$#" -gt 0 ] && [ "$1" != "$package" ]; then
     continue
   fi
-  echo "==> cargo mutants -p $package (baseline $allowed)"
+  echo "==> cargo mutants -p $package (baseline $allowed, -j $JOBS x $CARGO_BUILD_JOBS)"
   log="target/mutants-$package.log"
   set +e
-  cargo mutants -p "$package" --timeout 120 > "$log" 2>&1
+  nice -n 10 cargo mutants -p "$package" --timeout 120 -j "$JOBS" > "$log" 2>&1
   set -e
   # TIMEOUT counts too. A mutant that hangs was detected only in the sense that the suite never
   # finished — it is a line whose behaviour no assertion pins, same as a survivor, and letting it
