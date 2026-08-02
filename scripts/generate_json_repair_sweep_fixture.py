@@ -44,10 +44,19 @@ OUT = (
 #: a differential oracle at all, and a fixture an order of magnitude larger than every other one in
 #: the repo is a cost paid on every clone.
 SEED = 20260801
-#: Raised with the grammar. A tuple logs fewer repairs than an object of the same size, so adding
-#: the shape cut the recorded total by a tenth at 500 — and lowering the floor to match would have
-#: weakened the guard to accommodate a change that was meant to widen coverage.
-COUNT = 620
+#: Raised twice with the grammar, and the second time for a reason worth writing down.
+#:
+#: This file is regenerated wholesale at a fixed seed, not appended to, so adding a branch to
+#: `container()` shifts every subsequent draw and *all* the inputs change. Widening the grammar for
+#: tuples therefore traded coverage rather than adding it: `parenthesized.rs` went from 52 surviving
+#: mutants to 25, while `delimiter.rs` went from 9 to 15, because the inputs that used to reach it
+#: were no longer drawn. That is luck rather than anything systematic, and more draws recover it —
+#: at 900 `delimiter.rs` is back to 12 and `parenthesized.rs` is 16.
+#:
+#: A tuple also logs fewer repairs than an object of the same size, so the shape cut the recorded
+#: total; the count grew instead of the floor being lowered, since relaxing a guard to accommodate a
+#: change meant to widen coverage has it backwards.
+COUNT = 900
 
 
 def run(text: str) -> dict[str, object]:

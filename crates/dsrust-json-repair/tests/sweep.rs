@@ -55,9 +55,9 @@ fn every_drawn_input_repairs_and_logs_the_way_json_repair_does() {
 
     // Floors at what the fixture holds: a sweep that shrank, or whose grammar stopped producing
     // malformed input, would otherwise still pass.
-    assert!(cases.len() >= 620, "the sweep is {} cases", cases.len());
+    assert!(cases.len() >= 900, "the sweep is {} cases", cases.len());
     assert!(
-        logged >= 2842,
+        logged >= 4178,
         "only {logged} logged repairs across the sweep"
     );
     eprintln!(
