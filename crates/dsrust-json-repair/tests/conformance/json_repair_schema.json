@@ -2381,6 +2381,50 @@
    "calls": []
   },
   {
+   "name": "property_schema_is_null",
+   "why": "`properties.get(key)` cannot tell an absent property from one stored as null, and the repair pass reaches `.get` on it",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": null
+    }
+   },
+   "input": "{a: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "AttributeError",
+   "message": "'NoneType' object has no attribute 'get'",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": null}}",
+     "ok": false,
+     "raised": "'NoneType' object has no attribute 'get'",
+     "raised_type": "AttributeError"
+    }
+   ]
+  },
+  {
+   "name": "property_schema_is_null_and_required",
+   "why": "the same, where the salvage fill skips it and the required check still refuses",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": null
+    },
+    "required": [
+     "a"
+    ]
+   },
+   "input": "{b: 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Missing required properties at $: a",
+   "calls": []
+  },
+  {
    "name": "object_from_json_string",
    "why": "a value that is an object inside quotes",
    "schema": {

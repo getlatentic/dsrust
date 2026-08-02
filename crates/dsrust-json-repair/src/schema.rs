@@ -82,7 +82,10 @@ impl SchemaRepairer {
 
     /// A schema with its `$ref` chain followed. `None` means "anything", which is `True`.
     pub(crate) fn resolve_schema(&self, schema: Option<&Schema>) -> Result<Schema> {
-        let Some(schema) = schema else {
+        // Python has one `None` for both "no schema" and a schema that *is* null, and
+        // `resolve_schema` answers `True` — anything allowed — for it. Rust tells the two apart,
+        // so a `properties: {"a": null}` would otherwise refuse where upstream parses.
+        let Some(schema) = schema.filter(|schema| !matches!(schema, Value::Null)) else {
             return Ok(Value::Bool(true));
         };
         if let Value::Bool(flag) = schema {
@@ -273,6 +276,9 @@ fn guided_schema<'a>(
     let Some(repairer) = repairer else {
         return Ok(None);
     };
+    // `schema not in (None, True)` upstream. A null schema is Python's `None` too, and
+    // `resolve_schema` below is the one place that says so — naming it again here would be a
+    // branch nothing can reach.
     if matches!(schema, None | Some(Value::Bool(true))) {
         return Ok(None);
     }

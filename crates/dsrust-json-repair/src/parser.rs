@@ -328,6 +328,8 @@ impl Parser {
         let Some(repairer) = self.schema_repairer.clone() else {
             return Ok((false, schema));
         };
+        // `schema not in (None, True)`. A null schema resolves to `True` a line below, so it
+        // needs no arm of its own here.
         match &schema {
             None | Some(Value::Bool(true)) => return Ok((false, schema)),
             _ => {}

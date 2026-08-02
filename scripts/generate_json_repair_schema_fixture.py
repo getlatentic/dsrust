@@ -147,6 +147,19 @@ def check_the_corpus_discriminates(cases: list[dict]) -> None:
     if methods != {"is_valid", "validate"}:
         raise SystemExit(f"the corpus only reaches {sorted(methods)} — both entry points must run")
 
+    # `schema_config.required` is a `set`, so the order it iterates — and the order this message
+    # joins names in — comes from string hashing, which Python randomises per process. Recording
+    # such a case would pin one arbitrary order and make the fixture a coin flip; the Rust cannot
+    # match it and should not try. Measured: the same schema gives `c, a, b` and `a, b, c` and
+    # `c, b, a` under PYTHONHASHSEED 0, 1 and 2.
+    for case in cases:
+        message = str(case.get("message", ""))
+        if "Missing required properties" in message and message.count(",") >= 1:
+            raise SystemExit(
+                f"{case['name']}: names two or more missing required properties, and the order is "
+                "a set's — use one required property per case"
+            )
+
     salvaged = [case for case in cases if case.get("mode") == "salvage"]
     if not salvaged:
         raise SystemExit("no salvage-mode case, so half of schema_repair.py is unreached")

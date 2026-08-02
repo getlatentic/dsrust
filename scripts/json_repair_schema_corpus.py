@@ -52,6 +52,12 @@ OBJECTS = [
          {"type": "object", "patternProperties": {"^a.*z$": {"type": "string"}}}, "{abcz: 7}"),
     case("min_properties", "an object that does not carry enough",
          {"type": "object", "minProperties": 2, "properties": {"a": {"type": "integer"}}}, "{a: 1}"),
+    case("property_schema_is_null", "`properties.get(key)` cannot tell an absent property from "
+         "one stored as null, and the repair pass reaches `.get` on it",
+         {"type": "object", "properties": {"a": None}}, "{a: 1"),
+    case("property_schema_is_null_and_required", "the same, where the salvage fill skips it and "
+         "the required check still refuses",
+         {"type": "object", "properties": {"a": None}, "required": ["a"]}, "{b: 1"),
     case("object_from_json_string", "a value that is an object inside quotes",
          {"type": "object", "properties": {"a": {"type": "integer"}}}, '"{\\"a\\": 1}"'),
 ]
