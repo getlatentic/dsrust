@@ -154,4 +154,25 @@ SALVAGE = [
          {"type": "object", "properties": {"a": {}, "b": {}}}, '{"a", "b"}', mode="salvage"),
 ]
 
-CASES: list[dict] = [*COERCION, *OBJECTS, *ARRAYS, *UNIONS, *ENUMS_AND_REFS, *SALVAGE]
+#: Every keyword `json_repair` reads out of a schema, each given a value of the wrong type.
+#:
+#: This is a bug *class*, not a list of cases. Upstream reaches for a keyword with `schema.get(key)`
+#: and then asks `is None`, `isinstance(..., list)` or `if not ...` — three different questions, and
+#: a Rust `match` arm that answers "absent or odd" as one thing gets all three wrong in the same
+#: direction. Three such arms were found by reading; these are what would have found them without.
+WRONG_TYPES = [
+    case(f"wrong_type_{keyword}_{label.replace(chr(32), chr(95))}",
+         f"`{keyword}` present but {label}, which upstream tells apart from absent",
+         {"type": "object", "properties": {"a": {keyword: bad, "type": "integer"}}},
+         '{"a": }')
+    for keyword in ("enum", "const", "default", "items", "additionalItems", "properties",
+                    "patternProperties", "additionalProperties", "required", "minItems",
+                    "minProperties", "oneOf", "anyOf", "allOf")
+    for label, bad in (("a number", 7), ("a string", "x"), ("null", None), ("an empty list", []))
+] + [
+    case(f"wrong_type_root_type_{label.replace(chr(32), chr(95))}", f"the root `type` is {label}",
+         {"type": bad, "properties": {"a": {"type": "integer"}}}, '{"a": 1}')
+    for label, bad in (("a number", 7), ("null", None), ("an empty list", []), ("a nested list", [[]]))
+]
+
+CASES: list[dict] = [*WRONG_TYPES, *COERCION, *OBJECTS, *ARRAYS, *UNIONS, *ENUMS_AND_REFS, *SALVAGE]

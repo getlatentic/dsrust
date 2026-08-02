@@ -26,8 +26,13 @@ enum Kind {
     /// before they would catch it — but which the union branches do *not*, since they catch the
     /// base class alone.
     Definition,
-    /// Something that is not a `ValueError` at all — `jsonschema` refusing a schema it cannot
-    /// read, which nothing in `json_repair` catches and which reaches the caller.
+    /// A `TypeError`: iterating an `oneOf` that is a number, subscripting an `allOf` that is not
+    /// a sequence. `except ValueError` does not catch it, but `repair_json`'s outer
+    /// `except (JSONDecodeError, TypeError, ValueError)` does — so it sends the fast path to the
+    /// parser rather than reaching the caller.
+    Type,
+    /// Something that is neither — `jsonschema` refusing a schema it cannot read, which nothing in
+    /// `json_repair` catches and which reaches the caller.
     Foreign,
 }
 
@@ -55,13 +60,26 @@ impl Error {
         }
     }
 
+    /// Python's `TypeError`.
+    pub(crate) fn type_error(message: &str) -> Self {
+        Self {
+            message: message.to_owned(),
+            kind: Kind::Type,
+        }
+    }
+
+    /// Whether `except (JSONDecodeError, TypeError, ValueError)` would catch this.
+    pub(crate) fn is_caught_by_repair_json(&self) -> bool {
+        self.kind != Kind::Foreign
+    }
+
     pub(crate) fn is_definition(&self) -> bool {
         self.kind == Kind::Definition
     }
 
     /// Whether `except ValueError` would let this through.
     pub(crate) fn is_foreign(&self) -> bool {
-        self.kind == Kind::Foreign
+        matches!(self.kind, Kind::Foreign | Kind::Type)
     }
 
     /// The message the original's `ValueError` carries.

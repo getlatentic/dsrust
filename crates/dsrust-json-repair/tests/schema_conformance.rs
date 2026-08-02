@@ -71,7 +71,7 @@ impl SchemaValidator for Replay {
     fn is_valid(&self, value: &Value, schema: &Value) -> Result<bool, ValidationError> {
         let answer = self.answer("is_valid", value, schema);
         match answer["raised"].as_str() {
-            Some(message) => Err(ValidationError::Unreadable(message.to_owned())),
+            Some(message) => Err(raised(&answer, message)),
             None => Ok(answer["ok"].as_bool().expect("a recorded answer")),
         }
     }
@@ -79,7 +79,7 @@ impl SchemaValidator for Replay {
     fn validate(&self, value: &Value, schema: &Value) -> Result<(), ValidationError> {
         let answer = self.answer("validate", value, schema);
         if let Some(message) = answer["raised"].as_str() {
-            return Err(ValidationError::Unreadable(message.to_owned()));
+            return Err(raised(&answer, message));
         }
         match answer["ok"].as_bool().expect("a recorded answer") {
             true => Ok(()),
@@ -87,6 +87,15 @@ impl SchemaValidator for Replay {
                 answer["message"].as_str().expect("a message").to_owned(),
             )),
         }
+    }
+}
+
+/// The exception the validator raised, as its class decides. `json_repair` catches `TypeError` in
+/// one place and `jsonschema`'s own errors nowhere, so replaying them as one kind would hide which.
+fn raised(answer: &Json, message: &str) -> ValidationError {
+    match answer["raised_type"].as_str() {
+        Some("TypeError") => ValidationError::Type(message.to_owned()),
+        _ => ValidationError::Unreadable(message.to_owned()),
     }
 }
 
@@ -143,7 +152,14 @@ fn every_schema_guided_repair_decides_what_json_repair_decided() {
                 "{name}: {}",
                 case["why"]
             ),
-            (false, Err(_)) => {}
+            // The *message* too. Comparing only that both refused let a `TypeError` from iterating
+            // a number pass as "No schema matched the value" — two different refusals, and the
+            // mutation that swapped them survived because nothing looked.
+            (false, Err(error)) => assert_eq!(
+                error.message(),
+                case["message"].as_str().expect("a message"),
+                "{name}: refused for a different reason"
+            ),
             (true, Err(error)) => {
                 panic!(
                     "{name}: json_repair returned {} and we refused: {error}",

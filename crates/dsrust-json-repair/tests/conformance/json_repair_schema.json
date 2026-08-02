@@ -3,6 +3,1763 @@
  "what": "What a schema-guided repair returns, and every question the repairer asked the validator to get there. The Rust seam replays the answers and fails on a question that was never asked, so the repair decisions are tested without reimplementing JSON Schema.",
  "cases": [
   {
+   "name": "wrong_type_enum_a_number",
+   "why": "`enum` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'int' object is not subscriptable",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_enum_a_string",
+   "why": "`enum` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_enum_null",
+   "why": "`enum` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Enum at $.a has no values.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_enum_an_empty_list",
+   "why": "`enum` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Enum at $.a has no values.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_const_a_number",
+   "why": "`const` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "const": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 7}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with const",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 7}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"const\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_const_a_string",
+   "why": "`const` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "const": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_const_null",
+   "why": "`const` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "const": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_const_an_empty_list",
+   "why": "`const` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "const": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_default_a_number",
+   "why": "`default` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "default": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 7}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with default",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 7}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"default\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_default_a_string",
+   "why": "`default` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "default": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_default_null",
+   "why": "`default` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "default": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_default_an_empty_list",
+   "why": "`default` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "default": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_items_a_number",
+   "why": "`items` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"items\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_items_a_string",
+   "why": "`items` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"items\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_items_null",
+   "why": "`items` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"items\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_items_an_empty_list",
+   "why": "`items` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "items": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\", \"prefixItems\": []}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalItems_a_number",
+   "why": "`additionalItems` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalItems": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalItems\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalItems_a_string",
+   "why": "`additionalItems` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalItems": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalItems\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalItems_null",
+   "why": "`additionalItems` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalItems": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalItems\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalItems_an_empty_list",
+   "why": "`additionalItems` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalItems": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalItems\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_properties_a_number",
+   "why": "`properties` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_properties_a_string",
+   "why": "`properties` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_properties_null",
+   "why": "`properties` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_properties_an_empty_list",
+   "why": "`properties` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "properties": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"properties\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_patternProperties_a_number",
+   "why": "`patternProperties` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "patternProperties": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"patternProperties\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_patternProperties_a_string",
+   "why": "`patternProperties` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "patternProperties": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"patternProperties\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_patternProperties_null",
+   "why": "`patternProperties` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "patternProperties": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"patternProperties\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_patternProperties_an_empty_list",
+   "why": "`patternProperties` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "patternProperties": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"patternProperties\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalProperties_a_number",
+   "why": "`additionalProperties` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalProperties": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalProperties\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalProperties_a_string",
+   "why": "`additionalProperties` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalProperties": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalProperties\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalProperties_null",
+   "why": "`additionalProperties` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalProperties": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalProperties\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_additionalProperties_an_empty_list",
+   "why": "`additionalProperties` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "additionalProperties": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"additionalProperties\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_required_a_number",
+   "why": "`required` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "required": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"required\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_required_a_string",
+   "why": "`required` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "required": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"required\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_required_null",
+   "why": "`required` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "required": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"required\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_required_an_empty_list",
+   "why": "`required` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "required": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"required\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minItems_a_number",
+   "why": "`minItems` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minItems": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minItems\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minItems_a_string",
+   "why": "`minItems` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minItems": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minItems\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minItems_null",
+   "why": "`minItems` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minItems": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minItems\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minItems_an_empty_list",
+   "why": "`minItems` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minItems": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minItems\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minProperties_a_number",
+   "why": "`minProperties` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minProperties": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minProperties\": 7, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minProperties_a_string",
+   "why": "`minProperties` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minProperties": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minProperties\": \"x\", \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minProperties_null",
+   "why": "`minProperties` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minProperties": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minProperties\": null, \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_minProperties_an_empty_list",
+   "why": "`minProperties` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "minProperties": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"minProperties\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_oneOf_a_number",
+   "why": "`oneOf` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "oneOf": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'int' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_oneOf_a_string",
+   "why": "`oneOf` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "oneOf": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Schema must be an object.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_oneOf_null",
+   "why": "`oneOf` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "oneOf": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'NoneType' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_oneOf_an_empty_list",
+   "why": "`oneOf` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "oneOf": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "No schema matched the value.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_anyOf_a_number",
+   "why": "`anyOf` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "anyOf": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'int' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_anyOf_a_string",
+   "why": "`anyOf` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "anyOf": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Schema must be an object.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_anyOf_null",
+   "why": "`anyOf` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "anyOf": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'NoneType' object is not iterable",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_anyOf_an_empty_list",
+   "why": "`anyOf` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "anyOf": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "No schema matched the value.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_allOf_a_number",
+   "why": "`allOf` present but a number, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "allOf": 7,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'int' object is not subscriptable",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_allOf_a_string",
+   "why": "`allOf` present but a string, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "allOf": "x",
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "SchemaDefinitionError",
+   "message": "Schema must be an object.",
+   "calls": []
+  },
+  {
+   "name": "wrong_type_allOf_null",
+   "why": "`allOf` present but null, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "allOf": null,
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'NoneType' object is not iterable",
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"allOf\": null, \"type\": \"integer\"}}}",
+     "ok": false,
+     "raised": "'NoneType' object is not iterable",
+     "raised_type": "TypeError"
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_allOf_an_empty_list",
+   "why": "`allOf` present but an empty list, which upstream tells apart from absent",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "allOf": [],
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": }",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "While parsing an object value we found a stray }, ignoring it",
+     "context": "{\"a\": }"
+    },
+    {
+     "text": "Filled missing value with 0",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"allOf\": [], \"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_root_type_a_number",
+   "why": "the root `type` is a number",
+   "schema": {
+    "type": 7,
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'int' object is not iterable",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": 7, \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false,
+     "raised": "'int' object is not iterable",
+     "raised_type": "TypeError"
+    },
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": 7, \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false,
+     "raised": "'int' object is not iterable",
+     "raised_type": "TypeError"
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_root_type_null",
+   "why": "the root `type` is null",
+   "schema": {
+    "type": null,
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "TypeError",
+   "message": "'NoneType' object is not iterable",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": null, \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false,
+     "raised": "'NoneType' object is not iterable",
+     "raised_type": "TypeError"
+    },
+    {
+     "method": "validate",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": null, \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false,
+     "raised": "'NoneType' object is not iterable",
+     "raised_type": "TypeError"
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_root_type_an_empty_list",
+   "why": "the root `type` is an empty list",
+   "schema": {
+    "type": [],
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "No schema type matched the value.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": [], \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "wrong_type_root_type_a_nested_list",
+   "why": "the root `type` is a nested list",
+   "schema": {
+    "type": [
+     []
+    ],
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": 1}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Unsupported schema type [] at $.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1}",
+     "schema": "{\"type\": [[]], \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false,
+     "raised": "unhashable type: 'list'",
+     "raised_type": "TypeError"
+    }
+   ]
+  },
+  {
    "name": "number_to_string",
    "why": "a number where a string was declared",
    "schema": {
@@ -237,7 +1994,8 @@
      "value": "\"today\"",
      "schema": "{\"type\": \"date\"}",
      "ok": false,
-     "raised": "Unknown type 'date' for validator with schema:\n    {'type': 'date'}\n\nWhile checking instance:\n    'today'"
+     "raised": "Unknown type 'date' for validator with schema:\n    {'type': 'date'}\n\nWhile checking instance:\n    'today'",
+     "raised_type": "UnknownType"
     }
    ]
   },
@@ -1067,7 +2825,8 @@
      "value": "{\"a\": \"7\"}",
      "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"oneOf\": [{\"type\": \"date\"}, {\"type\": \"string\"}]}}}",
      "ok": false,
-     "raised": "Unknown type 'date' for validator with schema:\n    {'type': 'date'}\n\nWhile checking instance:\n    '7'"
+     "raised": "Unknown type 'date' for validator with schema:\n    {'type': 'date'}\n\nWhile checking instance:\n    '7'",
+     "raised_type": "UnknownType"
     }
    ]
   },

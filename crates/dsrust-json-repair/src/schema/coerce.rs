@@ -305,7 +305,7 @@ fn first_enum_value(allowed: &Value, path: &str) -> Result<Value> {
                 .expect("truthy is non-empty")
                 .to_string(),
         )),
-        other => Err(Error::foreign(&format!(
+        other => Err(Error::type_error(&format!(
             "'{}' object is not subscriptable",
             crate::schema::container::type_name(other)
         ))),

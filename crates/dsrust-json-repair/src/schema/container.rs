@@ -35,20 +35,23 @@ impl SchemaRepairer {
             return self.fill_missing(&schema, path);
         };
 
-        if let Some(Value::Array(subschemas)) = schema.get("allOf") {
-            let subschemas = subschemas.clone();
-            let Some(first) = subschemas.first() else {
+        // `schema["allOf"]` is subscripted and `schema["oneOf"]` iterated, neither with a type
+        // check — so what these do with a keyword of the wrong type is Python's, not JSON Schema's.
+        if let Some(subschemas) = schema.get("allOf") {
+            if !subschemas.is_truthy() {
                 return Ok(normalize_missing_values(Some(value)));
-            };
-            let mut repaired = self.repair_value(Some(value), Some(first), path)?;
+            }
+            let subschemas = subscript_subschemas(subschemas)?;
+            let mut repaired = self.repair_value(Some(value), Some(&subschemas[0]), path)?;
             for subschema in &subschemas[1..] {
                 repaired = self.repair_value(Some(repaired), Some(subschema), path)?;
             }
             return Ok(repaired);
         }
         for keyword in ["oneOf", "anyOf"] {
-            if let Some(Value::Array(subschemas)) = schema.get(keyword) {
-                return self.repair_union(&value, &subschemas.clone(), path);
+            if let Some(subschemas) = schema.get(keyword) {
+                let subschemas = iterate_subschemas(subschemas)?;
+                return self.repair_union(&value, &subschemas, path);
             }
         }
 
@@ -115,7 +118,15 @@ impl SchemaRepairer {
     ) -> Result<Value> {
         let mut last_error = None;
         for schema_type in types {
+            // Not skipped when it is not a string: upstream passes whatever the list holds to
+            // `_repair_by_type`, which reaches `_coerce_scalar`'s final raise and names it. A
+            // `continue` here turns `{"type": [[]]}` into "No schema type matched the value"
+            // where Python says "Unsupported schema type [] at $.".
             let Value::Str(schema_type) = schema_type else {
+                last_error = Some(Error::definition(&format!(
+                    "Unsupported schema type {} at {path}.",
+                    crate::value::python_str(schema_type)
+                )));
                 continue;
             };
             let mut branch_schema = schema.clone();
@@ -283,6 +294,47 @@ impl SchemaRepairer {
 /// `normalize_missing_values`: the sentinel becomes the empty string, everything else stands.
 pub(crate) fn normalize_missing_values(value: Maybe) -> Value {
     value.unwrap_or_else(|| Value::Str(String::new()))
+}
+
+/// `for subschema in schemas`, over whatever `oneOf` holds.
+///
+/// Python iterates without asking what it is: a list yields its items, a *string* its characters,
+/// a dict its keys, and anything else raises `TypeError` — which `except ValueError` does not
+/// catch, so it reaches the caller.
+fn iterate_subschemas(subschemas: &Value) -> Result<Vec<Value>> {
+    match subschemas {
+        Value::Array(items) => Ok(items.clone()),
+        Value::Str(text) => Ok(text
+            .chars()
+            .map(|char| Value::Str(char.to_string()))
+            .collect()),
+        Value::Object(fields) => Ok(fields
+            .keys()
+            .map(|key| Value::Str(key.to_owned()))
+            .collect()),
+        other => Err(Error::type_error(&format!(
+            "'{}' object is not iterable",
+            type_name(other)
+        ))),
+    }
+}
+
+/// `schemas[0]` and `schemas[1:]`, over whatever `allOf` holds and has already been found truthy.
+fn subscript_subschemas(subschemas: &Value) -> Result<Vec<Value>> {
+    match subschemas {
+        Value::Array(items) => Ok(items.clone()),
+        Value::Str(text) => Ok(text
+            .chars()
+            .map(|char| Value::Str(char.to_string()))
+            .collect()),
+        // A dict is subscripted by *key*, and `0` is not one — Python raises `KeyError(0)`,
+        // which is neither a `ValueError` nor a `TypeError` and so is caught nowhere.
+        Value::Object(_) => Err(Error::foreign("0")),
+        other => Err(Error::type_error(&format!(
+            "'{}' object is not subscriptable",
+            type_name(other)
+        ))),
+    }
 }
 
 /// `type(value).__name__`, for the one error message that prints it.

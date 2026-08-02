@@ -21,6 +21,10 @@ pub enum ValidationError {
     Invalid(String),
     /// The schema itself could not be read — `jsonschema` answers `{"type": "date"}` this way.
     Unreadable(String),
+    /// A `TypeError`: `jsonschema` given an `oneOf` that is a number, say. Distinct from
+    /// `Unreadable` because `repair_json`'s outer `except` names `TypeError` — so this one sends
+    /// the fast path to the parser instead of reaching the caller.
+    Type(String),
 }
 
 impl ValidationError {
@@ -28,6 +32,7 @@ impl ValidationError {
         match self {
             ValidationError::Invalid(message) => Error::new(&message),
             ValidationError::Unreadable(message) => Error::foreign(&message),
+            ValidationError::Type(message) => Error::type_error(&message),
         }
     }
 }

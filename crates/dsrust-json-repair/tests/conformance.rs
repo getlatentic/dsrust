@@ -75,7 +75,14 @@ fn every_recorded_input_parses_to_the_bytes_json_repair_produced() {
                     case["input"]
                 );
             }
-            (false, Err(_)) => {}
+            // The message too, not merely that both refused: two different refusals are two
+            // different behaviours, and comparing only the fact of one let a mutation that swapped
+            // them survive in the schema suite.
+            (false, Err(error)) => assert_eq!(
+                error,
+                case["message"].as_str().expect("a message"),
+                "{name}: {why}\n  refused for a different reason"
+            ),
             (true, Err(error)) => panic!(
                 "{name}: {why}\n  json_repair returned {}\n  we refused: {error}",
                 case["dumps"]

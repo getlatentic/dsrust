@@ -58,7 +58,7 @@ class Recorder:
                 # A validator that cannot read the schema at all. Not a `ValueError`, so nothing
                 # in `json_repair` catches it — recording it is what lets the Rust seam raise the
                 # same way instead of quietly answering False.
-                recorder.record(repairer, "is_valid", value, schema, {"ok": False, "raised": str(error)})
+                recorder.record(repairer, "is_valid", value, schema, {"ok": False, "raised": str(error), "raised_type": type(error).__name__})
                 raise
             recorder.record(repairer, "is_valid", value, schema, {"ok": bool(answer)})
             return answer
@@ -72,7 +72,7 @@ class Recorder:
             except Exception as error:  # noqa: BLE001
                 # Not a `ValueError`, so nothing in `json_repair` catches it. Recording it is what
                 # lets the Rust seam answer the same way rather than reporting a plain refusal.
-                recorder.record(repairer, "validate", value, schema, {"ok": False, "raised": str(error)})
+                recorder.record(repairer, "validate", value, schema, {"ok": False, "raised": str(error), "raised_type": type(error).__name__})
                 raise
             recorder.record(repairer, "validate", value, schema, {"ok": True})
 
@@ -136,9 +136,16 @@ def check_the_corpus_discriminates(cases: list[dict]) -> None:
 
     # A corpus that never makes the repairer ask the validator anything would pass against a seam
     # that was never wired up at all, which is exactly the failure this fixture exists to rule out.
-    asked = sum(len(case["calls"]) for case in cases)
-    if asked < len(cases):
-        raise SystemExit(f"only {asked} validator calls over {len(cases)} cases — the seam is idle")
+    #
+    # Counted against a floor rather than against the case count: a case that *refuses* before any
+    # validation is worth having — the wrong-typed-keyword sweep is mostly those — and tying the
+    # two together would make adding one cost a well-formed case somewhere else.
+    calls = [call for case in cases for call in case["calls"]]
+    methods = {call["method"] for call in calls}
+    if len(calls) < 60:
+        raise SystemExit(f"only {len(calls)} validator calls — the seam is barely exercised")
+    if methods != {"is_valid", "validate"}:
+        raise SystemExit(f"the corpus only reaches {sorted(methods)} — both entry points must run")
 
     salvaged = [case for case in cases if case.get("mode") == "salvage"]
     if not salvaged:

@@ -229,6 +229,45 @@ impl IntoIterator for Object {
     }
 }
 
+/// Python's `str(value)`, which is `repr` for every container and for `None`/`True`, and the text
+/// itself for a string. Reached only by the message naming a schema `type` that is not one.
+pub(crate) fn python_str(value: &Value) -> String {
+    match value {
+        Value::Str(text) => text.clone(),
+        other => python_repr(other),
+    }
+}
+
+/// Python's `repr(value)`: single-quoted strings, `None`/`True`/`False`, `[a, b]`, `{'k': v}`.
+pub(crate) fn python_repr(value: &Value) -> String {
+    match value {
+        Value::Null => "None".to_owned(),
+        Value::Bool(true) => "True".to_owned(),
+        Value::Bool(false) => "False".to_owned(),
+        Value::Int(number) => number.to_string(),
+        Value::BigInt(digits) => digits.clone(),
+        Value::Float(_) => crate::dump::dumps(value, true),
+        Value::Str(text) => format!("'{}'", text.replace('\\', "\\\\").replace('\'', "\\'")),
+        Value::Array(items) => {
+            let rendered: Vec<String> = items.iter().map(python_repr).collect();
+            format!("[{}]", rendered.join(", "))
+        }
+        Value::Object(fields) => {
+            let rendered: Vec<String> = fields
+                .iter()
+                .map(|(key, item)| {
+                    format!(
+                        "{}: {}",
+                        python_repr(&Value::Str(key.to_owned())),
+                        python_repr(item)
+                    )
+                })
+                .collect();
+            format!("{{{}}}", rendered.join(", "))
+        }
+    }
+}
+
 impl fmt::Display for Value {
     /// `json.dumps(value)` with its default arguments, `ensure_ascii` among them.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

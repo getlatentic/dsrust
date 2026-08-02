@@ -286,7 +286,7 @@ impl Repair {
 fn caught<T>(outcome: Result<T>) -> Result<Option<T>> {
     match outcome {
         Ok(value) => Ok(Some(value)),
-        Err(error) if error.is_foreign() => Err(error),
+        Err(error) if !error.is_caught_by_repair_json() => Err(error),
         Err(_) => Ok(None),
     }
 }
