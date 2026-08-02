@@ -25,12 +25,18 @@ impl Random {
     pub fn below(&mut self, bound: usize) -> usize {
         debug_assert!(bound > 0, "defined for a bound above zero, as CPython's is");
         let bits = usize::BITS - bound.leading_zeros();
-        loop {
+        // CPython's rejection loop, bounded. `getrandbits(bits)` spans at most twice `bound`, so a
+        // draw is accepted with probability above one half and a thousand consecutive rejections
+        // has probability below 2^-1000. The bound is not there for that: it is there because the
+        // loop's termination rests on the comparison being the right way round, and reversing it
+        // spins a core for the full mutation timeout instead of failing a test.
+        for _ in 0..1000 {
             let drawn = self.0.getrandbits(bits) as usize;
             if drawn < bound {
                 return drawn;
             }
         }
+        panic!("a thousand draws of {bits} bits all landed at or above {bound}")
     }
 
     /// CPython `random.random()`: a float in `[0, 1)` from 53 bits, which is `genrand_res53`.
@@ -63,6 +69,10 @@ impl Random {
             })
             .collect();
         let total = cumulative.last().copied().unwrap_or(0.0);
+        // CPython caps the index at the last element so a draw that rounds up to the total still
+        // lands in the population. `len() - 1` against `len() / 1` needs `random_double() * total`
+        // to reach `total`, which takes a rounding edge at a large total rather than an ordinary
+        // draw — `random_double()` is strictly below one.
         let hi = cumulative.len() - 1;
         (0..k)
             .map(|_| {
@@ -135,27 +145,27 @@ impl Random {
 /// `hi` is `len - 1`, matching CPython's `random.choices`, which caps the index at the last
 /// element so a draw that rounds up to the total still lands in the population.
 fn bisect_right(sorted: &[f64], x: f64, hi: usize) -> usize {
-    let (mut low, mut high) = (0, hi);
-    while low < high {
-        let mid = (low + high) / 2;
-        if x < sorted[mid] {
-            high = mid;
-        } else {
-            low = mid + 1;
-        }
-    }
-    low
+    // `partition_point` rather than a hand-rolled halving loop. The loop was right, and its
+    // termination rested on `(low + high) / 2` staying strictly between the bounds — so changing
+    // the `/` or the `+` did not fail a test, it hung the suite for the full timeout. The
+    // predicate is `!(x < v)` rather than `v <= x` to keep CPython's comparison exactly: it tests
+    // `x < a[mid]` and takes the else branch otherwise, so a NaN in the population falls right,
+    // where `v <= x` would send it left.
+    // See `numpy::searchsorted_right`: the `<=` spelling needs a draw exactly on a boundary.
+    sorted[..hi].partition_point(|&v| !(x < v))
 }
 
 /// CPython `random_seed`: an integer seed spread over 32-bit words, least significant first.
 ///
 /// Zero takes one zero word rather than none, which is the case dspy actually seeds with.
 fn key(seed: u64) -> Vec<u32> {
+    // A `u64` is two words, so the "spread over 32-bit words" loop can run at most once — and
+    // written as a loop its exit depended on the shift reducing `rest`, which a mutation reversing
+    // the comparison turned into a hang rather than a failure.
     let mut key = vec![seed as u32];
-    let mut rest = seed >> 32;
-    while rest > 0 {
-        key.push(rest as u32);
-        rest >>= 32;
+    let high = seed >> 32;
+    if high > 0 {
+        key.push(high as u32);
     }
     key
 }
@@ -169,10 +179,16 @@ fn setsize(k: usize) -> usize {
     if k <= 5 {
         return 21;
     }
-    let mut table = 1usize;
-    while table < k * 3 {
-        table *= 4;
-    }
+    // The smallest power of four at or above `k * 3`, without a loop whose exit depends on the
+    // multiply growing the value. A power of four is a power of two with an even exponent, so
+    // rounding `k * 3` up to a power of two and then up again to an even exponent is the same
+    // number — and cannot round the wrong way, since no power of four is divisible by three.
+    let two = (k * 3).next_power_of_two();
+    let table = if two.trailing_zeros() % 2 == 0 {
+        two
+    } else {
+        two << 1
+    };
     21 + table
 }
 

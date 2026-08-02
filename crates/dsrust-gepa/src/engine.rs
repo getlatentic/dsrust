@@ -349,27 +349,16 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         rng: &mut Random,
         sampler: &mut BatchSampler,
     ) -> Option<Proposal> {
-        let parent = match self.candidate_selection_strategy {
-            CandidateSelection::Pareto => {
-                select_candidate(state.fronts(), &state.mean_scores(), rng)
-            }
-            // gepa's `idxmax`: `lst.index(max(lst))`, so a tie goes to the earliest candidate. No
-            // draw from the generator, unlike the Pareto arm.
-            CandidateSelection::CurrentBest => idxmax(&state.mean_scores()),
-            CandidateSelection::EpsilonGreedy { epsilon } => {
-                let scores = state.mean_scores();
-                // The coin is drawn whatever it decides, which is what keeps the two branches from
-                // disagreeing about how far the generator has advanced.
-                match rng.random() < epsilon {
-                    true => rng.randint(0, scores.len().saturating_sub(1) as u64) as usize,
-                    false => idxmax(&scores),
-                }
-            }
-            CandidateSelection::TopKPareto { k } => {
-                let scores = state.mean_scores();
-                top_k_pareto(state.fronts(), &scores, k, rng)
-            }
-        };
+        // Through `select_with`, which is the function `tests/selectors.rs` drives against the
+        // gepa package. This match was written out again here, so the arm production took was a
+        // copy of the arm the conformance test checked — two bodies that agree until one is
+        // edited, with a golden that would keep passing either way.
+        let parent = select_with(
+            self.candidate_selection_strategy,
+            state.fronts(),
+            &state.mean_scores(),
+            rng,
+        );
         let subsample = sampler.next_minibatch_ids(self.trainset_size, state.i as usize, rng);
         let parent_candidate = state.candidates[parent].clone();
 

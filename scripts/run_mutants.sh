@@ -25,13 +25,29 @@ cd "$ROOT"
 #
 #   dsrust-tpe 1 — `n < 25` against `n <= 25` in `default_weights`. At n=25 the ramp is empty either
 #                  way and both arms return twenty-five ones, so nothing can tell them apart.
-#   pyrng      4 — one equivalent and three that hang rather than fail. `hi = len - 1` in `choices`
-#                  against `hi = len`: the bound is unreachable because `random()` is strictly below
-#                  one, so the target never reaches the top cumulative weight, and CPython refuses
-#                  the all-zero weights that would be the only other way there. The three timeouts
-#                  are `bisect_right`'s comparison and `below`'s rejection loop, where the mutant
-#                  spins instead of answering — detected, but as a hang rather than a failure.
-#   dsrust-gepa 27 — 27 survivors and no non-terminating ones left. Still the largest gap. Was
+#   pyrng      7 — every one equivalent or needing a constructed float, and the number *rose* from
+#                  4 rather than falling. It is not a regression and not a comparable number: the
+#                  old 4 was one survivor plus three hangs, and a hang stops a run before the rest
+#                  of that function's mutants are reached. Removing the hangs took the mutant count
+#                  from 158 to 203 and made every remaining survivor visible. Each is accounted for
+#                  in the source where it lives:
+#                    - `twist`'s `|` against `^` — the masks are disjoint, so the two are one
+#                      operation;
+#                    - `getrandbits`'s `owed < 32` against `<=` — at exactly 32 the shift is `>> 0`,
+#                      which is the else branch;
+#                    - `choice`'s `+=` against `-=` — accumulating negatively negates the divisor
+#                      too, so the normalised CDF is identical;
+#                    - `choice`'s `/=` against `*=` — every caller normalises first, so the divisor
+#                      is 1.0;
+#                    - `choices`'s `len() - 1` against `len() / 1` — needs `random_double() * total`
+#                      to reach `total`, a rounding edge rather than a draw;
+#                    - both `partition_point` predicates' `<` against `<=` — needs a draw landing
+#                      exactly on a cumulative boundary.
+#                  Four loops here ended on invariants they could not see and are now structural:
+#                  `bisect_right` and `searchsorted_right` are `partition_point`, `setsize` is
+#                  arithmetic (checked equal over 200000 inputs), `key` needs no loop for a `u64`,
+#                  and `below`'s rejection loop is bounded.
+#   dsrust-gepa 24 — 24 survivors and no non-terminating ones left. Still the largest gap. Was
 #                    46, and re-measured at exactly 46 under the fixed methodology before any of it
 #                    was closed — so unlike the adapter slice, this number was never an artifact.
 #                    What closed the eleven: `state.rs::best_program`, whose tie clause decides
@@ -45,6 +61,10 @@ cd "$ROOT"
 #                    only if every iteration spends some, which nothing enforced — an empty
 #                    minibatch spins it forever on a real run, not just a mutated one. The whole
 #                    campaign now takes 8 minutes rather than 30, because each hang cost two.
+#                    `propose` had the four-arm candidate-selection match written out again inline
+#                    rather than calling `select_with` — which is the function `tests/selectors.rs`
+#                    drives against the gepa package, so the conformance test was checking a copy of
+#                    what production ran. Collapsing it took three more.
 #                    `pyset.rs` was ten of these and is three:
 #                    both its loops terminated only on invariants they could not see — the probe
 #                    on `add` having resized, the size search on the shift growing the value — so
@@ -70,8 +90,8 @@ cd "$ROOT"
 #               Clean, on 2026-08-01: 150 mutants, 132 caught, 17 unviable, 0 timeouts, 1 missed.
 BASELINES=(
   "dsrust-tpe:1"
-  "pyrng:4"
-  "dsrust-gepa:27"
+  "pyrng:7"
+  "dsrust-gepa:24"
 )
 
 # The one `dsrust` slice with a floor. Scoped by file because the whole crate is a five-hour run,
@@ -112,6 +132,14 @@ ADAPTER_BASELINE=1
 # the other's build directory mid-run. Neither shows up as a failure; both show up as a number.
 export CARGO_BUILD_BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/dsrs-mutants-build.XXXXXX")"
 trap 'rm -rf "$CARGO_BUILD_BUILD_DIR" "$ROOT/mutants.out" "$ROOT/mutants.out.old"' EXIT
+
+# One job by default. cargo-mutants parallelises across cores, and a mutant that *hangs* holds a
+# core flat for the whole timeout rather than finishing early — so before the non-terminating ones
+# were fixed a run sat at 200% CPU for half an hour and had to be killed by hand. The machine is
+# shared with the editor, other worktree sessions and whatever else is open; a measurement is not
+# worth making the box unusable. Raise it deliberately with DSRS_MUTANT_JOBS when nothing else needs
+# the cores.
+JOBS="${DSRS_MUTANT_JOBS:-1}"
 
 if ! cargo mutants --version > /dev/null 2>&1; then
   echo "cargo-mutants is not installed: cargo install cargo-mutants --locked" >&2
@@ -162,7 +190,7 @@ for entry in "${BASELINES[@]}"; do
   echo "==> cargo mutants -p $package (baseline $allowed)"
   log="target/mutants-$package.log"
   set +e
-  cargo mutants -p "$package" --timeout 120 > "$log" 2>&1
+  cargo mutants -p "$package" --timeout 120 --jobs "$JOBS" > "$log" 2>&1
   set -e
   check_ratchet "$package" "$allowed" "$log" || status=1
 done

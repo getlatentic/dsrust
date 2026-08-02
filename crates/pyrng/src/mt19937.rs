@@ -86,6 +86,8 @@ impl Mt19937 {
 
     fn twist(&mut self) {
         for at in 0..N {
+            // `|` and `^` are the same operation here — the masks are disjoint, so no bit is set
+            // on both sides. Noted because a mutation run offers the `^` as a survivor forever.
             let joined = (self.state[at] & UPPER_MASK) | (self.state[(at + 1) % N] & LOWER_MASK);
             let odd = if joined & 1 == 0 { 0 } else { MATRIX_A };
             self.state[at] = self.state[(at + M) % N] ^ (joined >> 1) ^ odd;
@@ -107,7 +109,8 @@ impl Mt19937 {
         let mut owed = bits;
         while owed > 0 {
             let word = self.next_u32();
-            // The last word is shifted down to leave exactly the bits still owed.
+            // The last word is shifted down to leave exactly the bits still owed. `<` and `<=`
+            // cannot be told apart: at exactly 32 the shift is `>> 0`, which is the else branch.
             let word = if owed < 32 { word >> (32 - owed) } else { word };
             drawn |= u64::from(word) << shift;
             shift += 32;
