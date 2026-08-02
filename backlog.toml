@@ -618,6 +618,56 @@ allowance can be deleted and the rule becomes "no disagreements at all".
 """
 
 [[story]]
+id = "json-repair-parity-is-a-gate-nobody-runs"
+sprint = "conformance"
+title = "The json-repair parity ledger checks a symbol exists, and no gate runs it"
+state = "todo"
+size = "S"
+suites = []
+plan = """
+`scripts/check_json_repair_parity.py` holds all 149 functions of the pinned package against a named
+Rust counterpart and fails on an unmapped symbol, a mapping pointing at nothing, a signature that
+moved, or an absence with no reason. It passes. **Nothing runs it.**
+
+`run_rust_gates.sh` is deliberately the no-venv script and this needs the venv to import
+`json_repair`; `run_upstream_tests.sh` is the venv gate but only runs in the main checkout, which is
+where a worktree agent — exactly the one who would port a function and drop one — cannot reach it.
+So it is a command someone has to remember, which `gates-were-a-checklist` says is not a gate.
+
+Wiring it into `run_rust_gates.sh` changes that script's contract from "needs no Python" to "needs
+`uv sync`". That is the decision to make; it is not obviously wrong, since the script already runs
+`python3` for three of its steps.
+
+**And the ledger is weaker than its name.** 72 of its 126 mappings carry no note, so for those it
+says "a Rust function of about this name exists" — it would pass against a body that returns the
+wrong answer. Ten real defects were found by *reading* those bodies afterwards, none of which the
+ledger could see. Requiring a note on every entry would turn "unread" from something that passes
+into something that fails.
+"""
+
+[[story]]
+id = "json-repair-mutation-baseline"
+sprint = "conformance"
+title = "dsrust-json-repair has no entry in run_mutants.sh, and the one measurement was void"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+The crate is the only workspace member with no ratchet. One whole-crate run completed — 1770
+mutants, 591 missed, 65 timeouts — and the number is **void**: another session was running
+`cargo mutants` in the main checkout at the same time, and both were writing to the fixed
+`$TMPDIR/dsrs-mutants-build`. Each linked the other's mutated rlibs, and whichever finished first
+deleted the directory out from under the other. That collision is fixed (`mktemp -d`), so a clean
+run is possible; it needs the machine to itself for about three hours at ~11s a mutant, serial.
+
+Two things measured on the void run are still worth carrying over, because they are about the
+*suite* rather than the count. `lookahead.rs` lost 131 of 139 viable mutants because `tests/fuzz.rs`
+skips when the campaign corpus is absent and cargo-mutants copies a tree that never has it — which
+is why `json_repair_sweep.json` was committed. And parallelism is not an option here: `-j` reports
+survivors that are nothing of the sort, measured at 24 against a serial 0.
+"""
+
+[[story]]
 id = "can-the-suite-fail"
 sprint = "conformance"
 title = "Measure whether the conformance suite can fail, rather than that it passes"
