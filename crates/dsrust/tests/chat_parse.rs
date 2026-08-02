@@ -140,11 +140,42 @@ fn the_parser_reads_what_dspys_reads_and_refuses_what_dspy_refuses() {
             }
             false => {
                 refused += 1;
-                assert!(
-                    ours.is_err(),
-                    "case {name}: dspy refused this and we accepted it as {ours:?} — a wrong value \
-                     reaching the caller rather than an error"
-                );
+                // The message, not merely that both refused. Every refusal here is an
+                // `AdapterParseError`, so comparing the fact of one compares nothing: it is the
+                // text that names the adapter, the reply and the fields it expected.
+                let refusal = ours
+                    .as_ref()
+                    .err()
+                    .map(std::string::ToString::to_string)
+                    .unwrap_or_else(|| panic!(
+                        "case {name}: dspy refused this and we accepted it — a wrong value reaching \
+                         the caller rather than an error"
+                    ));
+                // A cast failure carries pydantic's own rendering, down to a versioned docs URL.
+                // Asserted as a *difference* so it goes red the day someone reproduces it, rather
+                // than skipped and forgotten.
+                match expected["message_diverges"].as_str() {
+                    Some(reason) => {
+                        assert_eq!(
+                            reason, "pydantic-error-text",
+                            "{name}: undeclared divergence"
+                        );
+                        assert_ne!(
+                            refusal.as_str(),
+                            expected["message"].as_str().expect("a message"),
+                            "case {name}: this now matches dspy — drop `message_diverges`"
+                        );
+                        assert!(
+                            !refusal.is_empty(),
+                            "case {name}: refused with nothing to read"
+                        );
+                    }
+                    None => assert_eq!(
+                        refusal.as_str(),
+                        expected["message"].as_str().expect("a message"),
+                        "case {name}: refused for a different reason"
+                    ),
+                }
             }
         }
     }

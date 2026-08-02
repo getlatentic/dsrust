@@ -36,9 +36,6 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
         let joined = lines.join("\n");
         fields.insert(name.to_owned(), section_value(field, joined.trim()));
     }
-    if fields.is_empty() {
-        return Err(anyhow!("reply has no [[ ## field ## ]] sections"));
-    }
     // dspy's `ChatAdapter.parse` ends on `if fields.keys() != signature.output_fields.keys():
     // raise AdapterParseError`, so a reply short of a field is a *parse* failure and
     // `ChatAdapter.__call__` answers it by re-asking through `JSONAdapter`. Letting it through to
@@ -49,6 +46,7 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
             adapter_name: "ChatAdapter".to_owned(),
             lm_response: raw.to_owned(),
             expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
+            message: None,
         }));
     }
     // **A known divergence, recorded rather than papered over.** dspy's `ChatAdapter.parse` casts
@@ -184,13 +182,19 @@ fn next_tag(text: &str) -> Option<(&str, &str, &str)> {
 #[derive(Debug)]
 pub struct FieldMismatch {
     /// The declared fields the reply did carry, in signature order.
+    ///
+    /// [`Value::Null`] is upstream's `parsed_result=None`, which omits the trailing line — its
+    /// guard is `is not None`, so an *empty* object still prints `[]`.
     pub parsed: Value,
     /// dspy's `adapter_name`: which wire format was reading. Empty where the caller did not say.
     pub adapter_name: String,
-    /// The reply as it arrived, which is the thing a reader needs to see to fix it.
+    /// The reply as it arrived — or, once the JSON adapter's brace search has fired, the object it
+    /// pulled out, since upstream rebinds `completion` to the match before it reports anything.
     pub lm_response: String,
     /// Every field the signature declared, in order.
     pub expected_fields: Vec<String>,
+    /// dspy's optional `message`, written above the rest and separated by a blank line.
+    pub message: Option<String>,
 }
 
 impl FieldMismatch {
@@ -203,6 +207,9 @@ impl std::fmt::Display for FieldMismatch {
     /// blank line is upstream's and looks accidental; it is on the wire either way, and this is
     /// the text a caller reads when a reply does not parse.
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(message) = &self.message {
+            write!(out, "{message}\n\n")?;
+        }
         write!(
             out,
             "Adapter {} failed to parse the LM response. \n\nLM Response: {} \n\n\
@@ -211,11 +218,10 @@ impl std::fmt::Display for FieldMismatch {
             self.lm_response,
             self.expected_fields.join(", "),
         )?;
-        // Upstream appends this only when something did parse, so an all-or-nothing failure does
-        // not end with an empty list that reads like a bug.
-        if let Some(parsed) = self.parsed.as_object()
-            && !parsed.is_empty()
-        {
+        // Upstream's guard is `if parsed_result is not None`, so an empty parse still ends with
+        // `[]` — it looks like a bug and it is on the wire. `Value::Null` is the `None` that omits
+        // it, which upstream reaches only from the field-cast branch this crate casts elsewhere.
+        if let Some(parsed) = self.parsed.as_object() {
             let names: Vec<&str> = parsed.keys().map(String::as_str).collect();
             write!(
                 out,
@@ -258,11 +264,17 @@ pub(super) fn declared_fields(
             adapter_name: adapter_name.to_owned(),
             lm_response: raw.to_owned(),
             expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
+            message: None,
         })),
     }
 }
 
-pub(super) fn parse_json(raw: &str) -> Result<Value> {
+/// The object a JSON reply carries, and the text any later failure should name.
+///
+/// Upstream's recovery is `completion = match.group(0)` — it *rebinds* the variable, so once the
+/// brace search has fired every `AdapterParseError` reports the extracted object rather than the
+/// reply it came out of. The second half of the pair is that rebinding.
+pub(super) fn parse_json<'a>(signature: &Signature, raw: &'a str) -> Result<(Value, &'a str)> {
     // `JSONAdapter.parse` opens with `json_repair.loads(completion)` and then asks
     // `isinstance(fields, dict)` — a reply that reads as an *array* or a scalar is not an answer,
     // so it falls through to the brace search rather than being handed on. `[{"answer": "Paris"}]`
@@ -270,15 +282,23 @@ pub(super) fn parse_json(raw: &str) -> Result<Value> {
     if let Ok(value) = repair::loads(raw)
         && value.is_object()
     {
-        return Ok(value);
+        return Ok((value, raw));
     }
-    if let Some(embedded) = first_balanced_braces(raw)
-        && let Ok(value) = repair::loads(embedded)
+    // The rebinding stands even when the extracted text is still not an object, because upstream
+    // assigns before it re-tests — so the refusal names the extract either way.
+    let named = first_balanced_braces(raw).unwrap_or(raw);
+    if let Ok(value) = repair::loads(named)
         && value.is_object()
     {
-        return Ok(value);
+        return Ok((value, named));
     }
-    Err(anyhow!("model returned invalid JSON"))
+    Err(anyhow::Error::new(FieldMismatch {
+        parsed: Value::Null,
+        adapter_name: "JSONAdapter".to_owned(),
+        lm_response: named.to_owned(),
+        expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
+        message: Some("LM response cannot be serialized to a JSON object.".to_owned()),
+    }))
 }
 
 /// The first balanced `{…}` run, which is what dspy's `\{(?:[^{}]|(?R))*\}` finds.
@@ -474,11 +494,40 @@ mod tests {
 
     #[test]
     fn parse_json_accepts_bare_and_prose_wrapped_objects() {
-        let bare = parse_json(r#"{ "color": "red" }"#).expect("bare");
+        let (bare, named) = parse_json(&signature(), r#"{ "color": "red" }"#).expect("bare");
         assert_eq!(bare["color"], "red");
-        let wrapped =
-            parse_json("Here it is:\n```json\n{ \"color\": \"blue\" }\n```").expect("wrapped");
+        assert_eq!(named, r#"{ "color": "red" }"#, "nothing was extracted");
+        // json-repair reads prose and fences itself, so this never reaches the brace search and
+        // upstream never rebinds — the reply is what a later failure would name.
+        let fenced = "Here it is:\n```json\n{ \"color\": \"blue\" }\n```";
+        let (wrapped, named) = parse_json(&signature(), fenced).expect("wrapped");
         assert_eq!(wrapped["color"], "blue");
-        assert!(parse_json("no json here").is_err());
+        assert_eq!(named, fenced);
+        assert!(parse_json(&signature(), "no json here").is_err());
+    }
+
+    /// The brace search fires only where json-repair answered with something that is not an object,
+    /// and upstream's `completion = match.group(0)` rebinds what every later failure reports.
+    /// Measured: `dspy.JSONAdapter().parse` writes `LM Response: {"color": "blue"}` for this input,
+    /// not the array it arrived in.
+    #[test]
+    fn the_brace_search_rebinds_what_a_failure_names() {
+        let (value, named) =
+            parse_json(&signature(), r#"[{"color": "blue"}] trailing"#).expect("extracted");
+        assert_eq!(value["color"], "blue");
+        assert_eq!(named, r#"{"color": "blue"}"#);
+    }
+
+    /// Upstream raises the same `AdapterParseError` with a `message=` prefix here, where the crate
+    /// used to answer a bare "model returned invalid JSON".
+    #[test]
+    fn a_reply_that_is_not_an_object_refuses_the_way_dspy_refuses() {
+        let error = parse_json(&signature(), "[1, 2]").expect_err("an array is not an answer");
+        assert_eq!(
+            error.to_string(),
+            "LM response cannot be serialized to a JSON object.\n\nAdapter JSONAdapter failed to \
+             parse the LM response. \n\nLM Response: [1, 2] \n\nExpected to find output fields in \
+             the LM response: [color, why] \n\n"
+        );
     }
 }

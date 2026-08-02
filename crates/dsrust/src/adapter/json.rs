@@ -82,12 +82,10 @@ impl Adapter for JsonAdapter {
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
-        let mut value = super::parse::declared_fields(
-            signature,
-            super::parse::parse_json(raw)?,
-            "JSONAdapter",
-            raw,
-        )?;
+        // The text a failure names is the extract once the brace search has fired, not the reply:
+        // upstream rebinds `completion = match.group(0)` before it reports anything.
+        let (parsed, named) = super::parse::parse_json(signature, raw)?;
+        let mut value = super::parse::declared_fields(signature, parsed, "JSONAdapter", named)?;
         // dspy casts *every* field here with `parse_value(v, annotation)` — structured ones
         // included, and unwrapped, so a value that will not fit raises rather than becoming an
         // `AdapterParseError`. Two consequences worth naming: a `str` field handed an object comes

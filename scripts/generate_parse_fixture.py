@@ -315,11 +315,26 @@ def spelling(annotation) -> str:
 
 
 def parsed(adapter, signature, completion: str) -> dict:
-    """What the adapter returns, or the kind of error it raises."""
+    """What the adapter returns, or how it refuses — the message, not only the class.
+
+    Every refusal these three adapters raise is an `AdapterParseError`, so recording the class alone
+    leaves the Rust side comparing a refusal against a refusal and nothing else. The message is
+    where the adapter name, the reply it read and the fields it wanted actually appear.
+    """
     try:
         return {"ok": True, "fields": adapter.parse(signature, completion)}
     except Exception as error:
-        return {"ok": False, "error": type(error).__name__}
+        message = str(error)
+        # A cast failure carries **pydantic's** rendering — the field's whole repr, the
+        # `[type=int_parsing, input_value=...]` tail, and a versioned docs URL. Reproducing that
+        # would mean reimplementing pydantic's error formatter and pinning its version in a Rust
+        # string, so this one refuses with the crate's own text and says so.
+        return {
+            "ok": False,
+            "error": type(error).__name__,
+            "message": message,
+            "message_diverges": "pydantic-error-text" if "errors.pydantic.dev" in message else None,
+        }
 
 
 def main() -> None:

@@ -122,16 +122,13 @@ fn a_failure_renders_as_dspy_renders_it() {
 fn a_parse_failure_renders_as_dspy_renders_it() {
     for case in golden()["parse_errors"].as_array().expect("parse_errors") {
         let label = case["label"].as_str().expect("a label");
-        // Upstream prefixes a caller-supplied message; the crate has no such argument, so the two
-        // cases that carry one are compared against the body after it.
-        let expected = case["rendered"]
-            .as_str()
-            .expect("the rendered text")
-            .strip_prefix("Failed to parse\n\n")
-            .unwrap_or_else(|| case["rendered"].as_str().expect("the rendered text"));
+        let expected = case["rendered"].as_str().expect("the rendered text");
+        // Upstream's two optional arguments, one per case. `parsed_result=None` is `Value::Null`
+        // and omits the trailing line; an *empty* dict still prints `[]`, since the guard is
+        // `is not None`. The whole text is compared now, prefix included.
         let parsed = match label == "with a parsed result" {
             true => json!({ "answer1": "answer1" }),
-            false => json!({}),
+            false => Value::Null,
         };
         let mismatch = FieldMismatch {
             parsed,
@@ -143,6 +140,7 @@ fn a_parse_failure_renders_as_dspy_renders_it() {
                 .iter()
                 .map(|name| name.as_str().expect("a name").to_owned())
                 .collect(),
+            message: (label == "with a message").then(|| "Failed to parse".to_owned()),
         };
         assert_eq!(mismatch.to_string(), expected, "{label}");
     }

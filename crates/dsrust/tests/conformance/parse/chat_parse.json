@@ -94,7 +94,9 @@
       "adapter": "chat",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]] \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -105,7 +107,9 @@
       "adapter": "chat",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response:  \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -116,7 +120,9 @@
       "adapter": "chat",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response: I think the answer is Paris. \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -328,7 +334,9 @@
       "adapter": "chat",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Failed to parse field score with value very high from the LM response. Error message: 1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='very high', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\nvery high\n\n[[ ## tags ## ]]\n[\"a\"] \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
+        "message_diverges": "pydantic-error-text"
       },
       "diverges": true
     },
@@ -339,7 +347,9 @@
       "adapter": "chat",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Failed to parse field score with value  from the LM response. Error message: 1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\n\n\n[[ ## tags ## ]]\n[\"a\"] \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
+        "message_diverges": "pydantic-error-text"
       },
       "diverges": true
     },
@@ -434,7 +444,9 @@
       "adapter": "xml",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning id=\"1\">Because.</reasoning>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -473,7 +485,9 @@
       "adapter": "xml",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -484,7 +498,9 @@
       "adapter": "xml",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>Because.\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -495,7 +511,9 @@
       "adapter": "xml",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>Because.</thinking>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -548,7 +566,9 @@
       "adapter": "xml",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response:  \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -577,7 +597,9 @@
       "adapter": "xml",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Failed to parse field annotation=int required=True json_schema_extra={'__dspy_field_type': 'output', 'prefix': 'Score:', 'desc': '${score}'} with value very high: 1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='very high', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <answer>Paris</answer>\n<score>very high</score>\n<tags>[\"a\"]</tags> \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
+        "message_diverges": "pydantic-error-text"
       },
       "diverges": false
     },
@@ -742,7 +764,9 @@
       "adapter": "json",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter JSONAdapter failed to parse the LM response. \n\nLM Response: {\"answer\": \"Paris\"} \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -753,7 +777,9 @@
       "adapter": "json",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "LM response cannot be serialized to a JSON object.\n\nAdapter JSONAdapter failed to parse the LM response. \n\nLM Response: just some prose with no braces \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -764,7 +790,9 @@
       "adapter": "json",
       "chat": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "LM response cannot be serialized to a JSON object.\n\nAdapter JSONAdapter failed to parse the LM response. \n\nLM Response:  \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -829,7 +857,9 @@
       "adapter": "json",
       "chat": {
         "ok": false,
-        "error": "ValidationError"
+        "error": "ValidationError",
+        "message": "1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='very high', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing",
+        "message_diverges": "pydantic-error-text"
       },
       "diverges": false
     },

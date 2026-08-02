@@ -109,10 +109,17 @@ SHAPES = {"chat": marker_reply, "xml": tag_reply, "json": json_reply}
 
 
 def parsed(adapter, completion: str) -> dict:
+    """What the adapter answered, or how it refused — the message, not only the class.
+
+    Every refusal these generators produce is an `AdapterParseError`, so a corpus recording only the
+    class name gives the Rust side nothing to compare: any refusal matches any refusal, across the
+    88% of each campaign that dspy rejects. The message is what says *which* field was missing and
+    which adapter was reading.
+    """
     try:
         return {"ok": True, "fields": adapter.parse(QA, completion)}
     except Exception as error:
-        return {"ok": False, "error": type(error).__name__}
+        return {"ok": False, "error": type(error).__name__, "message": str(error)}
 
 
 def main() -> None:

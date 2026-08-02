@@ -41,6 +41,12 @@ fn adapter_for(name: &str) -> Box<dyn Adapter> {
 /// How a case disagreed, so the summary can group rather than list.
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Shape {
+    /// Both refused, for different reasons.
+    ///
+    /// dspy raises `AdapterParseError` for every refusal these generators produce, so matching the
+    /// class alone matched everything — across the 88% of each campaign dspy rejects. The message
+    /// names the missing field and the adapter that was reading, which is the part a caller acts on.
+    DifferentRefusal,
     /// dspy parsed it and we refused.
     WeRefused,
     /// We parsed it and dspy refused — the worse direction: a wrong value reaches the caller.
@@ -73,7 +79,12 @@ fn no_random_reply_parses_differently_from_dspys() {
 
         let shape = match (expected["ok"].as_bool().expect("ok"), &ours) {
             (true, Ok(ours)) if *ours == expected["fields"] => continue,
-            (false, Err(_)) => continue,
+            (false, Err(ours))
+                if ours.to_string() == expected["message"].as_str().unwrap_or_default() =>
+            {
+                continue;
+            }
+            (false, Err(_)) => Shape::DifferentRefusal,
             (true, Err(_)) => Shape::WeRefused,
             (false, Ok(_)) => Shape::WeAccepted,
             (true, Ok(_)) => Shape::DifferentValue,
@@ -104,6 +115,7 @@ fn no_random_reply_parses_differently_from_dspys() {
     let mut tally: std::collections::BTreeMap<(&str, &str), usize> = Default::default();
     for (shape, which, _) in &disagreements {
         let label = match shape {
+            Shape::DifferentRefusal => "both refused, differently",
             Shape::WeRefused => "dspy parsed, we refused",
             Shape::WeAccepted => "we parsed, dspy refused",
             Shape::DifferentValue => "both parsed, differently",
@@ -122,6 +134,7 @@ fn no_random_reply_parses_differently_from_dspys() {
     );
     for (shape, which, detail) in disagreements.iter().take(40) {
         let label = match shape {
+            Shape::DifferentRefusal => "both refused, differently",
             Shape::WeRefused => "dspy parsed, we refused",
             Shape::WeAccepted => "we parsed, dspy refused",
             Shape::DifferentValue => "both parsed, differently",
