@@ -83,10 +83,21 @@ def signature(fn: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
     return "(" + ", ".join(parts) + ")"
 
 
+class Unreadable(Exception):
+    """One side of the comparison was not there, which is not the same as the two agreeing."""
+
+
 def drift(module: str, pin: str) -> tuple[set[str], set[str]] | None:
-    """What main adds and what it drops, or None where the module is unchanged or unreadable."""
+    """What main adds and what it drops, or None where the module is unchanged.
+
+    Unreadable raises rather than returning None. Folding the two together is what let this report
+    `every ported module's public surface is identical on main` in a worktree with an empty
+    submodule — the strongest sentence it can print, from a comparison it never made.
+    """
     pinned, current = at(pin, module), at("origin/main", module)
-    if pinned is None or current is None or pinned == current:
+    if pinned is None or current is None:
+        raise Unreadable(module)
+    if pinned == current:
         return None
     was, now = names(pinned), names(current)
     added, gone = now - was, was - now
@@ -102,9 +113,24 @@ def main() -> int:
     print(f"==> Public surface: pinned {pin} against origin/main")
 
     moved: dict[str, tuple[set[str], set[str]]] = {}
+    unreadable: list[str] = []
     for module in PORTED_MODULES:
-        if found := drift(module, pin):
-            moved[module] = found
+        try:
+            if found := drift(module, pin):
+                moved[module] = found
+        except Unreadable:
+            unreadable.append(module)
+
+    if unreadable:
+        print(f"    {len(unreadable)} of {len(PORTED_MODULES)} modules could not be read at all:")
+        for module in unreadable[:5]:
+            print(f"      ? {module}")
+        print(
+            f"\n    {DSPY.relative_to(ROOT)} is missing, or has no origin/main. This report says\n"
+            "    nothing about drift until it can read both sides:\n"
+            "      git submodule update --init third_party/dspy"
+        )
+        return 1
 
     if not moved:
         print("    every ported module's public surface is identical on main")

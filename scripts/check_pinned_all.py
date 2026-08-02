@@ -30,6 +30,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DSPY = ROOT / "third_party" / "dspy"
 LEDGER = ROOT / "scripts" / "api_ledger.toml"
+#: How many ported modules declare `__all__` at the pinned tag. Measured, not chosen.
+DECLARING = 3
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from api_surface import PORTED_MODULES  # noqa: E402
@@ -39,15 +41,20 @@ def pinned_tag() -> str:
     return (ROOT / "scripts" / "DSPY_VERSION").read_text().strip()
 
 
-def exported(module: str, tag: str) -> list[str]:
-    """A module's own `__all__` at the pinned tag, or [] where it declares none."""
+def exported(module: str, tag: str) -> list[str] | None:
+    """A module's own `__all__` at the pinned tag, [] where it declares none, None where unreadable.
+
+    The three-way answer is the point. Folding "declares no `__all__`" together with "I could not
+    read this file" is what let this gate report `0 of 60 ported modules declare __all__` and then
+    OK, in a worktree where the submodule is an empty directory — a pass that read nothing.
+    """
     shown = subprocess.run(
         ["git", "-C", str(DSPY), "show", f"{tag}:dspy/{module}"],
         capture_output=True,
         text=True,
     )
     if shown.returncode != 0:
-        return []
+        return None
     tree = ast.parse(shown.stdout)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Assign):
@@ -78,9 +85,13 @@ def main() -> int:
 
     print(f"==> Every `__all__` name in the pinned tree ({tag})")
     missing: list[tuple[str, str]] = []
+    unreadable: list[str] = []
     declaring = 0
     for module in PORTED_MODULES:
         names = exported(module, tag)
+        if names is None:
+            unreadable.append(module)
+            continue
         if not names:
             continue
         declaring += 1
@@ -89,7 +100,26 @@ def main() -> int:
                 continue
             missing.append((module, name))
 
+    if unreadable:
+        print(f"\n`__all__` gate FAILED:\n  {len(unreadable)} ported module(s) not in the pin:")
+        for module in unreadable[:5]:
+            print(f"      ? {module}")
+        print(
+            f"\n  The submodule at {DSPY.relative_to(ROOT)} is missing or does not have {tag}.\n"
+            "  Run: git submodule update --init third_party/dspy"
+        )
+        return 1
+
     print(f"    {declaring} of {len(PORTED_MODULES)} ported modules declare `__all__`")
+    # Three do, and the gate is worth nothing against zero of them. A floor at the measured number
+    # rather than at one: losing two of the three would otherwise still read as a pass.
+    if declaring < DECLARING:
+        print(
+            f"\n`__all__` gate FAILED:\n  only {declaring} module(s) declare `__all__`, "
+            f"against {DECLARING} when this floor was measured.\n"
+            "  Either the pin moved and this number moves with it, or the walk stopped seeing them."
+        )
+        return 1
     if not missing:
         print("\n`__all__` gate: OK (every exported name has a ledger answer)")
         return 0
