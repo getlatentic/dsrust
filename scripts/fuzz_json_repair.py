@@ -118,6 +118,13 @@ def container(rng: random.Random, depth: int) -> str:
 def reply(rng: random.Random) -> str:
     """One whole input, wrapped the ways a model wraps an answer."""
     body = container(rng, depth=2)
+    # A second top-level value one time in six. `_parse_top_level` gathers repeated values into a
+    # list, and decides between *appending* and *replacing* by asking `ObjectComparer.is_same_object`
+    # — same type, same keys, values ignored — and by whether a comma separated them. A grammar of
+    # one container per reply never reaches any of it.
+    if rng.random() < 0.17:
+        separator = rng.choice(["", " ", ", ", ",", "\n"])
+        body += separator + container(rng, depth=1)
     prefix = rng.choice(["", "", "Sure! ", "```json\n", "Here (see below): ", "# note\n"])
     suffix = rng.choice(["", "", "\n```", " done", "\n", rng.choice(NOISE)])
     return prefix + body + suffix

@@ -57,7 +57,7 @@ fn every_drawn_input_repairs_and_logs_the_way_json_repair_does() {
     // malformed input, would otherwise still pass.
     assert!(cases.len() >= 500, "the sweep is {} cases", cases.len());
     assert!(
-        logged >= 2281,
+        logged >= 2551,
         "only {logged} logged repairs across the sweep"
     );
     eprintln!(
