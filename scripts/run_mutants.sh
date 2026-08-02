@@ -37,6 +37,12 @@ cd "$ROOT"
 #                    intersection tie was in that list and is not any more — see the note in
 #                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
 #                    finished state.
+#   dsrust-json-repair — no entry yet, deliberately. A run was started and abandoned: the crate was
+#                        edited four times while it was in flight, so its copies held 217 schema
+#                        cases against the tree's 220 and no `fuzz.rs` guard, and its log carried 80
+#                        MISSED and 30 TIMEOUT against a tree that no longer existed. A floor has to
+#                        come from a still tree. Freeze the crate, run it whole, then write the
+#                        number the run produced.
 #   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours. Run it
 #               scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
 #               history, parse) measured 43 of 143 viable on 2026-08-01, 35 of them in `parse.rs`,
