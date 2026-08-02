@@ -631,7 +631,6 @@ id = "can-the-suite-fail"
 sprint = "conformance"
 title = "Measure whether the conformance suite can fail, rather than that it passes"
 state = "in-progress"
-progress = "dsrust-tpe 18 -> 1 and pyrng 16 -> 4, both ratcheted 2026-08-01. dsrust-gepa and dsrust itself are unmeasured."
 size = "L"
 suites = []
 plan = """
@@ -720,6 +719,42 @@ would let the number fall silently as tests got slower.
 
 Remaining: `dsrust-gepa`, and the byte-critical modules of `dsrust` itself, which is the large half.
 Expect the `dsrust` run to be slow enough to want scoping by file.
+"""
+progress = """
+dsrust-tpe 18 -> 1 and pyrng 16 -> 4, both ratcheted 2026-08-01. dsrust-gepa and dsrust itself are unmeasured.
+
+2026-08-02. Three crates and one file-scoped slice are ratcheted in `scripts/run_mutants.sh`:
+`dsrust-tpe:1`, `pyrng:4`, `dsrust-gepa:27`, and the byte-critical adapter slice at 1 of 133 viable.
+What the runs cost is now part of the point — the gepa campaign went from 30 minutes to 8 once the
+hangs were gone, which is the difference between a check that gets run and one that does not.
+
+**The story's list of "checks that could not fail" was missing a seventh shape, and it is worse than
+the six: a check that does not run at all.** `parse_fuzz` returned early when its corpus was absent,
+and the corpus lived in `target/` — so cargo-mutants copies a tree that never has one, and neither
+does a fresh clone. The parser's strongest oracle, tens of thousands of differential cases,
+contributed nothing to any survivor count. Fixed with a committed fixed-seed sweep the test always
+reads.
+
+Sweeping for that same shape found `dspy_loads_and_runs_what_this_crate_saved`: `#[ignore]`, run by
+nothing, and its paths written as though `CARGO_MANIFEST_DIR` were the workspace root — so it could
+only ever have failed. The README's interop claim rested on it. It is in the gate now, which needs
+that venv anyway.
+
+**And a measurement can be void without being wrong-looking.** `run_mutants.sh` built into one fixed
+path, so two worktree sessions on this machine shared it — and `dsrust` depends on
+`dsrust-json-repair`, so one run's mutated rlib landed where the other's test binaries link from.
+The cleanup is `rm -rf`, so the first to finish deleted the other's build directory mid-run. Now
+`mktemp -d`. Every survivor count taken before that is void — except gepa's 46, which was
+re-measured at exactly 46 and so was real. Nothing about either number said in advance which it
+would be, which is the argument for re-measuring rather than reasoning.
+
+**A third rule for the story, beside the two generator disciplines it already names:** a loop that
+ends because something *else* maintains an invariant is a loop that hangs the day that thing
+changes, and a hang is the one failure no assertion can report. Three of them today —
+`parse.rs::next_tag`, `pyset.rs::slot_of` and `resize`, `engine.rs::optimize` — and the last was a
+live hazard rather than a mutation artifact: an empty trainset spins GEPA forever.
+
+What remains is scoped as `gepa-mutation-survivors` and `mutation-coverage-gaps`.
 """
 
 [[story]]
@@ -2640,6 +2675,65 @@ here at all; size it before promising it.
 # Backlog — triaged at sprint planning, not scheduled
 # ---------------------------------------------------------------------------
 
+[[story]]
+id = "gepa-mutation-survivors"
+sprint = "conformance"
+title = "Twenty-seven lines of the flagship optimizer that no test constrains"
+state = "todo"
+size = "M"
+suites = ""
+plan = """
+Measured 2026-08-02 with `./scripts/run_mutants.sh dsrust-gepa`, which ratchets at 27. The number
+was 46, re-measured at exactly 46 under the fixed methodology before anything was closed — so unlike
+the adapter slice these are real gaps rather than an artifact of the shared build directory. Nineteen
+were closed the same day; these are what is left, and they live in a shell-script comment until they
+live here.
+
+**`engine.rs` — 11.** Two clusters. The metric-call budget arithmetic at 222-252: `>` against `>=`
+on the budget check, and the `-=`/`+=` on `merge.due` and `merge.total_tested`, which decide how
+many merges a run attempts. And the candidate-selection comparisons — `select_with`'s `<` and the
+three at 352 — which decide *which parent* a reflective step rewrites. Both are consequential and
+neither has a case that separates the spellings: a merge schedule is only observable across several
+accepted programs, and a selection tie only where two candidates score the same.
+
+**`merge.rs` — 6** and **`instruction_proposal.rs` — 6.** The second is fence parsing on a
+reflection reply, which is the same shape as the adapter's parse side and should be closed the same
+way: a corpus of replies run through gepa's own parser, refusals included.
+
+**`pyset.rs` — 3, all equivalent** and marked as such in the source. A wider probe bound is still a
+bound; `minused` against `minused + 1` cannot differ because `add` only ever calls resize with
+`fill * 4` where the tripping fill is 5, 19, 77 — never a power of two.
+
+**`batch.rs` — 1.**
+
+**What proves it.** The ratchet falls. It is a floor, not a target of zero: some of the 27 will turn
+out equivalent like pyset's, and the work is to say which rather than to reach a number.
+"""
+
+[[story]]
+id = "mutation-coverage-gaps"
+sprint = "conformance"
+title = "Three crates ratcheted, and the byte-critical modules the story named are not among them"
+state = "todo"
+size = "M"
+suites = ""
+plan = """
+`can-the-suite-fail` scopes mutation testing to `adapter`, `signature`, `lm/{openai,anthropic,ollama}`,
+`optimize`, and the three helper crates. As of 2026-08-02 the ratchet covers `dsrust-tpe`, `pyrng`,
+`dsrust-gepa` and the six-file adapter slice. `signature`, the three provider wires and `optimize`
+have never been measured at all — and `dsrust` whole is some five hours, so they need scoping by
+file the way the adapter slice was.
+
+**`dsrust-tpe:1` and `pyrng:4` also predate the methodology fix** and have not been re-measured
+since. Both are small enough that the answer is probably "unchanged", which is exactly why it is
+worth spending twenty minutes to know rather than assuming: gepa's 46 reproduced and the adapter's
+43 did not, and nothing about either number said in advance which it would be.
+
+Expect the provider wires to be the richest: they are byte-verified against captured traffic for
+OpenAI and diverge from litellm for Anthropic and ollama, so a survivor there is a line the byte
+goldens do not reach.
+"""
+
 [[backlog]]
 id = "b14"
 title = "s12 was built ahead of the pin, and has no oracle at 3.2.1"
@@ -3550,4 +3644,25 @@ Cross-cutting polish rather than a feature: dsrs uses anyhow throughout where ds
 types. The taxonomy stayed deliberately small — a caller branches on error *identity* in exactly
 one place upstream, and that one is built. Adding the other seventeen would be API surface no
 caller reaches, which is why only the reachable branch was ported.
+"""
+
+[[backlog]]
+id = "b15"
+kind = "known-divergence"
+state = "next"
+title = "A trusted load keeps the endpoint and drops the other two redirect keys"
+detail = """
+dspy's `allow_unsafe_lm_state=True` preserves `api_base`, `base_url` and `model_list` through a
+load. This crate honours the first and drops the other two, so a trusted round-trip is narrower than
+upstream's. Asserted rather than left to a diff, in
+`tests/lm_state.rs::a_trusted_load_keeps_the_redirect`.
+
+`base_url` is litellm's alias for the field `api_base` already set, so restoring both means deciding
+which wins — a question only litellm's resolution order answers. `model_list` configures its router,
+and this crate has no router to configure at all; carrying it would mean storing a key nothing can
+act on, which is the laundering `_sanitize_lm_state` exists to prevent.
+
+Closing this means either porting enough of litellm's resolution to say which of the two aliases
+wins, or deciding the pair is out of scope and saying so in the README beside the interop claim.
+Recorded 2026-08-02 while shipping `saved-lm-round-trip`.
 """
