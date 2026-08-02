@@ -18,6 +18,22 @@ const DATA: &str = include_str!("pychar_data.txt");
 struct Class(Vec<(u32, u32)>);
 
 impl Class {
+    /// The range holding `code_point`, if any.
+    fn containing(&self, code_point: u32) -> Option<(u32, u32)> {
+        self.0
+            .binary_search_by(|&(lo, hi)| {
+                if code_point < lo {
+                    std::cmp::Ordering::Greater
+                } else if code_point > hi {
+                    std::cmp::Ordering::Less
+                } else {
+                    std::cmp::Ordering::Equal
+                }
+            })
+            .ok()
+            .map(|at| self.0[at])
+    }
+
     fn accepts(&self, ch: char) -> bool {
         let code_point = ch as u32;
         self.0
@@ -40,6 +56,7 @@ struct Classes {
     alpha: Class,
     digit: Class,
     alnum: Class,
+    decimal: Class,
 }
 
 fn parse(name: &str) -> Class {
@@ -68,6 +85,7 @@ fn classes() -> &'static Classes {
         alpha: parse("alpha"),
         digit: parse("digit"),
         alnum: parse("alnum"),
+        decimal: parse("decimal"),
     })
 }
 
@@ -89,6 +107,22 @@ pub(crate) fn is_digit(ch: char) -> bool {
 /// CPython's `str.isalnum()` for one character.
 pub(crate) fn is_alnum(ch: char) -> bool {
     classes().alnum.accepts(ch)
+}
+
+/// CPython's `str.isdecimal()` for one character: category Nd, and the only digits `int()` and
+/// `float()` accept. Wider than nothing and narrower than [`is_digit`], which takes `²`.
+pub(crate) fn is_decimal(ch: char) -> bool {
+    classes().decimal.accepts(ch)
+}
+
+/// The value of a decimal digit, `0` to `9`.
+///
+/// Every run in the table is a whole number of aligned `0`-`9` blocks — the generator refuses one
+/// that is not — so a digit's value is its offset within its block.
+pub(crate) fn decimal_value(ch: char) -> Option<u32> {
+    let code_point = ch as u32;
+    let (lo, _) = classes().decimal.containing(code_point)?;
+    Some((code_point - lo) % 10)
 }
 
 /// CPython's `str.lower()` for one character, which may widen — `'İ'.lower()` is two code points,
@@ -156,6 +190,7 @@ mod tests {
                 "alpha" => is_alpha,
                 "digit" => is_digit,
                 "alnum" => is_alnum,
+                "decimal" => is_decimal,
                 other => panic!("the fixture records a class this module does not have: {other}"),
             };
             let ours = ranges(limit, predicate);
@@ -173,8 +208,8 @@ mod tests {
         }
         assert_eq!(
             classes.len(),
-            4,
-            "the fixture stopped covering one of the four classes"
+            5,
+            "the fixture stopped covering one of the five classes"
         );
     }
 

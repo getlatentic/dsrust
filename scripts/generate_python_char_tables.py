@@ -51,6 +51,9 @@ PREDICATES = {
     "alpha": str.isalpha,
     "digit": str.isdigit,
     "alnum": str.isalnum,
+    # `str.isdecimal`, which is exactly category Nd — and the only digits `int()` and `float()`
+    # accept. `isdigit` is wider: it takes `²`, which `int("²")` refuses.
+    "decimal": str.isdecimal,
 }
 
 
@@ -96,6 +99,13 @@ def main() -> None:
         covered = sum(hi - lo + 1 for lo, hi in found)
         if covered >= LIMIT // 2:
             raise SystemExit(f"{name} accepts {covered} code points — that is not a class, it is a plane")
+
+    # Every decimal run must be a whole number of aligned 0-9 blocks, because `decimal_value` reads
+    # a digit's value as its offset within one. Sixty-three of the sixty-four runs are a single
+    # block; the mathematical alphanumerics are five in a row, which the modulo handles.
+    for lo, hi in tables["decimal"]:
+        if (hi - lo + 1) % 10 or unicodedata.decimal(chr(lo)) != 0:
+            raise SystemExit(f"decimal run {lo:x}-{hi:x} is not aligned 0-9 blocks")
 
     # `isalnum` is the union of the other two classes plus the numerics `isdigit` leaves out, so a
     # table where it is *not* a superset has lost rows somewhere.

@@ -200,4 +200,20 @@ WRONG_TYPES = [
     for label, bad in (("a number", 7), ("null", None), ("an empty list", []), ("a nested list", [[]]))
 ]
 
-CASES: list[dict] = [*WRONG_TYPES, *COERCION, *OBJECTS, *ARRAYS, *UNIONS, *ENUMS_AND_REFS, *SALVAGE]
+#: `_coerce_scalar` calls `int(value)` and `float(value)` on whatever the parse produced, so their
+#: *string grammar* is reachable through a schema — Unicode decimal digits, underscores between
+#: digits, surrounding whitespace, and `inf`/`nan` for float but not for int. None of it is
+#: reachable from `parse_number`, whose character set is ASCII, which is how it went unnoticed.
+NUMERIC_TEXT = [
+    case(f"numeric_text_{kind}_{index}", f"`{kind}(\u007b text!r\u007d)`",
+         {"type": "object", "properties": {"a": {"type": kind}}},
+         '{"a": ' + repr(text).replace("'", '"') + "}")
+    for kind in ("integer", "number")
+    for index, text in enumerate([
+        "\u0661\u0662\u0663", "\uff11\uff12\uff13", "1_000", " 12 ", "+5", "1e5", "  1.5  ",
+        "inf", "-inf", "INFINITY", "nan", "NaN", "0x1f", "0b101", "_1", "1_", "1__0", "1_.0",
+        "\u00b2", "", "  ", "-0", "1_0.0_1",
+    ])
+]
+
+CASES: list[dict] = [*NUMERIC_TEXT, *WRONG_TYPES, *COERCION, *OBJECTS, *ARRAYS, *UNIONS, *ENUMS_AND_REFS, *SALVAGE]

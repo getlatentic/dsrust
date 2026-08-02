@@ -28,26 +28,55 @@ fn normalize(text: &str) -> String {
     format!("{sign}{trimmed}")
 }
 
-/// `int(text)`, raising as Python does when the text is not an integer.
+/// Python's shared numeric-literal-from-string rules, as ASCII.
+///
+/// `int()` and `float()` both strip surrounding whitespace, take an optional sign, accept any
+/// Unicode *decimal* digit, and allow `_` only with a digit on each side. `coerce_scalar` hands
+/// these arbitrary strings out of a parsed value, so none of that is hypothetical: `int("١٢٣")` is
+/// 123 and `float(" 1_0 ")` is 10.0.
+fn as_ascii_literal(text: &str) -> Option<String> {
+    let trimmed = text.trim_matches(crate::pychar::is_space);
+    if trimmed.is_empty() {
+        return None;
+    }
+    let chars: Vec<char> = trimmed.chars().collect();
+    let mut out = String::with_capacity(chars.len());
+    for (at, &ch) in chars.iter().enumerate() {
+        if ch == '_' {
+            // Between two digits, and nowhere else: `1_0` is ten, `_1`, `1_` and `1__0` are not.
+            let flanked = at > 0
+                && crate::pychar::is_decimal(chars[at - 1])
+                && chars
+                    .get(at + 1)
+                    .copied()
+                    .is_some_and(crate::pychar::is_decimal);
+            if !flanked {
+                return None;
+            }
+            continue;
+        }
+        match crate::pychar::decimal_value(ch) {
+            Some(value) => out.push(char::from_digit(value, 10).expect("a decimal digit")),
+            None => out.push(ch),
+        }
+    }
+    Some(out)
+}
+
+/// `int(text)`, raising as Python does.
 pub(crate) fn try_python_int(text: &str) -> Option<Value> {
-    let digits = text.strip_prefix(['-', '+']).unwrap_or(text);
+    let literal = as_ascii_literal(text)?;
+    let digits = literal.strip_prefix(['-', '+']).unwrap_or(&literal);
     if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
     }
-    Some(python_int(text))
+    Some(python_int(&literal))
 }
 
-/// `float(text)`, raising as Python does. The callers only reach this with characters drawn from
-/// `parse_number`'s own set, which is where Rust's grammar and Python's agree.
+/// `float(text)`, raising as Python does — including `inf`, `infinity` and `nan` in any case,
+/// which Rust's own parser spells the same way, and rejecting `0x`/`0b`, which it also does.
 pub(crate) fn try_python_float(text: &str) -> Option<f64> {
-    if text.is_empty()
-        || text
-            .bytes()
-            .any(|byte| !matches!(byte, b'0'..=b'9' | b'.' | b'e' | b'E' | b'-' | b'+'))
-    {
-        return None;
-    }
-    text.parse().ok()
+    as_ascii_literal(text)?.parse().ok()
 }
 
 #[cfg(test)]
@@ -79,8 +108,42 @@ mod tests {
         assert_eq!(try_python_float(".5"), Some(0.5));
         assert_eq!(try_python_float("1.2.3"), None);
         assert_eq!(try_python_float("--1"), None);
-        // Not reachable from `parse_number`'s character set, and refused rather than read as
-        // Rust's `f64::from_str` would read it.
-        assert_eq!(try_python_float("inf"), None);
+    }
+
+    #[test]
+    fn the_conversions_accept_everything_python_accepts() {
+        // `parse_number` only ever hands these ASCII from its own character set, but
+        // `coerce_scalar` hands them any string out of a parsed value — so all of this is reachable
+        // through a schema, and every line below was a refusal until it was measured.
+        assert_eq!(
+            try_python_int("١٢٣"),
+            Some(Value::Int(123)),
+            "Arabic-Indic digits"
+        );
+        assert_eq!(
+            try_python_int("１２３"),
+            Some(Value::Int(123)),
+            "fullwidth digits"
+        );
+        assert_eq!(try_python_int("1_000"), Some(Value::Int(1000)));
+        assert_eq!(try_python_int(" \t12\n "), Some(Value::Int(12)));
+        assert_eq!(try_python_int("+5"), Some(Value::Int(5)));
+        assert_eq!(try_python_float("inf"), Some(f64::INFINITY));
+        assert_eq!(try_python_float("-INFINITY"), Some(f64::NEG_INFINITY));
+        assert!(try_python_float("NaN").is_some_and(f64::is_nan));
+        assert_eq!(try_python_float("  1.5  "), Some(1.5));
+        assert_eq!(try_python_float("1_0.0_1"), Some(10.01));
+        assert_eq!(try_python_float("١٢٣.٤"), Some(123.4));
+
+        // And still refuse what Python refuses: an underscore needs a digit on each side, `²` is a
+        // digit to `isdigit` but not to `int()`, and neither takes a base prefix.
+        assert_eq!(try_python_int("_1"), None);
+        assert_eq!(try_python_int("1_"), None);
+        assert_eq!(try_python_int("1__0"), None);
+        assert_eq!(try_python_float("1_.0"), None);
+        assert_eq!(try_python_int("²"), None);
+        assert_eq!(try_python_int("0x1f"), None);
+        assert_eq!(try_python_float("0b101"), None);
+        assert_eq!(try_python_int("inf"), None, "an integer is not infinite");
     }
 }

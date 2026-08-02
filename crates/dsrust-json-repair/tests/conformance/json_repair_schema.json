@@ -3,6 +3,1387 @@
  "what": "What a schema-guided repair returns, and every question the repairer asked the validator to get there. The Rust seam replays the answers and fails on a question that was never asked, so the repair decisions are tested without reimplementing JSON Schema.",
  "cases": [
   {
+   "name": "numeric_text_integer_0",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"١٢٣\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 123}",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\\u0661\\u0662\\u0663\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 123}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_1",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"１２３\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 123}",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\\uff11\\uff12\\uff13\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 123}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_2",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_000\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1000}",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_000\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1000}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_3",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \" 12 \"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 12}",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \" 12 \"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 12}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_4",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"+5\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 5}",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"+5\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 5}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_5",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"1e5\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 100000}",
+   "log": [
+    {
+     "text": "Coerced number to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1e5\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 100000}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_6",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"  1.5  \"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"  1.5  \"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_7",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"inf\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"inf\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_8",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"-inf\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"-inf\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_9",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"INFINITY\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"INFINITY\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_10",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"nan\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"nan\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_11",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"NaN\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"NaN\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_12",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"0x1f\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"0x1f\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_13",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"0b101\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"0b101\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_14",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"_1\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"_1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_15",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_16",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"1__0\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1__0\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_17",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_.0\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_.0\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_18",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"²\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\\u00b2\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_19",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_20",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"  \"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"  \"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_21",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"-0\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 0}",
+   "log": [
+    {
+     "text": "Coerced string to integer",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"-0\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_integer_22",
+   "why": "`integer({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "integer"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_0.0_1\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected integer at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_0.0_1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"integer\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_0",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"١٢٣\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 123.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\\u0661\\u0662\\u0663\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 123.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_1",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"１２３\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 123.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\\uff11\\uff12\\uff13\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 123.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_2",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_000\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1000.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_000\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1000.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_3",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \" 12 \"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 12.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \" 12 \"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 12.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_4",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"+5\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 5.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"+5\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 5.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_5",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"1e5\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 100000.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1e5\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 100000.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_6",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"  1.5  \"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1.5}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"  1.5  \"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 1.5}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_7",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"inf\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": Infinity}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"inf\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": Infinity}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_8",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"-inf\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": -Infinity}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"-inf\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": -Infinity}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_9",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"INFINITY\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": Infinity}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"INFINITY\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": Infinity}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_10",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"nan\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": NaN}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"nan\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": NaN}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_11",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"NaN\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": NaN}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"NaN\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": NaN}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_12",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"0x1f\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"0x1f\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_13",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"0b101\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"0b101\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_14",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"_1\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"_1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_15",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_16",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"1__0\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1__0\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_17",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_.0\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_.0\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_18",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"²\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\\u00b2\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_19",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"\"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_20",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"  \"}",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Expected number at $.a.",
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"  \"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_21",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"-0\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": -0.0}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"-0\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": -0.0}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "numeric_text_number_22",
+   "why": "`number({ text!r})`",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "type": "number"
+     }
+    }
+   },
+   "input": "{\"a\": \"1_0.0_1\"}",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 10.01}",
+   "log": [
+    {
+     "text": "Coerced string to number",
+     "context": "$.a"
+    }
+   ],
+   "calls": [
+    {
+     "method": "is_valid",
+     "value": "{\"a\": \"1_0.0_1\"}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": false
+    },
+    {
+     "method": "is_valid",
+     "value": "{\"a\": 10.01}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"type\": \"number\"}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
    "name": "wrong_type_enum_a_number",
    "why": "`enum` present but a number, which upstream tells apart from absent",
    "schema": {
