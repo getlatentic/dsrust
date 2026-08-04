@@ -107,6 +107,22 @@ pub use value::{Object, Value};
 #[cfg(feature = "serde")]
 pub use serde_support::loads_as;
 
+/// The char scanner's whole-input answer, for the agreement test and nothing else.
+#[doc(hidden)]
+pub fn strict_scan_chars_for_tests(text: &str) -> Option<String> {
+    strict_json::loads(&text.chars().collect::<Vec<_>>())
+        .ok()
+        .map(|value| value.to_string())
+}
+
+/// The byte scanner's, for the same test.
+#[doc(hidden)]
+pub fn strict_scan_bytes_for_tests(text: &str) -> Option<String> {
+    strict_json::bytes::loads(text)
+        .ok()
+        .map(|value| value.to_string())
+}
+
 /// A JSON Schema node: an object, or one of the two boolean schemas.
 pub(crate) type Schema = Value;
 

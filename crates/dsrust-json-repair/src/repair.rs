@@ -262,7 +262,7 @@ impl Repair {
         if self.skip_json_loads {
             return Ok(None);
         }
-        let Ok(parsed) = strict_json::loads(&text.chars().collect::<Vec<_>>()) else {
+        let Ok(parsed) = strict_json::bytes::loads(text) else {
             return Ok(None);
         };
         let (Some(repairer), Some(schema)) = (repairer, &self.schema) else {

@@ -7,6 +7,8 @@
 //! characters and not Unicode's; an integer keeps every digit it was written with; and a leading
 //! zero, a trailing comma or a raw control character inside a string is a refusal.
 
+pub(crate) mod bytes;
+
 use crate::value::{Object, Value};
 
 /// A refusal. CPython distinguishes several messages; every caller here swallows all of them.
