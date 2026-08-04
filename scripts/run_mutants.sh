@@ -44,16 +44,20 @@ cd "$ROOT"
 #                    intersection tie was in that list and is not any more — see the note in
 #                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
 #                    finished state.
-#   dsrust-json-repair 339 — 259 missed and 80 non-terminating of 1688 viable, measured over two
-#                    hours on a frozen tree at `-j 2`, and cross-checked by re-running two files
-#                    scoped and serially against the whole-run figures (16 and 12, both exact).
-#                    Down from 375: the tuple subsystem had no generated coverage at all, since no
-#                    token table in `fuzz_json_repair.py` held a `(`, and `parenthesized.rs` fell
-#                    from 52 to 16 once the corpus and the grammar reached it.
-#                    `lookahead.rs` is now the largest cluster at 61, across the two cached scans.
-#                    The 80 timeouts are one shape: `+= 1` becoming `*= 1` leaves a cursor that
-#                    never advances, so the parse hangs rather than answers — detected, but as a
-#                    hang, and a loop whose exit nothing constrains is its own defect.
+#   dsrust-json-repair 257 unpinned, 82 hanging — of 1688 viable, over two hours on a frozen tree.
+#                    `lookahead.rs` read 53 and 10 in this whole run and in a scoped one, which is
+#                    the check that says the two agree.
+#                    Down from 296 and 79 across two passes. The tuple subsystem had no generated
+#                    coverage at all — no token table in `fuzz_json_repair.py` held a `(` — and
+#                    `parenthesized.rs` fell from 52 to 16 once the corpus and the grammar reached
+#                    it. Comment cases then took `lookahead.rs` from 55 unpinned to 53 while moving
+#                    two of them into the hanging column, which is why that column rose.
+#                    `lookahead.rs` is still the largest at 63, and `cached_skip_to_character` is the
+#                    part to think about differently: its Python counterpart is at 100% of lines and
+#                    it holds 18 unpinned mutants, so line coverage has nothing left to say there.
+#                    The hangs are one shape throughout: `+= 1` becoming `*= 1` leaves a cursor that
+#                    never advances. Worth a pass of its own, since the fix is a loop that cannot run
+#                    forever rather than another test case.
 #                    Sixteen in `Nesting::open_or_close` resist every input tried: flipping `+=` to
 #                    `-=` on either bracket counter gives byte-identical output over 66 hand-built
 #                    shapes and all 654 committed inputs. Unresolved rather than equivalent, which
@@ -68,7 +72,7 @@ BASELINES=(
   "dsrust-tpe:1:0"
   "pyrng:1:3"
   "dsrust-gepa:35:11"
-  "dsrust-json-repair:259:80"
+  "dsrust-json-repair:257:82"
 )
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each
