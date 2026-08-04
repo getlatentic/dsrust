@@ -109,6 +109,12 @@ fn write_string(text: &str, ascii: bool, out: &mut String) {
 
 /// `\uXXXX`, without the `format!` machinery — the escape is four hex digits, not a formatter.
 fn push_u16_escape(code_point: u32, out: &mut String) {
+    // Four nibbles hold sixteen bits; anything wider must arrive as a surrogate pair, and writing
+    // it here would truncate silently rather than fail.
+    debug_assert!(
+        code_point < 0x10000,
+        "{code_point:#x} does not fit one escape"
+    );
     const HEX: &[u8; 16] = b"0123456789abcdef";
     out.push('\\');
     out.push('u');

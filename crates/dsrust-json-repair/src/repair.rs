@@ -170,6 +170,9 @@ impl Repair {
     /// implements only indexing and length, so the parse sees the same characters either way and
     /// the difference is memory rather than behaviour — which is also why `chunk_length` is not
     /// carried.
+    /// Bytes that are not UTF-8 are refused here, as Python's file object raises before
+    /// `json_repair` sees them — never replaced, so no substitute character can smuggle a
+    /// different answer through the parse.
     pub fn from_reader<R: std::io::Read>(&self, mut reader: R) -> Result<Value> {
         let mut text = String::new();
         reader

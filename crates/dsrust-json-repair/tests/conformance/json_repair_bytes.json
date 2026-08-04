@@ -113,6 +113,90 @@
    "ensure_ascii": false,
    "input_hex": "7b2261223a2022c3bf227d",
    "output_hex": "7b2261223a2022c3bf227d"
+  },
+  {
+   "name": "boundary_two_byte_first",
+   "why": "U+0080, the first two-byte character",
+   "ensure_ascii": true,
+   "input_hex": "7b2261223a2022c280227d",
+   "output_hex": "7b2261223a20225c7530303830227d"
+  },
+  {
+   "name": "boundary_two_byte_first_raw",
+   "why": "and raw",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a2022c280227d",
+   "output_hex": "7b2261223a2022c280227d"
+  },
+  {
+   "name": "boundary_two_byte_last",
+   "why": "U+07FF, the last",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a2022dfbf227d",
+   "output_hex": "7b2261223a2022dfbf227d"
+  },
+  {
+   "name": "boundary_three_byte_first",
+   "why": "U+0800, the first three-byte",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a2022e0a080227d",
+   "output_hex": "7b2261223a2022e0a080227d"
+  },
+  {
+   "name": "boundary_bmp_last",
+   "why": "U+FFFF, the top of the basic plane",
+   "ensure_ascii": true,
+   "input_hex": "7b2261223a2022efbfbf227d",
+   "output_hex": "7b2261223a20225c7566666666227d"
+  },
+  {
+   "name": "boundary_bmp_last_raw",
+   "why": "and raw",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a2022efbfbf227d",
+   "output_hex": "7b2261223a2022efbfbf227d"
+  },
+  {
+   "name": "boundary_astral_first",
+   "why": "U+10000, the smallest surrogate pair",
+   "ensure_ascii": true,
+   "input_hex": "7b2261223a2022f0908080227d",
+   "output_hex": "7b2261223a20225c75643830305c7564633030227d"
+  },
+  {
+   "name": "boundary_astral_last",
+   "why": "U+10FFFF, the largest code point there is",
+   "ensure_ascii": true,
+   "input_hex": "7b2261223a2022f48fbfbf227d",
+   "output_hex": "7b2261223a20225c75646266665c7564666666227d"
+  },
+  {
+   "name": "boundary_astral_last_raw",
+   "why": "which is four UTF-8 bytes raw",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a2022f48fbfbf227d",
+   "output_hex": "7b2261223a2022f48fbfbf227d"
+  },
+  {
+   "name": "escape_beside_multibyte",
+   "why": "an escape flanked by multi-byte characters, which is where a span-copying writer's bookkeeping is off by one if it ever is",
+   "ensure_ascii": false,
+   "input_hex": "7b2261223a2022c3a90ac3a9e58c9709f09f9982227d",
+   "output_hex": "7b2261223a2022c3a95c6ec3a9e58c975c74f09f9982227d"
+  },
+  {
+   "name": "escape_beside_multibyte_ascii",
+   "why": "the same, escaped to ASCII",
+   "ensure_ascii": true,
+   "input_hex": "7b2261223a2022c3a90ac3a9e58c9709f09f9982227d",
+   "output_hex": "7b2261223a20225c75303065395c6e5c75303065395c75353331375c745c75643833645c7564653432227d"
+  },
+  {
+   "name": "multibyte_key_ascii",
+   "why": "a key past ASCII under ensure_ascii, since keys escape too",
+   "ensure_ascii": true,
+   "input_hex": "7b22e58c97e4baac223a20317d",
+   "output_hex": "7b225c75353331375c7534656163223a20317d"
   }
  ]
 }

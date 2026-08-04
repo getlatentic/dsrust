@@ -57,7 +57,7 @@ fn the_bytes_out_are_the_bytes_python_wrote() {
 
     assert_eq!(
         cases.len(),
-        16,
+        28,
         "the fixture is not the one that was generated"
     );
     assert!(

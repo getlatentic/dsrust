@@ -60,6 +60,25 @@ CASES = [
     ("del", "DEL, which is escaped only when ensure_ascii is on", '{"a": "\x7f"}', True),
     ("del_raw", "and left alone when it is not", '{"a": "\x7f"}', False),
     ("latin1_high", "a high Latin-1 character, two UTF-8 bytes", '{"a": "ÿ"}', False),
+    # The byte scanner and the span-copying writer pivot on encoding-length boundaries, so each
+    # boundary code point crosses both ways: the last one-byte character, the first and last
+    # two-byte, three-byte, and four-byte ones. A slice landing one byte off any of these panics,
+    # which is the denial-of-service a byte-indexed scanner risks and a char-indexed one does not.
+    ("boundary_two_byte_first", "U+0080, the first two-byte character", '{"a": "\u0080"}', True),
+    ("boundary_two_byte_first_raw", "and raw", '{"a": "\u0080"}', False),
+    ("boundary_two_byte_last", "U+07FF, the last", '{"a": "\u07ff"}', False),
+    ("boundary_three_byte_first", "U+0800, the first three-byte", '{"a": "\u0800"}', False),
+    ("boundary_bmp_last", "U+FFFF, the top of the basic plane", '{"a": "\uffff"}', True),
+    ("boundary_bmp_last_raw", "and raw", '{"a": "\uffff"}', False),
+    ("boundary_astral_first", "U+10000, the smallest surrogate pair", '{"a": "\U00010000"}', True),
+    ("boundary_astral_last", "U+10FFFF, the largest code point there is",
+     '{"a": "\U0010ffff"}', True),
+    ("boundary_astral_last_raw", "which is four UTF-8 bytes raw", '{"a": "\U0010ffff"}', False),
+    ("escape_beside_multibyte", "an escape flanked by multi-byte characters, which is where a "
+     "span-copying writer's bookkeeping is off by one if it ever is", '{"a": "é\né北\t🙂"}', False),
+    ("escape_beside_multibyte_ascii", "the same, escaped to ASCII", '{"a": "é\né北\t🙂"}', True),
+    ("multibyte_key_ascii", "a key past ASCII under ensure_ascii, since keys escape too",
+     '{"北京": 1}', True),
 ]
 
 
