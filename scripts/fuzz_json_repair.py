@@ -16,6 +16,8 @@ into `scripts/json_repair_corpus.py` as a named case with its reason.
 
 from __future__ import annotations
 
+import collections
+import io
 import json
 import pathlib
 import random
@@ -148,9 +150,49 @@ def reply(rng: random.Random) -> str:
     return prefix + body + suffix
 
 
-def run(text: str, strict: bool = False) -> dict[str, object]:
+#: Which door into the library, and how often.
+#:
+#: `loads` was the only one for a long time, and `load` is the reason that mattered: upstream turns
+#: the valid-JSON suffix fast path off for file input, so the two answer differently — measured at
+#: 37 of 20,000 in `json_repair_corpus.py` and 10 of 4,000 through this grammar. A divergence the
+#: repo already documents, with no random coverage at all, is the strongest thing to point a fuzzer
+#: at. `repair_json` is here for `ensure_ascii`, which decides how a value is *written* rather than
+#: what it parses to, and which nothing generated has ever set.
+ENTRIES = ["loads"] * 5 + ["load"] * 3 + ["repair_json"] * 2
+
+
+#: What each door actually accepts. Not the same set: `load` has no `stream_stable` — it reads a
+#: file in chunks, and the flag is about holding a partial value steady across a stream — and
+#: `ensure_ascii` reaches `repair_json` alone, through the `**json_dumps_args` it forwards to
+#: `json.dumps`, because it decides how a value is *written* rather than what it parses to.
+#: Drawing one set for all three made every `load` case a `TypeError` and looked, for one run, like
+#: twelve hundred divergences.
+ACCEPTS = {
+    "loads": ("strict", "skip_json_loads", "stream_stable"),
+    "load": ("strict", "skip_json_loads"),
+    "repair_json": ("strict", "skip_json_loads", "stream_stable", "ensure_ascii"),
+}
+
+
+def draw_options(rng: random.Random, entry: str) -> dict[str, object]:
+    """The keyword arguments one case runs under, drawn only from what its door takes."""
+    weights = {"strict": 0.5, "skip_json_loads": 0.25, "stream_stable": 0.25, "ensure_ascii": 0.5}
+    return {name: rng.random() < weights[name] for name in ACCEPTS[entry]}
+
+
+def run(text: str, entry: str, options: dict[str, object]) -> dict[str, object]:
+    """What one door answers, or how it refuses.
+
+    `repair_json` is recorded under its own key: it returns the *text* `json.dumps` would write,
+    where the other two return a value. Comparing a string against a dumped value would agree by
+    accident on every case where the two happen to coincide.
+    """
     try:
-        return {"ok": True, "dumps": json.dumps(json_repair.loads(text, strict=strict))}
+        if entry == "load":
+            return {"ok": True, "dumps": json.dumps(json_repair.load(io.StringIO(text), **options))}
+        if entry == "repair_json":
+            return {"ok": True, "repaired": json_repair.repair_json(text, **options)}
+        return {"ok": True, "dumps": json.dumps(json_repair.loads(text, **options))}
     except Exception as error:  # noqa: BLE001 — the refusal is part of the record
         return {"ok": False, "error": type(error).__name__, "message": str(error)}
 
@@ -166,10 +208,13 @@ def main() -> None:
         if text in seen:
             continue
         seen.add(text)
-        # Half the corpus in strict mode. It is where the grammar was blindest: eight of the
-        # library's raise sites are strict-only, and nothing generated ever reached one.
-        strict = len(cases) % 2 == 1
-        cases.append({"input": text, "strict": strict} | run(text, strict))
+        entry = ENTRIES[len(cases) % len(ENTRIES)]
+        options = draw_options(rng, entry)
+        # Half the corpus in strict mode regardless of what the draw said. It is where the grammar
+        # was blindest: eight of the library's raise sites are strict-only, and nothing generated
+        # ever reached one.
+        options["strict"] = len(cases) % 2 == 1
+        cases.append({"input": text, "entry": entry, "options": options} | run(text, entry, options))
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps({"seed": seed, "cases": cases}, indent=1, ensure_ascii=False) + "\n")
@@ -184,6 +229,13 @@ def main() -> None:
         raise SystemExit(f"only {malformed}/{len(cases)} malformed — most never reach the repairs")
     if empty > len(cases) * 0.2:
         raise SystemExit(f"{empty}/{len(cases)} answered '' — the grammar mostly produces nothing")
+
+    # A corpus that drifted back to one door would be the state this widening was written to leave.
+    drawn = collections.Counter(case["entry"] for case in cases)
+    thin = sorted(name for name in set(ENTRIES) if drawn[name] < len(cases) // 20)
+    if thin:
+        raise SystemExit(f"{thin} barely drawn ({dict(drawn)}) — the corpus fuzzes one door again")
+    print(f"  doors: {dict(drawn)}", file=sys.stderr)
 
 
 def valid_json(text: str) -> bool:

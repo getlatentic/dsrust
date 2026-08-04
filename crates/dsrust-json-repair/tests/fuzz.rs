@@ -47,6 +47,27 @@ enum Shape {
 /// The committed differential corpus, which is what covers this regime when no campaign has run.
 const SWEEP: &str = "tests/conformance/json_repair_sweep.json";
 
+/// One case, through the door it was recorded from and under the options it was recorded with.
+///
+/// `load(fd)` is not an alias for `loads(text)`: upstream turns the valid-JSON suffix fast path off
+/// for file input, so the two disagree on roughly one input in four hundred. A campaign that sent
+/// every case through `loads` could not see that, and it is a divergence this repo already
+/// documents. The answer is a string either way so the comparison stays one line — a value dumped,
+/// or the text `repair_json` writes.
+fn answer(case: &Json, input: &str) -> Result<String, json_repair::Error> {
+    let flag = |name: &str| case["options"][name].as_bool().unwrap_or(false);
+    let repair = Repair::new()
+        .strict(flag("strict"))
+        .skip_json_loads(flag("skip_json_loads"))
+        .stream_stable(flag("stream_stable"))
+        .ensure_ascii(case["options"]["ensure_ascii"].as_bool().unwrap_or(true));
+    match case["entry"].as_str().unwrap_or("loads") {
+        "load" => repair.from_reader(input.as_bytes()).map(|v| v.to_string()),
+        "repair_json" => repair.repair_json(input),
+        _ => repair.loads(input).map(|v| v.to_string()),
+    }
+}
+
 /// A campaign small enough to be a leftover rather than a run.
 const A_CAMPAIGN: usize = 100;
 
@@ -79,11 +100,15 @@ fn a_fuzz_campaign_agrees_with_json_repair_when_one_has_been_run() {
     let mut disagreements: Vec<(Shape, String)> = Vec::new();
     for case in cases {
         let input = case["input"].as_str().expect("an input");
-        let ours = Repair::new()
-            .strict(case["strict"].as_bool().unwrap_or(false))
-            .loads(input);
+        let ours = answer(case, input);
+        // What the case is compared against depends on the door it went through: `repair_json`
+        // hands back the *text* json.dumps would write, the other two hand back a value.
+        let expected = match case["entry"].as_str().unwrap_or("loads") {
+            "repair_json" => &case["repaired"],
+            _ => &case["dumps"],
+        };
         let shape = match (case["ok"].as_bool().expect("ok"), &ours) {
-            (true, Ok(ours)) if ours.to_string() == case["dumps"].as_str().expect("dumps") => {
+            (true, Ok(ours)) if ours == expected.as_str().expect("an answer") => {
                 continue;
             }
             // Including *why*: matching a refusal against a refusal without comparing the
