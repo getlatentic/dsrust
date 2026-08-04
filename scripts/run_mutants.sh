@@ -44,30 +44,23 @@ cd "$ROOT"
 #                    intersection tie was in that list and is not any more — see the note in
 #                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
 #                    finished state.
-#   dsrust-json-repair 258 unpinned, 24 hanging — of 1690 viable, on a frozen tree in 62 minutes.
-#                    The hangs were 82 until `get_char_at` began counting its reads: 58 of them are
-#                    caught mutants now, and the run itself halved, because a hang cost two minutes
-#                    each where a tripped bound costs milliseconds.
-#                    The 24 left are the loops that do not read through that function — `strict_json`
-#                    reimplements CPython's scanner with its own cursor (match_number, scan_string,
-#                    scan_array, scan_unicode_escape), `strip_comments` walks its own slice, and the
-#                    escape helpers count backslashes rather than reading characters. One is
-#                    `char_here` itself, replaced wholesale, so it never reaches the counter it would
-#                    otherwise pass through. The same counting would close most of them; it is a
-#                    second cursor, not a second attempt at the first.
-#                    Unpinned held at 258 across the change, which is what it should do: the guard
-#                    was about loops that never end, not about lines nothing checks.
-#                    Down from 296 and 79 at the first measurement. The tuple subsystem had no
-#                    generated coverage at all — no token table in `fuzz_json_repair.py` held a `(` —
-#                    and `parenthesized.rs` fell from 52 to 16 once the corpus and grammar reached it.
-#                    `lookahead.rs` is the largest cluster left, and `cached_skip_to_character` is
-#                    the part to think about differently: its Python counterpart runs at 100% of
-#                    lines and it still holds 18 unpinned mutants, so line coverage has nothing
-#                    further to say there.
-#                    Sixteen in `Nesting::open_or_close` resist every input tried: flipping `+=` to
-#                    `-=` on either bracket counter gives byte-identical output over 66 hand-built
-#                    shapes and all 654 committed inputs. Unresolved rather than equivalent, which
-#                    would be a claim about the whole input space.
+#   dsrust-json-repair 224 unpinned, 24 hanging — of 1693 viable, on a frozen tree in 76 minutes,
+#                    with `lookahead.rs` reading 19 and 0 in both this whole run and a scoped one.
+#                    Down from 296 and 79 across four passes, each of which closed a *class*: the
+#                    tuple grammar (no token table held a `(`), the read counter (a scan that stops
+#                    advancing fails instead of hanging, 82 -> 24), the cache invariant (a memoised
+#                    answer must equal the scan it stands for), and the lookahead corpus, whose 22
+#                    cases were found by applying surviving mutants by hand and searching for an
+#                    input whose answer flips — the comment scroll had only ever seen `//`, and the
+#                    nested-container rule only runs inside a fenced container inside a quoted value
+#                    already holding a `}`.
+#                    What remains, and why: `strict_json.rs` at 27 is CPython's scanner with its own
+#                    cursor, out of the read counter's reach; the schema files hold 58 nobody has
+#                    worked; 11 in the lookahead are the cache, whose hit answers flip zero of the
+#                    1406 committed inputs even when replaced by a constant — measured, not assumed;
+#                    the 24 hangs are the same separate-cursor loops. Sixteen in
+#                    `Nesting::open_or_close` resist every input tried and stay unresolved rather
+#                    than equivalent, which would be a claim about the whole input space.
 #   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours. Run it
 #               scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
 #               history, parse) measured 43 of 143 viable on 2026-08-01, 35 of them in `parse.rs`,
@@ -78,7 +71,7 @@ BASELINES=(
   "dsrust-tpe:1:0"
   "pyrng:1:3"
   "dsrust-gepa:35:11"
-  "dsrust-json-repair:258:24"
+  "dsrust-json-repair:224:24"
 )
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each
