@@ -61,7 +61,21 @@ fn write_string(text: &str, ascii: bool, out: &mut String) {
     let bytes = text.as_bytes();
     let mut span_start = 0;
     let mut at = 0;
+    // One forward pass, so the steps cannot exceed the bytes plus a constant. Four mutants held
+    // this loop spinning for the full timeout before the guard; the scanners already count their
+    // reads for the same reason, and a writer's cursor is no different.
+    #[cfg(debug_assertions)]
+    let mut steps: u64 = 0;
     while at < bytes.len() {
+        #[cfg(debug_assertions)]
+        {
+            steps += 1;
+            assert!(
+                steps <= bytes.len() as u64 + 8,
+                "{steps} steps over {} bytes — the writer is not advancing",
+                bytes.len()
+            );
+        }
         let byte = bytes[at];
         // The span runs until a byte the table escapes. With `ensure_ascii` off that is exactly
         // `py_encode_basestring`'s `[\x00-\x1f\\"]` — JSON requires the controls escaped
