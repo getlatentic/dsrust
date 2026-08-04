@@ -89,6 +89,13 @@ rm -rf target/doc
 # by grepping output nobody was required to read.
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 
+echo "==> throughput floor (release, so the debug counters compile out)"
+# The one regression the correctness suites cannot see: an optimisation produces identical output
+# by construction, so a dead fast path fails nothing above — measured by turning the lookahead
+# cache off, which passes all 57 crate tests and multiplies parse time by nine. The floor is a
+# ratio against an in-process calibration loop, so a slower machine moves both sides together.
+cargo test --release -p dsrust-json-repair --test throughput
+
 echo "==> file sizes"
 ./scripts/file_sizes.py
 
