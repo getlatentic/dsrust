@@ -44,20 +44,26 @@ cd "$ROOT"
 #                    intersection tie was in that list and is not any more — see the note in
 #                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
 #                    finished state.
-#   dsrust-json-repair 257 unpinned, 82 hanging — of 1688 viable, over two hours on a frozen tree.
-#                    `lookahead.rs` read 53 and 10 in this whole run and in a scoped one, which is
-#                    the check that says the two agree.
-#                    Down from 296 and 79 across two passes. The tuple subsystem had no generated
-#                    coverage at all — no token table in `fuzz_json_repair.py` held a `(` — and
-#                    `parenthesized.rs` fell from 52 to 16 once the corpus and the grammar reached
-#                    it. Comment cases then took `lookahead.rs` from 55 unpinned to 53 while moving
-#                    two of them into the hanging column, which is why that column rose.
-#                    `lookahead.rs` is still the largest at 63, and `cached_skip_to_character` is the
-#                    part to think about differently: its Python counterpart is at 100% of lines and
-#                    it holds 18 unpinned mutants, so line coverage has nothing left to say there.
-#                    The hangs are one shape throughout: `+= 1` becoming `*= 1` leaves a cursor that
-#                    never advances. Worth a pass of its own, since the fix is a loop that cannot run
-#                    forever rather than another test case.
+#   dsrust-json-repair 258 unpinned, 24 hanging — of 1690 viable, on a frozen tree in 62 minutes.
+#                    The hangs were 82 until `get_char_at` began counting its reads: 58 of them are
+#                    caught mutants now, and the run itself halved, because a hang cost two minutes
+#                    each where a tripped bound costs milliseconds.
+#                    The 24 left are the loops that do not read through that function — `strict_json`
+#                    reimplements CPython's scanner with its own cursor (match_number, scan_string,
+#                    scan_array, scan_unicode_escape), `strip_comments` walks its own slice, and the
+#                    escape helpers count backslashes rather than reading characters. One is
+#                    `char_here` itself, replaced wholesale, so it never reaches the counter it would
+#                    otherwise pass through. The same counting would close most of them; it is a
+#                    second cursor, not a second attempt at the first.
+#                    Unpinned held at 258 across the change, which is what it should do: the guard
+#                    was about loops that never end, not about lines nothing checks.
+#                    Down from 296 and 79 at the first measurement. The tuple subsystem had no
+#                    generated coverage at all — no token table in `fuzz_json_repair.py` held a `(` —
+#                    and `parenthesized.rs` fell from 52 to 16 once the corpus and grammar reached it.
+#                    `lookahead.rs` is the largest cluster left, and `cached_skip_to_character` is
+#                    the part to think about differently: its Python counterpart runs at 100% of
+#                    lines and it still holds 18 unpinned mutants, so line coverage has nothing
+#                    further to say there.
 #                    Sixteen in `Nesting::open_or_close` resist every input tried: flipping `+=` to
 #                    `-=` on either bracket counter gives byte-identical output over 66 hand-built
 #                    shapes and all 654 committed inputs. Unresolved rather than equivalent, which
@@ -72,7 +78,7 @@ BASELINES=(
   "dsrust-tpe:1:0"
   "pyrng:1:3"
   "dsrust-gepa:35:11"
-  "dsrust-json-repair:257:82"
+  "dsrust-json-repair:258:24"
 )
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each
