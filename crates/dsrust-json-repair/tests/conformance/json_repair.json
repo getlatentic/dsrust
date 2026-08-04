@@ -13,7 +13,7 @@
   "parse_json_llm_block.py": 6,
   "parse_number.py": 22,
   "parse_object.py": 202,
-  "parse_string.py": 497,
+  "parse_string.py": 516,
   "parser_parenthesized.py": 116,
   "parser_schema.py": 4,
   "schema_repair.py": 3,
@@ -513,6 +513,101 @@
     {
      "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
      "context": ": text}```[1,2]```\"}"
+    }
+   ]
+  },
+  {
+   "name": "fence_then_line_comment_then_array",
+   "why": "a `#` comment scrolled to its newline",
+   "input": "{\"a\": text}```# note\n[1,2]",
+   "ok": true,
+   "dumps": "[{\"a\": \"text\"}, [1, 2]]",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{\"a\": text}```# "
+    },
+    {
+     "text": "While parsing a string in object value context, we found a } that closes the object before code fences, stopping here",
+     "context": "{\"a\": text}```# note"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{\"a\": text}```# note"
+    },
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "\"a\": text}```# note\n"
+    },
+    {
+     "text": "Found line comment: # note, ignoring",
+     "context": "}```# note\n[1,2]"
+    }
+   ]
+  },
+  {
+   "name": "fence_then_block_comment_then_array",
+   "why": "and a `/* */` one scrolled to its terminator",
+   "input": "{\"a\": text}```/* note */[1,2]",
+   "ok": true,
+   "dumps": "[{\"a\": \"text\"}, [1, 2]]",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{\"a\": text}```/*"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a } that closes the object before code fences, stopping here",
+     "context": "{\"a\": text}```/* not"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{\"a\": text}```/* not"
+    },
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "\"a\": text}```/* note"
+    },
+    {
+     "text": "Found block comment: /* note */, ignoring",
+     "context": "/* note */[1,2]"
+    }
+   ]
+  },
+  {
+   "name": "fence_then_unterminated_block_comment",
+   "why": "a block comment with no `*/`, which ends the scan at the end of the input rather than at the terminator",
+   "input": "{\"a\": text}```/* unterminated [1,2]",
+   "ok": true,
+   "dumps": "{\"a\": \"text\"}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{\"a\": text}```/*"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a } that closes the object before code fences, stopping here",
+     "context": "{\"a\": text}```/* unt"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{\"a\": text}```/* unt"
+    },
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "\"a\": text}```/* unte"
+    },
+    {
+     "text": "Reached end-of-string while parsing block comment; unclosed block comment.",
+     "context": "ated [1,2]"
+    },
+    {
+     "text": "Found block comment: /* unterminated [1,2], ignoring",
+     "context": "ated [1,2]"
+    },
+    {
+     "text": "There were no more elements, returning the element without the array",
+     "context": "ted [1,2]"
     }
    ]
   },

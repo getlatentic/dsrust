@@ -104,6 +104,16 @@ ORDINARY_MALFORMATIONS = [
     case("fence_then_array_closed", "a closing fence after it, so it does not", '{"a": text}```[1,2]```'),
     case("fence_then_array_inside_string", "the string closes after the fence, keeping all of it",
          '{"a": text}```[1,2]```"}'),
+    # The same lookahead scrolls *past comments* to find where the next member starts, and both of
+    # its skip loops were cold: a comment has to sit between the fence and the container for either
+    # to run. `lookahead.rs` carried 61 surviving mutants, sixteen of them here.
+    case("fence_then_line_comment_then_array", "a `#` comment scrolled to its newline",
+         '{"a": text}```# note\n[1,2]'),
+    case("fence_then_block_comment_then_array", "and a `/* */` one scrolled to its terminator",
+         '{"a": text}```/* note */[1,2]'),
+    case("fence_then_unterminated_block_comment", "a block comment with no `*/`, which ends the "
+         "scan at the end of the input rather than at the terminator",
+         '{"a": text}```/* unterminated [1,2]'),
     case("fence_then_paren_at_end", "the parenthesised form of the same decision", '{"a": text}```(1)'),
     case("fence_then_paren_closed", "and its closed form, which answers the other way",
          '{"a": text}```(1)```'),

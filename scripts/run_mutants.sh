@@ -20,7 +20,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-# package:survivors. Each number is a measured floor with its survivors accounted for below.
+# package:missed:hangs. **Two floors, not one**, because they answer to different work and a corpus
+# that improves can move a mutant from the first into the second.
+#
+# Measured: three comment cases took `lookahead.rs` from 55 silent survivors to 53, and its hangs
+# from 6 to 10 — two of them the very mutants that stopped surviving, now driven into a loop that
+# never advances by an input that finally reaches them. A single total called that a regression from
+# 61 to 63 while the thing it is supposed to track had improved. A hang is still not a passing test,
+# so both are floors; collapsing them is what hid the direction.
 #
 #   dsrust-tpe 1 — `n < 25` against `n <= 25` in `default_weights`. At n=25 the ramp is empty either
 #                  way and both arms return twenty-five ones, so nothing can tell them apart.
@@ -58,10 +65,10 @@ cd "$ROOT"
 #               *reads*. Filed as `parse-side-goldens`; no ratchet entry until that lands, since a
 #               five-hour floor nobody runs is not a gate.
 BASELINES=(
-  "dsrust-tpe:1"
-  "pyrng:4"
-  "dsrust-gepa:46"
-  "dsrust-json-repair:339"
+  "dsrust-tpe:1:0"
+  "pyrng:1:3"
+  "dsrust-gepa:35:11"
+  "dsrust-json-repair:259:80"
 )
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each
@@ -123,30 +130,39 @@ status=0
 matched=0
 for entry in "${BASELINES[@]}"; do
   package="${entry%%:*}"
-  allowed="${entry##*:}"
+  rest="${entry#*:}"
+  allowed_missed="${rest%%:*}"
+  allowed_hangs="${rest##*:}"
   if [ "$#" -gt 0 ] && [ "$1" != "$package" ]; then
     continue
   fi
   matched=1
-  echo "==> cargo mutants -p $package (baseline $allowed, -j $JOBS x $CARGO_BUILD_JOBS)"
+  echo "==> cargo mutants -p $package (floors: $allowed_missed missed, $allowed_hangs hanging; -j $JOBS x $CARGO_BUILD_JOBS)"
   log="target/mutants-$package.log"
   set +e
   nice -n 10 cargo mutants -p "$package" --timeout 120 -j "$JOBS" > "$log" 2>&1
   set -e
-  # TIMEOUT counts too. A mutant that hangs was detected only in the sense that the suite never
-  # finished — it is a line whose behaviour no assertion pins, same as a survivor, and letting it
-  # go uncounted would let the number fall silently as tests got slower.
-  missed=$(grep -cE "^(MISSED|TIMEOUT)" "$log" || true)
+  # A hang is not a passing test, so it is still a floor — but it is a different defect from a line
+  # no assertion pins, and it wants different work: an exit condition rather than a test case.
+  # Counted apart so that turning one into the other reads as what it is.
+  missed=$(grep -cE "^MISSED" "$log" || true)
+  hangs=$(grep -cE "^TIMEOUT" "$log" || true)
   tail -1 "$log"
-  if [ "$missed" -gt "$allowed" ]; then
-    echo "  RATCHET BROKEN: $missed survivors, baseline $allowed" >&2
-    grep -E "^(MISSED|TIMEOUT)" "$log" | sed 's/ in [0-9].*//' >&2
-    status=1
-  elif [ "$missed" -lt "$allowed" ]; then
-    echo "  $missed survivors, below the baseline of $allowed — lower the baseline in this script"
-  else
-    echo "  $missed survivors, at the baseline"
-  fi
+  for kind in missed hangs; do
+    case "$kind" in
+      missed) found=$missed; floor=$allowed_missed; word="unpinned"; pattern="^MISSED" ;;
+      hangs)  found=$hangs;  floor=$allowed_hangs;  word="hanging";  pattern="^TIMEOUT" ;;
+    esac
+    if [ "$found" -gt "$floor" ]; then
+      echo "  RATCHET BROKEN: $found $word, floor $floor" >&2
+      grep -E "$pattern" "$log" | sed 's/ in [0-9].*//' >&2
+      status=1
+    elif [ "$found" -lt "$floor" ]; then
+      echo "  $found $word, below the floor of $floor — lower it in this script"
+    else
+      echo "  $found $word, at the floor"
+    fi
+  done
 done
 
 # A named package with no entry ran nothing and exited 0, which reads as a clean run. A crate has to
