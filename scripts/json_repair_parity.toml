@@ -468,7 +468,7 @@ note = '''Answers whether the pending flag survives and whether the character is
 name = 'parse_string_helpers/parse_boolean_or_null.py::parse_boolean_or_null'
 python = '(parser)'
 rust = 'parse_boolean_or_null'
-note = '''Matches lowercased character by character and rewinds the index on failure. Lowercasing can widen — `İ` is two code points — so the comparison is against a string rather than a char.'''
+note = '''Matches lowercased character by character and rewinds the index on failure. Lowercasing can widen — `İ` is two code points — so the comparison runs through `lowered_single`, which answers None for a widening character; None can never equal an ASCII letter, which is exactly what the string comparison concluded at the cost of two allocations per character.'''
 
 [[symbol]]
 name = 'parse_string_helpers/parse_json_llm_block.py::parse_json_llm_block'

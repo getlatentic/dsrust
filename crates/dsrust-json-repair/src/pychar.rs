@@ -145,12 +145,6 @@ pub(crate) fn lowered_single(ch: char) -> Option<char> {
     }
 }
 
-/// CPython's `str.lower()` for one character, which may widen — `'İ'.lower()` is two code points,
-/// so the caller compares strings rather than characters.
-pub(crate) fn lower(ch: char) -> String {
-    ch.to_lowercase().collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
