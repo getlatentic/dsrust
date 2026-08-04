@@ -33,21 +33,64 @@ pub(crate) fn declares_type(schema: &Value, wanted: &str) -> bool {
     }
 }
 
-pub(crate) fn object_schema_config(schema: &Schema) -> ObjectSchemaConfig {
-    ObjectSchemaConfig {
+pub(crate) fn object_schema_config(schema: &Schema) -> crate::error::Result<ObjectSchemaConfig> {
+    Ok(ObjectSchemaConfig {
         properties: entries(schema.get("properties")),
         pattern_properties: entries(schema.get("patternProperties")),
         additional_properties: schema.get("additionalProperties").cloned(),
-        required: match schema.get("required") {
-            Some(Value::Array(items)) => items
-                .iter()
-                .filter_map(|item| match item {
-                    Value::Str(name) => Some(name.clone()),
-                    _ => None,
-                })
-                .collect(),
-            _ => Vec::new(),
-        },
+        required: required_keys(schema.get("required"))?,
+    })
+}
+
+/// Upstream's `set(schema.get("required", []))`, with `set()`'s own refusals.
+///
+/// `set()` iterates anything iterable and hashes what it yields, so a string is taken per
+/// character, a dict contributes its keys, and a scalar raises `TypeError` — as does a list
+/// holding a list or a dict, which cannot be hashed. Both errors are foreign to `repair_json`, so
+/// a union does not swallow them the way it swallows a failed branch; the surviving mutant on that
+/// guard is how this function's silent `filter_map` was found.
+///
+/// A non-string member that *is* hashable — `required: [5]` — is kept by Python's set and then
+/// salvage-fills a non-string key into the object, which this crate's string-keyed `Object` cannot
+/// hold. That corner stays unimplemented and unclaimed: such members are dropped here, and no
+/// corpus case records the shape.
+fn required_keys(declared: Option<&Value>) -> crate::error::Result<Vec<String>> {
+    let not_iterable = |value: &Value| {
+        crate::error::Error::type_error(&format!(
+            "'{}' object is not iterable",
+            crate::schema::container::type_name(value)
+        ))
+    };
+    match declared {
+        None => Ok(Vec::new()),
+        Some(Value::Array(items)) => {
+            let mut keys = Vec::new();
+            for item in items {
+                match item {
+                    Value::Array(_) | Value::Object(_) => {
+                        return Err(crate::error::Error::type_error(&format!(
+                            "unhashable type: '{}'",
+                            crate::schema::container::type_name(item)
+                        )));
+                    }
+                    Value::Str(name) if !keys.contains(name) => keys.push(name.clone()),
+                    _ => {}
+                }
+            }
+            Ok(keys)
+        }
+        Some(Value::Str(text)) => {
+            let mut keys = Vec::new();
+            for ch in text.chars() {
+                let key = ch.to_string();
+                if !keys.contains(&key) {
+                    keys.push(key);
+                }
+            }
+            Ok(keys)
+        }
+        Some(Value::Object(fields)) => Ok(fields.keys().map(str::to_owned).collect()),
+        Some(other) => Err(not_iterable(other)),
     }
 }
 
@@ -80,7 +123,7 @@ pub(crate) fn resolve_parser_object_schema(
     if !repairer.is_object_schema(Some(&resolved)) {
         return Ok((false, Some(resolved), None));
     }
-    let config = object_schema_config(&resolved);
+    let config = object_schema_config(&resolved)?;
     Ok((true, Some(resolved), Some(config)))
 }
 

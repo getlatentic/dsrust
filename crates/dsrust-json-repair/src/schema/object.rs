@@ -27,7 +27,7 @@ impl SchemaRepairer {
                 type_name(&value)
             )));
         };
-        let config = object_schema_config(schema);
+        let config = object_schema_config(schema)?;
 
         if self.salvages() && !config.required.is_empty() {
             for key in &config.required {

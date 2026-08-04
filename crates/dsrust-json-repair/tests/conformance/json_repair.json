@@ -12,7 +12,7 @@
   "parse_comment.py": 47,
   "parse_json_llm_block.py": 6,
   "parse_number.py": 22,
-  "parse_object.py": 204,
+  "parse_object.py": 220,
   "parse_string.py": 577,
   "parser_parenthesized.py": 116,
   "parser_schema.py": 4,
@@ -74,6 +74,158 @@
    "input": "{\"答案\": \"北京\"}",
    "ok": true,
    "dumps": "{\"\\u7b54\\u6848\": \"\\u5317\\u4eac\"}",
+   "log": []
+  },
+  {
+   "name": "near_null",
+   "why": "an n-word that is not null, which a widened literal guard would take",
+   "input": "nope",
+   "ok": true,
+   "dumps": "\"\"",
+   "log": []
+  },
+  {
+   "name": "near_false",
+   "why": "and an f-word that is not false",
+   "input": "farce",
+   "ok": true,
+   "dumps": "\"\"",
+   "log": []
+  },
+  {
+   "name": "zero_alone",
+   "why": "the 0 arm of NUMBER_RE, whose leading-zero rule is its own branch",
+   "input": "0",
+   "ok": true,
+   "dumps": "0",
+   "log": []
+  },
+  {
+   "name": "zero_negative",
+   "why": "with the sign in front",
+   "input": "-0",
+   "ok": true,
+   "dumps": "0",
+   "log": []
+  },
+  {
+   "name": "zero_fraction",
+   "why": "a zero that continues into a fraction",
+   "input": "0.5",
+   "ok": true,
+   "dumps": "0.5",
+   "log": []
+  },
+  {
+   "name": "zero_exponent",
+   "why": "and into an exponent",
+   "input": "0e0",
+   "ok": true,
+   "dumps": "0.0",
+   "log": []
+  },
+  {
+   "name": "zero_exponent_signed",
+   "why": "with a sign and the capital E",
+   "input": "0E+1",
+   "ok": true,
+   "dumps": "0.0",
+   "log": []
+  },
+  {
+   "name": "exponent_plus",
+   "why": "a signed exponent after a nonzero integer",
+   "input": "1e+5",
+   "ok": true,
+   "dumps": "100000.0",
+   "log": []
+  },
+  {
+   "name": "exponent_minus_capital",
+   "why": "the capital form with a minus",
+   "input": "1E-2",
+   "ok": true,
+   "dumps": "0.01",
+   "log": []
+  },
+  {
+   "name": "exponent_full",
+   "why": "sign, fraction and exponent together",
+   "input": "-10.5e-3",
+   "ok": true,
+   "dumps": "-0.0105",
+   "log": []
+  },
+  {
+   "name": "escape_backspace",
+   "why": "the b arm of the escape table",
+   "input": "\"a\\bb\"",
+   "ok": true,
+   "dumps": "\"a\\bb\"",
+   "log": []
+  },
+  {
+   "name": "escape_formfeed",
+   "why": "the f arm",
+   "input": "\"a\\fb\"",
+   "ok": true,
+   "dumps": "\"a\\fb\"",
+   "log": []
+  },
+  {
+   "name": "escape_carriage_return",
+   "why": "and the r arm",
+   "input": "\"a\\rb\"",
+   "ok": true,
+   "dumps": "\"a\\rb\"",
+   "log": []
+  },
+  {
+   "name": "surrogate_pair",
+   "why": "a pair the scanner joins into one astral character",
+   "input": "\"\\ud83d\\ude00\"",
+   "ok": true,
+   "dumps": "\"\\ud83d\\ude00\"",
+   "log": []
+  },
+  {
+   "name": "surrogate_pair_lowest",
+   "why": "the smallest joinable pair",
+   "input": "\"\\ud800\\udc00\"",
+   "ok": true,
+   "dumps": "\"\\ud800\\udc00\"",
+   "log": []
+  },
+  {
+   "name": "surrogate_pair_highest",
+   "why": "and the largest",
+   "input": "\"\\udbff\\udfff\"",
+   "ok": true,
+   "dumps": "\"\\udbff\\udfff\"",
+   "log": []
+  },
+  {
+   "name": "surrogate_pair_in_prose",
+   "why": "joined mid-string, so the offsets carry through",
+   "input": "\"a\\ud83d\\ude00b\"",
+   "ok": true,
+   "dumps": "\"a\\ud83d\\ude00b\"",
+   "log": []
+  },
+  {
+   "name": "unicode_escape_bad_hex",
+   "why": "four characters that are not hex, which is a refusal",
+   "input": "\"\\uZZZZ\"",
+   "ok": true,
+   "dumps": "\"\"",
+   "log": []
+  },
+  {
+   "name": "unicode_escape_truncated",
+   "why": "an escape the input ends inside",
+   "input": "\"\\u12\"",
+   "ok": true,
+   "dumps": "\"\"",
    "log": []
   },
   {
@@ -2373,6 +2525,146 @@
      "context": "([1, 2)"
     }
    ]
+  },
+  {
+   "name": "one_tuple_of_empty_array",
+   "why": "a tuple holding one empty array",
+   "input": "([],)",
+   "ok": true,
+   "dumps": "[[]]",
+   "log": []
+  },
+  {
+   "name": "one_tuple_of_empty_object",
+   "why": "and one empty object",
+   "input": "({},)",
+   "ok": true,
+   "dumps": "[{}]",
+   "log": []
+  },
+  {
+   "name": "one_tuple_of_tuple",
+   "why": "and one empty tuple",
+   "input": "((),)",
+   "ok": true,
+   "dumps": "[[]]",
+   "log": []
+  },
+  {
+   "name": "one_tuple_of_array",
+   "why": "one array with content, so the counter moves both ways",
+   "input": "([1],)",
+   "ok": true,
+   "dumps": "[[1]]",
+   "log": []
+  },
+  {
+   "name": "one_tuple_of_object",
+   "why": "the object twin",
+   "input": "({\"a\": 1},)",
+   "ok": true,
+   "dumps": "[{\"a\": 1}]",
+   "log": []
+  },
+  {
+   "name": "one_tuple_of_nested_arrays",
+   "why": "two opens before any close",
+   "input": "([[]],)",
+   "ok": true,
+   "dumps": "[[[]]]",
+   "log": []
+  },
+  {
+   "name": "stray_close_bracket_in_tuple",
+   "why": "a `]` with nothing open, then one item and the comma",
+   "input": "{\"a\": (] 1,)}",
+   "ok": true,
+   "dumps": "{\"a\": [1]}",
+   "log": []
+  },
+  {
+   "name": "stray_close_brace_in_tuple",
+   "why": "the `}` twin, which also ends the member",
+   "input": "{\"a\": (} 1,)}",
+   "ok": true,
+   "dumps": "{\"a\": []}",
+   "log": [
+    {
+     "text": "While parsing an array we missed the closing ), ignoring it",
+     "context": "{\"a\": (} 1,)}"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{\"a\": (} 1,)}"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "\": (} 1,)}"
+    }
+   ]
+  },
+  {
+   "name": "stray_close_bracket_in_array",
+   "why": "the same inside an array",
+   "input": "[(] 1,)]",
+   "ok": true,
+   "dumps": "[[1]]",
+   "log": []
+  },
+  {
+   "name": "stray_close_brace_in_array",
+   "why": "where the brace closes nothing at all",
+   "input": "[(} 1,)]",
+   "ok": true,
+   "dumps": "[1]",
+   "log": [
+    {
+     "text": "While parsing an array we missed the closing ), ignoring it",
+     "context": "[(} 1,)]"
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "[(} 1,)]"
+    }
+   ]
+  },
+  {
+   "name": "open_then_stray_close",
+   "why": "an open bracket wedged by the wrong closer",
+   "input": "{\"a\": ([} 1],)}",
+   "ok": true,
+   "dumps": "{\"a\": [1]}",
+   "log": [
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "{\"a\": ([} 1],)}"
+    },
+    {
+     "text": "While parsing an array we missed the closing ), ignoring it",
+     "context": "([} 1],)}"
+    }
+   ]
+  },
+  {
+   "name": "stray_close_then_open",
+   "why": "and the closer first",
+   "input": "{\"a\": (}[ 1],)}",
+   "ok": true,
+   "dumps": "{\"a\": [1]}",
+   "log": [
+    {
+     "text": "While parsing an array we missed the closing ), ignoring it",
+     "context": "{\"a\": (}[ 1],)}"
+    }
+   ]
+  },
+  {
+   "name": "stray_close_then_object",
+   "why": "a stray closer, then a real container and the comma",
+   "input": "[(]{},)]",
+   "ok": true,
+   "dumps": "[[{}]]",
+   "log": []
   },
   {
    "name": "prose_parenthesis",

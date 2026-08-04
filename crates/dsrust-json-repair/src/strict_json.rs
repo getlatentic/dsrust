@@ -13,10 +13,69 @@ use crate::value::{Object, Value};
 #[derive(Debug)]
 pub(crate) struct NotJson;
 
+/// The input, with its reads counted. The count is debug-only, as `Parser::get_char_at`'s is.
+///
+/// This scanner walks its own cursor rather than the parser's, so the read counter that turned the
+/// repair parser's hangs into failures never saw it: seven mutants here were scored as timeouts,
+/// each a loop whose index stopped advancing. One forward pass reads each position a small constant
+/// number of times — a token is consumed once, with a peek or two around it — so the budget is
+/// linear where the parser's is quadratic, and no scan that ends can reach it.
+struct Text<'a> {
+    chars: &'a [char],
+    #[cfg(debug_assertions)]
+    reads: std::cell::Cell<u64>,
+    #[cfg(debug_assertions)]
+    budget: u64,
+}
+
+impl<'a> Text<'a> {
+    fn new(chars: &'a [char]) -> Self {
+        Self {
+            chars,
+            #[cfg(debug_assertions)]
+            reads: std::cell::Cell::new(0),
+            #[cfg(debug_assertions)]
+            budget: (chars.len() as u64)
+                .saturating_mul(8)
+                .saturating_add(1 << 12),
+        }
+    }
+
+    fn get(&self, index: usize) -> Option<&char> {
+        #[cfg(debug_assertions)]
+        {
+            let read = self.reads.get() + 1;
+            self.reads.set(read);
+            assert!(
+                read <= self.budget,
+                "{read} reads over {} characters of strict JSON — the scan is not advancing",
+                self.chars.len()
+            );
+        }
+        self.chars.get(index)
+    }
+
+    fn get_range(&self, range: std::ops::Range<usize>) -> Option<&[char]> {
+        #[cfg(debug_assertions)]
+        self.reads.set(self.reads.get() + 4);
+        self.chars.get(range)
+    }
+
+    fn slice(&self, range: std::ops::Range<usize>) -> &[char] {
+        &self.chars[range]
+    }
+
+    fn len(&self) -> usize {
+        self.chars.len()
+    }
+}
+
 type Scan = Result<(Value, usize), NotJson>;
 
 /// `json.loads(text)`: one value, with nothing but whitespace around it.
 pub(crate) fn loads(text: &[char]) -> Result<Value, NotJson> {
+    let text = Text::new(text);
+    let text = &text;
     let start = skip_whitespace(text, 0);
     let (value, end) = scan_once(text, start)?;
     let end = skip_whitespace(text, end);
@@ -28,24 +87,24 @@ pub(crate) fn loads(text: &[char]) -> Result<Value, NotJson> {
 
 /// `JSONDecoder().raw_decode(text)`: one value, and where it ended. Trailing text is the caller's.
 pub(crate) fn raw_decode(text: &[char]) -> Scan {
-    scan_once(text, 0)
+    scan_once(&Text::new(text), 0)
 }
 
 /// `json.decoder.WHITESPACE`, which is these four characters and not `str.isspace()`.
-fn skip_whitespace(text: &[char], mut index: usize) -> usize {
+fn skip_whitespace(text: &Text<'_>, mut index: usize) -> usize {
     while matches!(text.get(index), Some(' ' | '\t' | '\n' | '\r')) {
         index += 1;
     }
     index
 }
 
-fn literal(text: &[char], index: usize, word: &str) -> bool {
+fn literal(text: &Text<'_>, index: usize, word: &str) -> bool {
     word.chars()
         .enumerate()
         .all(|(offset, expected)| text.get(index + offset) == Some(&expected))
 }
 
-fn scan_once(text: &[char], index: usize) -> Scan {
+fn scan_once(text: &Text<'_>, index: usize) -> Scan {
     match text.get(index) {
         Some('"') => scan_string(text, index + 1),
         Some('{') => scan_object(text, index + 1),
@@ -58,7 +117,7 @@ fn scan_once(text: &[char], index: usize) -> Scan {
 }
 
 /// The number branch, and the three literals CPython reaches only after it.
-fn scan_number(text: &[char], index: usize) -> Scan {
+fn scan_number(text: &Text<'_>, index: usize) -> Scan {
     if let Some((value, end)) = match_number(text, index) {
         return Ok((value, end));
     }
@@ -76,7 +135,7 @@ fn scan_number(text: &[char], index: usize) -> Scan {
 
 /// `json.decoder.NUMBER_RE`: `-?(0|[1-9]\d*)(\.\d+)?([eE][-+]?\d+)?`. The integer part refusing a
 /// leading zero is what makes `01` two tokens rather than one number.
-fn match_number(text: &[char], index: usize) -> Option<(Value, usize)> {
+fn match_number(text: &Text<'_>, index: usize) -> Option<(Value, usize)> {
     let mut end = index;
     if text.get(end) == Some(&'-') {
         end += 1;
@@ -117,7 +176,7 @@ fn match_number(text: &[char], index: usize) -> Option<(Value, usize)> {
         }
     }
 
-    let literal: String = text[index..end].iter().collect();
+    let literal: String = text.slice(index..end).iter().collect();
     let value = if is_float {
         Value::Float(literal.parse().ok()?)
     } else {
@@ -126,7 +185,7 @@ fn match_number(text: &[char], index: usize) -> Option<(Value, usize)> {
     Some((value, end))
 }
 
-fn scan_object(text: &[char], index: usize) -> Scan {
+fn scan_object(text: &Text<'_>, index: usize) -> Scan {
     let mut object = Object::new();
     let mut end = skip_whitespace(text, index);
     if text.get(end) == Some(&'}') {
@@ -159,7 +218,7 @@ fn scan_object(text: &[char], index: usize) -> Scan {
     }
 }
 
-fn scan_array(text: &[char], index: usize) -> Scan {
+fn scan_array(text: &Text<'_>, index: usize) -> Scan {
     let mut items = Vec::new();
     let mut end = skip_whitespace(text, index);
     if text.get(end) == Some(&']') {
@@ -178,7 +237,7 @@ fn scan_array(text: &[char], index: usize) -> Scan {
 }
 
 /// `py_scanstring` with `strict=True`: a raw character below `\x20` ends the parse.
-fn scan_string(text: &[char], index: usize) -> Scan {
+fn scan_string(text: &Text<'_>, index: usize) -> Scan {
     let mut out = String::new();
     let mut end = index;
     loop {
@@ -220,7 +279,7 @@ fn scan_string(text: &[char], index: usize) -> Scan {
 ///
 /// A high surrogate that is *not* followed by a low one stays a lone surrogate in Python, which a
 /// Rust `char` cannot hold — see the note on [`crate::LONE_SURROGATE`].
-fn scan_unicode_escape(text: &[char], index: usize) -> Result<(char, usize), NotJson> {
+fn scan_unicode_escape(text: &Text<'_>, index: usize) -> Result<(char, usize), NotJson> {
     let first = four_hex_digits(text, index)?;
     let mut end = index + 4;
     if (0xd800..0xdc00).contains(&first)
@@ -236,8 +295,12 @@ fn scan_unicode_escape(text: &[char], index: usize) -> Result<(char, usize), Not
     Ok((char::from_u32(first).unwrap_or(crate::LONE_SURROGATE), end))
 }
 
-fn four_hex_digits(text: &[char], index: usize) -> Result<u32, NotJson> {
-    let digits: String = text.get(index..index + 4).ok_or(NotJson)?.iter().collect();
+fn four_hex_digits(text: &Text<'_>, index: usize) -> Result<u32, NotJson> {
+    let digits: String = text
+        .get_range(index..index + 4)
+        .ok_or(NotJson)?
+        .iter()
+        .collect();
     if digits.len() != 4 || !digits.chars().all(|ch| ch.is_ascii_hexdigit()) {
         return Err(NotJson);
     }

@@ -313,4 +313,142 @@ PATTERNS = [
     ])
 ]
 
-CASES: list[dict] = [*PATTERNS, *NUMERIC_TEXT, *WRONG_TYPES, *COERCION, *OBJECTS, *ARRAYS, *UNIONS, *ENUMS_AND_REFS, *SALVAGE, *MISSING_VALUES]
+
+
+#: Branches named by surviving mutants, each case found by asking what input would make that exact
+#: line decide. The theme across them: a subschema position the corpus only ever exercised at the
+#: root, or a keyword it only ever spelled as an int.
+BOOLEAN_SUBSCHEMAS = [
+    case("property_schema_true", "a property whose schema is `true` passes its value through",
+         {"type": "object", "properties": {"a": True}}, "{a: 1"),
+    case("property_schema_false", "and `false` refuses it, one property deep rather than at the root",
+         {"type": "object", "properties": {"a": False}}, "{a: 1"),
+    case("property_schema_empty", "an empty object schema constrains nothing",
+         {"type": "object", "properties": {"a": {}}}, "{a: 1"),
+    case("property_object_shaped", "no `type`, and the shape says object",
+         {"type": "object", "properties": {"a": {"properties": {"b": {"type": "integer"}}}}},
+         '{a: {b: "1"}'),
+    case("property_array_shaped", "no `type`, and the shape says array",
+         {"type": "object", "properties": {"a": {"items": {"type": "integer"}}}}, '{a: ["1"]'),
+]
+
+FOREIGN_REFUSALS = [
+    case("one_of_branch_raises_type_error", "a branch whose schema raises TypeError propagates it "
+         "rather than reading as a failed branch",
+         {"type": "object", "properties": {"a": {"oneOf": [{"type": "object", "required": 7},
+                                                           {"type": "string"}]}}}, "{a: {b: 1}"),
+    case("type_union_raises_type_error", "the same rule inside a `type` union",
+         {"type": "object", "properties": {"a": {"type": ["object", "array"], "required": 7}}},
+         "{a: {b: 1}"),
+    # `set(required)` iterates whatever it is given, so the refusals and the stranger acceptances
+    # are both upstream's. Each error text below is `set()`'s own, byte for byte.
+    case("required_none", "None is not iterable", {"type": "object", "required": None}, "{a: 1"),
+    case("required_bool", "nor is a bool", {"type": "object", "required": True}, "{a: 1"),
+    case("required_float", "nor a float", {"type": "object", "required": 2.5}, "{a: 1"),
+    case("required_unhashable_member", "a list inside the list cannot be hashed",
+         {"type": "object", "required": [["u"]]}, "{a: 1"),
+    case("required_unhashable_dict_member", "and neither can a dict",
+         {"type": "object", "required": [{"k": 1}]}, "{a: 1"),
+    case("required_as_string", "a string is iterated per character, so `ab` requires `a` and `b`",
+         {"type": "object", "required": "ab"}, "{a: 1"),
+    case("required_as_dict", "and a dict contributes its keys",
+         {"type": "object", "required": {"k": 1}}, "{a: 1"),
+]
+
+STRING_CONTAINERS = [
+    case("json_string_holds_wrong_container", "the string parses, but to an array where an object "
+         "was wanted", {"type": "object", "properties": {"a": {"type": "integer"}}}, '"[1, 2]"'),
+    case("json_string_malformed_standard", "a malformed container in a string is not repaired in "
+         "standard mode", {"type": "array", "items": {"type": "integer"}}, '"[1, 2"'),
+    case("json_string_malformed_salvage", "and is in salvage",
+         {"type": "array", "items": {"type": "integer"}}, '"[1, 2"', mode="salvage"),
+    case("json_string_salvage_wrong_container", "salvage repairs the string and still finds the "
+         "wrong container inside", {"type": "object", "properties": {}}, '"[1, 2"', mode="salvage"),
+]
+
+TUPLE_ITEMS = [
+    case("tuple_exact_length", "as many items as positional schemas, which is the loop's boundary",
+         {"type": "array", "items": [{"type": "integer"}, {"type": "integer"}]}, '["1", "2"'),
+    case("tuple_additional_coerced", "extras coerced by `additionalItems`, whose index arithmetic "
+         "starts where the tuple ends",
+         {"type": "array", "items": [{"type": "integer"}], "additionalItems": {"type": "string"}},
+         "[1, 2, 3"),
+    case("tuple_additional_true", "`additionalItems: true` admits extras untouched",
+         {"type": "array", "items": [{"type": "integer"}], "additionalItems": True}, '["1", x, 3'),
+    case("tuple_second_schema_broken", "a broken positional schema is a definition error even "
+         "under salvage, where a bad *value* would drop",
+         {"type": "array", "items": [{"type": "integer"}, {"type": "date"}]}, "[1, 2", mode="salvage"),
+    case("salvage_drop_is_salvage_only", "the same failing item that salvage drops is a refusal in "
+         "standard mode", {"type": "array", "items": {"type": "integer"}}, '[1, "x", 3'),
+]
+
+COUNT_KEYWORDS = [
+    case("min_items_float", "a float minItems counts", {"type": "array", "minItems": 2.0}, "[1"),
+    case("min_items_negative_float", "and a negative one does not",
+         {"type": "object", "properties": {"a": {"type": "array", "minItems": -1.0}},
+          "required": ["a"]}, "{b: 1", mode="salvage"),
+    case("min_items_negative_int", "nor a negative integer",
+         {"type": "object", "properties": {"a": {"type": "array", "minItems": -1}},
+          "required": ["a"]}, "{b: 1", mode="salvage"),
+    case("min_items_zero_fills", "zero is falsy, so the salvage fill proceeds",
+         {"type": "object", "properties": {"a": {"type": "array", "minItems": 0}},
+          "required": ["a"]}, '{"b": 1}', mode="salvage"),
+    case("min_items_one_blocks_fill", "one is not, so it refuses",
+         {"type": "object", "properties": {"a": {"type": "array", "minItems": 1}},
+          "required": ["a"]}, '{"b": 1}', mode="salvage"),
+    case("min_properties_one_blocks_fill", "the object twin",
+         {"type": "object", "properties": {"a": {"type": "object", "minProperties": 1}},
+          "required": ["a"]}, '{"b": 1}', mode="salvage"),
+]
+
+BOOLEAN_SPELLINGS = [
+    case("bool_from_int_one", "integer 1 is true", 
+         {"type": "object", "properties": {"a": {"type": "boolean"}}}, "{a: 1"),
+    case("bool_from_int_zero", "and 0 is false",
+         {"type": "object", "properties": {"a": {"type": "boolean"}}}, "{a: 0"),
+    case("bool_from_int_two", "2 is neither",
+         {"type": "object", "properties": {"a": {"type": "boolean"}}}, "{a: 2"),
+    case("bool_from_float_one", "1.0 is true",
+         {"type": "object", "properties": {"a": {"type": "boolean"}}}, "{a: 1.0"),
+    case("bool_from_float_half", "0.5 is nothing",
+         {"type": "object", "properties": {"a": {"type": "boolean"}}}, "{a: 0.5"),
+    case("bool_from_on", "the on/off pair of spellings",
+         {"type": "object", "properties": {"a": {"type": "boolean"}}}, "{a: on"),
+    case("bool_from_off_cased", "in any case",
+         {"type": "object", "properties": {"a": {"type": "boolean"}}}, "{a: OFF"),
+    case("bool_from_no", "and the yes/no pair",
+         {"type": "object", "properties": {"a": {"type": "boolean"}}}, "{a: No"),
+]
+
+PARSER_SCHEMA_CONFIG = [
+    case("type_as_array_object", "`type` spelled as a list, which the parser's config reads too",
+         {"type": ["object"], "properties": {"a": {"type": "integer"}}}, '{a: "1"'),
+    case("parser_array_items", "an array schema guiding the parse itself, not the repair after it",
+         {"type": "array", "items": {"type": "integer"}}, '["1", "2"'),
+    case("parser_tuple_items", "positional schemas during the parse",
+         {"type": "array", "items": [{"type": "integer"}, {"type": "string"}]}, "[1, 2"),
+    case("parser_tuple_additional_false", "extras forbidden during the parse",
+         {"type": "array", "items": [{"type": "integer"}], "additionalItems": False}, '["1", "2"'),
+    case("parser_tuple_additional_schema", "and extras coerced during it",
+         {"type": "array", "items": [{"type": "string"}], "additionalItems": {"type": "integer"}},
+         '[1, "2"'),
+    case("parser_property_false", "a property schema of `false` read during the parse",
+         {"type": "object", "properties": {"a": False, "b": {"type": "integer"}}}, "{a: 1, b: 2"),
+]
+
+LIST_MAPPING = [
+    case("list_longer_than_properties", "more items than properties, which cannot map",
+         {"type": "object", "properties": {"a": {"type": "integer"}}}, "[1, 2", mode="salvage"),
+    case("list_map_type_array_form", "`type` spelled as a one-element list still maps",
+         {"type": ["object"], "properties": {"a": {"type": "integer"}, "b": {"type": "string"}}},
+         "[1, 'x'", mode="salvage"),
+    case("list_map_blocked_by_array_type", "a schema that also allows arrays keeps the list",
+         {"type": ["object", "array"], "properties": {"a": {"type": "integer"}}}, "[1", mode="salvage"),
+    case("list_map_standard_mode", "standard mode never maps",
+         {"type": "object", "properties": {"a": {"type": "integer"}, "b": {"type": "string"}}},
+         "[1, 'x'"),
+    case("set_like_object_standard", "set-like members are a salvage repair, not a standard one",
+         {"type": "object", "properties": {"a": {}, "b": {}}}, '{"a", "b"}'),
+]
+
+CASES: list[dict] = [*PATTERNS, *NUMERIC_TEXT, *WRONG_TYPES, *COERCION, *OBJECTS, *ARRAYS, *UNIONS, *ENUMS_AND_REFS, *SALVAGE, *MISSING_VALUES, *BOOLEAN_SUBSCHEMAS, *FOREIGN_REFUSALS, *STRING_CONTAINERS, *TUPLE_ITEMS, *COUNT_KEYWORDS, *BOOLEAN_SPELLINGS, *PARSER_SCHEMA_CONFIG, *LIST_MAPPING]

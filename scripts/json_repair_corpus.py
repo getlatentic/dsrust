@@ -46,6 +46,33 @@ VALID = [
     case("valid_escapes", "the escapes CPython's scanner resolves", r'{"s": "a\tbé🙂"}'),
     case("valid_empty_containers", "an empty object is not a missing one", '{"a": {}, "b": []}'),
     case("valid_unicode_keys", "a reply in Chinese takes the isalnum branch", '{"答案": "北京"}'),
+    # The strict scanner's own corners, each one a mutant that survived the whole suite. What made
+    # them invisible is that the fast path refusing usually hands the input to a repair parser that
+    # answers the same — so the cases here are the ones where the two *disagree*, found by applying
+    # each surviving mutation by hand and keeping the inputs whose answer flips.
+    case("near_null", "an n-word that is not null, which a widened literal guard would take",
+         "nope"),
+    case("near_false", "and an f-word that is not false", "farce"),
+    case("zero_alone", "the 0 arm of NUMBER_RE, whose leading-zero rule is its own branch", "0"),
+    case("zero_negative", "with the sign in front", "-0"),
+    case("zero_fraction", "a zero that continues into a fraction", "0.5"),
+    case("zero_exponent", "and into an exponent", "0e0"),
+    case("zero_exponent_signed", "with a sign and the capital E", "0E+1"),
+    case("exponent_plus", "a signed exponent after a nonzero integer", "1e+5"),
+    case("exponent_minus_capital", "the capital form with a minus", "1E-2"),
+    case("exponent_full", "sign, fraction and exponent together", "-10.5e-3"),
+    case("escape_backspace", "the b arm of the escape table", r'"a\bb"'),
+    case("escape_formfeed", "the f arm", r'"a\fb"'),
+    case("escape_carriage_return", "and the r arm", r'"a\rb"'),
+    case("surrogate_pair", "a pair the scanner joins into one astral character",
+         r'"\ud83d\ude00"'),
+    case("surrogate_pair_lowest", "the smallest joinable pair", r'"\ud800\udc00"'),
+    case("surrogate_pair_highest", "and the largest", r'"\udbff\udfff"'),
+    case("surrogate_pair_in_prose", "joined mid-string, so the offsets carry through",
+         r'"a\ud83d\ude00b"'),
+    case("unicode_escape_bad_hex", "four characters that are not hex, which is a refusal",
+         r'"\uZZZZ"'),
+    case("unicode_escape_truncated", "an escape the input ends inside", r'"\u12"'),
 ]
 
 # `repair_json` opens with `json.loads`, so what CPython's scanner accepts decides whether any
@@ -295,6 +322,28 @@ TUPLES = [
     case("stray_close_brace", "and a `}`", "(} 1, 2)"),
     case("unclosed_array_in_parens", "a bracket that never closes before the parenthesis does",
          "([1, 2)"),
+    # The tuple flag only decides anything when the parse yields exactly one item — `explicit_tuple
+    # || items.len() != 1` — so every multi-item case above leaves `Nesting`'s counters unchecked.
+    # These are the one-item shapes, where a wrong counter turns `[x]` into `x`: a trailing comma
+    # makes one item an explicit tuple, and only the depth decides whether the comma is top-level.
+    case("one_tuple_of_empty_array", "a tuple holding one empty array", "([],)"),
+    case("one_tuple_of_empty_object", "and one empty object", "({},)"),
+    case("one_tuple_of_tuple", "and one empty tuple", "((),)"),
+    case("one_tuple_of_array", "one array with content, so the counter moves both ways", "([1],)"),
+    case("one_tuple_of_object", "the object twin", '({"a": 1},)'),
+    case("one_tuple_of_nested_arrays", "two opens before any close", "([[]],)"),
+    # A stray closer at depth zero is what the `> 0` guards refuse to count below zero. At the top
+    # level such a `(` reads as prose, so these sit inside a value, where the tuple scan still runs.
+    case("stray_close_bracket_in_tuple", "a `]` with nothing open, then one item and the comma",
+         '{"a": (] 1,)}'),
+    case("stray_close_brace_in_tuple", "the `}` twin, which also ends the member",
+         '{"a": (} 1,)}'),
+    case("stray_close_bracket_in_array", "the same inside an array", "[(] 1,)]"),
+    case("stray_close_brace_in_array", "where the brace closes nothing at all", "[(} 1,)]"),
+    case("open_then_stray_close", "an open bracket wedged by the wrong closer", '{"a": ([} 1],)}'),
+    case("stray_close_then_open", "and the closer first", '{"a": (}[ 1],)}'),
+    case("stray_close_then_object", "a stray closer, then a real container and the comma",
+         "[(]{},)]"),
     case("prose_parenthesis", "an aside, which must not swallow the JSON after it",
          'the answer (see below): {"a": 1}'),
     case("parenthesis_own_line", "brackets alone on their line do open a value", "\n(1, 2)\n"),
