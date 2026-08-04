@@ -44,23 +44,15 @@ cd "$ROOT"
 #                    intersection tie was in that list and is not any more — see the note in
 #                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
 #                    finished state.
-#   dsrust-json-repair 158 unpinned, 17 hanging — the v1 baseline, of 1712 viable on a frozen tree
-#                    in 61 minutes, with three files cross-checked scoped-vs-whole (4, 8, 19 — all
-#                    exact). From 296 and 79 at the first honest measurement, across six passes that
-#                    each closed a class: the tuple grammar, the read counter on both cursors, the
-#                    cache invariant, the lookahead corpus, the strict scanner's fast-path-vs-repair
-#                    disagreements, and the one-item tuple mask that had hidden all sixteen
-#                    `Nesting::open_or_close` counters (`explicit_tuple || items.len() != 1` decides
-#                    nothing until the parse yields exactly one item).
-#                    One port bug came out of the schema pass: `required: 7` must raise `set()`'s
-#                    own TypeError through a union, and the config was silently keeping only string
-#                    members — found because the replay validator saw a question the pin never asked.
-#                    What remains is spread thin: no file holds more than 19, the largest single
-#                    cluster is the lookahead cache (11), whose hit answers flip zero committed
-#                    inputs even replaced by a constant, and `empty.rs` at 18 is the biggest
-#                    unworked file. The 17 hangs live in loops that read neither cursor — arithmetic
-#                    over local slices. This is the floor optimization starts from: the throughput
-#                    gate exists because these suites, by construction, cannot see a dead fast path.
+#   dsrust-json-repair 172 unpinned, 21 hanging — of 1913 viable in 74 minutes, on the tree after
+#                    the optimization arc. The v1 baseline read 158 and 17 over 217 fewer mutants;
+#                    the optimizations brought their own: the hybrid Object index carries ten new
+#                    arms in `value.rs` (19 there now), the literal matcher's rewrite seven in
+#                    `helpers.rs`, and the byte scanner just two, because `scanner_agreement.rs`
+#                    holds it to the char scanner over every committed input. Four of the hangs are
+#                    the span-copy writer's own cursor loops — the exact defect the read counters
+#                    exist for, reintroduced by the hand that fixed it, and guarded in the commit
+#                    after this number was recorded.
 #   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours. Run it
 #               scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
 #               history, parse) measured 43 of 143 viable on 2026-08-01, 35 of them in `parse.rs`,
@@ -71,7 +63,7 @@ BASELINES=(
   "dsrust-tpe:1:0"
   "pyrng:1:3"
   "dsrust-gepa:35:11"
-  "dsrust-json-repair:158:17"
+  "dsrust-json-repair:172:21"
 )
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each
