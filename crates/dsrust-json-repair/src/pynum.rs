@@ -34,10 +34,15 @@ fn normalize(text: &str) -> String {
 /// Unicode *decimal* digit, and allow `_` only with a digit on each side. `coerce_scalar` hands
 /// these arbitrary strings out of a parsed value, so none of that is hypothetical: `int("١٢٣")` is
 /// 123 and `float(" 1_0 ")` is 10.0.
-fn as_ascii_literal(text: &str) -> Option<String> {
+fn as_ascii_literal(text: &str) -> Option<std::borrow::Cow<'_, str>> {
     let trimmed = text.trim_matches(crate::pychar::is_space);
     if trimmed.is_empty() {
         return None;
+    }
+    // Nearly every number a parse hands over is already the ASCII the conversion would rebuild —
+    // borrow it back rather than allocate a copy. `_` and non-ASCII digits take the owned path.
+    if trimmed.bytes().all(|byte| byte.is_ascii() && byte != b'_') {
+        return Some(std::borrow::Cow::Borrowed(trimmed));
     }
     let chars: Vec<char> = trimmed.chars().collect();
     let mut out = String::with_capacity(chars.len());
@@ -60,7 +65,7 @@ fn as_ascii_literal(text: &str) -> Option<String> {
             None => out.push(ch),
         }
     }
-    Some(out)
+    Some(std::borrow::Cow::Owned(out))
 }
 
 /// `int(text)`, raising as Python does.

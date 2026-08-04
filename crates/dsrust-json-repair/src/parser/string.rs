@@ -179,7 +179,7 @@ impl Parser {
                 state.rstring_delimiter = vec!['”'];
             }
             char if pychar::is_alnum(char) => {
-                if matches!(pychar::lower(char).as_str(), "t" | "f" | "n")
+                if matches!(pychar::lowered_single(char), Some('t' | 'f' | 'n'))
                     && !self.context.is(ContextValue::ObjectKey)
                 {
                     let value = self.parse_boolean_or_null();

@@ -24,24 +24,24 @@ pub(crate) enum CommaMeaning {
 impl Parser {
     /// A bare `true`, `false` or `null`, or the empty string and no movement.
     pub(crate) fn parse_boolean_or_null(&mut self) -> Value {
-        let first = self.char_here().map(pychar::lower).unwrap_or_default();
-        let (word, value) = match first.as_str() {
-            "t" => ("true", Value::Bool(true)),
-            "f" => ("false", Value::Bool(false)),
-            "n" => ("null", Value::Null),
+        let Some(first) = self.char_here() else {
+            return Value::Str(String::new());
+        };
+        let (word, value) = match pychar::lowered_single(first) {
+            Some('t') => ("true", Value::Bool(true)),
+            Some('f') => ("false", Value::Bool(false)),
+            Some('n') => ("null", Value::Null),
             _ => return Value::Str(String::new()),
         };
 
         let starting_index = self.index;
         let mut matched = 0;
-        let mut char = first;
         for expected in word.chars() {
-            if char != expected.to_string() {
+            if self.char_here().and_then(pychar::lowered_single) != Some(expected) {
                 break;
             }
             matched += 1;
             self.index += 1;
-            char = self.char_here().map(pychar::lower).unwrap_or_default();
         }
         if matched == word.chars().count() {
             return value;

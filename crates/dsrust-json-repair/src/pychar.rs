@@ -129,6 +129,22 @@ pub(crate) fn decimal_value(ch: char) -> Option<u32> {
     Some((code_point - lo) % 10)
 }
 
+/// `str.lower()` where the answer is a single character, or `None` where it widens or stays
+/// beyond one — the allocation-free form of [`lower`] for callers comparing against ASCII words.
+///
+/// A character whose lowering is exactly one `char` compares as that `char`; `'İ'`, whose lowering
+/// is two code points, answers `None` and can never equal an ASCII letter anyway. Built on the
+/// same `char::to_lowercase` as [`lower`], so the two cannot disagree on what a character lowers
+/// to — only on how the answer is spelled.
+pub(crate) fn lowered_single(ch: char) -> Option<char> {
+    let mut lowered = ch.to_lowercase();
+    let first = lowered.next();
+    match lowered.next() {
+        None => first,
+        Some(_) => None,
+    }
+}
+
 /// CPython's `str.lower()` for one character, which may widen — `'İ'.lower()` is two code points,
 /// so the caller compares strings rather than characters.
 pub(crate) fn lower(ch: char) -> String {
