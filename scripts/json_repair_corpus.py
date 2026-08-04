@@ -117,6 +117,46 @@ ORDINARY_MALFORMATIONS = [
     case("fence_then_paren_at_end", "the parenthesised form of the same decision", '{"a": text}```(1)'),
     case("fence_then_paren_closed", "and its closed form, which answers the other way",
          '{"a": text}```(1)```'),
+    # `_scroll_comment_prefixed_member_start` skips comments on the way to the next member, and the
+    # corpus only ever reached it with `//`. Each kind is its own arm — deleting the `#` arm or the
+    # `/* */` arm survived every test — and the quote-follows path is the caller where the answer
+    # decides whether a mid-string quote closes the string.
+    case("comment_hash_before_member", "a hash comment between the comma and the member, seen from "
+         "inside an unterminated string", '{"a": "x" mid", # note\n "b": 1}'),
+    case("comment_block_before_member", "the block form, whose close the scan must find",
+         '{"a": "x" mid", /* note */ "b": 1}'),
+    case("comment_line_at_line_start", "a newline immediately before the //, which pins where the "
+         "line scan starts", '{"a": "x" mid",\n// note\n"b": 1}'),
+    case("comment_block_unterminated", "a block comment that never closes, so the scan ends the "
+         "input", '{"a": "x" mid", /* never closed "b": 1}'),
+    case("comment_hash_at_end", "a hash comment as the last thing there is",
+         '{"a": "x" mid", #'),
+    case("fence_comma_comment_member", "the post-fence path: container, comma, comment, member",
+         '{"a": text}```{"x": 1}, # note\n"b": 2}'),
+    # `_starts_nested_inline_container` classifies a bracket inside the container after a fence:
+    # nested, or prose that lets the container close early. In `[k,[X],m:1]` the classification
+    # decides whether `m:1` is inside the container or a member of the outer object — one answer
+    # keeps the reply a single object, the other splits it in two. X walks the next-char set the
+    # rule reads: each literal initial, a digit, a quote, another opener, and prose as the contrast.
+    case("fenced_inner_bracket_true", "t admits a nested container", '{"a":"x}``` [k,[true],m:1]\n","b":"y"}'),
+    case("fenced_inner_bracket_false", "as does f", '{"a":"x}``` [k,[false],m:1]\n","b":"y"}'),
+    case("fenced_inner_bracket_null", "and n", '{"a":"x}``` [k,[null],m:1]\n","b":"y"}'),
+    case("fenced_inner_bracket_minus", "and a minus", '{"a":"x}``` [k,[-1],m:1]\n","b":"y"}'),
+    case("fenced_inner_bracket_digit", "and a digit", '{"a":"x}``` [k,[9],m:1]\n","b":"y"}'),
+    case("fenced_inner_bracket_quote", "and a quote", '{"a":"x}``` [k,["s"],m:1]\n","b":"y"}'),
+    case("fenced_inner_bracket_opener", "and another opener", '{"a":"x}``` [k,[[1]],m:1]\n","b":"y"}'),
+    case("fenced_inner_bracket_closer", "an immediate close counts too", '{"a":"x}``` [k,[],m:1]\n","b":"y"}'),
+    case("fenced_inner_bracket_prose", "prose does not, and the container closes early",
+         '{"a":"x}``` [k,[w],m:1]\n","b":"y"}'),
+    case("fenced_inner_bracket_after_prose", "a bracket whose *previous* character is prose is not "
+         "nested regardless of what follows", '{"a":"x}``` [a [1]],m:1]\n","b":"y"}'),
+    case("fenced_inner_paren", "the parenthesis arm of the same set", '{"a":"x}``` [k,(1),m:1]\n","b":"y"}'),
+    case("fenced_inner_brace_after_comma", "a brace after a comma is not nested even holding a "
+         "bare key, since only a colon admits one", '{"a":"x}``` {k:1,{j:2}}\n","b":"y"}'),
+    case("fenced_inner_brace_after_colon", "after a colon it is", '{"a":"x}``` {k:{j:2},m:3}\n","b":"y"}'),
+    case("fenced_inner_brace_quote", "a brace holding a quoted key is nested either way",
+         '{"a":"x}``` {k:{"q":2}}\n","b":"y"}'),
+    case("fenced_inner_brace_empty", "as is an empty one", '{"a":"x}``` {k:{}}\n","b":"y"}'),
     case("bare_word_value", "an unquoted value", "{a: hello}"),
     case("array_of_objects", "the shape dspy sees when a model wraps its answer", '[{"a": 1}]'),
 ]

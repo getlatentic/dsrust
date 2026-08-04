@@ -3,17 +3,17 @@
  "what": "What json_repair.loads returns for each input, as the bytes json.dumps writes for it. Recorded by running the library, never by hand: the value distinguishes int from float, keeps a key at the position it was first assigned, and holds an integer wider than a machine word exactly, and all three are observable here.",
  "coverage": {
   "json_context.py": 21,
-  "json_parser.py": 154,
+  "json_parser.py": 156,
   "json_repair.py": 65,
-  "object_comparer.py": 14,
+  "object_comparer.py": 15,
   "object_value_context.py": 47,
   "parse_array.py": 42,
   "parse_boolean_or_null.py": 16,
   "parse_comment.py": 47,
   "parse_json_llm_block.py": 6,
   "parse_number.py": 22,
-  "parse_object.py": 202,
-  "parse_string.py": 516,
+  "parse_object.py": 204,
+  "parse_string.py": 577,
   "parser_parenthesized.py": 116,
   "parser_schema.py": 4,
   "schema_repair.py": 3,
@@ -666,6 +666,499 @@
     {
      "text": "There were no more elements, returning the element without the array",
      "context": "```(1)```"
+    }
+   ]
+  },
+  {
+   "name": "comment_hash_before_member",
+   "why": "a hash comment between the comma and the member, seen from inside an unterminated string",
+   "input": "{\"a\": \"x\" mid\", # note\n \"b\": 1}",
+   "ok": true,
+   "dumps": "{\"a\": \"x\\\" mid\", \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a misplaced quote that would have closed the string but has a different meaning here, ignoring it",
+     "context": "{\"a\": \"x\" mid\", # "
+    },
+    {
+     "text": "Found line comment: # note, ignoring",
+     "context": "d\", # note\n \"b\": 1}"
+    }
+   ]
+  },
+  {
+   "name": "comment_block_before_member",
+   "why": "the block form, whose close the scan must find",
+   "input": "{\"a\": \"x\" mid\", /* note */ \"b\": 1}",
+   "ok": true,
+   "dumps": "{\"a\": \"x\\\" mid\", \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a misplaced quote that would have closed the string but has a different meaning here, ignoring it",
+     "context": "{\"a\": \"x\" mid\", /*"
+    },
+    {
+     "text": "Found block comment: /* note */, ignoring",
+     "context": "/* note */ \"b\": 1}"
+    }
+   ]
+  },
+  {
+   "name": "comment_line_at_line_start",
+   "why": "a newline immediately before the //, which pins where the line scan starts",
+   "input": "{\"a\": \"x\" mid\",\n// note\n\"b\": 1}",
+   "ok": true,
+   "dumps": "{\"a\": \"x\\\" mid\", \"b\": 1}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a misplaced quote that would have closed the string but has a different meaning here, ignoring it",
+     "context": "{\"a\": \"x\" mid\",\n//"
+    },
+    {
+     "text": "Found line comment: // note, ignoring",
+     "context": "\",\n// note\n\"b\": 1}"
+    }
+   ]
+  },
+  {
+   "name": "comment_block_unterminated",
+   "why": "a block comment that never closes, so the scan ends the input",
+   "input": "{\"a\": \"x\" mid\", /* never closed \"b\": 1}",
+   "ok": true,
+   "dumps": "{\"a\": \"x\\\" mid\\\"\"}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a misplaced quote that would have closed the string but has a different meaning here, ignoring it",
+     "context": "{\"a\": \"x\" mid\", /*"
+    },
+    {
+     "text": "While parsing a string missing the right delimiter in object value context, we found a comma that starts the next object member. Stopping here",
+     "context": ": \"x\" mid\", /* never"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": ": \"x\" mid\", /* never"
+    },
+    {
+     "text": "Reached end-of-string while parsing block comment; unclosed block comment.",
+     "context": "ed \"b\": 1}"
+    },
+    {
+     "text": "Found block comment: /* never closed \"b\": 1}, ignoring",
+     "context": "ed \"b\": 1}"
+    }
+   ]
+  },
+  {
+   "name": "comment_hash_at_end",
+   "why": "a hash comment as the last thing there is",
+   "input": "{\"a\": \"x\" mid\", #",
+   "ok": true,
+   "dumps": "{\"a\": \"x\\\" mid\\\", #\"}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a misplaced quote that would have closed the string but has a different meaning here, ignoring it",
+     "context": "{\"a\": \"x\" mid\", #"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a comma that belongs to the string, keeping it",
+     "context": ": \"x\" mid\", #"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "x\" mid\", #"
+    }
+   ]
+  },
+  {
+   "name": "fence_comma_comment_member",
+   "why": "the post-fence path: container, comma, comment, member",
+   "input": "{\"a\": text}```{\"x\": 1}, # note\n\"b\": 2}",
+   "ok": true,
+   "dumps": "[{\"a\": \"text\"}, {\"x\": 1}]",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{\"a\": text}```{\""
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object value context, we found a , or } and we couldn't determine that a right delimiter was present. Stopping here",
+     "context": "{\"a\": text}```{\"x\": "
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{\"a\": text}```{\"x\": "
+    },
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "\"a\": text}```{\"x\": 1"
+    },
+    {
+     "text": "Found line comment: # note, ignoring",
+     "context": "1}, # note\n\"b\": 2}"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_bracket_true",
+   "why": "t admits a nested container",
+   "input": "{\"a\":\"x}``` [k,[true],m:1]\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"x}``` [k,[true],m:1]\", \"b\": \"y\"}",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\":\"x}``` [k,[t"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": "a\":\"x}``` [k,[true],"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_bracket_false",
+   "why": "as does f",
+   "input": "{\"a\":\"x}``` [k,[false],m:1]\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"x}``` [k,[false],m:1]\", \"b\": \"y\"}",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\":\"x}``` [k,[f"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": "a\":\"x}``` [k,[false]"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_bracket_null",
+   "why": "and n",
+   "input": "{\"a\":\"x}``` [k,[null],m:1]\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"x}``` [k,[null],m:1]\", \"b\": \"y\"}",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\":\"x}``` [k,[n"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": "a\":\"x}``` [k,[null],"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_bracket_minus",
+   "why": "and a minus",
+   "input": "{\"a\":\"x}``` [k,[-1],m:1]\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"x}``` [k,[-1],m:1]\", \"b\": \"y\"}",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\":\"x}``` [k,[-"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": "a\":\"x}``` [k,[-1],m:"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_bracket_digit",
+   "why": "and a digit",
+   "input": "{\"a\":\"x}``` [k,[9],m:1]\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"x}``` [k,[9],m:1]\", \"b\": \"y\"}",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\":\"x}``` [k,[9"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": "a\":\"x}``` [k,[9],m:1"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_bracket_quote",
+   "why": "and a quote",
+   "input": "{\"a\":\"x}``` [k,[\"s\"],m:1]\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"x}``` [k,[\\\"s\\\"],m:1]\", \"b\": \"y\"}",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\":\"x}``` [k,[\""
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": "a\":\"x}``` [k,[\"s\"],m"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_bracket_opener",
+   "why": "and another opener",
+   "input": "{\"a\":\"x}``` [k,[[1]],m:1]\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"x}``` [k,[[1]],m:1]\", \"b\": \"y\"}",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\":\"x}``` [k,[["
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": "a\":\"x}``` [k,[[1]],m"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_bracket_closer",
+   "why": "an immediate close counts too",
+   "input": "{\"a\":\"x}``` [k,[],m:1]\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"x}``` [k,[],m:1]\", \"b\": \"y\"}",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\":\"x}``` [k,[]"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": "a\":\"x}``` [k,[],m:1]"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_bracket_prose",
+   "why": "prose does not, and the container closes early",
+   "input": "{\"a\":\"x}``` [k,[w],m:1]\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "[{\"a\": \"x\"}, [\"k\", [\"w\"], \"m:1\"]]",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a } that closes the object before code fences, stopping here",
+     "context": "{\"a\":\"x}``` [k,[w"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{\"a\":\"x}``` [k,[w"
+    },
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "{\"a\":\"x}``` [k,[w]"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "\":\"x}``` [k,[w],m:1]"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in array context, we found a ] or ,, stopping here",
+     "context": ":\"x}``` [k,[w],m:1]\n"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": ":\"x}``` [k,[w],m:1]\n"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "x}``` [k,[w],m:1]\n\","
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in array context, we found a ] or ,, stopping here",
+     "context": "}``` [k,[w],m:1]\n\",\""
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "}``` [k,[w],m:1]\n\",\""
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "`` [k,[w],m:1]\n\",\"b\""
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in array context, we found a ] or ,, stopping here",
+     "context": "[k,[w],m:1]\n\",\"b\":\"y"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "[k,[w],m:1]\n\",\"b\":\"y"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_bracket_after_prose",
+   "why": "a bracket whose *previous* character is prose is not nested regardless of what follows",
+   "input": "{\"a\":\"x}``` [a [1]],m:1]\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"x}``` [a [1]]\", \"m\": 1, \",\\\"b\": \"y\"}",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\":\"x}``` [a [1"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": "a\":\"x}``` [a [1]],m:"
+    },
+    {
+     "text": "While parsing a string missing the right delimiter in object value context, we found a comma that starts the next object member. Stopping here",
+     "context": "`` [a [1]],m:1]\n\",\"b"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "`` [a [1]],m:1]\n\",\"b"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "` [a [1]],m:1]\n\",\"b\""
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": " [a [1]],m:1]\n\",\"b\":"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": " [a [1]],m:1]\n\",\"b\":"
+    },
+    {
+     "text": "While parsing a string in Object Key context, we detected a quoted section that would have closed the string but has a different meaning here, ignoring it",
+     "context": "]],m:1]\n\",\"b\":\"y\"}"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_paren",
+   "why": "the parenthesis arm of the same set",
+   "input": "{\"a\":\"x}``` [k,(1),m:1]\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"x}``` [k,(1),m:1]\", \"b\": \"y\"}",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\":\"x}``` [k,(1"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": "a\":\"x}``` [k,(1),m:1"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_brace_after_comma",
+   "why": "a brace after a comma is not nested even holding a bare key, since only a colon admits one",
+   "input": "{\"a\":\"x}``` {k:1,{j:2}}\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "[{\"a\": \"x\"}, {\"k\": 1, \"j\": 2}]",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a } that closes the object before code fences, stopping here",
+     "context": "{\"a\":\"x}``` {k:1,"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{\"a\":\"x}``` {k:1,"
+    },
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "{\"a\":\"x}``` {k:1,{"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "\":\"x}``` {k:1,{j:2}}"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": ":\"x}``` {k:1,{j:2}}\n"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": ":\"x}``` {k:1,{j:2}}\n"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "``` {k:1,{j:2}}\n\",\"b"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "`` {k:1,{j:2}}\n\",\"b\""
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "`` {k:1,{j:2}}\n\",\"b\""
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_brace_after_colon",
+   "why": "after a colon it is",
+   "input": "{\"a\":\"x}``` {k:{j:2},m:3}\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"x}``` {k:{j:2},m:3}\", \"b\": \"y\"}",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\":\"x}``` {k:{j"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": "a\":\"x}``` {k:{j:2},m"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_brace_quote",
+   "why": "a brace holding a quoted key is nested either way",
+   "input": "{\"a\":\"x}``` {k:{\"q\":2}}\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "[{\"a\": \"x\"}, {\"k\": {\"q\": 2}}]",
+   "log": [
+    {
+     "text": "While parsing a string missing the left delimiter in object value context, we found a , or } and we couldn't determine that a right delimiter was present. Stopping here",
+     "context": "{\"a\":\"x}``` {k:{\""
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{\"a\":\"x}``` {k:{\""
+    },
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "{\"a\":\"x}``` {k:{\"q"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "\":\"x}``` {k:{\"q\":2}}"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": ":\"x}``` {k:{\"q\":2}}\n"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": ":\"x}``` {k:{\"q\":2}}\n"
+    }
+   ]
+  },
+  {
+   "name": "fenced_inner_brace_empty",
+   "why": "as is an empty one",
+   "input": "{\"a\":\"x}``` {k:{}}\n\",\"b\":\"y\"}",
+   "ok": true,
+   "dumps": "{\"a\": \"x}``` {k:{}}\", \"b\": \"y\"}",
+   "log": [
+    {
+     "text": "While parsing a string in object value context, we found a literal fenced snippet after }, keeping it in the string",
+     "context": "{\"a\":\"x}``` {k:{}"
+    },
+    {
+     "text": "While parsing a string in object value context, we found a balanced inline container that belongs to the string, keeping it",
+     "context": "a\":\"x}``` {k:{}}\n\",\""
     }
    ]
   },
