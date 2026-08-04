@@ -11,6 +11,28 @@ use crate::parser::string::{
 use crate::{STRING_DELIMITERS, pychar};
 
 impl Parser {
+    /// A cached lookahead answer, checked against the scan it stands in for. Debug builds only.
+    ///
+    /// This cache is a memoisation and nothing else, so its whole contract is one equality: what it
+    /// returns must be what `skip_to_character` would have returned. Every line of it runs on
+    /// ordinary input — its Python counterpart sits at 100% of statements — and eighteen mutants
+    /// still survived, because running a line is not the same as checking what it produced. The
+    /// bounds can be widened, the guards inverted and the arithmetic shifted, and a corpus only
+    /// notices where the wrong answer happens to change a parse.
+    ///
+    /// Stating the invariant catches all of that at the point it breaks, and it costs release
+    /// builds nothing — which is the whole reason the cache exists.
+    #[inline]
+    fn answers_as_the_scan_does(&self, cached: isize, targets: &[char], idx: isize) -> isize {
+        debug_assert_eq!(
+            cached,
+            self.skip_to_character(targets, idx),
+            "the lookahead cache answered {cached} where the scan it caches disagrees, for \
+             {targets:?} at offset {idx}"
+        );
+        cached
+    }
+
     /// `skip_to_character`, remembering the answer per target set for the length of one string.
     ///
     /// The scan asks the same lookahead question once per character of a long unterminated value,
@@ -29,12 +51,20 @@ impl Parser {
         {
             match cached_match {
                 None if start_index >= *cached_start => {
-                    return self.len() as isize - self.index as isize;
+                    return self.answers_as_the_scan_does(
+                        self.len() as isize - self.index as isize,
+                        targets,
+                        idx,
+                    );
                 }
                 Some(cached_match)
                     if *cached_start <= start_index && start_index <= *cached_match =>
                 {
-                    return cached_match - self.index as isize;
+                    return self.answers_as_the_scan_does(
+                        cached_match - self.index as isize,
+                        targets,
+                        idx,
+                    );
                 }
                 _ => {}
             }
