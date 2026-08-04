@@ -131,8 +131,30 @@ impl Value {
 }
 
 /// An object, ordered by first assignment the way a Python `dict` is.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct Object(Vec<(String, Value)>);
+///
+/// The entries carry the order; the index exists only once an object is big enough to need one. A
+/// dict's lookup is O(1), and a bare `Vec` held a linear scan per insert and per get — building a
+/// four-thousand-key object took eight million string comparisons, measured as valid JSON parsing
+/// eight times slower per byte than its small-object twin. Indexing *every* object swung the cost
+/// the other way: most objects a model emits hold a handful of keys, the map made `Value` more
+/// than twice its size, and the depth-240 recursion tests overflowed their stack on the fatter
+/// frames. So the index is boxed, absent below [`INDEX_AT`], and derived state throughout: every
+/// mutation leaves it exactly the positions of `entries`, and equality reads the entries alone.
+#[derive(Clone, Debug, Default)]
+pub struct Object {
+    entries: Vec<(String, Value)>,
+    index: Option<Box<std::collections::HashMap<String, usize>>>,
+}
+
+/// How many entries an object holds before lookups earn a map. Sixteen linear string compares are
+/// cheaper than hashing for the objects a model usually emits.
+const INDEX_AT: usize = 16;
+
+impl PartialEq for Object {
+    fn eq(&self, other: &Self) -> bool {
+        self.entries == other.entries
+    }
+}
 
 impl Object {
     /// An object with no entries.
@@ -140,73 +162,104 @@ impl Object {
         Self::default()
     }
 
+    /// The position of `key`, through the index when one exists.
+    fn position(&self, key: &str) -> Option<usize> {
+        match &self.index {
+            Some(map) => map.get(key).copied(),
+            None => self
+                .entries
+                .iter()
+                .position(|(existing, _)| existing == key),
+        }
+    }
+
     /// Assigns `value` to `key`. A key already present keeps the position it was first given, as a
     /// Python `dict` does.
     pub fn insert(&mut self, key: String, value: Value) {
-        match self.0.iter_mut().find(|(existing, _)| *existing == key) {
-            Some(entry) => entry.1 = value,
-            None => self.0.push((key, value)),
+        match self.position(&key) {
+            Some(at) => self.entries[at].1 = value,
+            None => {
+                if let Some(map) = &mut self.index {
+                    map.insert(key.clone(), self.entries.len());
+                }
+                self.entries.push((key, value));
+                if self.index.is_none() && self.entries.len() > INDEX_AT {
+                    self.index = Some(Box::new(
+                        self.entries
+                            .iter()
+                            .enumerate()
+                            .map(|(at, (key, _))| (key.clone(), at))
+                            .collect(),
+                    ));
+                }
+            }
         }
     }
 
     /// Inserts every entry of `other`, as `dict.update` does. A key already present keeps its
     /// position and takes the new value.
     pub fn update(&mut self, other: Object) {
-        for (key, value) in other.0 {
+        for (key, value) in other.entries {
             self.insert(key, value);
         }
     }
 
     /// The value stored under `key`.
     pub fn get(&self, key: &str) -> Option<&Value> {
-        self.0
-            .iter()
-            .find(|(existing, _)| existing == key)
-            .map(|(_, value)| value)
+        self.position(key).map(|at| &self.entries[at].1)
     }
 
     /// `dict.pop(key, None)`: the value if it was there, and the key gone from the order.
     pub fn remove(&mut self, key: &str) -> Option<Value> {
-        let at = self.0.iter().position(|(existing, _)| existing == key)?;
-        Some(self.0.remove(at).1)
+        let at = self.position(key)?;
+        let (_, value) = self.entries.remove(at);
+        if let Some(map) = &mut self.index {
+            map.remove(key);
+            for position in map.values_mut() {
+                if *position > at {
+                    *position -= 1;
+                }
+            }
+        }
+        Some(value)
     }
 
     /// Whether `key` is present.
     pub fn contains_key(&self, key: &str) -> bool {
-        self.get(key).is_some()
+        self.position(key).is_some()
     }
 
     /// How many entries the object holds.
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.entries.len()
     }
 
     /// Whether the object holds no entries.
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.entries.is_empty()
     }
 
     /// The key assigned a position most recently.
     pub fn last_key(&self) -> Option<&str> {
-        self.0.last().map(|(key, _)| key.as_str())
+        self.entries.last().map(|(key, _)| key.as_str())
     }
 
     /// The value stored under `key`, to modify in place.
     pub fn get_mut(&mut self, key: &str) -> Option<&mut Value> {
-        self.0
-            .iter_mut()
-            .find(|(existing, _)| existing == key)
-            .map(|(_, value)| value)
+        let at = self.position(key)?;
+        Some(&mut self.entries[at].1)
     }
 
     /// Every entry, in the order its key was first assigned.
     pub fn iter(&self) -> impl Iterator<Item = (&str, &Value)> {
-        self.0.iter().map(|(key, value)| (key.as_str(), value))
+        self.entries
+            .iter()
+            .map(|(key, value)| (key.as_str(), value))
     }
 
     /// Every key, in the order it was first assigned.
     pub fn keys(&self) -> impl Iterator<Item = &str> {
-        self.0.iter().map(|(key, _)| key.as_str())
+        self.entries.iter().map(|(key, _)| key.as_str())
     }
 }
 
@@ -225,7 +278,7 @@ impl IntoIterator for Object {
     type IntoIter = std::vec::IntoIter<(String, Value)>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
+        self.entries.into_iter()
     }
 }
 
