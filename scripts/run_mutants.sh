@@ -44,23 +44,23 @@ cd "$ROOT"
 #                    intersection tie was in that list and is not any more — see the note in
 #                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
 #                    finished state.
-#   dsrust-json-repair 224 unpinned, 24 hanging — of 1693 viable, on a frozen tree in 76 minutes,
-#                    with `lookahead.rs` reading 19 and 0 in both this whole run and a scoped one.
-#                    Down from 296 and 79 across four passes, each of which closed a *class*: the
-#                    tuple grammar (no token table held a `(`), the read counter (a scan that stops
-#                    advancing fails instead of hanging, 82 -> 24), the cache invariant (a memoised
-#                    answer must equal the scan it stands for), and the lookahead corpus, whose 22
-#                    cases were found by applying surviving mutants by hand and searching for an
-#                    input whose answer flips — the comment scroll had only ever seen `//`, and the
-#                    nested-container rule only runs inside a fenced container inside a quoted value
-#                    already holding a `}`.
-#                    What remains, and why: `strict_json.rs` at 27 is CPython's scanner with its own
-#                    cursor, out of the read counter's reach; the schema files hold 58 nobody has
-#                    worked; 11 in the lookahead are the cache, whose hit answers flip zero of the
-#                    1406 committed inputs even when replaced by a constant — measured, not assumed;
-#                    the 24 hangs are the same separate-cursor loops. Sixteen in
-#                    `Nesting::open_or_close` resist every input tried and stay unresolved rather
-#                    than equivalent, which would be a claim about the whole input space.
+#   dsrust-json-repair 158 unpinned, 17 hanging — the v1 baseline, of 1712 viable on a frozen tree
+#                    in 61 minutes, with three files cross-checked scoped-vs-whole (4, 8, 19 — all
+#                    exact). From 296 and 79 at the first honest measurement, across six passes that
+#                    each closed a class: the tuple grammar, the read counter on both cursors, the
+#                    cache invariant, the lookahead corpus, the strict scanner's fast-path-vs-repair
+#                    disagreements, and the one-item tuple mask that had hidden all sixteen
+#                    `Nesting::open_or_close` counters (`explicit_tuple || items.len() != 1` decides
+#                    nothing until the parse yields exactly one item).
+#                    One port bug came out of the schema pass: `required: 7` must raise `set()`'s
+#                    own TypeError through a union, and the config was silently keeping only string
+#                    members — found because the replay validator saw a question the pin never asked.
+#                    What remains is spread thin: no file holds more than 19, the largest single
+#                    cluster is the lookahead cache (11), whose hit answers flip zero committed
+#                    inputs even replaced by a constant, and `empty.rs` at 18 is the biggest
+#                    unworked file. The 17 hangs live in loops that read neither cursor — arithmetic
+#                    over local slices. This is the floor optimization starts from: the throughput
+#                    gate exists because these suites, by construction, cannot see a dead fast path.
 #   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours. Run it
 #               scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
 #               history, parse) measured 43 of 143 viable on 2026-08-01, 35 of them in `parse.rs`,
@@ -71,7 +71,7 @@ BASELINES=(
   "dsrust-tpe:1:0"
   "pyrng:1:3"
   "dsrust-gepa:35:11"
-  "dsrust-json-repair:224:24"
+  "dsrust-json-repair:158:17"
 )
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each
