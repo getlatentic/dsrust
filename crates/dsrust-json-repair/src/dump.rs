@@ -22,7 +22,10 @@ fn write(value: &Value, ascii: bool, out: &mut String) {
         Value::Null => out.push_str("null"),
         Value::Bool(true) => out.push_str("true"),
         Value::Bool(false) => out.push_str("false"),
-        Value::Int(number) => out.push_str(&number.to_string()),
+        Value::Int(number) => {
+            use std::fmt::Write;
+            let _ = write!(out, "{number}");
+        }
         Value::BigInt(digits) => out.push_str(digits),
         Value::Float(number) => out.push_str(&float_repr(*number)),
         Value::Str(text) => write_string(text, ascii, out),
@@ -55,33 +58,63 @@ fn write(value: &Value, ascii: bool, out: &mut String) {
 /// the two escaping tables `json.dumps` chooses between on `ensure_ascii`.
 fn write_string(text: &str, ascii: bool, out: &mut String) {
     out.push('"');
-    for ch in text.chars() {
-        match ch {
-            '\\' => out.push_str("\\\\"),
-            '"' => out.push_str("\\\""),
-            '\u{8}' => out.push_str("\\b"),
-            '\u{c}' => out.push_str("\\f"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            ' '..='~' => out.push(ch),
-            // `ensure_ascii=False` stops the `\uXXXX` fallback for ordinary characters and not for
-            // the control ones: JSON requires those escaped whichever way the flag is set, and
-            // `py_encode_basestring`'s pattern is `[\x00-\x1f\\"]` for exactly that reason.
-            ch if !ascii && ch >= ' ' => out.push(ch),
-            _ => {
-                let code_point = ch as u32;
-                if code_point < 0x10000 {
-                    out.push_str(&format!("\\u{code_point:04x}"));
-                } else {
-                    let offset = code_point - 0x10000;
-                    out.push_str(&format!("\\u{:04x}", 0xd800 + (offset >> 10)));
-                    out.push_str(&format!("\\u{:04x}", 0xdc00 + (offset & 0x3ff)));
-                }
-            }
+    let bytes = text.as_bytes();
+    let mut span_start = 0;
+    let mut at = 0;
+    while at < bytes.len() {
+        let byte = bytes[at];
+        // The span runs until a byte the table escapes. With `ensure_ascii` off that is exactly
+        // `py_encode_basestring`'s `[\x00-\x1f\\"]` — JSON requires the controls escaped
+        // whichever way the flag is set — and with it on, everything past ASCII joins the list.
+        // Multi-byte UTF-8 never holds a byte below 0x80, so the byte test cannot fire inside one.
+        if byte >= 0x20 && byte != b'"' && byte != b'\\' && (!ascii || byte < 0x7f) {
+            at += 1;
+            continue;
         }
+        out.push_str(&text[span_start..at]);
+        if byte < 0x80 && (byte < 0x7f || ascii) {
+            // DEL sits past `~` and before the multi-byte world: `ensure_ascii` writes it
+            // `\u007f` like any other character outside `' '..='~'`.
+            match byte {
+                b'\\' => out.push_str("\\\\"),
+                b'"' => out.push_str("\\\""),
+                0x08 => out.push_str("\\b"),
+                0x0c => out.push_str("\\f"),
+                b'\n' => out.push_str("\\n"),
+                b'\r' => out.push_str("\\r"),
+                b'\t' => out.push_str("\\t"),
+                _ => push_u16_escape(byte as u32, out),
+            }
+            at += 1;
+        } else {
+            let ch = text[at..]
+                .chars()
+                .next()
+                .expect("a span boundary is a char boundary");
+            let code_point = ch as u32;
+            if code_point < 0x10000 {
+                push_u16_escape(code_point, out);
+            } else {
+                let offset = code_point - 0x10000;
+                push_u16_escape(0xd800 + (offset >> 10), out);
+                push_u16_escape(0xdc00 + (offset & 0x3ff), out);
+            }
+            at += ch.len_utf8();
+        }
+        span_start = at;
     }
+    out.push_str(&text[span_start..]);
     out.push('"');
+}
+
+/// `\uXXXX`, without the `format!` machinery — the escape is four hex digits, not a formatter.
+fn push_u16_escape(code_point: u32, out: &mut String) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    out.push('\\');
+    out.push('u');
+    for shift in [12, 8, 4, 0] {
+        out.push(HEX[((code_point >> shift) & 0xf) as usize] as char);
+    }
 }
 
 /// `float.__repr__`, except for the two values JSON cannot spell and `json.dumps` names anyway.
