@@ -372,6 +372,20 @@ class RustPythonInterpreter(dspy.primitives.python_interpreter.PythonInterpreter
 
     def execute(self, code, variables=None):
         crossings.record_render()
+        # dspy's protocol for an interpreter the caller owns: mutate `.tools` / `.output_fields`
+        # and clear `_tools_registered`, and the next execute picks them up. `RLM` injects per-call
+        # tools that way, and upstream's test pool configures one per test. The sandbox was told
+        # only what it was built with, so a pooled interpreter kept nothing and every configured
+        # tool came back as a `NameError` from inside the sandbox.
+        if not getattr(self, "_tools_registered", True):
+            self._rust.redefine(
+                tools=[
+                    (name, json.dumps(_tool_arguments(fn)), _synchronous(fn))
+                    for name, fn in (self.tools or {}).items()
+                ],
+                outputs=json.dumps(self.output_fields) if self.output_fields else None,
+            )
+            self._tools_registered = True
         payload = json.dumps(variables or {})
         try:
             kind, value_json = self._rust.execute(code, payload)

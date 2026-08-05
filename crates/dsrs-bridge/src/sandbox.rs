@@ -143,6 +143,31 @@ impl RustSandbox {
         Ok(Self { inner: sandbox })
     }
 
+    /// Tell the sandbox about a new set of tools and output fields, after construction.
+    ///
+    /// dspy's protocol for a *caller-owned* interpreter is to mutate `.tools` / `.output_fields`
+    /// and clear `_tools_registered` — which is how `RLM` injects per-call tools into an
+    /// interpreter it did not build, and how upstream's test pool configures one per test. The
+    /// grants stay fixed at construction, as upstream's do; only these two move.
+    ///
+    /// Without it the shim snapshotted `self.tools` in `__init__`, so a pooled interpreter kept
+    /// whatever it was built with — which was nothing — and every test that configured tools got
+    /// `NameError` from the sandbox for a function it had just registered.
+    #[pyo3(signature = (tools=None, outputs=None))]
+    fn redefine(
+        &self,
+        tools: Option<Vec<(String, String, Py<PyAny>)>>,
+        outputs: Option<String>,
+    ) -> PyResult<()> {
+        let carried = carried_tools(tools)?;
+        self.inner
+            .define_tools(&carried)
+            .map_err(|e| PyValueError::new_err(format!("{e:#}")))?;
+        self.inner
+            .define_outputs(&output_fields(outputs)?)
+            .map_err(|e| PyValueError::new_err(format!("{e:#}")))
+    }
+
     /// Run the code, answering with `(kind, json)` — `kind` says whether the code called `SUBMIT`,
     /// which upstream distinguishes by returning a `FinalOutput` rather than a bare value.
     ///
@@ -169,4 +194,40 @@ impl RustSandbox {
     fn shutdown(&self) {
         self.inner.shutdown();
     }
+}
+
+/// dspy's `(name, arguments, callable)` triples as the crate's tools.
+///
+/// Shared by the constructor and [`RustSandbox::redefine`], so a tool registered after the fact is
+/// converted exactly as one registered at build time.
+fn carried_tools(tools: Option<Vec<(String, String, Py<PyAny>)>>) -> PyResult<Vec<Arc<dyn Tool>>> {
+    tools
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(name, args, call)| {
+            let args = serde_json::from_str(&args)
+                .map_err(|error| PyValueError::new_err(format!("tool `{name}` args: {error}")))?;
+            Ok(Arc::new(PyCallable { name, args, call }) as Arc<dyn Tool>)
+        })
+        .collect()
+}
+
+/// dspy's `output_fields` JSON as the crate's typed `SUBMIT` shape.
+fn output_fields(outputs: Option<String>) -> PyResult<Vec<OutputField>> {
+    let described: Vec<Map<String, Value>> = match outputs {
+        None => Vec::new(),
+        Some(json) => serde_json::from_str(&json)
+            .map_err(|error| PyValueError::new_err(format!("output_fields: {error}")))?,
+    };
+    Ok(described
+        .iter()
+        .map(|field| OutputField {
+            name: field
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_owned(),
+            python_type: field.get("type").and_then(Value::as_str).map(str::to_owned),
+        })
+        .collect())
 }
