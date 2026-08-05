@@ -3002,30 +3002,40 @@ Three shapes inside that:
 remaining = """
 2026-08-05, 1028 passed / 7 failed / 45 errors on `pin/dspy-3.3.0`.
 
-**The principle this settled on**, and it is worth keeping: fidelity is owed at the bytes the model
-reads and at the logic that reads its reply — *not* at the internal type representation. Rust
-primitives are the right carrier as long as the rendered string and the parse are identical. The
-non-finite float is the worked example: `serde_json::Value` cannot hold `inf`, so it crosses as a
-tagged one-key object and `variables::literal` rebuilds `float('inf')` — the crate never grows a
-Python-shaped float, and the sandbox sees the byte dspy would have written.
+**The principle to keep.** Fidelity is owed at the bytes the model reads and at the logic that
+reads its reply — not at the internal type representation. Rust primitives are the right carrier as
+long as the rendered string and the parse are identical. The non-finite float is the worked
+example: `serde_json::Value` cannot hold `inf`, so it crosses as a tagged one-key object and
+`variables::literal` rebuilds `float('inf')`. The crate never grew a Python-shaped float, and the
+sandbox sees the byte dspy would have written.
 
-**4 remaining, each with its cause:**
+**`test_{pot,codeact}_shuts_down_factory_interpreter_when_execution_raises` — measured, not
+guessed.** Probes at both ends of the terminal-exception slot showed:
 
-  - `test_{pot,codeact}_shuts_down_factory_interpreter_when_execution_raises`: a bare `ValueError`
-    from the interpreter must propagate *as itself*. `PyInterpreter::execute` parks the original
-    `PyErr` and `answered_in` re-raises it, but the slot comes back empty — so the exception is
-    raised somewhere other than that `map_err`, likely during `_interpreter_context` setup rather
-    than `execute`. Find where before adding a second slot.
-  - `test_{pot,codeact}_allows_interpreter_as_signature_input`: `TypeError: 'Mock' object is not
-    iterable`. The test sets `pot.code_generate = Mock(return_value=Prediction(...))`, and
-    `_PredictorAsLM` calls `.items()` on the result of calling it — a `Mock` answers a `Mock`.
-    Upstream calls the predictor directly and never renders, so the wrapper needs to handle a
-    predictor whose return is not a `Prediction`.
+  - `PyInterpreter::execute` *does* park the original `PyErr` — the parking probe fires once;
+  - `answered_in`'s `Some(Session)` arm never runs — neither the re-raise nor the empty-slot probe
+    fires, so the error arriving there is not an `InterpreterFailure::Session` at all;
+  - the traceback surfaces through `code_regenerate.predict`, so the loop *fed the first failure
+    back* instead of propagating it.
 
-**3 typed-LM cases** in `test_types.py` and `test_lm.py` — Responses round-trips, unrelated to
-interpreters and untouched by any of this.
+`MockInterpreter.execute` pops one scripted response, so there is exactly one raise. Reading those
+three together: the first pass failed in `parse_generated_code` — before `Self::execute` is
+reached — the loop went to the regenerate stage, and the raise happened on the *second* pass, by
+which time the error travelling out is the regenerate stage's rather than the interpreter's. The
+next step is to confirm what `parse_generated_code` makes of the stub's `generated_code="raise
+ValueError"`; `_PredictorAsLM` renders it into marker blocks, and the parse has a rule about a
+single line containing more than one `=` that is worth checking against that exact string.
 
-Plus 45 no-crossing declarations, which is bookkeeping.
+**`test_{pot,codeact}_allows_interpreter_as_signature_input`.** `TypeError: 'Mock' object is not
+iterable` — the test sets `pot.code_generate = Mock(return_value=Prediction(...))`, and
+`_PredictorAsLM` calls `.items()` on the result of calling it, which for a bare `Mock` is another
+`Mock`. Upstream calls the predictor directly and never renders one, so the wrapper needs to cope
+with a predictor whose return is not a `Prediction`.
+
+**3 typed-LM cases** in `test_types.py` and `test_lm.py` — Responses round-trips, untouched by any
+of this.
+
+Plus 45 no-crossing declarations, which is bookkeeping rather than porting.
 """
 
 [[backlog]]
