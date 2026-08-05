@@ -3,6 +3,119 @@
   "dspy_version": "3.3.0",
   "request_cases": [
     {
+      "name": "assistant_turn_carries_text",
+      "lm_request": {
+        "model": "openai/gpt-5",
+        "messages": [
+          {
+            "role": "system",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "be helpful"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "what is 2+2?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "4"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "and 3+3?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "openai/gpt-5",
+        "input": [
+          {
+            "role": "system",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "be helpful"
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "what is 2+2?"
+              }
+            ]
+          },
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "output_text",
+                "text": "4"
+              }
+            ]
+          },
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "and 3+3?"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "name": "minimal",
       "lm_request": {
         "model": "openai/gpt-5",

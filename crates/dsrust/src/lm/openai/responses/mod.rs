@@ -103,7 +103,9 @@ fn input(messages: &[Value]) -> Vec<Value> {
         let assistant_only_calls =
             message["role"] == "assistant" && falsy(content) && tool_calls.is_some();
         if !assistant_only_calls {
-            let mut item = json!({ "role": message["role"], "content": content_blocks(content) });
+            let text_type = responses_text_type(message["role"].as_str().unwrap_or_default());
+            let mut item =
+                json!({ "role": message["role"], "content": content_blocks(content, text_type) });
             if let Some(name) = message.get("name") {
                 item["name"] = name.clone();
             }
@@ -124,19 +126,36 @@ fn falsy(content: &Value) -> bool {
         || content.as_array().is_some_and(|blocks| blocks.is_empty())
 }
 
-/// OpenAI-shaped `content` as Responses input blocks: a bare string is one `input_text`, a block list
-/// maps each — text to `input_text`, an image to `input_image` (its url a bare string, not an object).
-fn content_blocks(content: &Value) -> Vec<Value> {
+/// dspy's `_responses_text_type`: the Responses API types text by *direction*, not by role slot.
+///
+/// An assistant input item replays model output, so its text is `output_text` — and `input_text` on
+/// an assistant item is rejected with a 400. Every turn used `input_text` here until dspy 3.3.0
+/// named the rule, which means a multi-turn Responses request carrying an assistant turn was
+/// refused by OpenAI rather than answered.
+fn responses_text_type(role: &str) -> &'static str {
+    match role {
+        "assistant" => "output_text",
+        _ => "input_text",
+    }
+}
+
+/// OpenAI-shaped `content` as Responses input blocks: a bare string is one text block, a block list
+/// maps each — text to the turn's own text type, an image to `input_image` (its url a bare string,
+/// not an object).
+fn content_blocks(content: &Value, text_type: &str) -> Vec<Value> {
     match content {
-        Value::String(text) => vec![json!({ "type": "input_text", "text": text })],
-        Value::Array(blocks) => blocks.iter().map(content_block).collect(),
+        Value::String(text) => vec![json!({ "type": text_type, "text": text })],
+        Value::Array(blocks) => blocks
+            .iter()
+            .map(|block| content_block(block, text_type))
+            .collect(),
         _ => Vec::new(),
     }
 }
 
-fn content_block(block: &Value) -> Value {
+fn content_block(block: &Value, text_type: &str) -> Value {
     match block["type"].as_str() {
-        Some("text") => json!({ "type": "input_text", "text": block["text"] }),
+        Some("text") => json!({ "type": text_type, "text": block["text"] }),
         Some("image_url") => {
             let mut out = json!({ "type": "input_image", "image_url": block["image_url"]["url"] });
             if let Some(detail) = block["image_url"]

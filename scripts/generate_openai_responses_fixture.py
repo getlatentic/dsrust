@@ -52,7 +52,20 @@ CONVERSATION = [
     t.LMMessage(role="tool", parts=[t.LMToolResultPart(call_id="call_1", name="get_weather", content=[text("sunny, 22C")])]),
 ]
 
+#: An assistant turn carrying *text*, which the corpus had none of. The only assistant turn it held
+#: was tool-calls-only, and that shape drops its content item entirely — so no case ever produced an
+#: assistant content block, and nothing here could see that every one was typed `input_text`. The
+#: Responses API types text by direction: an assistant item replays model output and must say
+#: `output_text`, and OpenAI answers `input_text` on one with a 400.
+ASSISTANT_TEXT = [
+    t.LMMessage(role="system", parts=[text("be helpful")]),
+    t.LMMessage(role="user", parts=[text("what is 2+2?")]),
+    t.LMMessage(role="assistant", parts=[text("4")]),
+    t.LMMessage(role="user", parts=[text("and 3+3?")]),
+]
+
 CASES = [
+    case("assistant_turn_carries_text", "openai/gpt-5", ASSISTANT_TEXT),
     case("minimal", "openai/gpt-5",
          [t.LMMessage(role="system", parts=[text("be helpful")]), t.LMMessage(role="user", parts=[text("hi")])]),
     case("temperature_and_top_p", "openai/gpt-4o",
