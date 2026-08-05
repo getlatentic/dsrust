@@ -372,6 +372,20 @@ pub(crate) fn responses_outputs(body: &str, model: &str) -> PyResult<String> {
     serde_json::to_string(&response).map_err(|error| PyValueError::new_err(format!("{error}")))
 }
 
+/// The messages a typed request puts on the chat wire — dspy `to_openai_chat_request`'s `messages`.
+///
+/// The one part of that body the crate builds from parts rather than copying from config: a turn
+/// of text collapses to a bare string, a turn carrying calls puts them beside its content, and a
+/// tool result names the call it answers. A caller assembling a transcript by hand —
+/// `User`/`Assistant(ToolCall)`/`ToolResult` — is asserting on exactly this.
+#[pyfunction]
+pub(crate) fn wire_messages(request: &str) -> PyResult<String> {
+    let call: dsrust::lm::api::LmRequest =
+        serde_json::from_str(request).map_err(|error| PyValueError::new_err(format!("{error}")))?;
+    serde_json::to_string(&call.wire_messages())
+        .map_err(|error| PyValueError::new_err(format!("{error}")))
+}
+
 /// dspy `_close_object_schemas`, applied by the crate.
 ///
 /// The class-to-schema step stays Python's — that is pydantic reflection, and reflection is what

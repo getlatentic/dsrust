@@ -543,6 +543,74 @@ DOES_NOT_EXERCISE_RUST = {
     "test_base_lm_tracks_usage_for_custom_subclasses": "dspy's BaseLM protocol",
     "test_base_lm_validates_typed_lm_response": "dspy's BaseLM protocol",
     "test_base_lm_warns_when_inherited_legacy_forward_returns_lm_response": "dspy's BaseLM protocol",
+    # dspy's own media types building themselves: base64 of some bytes, a data URI kept as given,
+    # a `TypeError` for two ways of saying the same thing, a deprecation warning. `File` and `Image`
+    # are Python classes a caller constructs; what the crate owns is what a *field* holding one
+    # renders as, which is `test_adapter_image`'s rendering cases and does cross.
+    "test_encode_file_to_dict_rejects_path": "dspy's `File` constructor",
+    "test_file_constructor_from_bytes": "dspy's `File` constructor",
+    "test_file_constructor_from_data_uri": "dspy's `File` constructor",
+    "test_file_constructor_rejects_conflicting_keyword": "dspy's `File` constructor",
+    "test_image_constructor_supports_positional_source_and_url_keyword": "dspy's `Image` constructor",
+    "test_positional_local_path_hard_breaks": "dspy's `Image` constructor",
+    "test_from_path_missing_file": "dspy's `Image` constructor, on a path that is not there",
+    "test_unidentifiable_bytes_raise_value_error": "dspy's `Image` constructor, on bytes PIL refuses",
+    "test_canonical_factories_do_not_warn": "dspy's own deprecation warnings",
+    "test_deprecated_factory_aliases_warn": "dspy's own deprecation warnings",
+    "test_deprecated_download_true_downloads": "dspy's own deprecation warnings",
+    "test_deprecated_download_false_keeps_reference": "dspy's own deprecation warnings",
+    "test_deprecated_verify_warns_without_download": "dspy's own deprecation warnings",
+    "test_pil_image_with_deprecated_download_still_encodes": "dspy's own deprecation warnings",
+    # Python frames and pydantic annotations. `custom_types` exists *because* frame introspection is
+    # unreliable, and resolving a name against a dict of Python classes is the shim's `reflect`
+    # work — the crate is handed a described type, never a name to look up.
+    "test_explicit_custom_types_do_not_depend_on_the_caller_frame": (
+        "resolving a Python annotation without the caller's frame"
+    ),
+    # A contextvar carried across dspy's thread pool, so a child module's callback records the
+    # parent's call id. Threading and callback lineage on dspy's side of the boundary; the crate's
+    # `Parallel` is its own executor and its own tests.
+    "test_parallel_children_inherit_parent_callback_call_id": (
+        "dspy's callback lineage across its thread pool"
+    ),
+    # Both raise `TypeError` on the way in — `interpreter=` as a keyword, or a constructor argument
+    # 3.3.0 removed — before any interpreter is built and so before any loop runs. The check is
+    # upstream's own and the shims call it rather than reimplementing it, which is why nothing
+    # crosses: there is no prompt, no sandbox, and no crate decision on this path.
+    "test_pot_rejects_keyword_interpreter_override": "a TypeError before any interpreter exists",
+    "test_pot_rejects_removed_constructor_interpreter_keyword": (
+        "a TypeError before any interpreter exists"
+    ),
+    "test_codeact_rejects_keyword_interpreter_override": "a TypeError before any interpreter exists",
+    "test_codeact_rejects_removed_constructor_interpreter_keyword": (
+        "a TypeError before any interpreter exists"
+    ),
+    # `react.truncate_trajectory` on dspy's own ReAct object, which the shim does not replace — it
+    # replaces the loop. The rule is the crate's and is held by `react/trajectory.rs`'s own test,
+    # message included: a trajectory of one tool call cannot be shortened and says so rather than
+    # emptying itself.
+    "test_truncate_trajectory_raises_on_single_tool_call": (
+        "dspy's own ReAct method; the rule is pinned in react/trajectory.rs"
+    ),
+    # dspy copying a provider response rather than mutating it, because the model it was handed
+    # forbids extra attributes. Python object semantics with no analogue here — the crate's replay
+    # builds a new response by construction, and that it costs nothing is pinned by
+    # `a_replayed_reply_reports_its_worth_but_costs_nothing`.
+    "test_prepare_cached_response_marks_strict_models_as_cache_hit": (
+        "dspy not mutating a strict pydantic response"
+    ),
+    # `LMResponse.to_outputs()`, dspy's bridge back to the legacy `list[str | dict]` shape, and the
+    # assertion is on the *identity* of a part object in that list. The crate has no such bridge —
+    # its boundary is typed only — and identity is not a thing that survives the crossing.
+    "test_response_to_outputs_preserves_multipart_values": (
+        "dspy's legacy-outputs bridge, asserting object identity"
+    ),
+    # Drives dspy's own optimizer, which the harness does not replace. The rule it checks was
+    # missing from the crate's random search and is now held by
+    # `a_restrict_matching_no_seed_is_refused_rather_than_answered_with_nothing`.
+    "test_restrict_matching_no_candidate_seed_raises_clear_error": (
+        "dspy's own optimizer; the rule is pinned in optimize/random_search.rs"
+    ),
     # A call answered by a mocked litellm: what comes back is the mock's, and nothing the crate
     # decides is on the path between the two.
     "test_chat_lms_can_be_queried": "a mocked litellm answering directly",
@@ -554,6 +622,30 @@ DOES_NOT_EXERCISE_RUST = {
     # Asks for `litellm_test_server` and so skips here, which means it can never reach the crate —
     # unlike its three siblings, whose Responses bodies do cross.
     "test_responses_api_tool_calls": "needs upstream's litellm test server, so it skips",
+    # Which of `forward(prompt, messages)` and `forward(request)` dspy dispatches to, and whether
+    # `__call__` answers with the legacy list of strings or an `LMResponse`. That fork does not
+    # exist here: `ChatModel` is typed-only and the legacy call shape was deleted rather than
+    # bridged, so there is no second contract for the crate to choose between. The typed side of it
+    # — what a request and a response *are* — crosses in the tests that build one.
+    "test_base_lm_default_call_keeps_legacy_outputs": "dspy's two forward contracts",
+    "test_base_lm_experimental_call_returns_lm_response_through_legacy_bridge": (
+        "dspy's two forward contracts"
+    ),
+    "test_base_lm_explicit_lm_request_returns_lm_response_without_experimental": (
+        "dspy's two forward contracts"
+    ),
+    "test_base_lm_inherited_legacy_forward_returning_lm_response_errors_on_direct_call": (
+        "dspy's two forward contracts"
+    ),
+    "test_base_lm_legacy_bridge_records_typed_history_and_usage_once": (
+        "dspy's two forward contracts"
+    ),
+    "test_base_lm_typed_forward_contract_uses_lm_request": "dspy's two forward contracts",
+    "test_base_lm_typed_forward_contract_rejects_non_lm_response_at_call_time": (
+        "dspy's two forward contracts"
+    ),
+    "test_base_lm_request_call_rejects_mixed_inputs": "dspy's two forward contracts",
+    "test_base_lm_async_explicit_lm_request_returns_lm_response": "dspy's two forward contracts",
 }
 
 #: Tests that reach the crate even though their class is declared above as not doing so. A class
@@ -1072,8 +1164,22 @@ def _typed_responses_mapping_is_rust(request, monkeypatch):
         )
         return LMResponse.model_validate(json.loads(answered))
 
+    original_chat = openai_format.to_openai_chat_request
+
+    def chat_body_of(lm_request, **kwargs):
+        theirs = original_chat(lm_request, **kwargs)
+        crossings.record_render()
+        # `messages` only. The rest of a chat body is config copied across; the messages are the
+        # part built from parts — a text turn collapsing to a bare string, an assistant turn
+        # carrying its calls beside its content, a tool result naming the call it answers — and
+        # that is what a hand-assembled transcript asserts on.
+        dumped = lm_request.model_dump(mode="json", exclude_none=True)
+        ours = json.loads(dsrs_bridge.wire_messages(json.dumps(dumped, default=str)))
+        return {**theirs, "messages": ours}
+
     monkeypatch.setattr(openai_format, "to_openai_responses_request", body_of)
     monkeypatch.setattr(openai_format, "responses_to_lm_response", outputs_of)
+    monkeypatch.setattr(openai_format, "to_openai_chat_request", chat_body_of)
 
 
 @pytest.fixture(autouse=True)
