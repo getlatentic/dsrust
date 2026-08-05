@@ -40,6 +40,40 @@ impl Image {
         let encoded = crate::resource::read_base64(path)?;
         Ok(Self::new(crate::resource::data_uri(&media_type, &encoded)))
     }
+
+    /// dspy `Image.from_url`: download the image and embed it as a `data:` URI.
+    ///
+    /// The name is the whole API. 3.3.0 made this the *only* way to fetch — `Image(url)` keeps a
+    /// reference for the provider to resolve, and nothing reachable from parsing a model's reply
+    /// can reach here. A caller asking for a download is asking on purpose.
+    ///
+    /// **No SSRF protection**, which is upstream's position stated in upstream's words: it follows
+    /// redirects and will reach loopback, private and cloud-metadata hosts. A URL derived from
+    /// untrusted input is the caller's to allowlist before calling this.
+    ///
+    /// The media type is what the server said; where it said nothing, the URL's suffix, and a URL
+    /// whose suffix names nothing is an error rather than a guess.
+    pub async fn from_url(url: impl AsRef<str>) -> anyhow::Result<Self> {
+        Self::downloaded(url.as_ref(), true).await
+    }
+
+    /// The same, without checking the TLS certificate — upstream's `verify=False`, for a host with
+    /// a self-signed one. Named rather than a `bool`, because a `false` at a call site says nothing
+    /// about what it switches off.
+    pub async fn from_url_unverified(url: impl AsRef<str>) -> anyhow::Result<Self> {
+        Self::downloaded(url.as_ref(), false).await
+    }
+
+    async fn downloaded(url: &str, verify: bool) -> anyhow::Result<Self> {
+        if !crate::resource::is_http_url(url) {
+            anyhow::bail!("Image.from_url requires an HTTP(S) URL, received: {url}");
+        }
+        let (content_type, encoded) = crate::resource::fetch_base64(url, verify).await?;
+        let media_type = content_type
+            .or_else(|| crate::mimetypes::guess(url).map(str::to_owned))
+            .ok_or_else(|| anyhow::anyhow!("Could not determine MIME type for URL: {url}"))?;
+        Ok(Self::new(crate::resource::data_uri(&media_type, &encoded)))
+    }
 }
 
 impl Type for Image {
@@ -59,10 +93,25 @@ impl Serialize for Image {
 
 impl<'de> Deserialize<'de> for Image {
     /// dspy accepts a bare URL string or the legacy `{"url": ...}` mapping.
+    ///
+    /// A mapping carrying `download` or `verify` is **refused**, which is upstream's 3.3.0 rule and
+    /// the reason this path exists at all. Those two are a deprecated *direct-construction* shim —
+    /// `Image(url, download=True)` — and honouring them here would mean a value like
+    /// `{"url": "http://169.254.169.254/…", "download": true}` fetching a host's cloud-metadata
+    /// endpoint while an LM's output was being parsed. Ignoring them silently is not the answer
+    /// either: a caller who wrote `download` believes the image was embedded and is handed a bare
+    /// reference instead, and the day this crate grows a `download` field the silence becomes a
+    /// fetch. So it is an error, in upstream's words.
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match Value::deserialize(deserializer)? {
             Value::String(url) => Ok(Self::new(url)),
             Value::Object(mut map) => match map.remove("url") {
+                _ if map.contains_key("download") || map.contains_key("verify") => {
+                    Err(de::Error::custom(
+                        "`download` and `verify` are only valid with a positional image source; \
+                         use Image.from_url(url, verify=...) to download a remote image.",
+                    ))
+                }
                 Some(Value::String(url)) => Ok(Self::new(url)),
                 _ => Err(de::Error::custom(
                     "`url` field is required for `dspy.Image`",
@@ -134,6 +183,34 @@ mod tests {
         for locator in ["/etc/passwd", "https://evil.example/secret.png"] {
             assert_eq!(Image::new(locator).url, locator);
         }
+    }
+
+    /// 3.3.0's breaking change, from the side an attacker reaches: parsing a model's output must
+    /// not be able to ask the host to fetch something. dspy raises for a mapping carrying either
+    /// key, in these words, and the payload in its own test is the AWS metadata endpoint.
+    ///
+    /// The crate accepted both and ignored them, which is safer than fetching and still wrong: a
+    /// caller who wrote `download` is handed a bare reference and told nothing.
+    #[test]
+    fn a_mapping_asking_to_download_is_refused_rather_than_ignored() {
+        for payload in [
+            json!({ "url": "http://169.254.169.254/latest/meta-data", "download": true }),
+            json!({ "url": "https://example.com/a.png", "verify": false }),
+        ] {
+            let why = serde_json::from_value::<Image>(payload.clone())
+                .expect_err("refused")
+                .to_string();
+            assert!(
+                why.starts_with(
+                    "`download` and `verify` are only valid with a positional image source;"
+                ),
+                "for {payload}: {why}"
+            );
+        }
+        // The reference form is still exactly what it was: no fetch, no complaint.
+        let plain: Image =
+            serde_json::from_value(json!({ "url": "https://example.com/a.png" })).expect("parses");
+        assert_eq!(plain.url, "https://example.com/a.png");
     }
 
     #[test]

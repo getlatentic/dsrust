@@ -261,6 +261,8 @@
 # The classification is the load-bearing part — a recorded decision per method.
 
 [methods]
+"adapters/types/image.py::Image.from_url" = { status = "mapped", rust = "Image::from_url", reason = "3.3.0 made this the only way to fetch, and it now embeds rather than keeping a reference — `Image(url)` is the reference. Async here because this crate is async at every other I/O boundary; upstream's SSRF position is unchanged and restated on the method" }
+"adapters/types/audio.py::Audio.from_url" = { status = "mapped", rust = "Audio::from_url", reason = "as `Image.from_url`, with upstream's audio-only check on what the server said it sent" }
 "adapters/types/image.py::Image.from_path" = { status = "mapped", rust = "Image::from_path", reason = "the explicit local read 3.3.0 requires rather than inferring a path from the source. The split is the point: the constructor keeps a locator and dereferences nothing, because it is reachable from application input; only this asks for the host" }
 "adapters/types/audio.py::Audio.from_path" = { status = "mapped", rust = "Audio::from_path", reason = "as `Image.from_path`, with upstream's audio-only check — `format` reaches the provider, so a non-audio suffix is refused rather than guessed at" }
 "signatures/signature.py::Signature.append_instructions" = { status = "divergence", rust = "Signature::instructions", reason = "a mutator that appends to the instruction string. `Signature.instructions` is a public `String` field here, so appending is `signature.instructions.push_str(…)` — a method for it would be a method for one operation on a field the caller already holds" }
@@ -347,13 +349,11 @@
 "adapters/types/image.py::Image.format" = { status = "mapped", rust = "format" }
 "adapters/types/image.py::Image.from_PIL" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
 "adapters/types/image.py::Image.from_file" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
-"adapters/types/image.py::Image.from_url" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
 
 # Audio
 "adapters/types/audio.py::Audio.format" = { status = "mapped", rust = "format" }
 "adapters/types/audio.py::Audio.from_array" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
 "adapters/types/audio.py::Audio.from_file" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
-"adapters/types/audio.py::Audio.from_url" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
 "adapters/types/audio.py::Audio.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
 # File
@@ -778,6 +778,10 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+"adapters/types/image.py::Image.from_url.url" = { status = "mapped", rust = "url", reason = "`impl AsRef<str>`" }
+"adapters/types/image.py::Image.from_url.verify" = { status = "mapped", rust = "Image::from_url_unverified", reason = "upstream's TLS switch as its own constructor rather than a `bool` parameter: `false` at a call site says nothing about what it turns off, and this is the one argument whose wrong value is silent" }
+"adapters/types/audio.py::Audio.from_url.url" = { status = "mapped", rust = "url", reason = "as `Image.from_url.url`" }
+"adapters/types/audio.py::Audio.from_url.verify" = { status = "mapped", rust = "Audio::from_url_unverified", reason = "as `Image.from_url.verify`" }
 "adapters/types/image.py::Image.from_path.file_path" = { status = "mapped", rust = "path", reason = "`impl AsRef<Path>`, so a `&str`, a `String` or a `PathBuf` all work where Python takes a `str`" }
 "adapters/types/audio.py::Audio.from_path.file_path" = { status = "mapped", rust = "path", reason = "as `Image.from_path.file_path`" }
 "adapters/types/file.py::File.from_path.file_path" = { status = "mapped", rust = "path", reason = "as `Image.from_path.file_path`" }

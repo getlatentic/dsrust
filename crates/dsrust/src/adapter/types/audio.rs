@@ -47,6 +47,34 @@ impl Audio {
             normalized_format(media_type),
         ))
     }
+
+    /// dspy `Audio.from_url`: download the audio and keep it as bare base64.
+    ///
+    /// See [`Image::from_url`](super::Image::from_url) for why downloading has its own name and for
+    /// the SSRF position, which is upstream's and unchanged here.
+    ///
+    /// The format is what the server said, defaulting to `audio/wav` where it said nothing —
+    /// upstream's default, and its refusal when what it said is not audio.
+    pub async fn from_url(url: impl AsRef<str>) -> anyhow::Result<Self> {
+        Self::downloaded(url.as_ref(), true).await
+    }
+
+    /// The same, without checking the TLS certificate — upstream's `verify=False`.
+    pub async fn from_url_unverified(url: impl AsRef<str>) -> anyhow::Result<Self> {
+        Self::downloaded(url.as_ref(), false).await
+    }
+
+    async fn downloaded(url: &str, verify: bool) -> anyhow::Result<Self> {
+        if !crate::resource::is_http_url(url) {
+            anyhow::bail!("Audio.from_url requires an HTTP(S) URL, received: {url}");
+        }
+        let (content_type, encoded) = crate::resource::fetch_base64(url, verify).await?;
+        let media_type = content_type.unwrap_or_else(|| "audio/wav".to_owned());
+        if !media_type.starts_with("audio/") {
+            anyhow::bail!("Unsupported MIME type for audio: {media_type}");
+        }
+        Ok(Self::new(encoded, normalized_format(&media_type)))
+    }
 }
 
 /// dspy `_normalize_audio_format`: the subtype, less the `x-` an unregistered spelling carries.
