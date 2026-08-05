@@ -44,15 +44,16 @@ cd "$ROOT"
 #                    intersection tie was in that list and is not any more — see the note in
 #                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
 #                    finished state.
-#   dsrust-json-repair 172 unpinned, 21 hanging — of 1913 viable in 74 minutes, on the tree after
-#                    the optimization arc. The v1 baseline read 158 and 17 over 217 fewer mutants;
-#                    the optimizations brought their own: the hybrid Object index carries ten new
-#                    arms in `value.rs` (19 there now), the literal matcher's rewrite seven in
-#                    `helpers.rs`, and the byte scanner just two, because `scanner_agreement.rs`
-#                    holds it to the char scanner over every committed input. Four of the hangs are
-#                    the span-copy writer's own cursor loops — the exact defect the read counters
-#                    exist for, reintroduced by the hand that fixed it, and guarded in the commit
-#                    after this number was recorded.
+#   dsrust-json-repair 175 unpinned, 18 hanging — of 1942 viable in 75 minutes, on the tree after
+#                    the storage rebuild. The rebuild priced well: `Source` carries two unpinned
+#                    mutants across its ten methods and no hangs at all, because the specialized
+#                    scroll is iterator-shaped and a scan with no cursor mutation has no hang site.
+#                    Against the 172 and 21 recorded before it: the writer's step counter closed
+#                    the four dump hangs it was written for, and the new arms — the enum dispatch,
+#                    the dead-path guards — add the three unpinned. The clusters are unchanged
+#                    otherwise: value.rs and the lookahead cache at 19 each, `empty.rs` at 18 still
+#                    the biggest unworked file, the hangs in loops over local slices that read
+#                    neither counted cursor.
 #   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours. Run it
 #               scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
 #               history, parse) measured 43 of 143 viable on 2026-08-01, 35 of them in `parse.rs`,
@@ -63,7 +64,7 @@ BASELINES=(
   "dsrust-tpe:1:0"
   "pyrng:1:3"
   "dsrust-gepa:35:11"
-  "dsrust-json-repair:172:21"
+  "dsrust-json-repair:175:18"
 )
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each
