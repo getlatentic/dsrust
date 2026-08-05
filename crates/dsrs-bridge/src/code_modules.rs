@@ -124,12 +124,9 @@ pub(crate) fn rlm_forward(
     max_llm_calls: Option<usize>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let mut rlm = dsrust::Rlm::interpreter_factory(
-        signature,
-        // The bridge is handed one interpreter by the Python side and hands it straight back:
-        // dspy owns it there, so this is the caller-owned arm wearing a factory's clothes.
-        dsrust::interpreter::handing_back(Arc::new(PyInterpreter { inner: interpreter })),
-    );
+    let repl: Arc<dyn dsrust::interpreter::CodeInterpreter> =
+        Arc::new(PyInterpreter { inner: interpreter });
+    let mut rlm = dsrust::Rlm::interpreter_factory(signature, refusing_factory());
     if let Some(max_llm_calls) = max_llm_calls {
         rlm = rlm.max_llm_calls(max_llm_calls);
     }
@@ -140,7 +137,9 @@ pub(crate) fn rlm_forward(
         .action_lm(Arc::new(PyLM { inner: action_lm }))
         .extract_lm(Arc::new(PyLM { inner: extract_lm }));
 
-    answered(py, rlm, values)
+    answered_in(py, repl, values, |repl, inputs| async move {
+        rlm.ask_in(repl, inputs).await
+    })
 }
 
 /// Run this crate's `ProgramOfThought` over a Python interpreter, driven by a Python LM.
@@ -161,14 +160,16 @@ pub(crate) fn program_of_thought_forward(
     max_iters: Option<usize>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let mut pot = dsrust::ProgramOfThought::interpreter_factory(
-        signature,
-        dsrust::interpreter::handing_back(Arc::new(PyInterpreter { inner: interpreter })),
-    );
+    let repl: Arc<dyn dsrust::interpreter::CodeInterpreter> =
+        Arc::new(PyInterpreter { inner: interpreter });
+    let mut pot = dsrust::ProgramOfThought::interpreter_factory(signature, refusing_factory());
     if let Some(max_iters) = max_iters {
         pot = pot.max_iters(max_iters);
     }
-    answered(py, pot.set_lm(Arc::new(PyLM { inner: py_lm })), values)
+    let pot = pot.set_lm(Arc::new(PyLM { inner: py_lm }));
+    answered_in(py, repl, values, |repl, inputs| async move {
+        pot.ask_in(repl, inputs).await
+    })
 }
 
 /// Run this crate's `CodeAct` over a Python interpreter and a set of Python tools.
@@ -193,23 +194,32 @@ pub(crate) fn code_act_forward(
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
     let rust_tools = crate::py_tools(py, &tools)?;
-    let mut act = dsrust::CodeAct::interpreter_factory(
-        signature,
-        rust_tools,
-        dsrust::interpreter::handing_back(Arc::new(PyInterpreter { inner: interpreter })),
-    );
+    let repl: Arc<dyn dsrust::interpreter::CodeInterpreter> =
+        Arc::new(PyInterpreter { inner: interpreter });
+    let mut act = dsrust::CodeAct::interpreter_factory(signature, rust_tools, refusing_factory());
     if let Some(max_iters) = max_iters {
         act = act.max_iters(max_iters);
     }
-    answered(py, act.set_lm(Arc::new(PyLM { inner: py_lm })), values)
+    let act = act.set_lm(Arc::new(PyLM { inner: py_lm }));
+    answered_in(py, repl, values, |repl, inputs| async move {
+        act.ask_in(repl, inputs).await
+    })
 }
 
-/// Run a module over the named input values and hand its prediction back as JSON.
-fn answered<M: dsrust::module::Module>(
+/// Run a module over the named input values, in the caller's interpreter, and hand its
+/// prediction back as JSON.
+///
+/// Through each module's `ask_in` — the borrowed arm — rather than `forward`, which would build
+/// from the factory and own what it built. See [`refusing_factory`].
+fn answered_in<Fut>(
     py: Python<'_>,
-    module: M,
+    repl: Arc<dyn dsrust::interpreter::CodeInterpreter>,
     values: Vec<(String, String)>,
-) -> PyResult<String> {
+    ask: impl FnOnce(Arc<dyn dsrust::interpreter::CodeInterpreter>, dsrust::Example) -> Fut + Send,
+) -> PyResult<String>
+where
+    Fut: std::future::Future<Output = anyhow::Result<dsrust::Prediction>> + Send,
+{
     let mut fields = Vec::new();
     for (name, json) in &values {
         let value: Value = serde_json::from_str(json)
@@ -218,12 +228,7 @@ fn answered<M: dsrust::module::Module>(
     }
     // Released while the loop runs, so the interpreter and the LM can be called back into Python.
     let prediction = py
-        .detach(|| {
-            pollster::block_on(dsrust::module::Module::forward(
-                &module,
-                dsrust::Example::new(fields),
-            ))
-        })
+        .detach(|| pollster::block_on(ask(repl, dsrust::Example::new(fields))))
         .map_err(to_value_error)?;
     let output: serde_json::Map<String, Value> = prediction
         .example
@@ -343,4 +348,21 @@ pub(crate) fn merge_usage(left: &str, right: &str) -> PyResult<String> {
     let merged = LmUsage::merge(parse(left)?, parse(right)?);
     serde_json::to_string(&merged.unwrap_or_default())
         .map_err(|error| PyValueError::new_err(format!("{error}")))
+}
+
+/// A factory that must never fire: every bridge call carries a caller-owned interpreter.
+///
+/// The Python side has already run dspy's `_interpreter_context` by the time the bridge is
+/// called, so the ownership decision is made — the interpreter crossing here is *borrowed*, and
+/// the crate must not shut it down. It did: `handing_back(...)` satisfied the constructor but made
+/// the lease module-owned, so every pass shut down the caller's interpreter on its way out.
+/// `PyInterpreter::shutdown` forwarded that to Python, the pooled interpreter's session ended, and
+/// the pool's next `_pool_reset()` raised "session has ended" — 26 teardown errors whose cause was
+/// one wrong arm in this file.
+fn refusing_factory() -> dsrust::interpreter::InterpreterFactory {
+    std::sync::Arc::new(|| {
+        anyhow::bail!(
+            "the bridge always passes a caller-owned interpreter; this factory must not fire"
+        )
+    })
 }

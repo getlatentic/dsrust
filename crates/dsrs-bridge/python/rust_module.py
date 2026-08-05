@@ -160,7 +160,6 @@ class RustProgramOfThought(dspy.ProgramOfThought):
         # dspy 3.3.0 made the interpreter a positional-only first parameter of `forward`, so a
         # caller can hand one in and keep ownership of it. Accepted and passed through to
         # upstream's own `_interpreter_context`, which is what decides who shuts it down.
-        crossings.record_render()
         # Through upstream's own `_interpreter_context`, which builds one from the factory or takes
         # the caller's and shuts down only what it built. The shim held `self.interpreter` and shut
         # it down in a `finally` — the 3.3.0b1 shape, where the module owned one for its lifetime.
@@ -177,6 +176,8 @@ class RustProgramOfThought(dspy.ProgramOfThought):
             return self._run(repl, kwargs)
 
     def _run(self, repl, kwargs):
+        # See `RustRLM.forward` for why the render is recorded here rather than at the top.
+        crossings.record_render()
         try:
             output_json = dsrs_bridge.program_of_thought_forward(
                 self.signature.instructions,
@@ -208,7 +209,6 @@ class RustCodeAct(dspy.CodeAct):
         # dspy puts the tools in the sandbox by executing their *source*, before the first turn.
         # That is upstream's setup rather than the loop under test, so it stays upstream's — and it
         # is why the crate's `define_tools` seam finds nothing left to do here.
-        crossings.record_render()
         # See `RustProgramOfThought.forward`: the context manager owns the lifecycle now.
         # Upstream's own call-time check, before any interpreter is built: `interpreter=` as a
         # keyword is a TypeError pointing at the positional form. dspy validates its caller; the
@@ -222,6 +222,8 @@ class RustCodeAct(dspy.CodeAct):
             for tool in self.tools.values():
                 repl(inspect.getsource(tool.func))
 
+            # See `RustRLM.forward` for why the render is recorded here rather than at the top.
+            crossings.record_render()
             max_iters = kwargs.pop("max_iters", self.max_iters)
             output_json = dsrs_bridge.code_act_forward(
                 self.signature.instructions,
@@ -295,13 +297,17 @@ class RustRLM(dspy.RLM):
         # as a keyword is a TypeError pointing at the positional form, and an undeclared input is a
         # ValueError. dspy validates its caller; the crate decides nothing here.
         self._validate_inputs(input_args)
-        crossings.record_render()
         values = [
             (name, json.dumps(_serialized(input_args[name]), ensure_ascii=False))
             for name in self.signature.input_fields
             if name in input_args
         ]
         with self._interpreter_context(self._prepare_execution_tools(), interpreter) as interpreter:
+            # Recorded here and not at the top of `forward`: the render count is the bytes a model
+            # would read, and a call that dies in validation or in the factory renders nothing. At
+            # the top it credited a crossing to `rlm(query=…)` with a factory returning None —
+            # which never reached the crate — and the crossing guard read that as coverage.
+            crossings.record_render()
             output_json = dsrs_bridge.rlm_forward(
                 self.signature.instructions,
                 describe(self.signature.input_fields),

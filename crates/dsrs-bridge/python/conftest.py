@@ -391,12 +391,16 @@ DOES_NOT_EXERCISE_RUST = {
         "the signatures dspy's own `__init__` built, which the shim leaves to dspy; the crate's "
         "are held to them by the four signature cases in the rlm golden"
     ),
+    # Only the two `start()` tests still fall under this line: they construct `PythonInterpreter`
+    # directly, and the Rust swap is scoped to the dedicated interpreter file. The other eleven
+    # take the pooled interpreter — `RustPythonInterpreter` since the pool override — and are named
+    # in CROSSES_DESPITE_ITS_CLASS, because they became sandbox conformance the day the pool
+    # started building the Rust one. (This line used to say the sandbox is one "this crate
+    # deliberately does not ship", which `deno.rs` contradicts in its first sentence: the sandbox
+    # is upstream's own runner.js, vendored. The declaration outlived two facts at once.)
     "upstream_test_rlm.py::TestPythonInterpreter": (
-        "upstream's Deno/Pyodide sandbox, which this crate deliberately does not ship — the "
-        "interpreter is the caller's"
+        "only the two start() tests: they build dspy's PythonInterpreter directly, outside the pool"
     ),
-    "upstream_test_rlm.py::TestSandboxSecurity": "as TestPythonInterpreter",
-    "upstream_test_rlm.py::TestLargeSerializableRoundTrip": "as TestPythonInterpreter",
     "upstream_test_rlm.py::TestRLMAsyncMock": (
         "dspy's `aforward`; the crate is async throughout, so its one `forward` is that method "
         "and the sync cases above are the same code"
@@ -556,8 +560,32 @@ DOES_NOT_EXERCISE_RUST = {
 #: upstream grouped by subject can still hold one case that drives the loop — `forward` among a
 #: class of constructor checks — and a class-wide exemption must not swallow it.
 CROSSES_DESPITE_ITS_CLASS = {
-    "test_forward_validates_required_inputs",
     "test_forward_with_serializable",
+    # `TestPythonInterpreter` in the RLM file is declared as dspy's own sandbox — which is still
+    # true of its two `start()` tests, but these eleven take the pooled interpreter, and the pool
+    # builds `RustPythonInterpreter` now. They cross, and they are the sandbox conformance the
+    # class declaration would otherwise swallow.
+    #
+    # (`test_forward_validates_required_inputs` was here and is not any more: the shim runs dspy's
+    # own `_validate_inputs` before anything renders, so a missing input is answered in Python and
+    # the test no longer reaches the crate. Its class's declaration covers it again.)
+    "test_basic_execution",
+    "test_variable_injection",
+    "test_variable_injection_with_none_values",
+    "test_tool_call_kwargs",
+    "test_tool_call_positional",
+    "test_multiple_tools",
+    "test_tool_returns_list",
+    "test_tool_returns_dict",
+    "test_state_persists",
+    "test_syntax_error",
+    "test_runtime_error",
+    # `TestSandboxSecurity` and `TestLargeSerializableRoundTrip` sit under the same class-key
+    # mechanism: both classes are pool-only, so *every* test in them crosses now, and their class
+    # declarations are gone rather than excepted line by line.
+    "test_imports_work",
+    "test_no_network_access",
+    "test_large_payload_round_trips_through_real_sandbox",
 }
 
 # Whole files that test dspy's own Python rather than anything an adapter renders: a type's
