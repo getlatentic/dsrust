@@ -145,9 +145,27 @@ for file in "${SUITES[@]}"; do
   RESOURCES="$SRC/tests/$(dirname "$file")/resources"
   [ -d "$RESOURCES" ] && mkdir -p "$WORK/resources" && cp -R "$RESOURCES/." "$WORK/resources/"
 done
-# Upstream's top-level conftest pulls in a litellm test server this harness does not run; neutralise
-# it so importing anything under tests/ can never drag the server in. Sub-package helpers stay intact.
-: > "$SRC/tests/conftest.py"
+# Upstream's top-level conftest pulls in a litellm test server this harness does not run. It used to
+# be emptied wholesale for that, which also threw away every fixture it defines — and dspy 3.3.0 put
+# the interpreter *pool* there, so 88 tests errored with `fixture 'pooled_interpreter' not found`
+# and the reason was a `: >` two hundred lines away. Only the server import is neutralised now, so
+# `conftest.py` stays importable and this harness's own conftest can borrow what it needs.
+#
+# The file is imported, never collected: pytest loads OUR conftest for the flattened run files, so
+# upstream's autouse fixtures do not fire unless a name is imported deliberately.
+python3 - "$SRC/tests/conftest.py" <<'NEUTRALISE'
+import pathlib, re, sys
+path = pathlib.Path(sys.argv[1])
+text = path.read_text()
+text = re.sub(
+    r"^from tests\.test_utils\.server import .*$",
+    "litellm_test_server = read_litellm_test_server_request_logs = None  # neutralised by the harness",
+    text,
+    count=1,
+    flags=re.M,
+)
+path.write_text(text)
+NEUTRALISE
 
 # Some tests open a data file by a path relative to the repo root — `test_gepa.py` reads
 # `tests/teleprompt/gepa_dummy_lm.json`. A flattened copy runs from $WORK, where that path does not

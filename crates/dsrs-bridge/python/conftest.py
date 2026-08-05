@@ -15,6 +15,21 @@ import os
 import dspy
 import pytest
 
+# dspy 3.3.0's interpreter pooling, borrowed rather than reimplemented.
+#
+# Booting a Deno/Pyodide sandbox costs about 2.5 seconds, so upstream's suite shares one per pytest
+# process and restores its namespace between tests. The fixtures live in dspy's own `tests/conftest`
+# — but the run files are copied *flat* into the work directory, so that conftest never applies to
+# them and every test asking for one errored out.
+#
+# Three names rather than `pytest_plugins = ["tests.conftest"]`: this file already reimplements
+# `lm_for_test`, `litellm_test_server` and the settings reset, because ours install the Rust adapter
+# and count crossings. Loading upstream's whole conftest would run both of each.
+from tests.conftest import (  # noqa: F401
+    _interpreter_pool,
+    configure_pooled_interpreter,
+    pooled_interpreter,
+)
 # The bridge does not build on every toolchain: macOS 26+/ld-27034 emits a "mis-aligned
 # LINKEDIT string pool" for this extension module and dyld refuses to load it. Skip the whole
 # run in that case, so a broken build never reads as a pass or as a fault in this crate.
