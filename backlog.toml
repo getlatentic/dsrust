@@ -2957,7 +2957,7 @@ whole of the red outside the interpreter modules and the LM wire.
 id = "interpreter-per-call"
 sprint = "api"
 title = "3.3.0 builds a sandbox per forward pass, and this crate holds one for the module's life"
-state = "todo"
+state = "in-progress"
 size = "M"
 suites = ""
 plan = """
@@ -2998,6 +2998,35 @@ Three shapes inside that:
     `'RustCodeAct' object has no attribute 'interpreter'` — the bridge's shims still expose the
     3.3.0b1 shape;
   - the rest follow from those two.
+"""
+remaining = """
+2026-08-05, after eleven commits on `pin/dspy-3.3.0`: the lease, the terminal session, the
+per-stage crossing and the bridge's ownership are done and verified. Upstream is at 1002 passed /
+33 failed / 45 errors, and the 33 group four ways, each diagnosed from the run rather than guessed:
+
+**Serialization bypass (~14, `test_python_interpreter.py`).** `RustPythonInterpreter.execute`
+replaces dspy's `execute` whole, so dspy's `_make_jsonable` host-side conversion layer — which is
+what turns a set, a dataclass, a pydantic model into JSON before the sandbox boundary — never runs.
+`json.dumps(variables)` then raises on a set. The strict xfails dropped earlier for
+`test_serialize_set` were dropped on exactly this reasoning ("dspy converts before it reaches the
+crate"), which is true of dspy's own interpreter and false of the shim. Fix in the shim: run
+`_make_jsonable` over variables and over tool returns, since both are dspy's own layer above the
+interpreter protocol. The tool-return half lives in the `_synchronous` wrapper.
+
+**Error classes across the boundary (~8).** The crate's `InterpreterFailure::{Execution,Session}`
+split exists, but the bridge crosses everything as `ValueError` text and the shim picks the Python
+class by message-matching. `test_generated_exception_name_cannot_spoof_interpreter_failure` is the
+test that message-matching cannot pass, by design. The bridge should carry the variant
+structurally — a typed prefix or a custom PyO3 exception — and the shim raise
+`CodeExecutionError` vs `CodeInterpreterError` from that, not from prose.
+
+**`interpreter` as a declared signature input (2).** `test_{pot,codeact}_allows_interpreter_as_
+signature_input`: upstream permits `interpreter` as an ordinary input field when the signature
+declares it. The shims' new guard has the same condition as upstream's, so the failure is past the
+guard — unread; read the test before theorizing.
+
+**Two `upstream_test_types.py` Responses round-trips and one `test_lm.py` tolerance case.** The
+typed-LM surface, unrelated to interpreters.
 """
 
 [[backlog]]
