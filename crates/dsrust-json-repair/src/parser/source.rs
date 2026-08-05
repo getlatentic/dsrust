@@ -44,10 +44,15 @@ impl Source {
             // Every position may legitimately start one scan over the rest of the input — that is
             // what the lookahead cache exists to make cheap — so a terminating parse is bounded by
             // the square of the length, with a floor for short inputs whose fixed work exceeds it.
+            // The floor is the tighter kind: at a megabyte it let a stalled cursor spin for the
+            // full two-minute mutation timeout on a twenty-character input, because each of its
+            // iterations did a string-accumulator's worth of work per counted read — the timeout
+            // fired first and the failure read as a hang. No terminating parse of a short input
+            // approaches sixty-four thousand reads.
             #[cfg(debug_assertions)]
             budget: {
                 let length = cells_len(&cells) as u64;
-                length.saturating_mul(length).saturating_add(1 << 20)
+                length.saturating_mul(length).saturating_add(1 << 16)
             },
             #[cfg(debug_assertions)]
             reads: std::cell::Cell::new(0),
