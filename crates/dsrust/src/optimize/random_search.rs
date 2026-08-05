@@ -9,7 +9,7 @@
 //! zero-shot, labels only, and one unshuffled bootstrap. A random search that never tried the
 //! obvious baselines could report an improvement over nothing.
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use pyrng::Random;
 
 use super::{BootstrapFewShot, LabeledFewShot};
@@ -181,6 +181,20 @@ where
         trainset: &[Example],
         valset: &[Example],
     ) -> Result<Vec<Attempt>> {
+        // dspy's own guard, before any attempt is made: a `restrict` naming no seed in range leaves
+        // nothing to evaluate, and the loop below would simply not run. Answering with an empty
+        // list would hand the caller back their unchanged student as though the search had been
+        // done and found nothing worth keeping — a typo'd seed and an exhausted search are not the
+        // same answer, and only one of them is the caller's mistake.
+        if let Some(only) = &self.restrict
+            && self.seeds().next().is_none()
+        {
+            bail!(
+                "`restrict` {only:?} does not match any candidate seed in \
+                 -3..{}; no candidate programs would be evaluated.",
+                self.num_candidate_programs
+            );
+        }
         // The state the student arrived in, so every attempt starts from the same program rather
         // than from whatever the previous one left behind — dspy gets that from `reset_copy`.
         let start = student.dump_state();
@@ -346,6 +360,36 @@ mod tests {
         assert_eq!(
             compared, 2,
             "the golden should record both arms of labeled_sample"
+        );
+    }
+
+    /// A `restrict` that matches no seed in range is refused, not answered with nothing.
+    ///
+    /// The loop over `seeds()` simply does not run in that case, so `compile` returned an empty
+    /// list of attempts and left the student exactly as it arrived — indistinguishable from a
+    /// search that ran and found nothing better. dspy raises here, and the golden beside this test
+    /// never covered it: its one out-of-range case is `restrict: [1, 99]`, where `1` is in range
+    /// and something still runs.
+    #[tokio::test]
+    async fn a_restrict_matching_no_seed_is_refused_rather_than_answered_with_nothing() {
+        let trainset =
+            vec![crate::example! { question: "q", answer: "a" }.with_inputs(["question"])];
+        let mut student = crate::predict::Predict::parse("question -> answer").expect("parses");
+        let refused = BootstrapRandomSearch::new(|_: &Example, _: &Prediction| 0.0)
+            .num_candidate_programs(2)
+            .restrict([99])
+            .compile(&mut student, &trainset, &trainset)
+            .await;
+        let why = refused
+            .expect_err("no seed to attempt is an error")
+            .to_string();
+        assert!(
+            why.contains("restrict"),
+            "the message names the knob: {why}"
+        );
+        assert!(
+            why.contains("-3..2"),
+            "and the range it had to fall in: {why}"
         );
     }
 
