@@ -111,14 +111,33 @@ dspy.adapters.base._provider_tool_call_to_tool_call_dict = _rust_provider_tool_c
 # A run may report xfails this list is empty of: dspy marks two of its own image cases xfail
 # inside the test body, for a gap upstream has rather than one this port has.
 NOT_YET_IMPLEMENTED = {
-    # Both restarts work — `DenoInterpreter` notices a dead child, starts another, and replays the
-    # registration and the mounts. What these assert on is `interpreter.deno_process`, and the Rust
-    # sandbox owns its own child rather than dspy's, so there is no handle here to kill or compare.
+    # Four tests that reach for `interpreter.deno_process` or `_read_response_line`. Those are
+    # dspy's own internals: `RustPythonInterpreter` replaces `execute` and nothing else, so the
+    # child they kill or the reader they patch is dspy's — unused — while the Rust sandbox talks to
+    # a child of its own that the test has no handle on.
+    #
+    # The *behaviour* two of them check is ported and does hold. `DenoInterpreter` ends its session
+    # on a dead child or a protocol failure rather than starting a fresh one, which is dspy 3.3.0's
+    # rule, and `deno.rs`'s own tests cover both directions with a control. What cannot be
+    # reproduced here is the mechanism, not the contract.
+    #
+    # (This comment used to say the restarts "work — `DenoInterpreter` notices a dead child, starts
+    # another, and replays the registration and the mounts". That stopped being true when the
+    # session became terminal, and a stale comment about a skipped test is how a skip outlives its
+    # reason.)
     "test_tools_re_register_after_process_restart": (
         "the test kills dspy's own subprocess handle, which the Rust sandbox does not own"
     ),
     "test_mounts_replay_after_process_restart": (
         "the test kills dspy's own subprocess handle, which the Rust sandbox does not own"
+    ),
+    "test_process_death_ends_stateful_session": (
+        "the test kills dspy's own subprocess handle, which the Rust sandbox does not own; the "
+        "terminal-session rule it checks is held by deno.rs's own tests"
+    ),
+    "test_protocol_failure_ends_session": (
+        "the test patches dspy's own `_read_response_line`, which the Rust sandbox does not call; "
+        "the terminal-session rule it checks is held by deno.rs's own tests"
     ),
     # These pass a Python `set` or `tuple` as an input *variable*. `CodeInterpreter::execute` takes
     # a `serde_json::Map`, which has neither, so a Rust caller cannot reach this path at all — there
@@ -128,9 +147,6 @@ NOT_YET_IMPLEMENTED = {
     # pure reflection either: dspy sorts a set on the way out, so `{3,1,2}` reaches the sandbox as
     # `[1, 2, 3]`, and that ordering is a byte the model reads. Deciding it in Python is the thing
     # the bridge exists to prevent.
-    "test_nested_sets_and_tuples": (
-        "a Python value with no JSON form — a set, or a tuple nested inside one"
-    ),
 }
 
 # `test_serialize_set` and `test_serialize_set_mixed_types` were here for the same reason as

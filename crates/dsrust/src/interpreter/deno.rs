@@ -379,13 +379,21 @@ impl CodeInterpreter for DenoInterpreter {
     }
 
     fn shutdown(&self) {
+        // dspy's `session_was_active = not self._session_ended`, read *before* ending it: a session
+        // already ended by a process or protocol failure gets no graceful `shutdown` notification,
+        // because there is nothing on the other end to read it. Ending the session here too is
+        // upstream's — after `shutdown` the interpreter refuses rather than starting a new child,
+        // which is what makes "a new instance should be created for a fresh session" true.
+        let was_active = !self.ended.swap(true, std::sync::atomic::Ordering::SeqCst);
         let Some(session) = self.session.lock().expect("the sandbox session").take() else {
             return;
         };
         let Session {
             mut child, mut rpc, ..
         } = session;
-        let _ = rpc.notify("shutdown", Value::Null);
+        if was_active {
+            let _ = rpc.notify("shutdown", Value::Null);
+        }
         drop(rpc);
         for _ in 0..SHUTDOWN_POLLS {
             if matches!(child.try_wait(), Ok(Some(_)) | Err(_)) {
