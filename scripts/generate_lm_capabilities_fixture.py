@@ -38,8 +38,12 @@ import litellm
 from pins import observed
 
 ROOT = pathlib.Path(__file__).parent.parent
-TABLE = ROOT / "src" / "lm" / "capabilities.json"
-CASES = ROOT / "tests" / "conformance" / "lm_api" / "capabilities.json"
+# Both live under the crate, not the workspace root. Written as though `ROOT` were the crate, so
+# this generator could only ever have raised `FileNotFoundError` — and its golden therefore had no
+# oracle at all, which nothing said because nothing ran it.
+CRATE = ROOT / "crates" / "dsrust"
+TABLE = CRATE / "src" / "lm" / "capabilities.json"
+CASES = CRATE / "tests" / "conformance" / "lm_api" / "capabilities.json"
 
 LITELLM = observed("litellm")
 

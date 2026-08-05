@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -168,7 +169,11 @@ def run_the_suite() -> tuple[int, str]:
         text=True,
         env={**dict(__import__("os").environ), "JSON_REPAIR_RECORDING": str(RECORDING)},
     )
-    return completed.returncode, completed.stdout.strip().splitlines()[-1] if completed.stdout else ""
+    # The counts, without pytest's wall-clock. A duration in a golden guarantees a diff on every
+    # regeneration, which trains a reader to ignore diffs in this file — and this file's whole job
+    # is to be diffed when upstream moves.
+    last = completed.stdout.strip().splitlines()[-1] if completed.stdout else ""
+    return completed.returncode, re.sub(r" in [0-9.]+s\b", "", last)
 
 
 def collect() -> tuple[list[dict], list[dict]]:
