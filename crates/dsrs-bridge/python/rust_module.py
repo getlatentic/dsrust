@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import math
 
 import dspy
 import dspy.primitives.python_interpreter
@@ -462,9 +463,9 @@ class RustPythonInterpreter(dspy.primitives.python_interpreter.PythonInterpreter
         # `json.dumps` met a raw set. The strict xfails for `test_serialize_set` were dropped on
         # the reasoning that "dspy converts before it reaches the crate": true of dspy's own
         # interpreter, false of this shim until this line.
-        from dspy.primitives.python_interpreter import _make_jsonable
-
-        payload = json.dumps({k: _make_jsonable(v) for k, v in (variables or {}).items()})
+        payload = json.dumps(
+            {k: _jsonable_for_rust(v) for k, v in (variables or {}).items()}
+        )
         try:
             kind, value_json = self._rust.execute(code, payload)
         except dsrs_bridge.SandboxSessionFailed as error:
@@ -490,3 +491,39 @@ class RustPythonInterpreter(dspy.primitives.python_interpreter.PythonInterpreter
     def shutdown(self):
         self._rust.shutdown()
         super().shutdown()
+
+
+#: How a non-finite float crosses to the crate. Mirrors `interpreter::variables::NON_FINITE_KEY`.
+_NON_FINITE_KEY = "__dsrs_non_finite__"
+
+
+def _jsonable_for_rust(value):
+    """dspy's `_make_jsonable`, plus the two things a JSON wire cannot carry as itself.
+
+    **A set is sorted.** dspy's `_serialize_value` sorts one on the way into the sandbox — falling
+    back to iteration order when the members do not compare — and that ordering is a byte the model
+    reads. `_make_jsonable` alone converts a set through pydantic, which preserves *set iteration
+    order*, so the sorting has to happen before it: afterwards there is only a list, and nothing
+    left to say it was a set.
+
+    **A non-finite float is tagged.** `inf` and `nan` have no JSON literal, so `json.dumps` writes
+    `Infinity` and the crate's parser rejects it before reading a thing. They cross as a one-key
+    object and `interpreter::variables::literal` rebuilds `float('inf')`, which is exactly what
+    dspy writes for them.
+    """
+    from dspy.primitives.python_interpreter import _make_jsonable
+
+    if isinstance(value, float) and not math.isfinite(value):
+        return {_NON_FINITE_KEY: str(value)}
+    if isinstance(value, set):
+        try:
+            members = sorted(value)
+        except TypeError:
+            # Mixed types do not compare; upstream keeps iteration order rather than raising.
+            members = list(value)
+        return [_jsonable_for_rust(member) for member in members]
+    if isinstance(value, dict):
+        return {k: _jsonable_for_rust(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable_for_rust(v) for v in value]
+    return _make_jsonable(value)

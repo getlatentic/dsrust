@@ -31,8 +31,36 @@ fn is_identifier(name: &str) -> bool {
 /// JSON and Python agree on numbers and on strings; they part on the three constants, and that is
 /// the whole of the difference. Containers are rendered recursively rather than through
 /// `serde_json`'s printer, because a nested `true` inside an array is the same problem.
+/// The key a non-finite float crosses under. See [`non_finite`].
+pub const NON_FINITE_KEY: &str = "__dsrs_non_finite__";
+
+/// `float('inf')` and friends, for a value JSON has no literal for.
+///
+/// dspy keeps such a value a Python `float` the whole way and `_serialize_value` writes
+/// `float('inf')`, because `str(float('inf'))` is the bare word `inf` — not a valid Python name,
+/// so injecting it raised `NameError` in the sandbox. That is upstream's own regression test.
+///
+/// A caller crossing a language boundary has no such luxury: `serde_json::Value` cannot hold
+/// `inf` or `nan` at all, and JSON has no literal for either, so `Infinity` on the wire is
+/// rejected before it is read. The value therefore crosses as a one-key object — the same shape
+/// the sandbox protocol already uses to carry a tool return's type — and is rebuilt here into the
+/// literal dspy would have written. A Rust caller never produces one, because a Rust caller's
+/// `Value` could not have held it either.
+fn non_finite(fields: &serde_json::Map<String, Value>) -> Option<String> {
+    match fields.len() == 1 {
+        true => fields
+            .get(NON_FINITE_KEY)
+            .and_then(Value::as_str)
+            .map(|word| format!("float('{word}')")),
+        false => None,
+    }
+}
+
 fn literal(value: &Value) -> String {
     match value {
+        Value::Object(fields) if non_finite(fields).is_some() => {
+            non_finite(fields).expect("just checked")
+        }
         Value::Null => "None".to_owned(),
         Value::Bool(true) => "True".to_owned(),
         Value::Bool(false) => "False".to_owned(),

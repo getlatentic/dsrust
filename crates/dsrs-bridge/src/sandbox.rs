@@ -91,13 +91,24 @@ impl Tool for PyCallable {
                 PyValueError::new_err(format!("tool `{}` was called with {args}", self.name))
             })?;
             let answered = self.call.bind(py).call((), Some(kwargs))?;
-            // `default=str` so a value with no JSON form crosses as its `str`, which is what a
-            // sandbox tool's observation is read as anyway.
+            // `allow_nan=False`, as upstream's `_handle_tool_call` dumps: a non-finite float has
+            // no JSON literal, so `json.dumps` would write `Infinity` and the parse on this side
+            // would reject the whole reply. Upstream lets that raise and falls back to `str`, and
+            // so does this — which is how a tool returning `float('nan')` reaches the sandbox as
+            // the text `nan` rather than as a broken message.
+            //
+            // `default=str` covers the other fallback: a value with no JSON form at all crosses as
+            // its `str`, which is what a sandbox tool's observation is read as anyway.
             let options = pyo3::types::PyDict::new(py);
             options.set_item("default", py.get_type::<pyo3::types::PyString>())?;
-            let crossed: String = json
-                .call_method("dumps", (answered,), Some(&options))?
-                .extract()?;
+            options.set_item("allow_nan", false)?;
+            let crossed: String = match json.call_method("dumps", (&answered,), Some(&options)) {
+                Ok(dumped) => dumped.extract()?,
+                Err(_) => {
+                    let text: String = answered.str()?.extract()?;
+                    return Ok::<Value, PyErr>(Value::String(text));
+                }
+            };
             Ok::<Value, PyErr>(serde_json::from_str(&crossed).unwrap_or(Value::Null))
         })
         .map_err(|error: PyErr| anyhow::anyhow!("{error}"))
