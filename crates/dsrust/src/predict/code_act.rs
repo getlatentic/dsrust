@@ -16,7 +16,7 @@ use serde_json::{Map, Value, json};
 
 use crate::adapter::types::tool::format_tool;
 use crate::example::{Example, Prediction};
-use crate::interpreter::{CodeInterpreter, DenoInterpreter};
+use crate::interpreter::{CodeInterpreter, DenoInterpreter, InterpreterFactory, Lease};
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::react::Tool;
 use crate::signature::{FieldKind, InField, OutField, Signature};
@@ -33,20 +33,27 @@ pub struct CodeAct {
     tools: Vec<Arc<dyn Tool>>,
     codeact: Predict<Dynamic>,
     extractor: ChainOfThought,
-    interpreter: Arc<dyn CodeInterpreter>,
+    /// dspy's `interpreter_factory`: one sandbox per forward pass. See
+    /// [`crate::interpreter::Lease`] for who shuts it down.
+    interpreter_factory: InterpreterFactory,
 }
 
 impl CodeAct {
     /// dspy's `interpreter=None`: the Deno/Pyodide sandbox, which is what upstream defaults to.
     pub fn new(signature: Signature, tools: Vec<Arc<dyn Tool>>) -> Self {
-        Self::interpreter(signature, tools, Arc::new(DenoInterpreter::new()))
+        Self::interpreter_factory(
+            signature,
+            tools,
+            crate::interpreter::factory(DenoInterpreter::new),
+        )
     }
 
-    /// The same, running code somewhere the caller chose.
-    pub fn interpreter(
+    /// The same, building the caller's own kind of sandbox for each pass — dspy's
+    /// `interpreter_factory`, which "may be invoked concurrently".
+    pub fn interpreter_factory(
         signature: Signature,
         tools: Vec<Arc<dyn Tool>>,
-        interpreter: Arc<dyn CodeInterpreter>,
+        interpreter_factory: InterpreterFactory,
     ) -> Self {
         Self {
             codeact: Predict::from_signature(codeact_signature(&signature, &tools)),
@@ -54,7 +61,7 @@ impl CodeAct {
             signature,
             max_iters: 5,
             tools,
-            interpreter,
+            interpreter_factory,
         }
     }
 
@@ -82,8 +89,38 @@ impl CodeAct {
     }
 
     async fn run(&self, inputs: Example, trace: &mut Vec<TraceStep>) -> Result<Prediction> {
+        self.run_in(inputs, trace, None).await
+    }
+
+    /// The pass, in the caller's interpreter or in one built for it — dspy's
+    /// Run one pass in an interpreter the caller owns — dspy's positional
+    /// `forward(interpreter, /, **kwargs)`.
+    ///
+    /// Its own method because Rust has no positional-optional first argument, and because the
+    /// ownership is the point: this interpreter is **not** shut down when the pass ends, so a
+    /// caller can carry state across several calls or hand the same sandbox to several modules.
+    /// Tools and output fields are still injected into it, as upstream injects them "even for
+    /// user-provided interpreters" — each pass gets fresh ones with a fresh call counter.
+    pub async fn ask_in(
+        &self,
+        interpreter: Arc<dyn CodeInterpreter>,
+        inputs: Example,
+    ) -> Result<Prediction> {
+        let mut discarded = Vec::new();
+        self.run_in(inputs, &mut discarded, Some(interpreter)).await
+    }
+
+    /// `_interpreter_context`. The lease shuts down only what it made, on every way out.
+    async fn run_in(
+        &self,
+        inputs: Example,
+        trace: &mut Vec<TraceStep>,
+        caller: Option<Arc<dyn CodeInterpreter>>,
+    ) -> Result<Prediction> {
+        let lease = Lease::open(&self.interpreter_factory, caller)?;
+        let interpreter = lease.get();
         // dspy makes the tools available in the sandbox before the first turn.
-        self.interpreter.define_tools(&self.tools)?;
+        interpreter.define_tools(&self.tools)?;
 
         let mut trajectory = Map::new();
         for turn in 0..self.max_iters {
@@ -103,7 +140,7 @@ impl CodeAct {
             }
 
             trajectory.insert(format!("generated_code_{turn}"), json!(code));
-            match self.interpreter.execute(&code, &Map::new()) {
+            match interpreter.execute(&code, &Map::new()) {
                 Ok(executed) => {
                     let output = crate::adapter::python_json::json_dumps(executed.value());
                     trajectory.insert(format!("code_output_{turn}"), json!(output));
@@ -131,7 +168,6 @@ impl CodeAct {
         let mark = trace.len();
         let extracted = self.extractor.forward_traced(asked, trace).await;
         relabel(trace, mark, "extractor");
-        self.interpreter.shutdown();
         let extracted = extracted?;
 
         // dspy returns `Prediction(trajectory=trajectory, **extract)`: what the agent did travels
@@ -349,7 +385,11 @@ mod tests {
             "[[ ## reasoning ## ]]\nread it\n\n[[ ## answer ## ]]\n120\n\n[[ ## completed ## ]]",
         ]);
         let model = Arc::new(model);
-        let mut act = CodeAct::interpreter(task(), tools(), interpreter.clone());
+        let mut act = CodeAct::interpreter_factory(
+            task(),
+            tools(),
+            crate::interpreter::handing_back(interpreter.clone()),
+        );
         act.codeact = act.codeact.set_lm(model.clone());
         act.extractor = act.extractor.set_lm(model);
 
@@ -381,7 +421,11 @@ mod tests {
             done,
             "[[ ## reasoning ## ]]\nr\n\n[[ ## answer ## ]]\n120\n\n[[ ## completed ## ]]",
         ]));
-        let mut act = CodeAct::interpreter(task(), tools(), interpreter.clone());
+        let mut act = CodeAct::interpreter_factory(
+            task(),
+            tools(),
+            crate::interpreter::handing_back(interpreter.clone()),
+        );
         act.codeact = act.codeact.set_lm(model.clone());
         act.extractor = act.extractor.set_lm(model);
 

@@ -115,9 +115,9 @@ fn field(prediction: &dsrust::Prediction, name: &str) -> String {
 async fn program_of_thought_runs_against_a_real_model() {
     let model = configure_live();
     let interpreter = Canned::new(Executed::Submitted(json!({ "answer": "120" })));
-    let pot = ProgramOfThought::interpreter(
+    let pot = ProgramOfThought::interpreter_factory(
         "question -> answer".parse::<Signature>().expect("parses"),
-        interpreter.clone(),
+        dsrust::interpreter::handing_back(interpreter.clone()),
     );
 
     let prediction = pot
@@ -152,10 +152,10 @@ async fn program_of_thought_runs_against_a_real_model() {
 async fn code_act_runs_against_a_real_model() {
     let model = configure_live();
     let interpreter = Canned::new(Executed::Printed(json!("120")));
-    let act = CodeAct::interpreter(
+    let act = CodeAct::interpreter_factory(
         "question -> answer".parse::<Signature>().expect("parses"),
         Vec::new(),
-        interpreter.clone(),
+        dsrust::interpreter::handing_back(interpreter.clone()),
     )
     .max_iters(3);
 
@@ -193,9 +193,9 @@ async fn rlm_drives_a_repl_against_a_real_model() {
     let interpreter = Canned::new(Executed::Printed(json!(
         "the document mentions Paris 3 times"
     )));
-    let rlm = Rlm::interpreter(
+    let rlm = Rlm::interpreter_factory(
         "context -> answer".parse::<Signature>().expect("parses"),
-        interpreter.clone(),
+        dsrust::interpreter::handing_back(interpreter.clone()),
     )
     .max_iters(3);
 

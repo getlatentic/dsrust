@@ -111,7 +111,10 @@ class RustReAct(dspy.ReAct):
     crate's loop calls the same Python tools (through a `PyTool`) and the same LM (through `PyLM`).
     """
 
-    def forward(self, **input_args):
+    def forward(self, interpreter=None, /, **input_args):
+        # dspy 3.3.0 made the interpreter a positional-only first parameter of `forward`, so a
+        # caller can hand one in and keep ownership of it. Accepted and passed through to
+        # upstream's own `_interpreter_context`, which is what decides who shuts it down.
         max_iters = input_args.pop("max_iters", self.max_iters)
         lm = dspy.settings.lm
         crossings.record_render()
@@ -153,7 +156,10 @@ class RustProgramOfThought(dspy.ProgramOfThought):
     failed is rewritten or the run gives up, and what the rewrite is told about the failure.
     """
 
-    def forward(self, **kwargs):
+    def forward(self, interpreter=None, /, **kwargs):
+        # dspy 3.3.0 made the interpreter a positional-only first parameter of `forward`, so a
+        # caller can hand one in and keep ownership of it. Accepted and passed through to
+        # upstream's own `_interpreter_context`, which is what decides who shuts it down.
         crossings.record_render()
         try:
             output_json = dsrs_bridge.program_of_thought_forward(
@@ -181,7 +187,10 @@ class RustProgramOfThought(dspy.ProgramOfThought):
 class RustCodeAct(dspy.CodeAct):
     """A `dspy.CodeAct` whose per-turn loop runs in this crate's `CodeAct`."""
 
-    def forward(self, **kwargs):
+    def forward(self, interpreter=None, /, **kwargs):
+        # dspy 3.3.0 made the interpreter a positional-only first parameter of `forward`, so a
+        # caller can hand one in and keep ownership of it. Accepted and passed through to
+        # upstream's own `_interpreter_context`, which is what decides who shuts it down.
         # dspy puts the tools in the sandbox by executing their *source*, before the first turn.
         # That is upstream's setup rather than the loop under test, so it stays upstream's — and it
         # is why the crate's `define_tools` seam finds nothing left to do here.
@@ -254,14 +263,17 @@ class RustRLM(dspy.RLM):
     answered with — the layer no golden reaches.
     """
 
-    def forward(self, **input_args):
+    def forward(self, interpreter=None, /, **input_args):
+        # dspy 3.3.0 made the interpreter a positional-only first parameter of `forward`, so a
+        # caller can hand one in and keep ownership of it. Accepted and passed through to
+        # upstream's own `_interpreter_context`, which is what decides who shuts it down.
         crossings.record_render()
         values = [
             (name, json.dumps(_serialized(input_args[name]), ensure_ascii=False))
             for name in self.signature.input_fields
             if name in input_args
         ]
-        with self._interpreter_context(self._prepare_execution_tools()) as interpreter:
+        with self._interpreter_context(self._prepare_execution_tools(), interpreter) as interpreter:
             output_json = dsrs_bridge.rlm_forward(
                 self.signature.instructions,
                 describe(self.signature.input_fields),

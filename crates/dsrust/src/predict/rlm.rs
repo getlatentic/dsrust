@@ -22,8 +22,8 @@ use crate::adapter::python_json::json_dumps;
 use crate::adapter::types::base::{Formatted, to_field_value};
 use crate::example::{Example, Prediction};
 use crate::interpreter::{
-    CodeInterpreter, DenoInterpreter, Executed, OutputField, ReplEntry, ReplHistory, ReplVariable,
-    SandboxSerializable, constraints, sandbox,
+    CodeInterpreter, DenoInterpreter, Executed, InterpreterFactory, Lease, OutputField, ReplEntry,
+    ReplHistory, ReplVariable, SandboxSerializable, constraints, sandbox,
 };
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::react::Tool;
@@ -82,7 +82,9 @@ pub struct Rlm {
     generate_action: Predict<Dynamic>,
     extract: Predict<Dynamic>,
     tools: Vec<Arc<dyn Tool>>,
-    interpreter: Arc<dyn CodeInterpreter>,
+    /// dspy's `interpreter_factory`: one sandbox per forward pass. See
+    /// [`crate::interpreter::Lease`] for who shuts it down.
+    interpreter_factory: InterpreterFactory,
     /// Inputs that live in the sandbox rather than crossing as JSON, by field name. See
     /// [`Self::sandbox_input`].
     sandboxed: BTreeMap<String, Arc<dyn SandboxSerializable>>,
@@ -91,18 +93,22 @@ pub struct Rlm {
 impl Rlm {
     /// dspy's `interpreter=None`: the Deno/Pyodide sandbox, which is what upstream defaults to.
     pub fn new(signature: Signature) -> Self {
-        Self::interpreter(signature, Arc::new(DenoInterpreter::new()))
+        Self::interpreter_factory(signature, crate::interpreter::factory(DenoInterpreter::new))
     }
 
-    /// The same, running code somewhere the caller chose.
-    pub fn interpreter(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
-        Self::tools(signature, Vec::new(), interpreter)
+    /// The same, building the caller's own kind of sandbox for each pass — dspy's
+    /// `interpreter_factory`, which "may be invoked concurrently".
+    pub fn interpreter_factory(
+        signature: Signature,
+        interpreter_factory: InterpreterFactory,
+    ) -> Self {
+        Self::tools(signature, Vec::new(), interpreter_factory)
     }
 
     pub fn tools(
         signature: Signature,
         tools: Vec<Arc<dyn Tool>>,
-        interpreter: Arc<dyn CodeInterpreter>,
+        interpreter_factory: InterpreterFactory,
     ) -> Self {
         let (action, extract) = signatures(&signature, &tools, DEFAULT_MAX_LLM_CALLS);
         Self {
@@ -113,7 +119,7 @@ impl Rlm {
             generate_action: Predict::from_signature(action),
             extract: Predict::from_signature(extract),
             tools,
-            interpreter,
+            interpreter_factory,
             sandboxed: BTreeMap::new(),
         }
     }
@@ -190,6 +196,36 @@ impl Rlm {
     }
 
     async fn run(&self, inputs: Example, trace: &mut Vec<TraceStep>) -> Result<Prediction> {
+        self.run_in(inputs, trace, None).await
+    }
+
+    /// The pass, in the caller's interpreter or in one built for it — dspy's
+    /// Run one pass in an interpreter the caller owns — dspy's positional
+    /// `forward(interpreter, /, **kwargs)`.
+    ///
+    /// Its own method because Rust has no positional-optional first argument, and because the
+    /// ownership is the point: this interpreter is **not** shut down when the pass ends, so a
+    /// caller can carry state across several calls or hand the same sandbox to several modules.
+    /// Tools and output fields are still injected into it, as upstream injects them "even for
+    /// user-provided interpreters" — each pass gets fresh ones with a fresh call counter.
+    pub async fn ask_in(
+        &self,
+        interpreter: Arc<dyn CodeInterpreter>,
+        inputs: Example,
+    ) -> Result<Prediction> {
+        let mut discarded = Vec::new();
+        self.run_in(inputs, &mut discarded, Some(interpreter)).await
+    }
+
+    /// `_interpreter_context`. The lease shuts down only what it made, on every way out.
+    async fn run_in(
+        &self,
+        inputs: Example,
+        trace: &mut Vec<TraceStep>,
+        caller: Option<Arc<dyn CodeInterpreter>>,
+    ) -> Result<Prediction> {
+        let lease = Lease::open(&self.interpreter_factory, caller)?;
+        let interpreter = lease.get();
         let missing: Vec<&str> = self
             .signature
             .inputs
@@ -205,17 +241,20 @@ impl Rlm {
             bail!("Missing required inputs: {missing:?}");
         }
 
-        self.interpreter.define_tools(&self.tools)?;
+        interpreter.define_tools(&self.tools)?;
         // dspy passes `output_fields` when it builds the interpreter, so the sandbox gets a typed
         // `SUBMIT(answer, …)`. Without it the default single-argument one answers under `output`
         // and every declared field reads as missing — the model submits correctly and is refused.
-        self.interpreter.define_outputs(&self.output_fields())?;
+        interpreter.define_outputs(&self.output_fields())?;
         // dspy `_prepare_serializable_vars`: a sandbox-held value is rebuilt in the sandbox once,
         // before the first turn, and is not among the values bound on each `execute` after that.
-        self.interpreter.start()?;
+        // After the tools and output fields, as upstream's `_prepare_serializable_vars` does —
+        // `define_outputs` clears the registration flag on a live session, so setting the fields
+        // before the child exists and setting them after are different paths.
+        interpreter.start()?;
         for (name, value) in &self.sandboxed {
             let (code, bound) = sandbox::injection(value.as_ref(), name);
-            self.interpreter.execute(&code, &bound)?;
+            interpreter.execute(&code, &bound)?;
         }
 
         let variables = self.variables(&inputs);
@@ -257,8 +296,7 @@ impl Rlm {
             };
             let outcome = match refused {
                 Some(error) => Err(error),
-                None => self
-                    .interpreter
+                None => interpreter
                     .execute(&code, &bound)
                     .map_err(|error| format!("[Error] {error}")),
             };
@@ -436,7 +474,8 @@ mod loop_tests {
 
     fn rlm(interpreter: Arc<ScriptedInterpreter>, replies: &[&'static str]) -> Rlm {
         let model = Arc::new(Scripted::new(replies));
-        let mut rlm = Rlm::interpreter(task(), interpreter);
+        let mut rlm =
+            Rlm::interpreter_factory(task(), crate::interpreter::handing_back(interpreter));
         rlm.generate_action = rlm.generate_action.set_lm(model.clone());
         rlm.extract = rlm.extract.set_lm(model);
         rlm
@@ -456,11 +495,11 @@ mod loop_tests {
         let interpreter = Arc::new(ScriptedInterpreter::new([Ok(Executed::Submitted(
             json!({ "answer": "Lagos", "count": 3 }),
         ))]));
-        let rlm = Rlm::interpreter(
+        let rlm = Rlm::interpreter_factory(
             "question -> answer: str, count: int"
                 .parse()
                 .expect("parses"),
-            interpreter.clone(),
+            crate::interpreter::handing_back(interpreter.clone()),
         );
         let model = Scripted::new(&[
             "[[ ## reasoning ## ]]\nlook\n\n[[ ## code ## ]]\nSUBMIT(answer=\"Lagos\", count=3)\n\n[[ ## completed ## ]]",
@@ -586,7 +625,8 @@ mod loop_tests {
             action("full", "```python\nSUBMIT(answer='42', count=1)\n```").into_boxed_str(),
         );
         let model = Arc::new(Scripted::new(&[first, second]));
-        let mut rlm = Rlm::interpreter(signature, interpreter);
+        let mut rlm =
+            Rlm::interpreter_factory(signature, crate::interpreter::handing_back(interpreter));
         rlm.generate_action = rlm.generate_action.set_lm(model.clone());
         rlm.extract = rlm.extract.set_lm(model);
 
@@ -666,7 +706,8 @@ mod loop_tests {
         let right =
             Box::leak(action("fix", "```python\nSUBMIT(answer='yes')\n```").into_boxed_str());
         let model = Arc::new(Scripted::new(&[wrong, right]));
-        let mut rlm = Rlm::interpreter(signature, interpreter);
+        let mut rlm =
+            Rlm::interpreter_factory(signature, crate::interpreter::handing_back(interpreter));
         rlm.generate_action = rlm.generate_action.set_lm(model.clone());
         rlm.extract = rlm.extract.set_lm(model);
 
@@ -746,9 +787,9 @@ mod sandbox_tests {
         let submit =
             Box::leak(action("finish", "```python\nSUBMIT(answer='done')\n```").into_boxed_str());
         let model = Arc::new(Scripted::new(&[submit]));
-        let rlm = Rlm::interpreter(
+        let rlm = Rlm::interpreter_factory(
             "corpus -> answer".parse().expect("parses"),
-            interpreter.clone(),
+            crate::interpreter::handing_back(interpreter.clone()),
         )
         .sandbox_input("corpus", Arc::new(Corpus(12)))
         .set_lm(model);
@@ -778,7 +819,8 @@ mod sandbox_tests {
         let mut signature: Signature = "corpus -> answer".parse().expect("parses");
         signature.inputs[0].desc = "everything we have".to_owned();
         let rlm =
-            Rlm::interpreter(signature, interpreter).sandbox_input("corpus", Arc::new(Corpus(12)));
+            Rlm::interpreter_factory(signature, crate::interpreter::handing_back(interpreter))
+                .sandbox_input("corpus", Arc::new(Corpus(12)));
 
         let described = rlm.variables(&Example::default());
         assert_eq!(described.len(), 1);

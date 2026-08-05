@@ -15,7 +15,7 @@ use anyhow::{Result, bail};
 use serde_json::{Map, Value};
 
 use crate::example::{Example, Prediction};
-use crate::interpreter::{CodeInterpreter, DenoInterpreter};
+use crate::interpreter::{CodeInterpreter, DenoInterpreter, InterpreterFactory, Lease};
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::signature::{FieldKind, InField, OutField, Signature};
 
@@ -39,7 +39,13 @@ pub struct ProgramOfThought {
     generate: ChainOfThought,
     regenerate: ChainOfThought,
     answer: ChainOfThought,
-    interpreter: Arc<dyn CodeInterpreter>,
+    /// dspy's `interpreter_factory`: one sandbox is built per forward pass and shut down after.
+    ///
+    /// Held for the module's lifetime until dspy 3.3.0, which is a different program rather than a
+    /// different spelling — a sandbox is a child process. It also could not survive a second call:
+    /// `run` shut the held interpreter down on its way out, so a module asked twice ran the second
+    /// pass against a dead one.
+    interpreter_factory: InterpreterFactory,
 }
 
 impl ProgramOfThought {
@@ -48,11 +54,19 @@ impl ProgramOfThought {
     /// Ask for another with [`Self::interpreter`] — a caller who wants their own environment,
     /// or a test that scripts one.
     pub fn new(signature: Signature) -> Self {
-        Self::interpreter(signature, Arc::new(DenoInterpreter::new()))
+        Self::interpreter_factory(signature, crate::interpreter::factory(DenoInterpreter::new))
     }
 
-    /// The same, running code somewhere the caller chose.
-    pub fn interpreter(signature: Signature, interpreter: Arc<dyn CodeInterpreter>) -> Self {
+    /// The same, building the caller's own kind of sandbox for each pass.
+    ///
+    /// dspy's `interpreter_factory`, and its docstring's warning applies here too: the callable
+    /// "may be invoked concurrently", which is why the type is `Send + Sync`. A caller who wants
+    /// *one* interpreter across several calls hands it to [`Self::ask_in`] instead — that one is
+    /// theirs and is not shut down.
+    pub fn interpreter_factory(
+        signature: Signature,
+        interpreter_factory: InterpreterFactory,
+    ) -> Self {
         Self {
             generate: ChainOfThought::from_signature(mode_signature(&signature, Mode::Generate)),
             regenerate: ChainOfThought::from_signature(mode_signature(
@@ -62,7 +76,7 @@ impl ProgramOfThought {
             answer: ChainOfThought::from_signature(mode_signature(&signature, Mode::Answer)),
             signature,
             max_iters: 3,
-            interpreter,
+            interpreter_factory,
         }
     }
 
@@ -94,11 +108,14 @@ impl ProgramOfThought {
     ///
     /// The output reaches the third ask as a field the model reads, so it is `json.dumps` of the
     /// result exactly as upstream sends it — a submitted value unwrapped from its `FinalOutput`.
-    fn execute(&self, code: &str) -> (Option<String>, Option<String>) {
+    fn execute(
+        interpreter: &Arc<dyn CodeInterpreter>,
+        code: &str,
+    ) -> (Option<String>, Option<String>) {
         if code.is_empty() {
             return (None, Some("Error: Empty code before execution.".to_owned()));
         }
-        match self.interpreter.execute(code, &Map::new()) {
+        match interpreter.execute(code, &Map::new()) {
             Ok(executed) => (
                 Some(crate::adapter::python_json::json_dumps(executed.value())),
                 None,
@@ -108,6 +125,40 @@ impl ProgramOfThought {
     }
 
     async fn run(&self, inputs: Example, trace: &mut Vec<TraceStep>) -> Result<Prediction> {
+        self.run_in(inputs, trace, None).await
+    }
+
+    /// The pass itself, in the caller's interpreter or in one built for it.
+    ///
+    /// The `Lease` decides which and shuts down only what it made — upstream's
+    /// `_interpreter_context`. Because that shutdown is `Drop`, every way out of this function
+    /// releases the process: the `?` on a model call, the max-hops `bail!`, and the ordinary
+    /// Run one pass in an interpreter the caller owns — dspy's positional
+    /// `forward(interpreter, /, **kwargs)`.
+    ///
+    /// Its own method because Rust has no positional-optional first argument, and because the
+    /// ownership is the point: this interpreter is **not** shut down when the pass ends, so a
+    /// caller can carry state across several calls or hand the same sandbox to several modules.
+    /// Tools and output fields are still injected into it, as upstream injects them "even for
+    /// user-provided interpreters" — each pass gets fresh ones with a fresh call counter.
+    pub async fn ask_in(
+        &self,
+        interpreter: Arc<dyn CodeInterpreter>,
+        inputs: Example,
+    ) -> Result<Prediction> {
+        let mut discarded = Vec::new();
+        self.run_in(inputs, &mut discarded, Some(interpreter)).await
+    }
+
+    /// return. The explicit calls this replaced covered two of those three.
+    async fn run_in(
+        &self,
+        inputs: Example,
+        trace: &mut Vec<TraceStep>,
+        caller: Option<Arc<dyn CodeInterpreter>>,
+    ) -> Result<Prediction> {
+        let lease = Lease::open(&self.interpreter_factory, caller)?;
+        let interpreter = lease.get();
         // dspy passes only the task's own inputs on, so a stray field cannot reach the ask.
         let mut asked = self.task_inputs(&inputs);
 
@@ -117,14 +168,13 @@ impl ProgramOfThought {
         let (mut code, mut error) = parse_generated_code(&written.example);
         let mut output = None;
         if error.is_none() {
-            (output, error) = self.execute(&code);
+            (output, error) = Self::execute(interpreter, &code);
         }
 
         let mut hop = 1;
         while let Some(reported) = error.clone() {
             tracing::error!(error = %reported, "error in code execution");
             if hop == self.max_iters {
-                self.interpreter.shutdown();
                 bail!("Max hops reached. Failed to run ProgramOfThought: {reported}");
             }
             asked.set("previous_code", Value::String(code.clone()));
@@ -134,7 +184,7 @@ impl ProgramOfThought {
             relabel(trace, mark, "code_regenerate");
             (code, error) = parse_generated_code(&written.example);
             if error.is_none() {
-                (output, error) = self.execute(&code);
+                (output, error) = Self::execute(interpreter, &code);
             }
             hop += 1;
         }
@@ -144,8 +194,6 @@ impl ProgramOfThought {
         let mark = trace.len();
         let answered = self.answer.forward_traced(asked, trace).await;
         relabel(trace, mark, "generate_output");
-        // dspy shuts the interpreter down on the way out, including the way out that raises.
-        self.interpreter.shutdown();
         answered
     }
 
@@ -442,7 +490,10 @@ mod tests {
             "[[ ## reasoning ## ]]\nread it\n\n[[ ## answer ## ]]\n2\n\n[[ ## completed ## ]]",
         ]);
         let pot = with_model(
-            ProgramOfThought::interpreter(task(), interpreter.clone()),
+            ProgramOfThought::interpreter_factory(
+                task(),
+                crate::interpreter::handing_back(interpreter.clone()),
+            ),
             Arc::new(model),
         );
 
@@ -468,7 +519,10 @@ mod tests {
             "[[ ## reasoning ## ]]\nread\n\n[[ ## answer ## ]]\n2\n\n[[ ## completed ## ]]",
         ]);
         let pot = with_model(
-            ProgramOfThought::interpreter(task(), interpreter.clone()),
+            ProgramOfThought::interpreter_factory(
+                task(),
+                crate::interpreter::handing_back(interpreter.clone()),
+            ),
             Arc::new(model),
         );
 
@@ -494,7 +548,11 @@ mod tests {
         let reply = "[[ ## reasoning ## ]]\nr\n\n[[ ## generated_code ## ]]\nprint(x)\n\n[[ ## completed ## ]]";
         let model = Scripted::new(&[reply, reply, reply, reply]);
         let pot = with_model(
-            ProgramOfThought::interpreter(task(), interpreter.clone()).max_iters(2),
+            ProgramOfThought::interpreter_factory(
+                task(),
+                crate::interpreter::handing_back(interpreter.clone()),
+            )
+            .max_iters(2),
             Arc::new(model),
         );
 

@@ -23,11 +23,13 @@ use serde_json::{Map, Value};
 use crate::react::Tool;
 
 pub mod deno;
+pub mod lease;
 pub mod repl;
 pub mod sandbox;
 mod variables;
 
 pub use deno::{DenoInterpreter, Permissions};
+pub use lease::{InterpreterFactory, Lease, factory, handing_back};
 pub use repl::{ReplEntry, ReplHistory, ReplVariable};
 pub use sandbox::{SandboxSerializable, build_repl_variable, constraints};
 

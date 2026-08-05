@@ -124,8 +124,12 @@ pub(crate) fn rlm_forward(
     max_llm_calls: Option<usize>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let mut rlm =
-        dsrust::Rlm::interpreter(signature, Arc::new(PyInterpreter { inner: interpreter }));
+    let mut rlm = dsrust::Rlm::interpreter_factory(
+        signature,
+        // The bridge is handed one interpreter by the Python side and hands it straight back:
+        // dspy owns it there, so this is the caller-owned arm wearing a factory's clothes.
+        dsrust::interpreter::handing_back(Arc::new(PyInterpreter { inner: interpreter })),
+    );
     if let Some(max_llm_calls) = max_llm_calls {
         rlm = rlm.max_llm_calls(max_llm_calls);
     }
@@ -157,9 +161,9 @@ pub(crate) fn program_of_thought_forward(
     max_iters: Option<usize>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let mut pot = dsrust::ProgramOfThought::interpreter(
+    let mut pot = dsrust::ProgramOfThought::interpreter_factory(
         signature,
-        Arc::new(PyInterpreter { inner: interpreter }),
+        dsrust::interpreter::handing_back(Arc::new(PyInterpreter { inner: interpreter })),
     );
     if let Some(max_iters) = max_iters {
         pot = pot.max_iters(max_iters);
@@ -189,10 +193,10 @@ pub(crate) fn code_act_forward(
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
     let rust_tools = crate::py_tools(py, &tools)?;
-    let mut act = dsrust::CodeAct::interpreter(
+    let mut act = dsrust::CodeAct::interpreter_factory(
         signature,
         rust_tools,
-        Arc::new(PyInterpreter { inner: interpreter }),
+        dsrust::interpreter::handing_back(Arc::new(PyInterpreter { inner: interpreter })),
     );
     if let Some(max_iters) = max_iters {
         act = act.max_iters(max_iters);
