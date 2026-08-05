@@ -177,7 +177,20 @@ fn strip_comments(body: &str) -> String {
     let mut in_quote: Option<char> = None;
     let mut backslashes = 0_usize;
     let mut index = 0;
+    // This loop walks a local copy, out of reach of the source's read counter. Its inner skips
+    // are iterator-shaped below, and the outer step count guards what remains.
+    #[cfg(debug_assertions)]
+    let mut steps: u64 = 0;
     while index < chars.len() {
+        #[cfg(debug_assertions)]
+        {
+            steps += 1;
+            assert!(
+                steps <= chars.len() as u64 + 8,
+                "{steps} steps over {} characters — the comment strip is not advancing",
+                chars.len()
+            );
+        }
         let char = chars[index];
         let next = chars.get(index + 1).copied();
 
@@ -205,19 +218,25 @@ fn strip_comments(body: &str) -> String {
         }
         backslashes = 0;
 
+        // Both skips are iterator-shaped: a scan with no cursor mutation has no hang site, and
+        // six mutants held the index loops these replaced spinning for the full timeout.
         if char == '#' || (char == '/' && next == Some('/')) {
-            index += if char == '/' { 2 } else { 1 };
-            while index < chars.len() && chars[index] != '\n' && chars[index] != '\r' {
-                index += 1;
-            }
+            let from = index + if char == '/' { 2 } else { 1 };
+            let tail = chars.get(from..).unwrap_or_default();
+            index = from
+                + tail
+                    .iter()
+                    .position(|&ch| ch == '\n' || ch == '\r')
+                    .unwrap_or(tail.len());
             continue;
         }
         if char == '/' && next == Some('*') {
-            index += 2;
-            while index + 1 < chars.len() && !(chars[index] == '*' && chars[index + 1] == '/') {
-                index += 1;
-            }
-            index = (index + 2).min(chars.len());
+            let from = index + 2;
+            let tail = chars.get(from..).unwrap_or_default();
+            index = match tail.windows(2).position(|pair| pair == ['*', '/']) {
+                Some(close) => from + close + 2,
+                None => chars.len(),
+            };
             continue;
         }
         stripped.push(char);

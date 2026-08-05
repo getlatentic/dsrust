@@ -7018,6 +7018,213 @@
    "calls": []
   },
   {
+   "name": "enum_array_across_numeric_types",
+   "why": "an int array matches its float twin",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [
+       [
+        1.0
+       ]
+      ]
+     }
+    }
+   },
+   "input": "{a: [1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": [1]}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: [1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: [1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: [1"
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": "{a: [1"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": [1]}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"enum\": [[1.0]]}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "enum_object_across_numeric_types",
+   "why": "and an object's values compare the same way",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [
+       {
+        "x": 1.0
+       }
+      ]
+     }
+    }
+   },
+   "input": "{a: {x: 1",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": {\"x\": 1}}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: {x: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: {x: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: {x: 1"
+    },
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: {x: 1"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: {x: 1"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: {x: 1"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": {\"x\": 1}}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"enum\": [{\"x\": 1.0}]}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "enum_length_mismatch",
+   "why": "one item more is no match",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [
+       [
+        1
+       ]
+      ]
+     }
+    }
+   },
+   "input": "{a: [1, 1",
+   "mode": "standard",
+   "ok": false,
+   "error": "ValueError",
+   "message": "Value at $.a does not match enum.",
+   "calls": []
+  },
+  {
+   "name": "enum_bigint_against_float",
+   "why": "an integer wider than a machine word against the float that equals it exactly",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "enum": [
+       1.2676506002282294e+30
+      ]
+     }
+    }
+   },
+   "input": "{a: 1267650600228229401496703205376",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": 1267650600228229401496703205376}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: 1267650"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: 12676506"
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: 12676506"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": 1267650600228229401496703205376}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"enum\": [1.2676506002282294e+30]}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
+   "name": "const_across_numeric_types",
+   "why": "const walks the same equality",
+   "schema": {
+    "type": "object",
+    "properties": {
+     "a": {
+      "const": [
+       1,
+       2
+      ]
+     }
+    }
+   },
+   "input": "{a: [1.0, 2.0",
+   "mode": "standard",
+   "ok": true,
+   "dumps": "{\"a\": [1.0, 2.0]}",
+   "log": [
+    {
+     "text": "While parsing a string, we found a literal instead of a quote",
+     "context": "{a: [1.0, 2"
+    },
+    {
+     "text": "While parsing a string missing the left delimiter in object key context, we found a :, stopping here",
+     "context": "{a: [1.0, 2."
+    },
+    {
+     "text": "While parsing a string, we missed the closing quote, ignoring",
+     "context": "{a: [1.0, 2."
+    },
+    {
+     "text": "While parsing an array we missed the closing ], ignoring it",
+     "context": " [1.0, 2.0"
+    }
+   ],
+   "calls": [
+    {
+     "method": "validate",
+     "value": "{\"a\": [1.0, 2.0]}",
+     "schema": "{\"type\": \"object\", \"properties\": {\"a\": {\"const\": [1, 2]}}}",
+     "ok": true
+    }
+   ]
+  },
+  {
    "name": "json_string_holds_wrong_container",
    "why": "the string parses, but to an array where an object was wanted",
    "schema": {

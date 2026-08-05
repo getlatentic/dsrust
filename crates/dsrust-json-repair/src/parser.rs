@@ -45,17 +45,6 @@ pub(crate) struct Parser {
     /// How deep `parse_json` is nested. Python answers this with `RecursionError`; a Rust stack
     /// overflow is not catchable, so the limit is explicit — see [`crate::MAX_DEPTH`].
     pub(crate) depth: usize,
-    /// Characters read so far, against what a terminating parse can need. Debug builds only.
-    ///
-    /// Forty-nine of this crate's loops advance a cursor with nothing checking that they do, so a
-    /// mutation turning `+= 1` into `*= 1` leaves one spinning — and a test that spins does not
-    /// fail, it simply never finishes. Eighty-two mutants were scored that way. Counting reads in
-    /// the one place every scan passes through turns each of them into a panic, at a bound no
-    /// terminating parse can reach.
-    #[cfg(debug_assertions)]
-    reads: std::cell::Cell<u64>,
-    #[cfg(debug_assertions)]
-    read_budget: u64,
 }
 
 impl Parser {
@@ -72,18 +61,6 @@ impl Parser {
             has_tried_valid_json_suffix: false,
             schema_repairer: None,
             depth: 0,
-            #[cfg(debug_assertions)]
-            reads: std::cell::Cell::new(0),
-            // Every position may legitimately start one scan over the rest of the input — that is
-            // what `cached_skip_to_character` exists to make cheap — so a terminating parse is
-            // bounded by the square of the length. The floor covers short inputs, where the square
-            // is smaller than the fixed work of a parse; saturation covers the other end, where a
-            // long input's square does not fit.
-            #[cfg(debug_assertions)]
-            read_budget: {
-                let length = json_str.chars().count() as u64;
-                length.saturating_mul(length).saturating_add(1 << 20)
-            },
         }
     }
 
@@ -94,17 +71,6 @@ impl Parser {
     /// `self.json_str[self.index + count]`, including Python's wrap for a negative index — which
     /// `_should_split_duplicate_object` reaches with a lookback well below zero.
     pub(crate) fn get_char_at(&self, count: isize) -> Option<char> {
-        #[cfg(debug_assertions)]
-        {
-            let read = self.reads.get() + 1;
-            self.reads.set(read);
-            assert!(
-                read <= self.read_budget,
-                "{read} character reads over an input of {} — a scan is not advancing. \
-                 This bound is not reachable by a parse that ends.",
-                self.len()
-            );
-        }
         let position = self.index as isize + count;
         let position = if position < 0 {
             position + self.len() as isize
@@ -279,12 +245,12 @@ impl Parser {
         // The suffix goes to whichever strict scanner matches the storage; the two are one grammar,
         // held together by `tests/scanner_agreement.rs`. An `Ascii` suffix is valid UTF-8 as it
         // stands, and its byte positions are the code-point positions this index needs.
-        let (value, end) = match &self.json_str {
-            source::Source::Ascii(bytes) => {
+        let (value, end) = match self.json_str.cells() {
+            source::Cells::Ascii(bytes) => {
                 let suffix = std::str::from_utf8(&bytes[self.index..]).expect("ASCII is UTF-8");
                 crate::strict_json::bytes::raw_decode(suffix).ok()?
             }
-            source::Source::Wide(chars) => {
+            source::Cells::Wide(chars) => {
                 crate::strict_json::raw_decode(&chars[self.index..]).ok()?
             }
         };

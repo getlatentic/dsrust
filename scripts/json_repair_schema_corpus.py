@@ -353,6 +353,23 @@ FOREIGN_REFUSALS = [
          {"type": "object", "required": "ab"}, "{a: 1"),
     case("required_as_dict", "and a dict contributes its keys",
          {"type": "object", "required": {"k": 1}}, "{a: 1"),
+    # `enum` and `const` compare with Python's `==`, which crosses the numeric types and recurses
+    # into containers — `[1] == [1.0]` is True. Each case pins one arm of that walk; the mismatch
+    # case pins the length conjunct, and the wide integer pins the arm that reads a number wider
+    # than a machine word. 2**100 because a power of two is the equality a float can hold exactly,
+    # where 10**30 is not.
+    case("enum_array_across_numeric_types", "an int array matches its float twin",
+         {"type": "object", "properties": {"a": {"enum": [[1.0]]}}}, "{a: [1"),
+    case("enum_object_across_numeric_types", "and an object's values compare the same way",
+         {"type": "object", "properties": {"a": {"enum": [{"x": 1.0}]}}}, "{a: {x: 1"),
+    case("enum_length_mismatch", "one item more is no match",
+         {"type": "object", "properties": {"a": {"enum": [[1]]}}}, "{a: [1, 1"),
+    case("enum_bigint_against_float", "an integer wider than a machine word against the float that "
+         "equals it exactly",
+         {"type": "object", "properties": {"a": {"enum": [1.2676506002282294e30]}}},
+         "{a: 1267650600228229401496703205376"),
+    case("const_across_numeric_types", "const walks the same equality",
+         {"type": "object", "properties": {"a": {"const": [1, 2]}}}, "{a: [1.0, 2.0"),
 ]
 
 STRING_CONTAINERS = [

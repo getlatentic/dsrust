@@ -5,7 +5,7 @@
   "json_context.py": 21,
   "json_parser.py": 156,
   "json_repair.py": 65,
-  "object_comparer.py": 15,
+  "object_comparer.py": 16,
   "object_value_context.py": 47,
   "parse_array.py": 42,
   "parse_boolean_or_null.py": 16,
@@ -2290,6 +2290,87 @@
     {
      "text": "The parser returned early, checking if there's more json elements",
      "context": "{\"a\": 1} {\"b\": 2}"
+    }
+   ]
+  },
+  {
+   "name": "same_shape_bools_replace",
+   "why": "matching bool values replace",
+   "input": "{\"a\": true} {\"a\": false}",
+   "ok": true,
+   "dumps": "{\"a\": false}",
+   "log": [
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "a\": true} {\"a\": fals"
+    },
+    {
+     "text": "There were no more elements, returning the element without the array",
+     "context": "a\": false}"
+    }
+   ]
+  },
+  {
+   "name": "same_shape_floats_replace",
+   "why": "and floats",
+   "input": "{\"a\": 1.5} {\"a\": 2.5}",
+   "ok": true,
+   "dumps": "{\"a\": 2.5}",
+   "log": [
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "\"a\": 1.5} {\"a\": 2.5}"
+    },
+    {
+     "text": "There were no more elements, returning the element without the array",
+     "context": "{\"a\": 2.5}"
+    }
+   ]
+  },
+  {
+   "name": "same_shape_nulls_replace",
+   "why": "and nulls",
+   "input": "{\"a\": null} {\"a\": null}",
+   "ok": true,
+   "dumps": "{\"a\": null}",
+   "log": [
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "a\": null} {\"a\": null"
+    },
+    {
+     "text": "There were no more elements, returning the element without the array",
+     "context": "\"a\": null}"
+    }
+   ]
+  },
+  {
+   "name": "shape_differs_appends",
+   "why": "a bool against an int is a different shape, so both are kept",
+   "input": "{\"a\": true} {\"a\": 1}",
+   "ok": true,
+   "dumps": "[{\"a\": true}, {\"a\": 1}]",
+   "log": [
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "a\": true} {\"a\": 1}"
+    }
+   ]
+  },
+  {
+   "name": "same_shape_recurses_into_arrays",
+   "why": "the shape test walks array items too",
+   "input": "{\"a\": [1, true]} {\"a\": [2, false]}",
+   "ok": true,
+   "dumps": "{\"a\": [2, false]}",
+   "log": [
+    {
+     "text": "The parser returned early, checking if there's more json elements",
+     "context": "1, true]} {\"a\": [2, "
+    },
+    {
+     "text": "There were no more elements, returning the element without the array",
+     "context": "2, false]}"
     }
    ]
   },

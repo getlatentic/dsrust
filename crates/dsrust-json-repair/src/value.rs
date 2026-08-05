@@ -332,6 +332,80 @@ impl fmt::Display for Value {
 mod tests {
     use super::*;
 
+    /// The hybrid is invisible from outside on purpose — a linear scan and a map answer every
+    /// query identically — so its threshold and bookkeeping are checked from inside, where
+    /// `index.is_some()` is a fact rather than an inference. Sixteen of its mutants survived the
+    /// whole suite for exactly this reason.
+    #[test]
+    fn the_index_appears_at_the_threshold_and_not_before() {
+        let mut object = Object::new();
+        for n in 0..INDEX_AT {
+            object.insert(format!("k{n}"), Value::Int(n as i64));
+        }
+        assert!(object.index.is_none(), "sixteen entries scan linearly");
+        object.insert("crossing".into(), Value::Int(-1));
+        assert!(object.index.is_some(), "the seventeenth builds the map");
+        for n in 0..INDEX_AT {
+            assert_eq!(object.get(&format!("k{n}")), Some(&Value::Int(n as i64)));
+        }
+        assert_eq!(object.get("crossing"), Some(&Value::Int(-1)));
+        // A key inserted after the crossing goes through the map arm.
+        object.insert("later".into(), Value::Int(99));
+        assert_eq!(object.get("later"), Some(&Value::Int(99)));
+        object.insert("k3".into(), Value::Int(33));
+        assert_eq!(
+            object.get("k3"),
+            Some(&Value::Int(33)),
+            "replacement through the map"
+        );
+        assert_eq!(object.len(), INDEX_AT + 2);
+    }
+
+    #[test]
+    fn removing_from_an_indexed_object_keeps_every_position_true() {
+        let mut object = Object::new();
+        for n in 0..20 {
+            object.insert(format!("k{n}"), Value::Int(n as i64));
+        }
+        assert!(object.index.is_some());
+        assert_eq!(object.remove("k7"), Some(Value::Int(7)));
+        assert_eq!(object.remove("k7"), None, "gone means gone");
+        for n in (0..20).filter(|&n| n != 7) {
+            assert_eq!(
+                object.get(&format!("k{n}")),
+                Some(&Value::Int(n as i64)),
+                "k{n} after the removal"
+            );
+        }
+        let keys: Vec<&str> = object.keys().collect();
+        assert_eq!(keys[6], "k6");
+        assert_eq!(keys[7], "k8", "the order closes over the gap");
+    }
+
+    #[test]
+    fn objects_compare_by_their_entries() {
+        let mut left = Object::new();
+        left.insert("a".into(), Value::Int(1));
+        let mut right = Object::new();
+        right.insert("a".into(), Value::Int(2));
+        assert_ne!(left, right);
+        assert_ne!(left, Object::new());
+    }
+
+    #[test]
+    fn into_iter_yields_the_entries_in_order() {
+        let mut object = Object::new();
+        object.insert("b".into(), Value::Int(2));
+        object.insert("a".into(), Value::Int(1));
+        let entries: Vec<(String, Value)> = object.into_iter().collect();
+        assert_eq!(
+            entries,
+            vec![("b".into(), Value::Int(2)), ("a".into(), Value::Int(1))]
+        );
+    }
+
+    use super::*;
+
     #[test]
     fn a_reassigned_key_keeps_the_position_it_was_first_given() {
         let mut object = Object::new();

@@ -276,6 +276,17 @@ CONTAINERS_AND_SETS = [
          '["a": 1]'),
     case("stray_ellipsis", "a `...` the model left in an array", "[1, ..., 2]"),
     case("multiple_top_level", "two values, gathered into a list", '{"a": 1} {"b": 2}'),
+    # `ObjectComparer.is_same_object` decides whether a second top-level object *replaces* the
+    # first or joins it in a list, and it asks shape recursively — same keys, and each value the
+    # same type. One case per scalar arm, since deleting any of them turns a replace into an
+    # append and nothing else in the corpus can tell.
+    case("same_shape_bools_replace", "matching bool values replace", '{"a": true} {"a": false}'),
+    case("same_shape_floats_replace", "and floats", '{"a": 1.5} {"a": 2.5}'),
+    case("same_shape_nulls_replace", "and nulls", '{"a": null} {"a": null}'),
+    case("shape_differs_appends", "a bool against an int is a different shape, so both are kept",
+         '{"a": true} {"a": 1}'),
+    case("same_shape_recurses_into_arrays", "the shape test walks array items too",
+         '{"a": [1, true]} {"a": [2, false]}'),
     case("repeated_same_shape", "the same shape twice is an update, and the newest wins",
          '{"a": 1} {"a": 2}'),
     case("comma_separated_top_level", "and with a comma between them both survive", '{"a": 1}, {"a": 2}'),

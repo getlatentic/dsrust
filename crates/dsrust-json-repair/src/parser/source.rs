@@ -13,7 +13,20 @@
 //! its variant.
 
 /// The characters of the input, at one byte each when the input allows it.
-pub(crate) enum Source {
+pub(crate) struct Source {
+    cells: Cells,
+    /// Reads so far against what a terminating parse can need — debug builds only, and here
+    /// rather than on the parser because half a dozen scans read positions directly. When the
+    /// counter lived in `get_char_at`, every one of them was a loop a mutation could stall into a
+    /// silent two-minute timeout; storing it at the storage makes an uncounted read something a
+    /// reviewer has to construct rather than something a refactor gets for free.
+    #[cfg(debug_assertions)]
+    reads: std::cell::Cell<u64>,
+    #[cfg(debug_assertions)]
+    budget: u64,
+}
+
+pub(crate) enum Cells {
     /// Every character is ASCII, so a byte holds a code point and positions are byte offsets.
     Ascii(Vec<u8>),
     /// The general case, one `char` per code point.
@@ -22,43 +35,64 @@ pub(crate) enum Source {
 
 impl Source {
     pub(crate) fn of(text: &str) -> Self {
-        if text.is_ascii() {
-            Source::Ascii(text.as_bytes().to_vec())
+        let cells = if text.is_ascii() {
+            Cells::Ascii(text.as_bytes().to_vec())
         } else {
-            Source::Wide(text.chars().collect())
+            Cells::Wide(text.chars().collect())
+        };
+        Source {
+            // Every position may legitimately start one scan over the rest of the input — that is
+            // what the lookahead cache exists to make cheap — so a terminating parse is bounded by
+            // the square of the length, with a floor for short inputs whose fixed work exceeds it.
+            #[cfg(debug_assertions)]
+            budget: {
+                let length = cells_len(&cells) as u64;
+                length.saturating_mul(length).saturating_add(1 << 20)
+            },
+            #[cfg(debug_assertions)]
+            reads: std::cell::Cell::new(0),
+            cells,
         }
     }
 
     pub(crate) fn len(&self) -> usize {
-        match self {
-            Source::Ascii(bytes) => bytes.len(),
-            Source::Wide(chars) => chars.len(),
-        }
+        cells_len(&self.cells)
     }
 
     /// The character at an absolute code-point position.
     #[inline]
     pub(crate) fn at(&self, position: usize) -> Option<char> {
-        match self {
-            Source::Ascii(bytes) => bytes.get(position).map(|&byte| byte as char),
-            Source::Wide(chars) => chars.get(position).copied(),
+        #[cfg(debug_assertions)]
+        {
+            let read = self.reads.get() + 1;
+            self.reads.set(read);
+            assert!(
+                read <= self.budget,
+                "{read} character reads over an input of {} — a scan is not advancing. \
+                 This bound is not reachable by a parse that ends.",
+                self.len()
+            );
+        }
+        match &self.cells {
+            Cells::Ascii(bytes) => bytes.get(position).map(|&byte| byte as char),
+            Cells::Wide(chars) => chars.get(position).copied(),
         }
     }
 
     /// `text[start..end]` as an owned string, both ends already clamped by the caller.
     pub(crate) fn slice_string(&self, start: usize, end: usize) -> String {
-        match self {
-            Source::Ascii(bytes) => {
+        match &self.cells {
+            Cells::Ascii(bytes) => {
                 String::from_utf8(bytes[start..end].to_vec()).expect("ASCII is UTF-8")
             }
-            Source::Wide(chars) => chars[start..end].iter().collect(),
+            Cells::Wide(chars) => chars[start..end].iter().collect(),
         }
     }
 
     /// The first `needle` at or past `start`, as an absolute position.
     pub(crate) fn find_from(&self, start: usize, needle: char) -> Option<usize> {
-        match self {
-            Source::Ascii(bytes) => {
+        match &self.cells {
+            Cells::Ascii(bytes) => {
                 if !needle.is_ascii() {
                     return None;
                 }
@@ -67,7 +101,7 @@ impl Source {
                     .position(|&byte| byte == needle as u8)
                     .map(|offset| start + offset)
             }
-            Source::Wide(chars) => chars[start..]
+            Cells::Wide(chars) => chars[start..]
                 .iter()
                 .position(|&ch| ch == needle)
                 .map(|offset| start + offset),
@@ -76,12 +110,12 @@ impl Source {
 
     /// Insert one character at a code-point position — the duplicate-key splice, always ASCII.
     pub(crate) fn insert(&mut self, position: usize, ch: char) {
-        match self {
-            Source::Ascii(bytes) => {
+        match &mut self.cells {
+            Cells::Ascii(bytes) => {
                 debug_assert!(ch.is_ascii(), "splicing {ch:?} would widen an ASCII source");
                 bytes.insert(position, ch as u8);
             }
-            Source::Wide(chars) => chars.insert(position, ch),
+            Cells::Wide(chars) => chars.insert(position, ch),
         }
     }
 
@@ -89,18 +123,18 @@ impl Source {
     /// any text back. A replacement past ASCII widens an `Ascii` source to `Wide`, since the
     /// storage is a claim about every character it holds.
     pub(crate) fn splice(&mut self, start: usize, end: usize, replacement: &str) {
-        match self {
-            Source::Ascii(bytes) if replacement.is_ascii() => {
+        match &mut self.cells {
+            Cells::Ascii(bytes) if replacement.is_ascii() => {
                 bytes.splice(start..end, replacement.bytes());
             }
-            Source::Ascii(bytes) => {
+            Cells::Ascii(bytes) => {
                 let mut rebuilt: Vec<char> =
                     bytes[..start].iter().map(|&byte| byte as char).collect();
                 rebuilt.extend(replacement.chars());
                 rebuilt.extend(bytes[end..].iter().map(|&byte| byte as char));
-                *self = Source::Wide(rebuilt);
+                self.cells = Cells::Wide(rebuilt);
             }
-            Source::Wide(chars) => {
+            Cells::Wide(chars) => {
                 chars.splice(start..end, replacement.chars());
             }
         }
@@ -108,9 +142,9 @@ impl Source {
 
     /// `text[start..end]` as the characters it holds, for the span a string keeps.
     pub(crate) fn chars_vec(&self, start: usize, end: usize) -> Vec<char> {
-        match self {
-            Source::Ascii(bytes) => bytes[start..end].iter().map(|&byte| byte as char).collect(),
-            Source::Wide(chars) => chars[start..end].to_vec(),
+        match &self.cells {
+            Cells::Ascii(bytes) => bytes[start..end].iter().map(|&byte| byte as char).collect(),
+            Cells::Wide(chars) => chars[start..end].to_vec(),
         }
     }
 
@@ -123,8 +157,8 @@ impl Source {
         // mutant to stall, so this scan cannot be made to hang — the failure the read counters
         // exist to catch simply has no site. `position` may sit past the end; an empty tail
         // scrolls nowhere.
-        match self {
-            Source::Ascii(bytes) => {
+        match &self.cells {
+            Cells::Ascii(bytes) => {
                 let tail = bytes.get(position..).unwrap_or_default();
                 position
                     + tail
@@ -132,7 +166,7 @@ impl Source {
                         .position(|&byte| !ASCII_SPACE[byte as usize])
                         .unwrap_or(tail.len())
             }
-            Source::Wide(chars) => {
+            Cells::Wide(chars) => {
                 let tail = chars.get(position..).unwrap_or_default();
                 position
                     + tail
@@ -144,10 +178,15 @@ impl Source {
     }
 
     /// The characters from `position` on, for the callers that walk a tail.
+    /// Which cell size this source holds, for the one caller that picks a strict scanner by it.
+    pub(crate) fn cells(&self) -> &Cells {
+        &self.cells
+    }
+
     pub(crate) fn iter_from(&self, position: usize) -> impl Iterator<Item = char> + '_ {
-        let (ascii, wide) = match self {
-            Source::Ascii(bytes) => (Some(bytes[position..].iter()), None),
-            Source::Wide(chars) => (None, Some(chars[position..].iter())),
+        let (ascii, wide) = match &self.cells {
+            Cells::Ascii(bytes) => (Some(bytes[position..].iter()), None),
+            Cells::Wide(chars) => (None, Some(chars[position..].iter())),
         };
         ascii
             .into_iter()
@@ -167,3 +206,10 @@ const ASCII_SPACE: [bool; 128] = {
     }
     table
 };
+
+fn cells_len(cells: &Cells) -> usize {
+    match cells {
+        Cells::Ascii(bytes) => bytes.len(),
+        Cells::Wide(chars) => chars.len(),
+    }
+}
