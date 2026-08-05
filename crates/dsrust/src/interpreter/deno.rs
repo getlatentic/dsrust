@@ -23,7 +23,7 @@ use serde_json::{Map, Value, json};
 
 pub use command::Permissions;
 
-use super::{CodeInterpreter, Executed, OutputField};
+use super::{CodeInterpreter, Executed, InterpreterFailure, OutputField};
 use crate::react::Tool;
 use rpc::Rpc;
 
@@ -52,6 +52,14 @@ pub struct DenoInterpreter {
     /// dspy's `sync_files`, and its default: a writable file's sandbox copy is written back to the
     /// host after each run. Off means the sandbox may write and the host never sees it.
     write_back: bool,
+    /// Whether this session is over — dspy 3.3.0's `_session_ended`.
+    ///
+    /// A process or protocol failure ends the session for good. Upstream's protocol asks for
+    /// exactly that: "If the underlying interpreter process exits, the session state is lost and
+    /// the implementation should raise CodeInterpreterError instead of silently starting a new
+    /// session." This restarted, and a restart is not a recovery — the sandbox's variables are
+    /// gone, so the next `execute` runs against an empty namespace and answers confidently.
+    ended: std::sync::atomic::AtomicBool,
 }
 
 /// One live child and the pipes to it.
@@ -82,6 +90,7 @@ impl DenoInterpreter {
     /// The same, with what the sandboxed code is allowed to reach spelled out.
     pub fn permissions(permissions: Permissions) -> Self {
         Self {
+            ended: std::sync::atomic::AtomicBool::new(false),
             permissions,
             session: Mutex::new(None),
             tools: Mutex::new(Vec::new()),
@@ -121,12 +130,66 @@ impl DenoInterpreter {
             .is_ok_and(|status| status.success())
     }
 
-    /// Start the child if there is not a live one, and answer with the session to talk to.
-    fn started(&self, session: &mut Option<Session>) -> Result<()> {
-        if let Some(live) = session
-            && live.child.try_wait().is_ok_and(|exited| exited.is_none())
+    /// dspy's `_check_session_active`: refuse once the session has ended.
+    fn check_active(&self) -> Result<()> {
+        match self.ended.load(std::sync::atomic::Ordering::SeqCst) {
+            true => Err(anyhow::Error::new(InterpreterFailure::Session(
+                "PythonInterpreter session has ended; create a new interpreter for a fresh session."
+                    .to_owned(),
+            ))),
+            false => Ok(()),
+        }
+    }
+
+    /// End the session when the failure was the interpreter's, and pass the result through.
+    ///
+    /// The two error kinds are built where they happen — down in the RPC layer, which knows the
+    /// JSON-RPC code — and this is where the consequence is applied. Upstream's
+    /// `_raise_terminal_error` does both at once; here the sandbox conversation cannot reach the
+    /// flag, so the flag reaches out to it.
+    fn note_terminal<T>(&self, outcome: Result<T>) -> Result<T> {
+        if let Err(error) = &outcome
+            && matches!(
+                error.downcast_ref::<InterpreterFailure>(),
+                Some(InterpreterFailure::Session(_))
+            )
         {
-            return Ok(());
+            self.ended.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+        outcome
+    }
+
+    /// dspy's `_raise_terminal_error`: end the session and report why.
+    ///
+    /// Returns the error rather than raising, so a caller writes `return Err(self.end_session(…))`
+    /// and the compiler keeps the two halves together.
+    fn end_session(&self, why: String) -> anyhow::Error {
+        self.ended.store(true, std::sync::atomic::Ordering::SeqCst);
+        anyhow::Error::new(InterpreterFailure::Session(why))
+    }
+
+    /// Start the child if there is not one yet, and answer with the session to talk to.
+    ///
+    /// A child that has *exited* ends the session rather than being replaced: see
+    /// [`DenoInterpreter::ended`].
+    fn started(&self, session: &mut Option<Session>) -> Result<()> {
+        self.check_active()?;
+        if let Some(live) = session {
+            match live.child.try_wait() {
+                Ok(None) => return Ok(()),
+                Ok(Some(status)) => {
+                    return Err(self.end_session(format!(
+                        "Deno process exited (code {}); interpreter state was lost. \
+                         Create a new interpreter for a fresh session.",
+                        status.code().unwrap_or(-1)
+                    )));
+                }
+                Err(error) => {
+                    return Err(
+                        self.end_session(format!("cannot read the sandbox process: {error}"))
+                    );
+                }
+            }
         }
         let runner = command::runner_path()?;
         let mut child = Command::new("deno")
@@ -285,10 +348,12 @@ impl CodeInterpreter for DenoInterpreter {
         let mut session = self.session.lock().expect("the sandbox session");
         self.started(&mut session)?;
         let live = session.as_mut().expect("a session was started");
-        self.register(live)?;
-        self.mount(live)?;
-        self.inject(live, &prepared.large)?;
-        self.ask(live, &prepared.code)
+        let ran = self
+            .register(live)
+            .and_then(|()| self.mount(live))
+            .and_then(|()| self.inject(live, &prepared.large))
+            .and_then(|()| self.ask(live, &prepared.code));
+        self.note_terminal(ran)
     }
 
     /// Upstream's interpreter dispatches host functions the sandboxed code calls back into. Holding
@@ -338,5 +403,76 @@ impl Drop for DenoInterpreter {
     /// rather than by calling `shutdown` is an ordinary way to end.
     fn drop(&mut self) {
         self.shutdown();
+    }
+}
+
+#[cfg(test)]
+mod session_lifetime {
+    use super::*;
+
+    /// A session that has ended refuses everything, rather than starting a fresh child.
+    ///
+    /// dspy 3.3.0's `_check_session_active`, and the reason its protocol asks for it: the sandbox's
+    /// variables live in the child. Replacing a dead child hands the next `execute` an empty
+    /// namespace, so code that defined `numbers` last turn fails on a name that *was* there — or
+    /// worse, recomputes something and answers confidently. This crate restarted.
+    #[test]
+    fn an_ended_session_refuses_rather_than_restarting() {
+        let interpreter = DenoInterpreter::new();
+        interpreter
+            .ended
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+
+        let refused = interpreter
+            .execute("1 + 1", &Map::new())
+            .expect_err("an ended session must refuse");
+        let failure = refused
+            .downcast_ref::<InterpreterFailure>()
+            .expect("a typed interpreter failure");
+        assert!(
+            matches!(failure, InterpreterFailure::Session(_)),
+            "a dead session is the interpreter's failure, not the code's: {failure}"
+        );
+        assert!(
+            refused.to_string().contains("session has ended"),
+            "and it should say so: {refused}"
+        );
+    }
+
+    /// The two failures are different types, because a module answers them differently: an
+    /// execution failure goes back to the model to correct, a session failure stops the run.
+    #[test]
+    fn the_two_failures_are_distinguishable_without_reading_the_text() {
+        let code = InterpreterFailure::Execution("NameError: numbers".to_owned());
+        let dead = InterpreterFailure::Session("Deno process exited".to_owned());
+        assert!(matches!(code, InterpreterFailure::Execution(_)));
+        assert!(matches!(dead, InterpreterFailure::Session(_)));
+        // The message is the message: a module puts it in a prompt.
+        assert_eq!(code.to_string(), "NameError: numbers");
+    }
+    /// A protocol failure ends the session; a code failure does not.
+    ///
+    /// The whole point of the split. `note_terminal` is where the consequence is applied, because
+    /// the RPC layer builds the two kinds — it is the only place that sees the JSON-RPC code — and
+    /// cannot reach the flag.
+    #[test]
+    fn only_the_interpreters_own_failure_ends_the_session() {
+        let interpreter = DenoInterpreter::new();
+        let ended = || interpreter.ended.load(std::sync::atomic::Ordering::SeqCst);
+
+        let code: Result<()> = Err(anyhow::Error::new(InterpreterFailure::Execution(
+            "NameError: name 'x' is not defined".to_owned(),
+        )));
+        assert!(interpreter.note_terminal(code).is_err());
+        assert!(
+            !ended(),
+            "the code failing leaves a healthy sandbox healthy"
+        );
+
+        let protocol: Result<()> = Err(anyhow::Error::new(InterpreterFailure::Session(
+            "the sandbox closed its output".to_owned(),
+        )));
+        assert!(interpreter.note_terminal(protocol).is_err());
+        assert!(ended(), "a protocol failure is terminal for the session");
     }
 }

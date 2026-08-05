@@ -5,10 +5,11 @@
 //! than treated as an answer — up to a bound, since skipping forever is how a dead child looks like
 //! a slow one.
 
+use crate::interpreter::InterpreterFailure;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{ChildStdin, ChildStdout};
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use serde_json::{Value, json};
 
 /// dspy's `_MAX_SKIP_LINES`: how much non-JSON the sandbox may print before a read gives up.
@@ -75,7 +76,9 @@ impl Rpc {
         for _ in 0..=MAX_SKIPPED {
             let mut line = String::new();
             if self.reader.read_line(&mut line)? == 0 {
-                bail!("the sandbox closed its output {context}");
+                return Err(anyhow::Error::new(InterpreterFailure::Session(format!(
+                    "the sandbox closed its output {context}"
+                ))));
             }
             let line = line.trim();
             if !line.starts_with('{') {
@@ -88,12 +91,33 @@ impl Rpc {
                 Err(_) => continue,
             }
         }
-        bail!("the sandbox printed {MAX_SKIPPED} lines of non-JSON {context}")
+        Err(anyhow::Error::new(InterpreterFailure::Session(format!(
+            "the sandbox printed {MAX_SKIPPED} lines of non-JSON {context}"
+        ))))
     }
 }
 
 /// dspy's `JSONRPC_APP_ERRORS["SyntaxError"]`, the one code it reads differently from the rest.
 const SYNTAX_ERROR: i64 = -32000;
+
+/// dspy's `JSONRPC_APP_ERRORS`: the codes the sandbox uses to report *the submitted code's* own
+/// failure. Anything else on an error reply is the protocol going wrong, which ends the session.
+///
+/// Upstream branches on exactly this set — `if error_code in JSONRPC_APP_ERRORS.values()` — and the
+/// branch decides whether a module rewrites the code or stops. Reading the text instead is how a
+/// dead sandbox gets handed to the model as a syntax error to fix.
+const APP_ERRORS: [i64; 10] = [
+    -32000, // SyntaxError
+    -32001, // NameError
+    -32002, // TypeError
+    -32003, // ValueError
+    -32004, // AttributeError
+    -32005, // IndexError
+    -32006, // KeyError
+    -32007, // RuntimeError
+    -32008, // CodeInterpreterError
+    -32099, // Unknown
+];
 
 /// What the code's own failure says, in dspy's wording.
 ///
@@ -121,13 +145,24 @@ fn said(error: &Value) -> String {
 /// One reply's result, checked against the request it answers.
 pub(super) fn answered(message: &Value, id: u64, context: &str) -> Result<Value> {
     if let Some(error) = message.get("error") {
-        bail!("{}", said(error));
+        // dspy's split: an application code is the code's failure and a module feeds it back to the
+        // model; anything else is the protocol's, and upstream makes that terminal.
+        let code = error.get("code").and_then(Value::as_i64);
+        let failure = match code.is_some_and(|code| APP_ERRORS.contains(&code)) {
+            true => InterpreterFailure::Execution(said(error)),
+            false => InterpreterFailure::Session(format!("Error {context}: {}", said(error))),
+        };
+        return Err(anyhow::Error::new(failure));
     }
     match message.get("id").and_then(Value::as_u64) {
         Some(answered) if answered == id => {
             Ok(message.get("result").cloned().unwrap_or(Value::Null))
         }
-        other => bail!("the sandbox answered {other:?} where {id} was asked, {context}"),
+        // A reply that answers a different request means the stream is out of step, which no
+        // rewrite of the submitted code repairs — upstream's `_raise_terminal_error`.
+        other => Err(anyhow::Error::new(InterpreterFailure::Session(format!(
+            "the sandbox answered {other:?} where {id} was asked, {context}"
+        )))),
     }
 }
 

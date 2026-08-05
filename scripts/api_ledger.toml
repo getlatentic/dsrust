@@ -1043,6 +1043,7 @@
 "predict/rlm.py::RLM.forward.interpreter" = { status = "divergence", reason = "the other half of the same change: `forward` now takes the interpreter the factory built. See `RLM.interpreter_factory`" }
 
 [rust_only]
+"dsrust::interpreter::InterpreterFailure" = { status = "mapped", reason = "dspy's `CodeInterpreterError` / `CodeExecutionError` pair as one enum. The split is what a module branches on: an execution failure goes back to the model as the error to correct, a session failure stops the run — and a session failure is terminal, so the sandbox is not silently replaced under the next call" }
 "dsrust::interpreter::InterpreterFactory" = { status = "mapped", reason = "the re-export of `lease::InterpreterFactory`, which is where a caller reaches it" }
 "dsrust::interpreter::Lease" = { status = "divergence", reason = "dspy's `_interpreter_context`, as a value rather than a `contextmanager`. It holds the pass's interpreter and whether this pass owns it, and shuts down only what it built — through `Drop`, so an early `?` releases the sandbox exactly as a clean return does. Python's `try/finally` needs no name; Rust's does" }
 "dsrust::interpreter::lease::Lease" = { status = "divergence", reason = "dspy's `_interpreter_context`, as a value rather than a `contextmanager`. It holds the pass's interpreter and whether this pass owns it, and shuts down only what it built — through `Drop`, so an early `?` releases the sandbox exactly as a clean return does. Python's `try/finally` needs no name; Rust's does" }

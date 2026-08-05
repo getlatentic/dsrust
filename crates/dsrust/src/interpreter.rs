@@ -89,6 +89,44 @@ impl OutputField {
 /// reference and [`Module::forward`](crate::module::Module::forward) takes `&self`; an
 /// implementation that owns a subprocess keeps it behind its own lock, exactly as
 /// [`Tool`] does.
+/// dspy's `CodeInterpreterError` / `CodeExecutionError` split: whose failure it was.
+///
+/// New in dspy 3.3.0, and the distinction decides what a module does next. A module feeds an
+/// [`Execution`](Self::Execution) failure back to the model as the error to correct — that is the
+/// whole loop `ProgramOfThought` and `RLM` run. A [`Session`](Self::Session) failure is not the
+/// code's fault and no rewrite repairs it, so the module stops.
+///
+/// Carried as a typed error rather than an `anyhow::Error` with a message for exactly that reason:
+/// the two are answered differently, and telling them apart by reading the text is how a sandbox
+/// that died gets treated as a syntax error the model is asked to fix.
+#[derive(Debug)]
+pub enum InterpreterFailure {
+    /// The submitted code failed in a healthy interpreter — a raised exception, a bad name.
+    ///
+    /// dspy's `CodeExecutionError`: "Recoverable error raised by code running in a healthy
+    /// interpreter." The session is fine and the next `execute` will work.
+    Execution(String),
+    /// The interpreter itself failed: host setup, the process, or the protocol.
+    ///
+    /// dspy's bare `CodeInterpreterError`, and **terminal for the session** — upstream's protocol
+    /// says "Implementations should make process/protocol failures terminal for that interpreter
+    /// session", because the sandbox's variables are gone and silently starting a new one hands the
+    /// next `execute` an empty namespace.
+    Session(String),
+}
+
+impl std::fmt::Display for InterpreterFailure {
+    /// The message alone. A module puts an execution failure into a prompt, so a wrapper word here
+    /// would reach the model — upstream's `str(e)` is the message too.
+    fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Execution(message) | Self::Session(message) => out.write_str(message),
+        }
+    }
+}
+
+impl std::error::Error for InterpreterFailure {}
+
 pub trait CodeInterpreter: Send + Sync {
     /// Run the code and answer with what it produced.
     ///
