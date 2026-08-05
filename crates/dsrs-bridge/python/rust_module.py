@@ -15,6 +15,7 @@ import asyncio
 import inspect
 import json
 import math
+from collections.abc import Mapping
 
 import dspy
 import dspy.primitives.python_interpreter
@@ -183,6 +184,11 @@ class RustProgramOfThought(dspy.ProgramOfThought):
     def _run(self, repl, kwargs):
         # See `RustRLM.forward` for why the render is recorded here rather than at the top.
         crossings.record_render()
+        # dspy's `input_kwargs`: the task's own inputs, which is exactly what it calls each stage
+        # with. A stub replacing a stage is called the same way.
+        staged = {
+            name: kwargs[name] for name in self.signature.input_fields if name in kwargs
+        }
         try:
             # Each stage crosses as its own `_PredictorAsLM`, exactly as `RustRLM` carries
             # `generate_action` and `extract`. Upstream's tests stub these predictors one at a
@@ -195,9 +201,9 @@ class RustProgramOfThought(dspy.ProgramOfThought):
                 described_outputs(self.signature),
                 _input_values(self.signature, kwargs),
                 repl,
-                _PredictorAsLM(self.code_generate),
-                _PredictorAsLM(self.code_regenerate),
-                _PredictorAsLM(self.generate_output),
+                _PredictorAsLM(self.code_generate, staged),
+                _PredictorAsLM(self.code_regenerate, staged),
+                _PredictorAsLM(self.generate_output, staged),
                 self.max_iters,
             )
         except dsrs_bridge.SandboxSessionFailed as error:
@@ -241,6 +247,9 @@ class RustCodeAct(dspy.CodeAct):
             # See `RustRLM.forward` for why the render is recorded here rather than at the top.
             crossings.record_render()
             max_iters = kwargs.pop("max_iters", self.max_iters)
+            # dspy calls both stages with everything left in `kwargs` — unfiltered, unlike PoT's
+            # `input_kwargs` — so a stub replacing one is called with the same.
+            staged = dict(kwargs)
             # See `RustProgramOfThought`: each stage is its own `_PredictorAsLM`.
             output_json = dsrs_bridge.code_act_forward(
                 self.signature.instructions,
@@ -248,8 +257,8 @@ class RustCodeAct(dspy.CodeAct):
                 described_outputs(self.signature),
                 _input_values(self.signature, kwargs),
                 repl,
-                _PredictorAsLM(self.codeact),
-                _PredictorAsLM(self.extractor),
+                _PredictorAsLM(self.codeact, staged),
+                _PredictorAsLM(self.extractor, staged),
                 list(self.tools.values()),
                 max_iters,
             )
@@ -267,28 +276,46 @@ class _PredictorAsLM:
     parse the loop depends on.
     """
 
-    def __init__(self, predictor):
+    def __init__(self, predictor, inputs=None):
         self.predictor = predictor
+        # What upstream's loop would have called this stage with. A stub is an observer as well as
+        # an answer — `pot.code_generate.assert_called_once_with(interpreter="CPython")` reads the
+        # arguments and nothing else — so it is called the way upstream calls it. The stage's own
+        # additions (`previous_code`/`error`, `final_generated_code`/`code_output`, CodeAct's
+        # `trajectory`) are the crate's loop's and stay in the rendered prompt, which is where the
+        # LM seam carries them; they do not reach the stub as keywords.
+        self.inputs = inputs or {}
 
     @property
     def field_order(self):
-        """The predictor's declared outputs, where it has any — a test's mock predictor is a bare
-        object with no signature at all, and answers in whatever order it likes."""
-        signature = getattr(self.predictor, "signature", None)
-        return list(signature.output_fields) if signature is not None else []
+        """The predictor's declared outputs, where it declares any.
+
+        Asks for the mapping rather than for the attribute: a `unittest.mock.Mock` fabricates every
+        attribute it is asked for, so `getattr(predictor, "signature")` hands back a `Mock` whose
+        `output_fields` is another `Mock`, and `list()` of one raises `TypeError: 'Mock' object is
+        not iterable`. Having the attribute is not evidence of having the fields.
+        """
+        fields = getattr(getattr(self.predictor, "signature", None), "output_fields", None)
+        return list(fields) if isinstance(fields, Mapping) else []
 
     def __call__(self, messages=None, n=None, **kwargs):
         lm = dspy.settings.lm
-        if isinstance(self.predictor, dspy.Predict) and lm is not None:
+        if isinstance(self.predictor, dspy.Module) and lm is not None:
             # A real predictor, so the crate has already rendered this turn's prompt and the model
             # answers *that*. Calling the predictor would render it a second time in Python and
             # spend a canned reply doing it — which is both a wasted response and Python answering
             # for the renderer under test.
+            #
+            # `dspy.Module`, not `dspy.Predict`: `ChainOfThought` is a `Module` that *holds* a
+            # `Predict` rather than subclassing it, and every PoT and CodeAct stage is one. Testing
+            # for `Predict` sent all three of them down the stub path, where Python rendered the
+            # ask and the crate's own render was built and discarded — under a `DummyLM` that
+            # answers regardless, so the bytes came from dspy and every test still passed.
             return lm(messages=messages, **({"n": n} if n else {}))
 
         # A mock predictor: it ignores what it is asked and hands back a canned `Prediction`, so
         # the reply is built back into the field blocks the crate's own parse reads.
-        answered = dict(self.predictor(**kwargs).items())
+        answered = dict(self.predictor(**{**self.inputs, **kwargs}).items())
         # Upstream's PoT and CodeAct stages are ChainOfThought, so the crate's ask carries a
         # `reasoning` field the *adapter* added — a stub built for upstream's loop knows nothing of
         # it, because upstream calls the predictor directly and never renders at all. Without it

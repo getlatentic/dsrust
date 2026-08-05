@@ -51,6 +51,14 @@ impl PyInterpreter {
         }
         Ok(Executed::Printed(jsonable(py, result)?))
     }
+
+    /// The exception a terminal failure came from, when it came from Python at all.
+    ///
+    /// Taken rather than read: the loop stops at the first terminal failure, so the one parked here
+    /// belongs to the pass now unwinding and there is never a second to confuse it with.
+    fn parked(&self) -> Option<PyErr> {
+        self.terminal.lock().expect("the terminal slot").take()
+    }
 }
 
 /// A Python value as JSON, falling back to its `str()` where it has no JSON form — the same rule
@@ -281,11 +289,19 @@ where
         // module raises — a parse failure, "Max hops reached." — is the module's own error and
         // keeps crossing as `ValueError`, which is what the shim's `RuntimeError` restoration and
         // dspy's `AdapterParseError` path both read. Mapping all of them cost three tests.
+        //
+        // A terminal failure that began as a Python exception is re-raised *as that exception*.
+        // Upstream catches `(CodeExecutionError, SyntaxError)` and nothing else, so everything
+        // else leaves `forward` untouched — a `ValueError` an interpreter raised is still a
+        // `ValueError` to the caller. Minting a fresh class here instead put every one of them
+        // through the shim's `CodeInterpreterError`, which is a class the caller cannot catch by
+        // the name it raised. Only a failure with no Python exception behind it — the crate's own
+        // Deno sandbox — becomes the bridge's.
         .map_err(
             |error| match error.downcast_ref::<dsrust::interpreter::InterpreterFailure>() {
-                Some(dsrust::interpreter::InterpreterFailure::Session(_)) => {
-                    crate::sandbox::sandbox_failure(error)
-                }
+                Some(dsrust::interpreter::InterpreterFailure::Session(_)) => owner
+                    .parked()
+                    .unwrap_or_else(|| crate::sandbox::sandbox_failure(error)),
                 _ => to_value_error(error),
             },
         )?;
