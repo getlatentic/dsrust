@@ -404,8 +404,6 @@ mod tests {
         );
     }
 
-    use super::*;
-
     #[test]
     fn a_reassigned_key_keeps_the_position_it_was_first_given() {
         let mut object = Object::new();

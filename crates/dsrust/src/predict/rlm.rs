@@ -6,10 +6,13 @@
 //! code is the caller's [`CodeInterpreter`], and what the
 //! model is shown of the session is [`ReplHistory`].
 
+use turn::{printed_output, string_field};
+
 mod fences;
 mod signatures;
 mod submission;
 mod tools;
+mod turn;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -17,13 +20,12 @@ use std::sync::Arc;
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
 
-use crate::adapter::Type;
 use crate::adapter::python_json::json_dumps;
-use crate::adapter::types::base::{Formatted, to_field_value};
+use crate::adapter::types::base::to_field_value;
 use crate::example::{Example, Prediction};
 use crate::interpreter::{
     CodeInterpreter, DenoInterpreter, Executed, InterpreterFactory, Lease, OutputField, ReplEntry,
-    ReplHistory, ReplVariable, SandboxSerializable, constraints, sandbox,
+    ReplHistory, SandboxSerializable, sandbox,
 };
 use crate::module::{Module, NamedPredictor, TraceStep, relabel};
 use crate::react::Tool;
@@ -355,31 +357,6 @@ impl Rlm {
         Ok(self.answered(outputs, &history, "Extract forced final output".to_owned()))
     }
 
-    /// dspy `_build_variables`: what the model is told about each input it can reach.
-    fn variables(&self, inputs: &Example) -> Vec<String> {
-        self.signature
-            .inputs
-            .iter()
-            .filter_map(|field| {
-                let stated = field.constraints.clone().unwrap_or_default();
-                let variable = match self.sandboxed.get(&field.name) {
-                    Some(held) => constraints(held.as_ref(), &field.name, &field.desc, &stated),
-                    None => {
-                        let mut built =
-                            ReplVariable::from_value(&field.name, inputs.get(&field.name)?);
-                        built.desc = field.desc.clone();
-                        built.constraints = stated;
-                        built
-                    }
-                };
-                match Type::format(&variable) {
-                    Formatted::Text(rendered) => Some(rendered),
-                    Formatted::Blocks(_) => None,
-                }
-            })
-            .collect()
-    }
-
     /// dspy `_process_final_output`, in [`submission`]: what a `SUBMIT()` must be, and what the
     /// model is told when it is not — fed back rather than raised, so it can submit again.
     fn submitted(&self, value: &Value) -> Result<serde_json::Map<String, Value>, String> {
@@ -398,37 +375,6 @@ impl Rlm {
         example.set("final_reasoning", json!(final_reasoning));
         Prediction::new(example, String::new())
     }
-}
-
-/// dspy `_format_output`: silence is reported as such, since a turn that printed nothing is
-/// almost always a turn that forgot to.
-fn printed_output(printed: &Value) -> String {
-    let output = match printed {
-        Value::Null => String::new(),
-        // dspy joins a list of output lines with newlines.
-        Value::Array(lines) => lines
-            .iter()
-            .map(|line| match line {
-                Value::String(text) => text.clone(),
-                other => json_dumps(other),
-            })
-            .collect::<Vec<_>>()
-            .join("\n"),
-        Value::String(text) => text.clone(),
-        other => json_dumps(other),
-    };
-    match output.is_empty() {
-        true => "(no output - did you forget to print?)".to_owned(),
-        false => output,
-    }
-}
-
-fn string_field(example: &Example, name: &str) -> String {
-    example
-        .get(name)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_owned()
 }
 
 impl Module for Rlm {

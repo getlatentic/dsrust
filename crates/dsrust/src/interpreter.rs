@@ -81,15 +81,6 @@ impl OutputField {
     }
 }
 
-/// An environment that runs generated code.
-///
-/// State persists across calls within one session, as upstream's does: a name bound by one
-/// `execute` is in scope for the next, until [`shutdown`](Self::shutdown).
-///
-/// `&self` rather than `&mut self` because a module holds its interpreter behind a shared
-/// reference and [`Module::forward`](crate::module::Module::forward) takes `&self`; an
-/// implementation that owns a subprocess keeps it behind its own lock, exactly as
-/// [`Tool`] does.
 /// dspy's `CodeInterpreterError` / `CodeExecutionError` split: whose failure it was.
 ///
 /// New in dspy 3.3.0, and the distinction decides what a module does next. A module feeds an
@@ -128,6 +119,15 @@ impl std::fmt::Display for InterpreterFailure {
 
 impl std::error::Error for InterpreterFailure {}
 
+/// An environment that runs generated code.
+///
+/// State persists across calls within one session, as upstream's does: a name bound by one
+/// `execute` is in scope for the next, until [`shutdown`](CodeInterpreter::shutdown).
+///
+/// `&self` rather than `&mut self` because a module holds its interpreter behind a shared
+/// reference and [`Module::forward`](crate::module::Module::forward) takes `&self`; an
+/// implementation that owns a subprocess keeps it behind its own lock, exactly as
+/// [`Tool`] does.
 pub trait CodeInterpreter: Send + Sync {
     /// Run the code and answer with what it produced.
     ///

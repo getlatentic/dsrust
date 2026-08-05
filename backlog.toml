@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1183
+rust_tests = 1209
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -2957,7 +2957,7 @@ whole of the red outside the interpreter modules and the LM wire.
 id = "interpreter-per-call"
 sprint = "api"
 title = "3.3.0 builds a sandbox per forward pass, and this crate holds one for the module's life"
-state = "in-progress"
+state = "done"
 size = "M"
 suites = ""
 plan = """
@@ -2999,43 +2999,47 @@ Three shapes inside that:
     3.3.0b1 shape;
   - the rest follow from those two.
 """
-remaining = """
-2026-08-05, 1028 passed / 7 failed / 45 errors on `pin/dspy-3.3.0`.
+outcome = """
+2026-08-05. Done, and the upstream suite is green at the 3.3.0 pin: 1035 passed, 0 failed, 0
+errors — from 897/48/233 when the pin moved. 569 of 1039 cross into the crate, 583 decide a
+signature there. Rust 1209.
+
+The lifecycle is `interpreter/lease.rs`: a caller who hands one in keeps it, a factory-built one is
+shut down by `Drop`, so an early `?` releases the process exactly as a clean return does.
+`InterpreterFailure` splits dspy 3.3.0's `CodeExecutionError` (recoverable, fed back to the model)
+from a bare `CodeInterpreterError` (terminal, ends the run), and a terminal failure that began as a
+Python exception is re-raised *as that exception* — upstream catches two classes and lets
+everything else through untouched, so a `ValueError` an interpreter raised is a `ValueError` to the
+caller.
+
+**What the last stretch was actually about, and it was not the lifecycle.** Closing the final
+failures meant auditing the 45 "does not exercise Rust" declarations rather than writing them, and
+nine were wrong in the same direction: the crate had the primitive, the test drove it, and nothing
+routed it. What that turned up, in order of how much it mattered:
+
+  - `ChainOfThought` is a `Module` that *holds* a `Predict` rather than subclassing it, so
+    `_PredictorAsLM`'s `isinstance(..., dspy.Predict)` sent every PoT and CodeAct stage down the
+    stub path. Python rendered the ask — with no inputs at all, dspy logging `Missing: ['question']`
+    — and the crate's render was built and discarded. Every one of those tests passed, because
+    `DummyLM` answers whatever it is shown.
+  - Every string injected into the sandbox was double-quoted, because `variables.rs` held a fourth
+    copy of `repr` that printed through `serde_json`. Folding it into `python.rs` exposed that
+    `python::quoted` never escaped control characters — cosmetic in a prompt, an unterminated
+    string in *source*.
+  - The crate had no `_close_object_schemas`, so a nullable field's object branch went out open.
+    The only test that looked asserted our own answer, and the golden beside it carries no
+    `response_format` at all.
+  - A Responses tool call carries `id` for the item and `call_id` for the call; we replayed `id`.
+  - `arguments_parse_error` was missing beside `raw_arguments` in both dialects.
+  - `restrict` naming no seed returned no attempts and an unchanged student where dspy raises.
+  - `RustRLM` overrode `forward` and not `aforward`, so every async case ran dspy's second loop
+    while the declaration said the crate is async throughout.
 
 **The principle to keep.** Fidelity is owed at the bytes the model reads and at the logic that
 reads its reply — not at the internal type representation. Rust primitives are the right carrier as
 long as the rendered string and the parse are identical. The non-finite float is the worked
-example: `serde_json::Value` cannot hold `inf`, so it crosses as a tagged one-key object and
-`variables::literal` rebuilds `float('inf')`. The crate never grew a Python-shaped float, and the
-sandbox sees the byte dspy would have written.
-
-**`test_{pot,codeact}_shuts_down_factory_interpreter_when_execution_raises` — measured, not
-guessed.** Probes at both ends of the terminal-exception slot showed:
-
-  - `PyInterpreter::execute` *does* park the original `PyErr` — the parking probe fires once;
-  - `answered_in`'s `Some(Session)` arm never runs — neither the re-raise nor the empty-slot probe
-    fires, so the error arriving there is not an `InterpreterFailure::Session` at all;
-  - the traceback surfaces through `code_regenerate.predict`, so the loop *fed the first failure
-    back* instead of propagating it.
-
-`MockInterpreter.execute` pops one scripted response, so there is exactly one raise. Reading those
-three together: the first pass failed in `parse_generated_code` — before `Self::execute` is
-reached — the loop went to the regenerate stage, and the raise happened on the *second* pass, by
-which time the error travelling out is the regenerate stage's rather than the interpreter's. The
-next step is to confirm what `parse_generated_code` makes of the stub's `generated_code="raise
-ValueError"`; `_PredictorAsLM` renders it into marker blocks, and the parse has a rule about a
-single line containing more than one `=` that is worth checking against that exact string.
-
-**`test_{pot,codeact}_allows_interpreter_as_signature_input`.** `TypeError: 'Mock' object is not
-iterable` — the test sets `pot.code_generate = Mock(return_value=Prediction(...))`, and
-`_PredictorAsLM` calls `.items()` on the result of calling it, which for a bare `Mock` is another
-`Mock`. Upstream calls the predictor directly and never renders one, so the wrapper needs to cope
-with a predictor whose return is not a `Prediction`.
-
-**3 typed-LM cases** in `test_types.py` and `test_lm.py` — Responses round-trips, untouched by any
-of this.
-
-Plus 45 no-crossing declarations, which is bookkeeping rather than porting.
+example: `serde_json::Value` cannot hold `inf`, so it crosses as a one-key object and
+`variables.rs` rebuilds the `float('inf')` dspy would have written.
 """
 
 [[backlog]]
