@@ -32,6 +32,7 @@ pub use deno::{DenoInterpreter, Permissions};
 pub use lease::{InterpreterFactory, Lease, factory, handing_back};
 pub use repl::{ReplEntry, ReplHistory, ReplVariable};
 pub use sandbox::{SandboxSerializable, build_repl_variable, constraints};
+pub use variables::python_literal;
 
 /// What one execution produced.
 ///

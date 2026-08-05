@@ -205,8 +205,21 @@ DOES_NOT_EXERCISE_RUST = {
     "test_tools_dict_is_copied": "the constructor copying the tools dict",
     "test_extract_parameters": "inspect.signature over a Python callable",
     "test_extract_parameters_complex_types": "inspect.signature over a Python callable",
-    "test_small_variable_not_using_filesystem": "dspy's own `_pending_large_vars` bookkeeping",
-    "test_large_variable_threshold_boundary": "dspy's own `_pending_large_vars` bookkeeping",
+    "test_failed_health_check_ends_session": (
+        "patches dspy's own `_send_request`, which the Rust sandbox does not call; as "
+        "`test_protocol_failure_ends_session`, whose rule deno.rs holds in its own tests"
+    ),
+    # `_make_jsonable` over a namedtuple and a bare object: pydantic and Python reflection, above
+    # the boundary. Its third assertion is that `_serialize_value(object())` still refuses loudly —
+    # which happens before any literal is written, so the crate is not reached on that path either.
+    # The literal itself does cross, in the two tests beside this one.
+    "test_json_mode_coercion_preserves_existing_fallbacks": (
+        "pydantic's coercion of a Python object, above the literal"
+    ),
+    # `test_small_variable_not_using_filesystem` and `test_large_variable_threshold_boundary` were
+    # here as "dspy's own `_pending_large_vars` bookkeeping". They decide by *size of the literal*,
+    # and the literal is the crate's now — which is what the threshold is measured against, so they
+    # cross.
     # dspy's optimizer reads its own constructor back; nothing is rendered.
     "test_bootstrap_initialization": "an optimizer's own constructor",
     # The student raises before a prompt exists, so no rendering is reached. The crate's own

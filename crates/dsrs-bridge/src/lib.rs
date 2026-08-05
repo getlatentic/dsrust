@@ -899,6 +899,7 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
         module
     )?)?;
     module.add_function(wrap_pyfunction!(code_modules::wire_messages, module)?)?;
+    module.add_function(wrap_pyfunction!(code_modules::python_literal, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::merge_usage, module)?)?;
     module.add_class::<sandbox::RustSandbox>()?;
     module.add_function(wrap_pyfunction!(format_system_message, module)?)?;

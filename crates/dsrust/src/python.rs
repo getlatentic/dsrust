@@ -40,6 +40,16 @@ pub(crate) fn repr(value: &Value) -> String {
 /// Measured against CPython, after this escaped unconditionally and disagreed with `repr` on every
 /// string carrying an apostrophe — which reached a prompt anywhere a tool's arguments or an RLM
 /// submission was shown.
+///
+/// Control characters are escaped as CPython escapes them — `\n`, `\r`, `\t` by name and the rest
+/// of the C0 range plus DEL as `\xNN`. That is not cosmetic where the result is *source*: a raw
+/// newline inside `'…'` is an unterminated string, so a value carrying one produced a syntax error
+/// inside the sandbox rather than a value.
+///
+/// **Falls short of `repr` for non-ASCII non-printables** — NBSP, format characters, unassigned
+/// code points — which CPython escapes and this passes through. The string means the same either
+/// way; the bytes differ. Closing it needs `str.isprintable()` as a table taken from the
+/// interpreter, the way `pychar_data.txt` holds the four predicates `json_repair` branches on.
 pub(crate) fn quoted(text: &str) -> String {
     let quote = if text.contains('\'') && !text.contains('"') {
         '"'
@@ -51,9 +61,15 @@ pub(crate) fn quoted(text: &str) -> String {
     for character in text.chars() {
         match character {
             '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
             _ if character == quote => {
                 out.push('\\');
                 out.push(character);
+            }
+            _ if character.is_control() && character.is_ascii() => {
+                out.push_str(&format!("\\x{:02x}", character as u32));
             }
             _ => out.push(character),
         }

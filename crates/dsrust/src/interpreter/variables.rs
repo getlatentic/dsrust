@@ -56,16 +56,29 @@ fn non_finite(fields: &serde_json::Map<String, Value>) -> Option<String> {
     }
 }
 
+/// One value as the Python source that reconstructs it — dspy's `_serialize_value`.
+///
+/// Public because this is the boundary itself: what comes back is pasted into the sandbox as code,
+/// so a caller injecting values, and any harness checking that they arrive intact, is reading
+/// exactly these bytes. Values with no JSON form are the caller's to convert first — dspy raises
+/// on one before its own serializer sees it, and a `Value` cannot hold one at all.
+pub fn python_literal(value: &Value) -> String {
+    literal(value)
+}
+
+/// Upstream's `_serialize_value` is `repr` all the way down, and [`crate::python`] is this crate's
+/// `repr`. Only the containers are spelled here, so a non-finite carrier nested inside one is still
+/// found; the scalars are the shared one.
+///
+/// They were separate, and the copy here printed a string through `serde_json` — so every string
+/// injected into the sandbox arrived double-quoted where Python writes `'…'`, and an apostrophe in
+/// one was escaped where CPython switches quote instead. Both parse, which is exactly why nothing
+/// noticed: the sandbox ran, the answers were right, and the source was not dspy's.
 fn literal(value: &Value) -> String {
     match value {
         Value::Object(fields) if non_finite(fields).is_some() => {
             non_finite(fields).expect("just checked")
         }
-        Value::Null => "None".to_owned(),
-        Value::Bool(true) => "True".to_owned(),
-        Value::Bool(false) => "False".to_owned(),
-        Value::Number(number) => number.to_string(),
-        Value::String(text) => Value::String(text.clone()).to_string(),
         Value::Array(items) => {
             format!(
                 "[{}]",
@@ -76,14 +89,11 @@ fn literal(value: &Value) -> String {
             "{{{}}}",
             fields
                 .iter()
-                .map(|(key, value)| format!(
-                    "{}: {}",
-                    literal(&Value::String(key.clone())),
-                    literal(value)
-                ))
+                .map(|(key, value)| format!("{}: {}", crate::python::quoted(key), literal(value)))
                 .collect::<Vec<_>>()
                 .join(", ")
         ),
+        scalar => crate::python::repr(scalar),
     }
 }
 
@@ -200,7 +210,8 @@ mod tests {
         let written =
             injected(json!({ "flags": [true, null], "at": { "on": false } })).expect("injects");
         assert!(written.contains("flags = [True, None]"), "{written}");
-        assert!(written.contains(r#"at = {"on": False}"#), "{written}");
+        // A dict key is a string, so it too is quoted the way `repr` quotes one.
+        assert!(written.contains("at = {'on': False}"), "{written}");
     }
 
     /// A name Python would refuse is refused here, in upstream's wording, rather than arriving as a
@@ -226,11 +237,25 @@ mod tests {
         assert!(untouched.large.is_empty());
     }
 
-    /// Strings keep JSON's escaping, which Python reads the same way.
+    /// A string is written the way `repr` writes it, which is what upstream's `_serialize_value`
+    /// calls. Each of these is CPython's own answer.
+    ///
+    /// This asserted JSON's escaping — `"a\"b\nc"` — because the printer here was `serde_json`'s
+    /// rather than the crate's `repr`. Both parse, so the sandbox ran either way and the source was
+    /// not dspy's. The newline is the one that was not merely cosmetic: unescaped inside `'…'` it
+    /// is an unterminated string, which the double-quoted JSON form happened to avoid.
     #[test]
-    fn a_string_keeps_its_escaping() {
-        let written = injected(json!({ "s": "a\"b\nc" })).expect("injects");
-        assert!(written.starts_with(r#"s = "a\"b\nc""#), "{written}");
+    fn a_string_is_written_the_way_repr_writes_it() {
+        for (value, expected) in [
+            ("a\"b\nc", r#"s = 'a"b\nc'"#),
+            ("tab\there", r"s = 'tab\there'"),
+            ("bell\u{7}", r"s = 'bell\x07'"),
+            ("it's", r#"s = "it's""#),
+            ("both'and\"", "s = 'both\\'and\"'"),
+        ] {
+            let written = injected(json!({ "s": value })).expect("injects");
+            assert!(written.starts_with(expected), "for {value:?}: {written}");
+        }
     }
 
     /// A value too big for Pyodide's FFI goes through the sandbox's filesystem instead of through

@@ -386,6 +386,18 @@ pub(crate) fn wire_messages(request: &str) -> PyResult<String> {
         .map_err(|error| PyValueError::new_err(format!("{error}")))
 }
 
+/// dspy `PythonInterpreter._serialize_value`: one value as the Python source that rebuilds it.
+///
+/// The bytes pasted into the sandbox, so this is the boundary rather than a step near it. Turning
+/// a Python object into something JSON can hold stays Python's — that is reflection, and dspy
+/// raises there on a value with no JSON form, before its own serializer is reached.
+#[pyfunction]
+pub(crate) fn python_literal(value: &str) -> PyResult<String> {
+    let value: Value =
+        serde_json::from_str(value).map_err(|error| PyValueError::new_err(format!("{error}")))?;
+    Ok(dsrust::interpreter::python_literal(&value))
+}
+
 /// dspy `_close_object_schemas`, applied by the crate.
 ///
 /// The class-to-schema step stays Python's — that is pydantic reflection, and reflection is what

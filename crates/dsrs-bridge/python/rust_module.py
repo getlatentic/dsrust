@@ -524,6 +524,27 @@ class RustPythonInterpreter(dspy.primitives.python_interpreter.PythonInterpreter
         value = json.loads(value_json)
         return FinalOutput(value) if kind == "submitted" else value
 
+    def _serialize_value(self, value):
+        """dspy's own, with the literal written by the crate.
+
+        This is the boundary rather than a step near it: what comes back is pasted into the sandbox
+        as source, so the `True`/`None` spellings, the quoting and the container layout are bytes
+        the sandbox parses. The class-to-JSON step above it stays dspy's, being reflection over
+        Python objects — and dspy's `CodeInterpreterError` for a value with no JSON form is raised
+        there, before any literal is written, which is why that check is left where it is.
+        """
+        # dspy's refusal, raised where dspy raises it: a value pydantic cannot make jsonable never
+        # reaches a literal at all. Reproducing the message here rather than letting `json.dumps`
+        # raise its own `TypeError` keeps the class and the wording a caller catches.
+        try:
+            jsonable = json.dumps(_jsonable_for_rust(value))
+        except (TypeError, ValueError):
+            raise CodeInterpreterError(
+                f"Unsupported value type: {type(value).__name__}"
+            ) from None
+        crossings.record_render()
+        return dsrs_bridge.python_literal(jsonable)
+
     def shutdown(self):
         self._rust.shutdown()
         super().shutdown()
