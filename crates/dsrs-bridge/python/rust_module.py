@@ -179,13 +179,20 @@ class RustProgramOfThought(dspy.ProgramOfThought):
         # See `RustRLM.forward` for why the render is recorded here rather than at the top.
         crossings.record_render()
         try:
+            # Each stage crosses as its own `_PredictorAsLM`, exactly as `RustRLM` carries
+            # `generate_action` and `extract`. Upstream's tests stub these predictors one at a
+            # time — `pot.code_generate = StaticPredictor(...)` — and `dspy.settings.lm` cannot
+            # route to two different stubs; it was also None in every such test, so the crate's
+            # loop asked nothing at all.
             output_json = dsrs_bridge.program_of_thought_forward(
                 self.signature.instructions,
                 describe(self.signature.input_fields),
                 described_outputs(self.signature),
                 _input_values(self.signature, kwargs),
                 repl,
-                dspy.settings.lm,
+                _PredictorAsLM(self.code_generate),
+                _PredictorAsLM(self.code_regenerate),
+                _PredictorAsLM(self.generate_output),
                 self.max_iters,
             )
         except ValueError as error:
@@ -225,13 +232,15 @@ class RustCodeAct(dspy.CodeAct):
             # See `RustRLM.forward` for why the render is recorded here rather than at the top.
             crossings.record_render()
             max_iters = kwargs.pop("max_iters", self.max_iters)
+            # See `RustProgramOfThought`: each stage is its own `_PredictorAsLM`.
             output_json = dsrs_bridge.code_act_forward(
                 self.signature.instructions,
                 describe(self.signature.input_fields),
                 described_outputs(self.signature),
                 _input_values(self.signature, kwargs),
                 repl,
-                dspy.settings.lm,
+                _PredictorAsLM(self.codeact),
+                _PredictorAsLM(self.extractor),
                 list(self.tools.values()),
                 max_iters,
             )
@@ -271,6 +280,14 @@ class _PredictorAsLM:
         # A mock predictor: it ignores what it is asked and hands back a canned `Prediction`, so
         # the reply is built back into the field blocks the crate's own parse reads.
         answered = dict(self.predictor(**kwargs).items())
+        # Upstream's PoT and CodeAct stages are ChainOfThought, so the crate's ask carries a
+        # `reasoning` field the *adapter* added — a stub built for upstream's loop knows nothing of
+        # it, because upstream calls the predictor directly and never renders at all. Without it
+        # the reply fails the marker parse, falls back to JSONAdapter, and json-repair digs the
+        # first braced object out of the stub's SUBMIT text: `{'answer': 2}` presented as the
+        # whole reply. Only ever the stub path — a real predictor takes the branch above.
+        if "reasoning" not in answered:
+            answered = {"reasoning": "stubbed", **answered}
         order = self.field_order
         names = [name for name in order if name in answered]
         names += [name for name in answered if name not in names]

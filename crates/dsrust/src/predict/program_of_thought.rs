@@ -93,6 +93,28 @@ impl ProgramOfThought {
         self
     }
 
+    /// Ask only the first write of this model — dspy's `self.code_generate` predictor.
+    ///
+    /// Per stage rather than [`Self::set_lm`]'s all-three, for the reason `Rlm` has `action_lm`
+    /// beside `extract_lm`: upstream's tests stub the module's *predictors* one at a time, and a
+    /// bridge honouring that needs each stage to be its own seam.
+    pub fn generate_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.generate = self.generate.set_lm(lm);
+        self
+    }
+
+    /// Ask only the rewrite step — dspy's `self.code_regenerate`. See [`Self::generate_lm`].
+    pub fn regenerate_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.regenerate = self.regenerate.set_lm(lm);
+        self
+    }
+
+    /// Ask only the final answer step — dspy's `self.generate_output`. See [`Self::generate_lm`].
+    pub fn answer_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.answer = self.answer.set_lm(lm);
+        self
+    }
+
     /// The signature of one of the three asks, as dspy's `_generate_signature` builds it.
     pub fn mode_signature_for(&self, mode: &str) -> Option<Signature> {
         let mode = match mode {

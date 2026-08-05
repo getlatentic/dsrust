@@ -77,6 +77,21 @@ impl CodeAct {
         self
     }
 
+    /// Ask only the per-turn loop of this model — dspy's `self.codeact` predictor.
+    ///
+    /// Per stage for the reason `Rlm` has `action_lm` beside `extract_lm`: upstream's tests stub
+    /// the module's predictors one at a time.
+    pub fn codeact_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.codeact = self.codeact.set_lm(lm);
+        self
+    }
+
+    /// Ask only the final extraction — dspy's `self.extractor`. See [`Self::codeact_lm`].
+    pub fn extract_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
+        self.extractor = self.extractor.set_lm(lm);
+        self
+    }
+
     /// The signature each turn is asked with — the task's inputs, the trajectory, and the code and
     /// `finished` flag the model answers with. dspy reaches the same thing as `codeact.signature`.
     pub fn turn_signature(&self) -> &Signature {

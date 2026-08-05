@@ -1043,6 +1043,11 @@
 "predict/rlm.py::RLM.forward.interpreter" = { status = "divergence", reason = "the other half of the same change: `forward` now takes the interpreter the factory built. See `RLM.interpreter_factory`" }
 
 [rust_only]
+"dsrust::predict::program_of_thought::ProgramOfThought::generate_lm" = { status = "mapped", reason = "dspy's `self.code_generate` predictor, as its own seam — upstream's tests stub the stages one at a time, and the bridge honours that only if each stage can carry its own model" }
+"dsrust::predict::program_of_thought::ProgramOfThought::regenerate_lm" = { status = "mapped", reason = "dspy's `self.code_regenerate`; see `generate_lm`" }
+"dsrust::predict::program_of_thought::ProgramOfThought::answer_lm" = { status = "mapped", reason = "dspy's `self.generate_output`; see `generate_lm`" }
+"dsrust::predict::code_act::CodeAct::codeact_lm" = { status = "mapped", reason = "dspy's `self.codeact` predictor; see ProgramOfThought's `generate_lm`" }
+"dsrust::predict::code_act::CodeAct::extract_lm" = { status = "mapped", reason = "dspy's `self.extractor`; see ProgramOfThought's `generate_lm`" }
 "dsrust::interpreter::InterpreterFailure" = { status = "mapped", reason = "dspy's `CodeInterpreterError` / `CodeExecutionError` pair as one enum. The split is what a module branches on: an execution failure goes back to the model as the error to correct, a session failure stops the run — and a session failure is terminal, so the sandbox is not silently replaced under the next call" }
 "dsrust::interpreter::InterpreterFactory" = { status = "mapped", reason = "the re-export of `lease::InterpreterFactory`, which is where a caller reaches it" }
 "dsrust::interpreter::Lease" = { status = "divergence", reason = "dspy's `_interpreter_context`, as a value rather than a `contextmanager`. It holds the pass's interpreter and whether this pass owns it, and shuts down only what it built — through `Drop`, so an early `?` releases the sandbox exactly as a clean return does. Python's `try/finally` needs no name; Rust's does" }

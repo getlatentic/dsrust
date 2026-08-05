@@ -147,7 +147,7 @@ pub(crate) fn rlm_forward(
 /// Upstream's cases are `@pytest.mark.deno`: a real sandbox executes what the model wrote, so what
 /// is asserted is the whole loop — the code parsed, ran, and either answered or was rewritten.
 #[pyfunction]
-#[pyo3(signature = (instructions, inputs, outputs, values, interpreter, py_lm, max_iters = None))]
+#[pyo3(signature = (instructions, inputs, outputs, values, interpreter, generate_lm, regenerate_lm, answer_lm, max_iters = None))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn program_of_thought_forward(
     py: Python<'_>,
@@ -156,7 +156,9 @@ pub(crate) fn program_of_thought_forward(
     outputs: Vec<PyOutField>,
     values: Vec<(String, String)>,
     interpreter: Py<PyAny>,
-    py_lm: Py<PyAny>,
+    generate_lm: Py<PyAny>,
+    regenerate_lm: Py<PyAny>,
+    answer_lm: Py<PyAny>,
     max_iters: Option<usize>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
@@ -166,7 +168,15 @@ pub(crate) fn program_of_thought_forward(
     if let Some(max_iters) = max_iters {
         pot = pot.max_iters(max_iters);
     }
-    let pot = pot.set_lm(Arc::new(PyLM { inner: py_lm }));
+    // One handle per stage, as `rlm_forward` carries `action_lm` beside `extract_lm`: upstream's
+    // tests stub the module's predictors one at a time, and a single process LM cannot route to
+    // two different stubs.
+    let pot = pot
+        .generate_lm(Arc::new(PyLM { inner: generate_lm }))
+        .regenerate_lm(Arc::new(PyLM {
+            inner: regenerate_lm,
+        }))
+        .answer_lm(Arc::new(PyLM { inner: answer_lm }));
     answered_in(py, repl, values, |repl, inputs| async move {
         pot.ask_in(repl, inputs).await
     })
@@ -179,7 +189,7 @@ pub(crate) fn program_of_thought_forward(
 /// test. The crate's `define_tools` seam is what a Rust caller uses instead, and it is a no-op on
 /// an interpreter that already has them.
 #[pyfunction]
-#[pyo3(signature = (instructions, inputs, outputs, values, interpreter, py_lm, tools, max_iters = None))]
+#[pyo3(signature = (instructions, inputs, outputs, values, interpreter, codeact_lm, extract_lm, tools, max_iters = None))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn code_act_forward(
     py: Python<'_>,
@@ -188,7 +198,8 @@ pub(crate) fn code_act_forward(
     outputs: Vec<PyOutField>,
     values: Vec<(String, String)>,
     interpreter: Py<PyAny>,
-    py_lm: Py<PyAny>,
+    codeact_lm: Py<PyAny>,
+    extract_lm: Py<PyAny>,
     tools: Vec<Py<PyAny>>,
     max_iters: Option<usize>,
 ) -> PyResult<String> {
@@ -200,7 +211,10 @@ pub(crate) fn code_act_forward(
     if let Some(max_iters) = max_iters {
         act = act.max_iters(max_iters);
     }
-    let act = act.set_lm(Arc::new(PyLM { inner: py_lm }));
+    // See `program_of_thought_forward` for why each stage carries its own handle.
+    let act = act
+        .codeact_lm(Arc::new(PyLM { inner: codeact_lm }))
+        .extract_lm(Arc::new(PyLM { inner: extract_lm }));
     answered_in(py, repl, values, |repl, inputs| async move {
         act.ask_in(repl, inputs).await
     })
