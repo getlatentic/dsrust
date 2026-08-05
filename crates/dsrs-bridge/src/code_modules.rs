@@ -23,6 +23,13 @@ use crate::{PyInField, PyLM, PyOutField, build_signature, to_value_error};
 /// An interpreter that is a Python object — dspy's `MockInterpreter`, or its real Deno sandbox.
 struct PyInterpreter {
     inner: Py<PyAny>,
+    /// The last exception this interpreter raised that the loop did *not* feed back.
+    ///
+    /// A terminal failure propagates, and upstream's callers catch it by its own class — a bare
+    /// `ValueError` stays a `ValueError`. Only the message survives an `anyhow::Error`, so the
+    /// exception itself is parked here and re-raised at the boundary. One slot rather than a
+    /// channel: the loop stops at the first one, so there is never a second to hold.
+    terminal: std::sync::Mutex<Option<PyErr>>,
 }
 
 impl PyInterpreter {
@@ -79,7 +86,16 @@ impl CodeInterpreter for PyInterpreter {
                 // the code over, and the loop swallowed it instead of propagating.
                 //
                 // The other direction was typed first; this is its mirror.
-                .map_err(|error| interpreter_failure(py, &error))?;
+                .map_err(|error| {
+                    let failure = interpreter_failure(py, &error);
+                    if matches!(
+                        failure.downcast_ref::<InterpreterFailure>(),
+                        Some(InterpreterFailure::Session(_))
+                    ) {
+                        *self.terminal.lock().expect("the terminal slot") = Some(error);
+                    }
+                    failure
+                })?;
             PyInterpreter::executed(py, &result)
         })
     }
@@ -132,8 +148,11 @@ pub(crate) fn rlm_forward(
     max_llm_calls: Option<usize>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let repl: Arc<dyn dsrust::interpreter::CodeInterpreter> =
-        Arc::new(PyInterpreter { inner: interpreter });
+    let owner = Arc::new(PyInterpreter {
+        inner: interpreter,
+        terminal: Default::default(),
+    });
+    let repl: Arc<dyn dsrust::interpreter::CodeInterpreter> = owner.clone();
     let mut rlm = dsrust::Rlm::interpreter_factory(signature, refusing_factory());
     if let Some(max_llm_calls) = max_llm_calls {
         rlm = rlm.max_llm_calls(max_llm_calls);
@@ -145,7 +164,7 @@ pub(crate) fn rlm_forward(
         .action_lm(Arc::new(PyLM { inner: action_lm }))
         .extract_lm(Arc::new(PyLM { inner: extract_lm }));
 
-    answered_in(py, repl, values, |repl, inputs| async move {
+    answered_in(py, owner, repl, values, |repl, inputs| async move {
         rlm.ask_in(repl, inputs).await
     })
 }
@@ -170,8 +189,11 @@ pub(crate) fn program_of_thought_forward(
     max_iters: Option<usize>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    let repl: Arc<dyn dsrust::interpreter::CodeInterpreter> =
-        Arc::new(PyInterpreter { inner: interpreter });
+    let owner = Arc::new(PyInterpreter {
+        inner: interpreter,
+        terminal: Default::default(),
+    });
+    let repl: Arc<dyn dsrust::interpreter::CodeInterpreter> = owner.clone();
     let mut pot = dsrust::ProgramOfThought::interpreter_factory(signature, refusing_factory());
     if let Some(max_iters) = max_iters {
         pot = pot.max_iters(max_iters);
@@ -185,7 +207,7 @@ pub(crate) fn program_of_thought_forward(
             inner: regenerate_lm,
         }))
         .answer_lm(Arc::new(PyLM { inner: answer_lm }));
-    answered_in(py, repl, values, |repl, inputs| async move {
+    answered_in(py, owner, repl, values, |repl, inputs| async move {
         pot.ask_in(repl, inputs).await
     })
 }
@@ -213,8 +235,11 @@ pub(crate) fn code_act_forward(
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
     let rust_tools = crate::py_tools(py, &tools)?;
-    let repl: Arc<dyn dsrust::interpreter::CodeInterpreter> =
-        Arc::new(PyInterpreter { inner: interpreter });
+    let owner = Arc::new(PyInterpreter {
+        inner: interpreter,
+        terminal: Default::default(),
+    });
+    let repl: Arc<dyn dsrust::interpreter::CodeInterpreter> = owner.clone();
     let mut act = dsrust::CodeAct::interpreter_factory(signature, rust_tools, refusing_factory());
     if let Some(max_iters) = max_iters {
         act = act.max_iters(max_iters);
@@ -223,7 +248,7 @@ pub(crate) fn code_act_forward(
     let act = act
         .codeact_lm(Arc::new(PyLM { inner: codeact_lm }))
         .extract_lm(Arc::new(PyLM { inner: extract_lm }));
-    answered_in(py, repl, values, |repl, inputs| async move {
+    answered_in(py, owner, repl, values, |repl, inputs| async move {
         act.ask_in(repl, inputs).await
     })
 }
@@ -235,6 +260,7 @@ pub(crate) fn code_act_forward(
 /// from the factory and own what it built. See [`refusing_factory`].
 fn answered_in<Fut>(
     py: Python<'_>,
+    owner: Arc<PyInterpreter>,
     repl: Arc<dyn dsrust::interpreter::CodeInterpreter>,
     values: Vec<(String, String)>,
     ask: impl FnOnce(Arc<dyn dsrust::interpreter::CodeInterpreter>, dsrust::Example) -> Fut + Send,
@@ -415,11 +441,18 @@ fn interpreter_failure(py: Python<'_>, error: &PyErr) -> anyhow::Error {
             .and_then(|class| error.value(py).is_instance(&class))
             .unwrap_or(false)
     };
+    // Upstream's own rule, read off its `except` clause rather than assumed:
+    // `ProgramOfThought._execute_code` catches `(CodeExecutionError, SyntaxError)` and nothing
+    // else, so those two are the recoverable set and *everything else propagates* — a bare
+    // `ValueError` from an interpreter included. This defaulted the other way, which fed an
+    // unrecognised failure back to the model as something to rewrite and let the run continue.
+    let syntax = error
+        .value(py)
+        .is_instance_of::<pyo3::exceptions::PySyntaxError>();
     match () {
-        _ if is("CodeExecutionError") => anyhow::Error::new(InterpreterFailure::Execution(said)),
-        _ if is("CodeInterpreterError") => anyhow::Error::new(InterpreterFailure::Session(said)),
-        // Anything else dspy's interpreter raised — a SyntaxError, a tool's own exception — is the
-        // submitted code's, which is the recoverable side.
-        _ => anyhow::Error::new(InterpreterFailure::Execution(said)),
+        _ if syntax || is("CodeExecutionError") => {
+            anyhow::Error::new(InterpreterFailure::Execution(said))
+        }
+        _ => anyhow::Error::new(InterpreterFailure::Session(said)),
     }
 }

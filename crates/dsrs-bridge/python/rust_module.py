@@ -328,13 +328,15 @@ class RustRLM(dspy.RLM):
             for name in self.signature.input_fields
             if name in input_args
         ]
+        # The same catch the other two shims carry: a terminal interpreter failure crosses as its
+        # own class and is re-raised as dspy's, rather than escaping as the bridge's exception.
         with self._interpreter_context(self._prepare_execution_tools(), interpreter) as interpreter:
             # Recorded here and not at the top of `forward`: the render count is the bytes a model
             # would read, and a call that dies in validation or in the factory renders nothing. At
             # the top it credited a crossing to `rlm(query=…)` with a factory returning None —
             # which never reached the crate — and the crossing guard read that as coverage.
             crossings.record_render()
-            output_json = dsrs_bridge.rlm_forward(
+            output_json = _translating_sandbox_failures(dsrs_bridge.rlm_forward)(
                 self.signature.instructions,
                 describe(self.signature.input_fields),
                 described_outputs(self.signature),
@@ -527,3 +529,20 @@ def _jsonable_for_rust(value):
     if isinstance(value, (list, tuple)):
         return [_jsonable_for_rust(v) for v in value]
     return _make_jsonable(value)
+
+
+def _translating_sandbox_failures(call):
+    """Re-raise the bridge's typed sandbox failure as the class dspy's callers expect.
+
+    The bridge carries *which* failure it was as an exception class — see
+    `sandbox::sandbox_failure` — so a terminal one has to be translated back at each shim rather
+    than escaping as `dsrs_bridge.SandboxSessionFailed`, which no dspy caller catches.
+    """
+
+    def calling(*args, **kwargs):
+        try:
+            return call(*args, **kwargs)
+        except dsrs_bridge.SandboxSessionFailed as error:
+            raise CodeInterpreterError(str(error)) from None
+
+    return calling
