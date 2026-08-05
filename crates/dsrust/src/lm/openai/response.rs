@@ -99,14 +99,10 @@ fn tool_call(call: &Value) -> api::LmPart {
     let mut provider_data: Metadata = call.as_object().cloned().unwrap_or_default();
     let args = match serde_json::from_str::<Value>(arguments) {
         Ok(Value::Object(map)) => map,
-        _ => {
-            // dspy keeps the unparsed string beside the raw call and empties the args.
-            provider_data.insert(
-                "raw_arguments".to_owned(),
-                Value::String(arguments.to_owned()),
-            );
-            Metadata::new()
-        }
+        // dspy keeps the unparsed string beside the raw call, says why it could not read it, and
+        // empties the args — so a caller can tell "the model called this with nothing" from "the
+        // model called this and we could not read what with".
+        parsed => super::unreadable_arguments(&mut provider_data, arguments, parsed.err()),
     };
     api::LmPart::ToolCall {
         id: call["call_id"]

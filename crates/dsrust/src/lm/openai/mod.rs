@@ -356,6 +356,30 @@ fn request(
 /// whole map at the top level and a caller could shadow `parameters` from provider data.
 const TOOL_WIRE_KEYS: [&str; 5] = ["type", "name", "description", "parameters", "strict"];
 
+/// A tool call whose arguments would not read: what the model wrote, and why it did not parse.
+///
+/// dspy records both in `provider_data` and empties the args, so a caller can tell a call made
+/// with no arguments from one whose arguments could not be read — the two are the same empty map
+/// otherwise, and only one of them is the model's fault. Shared by both readers because both
+/// dialects meet the same malformed call.
+///
+/// The *reason* is this parser's, where upstream's is CPython's `json` — a message no port can
+/// reproduce without reimplementing another language's error prose. Upstream's own test asserts
+/// the key is there rather than what it says, which is the line this holds to.
+pub(super) fn unreadable_arguments(
+    provider_data: &mut api::Metadata,
+    arguments: &str,
+    why: Option<serde_json::Error>,
+) -> api::Metadata {
+    provider_data.insert("raw_arguments".to_owned(), json!(arguments));
+    let why = why.map_or_else(
+        || "tool-call arguments are not a JSON object".to_owned(),
+        |error| error.to_string(),
+    );
+    provider_data.insert("arguments_parse_error".to_owned(), json!(why));
+    api::Metadata::new()
+}
+
 /// `provider_data` minus what the dialect writes itself — dspy's `_tool_provider_extras`.
 pub(super) fn provider_extras(tool: &api::LmToolSpec) -> impl Iterator<Item = (&String, &Value)> {
     tool.provider_data

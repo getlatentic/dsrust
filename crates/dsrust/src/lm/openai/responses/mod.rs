@@ -18,7 +18,10 @@ use crate::lm::api::{self, Metadata};
 use crate::lm::streaming::Framing;
 
 mod media;
+mod schema;
 mod stream;
+
+pub use schema::close_object_schemas;
 
 use stream::frame;
 
@@ -216,8 +219,21 @@ fn output_text(content: &Value) -> String {
 fn text_format(schema: &Value, json_format: JsonFormat) -> Value {
     match json_format {
         JsonFormat::Object => json!({ "format": { "type": "json_object" } }),
+        // Closed on the way out, because this branch is the one dspy's `response_format_to_responses`
+        // takes for a pydantic class and that branch closes: the API refuses an object schema that
+        // leaves `additionalProperties` unspecified. The adapter's own schema is already closed
+        // where its walk reaches, but that walk does not follow `anyOf` — so a nullable field's
+        // object branch went out open until this ran over it.
+        //
+        // The name is `response` rather than the class's, because a class is what dspy names it
+        // after and the crate holds a schema. See the module docs on `LmConfig::response_format`.
         JsonFormat::Schema => json!({
-            "format": { "type": "json_schema", "name": "response", "schema": schema, "strict": true },
+            "format": {
+                "type": "json_schema",
+                "name": "response",
+                "schema": close_object_schemas(schema),
+                "strict": true,
+            },
         }),
     }
 }
@@ -307,7 +323,11 @@ pub(super) fn reply(
 
 /// dspy's `responses_to_lm_response`: one output whose parts are the response's output items in
 /// order, with usage, id and cache flag alongside.
-fn responses_to_lm_response(body: &Value, fallback_model: &str) -> api::LmResponse {
+///
+/// Public because it is the pair to [`request`]: a caller holding a raw Responses body — replayed
+/// from a log, or returned by an SDK this crate does not speak to — reads it into the typed model
+/// the same way the provider does, and it is the seam upstream's own tests drive directly.
+pub fn responses_to_lm_response(body: &Value, fallback_model: &str) -> api::LmResponse {
     let mut parts = Vec::new();
     for item in body["output"].as_array().into_iter().flatten() {
         match item["type"].as_str() {
@@ -386,10 +406,7 @@ fn function_call_part(item: &Value) -> api::LmPart {
     let mut provider_data: Metadata = item.as_object().cloned().unwrap_or_default();
     let args = match serde_json::from_str::<Value>(arguments) {
         Ok(Value::Object(map)) => map,
-        _ => {
-            provider_data.insert("raw_arguments".to_owned(), json!(arguments));
-            Metadata::new()
-        }
+        parsed => super::unreadable_arguments(&mut provider_data, arguments, parsed.err()),
     };
     api::LmPart::ToolCall {
         id: item["call_id"].as_str().map(str::to_owned),
@@ -452,8 +469,14 @@ mod tests {
 
     /// A requested schema rides under `text.format` in the flat shape the Responses API takes — the
     /// object envelope by default, the strict named schema on [`JsonFormat::Schema`].
+    ///
+    /// And it goes out **closed**: this branch is the one dspy's `response_format_to_responses`
+    /// takes, and that branch runs `_close_object_schemas` over the schema because the API refuses
+    /// an object that leaves `additionalProperties` unspecified. This asserted the open schema for
+    /// as long as the crate emitted one, which is how the divergence went unnoticed — the golden
+    /// beside it carries no `response_format` at all, so nothing else looked.
     #[test]
-    fn a_requested_schema_rides_under_text_format() {
+    fn a_requested_schema_rides_under_text_format_and_goes_out_closed() {
         let schema = json!({ "type": "object", "properties": { "answer": { "type": "string" } } });
         let call = crate::lm::api::interop::raise_request(
             "be helpful",
@@ -467,7 +490,18 @@ mod tests {
         );
         assert_eq!(
             request("gpt-5", &call, JsonFormat::Schema).expect("builds")["text"],
-            json!({ "format": { "type": "json_schema", "name": "response", "schema": schema, "strict": true } })
+            json!({
+                "format": {
+                    "type": "json_schema",
+                    "name": "response",
+                    "schema": {
+                        "type": "object",
+                        "properties": { "answer": { "type": "string" } },
+                        "additionalProperties": false,
+                    },
+                    "strict": true,
+                },
+            })
         );
     }
 

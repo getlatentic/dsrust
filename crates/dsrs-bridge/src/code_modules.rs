@@ -340,6 +340,51 @@ pub(crate) fn normalize_message(written: &str) -> PyResult<String> {
     serde_json::to_string(&message).map_err(|error| PyValueError::new_err(format!("{error}")))
 }
 
+/// dspy `to_openai_responses_request`, taken from the *typed* request the crate holds.
+///
+/// [`responses_body`] crosses the other of dspy's two routes — the legacy chat dict — and cannot
+/// reach this one: a test calling `to_openai_responses_request(LMRequest.from_call(...))` never
+/// touches the chat converter, so the tools, the tool choice, the reasoning config and the
+/// requested schema were being asserted against dspy's own answer with the crate absent.
+///
+/// `JsonFormat::Schema` because a typed request naming a `response_format` is asking for the named
+/// strict schema, which is the branch upstream takes here.
+#[pyfunction]
+pub(crate) fn responses_request(request: &str) -> PyResult<String> {
+    let call: dsrust::lm::api::LmRequest =
+        serde_json::from_str(request).map_err(|error| PyValueError::new_err(format!("{error}")))?;
+    let body =
+        dsrust::lm::openai::responses::request(&call.model, &call, dsrust::lm::JsonFormat::Schema)
+            .map_err(|error| PyValueError::new_err(format!("{error:#}")))?;
+    serde_json::to_string(&body).map_err(|error| PyValueError::new_err(format!("{error}")))
+}
+
+/// dspy `responses_to_lm_response`: a raw Responses body read into the typed response.
+///
+/// The pair to [`responses_request`], and the seam that says what a caller *sees* — which output
+/// item became which part, what the usage adds up to, and what a tool call whose arguments would
+/// not parse leaves behind.
+#[pyfunction]
+pub(crate) fn responses_outputs(body: &str, model: &str) -> PyResult<String> {
+    let body: Value =
+        serde_json::from_str(body).map_err(|error| PyValueError::new_err(format!("{error}")))?;
+    let response = dsrust::lm::openai::responses::responses_to_lm_response(&body, model);
+    serde_json::to_string(&response).map_err(|error| PyValueError::new_err(format!("{error}")))
+}
+
+/// dspy `_close_object_schemas`, applied by the crate.
+///
+/// The class-to-schema step stays Python's — that is pydantic reflection, and reflection is what
+/// the shim is for. What crosses is the rule: which positions in a schema are subschemas to walk,
+/// and which are values to leave alone.
+#[pyfunction]
+pub(crate) fn closed_object_schemas(schema: &str) -> PyResult<String> {
+    let schema: Value =
+        serde_json::from_str(schema).map_err(|error| PyValueError::new_err(format!("{error}")))?;
+    let closed = dsrust::lm::openai::responses::close_object_schemas(&schema);
+    serde_json::to_string(&closed).map_err(|error| PyValueError::new_err(format!("{error}")))
+}
+
 /// dspy `Cache.cache_key`, computed by the crate.
 ///
 /// Upstream hashes its whole kwargs dict with sorted keys; so does this. What crosses is the rule

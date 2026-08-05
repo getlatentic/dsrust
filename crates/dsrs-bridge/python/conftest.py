@@ -1028,6 +1028,82 @@ def _responses_body_is_rust(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _typed_responses_mapping_is_rust(request, monkeypatch):
+    """dspy's *typed* Responses mapping, both directions, answered by the crate.
+
+    The fixture above patches the legacy chat-dict converter, which is one of dspy's two routes to
+    a Responses body. Tests that call `to_openai_responses_request(LMRequest.from_call(...))`
+    directly take the other one and never touch it, so the tools, the tool choice, the reasoning
+    config and the schema envelope were all being asserted against dspy's own answer with the crate
+    absent — and `responses_to_lm_response` likewise. Reading one of those tests is what found the
+    crate recording `raw_arguments` for an unparseable tool call without the
+    `arguments_parse_error` upstream records beside it.
+
+    Whole-object round trips: dspy's request model in, dspy's response model out, so the assertions
+    in between are on what the crate built.
+    """
+    if request.node.module.__name__ != "upstream_test_lm":
+        return
+    from dspy.clients import openai_format
+    from dspy.core.types import LMResponse
+
+    original_body = openai_format.to_openai_responses_request
+
+    def body_of(lm_request, **kwargs):
+        theirs = original_body(lm_request, **kwargs)
+        crossings.record_render()
+        # `text` stays dspy's, and only `text`. Upstream names the schema envelope after the
+        # *pydantic class* it was handed; the crate holds a schema and has no class to name it
+        # after, so it writes `response` — the same split `_responses_body_is_rust` makes for the
+        # same reason. Everything else in the body is the crate's answer, which is what the tools,
+        # the tool choice, the reasoning config and `max_output_tokens` are asserted against.
+        without_class = lm_request.model_copy(
+            update={"config": lm_request.config.model_copy(update={"response_format": None})}
+        )
+        dumped = without_class.model_dump(mode="json", exclude_none=True)
+        ours = json.loads(dsrs_bridge.responses_request(json.dumps(dumped, default=str)))
+        return {**ours, **{key: theirs[key] for key in ("text",) if key in theirs}}
+
+    def outputs_of(response, lm_request):
+        crossings.record_render()
+        raw = response if isinstance(response, dict) else openai_format.model_dump(response)
+        answered = dsrs_bridge.responses_outputs(
+            json.dumps(raw, default=str), lm_request.model or ""
+        )
+        return LMResponse.model_validate(json.loads(answered))
+
+    monkeypatch.setattr(openai_format, "to_openai_responses_request", body_of)
+    monkeypatch.setattr(openai_format, "responses_to_lm_response", outputs_of)
+
+
+@pytest.fixture(autouse=True)
+def _closing_a_schema_is_rust(request, monkeypatch):
+    """dspy's `_close_object_schemas`, applied by the crate.
+
+    The Responses API refuses an object schema that leaves `additionalProperties` unspecified, and
+    which positions in a schema are *subschemas* to walk — as against a schema-shaped value sitting
+    in a `default` — is the whole of the rule. The crate had no such walk at all: a nullable field's
+    object branch, reached through `anyOf`, went out open.
+
+    The class-to-schema step stays Python's, being pydantic reflection.
+    """
+    if request.node.module.__name__ not in ("upstream_test_lm", "upstream_test_types"):
+        return
+    import pydantic
+
+    from dspy.clients import openai_format
+
+    def format_of(value):
+        if not (isinstance(value, type) and issubclass(value, pydantic.BaseModel)):
+            return value
+        crossings.record_render()
+        closed = dsrs_bridge.closed_object_schemas(json.dumps(value.model_json_schema()))
+        return {"name": value.__name__, "type": "json_schema", "schema": json.loads(closed)}
+
+    monkeypatch.setattr(openai_format, "response_format_to_responses", format_of)
+
+
+@pytest.fixture(autouse=True)
 def _reasoning_families_are_rust(request, monkeypatch):
     """For the LM suite, which models count as reasoning models is the crate's answer."""
     if request.node.module.__name__ != "upstream_test_lm":
