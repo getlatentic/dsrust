@@ -26,10 +26,47 @@ import pytest
 # `lm_for_test`, `litellm_test_server` and the settings reset, because ours install the Rust adapter
 # and count crossings. Loading upstream's whole conftest would run both of each.
 from tests.conftest import (  # noqa: F401
+    _POOL_SETUP_CODE,
     _interpreter_pool,
     configure_pooled_interpreter,
-    pooled_interpreter,
 )
+
+
+@pytest.fixture
+def pooled_interpreter(_interpreter_pool):
+    """Upstream's pooled interpreter, built as the Rust one.
+
+    Overridden rather than imported. Upstream's builds `PythonInterpreter` directly inside the
+    fixture body and caches it in a *session*-scoped holder, so it outlives the per-test
+    monkeypatch that swaps in `RustPythonInterpreter` — every pooled test then ran against dspy's
+    own sandbox and proved nothing about this crate. The crossing counter said so, in 56 tests that
+    "passed without the crate rendering or parsing anything", which is exactly the failure it
+    exists to catch: a green suite testing the wrong implementation.
+
+    Everything else is upstream's — the setup code, the namespace restoration, the terminal-session
+    handling on teardown.
+    """
+    from dspy.primitives.code_interpreter import CodeInterpreterError
+
+    interpreter = _interpreter_pool["interpreter"]
+    if interpreter is None:
+        interpreter = RustPythonInterpreter()
+        interpreter.execute(_POOL_SETUP_CODE)
+        _interpreter_pool["interpreter"] = interpreter
+
+    yield interpreter
+
+    try:
+        interpreter.tools.clear()
+        interpreter.output_fields = None
+        interpreter._tools_registered = False
+        interpreter.execute("_pool_reset()")
+    except CodeInterpreterError:
+        # The test that just ran ended the session. Surface it here and boot a fresh one for the
+        # next consumer, as upstream does.
+        _interpreter_pool["interpreter"] = None
+        interpreter.shutdown()
+        raise
 # The bridge does not build on every toolchain: macOS 26+/ld-27034 emits a "mis-aligned
 # LINKEDIT string pool" for this extension module and dyld refuses to load it. Skip the whole
 # run in that case, so a broken build never reads as a pass or as a fault in this crate.
