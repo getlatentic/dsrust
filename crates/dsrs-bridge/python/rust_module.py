@@ -161,13 +161,29 @@ class RustProgramOfThought(dspy.ProgramOfThought):
         # caller can hand one in and keep ownership of it. Accepted and passed through to
         # upstream's own `_interpreter_context`, which is what decides who shuts it down.
         crossings.record_render()
+        # Through upstream's own `_interpreter_context`, which builds one from the factory or takes
+        # the caller's and shuts down only what it built. The shim held `self.interpreter` and shut
+        # it down in a `finally` — the 3.3.0b1 shape, where the module owned one for its lifetime.
+        # 3.3.0 removed that attribute, so this was an AttributeError before it was a divergence.
+        # Upstream's own call-time check, before any interpreter is built: `interpreter=` as a
+        # keyword is a TypeError pointing at the positional form. dspy validates its caller; the
+        # crate decides nothing here, so the check stays dspy's rather than being reimplemented.
+        if "interpreter" in kwargs and "interpreter" not in self.signature.input_fields:
+            raise TypeError(
+                "To use a caller-owned interpreter, pass it as the first positional argument "
+                "when calling the module."
+            )
+        with self._interpreter_context(interpreter) as repl:
+            return self._run(repl, kwargs)
+
+    def _run(self, repl, kwargs):
         try:
             output_json = dsrs_bridge.program_of_thought_forward(
                 self.signature.instructions,
                 describe(self.signature.input_fields),
                 described_outputs(self.signature),
                 _input_values(self.signature, kwargs),
-                self.interpreter,
+                repl,
                 dspy.settings.lm,
                 self.max_iters,
             )
@@ -179,8 +195,6 @@ class RustProgramOfThought(dspy.ProgramOfThought):
             if str(error).startswith("Max hops reached."):
                 raise RuntimeError(str(error)) from None
             raise
-        finally:
-            self.interpreter.shutdown()
         return dspy.Prediction(**json.loads(output_json))
 
 
@@ -194,22 +208,31 @@ class RustCodeAct(dspy.CodeAct):
         # dspy puts the tools in the sandbox by executing their *source*, before the first turn.
         # That is upstream's setup rather than the loop under test, so it stays upstream's — and it
         # is why the crate's `define_tools` seam finds nothing left to do here.
-        for tool in self.tools.values():
-            self.interpreter(inspect.getsource(tool.func))
-
         crossings.record_render()
-        max_iters = kwargs.pop("max_iters", self.max_iters)
-        output_json = dsrs_bridge.code_act_forward(
-            self.signature.instructions,
-            describe(self.signature.input_fields),
-            described_outputs(self.signature),
-            _input_values(self.signature, kwargs),
-            self.interpreter,
-            dspy.settings.lm,
-            list(self.tools.values()),
-            max_iters,
-        )
-        self.interpreter.shutdown()
+        # See `RustProgramOfThought.forward`: the context manager owns the lifecycle now.
+        # Upstream's own call-time check, before any interpreter is built: `interpreter=` as a
+        # keyword is a TypeError pointing at the positional form. dspy validates its caller; the
+        # crate decides nothing here, so the check stays dspy's rather than being reimplemented.
+        if "interpreter" in kwargs and "interpreter" not in self.signature.input_fields:
+            raise TypeError(
+                "To use a caller-owned interpreter, pass it as the first positional argument "
+                "when calling the module."
+            )
+        with self._interpreter_context(interpreter) as repl:
+            for tool in self.tools.values():
+                repl(inspect.getsource(tool.func))
+
+            max_iters = kwargs.pop("max_iters", self.max_iters)
+            output_json = dsrs_bridge.code_act_forward(
+                self.signature.instructions,
+                describe(self.signature.input_fields),
+                described_outputs(self.signature),
+                _input_values(self.signature, kwargs),
+                repl,
+                dspy.settings.lm,
+                list(self.tools.values()),
+                max_iters,
+            )
         return dspy.Prediction(**json.loads(output_json))
 
 
@@ -267,6 +290,11 @@ class RustRLM(dspy.RLM):
         # dspy 3.3.0 made the interpreter a positional-only first parameter of `forward`, so a
         # caller can hand one in and keep ownership of it. Accepted and passed through to
         # upstream's own `_interpreter_context`, which is what decides who shuts it down.
+        #
+        # `_validate_inputs` is upstream's and runs before any interpreter is built: `interpreter=`
+        # as a keyword is a TypeError pointing at the positional form, and an undeclared input is a
+        # ValueError. dspy validates its caller; the crate decides nothing here.
+        self._validate_inputs(input_args)
         crossings.record_render()
         values = [
             (name, json.dumps(_serialized(input_args[name]), ensure_ascii=False))
