@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1107
+rust_tests = 1183
 upstream_tests_passing = 897
 upstream_tests_crossing = 479
 upstream_tests_deciding_signatures = 529
@@ -594,9 +594,48 @@ being kept but never applied.
 id = "json-repair-port"
 sprint = "conformance"
 title = "json_repair is an external library, and it is the only thing the parsers still disagree on"
-state = "todo"
+state = "done"
 size = "L"
 suites = []
+outcome = """
+`crates/dsrust-json-repair` reproduces json-repair 0.61.7 whole — the parser, the entry points,
+CPython's own `json` grammar for the fast paths it takes, and the schema modules the plan set aside.
+`parse_fuzz.rs`'s allowance is deleted: the rule is now every disagreement, no category excused, and
+it holds at zero over seeds 0, 1 and 7 at five thousand replies each.
+
+**Three representation decisions carry the port**, and each was a divergence waiting to happen. The
+cursor counts *code points*, because Python's `get_char_at(-1)` wraps to the end of the input and
+`_should_split_duplicate_object` reaches it with a lookback well below zero. The character
+predicates are *CPython's*, generated from the interpreter dspy runs on: `char::is_whitespace`
+refuses `\\x1c` where `str.isspace()` accepts it, `char::is_alphabetic` accepts combining marks where
+`str.isalpha()` refuses them, and unicode-general-category is Unicode 16.0 against CPython 3.13's
+15.1. And an integer keeps every digit, because Python's are unbounded.
+
+**The adapter's fuzzer was not enough to find the bugs.** It reaches this library through one reply
+shape — no nesting, no comments, no escapes, no tuples — and reported zero while two real defects
+were still in. A grammar that builds malformed JSON directly found both in its first five thousand
+inputs, and both were the same mistake: when `_handle_right_delimiter_candidate` breaks, Python
+breaks with the character it stepped *back* onto, and the translation broke with the old one. Zero
+over five seeds since, sixty thousand inputs.
+
+**Two schema cases were named for what they did not test**, and the fixture found that too:
+`default_inserted` passed `{}`, valid JSON *and* valid against its schema, so the fast path handed it
+back without inserting anything.
+
+**The log is the stronger oracle.** The value says where a parse arrived; the log says which branch
+took it there, context window and all. 191 entries on the parser side and 40 on the schema side,
+matching exactly.
+
+Two things Rust cannot follow. A lone surrogate is a Python `str` and not a Rust `String`, so
+`"\\ud800"` becomes U+FFFD — one declared case, asserted the other way round so closing it goes red.
+And recursion: Python's limit belongs to the *caller's* stack, measured at 330 nested arrays from a
+top-level call, 247 nested objects and 317 arrays from forty frames deeper, so there is no single
+number to match and the limit here is fixed.
+
+What is *not* reproduced is JSON Schema validation, which is `jsonschema` — a fourth library.
+It is a `SchemaValidator` seam, and with none plugged in the crate answers exactly as a Python
+environment without `jsonschema` does.
+"""
 plan = """
 `JSONAdapter.parse` opens with `json_repair.loads(completion)`. That is **not dspy's code** — it is
 `json-repair>=0.54.2` from PyPI, twelve modules and about 3,500 lines — so there is nothing to copy
@@ -2732,6 +2771,138 @@ worth spending twenty minutes to know rather than assuming: gepa's 46 reproduced
 Expect the provider wires to be the richest: they are byte-verified against captured traffic for
 OpenAI and diverge from litellm for Anthropic and ollama, so a survivor there is a line the byte
 goldens do not reach.
+"""
+
+[[story]]
+id = "json-repair-parity-is-a-gate-nobody-runs"
+sprint = "conformance"
+title = "The json-repair parity ledger checks a symbol exists, and no gate runs it"
+state = "done"
+size = "S"
+suites = []
+outcome = """
+Both halves closed. `run_rust_gates.sh` runs it, and every entry now has to say what the reading
+found.
+
+The script was "the gates that need no Python" and is now the gates that run in a worktree, which
+is the distinction that actually mattered — `run_upstream_tests.sh` was the only other home and it
+runs only in the main checkout, exactly where the agent who drops a function is not. It wants
+`.venv` the way that script does and says `run: uv sync` rather than skipping, because a skipped
+check is a checklist item with extra steps.
+
+**And the ledger now fails on silence.** 97 of its 149 entries carried no note, which meant that for
+those it asserted a Rust function of about that name exists — it would have passed against a body
+returning the wrong answer, and fifteen defects were found by reading those bodies after it was
+written. A note is required on every entry, with a floor on its length, because the obvious way to
+satisfy "must have a note" is to write `ported` a hundred and forty-nine times. Ten of the notes
+written for this failed that floor on the first run.
+
+Twenty-one thousand characters of them, and they carry the things a reader would otherwise have to
+re-derive: that `rstring_delimiter` is a stack and `[0]` and `[-1]` are different questions, that
+`classify_object_value_comma` uses the *uncached* lookahead in its quoted branch and the cached one
+in its tail, that `_allows_schema_type`'s catch-all is right where `_fill_missing`'s was wrong.
+
+Four controls: an emptied note, a one-word note, a mapping renamed to something absent, and a
+deleted entry. All four fail the gate.
+"""
+plan = """
+`scripts/check_json_repair_parity.py` holds all 149 functions of the pinned package against a named
+Rust counterpart and fails on an unmapped symbol, a mapping pointing at nothing, a signature that
+moved, or an absence with no reason. It passes. **Nothing runs it.**
+
+`run_rust_gates.sh` is deliberately the no-venv script and this needs the venv to import
+`json_repair`; `run_upstream_tests.sh` is the venv gate but only runs in the main checkout, which is
+where a worktree agent — exactly the one who would port a function and drop one — cannot reach it.
+So it is a command someone has to remember, which `gates-were-a-checklist` says is not a gate.
+
+Wiring it into `run_rust_gates.sh` changes that script's contract from "needs no Python" to "needs
+`uv sync`". That is the decision to make; it is not obviously wrong, since the script already runs
+`python3` for three of its steps.
+
+**And the ledger is weaker than its name.** 72 of its 126 mappings carry no note, so for those it
+says "a Rust function of about this name exists" — it would pass against a body that returns the
+wrong answer. Ten real defects were found by *reading* those bodies afterwards, none of which the
+ledger could see. Requiring a note on every entry would turn "unread" from something that passes
+into something that fails.
+"""
+
+[[story]]
+id = "json-repair-mutation-baseline"
+sprint = "conformance"
+title = "dsrust-json-repair has no entry in run_mutants.sh, and the one measurement was void"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+The crate is the only workspace member with no ratchet. One whole-crate run completed — 1770
+mutants, 591 missed, 65 timeouts — and the number is **void**: another session was running
+`cargo mutants` in the main checkout at the same time, and both were writing to the fixed
+`$TMPDIR/dsrs-mutants-build`. Each linked the other's mutated rlibs, and whichever finished first
+deleted the directory out from under the other. That collision is fixed (`mktemp -d`), so a clean
+run is possible; it needs the machine to itself for about three hours at ~11s a mutant, serial.
+
+Two things measured on the void run are still worth carrying over, because they are about the
+*suite* rather than the count. `lookahead.rs` lost 131 of 139 viable mutants because `tests/fuzz.rs`
+skips when the campaign corpus is absent and cargo-mutants copies a tree that never has it — which
+is why `json_repair_sweep.json` was committed. And parallelism is not an option here: `-j` reports
+survivors that are nothing of the sort, measured at 24 against a serial 0.
+"""
+
+[[story]]
+id = "bridge-answers-for-rust"
+sprint = "conformance"
+title = "The bridge rebuilds AdapterParseError in Python, so upstream's assertion on its text tests dspy"
+state = "done"
+size = "M"
+suites = []
+outcome = """
+Closed, with the defect it was filed on demonstrated and fixed.
+
+`rust_adapter.py` was the only site that discarded the crate's rendering. The audit found the other
+five forward it verbatim, and the TwoStep wrapper matches dspy's own
+`message=f"Failed to parse response from the original completion: {e}"` exactly.
+
+**The hole was not theoretical.** Same input, `[{"reasoning": "Because."}] trailing`: dspy writes
+`LM Response: {"reasoning": "Because."}` and the bridge wrote `LM Response: [{"reasoning":
+"Because."}] trailing`. dspy rebinds `completion = match.group(0)` when its brace search fires; the
+bridge rebuilt the message from the original reply and had no way to know. The crate's own
+`FieldMismatch` carries the right one — the bridge was throwing it away.
+
+The fix keeps the reconstruction, because dspy's callers catch `AdapterParseError` by class and read
+its attributes, and replaces the rendered text with the crate's: `raised.args = (message,)`. Rust
+now sends `lm_response` alongside the partial fields so the attributes are right too.
+
+Controlled both ways, by breaking a clause in `FieldMismatch::fmt` and rebuilding:
+with the fix the broken clause reaches Python; without it, it does not — dspy's formatter answers.
+That is the whole finding in one line.
+
+Gates exit 0 at 1150 tests. The upstream suite still cannot run end to end here: its API-surface
+step needs `third_party/dspy`, which a worktree does not check out.
+"""
+plan = """
+`rust_adapter.py` catches the Rust `ValueError`, pulls `message, *partial = error.args`, and
+**constructs a fresh `AdapterParseError`** from `adapter_name`, `signature`, `lm_response` and
+either `parsed_result` or `message`. The rendered text a caller would read is discarded at that
+boundary and rebuilt by dspy's own formatter.
+
+So `test_json_adapter_parse_raise_error_on_mismatch_fields`, which asserts that text byte for byte,
+passed throughout the period when this crate's `FieldMismatch` was appending the wrong clause — it
+omitted `Actual output fields parsed from the LM response: []` for an empty parse, under a comment
+claiming upstream did the same. The upstream suite could not have caught it. Two independent
+sessions found it by comparing refusal *messages* in a differential fuzzer instead.
+
+This is the `conformance-harness-integrity` shape: a place where Python answers a question the Rust
+was supposed to answer. The bridge has to reconstruct *something* — dspy's callers catch
+`AdapterParseError` by class, and a bare `ValueError` would not be caught — but reconstructing the
+**message** is what makes the assertion vacuous. Passing the rendered text through as the message,
+rather than re-deriving it from parts, would let those tests read the Rust.
+
+Audit the rest of the bridge for the same shape before changing anything: every `raise` that builds
+a dspy exception from parts rather than forwarding what Rust rendered is one of these, and the count
+is the finding.
+
+**What proves it.** A control: break the clause in `FieldMismatch::fmt`, run the upstream suite, and require the
+test that asserts it to go red. It stays green today.
 """
 
 [[backlog]]

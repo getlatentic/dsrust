@@ -1,13 +1,47 @@
-//! Reading a reply written as a Python literal rather than as strict JSON.
+//! Reading a reply that is not strict JSON: json-repair first, then Python's literal syntax.
 //!
-//! dspy hands every reply value to json-repair before validating it against the declared
-//! type, which is what lets a model that answered in Python's own syntax still satisfy the
-//! signature. `{'score': 123_456.789}` is the case upstream pins: single-quoted keys and a
-//! digit-grouped float, neither of which serde_json accepts.
+//! dspy hands every reply value to json-repair before validating it against the declared type,
+//! which is what lets a model that answered in Python's own syntax still satisfy the signature.
+//! [`loads`] is that library, reproduced in [`json_repair`]; [`python_literal`] stands in for the
+//! `ast.literal_eval` upstream falls back to when json-repair found nothing at all.
 
 use serde_json::{Value, json};
 use std::iter::Peekable;
 use std::str::Chars;
+
+/// `json_repair.loads(text)`, in the shapes this crate speaks.
+///
+/// Two of Python's shapes have no serde_json spelling and are converted rather than carried:
+///
+/// - an integer wider than `i64`/`u64` becomes a float, which is what serde_json already does
+///   reading one out of ordinary JSON, so the two paths agree;
+/// - a non-finite float becomes the text `str()` gives it — `nan`, `inf`, `-inf` — because JSON
+///   has no literal for one and `parse_value` under a `str` annotation produces exactly that.
+///   A numeric field answered `Infinity` therefore reads as text here and as a float upstream.
+pub(crate) fn loads(text: &str) -> Result<Value, json_repair::Error> {
+    json_repair::loads(text).map(from_repaired)
+}
+
+fn from_repaired(value: json_repair::Value) -> Value {
+    use json_repair::Value as Repaired;
+    match value {
+        Repaired::Null => Value::Null,
+        Repaired::Bool(flag) => Value::Bool(flag),
+        Repaired::Int(number) => Value::from(number),
+        Repaired::BigInt(digits) => digits.parse::<f64>().map_or(Value::Null, Value::from),
+        Repaired::Float(number) if number.is_finite() => Value::from(number),
+        Repaired::Float(number) if number.is_nan() => Value::from("nan"),
+        Repaired::Float(number) => Value::from(if number > 0.0 { "inf" } else { "-inf" }),
+        Repaired::Str(text) => Value::String(text),
+        Repaired::Array(items) => Value::Array(items.into_iter().map(from_repaired).collect()),
+        Repaired::Object(fields) => Value::Object(
+            fields
+                .into_iter()
+                .map(|(key, value)| (key, from_repaired(value)))
+                .collect(),
+        ),
+    }
+}
 
 /// The value a Python literal denotes, or `None` when the text is not one.
 ///

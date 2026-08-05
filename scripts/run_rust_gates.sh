@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# The gates that need no Python: cargo's four, plus the file-size rule.
+# The gates that run in a worktree: cargo's four, the file-size rule, an outside caller, the guides,
+# and the ports held to the libraries they reproduce.
 #
 # `scripts/run_upstream_tests.sh` is the fifth, and it records what it observed into
 # `backlog.toml`'s `[status]`. This one exists so `rust_tests` is recorded the same way. It was the
@@ -42,6 +43,23 @@ bounded() {
 cd "$ROOT"
 mkdir -p target
 
+# A build directory belonging to *this* checkout.
+#
+# `~/.cargo/config.toml` sets one `build-dir` for the machine, and cargo's metadata hash is over the
+# package name, version and features — not the path. Two checkouts of this repo therefore write the
+# same `deps/gepa-434c7ff1220d564a`, and the second run to build clobbers the first's binary while
+# `cargo test` happily runs whatever is sitting there.
+#
+# That is not hypothetical: this gate reported 1153 tests from a worktree whose source has 1145,
+# because a sibling checkout's uncommitted `dsrust-gepa` had eight more and had built last. A test
+# count is one of the few numbers this repo publishes about itself, and it was reading another
+# working tree's.
+#
+# Per-checkout rather than `mktemp -d`, which would be unique and would also discard every
+# incremental artifact on each run — the same reasoning `run_mutants.sh` records, in the other
+# direction: it needs isolation per *run*, this needs isolation per *checkout*.
+export CARGO_BUILD_BUILD_DIR="$ROOT/target/build-dir"
+
 echo "==> cargo test --workspace"
 # Teed rather than piped, so this script exits with the run's own status and not the tee's. The
 # recorder reads the copy, and writes nothing when the run was not green.
@@ -71,6 +89,13 @@ rm -rf target/doc
 # by grepping output nobody was required to read.
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
 
+echo "==> throughput floor (release, so the debug counters compile out)"
+# The one regression the correctness suites cannot see: an optimisation produces identical output
+# by construction, so a dead fast path fails nothing above — measured by turning the lookahead
+# cache off, which passes all 57 crate tests and multiplies parse time by nine. The floor is a
+# ratio against an in-process calibration loop, so a slower machine moves both sides together.
+cargo test --release -p dsrust-json-repair --test throughput
+
 echo "==> file sizes"
 ./scripts/file_sizes.py
 
@@ -78,6 +103,23 @@ echo "==> file sizes"
 # *outside* the workspace — the only place a leaked dependency is visible.
 ./scripts/check_external_consumer.sh
 ./scripts/check_docs.py
+
+# The parity ledgers, which need the pinned Python packages and so need the environment.
+#
+# This script used to be "the gates that need no Python", and `check_json_repair_parity.py` was
+# written, passed, and then run by nobody — a command someone had to remember, which is the shape
+# `gates-were-a-checklist` is about. `run_upstream_tests.sh` was the only other home and it runs
+# only in the main checkout, which is precisely where the agent who drops a function is not.
+#
+# So this script now wants `.venv`, the same way that one does, and says so rather than skipping.
+# A skipped check is a checklist item with extra steps.
+echo "==> library parity"
+VENV="$ROOT/.venv"
+[ -x "$VENV/bin/python" ] || {
+  echo "  no .venv — run: uv sync   (a worktree can build its own, or symlink the main checkout's)" >&2
+  exit 1
+}
+"$VENV/bin/python" "$ROOT/scripts/check_json_repair_parity.py"
 
 # The one ignored test the gate can actually satisfy: dspy's own reader, on a file this crate
 # wrote. It is `#[ignore]` because it needs `.dspy-venv`, which not every checkout has — but this

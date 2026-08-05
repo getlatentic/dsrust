@@ -157,6 +157,7 @@ dependencies = [
  "bytes",
  "dsrust-derive",
  "dsrust-gepa",
+ "dsrust-json-repair",
  "dsrust-tpe",
  "futures-util",
  "lru",
@@ -190,6 +191,14 @@ dependencies = [
  "pyrng",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "dsrust-json-repair"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

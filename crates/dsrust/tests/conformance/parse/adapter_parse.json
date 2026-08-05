@@ -94,7 +94,9 @@
       "adapter": "chat",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]] \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -105,7 +107,9 @@
       "adapter": "chat",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response:  \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -116,7 +120,9 @@
       "adapter": "chat",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response: I think the answer is Paris. \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -191,6 +197,20 @@
       "diverges": false
     },
     {
+      "name": "marker_name_beyond_ascii",
+      "signature": "question -> réponse: str, 答え: str",
+      "completion": "[[ ## réponse ## ]]\nParis\n\n[[ ## 答え ## ]]\nはい\n\n[[ ## completed ## ]]\n",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "réponse": "Paris",
+          "答え": "はい"
+        }
+      },
+      "diverges": false
+    },
+    {
       "name": "marker_inside_a_value",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## reasoning ## ]]\nthe model wrote [[ ## answer ## ]] in the middle\n\n[[ ## answer ## ]]\nParis",
@@ -251,13 +271,100 @@
       "diverges": true
     },
     {
+      "name": "tags_unclosed",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[\"a\", \"b\"",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_single_quoted",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n['a', 'b']",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_bare_words",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[a, b]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_asymmetric_quotes",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[\"a, \"b\"]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a, ",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_smart_quotes",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[“a”, “b”]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
       "name": "typed_field_that_will_not_parse",
       "signature": "question -> answer: str, score: int, tags: list[str]",
       "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\nvery high\n\n[[ ## tags ## ]]\n[\"a\"]",
       "adapter": "chat",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Failed to parse field score with value very high from the LM response. Error message: 1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='very high', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\nvery high\n\n[[ ## tags ## ]]\n[\"a\"] \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
+        "message_diverges": "pydantic-error-text"
       },
       "diverges": true
     },
@@ -268,7 +375,9 @@
       "adapter": "chat",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Failed to parse field score with value  from the LM response. Error message: 1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\n\n\n[[ ## tags ## ]]\n[\"a\"] \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
+        "message_diverges": "pydantic-error-text"
       },
       "diverges": true
     },
@@ -329,13 +438,43 @@
       "diverges": false
     },
     {
+      "name": "xml_name_with_a_combining_mark",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<xְ><reasoning>Because.</reasoning></xְ>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_name_beyond_ascii",
+      "signature": "question -> réponse: str, 答え: str",
+      "completion": "<réponse>Paris</réponse>\n<答え>はい</答え>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "réponse": "Paris",
+          "答え": "はい"
+        }
+      },
+      "diverges": false
+    },
+    {
       "name": "xml_tag_with_attribute",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "<reasoning id=\"1\">Because.</reasoning>\n<answer>Paris</answer>",
       "adapter": "xml",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning id=\"1\">Because.</reasoning>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -374,7 +513,9 @@
       "adapter": "xml",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -385,7 +526,9 @@
       "adapter": "xml",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>Because.\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -396,7 +539,9 @@
       "adapter": "xml",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>Because.</thinking>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -449,7 +594,9 @@
       "adapter": "xml",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response:  \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -505,7 +652,9 @@
       "adapter": "xml",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Failed to parse field annotation=int required=True json_schema_extra={'__dspy_field_type': 'output', 'prefix': 'Score:', 'desc': '${score}'} with value very high: 1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='very high', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <answer>Paris</answer>\n<score>very high</score>\n<tags>[\"a\"]</tags> \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
+        "message_diverges": "pydantic-error-text"
       },
       "diverges": false
     },
@@ -670,7 +819,9 @@
       "adapter": "json",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "Adapter JSONAdapter failed to parse the LM response. \n\nLM Response: {\"answer\": \"Paris\"} \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -681,7 +832,9 @@
       "adapter": "json",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "LM response cannot be serialized to a JSON object.\n\nAdapter JSONAdapter failed to parse the LM response. \n\nLM Response: just some prose with no braces \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -692,7 +845,9 @@
       "adapter": "json",
       "dspy": {
         "ok": false,
-        "error": "AdapterParseError"
+        "error": "AdapterParseError",
+        "message": "LM response cannot be serialized to a JSON object.\n\nAdapter JSONAdapter failed to parse the LM response. \n\nLM Response:  \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -748,7 +903,7 @@
           ]
         }
       },
-      "diverges": true
+      "diverges": false
     },
     {
       "name": "json_typed_that_will_not_parse",
@@ -757,7 +912,23 @@
       "adapter": "json",
       "dspy": {
         "ok": false,
-        "error": "ValidationError"
+        "error": "ValidationError",
+        "message": "1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='very high', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing",
+        "message_diverges": "pydantic-error-text"
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_two_objects_and_prose",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "first {\"reasoning\": \"Because.\", \"answer\": \"Paris\"} then {\"answer\": \"Berlin\"}",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
       },
       "diverges": false
     }

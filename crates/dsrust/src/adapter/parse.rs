@@ -36,9 +36,6 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
         let joined = lines.join("\n");
         fields.insert(name.to_owned(), section_value(field, joined.trim()));
     }
-    if fields.is_empty() {
-        return Err(anyhow!("reply has no [[ ## field ## ]] sections"));
-    }
     // dspy's `ChatAdapter.parse` ends on `if fields.keys() != signature.output_fields.keys():
     // raise AdapterParseError`, so a reply short of a field is a *parse* failure and
     // `ChatAdapter.__call__` answers it by re-asking through `JSONAdapter`. Letting it through to
@@ -49,6 +46,7 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
             adapter_name: "ChatAdapter".to_owned(),
             lm_response: raw.to_owned(),
             expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
+            message: None,
         }));
     }
     // **A known divergence, recorded rather than papered over.** dspy's `ChatAdapter.parse` casts
@@ -72,16 +70,30 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
 /// its declared type becomes a parse failure as upstream's does.
 fn section_value(field: &OutField, text: &str) -> Value {
     match field.kind {
-        // Strict JSON first, because that case is not a guess: dspy hands the text to the field's
-        // own Python type, which reads `["a", "b"]` as a list, and so does this. Python's literal
-        // spelling next. Anything else stays text for the caller's own typing to judge, which is
-        // what `coerce_scalars` skips a structured field for.
-        FieldKind::Json(_) => serde_json::from_str(text)
-            .ok()
-            .or_else(|| repair::python_literal(text))
-            .unwrap_or_else(|| Value::from(text)),
+        // `parse_value`'s order for a non-`str` annotation, and the order matters: json-repair
+        // first, and Python's own literal syntax only where json-repair answered with the empty
+        // string — which is how it reports having found nothing. `'a'` is the case that separates
+        // them, since a bare quoted string at the top level is a literal and not a JSON value.
+        FieldKind::Json(_) => {
+            let candidate = repair::loads(text).unwrap_or_else(|_| Value::from(""));
+            match candidate == Value::from("") && !text.is_empty() {
+                true => repair::python_literal(text).unwrap_or_else(|| Value::from(text)),
+                false => candidate,
+            }
+        }
         _ => Value::from(text),
     }
+}
+
+/// Python's `\w`: what `str.isalnum()` accepts, plus `_`.
+///
+/// Both of dspy's scans over a reply are spelled `\w+` — `\[\[ ## (\w+) ## \]\]` for a marker and
+/// `<(?P<name>\w+)>` for a tag — and neither is ASCII. A Python identifier may be any of these, so
+/// `réponse` and `答え` are field names dspy renders markers for and reads back. Rust's own
+/// `is_alphanumeric` is not this predicate either: it follows `Alphabetic`, which carries combining
+/// marks that `str.isalnum()` refuses, so it answers wrongly in the other direction.
+fn is_word(letter: char) -> bool {
+    json_repair::pychar::is_alnum(letter) || letter == '_'
 }
 
 /// A section header at the start of a line: `[[ ## name ## ]]` with a word-character name,
@@ -89,8 +101,7 @@ fn section_value(field: &OutField, text: &str) -> Value {
 fn split_header(line: &str) -> Option<(&str, &str)> {
     let after_open = line.trim_start().strip_prefix("[[ ## ")?;
     let (name, _) = after_open.split_once(" ## ]]")?;
-    let word = !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-    if !word {
+    if name.is_empty() || !name.chars().all(is_word) {
         return None;
     }
     // dspy matches the header against `line.strip()` and then slices the **unstripped** line at
@@ -164,11 +175,7 @@ fn next_tag(text: &str) -> Option<(&str, &str, &str)> {
         // No `>` after this `<` means none after any later one either — they are all further right.
         let shut = text[open..].find('>').map(|at| at + open)?;
         let name = &text[open + 1..shut];
-        let is_word = !name.is_empty()
-            && name
-                .chars()
-                .all(|letter| letter.is_alphanumeric() || letter == '_');
-        if is_word {
+        if !name.is_empty() && name.chars().all(is_word) {
             let closing = format!("</{name}>");
             if let Some(end) = text[shut + 1..].find(&closing).map(|at| at + shut + 1) {
                 return Some((name, &text[shut + 1..end], &text[end + closing.len()..]));
@@ -186,13 +193,19 @@ fn next_tag(text: &str) -> Option<(&str, &str, &str)> {
 #[derive(Debug)]
 pub struct FieldMismatch {
     /// The declared fields the reply did carry, in signature order.
+    ///
+    /// [`Value::Null`] is upstream's `parsed_result=None`, which omits the trailing line — its
+    /// guard is `is not None`, so an *empty* object still prints `[]`.
     pub parsed: Value,
     /// dspy's `adapter_name`: which wire format was reading. Empty where the caller did not say.
     pub adapter_name: String,
-    /// The reply as it arrived, which is the thing a reader needs to see to fix it.
+    /// The reply as it arrived — or, once the JSON adapter's brace search has fired, the object it
+    /// pulled out, since upstream rebinds `completion` to the match before it reports anything.
     pub lm_response: String,
     /// Every field the signature declared, in order.
     pub expected_fields: Vec<String>,
+    /// dspy's optional `message`, written above the rest and separated by a blank line.
+    pub message: Option<String>,
 }
 
 impl FieldMismatch {
@@ -205,6 +218,9 @@ impl std::fmt::Display for FieldMismatch {
     /// blank line is upstream's and looks accidental; it is on the wire either way, and this is
     /// the text a caller reads when a reply does not parse.
     fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(message) = &self.message {
+            write!(out, "{message}\n\n")?;
+        }
         write!(
             out,
             "Adapter {} failed to parse the LM response. \n\nLM Response: {} \n\n\
@@ -213,11 +229,10 @@ impl std::fmt::Display for FieldMismatch {
             self.lm_response,
             self.expected_fields.join(", "),
         )?;
-        // Upstream appends this only when something did parse, so an all-or-nothing failure does
-        // not end with an empty list that reads like a bug.
-        if let Some(parsed) = self.parsed.as_object()
-            && !parsed.is_empty()
-        {
+        // Upstream's guard is `if parsed_result is not None`, so an empty parse still ends with
+        // `[]` — it looks like a bug and it is on the wire. `Value::Null` is the `None` that omits
+        // it, which upstream reaches only from the field-cast branch this crate casts elsewhere.
+        if let Some(parsed) = self.parsed.as_object() {
             let names: Vec<&str> = parsed.keys().map(String::as_str).collect();
             write!(
                 out,
@@ -260,48 +275,67 @@ pub(super) fn declared_fields(
             adapter_name: adapter_name.to_owned(),
             lm_response: raw.to_owned(),
             expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
+            message: None,
         })),
     }
 }
 
-pub(super) fn parse_json(raw: &str) -> Result<Value> {
-    // dspy reads the whole reply, and then asks `isinstance(fields, dict)` — a reply that parses as
-    // an *array* or a scalar is not an answer, so it falls through to the brace search below rather
-    // than being handed on. `[{"answer": "Paris"}]` is a real reply shape and reaches the object
-    // that way.
-    if let Ok(value) = serde_json::from_str::<Value>(raw)
+/// The object a JSON reply carries, and the text any later failure should name.
+///
+/// Upstream's recovery is `completion = match.group(0)` — it *rebinds* the variable, so once the
+/// brace search has fired every `AdapterParseError` reports the extracted object rather than the
+/// reply it came out of. The second half of the pair is that rebinding.
+pub(super) fn parse_json<'a>(signature: &Signature, raw: &'a str) -> Result<(Value, &'a str)> {
+    // `JSONAdapter.parse` opens with `json_repair.loads(completion)` and then asks
+    // `isinstance(fields, dict)` — a reply that reads as an *array* or a scalar is not an answer,
+    // so it falls through to the brace search rather than being handed on. `[{"answer": "Paris"}]`
+    // is a real reply shape and reaches the object that way.
+    if let Ok(value) = repair::loads(raw)
         && value.is_object()
     {
-        return Ok(value);
+        return Ok((value, raw));
     }
-    // `start < end` and `start <= end` cannot be told apart: a byte is not both `{` and `}`, so
-    // the two indices are never equal. Left as the strict comparison because it says what is
-    // meant — an opening brace *before* a closing one — and recorded here because a mutation
-    // testing run will keep offering the other one as a survivor nobody can kill.
-    if let (Some(start), Some(end)) = (raw.find('{'), raw.rfind('}'))
-        && start < end
-    {
-        let embedded = &raw[start..=end];
-        if let Ok(value) = serde_json::from_str::<Value>(embedded)
-            && value.is_object()
-        {
-            return Ok(value);
-        }
-        // A model asked for JSON often answers in Python's spelling instead, which upstream
-        // reads through json-repair before deciding the reply failed. The same reading already
-        // serves the marker adapter's structured fields.
-        if let Some(value) = repair::python_literal(embedded)
-            && value.is_object()
-        {
-            return Ok(value);
-        }
-    }
-    if let Some(value) = repair::python_literal(raw)
+    // The rebinding stands even when the extracted text is still not an object, because upstream
+    // assigns before it re-tests — so the refusal names the extract either way.
+    let named = first_balanced_braces(raw).unwrap_or(raw);
+    if let Ok(value) = repair::loads(named)
         && value.is_object()
     {
-        return Ok(value);
+        return Ok((value, named));
     }
-    Err(anyhow!("model returned invalid JSON"))
+    Err(anyhow::Error::new(FieldMismatch {
+        parsed: Value::Null,
+        adapter_name: "JSONAdapter".to_owned(),
+        lm_response: named.to_owned(),
+        expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
+        message: Some("LM response cannot be serialized to a JSON object.".to_owned()),
+    }))
+}
+
+/// The first balanced `{…}` run, which is what dspy's `\{(?:[^{}]|(?R))*\}` finds.
+///
+/// Not the span from the first `{` to the last `}`: for `{"a": 1} and {"b": 2}` the recursive
+/// pattern matches the first object alone, where the outermost span takes both and the prose
+/// between them. The scan is blind to quoting, as the pattern is — a `}` inside a string closes
+/// the run for both.
+fn first_balanced_braces(raw: &str) -> Option<&str> {
+    let opens: Vec<usize> = raw.match_indices('{').map(|(at, _)| at).collect();
+    for start in opens {
+        let mut depth = 0_usize;
+        for (offset, letter) in raw[start..].char_indices() {
+            match letter {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(&raw[start..start + offset + 1]);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -383,8 +417,73 @@ mod tests {
         assert!(parse_markers(&signature(), "red, because it is calm").is_err());
     }
 
+    /// The other direction of the same predicate, and it loses a field rather than a marker.
+    ///
+    /// A `<…>` the scan calls a tag is consumed whole, so the scan resumes *after* its closing tag
+    /// and never looks inside. `char::is_alphanumeric` follows `Alphabetic` and accepts a combining
+    /// mark that `str.isalnum()` refuses, which makes `<xֺ>` a tag here and not in dspy — and the
+    /// `<answer>` it wraps is skipped with it. Measured: `dspy.XMLAdapter().parse` returns Paris.
+    #[test]
+    fn a_tag_python_would_not_call_a_tag_does_not_swallow_the_one_inside_it() {
+        let signature = Signature::single_input(
+            "Answer.",
+            vec![OutField {
+                name: "answer".into(),
+                ..Default::default()
+            }],
+        );
+        let raw = "<x\u{5b0}><answer>Paris</answer></x\u{5b0}>";
+        let value = parse_tags(&signature, raw).expect("dspy reads the inner tag");
+        assert_eq!(value, json!({ "answer": "Paris" }));
+    }
+
+    /// Upstream's header pattern is `\[\[ ## (\w+) ## \]\]`, and Python's `\w` is every code point
+    /// `str.isalnum()` accepts plus `_` — not ASCII. A Python identifier may be non-ASCII, so
+    /// `réponse` and `答え` are field names dspy renders markers for and parses back, measured
+    /// against `dspy.ChatAdapter().parse` on the pin.
+    #[test]
+    fn a_marker_names_a_field_the_way_python_spells_an_identifier() {
+        let signature = Signature::single_input(
+            "Answer.",
+            vec![
+                OutField {
+                    name: "réponse".into(),
+                    ..Default::default()
+                },
+                OutField {
+                    name: "答え".into(),
+                    ..Default::default()
+                },
+            ],
+        );
+        let raw = "[[ ## réponse ## ]]\nParis\n\n[[ ## 答え ## ]]\nはい\n\n[[ ## completed ## ]]\n";
+        let value = parse_markers(&signature, raw).expect("dspy parses this");
+        assert_eq!(value, json!({ "réponse": "Paris", "答え": "はい" }));
+    }
+
     /// Upstream's `test_chat_adapter_parses_float_with_underscores` sends exactly this reply
     /// for a field declared as a model with one float, and expects 123456.789.
+    #[test]
+    fn the_brace_search_finds_what_dspys_recursive_pattern_finds() {
+        // Checked case by case against `regex.search(r"\{(?:[^{}]|(?R))*\}", …)` on the pinned
+        // dspy. Four of these are the reason the search is not `find('{')..rfind('}')`: the
+        // pattern backtracks past a `{` that never balances, it stops at the *first* complete
+        // object rather than spanning to the last brace in the reply, and it is blind to quoting.
+        for (raw, expected) in [
+            (r#"{"a": 1} and {"b": 2}"#, Some(r#"{"a": 1}"#)),
+            ("x {a{b}c} y", Some("{a{b}c}")),
+            ("{a{b}", Some("{b}")),
+            ("{{a}", Some("{a}")),
+            (r#"{"a": "}"}"#, Some(r#"{"a": "}"#)),
+            (r#"text {"a": {"b": 1}} tail"#, Some(r#"{"a": {"b": 1}}"#)),
+            ("a } b { \"c\": 2 }", Some("{ \"c\": 2 }")),
+            (r#"{"a": 1"#, None),
+            ("no braces", None),
+        ] {
+            assert_eq!(first_balanced_braces(raw), expected, "for {raw:?}");
+        }
+    }
+
     #[test]
     fn parse_markers_reads_a_json_field_written_as_a_python_literal() {
         let raw = "[[ ## ideas ## ]]\n{'score': 123_456.789}\n[[ ## completed ## ]]";
@@ -406,11 +505,40 @@ mod tests {
 
     #[test]
     fn parse_json_accepts_bare_and_prose_wrapped_objects() {
-        let bare = parse_json(r#"{ "color": "red" }"#).expect("bare");
+        let (bare, named) = parse_json(&signature(), r#"{ "color": "red" }"#).expect("bare");
         assert_eq!(bare["color"], "red");
-        let wrapped =
-            parse_json("Here it is:\n```json\n{ \"color\": \"blue\" }\n```").expect("wrapped");
+        assert_eq!(named, r#"{ "color": "red" }"#, "nothing was extracted");
+        // json-repair reads prose and fences itself, so this never reaches the brace search and
+        // upstream never rebinds — the reply is what a later failure would name.
+        let fenced = "Here it is:\n```json\n{ \"color\": \"blue\" }\n```";
+        let (wrapped, named) = parse_json(&signature(), fenced).expect("wrapped");
         assert_eq!(wrapped["color"], "blue");
-        assert!(parse_json("no json here").is_err());
+        assert_eq!(named, fenced);
+        assert!(parse_json(&signature(), "no json here").is_err());
+    }
+
+    /// The brace search fires only where json-repair answered with something that is not an object,
+    /// and upstream's `completion = match.group(0)` rebinds what every later failure reports.
+    /// Measured: `dspy.JSONAdapter().parse` writes `LM Response: {"color": "blue"}` for this input,
+    /// not the array it arrived in.
+    #[test]
+    fn the_brace_search_rebinds_what_a_failure_names() {
+        let (value, named) =
+            parse_json(&signature(), r#"[{"color": "blue"}] trailing"#).expect("extracted");
+        assert_eq!(value["color"], "blue");
+        assert_eq!(named, r#"{"color": "blue"}"#);
+    }
+
+    /// Upstream raises the same `AdapterParseError` with a `message=` prefix here, where the crate
+    /// used to answer a bare "model returned invalid JSON".
+    #[test]
+    fn a_reply_that_is_not_an_object_refuses_the_way_dspy_refuses() {
+        let error = parse_json(&signature(), "[1, 2]").expect_err("an array is not an answer");
+        assert_eq!(
+            error.to_string(),
+            "LM response cannot be serialized to a JSON object.\n\nAdapter JSONAdapter failed to \
+             parse the LM response. \n\nLM Response: [1, 2] \n\nExpected to find output fields in \
+             the LM response: [color, why] \n\n"
+        );
     }
 }

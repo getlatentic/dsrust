@@ -3,9 +3,14 @@
 crates/*/target/
 **/*.rs.bk
 
-# uv-managed Python env (built by `uv sync`; .dspy-venv* are older spellings)
+# uv-managed Python env (built by `uv sync`; .dspy-venv* are older spellings).
+# Without the second spelling a *symlink* named `.venv` — which is how a worktree borrows the
+# main checkout's env — is not matched by the trailing slash, and `git add -A` commits a link
+# to an absolute path nobody else has.
 .venv/
+.venv
 .dspy-venv*/
+.dspy-venv*
 
 # Python caches
 __pycache__/

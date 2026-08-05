@@ -65,6 +65,32 @@ class Underscored(dspy.Signature):
     final_answer: str = dspy.OutputField()
 
 
+class Unicode(dspy.Signature):
+    """Answer in the caller's language.
+
+    Both scans are spelled `\\w+`, and Python's `\\w` is `str.isalnum()` plus `_` rather than ASCII.
+    A Python identifier may be any of it, so these are field names dspy renders markers for and
+    reads back — and the crate refused every one of them until this signature was added.
+    """
+
+    question: str = dspy.InputField()
+    réponse: str = dspy.OutputField()
+    答え: str = dspy.OutputField()
+
+
+class Tagged(dspy.Signature):
+    """Answer with a list, and no scalar to cast.
+
+    `Typed` cannot isolate what json-repair does to a structured field, because its `score: int`
+    drags in `parse-time-casting` and every case using it is recorded as a divergence for a reason
+    that has nothing to do with the field under test.
+    """
+
+    question: str = dspy.InputField()
+    answer: str = dspy.OutputField()
+    tags: list[str] = dspy.OutputField()
+
+
 #: The XML adapter scans with `<(?P<name>\w+)>(.*?)</\1>` under DOTALL — a *global* find, a
 #: non-greedy body, a backreferenced closing name, and `\w+` for the name. Every case below is one
 #: of those properties, and none of them is a shape a well-behaved model emits.
@@ -76,6 +102,12 @@ XML_CASES = [
     ("xml_same_name_nested", QA, "<reasoning><reasoning>inner</reasoning></reasoning>\n<answer>Paris</answer>"),
     # A name that is not `\w+` does not open a tag at all.
     ("xml_hyphenated_name", QA, "<my-reasoning>Because.</my-reasoning>\n<reasoning>R</reasoning>\n<answer>Paris</answer>"),
+    # `\w` is `str.isalnum()` plus `_`, which is neither ASCII nor `char::is_alphanumeric`. A
+    # combining mark is Alphabetic and *not* alnum, so `<xֺ>` opens a tag in Rust's predicate and
+    # not in Python's — and a tag is consumed whole, so the `<reasoning>` it wraps goes with it.
+    ("xml_name_with_a_combining_mark", QA, "<xְ><reasoning>Because.</reasoning></xְ>\n<answer>Paris</answer>"),
+    # And the other end of the same predicate: a tag named in a script an ASCII test never reaches.
+    ("xml_name_beyond_ascii", Unicode, "<réponse>Paris</réponse>\n<答え>はい</答え>"),
     # An attribute puts a space after the name, so `\w+>` never matches.
     ("xml_tag_with_attribute", QA, '<reasoning id="1">Because.</reasoning>\n<answer>Paris</answer>'),
     ("xml_first_wins", QA, "<reasoning>first</reasoning>\n<reasoning>second</reasoning>\n<answer>Paris</answer>"),
@@ -154,10 +186,10 @@ JSON_CASES = [
         json.dumps({"answer": "Paris", "score": "7", "tags": json.dumps(["a", "b"])}),
     ),
     (
-        # The malformed shape that mistake produced, kept because it is a real one:
-        # `json_repair` recovers an unescaped quote inside a string and this crate's repair
-        # does not. Recorded as a divergence rather than chased — matching json_repair in full
-        # is a library, not a fix.
+        # The malformed shape that mistake produced, kept because it is a real one: an
+        # unescaped quote inside a string, which only `json_repair`'s heuristics recover.
+        # It was recorded as a divergence until `dsrust-json-repair` landed, and the test
+        # asserting the divergence is what said so.
         "json_unescaped_quote_inside_a_string",
         Typed,
         '{"answer": "Paris", "score": "7", "tags": "["a", "b"]"}',
@@ -166,6 +198,13 @@ JSON_CASES = [
         "json_typed_that_will_not_parse",
         Typed,
         '{"answer": "Paris", "score": "very high", "tags": ["a"]}',
+    ),
+    (
+        # Two objects in one reply: dspy's `\\{(?:[^{}]|(?R))*\\}` takes the *first*, where a search
+        # from the first brace to the last would take both and the prose between them.
+        "json_two_objects_and_prose",
+        QA,
+        'first {"reasoning": "Because.", "answer": "Paris"} then {"answer": "Berlin"}',
     ),
 ]
 
@@ -227,6 +266,15 @@ CASES = [
         QA,
         "[[ ## reasoning ## ]]\nBecause.\n\n    [[ ## answer ## ]]\nParis",
     ),
+    # `\[\[ ## (\w+) ## \]\]` names the field with `\w+`, which is `str.isalnum()` plus `_` and not
+    # ASCII. A Python identifier may be non-ASCII, so dspy renders and reads these markers — and
+    # `split_header` required `is_ascii_alphanumeric`, refusing the whole reply as having no
+    # sections at all.
+    (
+        "marker_name_beyond_ascii",
+        Unicode,
+        "[[ ## réponse ## ]]\nParis\n\n[[ ## 答え ## ]]\nはい\n\n[[ ## completed ## ]]\n",
+    ),
     # A marker inside a value: this line does not *start* with one, so it stays content.
     (
         "marker_inside_a_value",
@@ -245,6 +293,37 @@ CASES = [
         "typed_fields",
         Typed,
         '[[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\n7\n\n[[ ## tags ## ]]\n["a", "b"]\n\n[[ ## completed ## ]]',
+    ),
+    # A structured field written the ways a model writes one. Each reaches `parse_value`, which
+    # hands the section to json-repair before the annotation ever sees it — so an unclosed bracket
+    # and Python's quoting both land as `list[str]` rather than as the text spelling one.
+    (
+        "tags_unclosed",
+        Tagged,
+        '[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n["a", "b"',
+    ),
+    (
+        "tags_single_quoted",
+        Tagged,
+        "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n['a', 'b']",
+    ),
+    (
+        # The shapes only json-repair recovers. This crate's own literal reader closes a container
+        # and rewrites Python's spelling; it does none of these, so each is a section that used to
+        # arrive as the text spelling a list rather than as one.
+        "tags_bare_words",
+        Tagged,
+        "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[a, b]",
+    ),
+    (
+        "tags_asymmetric_quotes",
+        Tagged,
+        '[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n["a, "b"]',
+    ),
+    (
+        "tags_smart_quotes",
+        Tagged,
+        "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[\u201ca\u201d, \u201cb\u201d]",
     ),
     (
         "typed_field_that_will_not_parse",
@@ -271,11 +350,26 @@ def spelling(annotation) -> str:
 
 
 def parsed(adapter, signature, completion: str) -> dict:
-    """What the adapter returns, or the kind of error it raises."""
+    """What the adapter returns, or how it refuses — the message, not only the class.
+
+    Every refusal these three adapters raise is an `AdapterParseError`, so recording the class alone
+    leaves the Rust side comparing a refusal against a refusal and nothing else. The message is
+    where the adapter name, the reply it read and the fields it wanted actually appear.
+    """
     try:
         return {"ok": True, "fields": adapter.parse(signature, completion)}
     except Exception as error:
-        return {"ok": False, "error": type(error).__name__}
+        message = str(error)
+        # A cast failure carries **pydantic's** rendering — the field's whole repr, the
+        # `[type=int_parsing, input_value=...]` tail, and a versioned docs URL. Reproducing that
+        # would mean reimplementing pydantic's error formatter and pinning its version in a Rust
+        # string, so this one refuses with the crate's own text and says so.
+        return {
+            "ok": False,
+            "error": type(error).__name__,
+            "message": message,
+            "message_diverges": "pydantic-error-text" if "errors.pydantic.dev" in message else None,
+        }
 
 
 def main() -> None:
@@ -314,7 +408,6 @@ def main() -> None:
                     "typed_fields",
                     "typed_field_that_will_not_parse",
                     "typed_field_empty",
-                    "json_unescaped_quote_inside_a_string",
                 },
             }
         )
@@ -340,7 +433,23 @@ def main() -> None:
     # decides. Refuse to write one.
     if not refused or not accepted:
         raise SystemExit("the corpus must contain both accepted and refused replies")
+
+    # Both scans name their field with `\w+`, and an all-ASCII corpus cannot tell that predicate
+    # from `is_ascii_alphanumeric` or from `char::is_alphanumeric` — the crate shipped one of each,
+    # in opposite directions, and 58 cases said nothing about either. A corpus that loses these is
+    # blind to the whole class again, so it is refused rather than left to a reader.
+    beyond_ascii = [
+        case["name"]
+        for case in cases
+        if not (case["signature"] + case["completion"]).isascii()
+    ]
+    if not beyond_ascii:
+        raise SystemExit(
+            "no case has a field or tag name beyond ASCII — the corpus cannot see the `\\w+` "
+            "predicate, which is what both scans decide a name with"
+        )
     print(f"  {len(accepted)} accepted, {len(refused)} refused: {refused}", file=sys.stderr)
+    print(f"  {len(beyond_ascii)} beyond ASCII: {beyond_ascii}", file=sys.stderr)
 
 
 if __name__ == "__main__":

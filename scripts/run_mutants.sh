@@ -21,77 +21,59 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-# package:survivors. Each number is a measured floor with its survivors accounted for below.
+# package:missed:hangs. **Two floors, not one**, because they answer to different work and a corpus
+# that improves can move a mutant from the first into the second.
+#
+# Measured: three comment cases took `lookahead.rs` from 55 silent survivors to 53, and its hangs
+# from 6 to 10 — two of them the very mutants that stopped surviving, now driven into a loop that
+# never advances by an input that finally reaches them. A single total called that a regression from
+# 61 to 63 while the thing it is supposed to track had improved. A hang is still not a passing test,
+# so both are floors; collapsing them is what hid the direction.
 #
 #   dsrust-tpe 1 — `n < 25` against `n <= 25` in `default_weights`. At n=25 the ramp is empty either
 #                  way and both arms return twenty-five ones, so nothing can tell them apart.
-#   pyrng      7 — every one equivalent or needing a constructed float, and the number *rose* from
-#                  4 rather than falling. It is not a regression and not a comparable number: the
-#                  old 4 was one survivor plus three hangs, and a hang stops a run before the rest
-#                  of that function's mutants are reached. Removing the hangs took the mutant count
-#                  from 158 to 203 and made every remaining survivor visible. Each is accounted for
-#                  in the source where it lives:
-#                    - `twist`'s `|` against `^` — the masks are disjoint, so the two are one
-#                      operation;
-#                    - `getrandbits`'s `owed < 32` against `<=` — at exactly 32 the shift is `>> 0`,
-#                      which is the else branch;
-#                    - `choice`'s `+=` against `-=` — accumulating negatively negates the divisor
-#                      too, so the normalised CDF is identical;
-#                    - `choice`'s `/=` against `*=` — every caller normalises first, so the divisor
-#                      is 1.0;
-#                    - `choices`'s `len() - 1` against `len() / 1` — needs `random_double() * total`
-#                      to reach `total`, a rounding edge rather than a draw;
-#                    - both `partition_point` predicates' `<` against `<=` — needs a draw landing
-#                      exactly on a cumulative boundary.
-#                  Four loops here ended on invariants they could not see and are now structural:
-#                  `bisect_right` and `searchsorted_right` are `partition_point`, `setsize` is
-#                  arithmetic (checked equal over 200000 inputs), `key` needs no loop for a `u64`,
-#                  and `below`'s rejection loop is bounded.
-#   dsrust-gepa 24 — 24 survivors and no non-terminating ones left. Still the largest gap. Was
-#                    46, and re-measured at exactly 46 under the fixed methodology before any of it
-#                    was closed — so unlike the adapter slice, this number was never an artifact.
-#                    What closed the eleven: `state.rs::best_program`, whose tie clause decides
-#                    which program GEPA hands back and which no case with a mean tie or a
-#                    lower-mean-wider-coverage program could reach; and `candidate.rs`, where the
-#                    only equality test asserted two candidates were *equal*, so `eq` could return
-#                    `true` unconditionally — with equality being what makes a proposal a duplicate.
-#                    What is left clusters in `engine.rs` (the optimize and propose loops),
-#                    `merge.rs`, and `instruction_proposal.rs`'s fence parsing; the non-terminating
-#                    ones are gone: `optimize`'s loop ends when the budget is spent and so ends
-#                    only if every iteration spends some, which nothing enforced — an empty
-#                    minibatch spins it forever on a real run, not just a mutated one. The whole
-#                    campaign now takes 8 minutes rather than 30, because each hang cost two.
-#                    `propose` had the four-arm candidate-selection match written out again inline
-#                    rather than calling `select_with` — which is the function `tests/selectors.rs`
-#                    drives against the gepa package, so the conformance test was checking a copy of
-#                    what production ran. Collapsing it took three more.
-#                    `pyset.rs` was ten of these and is three:
-#                    both its loops terminated only on invariants they could not see — the probe
-#                    on `add` having resized, the size search on the shift growing the value — so
-#                    eight mutations hung the suite rather than failing it. Bounded, they fail; the
-#                    run also went from 29 minutes to 14, since each hang cost two. The corpus
-#                    gained a collision *near the top of the table*, which is the only way the
-#                    perturb step runs at all — the nine-slot linear window absorbs every collision
-#                    where `slot + 9 <= mask`, so shifting `perturb` the wrong way had changed no
-#                    recorded order. The three left are equivalent and are marked as such in the
-#                    source. A floor to work down, not a finished state.
-#   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours, so it
-#               is scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
-#               history, parse) is a ratchet of its own below, at 1.
-#
-#               Its history is the case for doing this at all. It first measured 43 survivors of 143
-#               viable, 35 in `parse.rs`, because nineteen fixtures pinned the prompt this crate
-#               *sends* and none pinned what it *reads* — `parse-side-goldens`. Two later runs are
-#               void and their numbers should not be quoted: one shared a build directory with
-#               another session (see below), and every run before `fuzz_sweep.json` was committed
-#               had `parse_fuzz` skipping, because its corpus lived in `target/` and a copied tree
-#               has no `target/`. The parser's strongest oracle was absent from all of them.
-#
-#               Clean, on 2026-08-01: 150 mutants, 132 caught, 17 unviable, 0 timeouts, 1 missed.
+#   pyrng      4 — one equivalent and three that hang rather than fail. `hi = len - 1` in `choices`
+#                  against `hi = len`: the bound is unreachable because `random()` is strictly below
+#                  one, so the target never reaches the top cumulative weight, and CPython refuses
+#                  the all-zero weights that would be the only other way there. The three timeouts
+#                  are `bisect_right`'s comparison and `below`'s rejection loop, where the mutant
+#                  spins instead of answering — detected, but as a hang rather than a failure.
+#   dsrust-gepa 46 — 35 survivors and 11 non-terminating, and the largest gap measured so far. The
+#                    survivors cluster in `engine.rs` (the optimize and propose loops), `merge.rs`
+#                    and `instruction_proposal.rs`'s fence parsing; the non-terminating ones are all
+#                    `pyset.rs` arithmetic where the mutant spins instead of answering. `pyset`'s
+#                    intersection tie was in that list and is not any more — see the note in
+#                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
+#                    finished state.
+#   dsrust-json-repair 156 unpinned, 1 hanging — of 1932 viable in 56 minutes. The hang class is
+#                    closed: the read counter lives in `Source::at` where no direct reader can
+#                    drift out of its reach, the comment-strip and whitespace skips are
+#                    iterator-shaped and have no cursor for a mutant to stall, and the counter's
+#                    floor dropped to 2^16 after three escape mutants showed a slow-enough loop
+#                    losing the race to the timeout. The one hang left is `char_here` replaced
+#                    wholesale, which removes the counted call along with the function — the
+#                    watcher-replaced class, which no guard survives by construction.
+#                    value.rs holds exactly its two reasoned equivalents: `>` to `>=` in
+#                    `Object::remove`'s index shift, where no position can equal the removed one
+#                    because it just left the map; and `&&` to `||` in `Object::insert`'s
+#                    threshold, which only rebuilds an index that already exists. Everything else
+#                    the white-box tests see from inside, since the hybrid is invisible from
+#                    outside on purpose.
+#                    The clusters left are the lookahead cache (11 of lookahead.rs's 19, output-
+#                    blind by construction), `empty.rs` at 16, and the long tail — worked down
+#                    from 296 and 79 at the first honest measurement, across two optimisation
+#                    arcs that each re-pinned what they touched.
+#   dsrust    — not run whole: 3619 mutants at roughly half a minute each is some five hours. Run it
+#               scoped by file. The byte-critical adapter slice (chat, prompt, exchange, demos,
+#               history, parse) measured 43 of 143 viable on 2026-08-01, 35 of them in `parse.rs`,
+#               because nineteen fixtures pin the prompt this crate *sends* and none pin what it
+#               *reads*. Filed as `parse-side-goldens`; no ratchet entry until that lands, since a
+#               five-hour floor nobody runs is not a gate.
 BASELINES=(
-  "dsrust-tpe:1"
-  "pyrng:7"
-  "dsrust-gepa:24"
+  "dsrust-tpe:1:0"
+  "pyrng:7:0"
+  "dsrust-gepa:24:0"
+  "dsrust-json-repair:156:1"
 )
 
 # The one `dsrust` slice with a floor. Scoped by file because the whole crate is a five-hour run,
@@ -124,22 +106,46 @@ ADAPTER_BASELINE=1
 # entry rather than overwriting anyone's. A private build dir therefore costs disk for the length of
 # the run and almost no rebuilding, and it is removed on the way out.
 #
-# Unique per run, not a fixed path. Several worktree sessions share this machine, and a fixed path
-# put two of them in the same directory — measured, with two concrete failures rather than mere
-# contention. `dsrust` depends on `dsrust-json-repair`, so one run's mutated rlib landed where the
-# other's `dsrust` test binaries link from: the poisoning this override exists to prevent, one
-# directory further out. And the cleanup below is `rm -rf`, so whichever run finished first deleted
-# the other's build directory mid-run. Neither shows up as a failure; both show up as a number.
-export CARGO_BUILD_BUILD_DIR="$(mktemp -d "${TMPDIR:-/tmp}/dsrs-mutants-build.XXXXXX")"
-trap 'rm -rf "$CARGO_BUILD_BUILD_DIR" "$ROOT/mutants.out" "$ROOT/mutants.out.old"' EXIT
+# **It also means the runs below must stay serial.** One fixed build dir is exactly what cargo-mutants
+# gives each parallel job its own of, and overriding it takes that away: every job writes the same
+# `libjson_repair-<hash>.rlib`, because the metadata hash is the crate, not the mutation. Adding
+# `-j` therefore has test binaries linking *someone else's* mutant, and the run reports survivors
+# that are nothing of the sort — measured at 24 against a serial 0 for the same crate, all six
+# escape arms of a `json.dumps` reimplementation among them, each of which fails on its own in
+# under a second. A wrong number here is worse than a slow one: it is a ratchet nobody can trust.
+#
+# **And the path is per-run, not fixed.** This repo is worked in many worktrees over one machine, so
+# a constant `dsrs-mutants-build` is the same collision one directory further out: two sessions
+# mutating two crates wrote the same shared dir, each linking the other's mutants, and whichever
+# finished first deleted it out from under the other — the trap below removes the directory it
+# names. Both runs' numbers were rubbish and neither said so. `mktemp -d` keeps the isolation the
+# override is for and takes the collision away; the cost is one crate's object code per concurrent
+# run, which is what isolation costs.
+#
+# **A relative path restores `-j`.** Everything above is true of an *absolute* override, and that is
+# the only kind this had. Cargo resolves a relative `build-dir` against the workspace root it is
+# building — measured, not assumed — and cargo-mutants gives every parallel job its own copy of the
+# tree. So a relative name lands inside each job's own copy, which is exactly the per-job isolation
+# the absolute path took away, while still keeping the run out of `~/.cargo/build-dir` where an
+# ordinary `cargo test` would link a mutant. It is also per-worktree for free, since two sessions
+# have two trees. Validated by running one file serially and at `-j`, which must agree.
+CARGO_BUILD_BUILD_DIR="mutants-build"
+export CARGO_BUILD_BUILD_DIR
 
-# One job by default. cargo-mutants parallelises across cores, and a mutant that *hangs* holds a
-# core flat for the whole timeout rather than finishing early — so before the non-terminating ones
-# were fixed a run sat at 200% CPU for half an hour and had to be killed by hand. The machine is
-# shared with the editor, other worktree sessions and whatever else is open; a measurement is not
-# worth making the box unusable. Raise it deliberately with DSRS_MUTANT_JOBS when nothing else needs
-# the cores.
-JOBS="${DSRS_MUTANT_JOBS:-1}"
+# How many mutants run at once, and how many rustc processes each may spawn.
+#
+# The product is what lands on the machine: `-j 3` with cargo's default inner parallelism is three
+# concurrent builds each taking every core it can find. This box is shared with whoever is using it,
+# so both ends are capped and the whole thing is niced.
+# One job by default rather than two: a run at two sat at 200% CPU for half an hour on this
+# machine and had to be killed by hand, because a mutant that *hangs* holds its core for the
+# whole timeout instead of finishing early. The hangs are gone, and the default stays at one —
+# the box is shared with an editor and other worktree sessions, and a measurement is not worth
+# making it unusable. Raise it deliberately when nothing else needs the cores.
+JOBS=${DSRS_MUTANT_JOBS:-1}
+export CARGO_BUILD_JOBS=${DSRS_MUTANT_BUILD_JOBS:-2}
+
+trap 'rm -rf "$ROOT/mutants.out" "$ROOT/mutants.out.old"' EXIT
 
 if ! cargo mutants --version > /dev/null 2>&1; then
   echo "cargo-mutants is not installed: cargo install cargo-mutants --locked" >&2
@@ -168,30 +174,51 @@ check_ratchet() {
 }
 
 status=0
-
-# The adapter slice, run whenever no package was named or `adapter` was.
-if [ "$#" -eq 0 ] || [ "$1" = "adapter" ]; then
-  echo "==> cargo mutants -p dsrust, adapter slice (baseline $ADAPTER_BASELINE)"
-  log="target/mutants-adapter.log"
-  files=()
-  for file in "${ADAPTER_SLICE[@]}"; do files+=(--file "$file"); done
-  set +e
-  cargo mutants -p dsrust --timeout 120 "${files[@]}" > "$log" 2>&1
-  set -e
-  check_ratchet "adapter" "$ADAPTER_BASELINE" "$log" || status=1
-fi
-
+matched=0
 for entry in "${BASELINES[@]}"; do
   package="${entry%%:*}"
-  allowed="${entry##*:}"
+  rest="${entry#*:}"
+  allowed_missed="${rest%%:*}"
+  allowed_hangs="${rest##*:}"
   if [ "$#" -gt 0 ] && [ "$1" != "$package" ]; then
     continue
   fi
-  echo "==> cargo mutants -p $package (baseline $allowed)"
+  matched=1
+  echo "==> cargo mutants -p $package (floors: $allowed_missed missed, $allowed_hangs hanging; -j $JOBS x $CARGO_BUILD_JOBS)"
   log="target/mutants-$package.log"
   set +e
-  cargo mutants -p "$package" --timeout 120 --jobs "$JOBS" > "$log" 2>&1
+  nice -n 10 cargo mutants -p "$package" --timeout 120 -j "$JOBS" > "$log" 2>&1
   set -e
-  check_ratchet "$package" "$allowed" "$log" || status=1
+  # A hang is not a passing test, so it is still a floor — but it is a different defect from a line
+  # no assertion pins, and it wants different work: an exit condition rather than a test case.
+  # Counted apart so that turning one into the other reads as what it is.
+  missed=$(grep -cE "^MISSED" "$log" || true)
+  hangs=$(grep -cE "^TIMEOUT" "$log" || true)
+  tail -1 "$log"
+  for kind in missed hangs; do
+    case "$kind" in
+      missed) found=$missed; floor=$allowed_missed; word="unpinned"; pattern="^MISSED" ;;
+      hangs)  found=$hangs;  floor=$allowed_hangs;  word="hanging";  pattern="^TIMEOUT" ;;
+    esac
+    if [ "$found" -gt "$floor" ]; then
+      echo "  RATCHET BROKEN: $found $word, floor $floor" >&2
+      grep -E "$pattern" "$log" | sed 's/ in [0-9].*//' >&2
+      status=1
+    elif [ "$found" -lt "$floor" ]; then
+      echo "  $found $word, below the floor of $floor — lower it in this script"
+    else
+      echo "  $found $word, at the floor"
+    fi
+  done
 done
+
+# A named package with no entry ran nothing and exited 0, which reads as a clean run. A crate has to
+# be measurable before it has a floor, so say what to do rather than succeed silently.
+if [ "$#" -gt 0 ] && [ "$matched" -eq 0 ]; then
+  echo "no baseline entry for '$1'. To measure a crate for the first time:" >&2
+  echo "  CARGO_BUILD_BUILD_DIR=mutants-build CARGO_BUILD_JOBS=1 \\" >&2
+  echo "    nice -n 15 cargo mutants -p $1 --timeout 120 -j 2" >&2
+  echo "then add \"$1:<missed+timeout>\" to BASELINES with the survivors accounted for." >&2
+  exit 2
+fi
 exit "$status"

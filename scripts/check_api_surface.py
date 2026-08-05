@@ -34,6 +34,7 @@ RUST_TREES = [
     "crates/dsrust-derive/src",
     "crates/dsrust-tpe/src",
     "crates/dsrust-gepa/src",
+    "crates/dsrust-json-repair/src",
     "crates/pyrng/src",
 ]
 #: What counts as *defining* an identifier, so a passing reference to a common word (`Type`, `Code`)

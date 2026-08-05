@@ -28,25 +28,16 @@ pub fn format_value(value: &Value) -> String {
     }
 }
 
-/// Python's `json.dumps` spacing — `", "` between items, `": "` after a key. Escaping is left
-/// to serde_json, which already agrees with the `ensure_ascii=False` upstream passes: both
-/// emit a non-ASCII character as itself.
+/// Python's `json.dumps(value, ensure_ascii=False)`, which is what upstream passes here.
+///
+/// Delegated to `json_repair`, which reproduces the writer whole. Doing it here with
+/// `scalar.to_string()` agreed with Python on everything except a float outside the fixed-notation
+/// window: `1e16` is what Rust's `Display` writes and `1e+16` is what `float.__repr__` does, and a
+/// schema or a demo carrying such a number rendered a prompt off dspy's bytes.
 pub(crate) fn json_dumps(value: &Value) -> String {
-    match value {
-        Value::Array(items) => format!(
-            "[{}]",
-            items.iter().map(json_dumps).collect::<Vec<_>>().join(", ")
-        ),
-        Value::Object(fields) => format!(
-            "{{{}}}",
-            fields
-                .iter()
-                .map(|(key, value)| format!("{}: {}", json!(key), json_dumps(value)))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        scalar => scalar.to_string(),
-    }
+    json_repair::Repair::new()
+        .ensure_ascii(false)
+        .dumps(&json_repair::Value::from(value.clone()))
 }
 
 /// The name Python would print for this value's type, which is what a model driving a REPL is
@@ -239,6 +230,17 @@ mod tests {
     fn an_empty_structure_has_no_padding() {
         assert_eq!(format_value(&json!({})), "{}");
         assert_eq!(format_value(&json!([])), "[]");
+    }
+
+    #[test]
+    fn a_float_is_spelled_the_way_python_spells_it() {
+        // `json.dumps({"big": 1e16, "small": 1e-5, "mid": 1e15}, ensure_ascii=False)`. Rust's own
+        // `Display` writes `10000000000000000` and `0.00001` for the outer two, so a schema or a
+        // demo carrying such a number used to render a prompt off dspy's bytes.
+        assert_eq!(
+            json_dumps(&json!({ "big": 1e16, "small": 1e-5, "mid": 1e15 })),
+            r#"{"big": 1e+16, "small": 1e-05, "mid": 1000000000000000.0}"#
+        );
     }
 
     #[test]

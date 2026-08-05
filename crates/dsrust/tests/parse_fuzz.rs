@@ -41,8 +41,15 @@ fn sweep() -> Value {
 fn campaign() -> Option<Value> {
     let path =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/parse_fuzz.json");
-    let text = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str(&text).ok()
+    let text = std::fs::read_to_string(&path).ok()?;
+    // A corpus that is *present* and unreadable used to skip as quietly as one that was absent,
+    // which would hide the corpus dspy writes for a value JSON has no literal for.
+    Some(serde_json::from_str(&text).unwrap_or_else(|error| {
+        panic!(
+            "{}: {error} — the corpus is there and does not parse",
+            path.display()
+        )
+    }))
 }
 
 fn adapter_for(name: &str) -> Box<dyn Adapter> {
@@ -56,6 +63,12 @@ fn adapter_for(name: &str) -> Box<dyn Adapter> {
 /// How a case disagreed, so the summary can group rather than list.
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Shape {
+    /// Both refused, for different reasons.
+    ///
+    /// dspy raises `AdapterParseError` for every refusal these generators produce, so matching the
+    /// class alone matched everything — across the 88% of each campaign dspy rejects. The message
+    /// names the missing field and the adapter that was reading, which is the part a caller acts on.
+    DifferentRefusal,
     /// dspy parsed it and we refused.
     WeRefused,
     /// We parsed it and dspy refused — the worse direction: a wrong value reaches the caller.
@@ -91,7 +104,12 @@ fn check(corpus: &Value) {
 
         let shape = match (expected["ok"].as_bool().expect("ok"), &ours) {
             (true, Ok(ours)) if *ours == expected["fields"] => continue,
-            (false, Err(_)) => continue,
+            (false, Err(ours))
+                if ours.to_string() == expected["message"].as_str().unwrap_or_default() =>
+            {
+                continue;
+            }
+            (false, Err(_)) => Shape::DifferentRefusal,
             (true, Err(_)) => Shape::WeRefused,
             (false, Ok(_)) => Shape::WeAccepted,
             (true, Ok(_)) => Shape::DifferentValue,
@@ -122,6 +140,7 @@ fn check(corpus: &Value) {
     let mut tally: std::collections::BTreeMap<(&str, &str), usize> = Default::default();
     for (shape, which, _) in &disagreements {
         let label = match shape {
+            Shape::DifferentRefusal => "both refused, differently",
             Shape::WeRefused => "dspy parsed, we refused",
             Shape::WeAccepted => "we parsed, dspy refused",
             Shape::DifferentValue => "both parsed, differently",
@@ -140,6 +159,7 @@ fn check(corpus: &Value) {
     );
     for (shape, which, detail) in disagreements.iter().take(40) {
         let label = match shape {
+            Shape::DifferentRefusal => "both refused, differently",
             Shape::WeRefused => "dspy parsed, we refused",
             Shape::WeAccepted => "we parsed, dspy refused",
             Shape::DifferentValue => "both parsed, differently",
@@ -150,31 +170,13 @@ fn check(corpus: &Value) {
         eprintln!("  … and {} more", disagreements.len() - 40);
     }
 
-    // One category is known and named: `json_repair` recovers JSON this crate's own repair does
-    // not, which `json-repair-port` tracks. Everything else must be zero, and the rules are
-    // deliberately not "no disagreements at all" — a blanket assertion against a known gap either
-    // blocks every run or gets switched off, and neither says anything.
-    //
-    //   - **`we parsed, dspy refused` is zero for every adapter, always.** That is the direction
-    //     that hands a caller a wrong value instead of an error, and no repair gap excuses it.
-    //   - **the marker and tag parsers agree completely.** They did on the first run of this and
-    //     there is no reason for that to stop.
-    let mut unexpected: Vec<&(Shape, &str, String)> = disagreements
-        .iter()
-        .filter(|(shape, which, _)| {
-            *shape == Shape::WeAccepted || (*which != "json" || *shape != Shape::WeRefused)
-        })
-        .collect();
-    unexpected.dedup_by(|left, right| std::ptr::eq(*left, *right));
-    assert!(
-        unexpected.is_empty(),
-        "{} disagreements outside the known `json-repair-port` gap — the first is [{}] {}",
-        unexpected.len(),
-        unexpected[0].1,
-        unexpected[0].2
-    );
-    eprintln!(
-        "  all {} disagreements are the known json-repair gap; the other two parsers agree",
-        disagreements.len()
+    // The rule is now every disagreement, with no category excused. It used to allow exactly one —
+    // `[json] dspy parsed, we refused`, where `json_repair` recovered a reply this crate's own
+    // repair could not — and that allowance is what `dsrust-json-repair` was written to delete.
+    panic!(
+        "{} of {} random replies disagree with dspy (seed {})",
+        disagreements.len(),
+        cases.len(),
+        corpus["seed"]
     );
 }
