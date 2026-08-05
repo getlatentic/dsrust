@@ -2905,6 +2905,101 @@ is the finding.
 test that asserts it to go red. It stays green today.
 """
 
+[[story]]
+id = "dspy-flex"
+sprint = "api"
+title = "dspy 3.3.0 shipped a whole feature this port does not have"
+state = "todo"
+size = "L"
+suites = ""
+plan = """
+`dspy.Flex` arrived in 3.3.0 with six test files of its own — a binding layer, a GEPA extension, an
+interpreter binding, output types, and tools. None runs here; all six are excused by name in
+`check_coverage.py` so the gap is a decision on the record rather than six files nobody noticed.
+
+**Why it is excused rather than scheduled.** Its own docstring: "Experimental: This class may change
+or be removed in a future release without warning (introduced in v3.3.0)." Porting an API upstream
+reserves the right to delete costs the same as porting a stable one and earns a conformance claim
+that expires. The rest of this port pins to what upstream promises.
+
+**What would change that.** Flex surviving a release without breaking, or a caller wanting it. Both
+are reasons to reopen; neither is true today.
+
+**What to read first.** `dspy/flex/` and the GEPA extension in the 3.3.0 release commit
+(`feat(dspy.Flex) + GEPA extension`, #10047) — the GEPA half matters most here, because this crate
+reproduces gepa as its own byte-compliant crate and an extension to it is an extension to that.
+"""
+
+[[story]]
+id = "resource-loading-suite"
+sprint = "api"
+title = "3.3.0's resource-loading tests read image and audio off disk, and nothing runs them"
+state = "todo"
+size = "S"
+suites = ""
+plan = """
+`tests/adapters/test_resource_loading.py` is new in 3.3.0 and excused by name rather than run. It
+loads images and audio from disk and through pydantic's `TypeAdapter`, which is a path this crate
+has — `dsrust::Image`, `dsrust::Audio` — so this is wiring rather than porting.
+
+Small, and worth doing before the next pin: an excused file that *could* run is the kind of excuse
+that quietly becomes permanent.
+"""
+measured = """
+2026-08-05, at the 3.3.0 pin: 18 upstream failures — `upstream_test_adapter_image.py` 10,
+`upstream_test_types.py` 4, `upstream_test_adapter_file.py` 4 — from the same change. 3.3.0 made
+`Image`'s source positional-only and requires `from_path`/`from_url` rather than inferring a path,
+so the suite exercises constructors this crate does not have. Bigger than "wiring", and it is the
+whole of the red outside the interpreter modules and the LM wire.
+"""
+
+[[story]]
+id = "interpreter-per-call"
+sprint = "api"
+title = "3.3.0 builds a sandbox per forward pass, and this crate holds one for the module's life"
+state = "todo"
+size = "M"
+suites = ""
+plan = """
+`CodeAct`, `ProgramOfThought` and `RLM` all replaced `interpreter` with `interpreter_factory` in
+3.3.0 — a zero-argument callable, invoked per forward pass, with dspy shutting down each interpreter
+it returns. Its own docstring says the callable "may be invoked concurrently".
+
+`pin-drift` predicted this from the main-branch diff and the bump confirmed it: all three generators
+raised `TypeError: got an unexpected keyword argument 'interpreter'` at 3.3.0, which is how it
+surfaced. The generators now pass the factory and the goldens are regenerated, so nothing here is
+red — the prompts did not move. What moved is the *lifecycle*, which no golden sees.
+
+**Why it is not a rename.** `Rlm::interpreter(signature, Arc<dyn CodeInterpreter>)` takes one
+interpreter and keeps it, and `DenoInterpreter` holds a live child process behind that `Arc`. A
+factory means creating and tearing that process down per call, concurrently — so the work is the
+process lifecycle and its shutdown, not the parameter.
+
+**Beside it, and the same three modules.** `primitives/code_interpreter.py` gained
+`CodeExecutionError`, a typed error for a sandbox that refused the code. This crate answers with an
+`anyhow::Error` carrying the sandbox's own message; a typed counterpart is the decision `LmFailure`
+already made for provider failures, and it belongs in this change rather than after it.
+
+**What proves it.** A test that runs two forward passes and asserts the second did not reuse the
+first's interpreter, plus one that runs them concurrently. Neither exists, because neither could
+until there was a factory to observe.
+"""
+measured = """
+2026-08-05, at the 3.3.0 pin: this is what holds the upstream suite red. 241 of ~281 failures are
+these three modules and their interpreter — `upstream_test_python_interpreter.py` 104,
+`upstream_test_rlm.py` 95, `upstream_test_code_act.py` 23,
+`upstream_test_program_of_thought.py` 19.
+
+Three shapes inside that:
+  - 88 are `fixture 'pooled_interpreter' not found` and `configure_pooled_interpreter` — conftest
+    fixtures new in 3.3.0 that the bridge does not provide, because pooling is what a per-call
+    factory makes possible;
+  - ~41 are `RustRLM.forward() takes 1 positional argument but 2 were given` and
+    `'RustCodeAct' object has no attribute 'interpreter'` — the bridge's shims still expose the
+    3.3.0b1 shape;
+  - the rest follow from those two.
+"""
+
 [[backlog]]
 id = "b14"
 title = "s12 was built ahead of the pin, and has no oracle at 3.2.1"

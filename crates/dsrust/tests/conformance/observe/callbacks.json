@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_callback_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_callback_fixture.py",
+  "dspy_version": "3.3.0",
   "note": "Each case is the sequence of BaseCallback handlers one program fired, with the nesting depth of the call each belongs to. `chain_of_thought_n3` is the sequence upstream asserts by hand in tests/callback/test_callback.py.",
   "cases": [
     {

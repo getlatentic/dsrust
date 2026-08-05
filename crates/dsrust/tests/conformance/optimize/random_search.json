@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_random_search_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_random_search_fixture.py",
+  "dspy_version": "3.3.0",
   "note": "Which seeds each search attempted. `restrict` filters the range the loop already walks, so it narrows and never extends, and it does not spare the three baselines.",
   "trainset": [
     {

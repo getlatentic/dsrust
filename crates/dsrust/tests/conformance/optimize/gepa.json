@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 + gepa==0.1.1 via scripts/generate_gepa_optimize_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 + gepa==0.1.1 via scripts/generate_gepa_optimize_fixture.py",
+  "dspy_version": "3.3.0",
   "gepa_version": "0.1.1",
   "trainset": [
     {

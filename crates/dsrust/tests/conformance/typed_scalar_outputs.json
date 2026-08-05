@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_fixtures.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_fixtures.py",
+  "dspy_version": "3.3.0",
   "instructions": "Read the sentence and report the numbers.",
   "inputs": [
     {

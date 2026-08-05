@@ -1,5 +1,5 @@
 {
-  "_source": "dspy 3.3.0b1 build_repl_variable, via generate_sandbox_serializable_fixture.py",
+  "_source": "dspy 3.3.0 build_repl_variable, via generate_sandbox_serializable_fixture.py",
   "cases": [
     {
       "label": "setup and a desc, which concatenate",

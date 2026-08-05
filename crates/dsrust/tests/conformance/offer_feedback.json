@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_fixtures.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_fixtures.py",
+  "dspy_version": "3.3.0",
   "instructions": "In the discussion, assign blame to each module that contributed to the final reward being below the threshold, if\nany. Then, prescribe concrete advice of how the module should act on its future input when we retry the process, if\nit were to receive the same or similar inputs. If a module is not to blame, the advice should be N/A.\nThe module will not see its own history, so it needs to rely on entirely concrete and actionable advice from you\nto avoid the same mistake on the same or similar inputs.",
   "inputs": [
     {

@@ -108,7 +108,7 @@ fn raised_message(py: Python<'_>, error: &PyErr) -> String {
 #[pyfunction]
 #[pyo3(signature = (
     instructions, inputs, outputs, values, interpreter, action_lm, extract_lm,
-    max_iterations = None, max_llm_calls = None,
+    max_iters = None, max_llm_calls = None,
 ))]
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn rlm_forward(
@@ -120,7 +120,7 @@ pub(crate) fn rlm_forward(
     interpreter: Py<PyAny>,
     action_lm: Py<PyAny>,
     extract_lm: Py<PyAny>,
-    max_iterations: Option<usize>,
+    max_iters: Option<usize>,
     max_llm_calls: Option<usize>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
@@ -129,8 +129,8 @@ pub(crate) fn rlm_forward(
     if let Some(max_llm_calls) = max_llm_calls {
         rlm = rlm.max_llm_calls(max_llm_calls);
     }
-    if let Some(max_iterations) = max_iterations {
-        rlm = rlm.max_iterations(max_iterations);
+    if let Some(max_iters) = max_iters {
+        rlm = rlm.max_iters(max_iters);
     }
     rlm = rlm
         .action_lm(Arc::new(PyLM { inner: action_lm }))

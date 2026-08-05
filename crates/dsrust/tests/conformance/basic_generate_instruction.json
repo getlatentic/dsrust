@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_fixtures.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_fixtures.py",
+  "dspy_version": "3.3.0",
   "instructions": "You are an instruction optimizer for large language models. I will give you a ``signature`` of fields (inputs and outputs) in English. Your task is to propose an instruction that will lead a good language model to perform the task well. Don't be afraid to be creative.",
   "inputs": [
     {

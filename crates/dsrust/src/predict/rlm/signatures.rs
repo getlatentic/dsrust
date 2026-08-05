@@ -95,7 +95,7 @@ pub(crate) fn signatures(
             ),
             input(
                 "iteration",
-                "Current iteration number (1-indexed) out of max_iterations",
+                "Current iteration number (1-indexed) out of max_iters",
                 FieldKind::Str,
             ),
         ],

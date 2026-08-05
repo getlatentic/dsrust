@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_string_form_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_string_form_fixture.py",
+  "dspy_version": "3.3.0",
   "note": "Whether pydantic validates a bare string for each annotation a signature can name. `annotation_name` is what get_annotation_name gives, which is the string the crate matches on.",
   "arbitrary_probe": "print('hi')",
   "well_formed_probes": {

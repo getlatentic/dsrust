@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_history_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_history_fixture.py",
+  "dspy_version": "3.3.0",
   "note": "A history exchange substitutes Python's None for a field it never recorded, whatever the annotation. An incomplete demo substitutes 'Not supplied for this particular example. '. They are different strings from different call sites and the crate had them confused.",
   "history": {
     "exchanges": [

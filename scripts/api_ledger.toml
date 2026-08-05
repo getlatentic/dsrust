@@ -23,6 +23,7 @@
 # says nothing about what it takes, and that is where a port loses things without going red.
 
 [symbols]
+"primitives/code_interpreter.py::CodeExecutionError" = { status = "divergence", reason = "new in 3.3.0: a typed error for a sandbox that refused the code. This crate answers with an `anyhow::Error` carrying the sandbox's own message, which is what a caller reads either way — a typed counterpart is the decision `LmFailure` already made for provider failures and is worth the same treatment. Filed as `interpreter-per-call`, which touches the same three modules" }
 
 # --- adapters ---
 "adapters/base.py::Adapter" = { status = "mapped", rust = "Adapter" }
@@ -260,6 +261,9 @@
 # The classification is the load-bearing part — a recorded decision per method.
 
 [methods]
+"adapters/types/image.py::Image.from_path" = { status = "todo", reason = "new in 3.3.0: load an image off disk explicitly, which upstream now requires rather than inferring a path from the source. No counterpart here. Filed as `resource-loading-suite` with the upstream suite that covers it" }
+"adapters/types/audio.py::Audio.from_path" = { status = "todo", reason = "as `Image.from_path`; same story" }
+"signatures/signature.py::Signature.append_instructions" = { status = "divergence", rust = "Signature::instructions", reason = "a mutator that appends to the instruction string. `Signature.instructions` is a public `String` field here, so appending is `signature.instructions.push_str(…)` — a method for it would be a method for one operation on a field the caller already holds" }
 
 # --- the callback protocol: the twelve handlers, each a defaulted trait method ---
 "utils/callback.py::BaseCallback.on_module_start" = { status = "mapped", rust = "on_module_start" }
@@ -584,6 +588,10 @@
 "primitives/repl_types.py::REPLHistory.serialize_model" = { status = "divergence", reason = "as `REPLVariable.serialize_model`" }
 
 [constructors]
+"adapters/types/image.py::Image.source" = { status = "divergence", rust = "Image::url, Image::base64", reason = "3.3.0 renamed the constructor's parameter and made it positional-only, so `Image(url=…)` is now `Image(source)`. Rust names its constructors instead of overloading one: `Image::url` and `Image::base64` say which kind of source they take, where upstream inspects the value" }
+"predict/code_act.py::CodeAct.interpreter_factory" = { status = "divergence", rust = "CodeAct::interpreter", reason = "3.3.0 takes a zero-argument factory and builds an interpreter per forward pass, shutting each one down after; 3.3.0b1 took the interpreter itself and held it for the module's lifetime. This crate still holds one — `DenoInterpreter` keeps a child process — so the change is a lifecycle, not a parameter. Filed as `interpreter-per-call`" }
+"predict/program_of_thought.py::ProgramOfThought.interpreter_factory" = { status = "divergence", rust = "ProgramOfThought::interpreter", reason = "3.3.0 takes a zero-argument factory and builds an interpreter per forward pass, shutting each one down after; 3.3.0b1 took the interpreter itself and held it for the module's lifetime. This crate still holds one — `DenoInterpreter` keeps a child process — so the change is a lifecycle, not a parameter. Filed as `interpreter-per-call`" }
+"predict/rlm.py::RLM.interpreter_factory" = { status = "divergence", rust = "RLM::interpreter", reason = "3.3.0 takes a zero-argument factory and builds an interpreter per forward pass, shutting each one down after; 3.3.0b1 took the interpreter itself and held it for the module's lifetime. This crate still holds one — `DenoInterpreter` keeps a child process — so the change is a lifecycle, not a parameter. Filed as `interpreter-per-call`" }
 
 "adapters/base.py::Adapter.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and all six are ported: `Callback` in src/callback.rs, fired from src/observe.rs, this adapter's format and parse included. What has no counterpart is the *per-instance list*. Upstream stores one on every Adapter through the base class and unions it with the configured ones; a Rust Adapter is a trait an implementor writes, with no shared __init__ to hold a list. So the list is per process (configure_callbacks) or per model (LM::with_callbacks), and a handler is told which adapter it is watching, which is what a per-instance list is read for here. tests/callback.rs holds the sequence to dspy's own" }
 "adapters/base.py::Adapter.native_response_types" = { status = "divergence", reason = "dspy's per-adapter list of output types answered by a native provider feature rather than rendered, defaulting to [Citations, Reasoning]. Both are on that path here — adapter/native_reasoning.rs and adapter/native_citations.rs — each keyed on the model rather than on the adapter, which is where upstream keys it too: `adapt_to_native_lm_feature` is handed the lm and reads `lm.model`. What has no counterpart is the *list*, which is dspy's seam for taking a type back *off* the native path; nothing here has asked for that, and a per-adapter list with two fixed entries would be a knob with no caller. tests/citations_native.rs holds both arms of the Citations carve-out to goldens generated by running dspy" }
@@ -599,7 +607,6 @@
 "adapters/json_adapter.py::JSONAdapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "JsonAdapter::use_native_function_calling" }
 "adapters/two_step_adapter.py::TwoStepAdapter.extraction_model" = { status = "mapped", rust = "extraction_model", reason = "TwoStepAdapter::extraction_model" }
 "adapters/types/image.py::Image.download" = { status = "divergence", reason = "dspy can fetch a url and inline it as base64; this crate sends the url or bytes the caller supplies and makes no request of its own" }
-"adapters/types/image.py::Image.url" = { status = "mapped", rust = "Image", reason = "Image::new takes the url or a data uri" }
 "adapters/types/image.py::Image.verify" = { status = "divergence", reason = "pydantic validator plumbing for dspy's own constructor" }
 "adapters/types/tool.py::Tool.arg_desc" = { status = "divergence", reason = "per-argument prose lives in the `args` schema's `description`, which is where it is rendered from" }
 "adapters/types/tool.py::Tool.arg_types" = { status = "divergence", reason = "the JSON Schema in `args` carries each argument's type; dspy keeps the Python annotations beside it for its own coercion" }
@@ -653,7 +660,6 @@
 "predict/chain_of_thought.py::ChainOfThought.rationale_field" = { status = "mapped", rust = "ChainOfThought::rationale", reason = "takes a whole OutField, so the description, closed set, schema and prefix are all the caller's. Only the name is fixed at `reasoning`, because upstream prepends under that name too" }
 "predict/chain_of_thought.py::ChainOfThought.rationale_field_type" = { status = "mapped", rust = "ChainOfThought::rationale", reason = "the type travels as OutField::kind, so the one constructor carries both of upstream's arguments" }
 "predict/chain_of_thought.py::ChainOfThought.signature" = { status = "mapped", rust = "ChainOfThought", reason = "ChainOfThought::new, positional" }
-"predict/code_act.py::CodeAct.interpreter" = { status = "mapped", rust = "interpreter", reason = "CodeAct::with_interpreter" }
 "predict/code_act.py::CodeAct.max_iters" = { status = "mapped", rust = "max_iters", reason = "CodeAct::with_max_iters" }
 "predict/code_act.py::CodeAct.signature" = { status = "mapped", rust = "new", reason = "CodeAct::new, positional" }
 "predict/code_act.py::CodeAct.tools" = { status = "mapped", rust = "new", reason = "CodeAct::new, positional" }
@@ -670,7 +676,6 @@
 "predict/parallel.py::Parallel.timeout" = { status = "mapped", rust = "timeout", reason = "Parallel::timeout" }
 "predict/predict.py::Predict.callbacks" = { status = "divergence", reason = "dspy's Module.__init__ stores a per-instance list every subclass inherits, and both of the registration paths its own documentation shows are ported: process-wide (configure_callbacks) and per model (LM::with_callbacks). A Rust Module is a trait, so there is no shared constructor to hold a list and each of the eight module structs would carry its own field — while a derived Module could not have one at all. A handler is told which module type it is watching and CallId::parent gives the call it sits under. Filed as `callbacks-per-module`" }
 "predict/predict.py::Predict.signature" = { status = "mapped", rust = "from_signature", reason = "Predict::from_signature / the predict! macro" }
-"predict/program_of_thought.py::ProgramOfThought.interpreter" = { status = "mapped", rust = "interpreter", reason = "ProgramOfThought::with_interpreter" }
 "predict/program_of_thought.py::ProgramOfThought.max_iters" = { status = "mapped", rust = "max_iters", reason = "ProgramOfThought::with_max_iters" }
 "predict/program_of_thought.py::ProgramOfThought.signature" = { status = "mapped", rust = "new", reason = "ProgramOfThought::new, positional" }
 "predict/react.py::ReAct.max_iters" = { status = "mapped", rust = "max_iters", reason = "ReAct::with_max_iters" }
@@ -684,8 +689,7 @@
 "predict/refine.py::Refine.module" = { status = "mapped", rust = "Refine", reason = "Refine::new, positional" }
 "predict/refine.py::Refine.reward_fn" = { status = "mapped", rust = "Refine", reason = "Refine::new's reward" }
 "predict/refine.py::Refine.threshold" = { status = "mapped", rust = "Refine", reason = "Refine::new's threshold" }
-"predict/rlm.py::RLM.interpreter" = { status = "mapped", rust = "interpreter", reason = "Rlm::with_interpreter" }
-"predict/rlm.py::RLM.max_iterations" = { status = "mapped", rust = "max_iterations", reason = "Rlm::with_max_iterations" }
+"predict/rlm.py::RLM.max_iters" = { status = "mapped", rust = "max_iters", reason = "Rlm::with_max_iters" }
 "predict/rlm.py::RLM.max_llm_calls" = { status = "mapped", rust = "max_llm_calls", reason = "Rlm::with_max_llm_calls" }
 "predict/rlm.py::RLM.max_output_chars" = { status = "mapped", rust = "max_output_chars", reason = "Rlm::max_output_chars" }
 "predict/rlm.py::RLM.signature" = { status = "mapped", rust = "Rlm", reason = "Rlm::new, positional" }
@@ -1033,6 +1037,10 @@
 
 "clients/base_lm.py::BaseLM.load_state.state" = { status = "mapped", rust = "saved::rebuild", reason = "as `LM.load_state.state`" }
 "clients/base_lm.py::BaseLM.load_state.allow_custom_lm_class" = { status = "divergence", rust = "saved::rebuild", reason = "as `LM.load_state.allow_custom_lm_class`" }
+
+"predict/code_act.py::CodeAct.forward.interpreter" = { status = "divergence", reason = "the other half of the same change: `forward` now takes the interpreter the factory built. See `CodeAct.interpreter_factory`" }
+"predict/program_of_thought.py::ProgramOfThought.forward.interpreter" = { status = "divergence", reason = "the other half of the same change: `forward` now takes the interpreter the factory built. See `ProgramOfThought.interpreter_factory`" }
+"predict/rlm.py::RLM.forward.interpreter" = { status = "divergence", reason = "the other half of the same change: `forward` now takes the interpreter the factory built. See `RLM.interpreter_factory`" }
 
 [rust_only]
 "dsrust::lm::saved::CLASS_KEY" = { status = "mapped", reason = "dspy's `LM_CLASS_STATE_KEY`, the key naming which BaseLM subclass wrote a saved block" }

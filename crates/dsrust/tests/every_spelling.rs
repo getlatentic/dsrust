@@ -392,7 +392,7 @@ fn the_code_writing_macros_take_both_spellings() {
     let pot_typed = dsrust::ProgramOfThought!(Compute);
     let act = dsrust::CodeAct!("question -> answer", tools(), max_iters = 3);
     let act_typed = dsrust::CodeAct!(Compute, tools());
-    let reader = dsrust::RLM!("question -> answer", max_iterations = 6);
+    let reader = dsrust::RLM!("question -> answer", max_iters = 6);
     let reader_typed = dsrust::RLM!(Compute);
 
     for signature in [

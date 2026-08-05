@@ -66,7 +66,7 @@ def factorial(n: int) -> int:
 
 
 class Unused:
-    """RLM builds an interpreter lazily; the fixture never runs code."""
+    """RLM builds an interpreter per forward pass; the fixture never runs code."""
 
     def execute(self, code, variables=None):
         raise AssertionError("the fixture does not execute code")
@@ -125,7 +125,11 @@ def main() -> None:
             cases.append({"written": written, "code": None, "error": str(error)})
     signatures = []
     for label, signature, tools, max_llm_calls in SIGNATURE_CASES:
-        rlm = RLM(signature, tools=tools or None, max_llm_calls=max_llm_calls, interpreter=Unused())
+        # dspy 3.3.0 takes a zero-argument *factory* rather than an interpreter: one is built per
+        # forward pass and shut down after, where 3.3.0b1 held one for the module's lifetime.
+        # The fixture never runs code, so `Unused` stands in either way — but it has to be passed
+        # as the callable now, which is `Unused` itself rather than `Unused()`.
+        rlm = RLM(signature, tools=tools or None, max_llm_calls=max_llm_calls, interpreter_factory=Unused)
         signatures.append(
             {
                 "label": label,

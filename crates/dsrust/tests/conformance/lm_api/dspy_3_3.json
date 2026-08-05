@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_lm_api_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_lm_api_fixture.py",
+  "dspy_version": "3.3.0",
   "entries": [
     {
       "rust": "LmPart",
@@ -184,6 +184,7 @@
         "parameters": {
           "type": "object"
         },
+        "strict": null,
         "metadata": {},
         "provider_data": {}
       }
@@ -352,6 +353,7 @@
             "name": "search",
             "description": null,
             "parameters": {},
+            "strict": null,
             "metadata": {},
             "provider_data": {}
           }

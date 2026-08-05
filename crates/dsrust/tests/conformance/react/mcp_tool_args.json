@@ -1,6 +1,6 @@
 {
-  "source": "dspy==3.3.0b1 adapters/types/tool.convert_input_schema_to_tool_args",
-  "dspy_version": "3.3.0b1",
+  "source": "dspy==3.3.0 adapters/types/tool.convert_input_schema_to_tool_args",
+  "dspy_version": "3.3.0",
   "cases": [
     {
       "name": "flat",

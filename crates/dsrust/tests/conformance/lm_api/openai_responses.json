@@ -1,6 +1,6 @@
 {
-  "source": "dspy==3.3.0b1 clients/openai_format to_openai_responses_request + responses_to_lm_response",
-  "dspy_version": "3.3.0b1",
+  "source": "dspy==3.3.0 clients/openai_format to_openai_responses_request + responses_to_lm_response",
+  "dspy_version": "3.3.0",
   "request_cases": [
     {
       "name": "minimal",
@@ -496,6 +496,7 @@
                 }
               }
             },
+            "strict": null,
             "metadata": {},
             "provider_data": {}
           }
@@ -532,14 +533,12 @@
         "tools": [
           {
             "type": "function",
-            "function": {
-              "name": "get_weather",
-              "parameters": {
-                "type": "object",
-                "properties": {
-                  "city": {
-                    "type": "string"
-                  }
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
                 }
               }
             }
@@ -578,6 +577,7 @@
                 }
               }
             },
+            "strict": null,
             "metadata": {},
             "provider_data": {}
           }
@@ -619,14 +619,12 @@
         "tools": [
           {
             "type": "function",
-            "function": {
-              "name": "get_weather",
-              "parameters": {
-                "type": "object",
-                "properties": {
-                  "city": {
-                    "type": "string"
-                  }
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
                 }
               }
             }
@@ -665,6 +663,7 @@
                 }
               }
             },
+            "strict": null,
             "metadata": {},
             "provider_data": {}
           }
@@ -706,21 +705,17 @@
         ],
         "tool_choice": {
           "type": "function",
-          "function": {
-            "name": "get_weather"
-          }
+          "name": "get_weather"
         },
         "tools": [
           {
             "type": "function",
-            "function": {
-              "name": "get_weather",
-              "parameters": {
-                "type": "object",
-                "properties": {
-                  "city": {
-                    "type": "string"
-                  }
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
                 }
               }
             }
@@ -759,6 +754,7 @@
                 }
               }
             },
+            "strict": null,
             "metadata": {},
             "provider_data": {}
           }
@@ -801,14 +797,12 @@
         "tools": [
           {
             "type": "function",
-            "function": {
-              "name": "get_weather",
-              "parameters": {
-                "type": "object",
-                "properties": {
-                  "city": {
-                    "type": "string"
-                  }
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
                 }
               }
             }
@@ -886,6 +880,7 @@
                 }
               }
             },
+            "strict": null,
             "metadata": {},
             "provider_data": {}
           }
@@ -933,14 +928,12 @@
         "tools": [
           {
             "type": "function",
-            "function": {
-              "name": "get_weather",
-              "parameters": {
-                "type": "object",
-                "properties": {
-                  "city": {
-                    "type": "string"
-                  }
+            "name": "get_weather",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "city": {
+                  "type": "string"
                 }
               }
             }

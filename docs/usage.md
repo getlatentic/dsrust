@@ -640,12 +640,12 @@ Every signature-taking macro accepts **either spelling** — a string, or a task
 let quick   = Predict!("question -> answer");
 let declared = Predict!(Investigate);          // carries its doc comment as instructions
 let agent    = ReAct!(Investigate, tools, max_iters = 4);
-let reader   = RLM!(Investigate, max_iterations = 6);
+let reader   = RLM!(Investigate, max_iters = 6);
 ```
 
-Each keeps the cap keyword its own module uses in DSPy 3.3.0b1: `max_iters` for most,
-`max_iterations` for `RLM`. Naming them alike would be naming them something neither has — though
-DSPy's main branch has since converged on `max_iters`, so this one follows when the pin moves.
+Every module spells its cap `max_iters`, as DSPy 3.3.0 does. It did not until then — `RLM` used
+`max_iterations` through 3.3.0b1, and this crate carried the split rather than inventing a uniform
+name neither side had. The pin moved and so did this.
 
 ### Code-writing modules run real Python
 

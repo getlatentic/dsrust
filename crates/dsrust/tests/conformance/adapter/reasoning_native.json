@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_reasoning_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_reasoning_fixture.py",
+  "dspy_version": "3.3.0",
   "note": "Both arms of Reasoning.adapt_to_native_lm_feature: a model that reasons drops the field from the render and carries a reasoning_effort, one that does not renders it. The whole system prompt is recorded, not a substring — removing a field renumbers every output line after it.",
   "renders": [
     {

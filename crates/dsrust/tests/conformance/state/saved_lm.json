@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_saved_lm_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_saved_lm_fixture.py",
+  "dspy_version": "3.3.0",
   "note": "What BaseLM.dump_state writes for a model a caller built. Key order is dspy's and is part of what a byte comparison checks.",
   "class_key": "_dspy_lm_class",
   "builtin_class": "dspy.clients.lm.LM",

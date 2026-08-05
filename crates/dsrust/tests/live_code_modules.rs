@@ -197,7 +197,7 @@ async fn rlm_drives_a_repl_against_a_real_model() {
         "context -> answer".parse::<Signature>().expect("parses"),
         interpreter.clone(),
     )
-    .max_iterations(3);
+    .max_iters(3);
 
     let context = "Paris is the capital of France. ".repeat(50);
     let prediction = rlm

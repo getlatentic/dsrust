@@ -1,5 +1,5 @@
 {
-  "_source": "dspy 3.3.0b1 utils/exceptions.py, via generate_exceptions_fixture.py",
+  "_source": "dspy 3.3.0 utils/exceptions.py, via generate_exceptions_fixture.py",
   "kinds": [
     {
       "code": "transport",

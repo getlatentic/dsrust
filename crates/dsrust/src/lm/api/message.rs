@@ -113,6 +113,11 @@ pub struct LmToolSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     pub parameters: Metadata,
+    /// dspy 3.3.0's `strict`: OpenAI's structured-tool flag, carried on the spec and written to a
+    /// wire only when the caller set it. Serialised even as `None`, because it is a field of the
+    /// typed request rather than of the body — `null` is what upstream's own dump writes.
+    #[serde(default)]
+    pub strict: Option<bool>,
     #[serde(default, skip_serializing_if = "Metadata::is_empty")]
     pub metadata: Metadata,
     #[serde(default, skip_serializing_if = "Metadata::is_empty")]
@@ -126,6 +131,7 @@ impl LmToolSpec {
             name: name.into(),
             description: None,
             parameters,
+            strict: None,
             metadata: Metadata::new(),
             provider_data: Metadata::new(),
         }

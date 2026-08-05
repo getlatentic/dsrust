@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_mcc_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_mcc_fixture.py",
+  "dspy_version": "3.3.0",
   "prefixes_are_recorded_but_never_rendered": "dspy 3.2.1 deprecated the prefix= argument to InputField/OutputField: it is still stored on the field and still compared by Signature.equals, but no adapter reads it. Compare a field's prefix here against the system message and it is absent.",
   "cases": [
     {

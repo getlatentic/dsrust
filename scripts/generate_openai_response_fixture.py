@@ -18,10 +18,15 @@ import pathlib
 import sys
 
 import dspy
+
+from pins import require
 import dspy.core.types as t
 from dspy.clients.openai_format import completion_to_lm_response
 
-PINNED = "3.3.0b1"
+# Read from the pin rather than written here: a generator that names its own
+# version cannot follow a bump, and six of them refused to run at 3.3.0 for
+# exactly that reason while claiming the pin had drifted.
+PINNED = require("dspy")
 OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "lm_api" / "openai_response.json"
 
 # The request only supplies the model fallback when a response omits its own; every case here sets one.

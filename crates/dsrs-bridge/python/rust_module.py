@@ -270,7 +270,7 @@ class RustRLM(dspy.RLM):
                 interpreter,
                 _PredictorAsLM(self.generate_action),
                 _PredictorAsLM(self.extract),
-                self.max_iterations,
+                self.max_iters,
                 self.max_llm_calls,
             )
         return dspy.Prediction(

@@ -6,7 +6,7 @@ version = "0"
 description = "Pinned dspy/gepa/optuna environment for DsRust's conformance harness."
 requires-python = ">=3.12"
 dependencies = [
-    "dspy==3.3.0b1",
+    "dspy==3.3.0",
     "gepa==0.1.1",
     "optuna==4.9.0",
     "pytest",

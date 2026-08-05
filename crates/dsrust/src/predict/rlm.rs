@@ -44,21 +44,20 @@ const DEFAULT_MAX_LLM_CALLS: usize = 50;
 ///
 /// Takes a string signature or a task declared with `#[derive(Signature)]`, as every other module
 /// macro does; the declared form carries its doc comment as the signature's instructions.
-/// `max_iterations = N` caps the loop.
+/// `max_iters = N` caps the loop.
 #[macro_export]
 macro_rules! RLM {
     ($signature:literal $(,)?) => {
         $crate::Rlm::new($crate::make_signature!($signature))
     };
-    ($signature:literal, max_iterations = $max:expr $(,)?) => {
-        $crate::Rlm::new($crate::make_signature!($signature)).max_iterations($max)
+    ($signature:literal, max_iters = $max:expr $(,)?) => {
+        $crate::Rlm::new($crate::make_signature!($signature)).max_iters($max)
     };
     ($task:ty $(,)?) => {
         $crate::Rlm::new(<$task as $crate::signature::SignatureSpec>::signature())
     };
-    ($task:ty, max_iterations = $max:expr $(,)?) => {
-        $crate::Rlm::new(<$task as $crate::signature::SignatureSpec>::signature())
-            .max_iterations($max)
+    ($task:ty, max_iters = $max:expr $(,)?) => {
+        $crate::Rlm::new(<$task as $crate::signature::SignatureSpec>::signature()).max_iters($max)
     };
 }
 
@@ -75,7 +74,7 @@ pub struct Rlm {
     /// The task's real signature: what the caller asked for.
     pub signature: Signature,
     /// How many snippets the model may run before the extract ask happens anyway.
-    pub max_iterations: usize,
+    pub max_iters: usize,
     /// The sub-LLM call budget the model is told about.
     pub max_llm_calls: usize,
     /// How much of one output reaches the next prompt.
@@ -108,7 +107,7 @@ impl Rlm {
         let (action, extract) = signatures(&signature, &tools, DEFAULT_MAX_LLM_CALLS);
         Self {
             signature,
-            max_iterations: 20,
+            max_iters: 20,
             max_llm_calls: DEFAULT_MAX_LLM_CALLS,
             max_output_chars: crate::interpreter::repl::MAX_OUTPUT_CHARS,
             generate_action: Predict::from_signature(action),
@@ -147,8 +146,8 @@ impl Rlm {
             .collect()
     }
 
-    pub fn max_iterations(mut self, max_iterations: usize) -> Self {
-        self.max_iterations = max_iterations;
+    pub fn max_iters(mut self, max_iters: usize) -> Self {
+        self.max_iters = max_iters;
         self
     }
 
@@ -235,13 +234,13 @@ impl Rlm {
             .collect();
         let mut history = ReplHistory::new(self.max_output_chars);
 
-        for iteration in 0..self.max_iterations {
+        for iteration in 0..self.max_iters {
             let asked = Example::new([
                 ("variables_info", json!(variables)),
                 ("repl_history", to_field_value(&history)),
                 (
                     "iteration",
-                    json!(format!("{}/{}", iteration + 1, self.max_iterations)),
+                    json!(format!("{}/{}", iteration + 1, self.max_iters)),
                 ),
             ]);
             let mark = trace.len();
@@ -611,7 +610,7 @@ mod loop_tests {
         )))]));
         let look = Box::leak(action("look", "```python\nprint(1)\n```").into_boxed_str());
         let extracted = "[[ ## answer ## ]]\nfrom the trajectory\n\n[[ ## completed ## ]]";
-        let rlm = rlm(interpreter, &[look, extracted]).max_iterations(1);
+        let rlm = rlm(interpreter, &[look, extracted]).max_iters(1);
 
         let prediction = rlm
             .forward(example! { context: "doc" })

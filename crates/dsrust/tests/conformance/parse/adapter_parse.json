@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_parse_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_parse_fixture.py",
+  "dspy_version": "3.3.0",
   "note": "What each adapter's parse returns for a reply, and which it refuses. The refusals matter as much as the successes: a reply the crate accepts where dspy raises reaches the caller as a wrong value rather than an error.",
   "cases": [
     {

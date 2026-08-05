@@ -37,7 +37,7 @@ def lookup(name: str, year: int) -> str:
 
 
 class Unused:
-    """CodeAct builds an interpreter in its constructor; the fixture never runs code."""
+    """CodeAct builds an interpreter per forward pass; the fixture never runs code."""
 
     def execute(self, code, variables=None):
         raise AssertionError("the fixture does not execute code")
@@ -85,7 +85,11 @@ def described(signature) -> dict:
 def main() -> None:
     cases = []
     for label, signature, tools in CASES:
-        act = CodeAct(signature, tools=tools, interpreter=Unused())
+        # dspy 3.3.0 takes a zero-argument *factory* rather than an interpreter: one is built per
+        # forward pass and shut down after, where 3.3.0b1 held one for the module's lifetime.
+        # The fixture never runs code, so `Unused` stands in either way — but it has to be passed
+        # as the callable now, which is `Unused` itself rather than `Unused()`.
+        act = CodeAct(signature, tools=tools, interpreter_factory=Unused)
         cases.append(
             {
                 "label": label,

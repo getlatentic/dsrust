@@ -26,6 +26,26 @@ MANIFEST = ROOT / "scripts" / "upstream_tests.txt"
 #: what the file tests rather than saying "not ported" — the two are different, and only the first
 #: survives someone asking.
 EXCUSED = {
+    # New in dspy 3.3.0, and each decided rather than overlooked.
+    #
+    # `dspy.Flex` is a whole feature this port does not have — its own class, its own GEPA
+    # extension, its own interpreter binding — and its docstring calls itself experimental and
+    # says it "may change or be removed in a future release without warning". Porting an API
+    # upstream reserves the right to delete is not a 1.0 obligation; filed as `dspy-flex` so the
+    # decision is written down rather than implied by six excused files.
+    "tests/flex/test_flex_binding.py": "dspy.Flex, new and experimental in 3.3.0 (`dspy-flex`)",
+    "tests/flex/test_flex_gepa.py": "dspy.Flex, new and experimental in 3.3.0 (`dspy-flex`)",
+    "tests/flex/test_flex_gepa_seed.py": "dspy.Flex, new and experimental in 3.3.0 (`dspy-flex`)",
+    "tests/flex/test_flex_interpreter.py": "dspy.Flex, new and experimental in 3.3.0 (`dspy-flex`)",
+    "tests/flex/test_flex_output_types.py": "dspy.Flex, new and experimental in 3.3.0 (`dspy-flex`)",
+    "tests/flex/test_tools.py": "dspy.Flex, new and experimental in 3.3.0 (`dspy-flex`)",
+    # Live, by its own docstring: "provider behavior that cannot be verified with the mocked unit
+    # tests". The crate's own live tests carry `#[ignore]` for the same reason.
+    "tests/clients/test_lm_direct_live.py": "talks to a live provider",
+    # Reads image and audio resources off disk and through pydantic's TypeAdapter. Wants running
+    # rather than excusing, and is a slice of work rather than a line here.
+    "tests/adapters/test_resource_loading.py": "not yet wired (`resource-loading-suite`)",
+
     # Providers and features outside the port's ceiling.
     "tests/clients/test_databricks.py": "a provider this crate does not speak",
     "tests/clients/test_embedding.py": "embeddings, which the port does not cover",

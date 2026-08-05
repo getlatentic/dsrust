@@ -1,6 +1,6 @@
 {
-  "source": "dspy==3.3.0b1 clients/openai_format.completion_to_lm_response",
-  "dspy_version": "3.3.0b1",
+  "source": "dspy==3.3.0 clients/openai_format.completion_to_lm_response",
+  "dspy_version": "3.3.0",
   "cases": [
     {
       "name": "plain_text",

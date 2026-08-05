@@ -13,7 +13,7 @@ use anyhow::{Result, anyhow};
 use futures_util::Stream;
 use serde_json::{Value, json};
 
-use super::{JsonFormat, apply_tool_choice, response, tool_json};
+use super::{JsonFormat, provider_extras, response};
 use crate::lm::api::{self, Metadata};
 use crate::lm::streaming::Framing;
 
@@ -74,10 +74,10 @@ pub fn request(
         body["prompt_cache_key"] = json!(key);
     }
     if let Some(choice) = &config.tool_choice {
-        apply_tool_choice(&mut body, choice);
+        apply_responses_tool_choice(&mut body, choice)?;
     }
     if !call.tools.is_empty() {
-        body["tools"] = Value::Array(call.tools.iter().map(tool_json).collect());
+        body["tools"] = Value::Array(call.tools.iter().map(tool_item).collect());
     }
     Ok(body)
 }
@@ -514,4 +514,61 @@ mod tests {
             "the streamed reply equals the non-streamed one"
         );
     }
+}
+
+/// dspy 3.3.0's `tool_to_openai_responses`: the Responses API's function-tool shape.
+///
+/// Flat, where the chat dialect nests under `function` — `{type, name, parameters}` with the
+/// optional fields beside them rather than inside. Until 3.3.0 both wires shared
+/// `tool_to_openai`, so this wire sent the chat shape and OpenAI took it; the two renderers split
+/// when `strict` arrived, and the provider extras land at the top level here for the same reason
+/// they land under `function` there — each dialect puts them where it puts its function fields.
+fn tool_item(tool: &api::LmToolSpec) -> Value {
+    let mut data = json!({
+        "type": tool.r#type,
+        "name": tool.name,
+        "parameters": tool.parameters,
+    });
+    if let Some(description) = &tool.description {
+        data["description"] = json!(description);
+    }
+    if let Some(strict) = tool.strict {
+        data["strict"] = json!(strict);
+    }
+    for (key, value) in provider_extras(tool) {
+        data[key] = value.clone();
+    }
+    data
+}
+
+/// dspy 3.3.0's `tool_choice_to_openai_responses`: the Responses API's flat `tool_choice`.
+///
+/// `{"type": "function", "name": …}`, where the chat dialect nests the name under `"function"`.
+/// Both wires shared one renderer until 3.3.0.
+///
+/// And this one **refuses** a constraint the wire cannot express, where the chat renderer falls
+/// back to the bare mode. Reproduced rather than softened: the body builder already returns a
+/// `Result`, so there is no reason to answer a request upstream rejects.
+fn apply_responses_tool_choice(body: &mut Value, choice: &api::LmToolChoice) -> Result<()> {
+    match choice.allowed.as_deref() {
+        Some(allowed) => {
+            if allowed.len() != 1
+                || !matches!(
+                    choice.mode,
+                    api::ToolChoiceMode::Required | api::ToolChoiceMode::Auto
+                )
+            {
+                anyhow::bail!(
+                    "OpenAI Responses tool_choice only supports constraining to a single allowed \
+                     tool with mode 'required' or 'auto'."
+                );
+            }
+            body["tool_choice"] = json!({ "type": "function", "name": allowed[0] });
+        }
+        None => body["tool_choice"] = json!(choice.mode),
+    }
+    if let Some(parallel) = choice.parallel {
+        body["parallel_tool_calls"] = json!(parallel);
+    }
+    Ok(())
 }

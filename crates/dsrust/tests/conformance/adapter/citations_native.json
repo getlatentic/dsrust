@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_citations_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_citations_fixture.py",
+  "dspy_version": "3.3.0",
   "note": "Both arms of Citations.adapt_to_native_lm_feature: an anthropic/ model drops the field from the render, every other provider keeps it. `parsed` is what Citations.parse_lm_response makes of the citations litellm flattens out of provider_specific_fields.",
   "renders": [
     {

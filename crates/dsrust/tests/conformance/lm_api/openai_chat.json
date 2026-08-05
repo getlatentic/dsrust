@@ -1,6 +1,6 @@
 {
-  "source": "dspy==3.3.0b1 clients/openai_format.to_openai_chat_request",
-  "dspy_version": "3.3.0b1",
+  "source": "dspy==3.3.0 clients/openai_format.to_openai_chat_request",
+  "dspy_version": "3.3.0",
   "cases": [
     {
       "name": "minimal",
@@ -785,6 +785,7 @@
                 }
               }
             },
+            "strict": null,
             "metadata": {},
             "provider_data": {}
           }
@@ -858,6 +859,7 @@
             "parameters": {
               "type": "object"
             },
+            "strict": null,
             "metadata": {},
             "provider_data": {}
           }
@@ -937,6 +939,7 @@
             "parameters": {
               "type": "object"
             },
+            "strict": null,
             "metadata": {},
             "provider_data": {}
           }
@@ -1153,6 +1156,7 @@
                 }
               }
             },
+            "strict": null,
             "metadata": {},
             "provider_data": {}
           }

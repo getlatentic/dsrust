@@ -350,7 +350,24 @@ fn request(
     Ok(request)
 }
 
-/// dspy's `tool_to_openai`: a function tool, its provider data merged onto the tool object.
+/// The wire keys a dialect writes itself, so `provider_data` cannot overwrite one.
+///
+/// dspy 3.3.0's `_TOOL_SPEC_WIRE_KEYS`. Before it, `data.update(tool.provider_data)` merged the
+/// whole map at the top level and a caller could shadow `parameters` from provider data.
+const TOOL_WIRE_KEYS: [&str; 5] = ["type", "name", "description", "parameters", "strict"];
+
+/// `provider_data` minus what the dialect writes itself — dspy's `_tool_provider_extras`.
+pub(super) fn provider_extras(tool: &api::LmToolSpec) -> impl Iterator<Item = (&String, &Value)> {
+    tool.provider_data
+        .iter()
+        .filter(|(key, _)| !TOOL_WIRE_KEYS.contains(&key.as_str()))
+}
+
+/// dspy's `tool_to_openai`: a function tool, its provider extras merged **under `function`**.
+///
+/// They went at the top level until 3.3.0, which moved them beside the other function fields —
+/// "each dialect emits them where it puts function fields", nested here and flattened in the
+/// Responses shape.
 pub(super) fn tool_json(tool: &api::LmToolSpec) -> Value {
     let mut data = json!({
         "type": tool.r#type,
@@ -359,8 +376,13 @@ pub(super) fn tool_json(tool: &api::LmToolSpec) -> Value {
     if let Some(description) = &tool.description {
         data["function"]["description"] = json!(description);
     }
-    for (key, value) in &tool.provider_data {
-        data[key] = value.clone();
+    // Only when set: `strict` is a field of the typed spec, where it serialises as `null`, and a
+    // key of the body only when the caller asked for it.
+    if let Some(strict) = tool.strict {
+        data["function"]["strict"] = json!(strict);
+    }
+    for (key, value) in provider_extras(tool) {
+        data["function"][key] = value.clone();
     }
     data
 }

@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_lm_state_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_lm_state_fixture.py",
+  "dspy_version": "3.3.0",
   "note": "What a load-then-save leaves in the lm block. The default drops the keys that decide where a call goes; allow_unsafe_lm_state=True keeps them. This crate never acts on the block, so the risk is laundering rather than redirection \u2014 and laundering is what carrying it unchanged would be.",
   "saved_lm": {
     "model": "openai/gpt-4o-mini",

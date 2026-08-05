@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0b1 via scripts/generate_gepa_budget_fixture.py",
-  "dspy_version": "3.3.0b1",
+  "source": "generated from dspy==3.3.0 via scripts/generate_gepa_budget_fixture.py",
+  "dspy_version": "3.3.0",
   "cases": [
     {
       "num_preds": 1,

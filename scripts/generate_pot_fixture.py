@@ -78,7 +78,7 @@ def described(signature, instructions: str) -> dict:
 
 
 class Unused:
-    """ProgramOfThought builds an interpreter in its constructor; the fixture never runs code, so
+    """ProgramOfThought builds an interpreter per forward pass; the fixture never runs code, so
     this stands in rather than requiring deno to be installed."""
 
     def execute(self, code, variables=None):
@@ -91,7 +91,11 @@ class Unused:
 def main() -> None:
     cases = []
     for task in TASKS:
-        pot = ProgramOfThought(task, interpreter=Unused())
+        # dspy 3.3.0 takes a zero-argument *factory* rather than an interpreter: one is built per
+        # forward pass and shut down after, where 3.3.0b1 held one for the module's lifetime.
+        # The fixture never runs code, so `Unused` stands in either way — but it has to be passed
+        # as the callable now, which is `Unused` itself rather than `Unused()`.
+        pot = ProgramOfThought(task, interpreter_factory=Unused)
         cases.append(
             {
                 "task": task,
@@ -103,7 +107,7 @@ def main() -> None:
                 },
             }
         )
-    pot = ProgramOfThought("question -> answer", interpreter=Unused())
+    pot = ProgramOfThought("question -> answer", interpreter_factory=Unused)
     parsed = []
     for written in WRITTEN:
         code, error = pot._parse_code({"generated_code": written})
