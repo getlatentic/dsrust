@@ -276,24 +276,17 @@ impl Parser {
             return None;
         }
         let start = self.index + 1;
-        let end = self.json_str[start..]
-            .iter()
-            .position(|&char| char == '"')?
-            + start;
-        let value: String = self.json_str[start..end].iter().collect();
+        let end = self.json_str.find_from(start, '"')?;
+        let value: String = self.json_str.slice_string(start, end);
         if value.contains(['\\', '\n', '\r']) {
             return None;
         }
 
         let mut next_index = end + 1;
-        while self
-            .json_str
-            .get(next_index)
-            .is_some_and(|&char| pychar::is_space(char))
-        {
+        while self.json_str.at(next_index).is_some_and(pychar::is_space) {
             next_index += 1;
         }
-        let next_char = self.json_str.get(next_index).copied();
+        let next_char = self.json_str.at(next_index);
         let follows = match self.context.current {
             Some(ContextValue::ObjectKey) => next_char == Some(':'),
             Some(ContextValue::ObjectValue) => matches!(next_char, Some(',' | '}') | None),

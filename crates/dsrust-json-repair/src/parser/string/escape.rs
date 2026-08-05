@@ -71,7 +71,7 @@ impl Parser {
     fn halve_backslash_run(&mut self, state: &mut StringParseState, active: char) -> bool {
         let run_start = self.index - 1;
         let mut run_end = self.index + 1;
-        while run_end < self.len() && self.json_str[run_end] == '\\' {
+        while self.json_str.at(run_end) == Some('\\') {
             run_end += 1;
         }
         let run_length = run_end - run_start;

@@ -78,6 +78,12 @@ pub(crate) fn loads(text: &str) -> Result<Value, NotJson> {
     Ok(value)
 }
 
+/// `JSONDecoder().raw_decode(text)`: one value, and where it ended — in bytes, which for the
+/// ASCII caller is the same number as code points. Trailing text is the caller's.
+pub(crate) fn raw_decode(text: &str) -> Scan {
+    scan_once(&Text::new(text), 0)
+}
+
 /// `json.decoder.WHITESPACE`, which is these four characters and not `str.isspace()`.
 fn skip_whitespace(text: &Text<'_>, mut index: usize) -> usize {
     while matches!(text.get(index), Some(b' ' | b'\t' | b'\n' | b'\r')) {

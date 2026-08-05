@@ -92,7 +92,13 @@ impl Parser {
 
         let (prop_schema, extra_schemas, drop_property) =
             self.resolve_object_property_schema(guided, config, &key)?;
-        let key_path = format!("{path}.{key}");
+        // As in `parse_array_items`: the path names this property for schema logs and errors,
+        // and without a repairer nothing reads it.
+        let key_path = if self.schema_repairer.is_some() {
+            format!("{path}.{key}")
+        } else {
+            String::new()
+        };
         let mut value = self.parse_object_value(guided, prop_schema, &key_path)?;
         if guided {
             for extra in extra_schemas {

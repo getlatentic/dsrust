@@ -206,8 +206,9 @@ impl Parser {
         );
         state.pending_inline_container = false;
         state.inline_container_stack.clear();
-        let span: Vec<char> =
-            self.json_str[self.index..self.index + container_end_idx as usize].to_vec();
+        let span: Vec<char> = self
+            .json_str
+            .chars_vec(self.index, self.index + container_end_idx as usize);
         state.append(&span);
         self.index += container_end_idx as usize;
         Step::Again(self.char_here())

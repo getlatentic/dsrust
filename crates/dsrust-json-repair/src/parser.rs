@@ -11,6 +11,7 @@ pub(crate) mod context;
 pub(crate) mod number;
 pub(crate) mod object;
 pub(crate) mod parenthesized;
+pub(crate) mod source;
 pub(crate) mod string;
 
 use std::rc::Rc;
@@ -31,7 +32,7 @@ pub struct LogEntry {
 
 pub(crate) struct Parser {
     /// The input, which the object repairs splice into as they go.
-    pub(crate) json_str: Vec<char>,
+    pub(crate) json_str: source::Source,
     pub(crate) index: usize,
     pub(crate) context: JsonContext,
     pub(crate) deferred_contexts: Vec<ContextValue>,
@@ -60,7 +61,7 @@ pub(crate) struct Parser {
 impl Parser {
     pub(crate) fn new(json_str: &str, options: &crate::Repair, logger: LogSink) -> Self {
         Self {
-            json_str: json_str.chars().collect(),
+            json_str: source::Source::of(json_str),
             index: 0,
             context: JsonContext::new(),
             deferred_contexts: Vec::new(),
@@ -112,8 +113,7 @@ impl Parser {
         };
         usize::try_from(position)
             .ok()
-            .and_then(|position| self.json_str.get(position))
-            .copied()
+            .and_then(|position| self.json_str.at(position))
     }
 
     pub(crate) fn char_here(&self) -> Option<char> {
@@ -135,21 +135,23 @@ impl Parser {
         if start >= end {
             return String::new();
         }
-        self.json_str[start..end].iter().collect()
+        self.json_str.slice_string(start, end)
     }
 
     pub(crate) fn skip_whitespaces(&mut self) {
-        while self.char_here().is_some_and(crate::pychar::is_space) {
-            self.index += 1;
-        }
+        self.index = self.json_str.scroll_spaces_from(self.index);
     }
 
     /// Whitespace from `self.index + idx` on, as an offset from `self.index`. Does not move.
-    pub(crate) fn scroll_whitespaces(&self, mut idx: isize) -> isize {
-        while self.get_char_at(idx).is_some_and(crate::pychar::is_space) {
-            idx += 1;
-        }
-        idx
+    ///
+    /// A negative `idx` cannot occur here — every caller scrolls forward from at or past the
+    /// cursor — so the byte walk starts at a real position. The debug assert is what makes that
+    /// sentence checkable rather than believed.
+    pub(crate) fn scroll_whitespaces(&self, idx: isize) -> isize {
+        let start = self.index as isize + idx;
+        debug_assert!(start >= 0, "a whitespace scroll from before the input");
+        let position = self.json_str.scroll_spaces_from(start.max(0) as usize);
+        position as isize - self.index as isize
     }
 
     /// Advance from `self.index + idx` to the next *unescaped* target, or to the end.
@@ -161,9 +163,9 @@ impl Parser {
         let mut position = self.index as isize + idx;
         let mut backslashes = 0_usize;
         while position < length {
-            let Some(&ch) = usize::try_from(position)
+            let Some(ch) = usize::try_from(position)
                 .ok()
-                .and_then(|at| self.json_str.get(at))
+                .and_then(|at| self.json_str.at(at))
             else {
                 break;
             };
@@ -252,10 +254,15 @@ impl Parser {
             return true;
         }
         let mut position = self.index as isize - 1;
-        while position >= 0 && crate::pychar::is_space(self.json_str[position as usize]) {
+        while position >= 0
+            && self
+                .json_str
+                .at(position as usize)
+                .is_some_and(crate::pychar::is_space)
+        {
             position -= 1;
         }
-        position >= 0 && self.json_str[position as usize] == ','
+        position >= 0 && self.json_str.at(position as usize) == Some(',')
     }
 
     /// The suffix fast path: once past a prefix, a value that is *already* valid JSON is decoded
@@ -269,7 +276,18 @@ impl Parser {
             return None;
         }
         self.has_tried_valid_json_suffix = true;
-        let (value, end) = crate::strict_json::raw_decode(&self.json_str[self.index..]).ok()?;
+        // The suffix goes to whichever strict scanner matches the storage; the two are one grammar,
+        // held together by `tests/scanner_agreement.rs`. An `Ascii` suffix is valid UTF-8 as it
+        // stands, and its byte positions are the code-point positions this index needs.
+        let (value, end) = match &self.json_str {
+            source::Source::Ascii(bytes) => {
+                let suffix = std::str::from_utf8(&bytes[self.index..]).expect("ASCII is UTF-8");
+                crate::strict_json::bytes::raw_decode(suffix).ok()?
+            }
+            source::Source::Wide(chars) => {
+                crate::strict_json::raw_decode(&chars[self.index..]).ok()?
+            }
+        };
         self.index += end;
         Some(value)
     }

@@ -88,10 +88,7 @@ impl Parser {
 
     fn splice(&mut self, start: usize, end: usize, replacement: &str) {
         let end = end.min(self.len());
-        let mut rebuilt: Vec<char> = self.json_str[..start].to_vec();
-        rebuilt.extend(replacement.chars());
-        rebuilt.extend_from_slice(&self.json_str[end..]);
-        self.json_str = rebuilt;
+        self.json_str.splice(start, end, replacement);
     }
 
     fn classify_empty_object_repair(&self, start_index: usize, schema: Option<&Schema>) -> Repair {

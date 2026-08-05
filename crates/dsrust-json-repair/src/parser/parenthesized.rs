@@ -90,7 +90,9 @@ impl Parser {
         let mut nesting = Nesting::default();
         let mut saw_top_level_content = false;
         for position in self.index + 1..self.len() {
-            let ch = self.json_str[position];
+            let Some(ch) = self.json_str.at(position) else {
+                break;
+            };
             match nesting.quoting(ch) {
                 Quoting::Consumed => continue,
                 Quoting::Opened => {
@@ -123,7 +125,9 @@ impl Parser {
     pub(crate) fn top_level_parenthesized_can_start_value(&self) -> bool {
         let mut position = self.index as isize - 1;
         while position >= 0 {
-            let ch = self.json_str[position as usize];
+            let Some(ch) = self.json_str.at(position as usize) else {
+                break;
+            };
             if ch == '\n' || ch == '\r' {
                 break;
             }
@@ -139,7 +143,9 @@ impl Parser {
 
         let mut nesting = Nesting::default();
         for position in self.index + 1..self.len() {
-            let ch = self.json_str[position];
+            let Some(ch) = self.json_str.at(position) else {
+                break;
+            };
             if matches!(nesting.quoting(ch), Quoting::Consumed | Quoting::Opened) {
                 continue;
             }
@@ -148,10 +154,11 @@ impl Parser {
                     nesting.parentheses -= 1;
                     continue;
                 }
-                return self.json_str[position + 1..]
-                    .iter()
-                    .take_while(|&&trailer| trailer != '\n' && trailer != '\r')
-                    .all(|&trailer| pychar::is_space(trailer));
+                return self
+                    .json_str
+                    .iter_from(position + 1)
+                    .take_while(|&trailer| trailer != '\n' && trailer != '\r')
+                    .all(pychar::is_space);
             }
             nesting.open_or_close(ch);
         }

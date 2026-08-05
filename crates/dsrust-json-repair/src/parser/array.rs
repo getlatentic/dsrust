@@ -57,7 +57,14 @@ impl Parser {
                 break;
             }
             let (item_schema, drop_item) = crate::schema::resolve_array_item_schema(config, idx)?;
-            let item_path = format!("{path}[{idx}]");
+            // The path names this item in schema logs and errors, and without a repairer nothing
+            // ever reads it — formatting one per item was a fifth of an unguided parse's
+            // allocations, measured on a four-thousand-member reply.
+            let item_path = if self.schema_repairer.is_some() {
+                format!("{path}[{idx}]")
+            } else {
+                String::new()
+            };
             let active = guided && !drop_item && !salvage;
             let value = self.array_item(char, active, item_schema, &item_path)?;
 
