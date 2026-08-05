@@ -368,11 +368,21 @@ def _synchronous(fn):
     Awaiting a Python coroutine is Python's job — upstream does it in `_await_in_sync` — so the
     callable is wrapped here rather than making the Rust side reason about an event loop.
     """
+    from dspy.primitives.python_interpreter import _make_jsonable
+
     if not inspect.iscoroutinefunction(fn):
-        return fn
+        # dspy converts a tool's return with `_make_jsonable` before it goes back to the sandbox —
+        # that is how a dataclass or a pydantic model crosses, and how a value with no JSON form
+        # becomes a typed refusal instead of a serializer traceback. The shim's path bypassed
+        # dspy's `_handle_tool_call`, so the conversion has to ride the wrapper.
+        def converted(**kwargs):
+            return _make_jsonable(fn(**kwargs))
+
+        converted.__signature__ = inspect.signature(fn)
+        return converted
 
     def awaited(**kwargs):
-        return asyncio.run(fn(**kwargs))
+        return _make_jsonable(asyncio.run(fn(**kwargs)))
 
     awaited.__signature__ = inspect.signature(fn)
     return awaited
@@ -437,7 +447,16 @@ class RustPythonInterpreter(dspy.primitives.python_interpreter.PythonInterpreter
                 outputs=json.dumps(self.output_fields) if self.output_fields else None,
             )
             self._tools_registered = True
-        payload = json.dumps(variables or {})
+        # dspy's own host-side conversion layer, above the interpreter protocol: `_make_jsonable`
+        # is what turns a set, a dataclass, a namedtuple or a pydantic model into JSON before the
+        # sandbox boundary, raising CodeInterpreterError for a value with no JSON form. This
+        # override replaces dspy's `execute` whole, so skipping it here skipped the layer — and
+        # `json.dumps` met a raw set. The strict xfails for `test_serialize_set` were dropped on
+        # the reasoning that "dspy converts before it reaches the crate": true of dspy's own
+        # interpreter, false of this shim until this line.
+        from dspy.primitives.python_interpreter import _make_jsonable
+
+        payload = json.dumps({k: _make_jsonable(v) for k, v in (variables or {}).items()})
         try:
             kind, value_json = self._rust.execute(code, payload)
         except ValueError as error:
