@@ -328,16 +328,20 @@ impl DenoInterpreter {
             bail!("Unknown tool: {name}");
         };
         let answered = crate::observe::tool_call(tool.as_ref(), arguments)?;
-        Ok(match answered.is_array() || answered.is_object() {
-            true => json!({ "value": answered.to_string(), "type": "json" }),
-            false => json!({
-                "value": answered.as_str().map(str::to_owned)
-                    .unwrap_or_else(|| match answered.is_null() {
-                        true => String::new(),
-                        false => answered.to_string(),
-                    }),
-                "type": "string",
-            }),
+        // dspy's rule, and the whole of it: `None` and `str` cross as `"string"`; *everything
+        // else* crosses as `"json"`, so the sandbox decodes it back to its own type. Only a value
+        // JSON cannot hold falls back to its string form — upstream reaches that through
+        // `json.dumps(..., allow_nan=False)` raising on a non-finite float.
+        //
+        // This kept `"json"` for arrays and objects alone, so a tool returning `4` arrived in the
+        // sandbox as the string `"4"` and `n + 1` failed with "can only concatenate str".
+        Ok(match &answered {
+            Value::Null => json!({ "value": "", "type": "string" }),
+            Value::String(text) => json!({ "value": text, "type": "string" }),
+            Value::Number(number) if number.as_f64().is_some_and(|n| !n.is_finite()) => {
+                json!({ "value": answered.to_string(), "type": "string" })
+            }
+            _ => json!({ "value": answered.to_string(), "type": "json" }),
         })
     }
 }

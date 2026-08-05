@@ -19,7 +19,11 @@ import dspy
 import dspy.primitives.python_interpreter
 import pydantic
 from dspy.adapters.utils import format_field_value, parse_value
-from dspy.primitives.code_interpreter import CodeInterpreterError, FinalOutput
+from dspy.primitives.code_interpreter import (
+    CodeExecutionError,
+    CodeInterpreterError,
+    FinalOutput,
+)
 
 import crossings
 import dsrs_bridge
@@ -459,13 +463,23 @@ class RustPythonInterpreter(dspy.primitives.python_interpreter.PythonInterpreter
         payload = json.dumps({k: _make_jsonable(v) for k, v in (variables or {}).items()})
         try:
             kind, value_json = self._rust.execute(code, payload)
-        except ValueError as error:
-            # anyhow has no class to cross as, so the crate's message — which is dspy's own
-            # wording — is what picks the exception here, exactly as the code modules do.
+        except dsrs_bridge.SandboxSessionFailed as error:
+            # The interpreter's own failure — host setup, the process, the protocol. Terminal for
+            # the session, and no rewrite of the submitted code repairs it.
+            raise CodeInterpreterError(str(error)) from None
+        except (dsrs_bridge.SandboxExecutionFailed, ValueError) as error:
+            # The submitted code's failure in a healthy sandbox, which a module hands back to the
+            # model to correct.
+            #
+            # By exception *class*, not by reading the message. The crate decides this from the
+            # JSON-RPC error code and the bridge carries the variant across, because a text match
+            # cannot survive `test_generated_exception_name_cannot_spoof_interpreter_failure`:
+            # sandbox code declaring `class CodeInterpreterError` and raising it is still the
+            # code's failure, and matching on the name reads it as the interpreter's.
             said = str(error)
             if said.startswith("Invalid Python syntax"):
                 raise SyntaxError(said) from None
-            raise CodeInterpreterError(said) from None
+            raise CodeExecutionError(said) from None
         value = json.loads(value_json)
         return FinalOutput(value) if kind == "submitted" else value
 

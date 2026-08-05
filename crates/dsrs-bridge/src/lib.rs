@@ -865,6 +865,16 @@ fn json_fallback_settings(
 
 #[pymodule]
 fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    // The two sandbox failure classes, so the shim can tell the code's failure from the
+    // interpreter's by type rather than by reading the message — see `sandbox::sandbox_failure`.
+    module.add(
+        "SandboxExecutionFailed",
+        module.py().get_type::<sandbox::SandboxExecutionFailed>(),
+    )?;
+    module.add(
+        "SandboxSessionFailed",
+        module.py().get_type::<sandbox::SandboxSessionFailed>(),
+    )?;
     module.add_function(wrap_pyfunction!(format_messages, module)?)?;
     module.add_function(wrap_pyfunction!(predict_forward, module)?)?;
     module.add_function(wrap_pyfunction!(react_forward, module)?)?;

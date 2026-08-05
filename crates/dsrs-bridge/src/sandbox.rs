@@ -11,8 +11,41 @@ use std::sync::Arc;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+
+pyo3::create_exception!(
+    dsrs_bridge,
+    SandboxExecutionFailed,
+    pyo3::exceptions::PyException,
+    "The submitted code failed in a healthy sandbox — dspy's `CodeExecutionError`."
+);
+pyo3::create_exception!(
+    dsrs_bridge,
+    SandboxSessionFailed,
+    pyo3::exceptions::PyException,
+    "The sandbox itself failed: host setup, process or protocol — dspy's bare `CodeInterpreterError`."
+);
+
+/// The crate's `InterpreterFailure` as the exception class that says which it was.
+///
+/// The shim used to pick the Python class by matching the message text, which cannot survive
+/// upstream's `test_generated_exception_name_cannot_spoof_interpreter_failure`: code *inside* the
+/// sandbox declaring `class CodeInterpreterError` and raising it is still the code's own failure,
+/// and a text match reads it as the interpreter's. The crate already decides this structurally,
+/// from the JSON-RPC error code, so the answer only has to survive the boundary.
+fn sandbox_failure(error: anyhow::Error) -> PyErr {
+    let said = format!("{error:#}");
+    match error.downcast_ref::<InterpreterFailure>() {
+        Some(InterpreterFailure::Session(_)) => SandboxSessionFailed::new_err(said),
+        Some(InterpreterFailure::Execution(_)) => SandboxExecutionFailed::new_err(said),
+        // An error from somewhere other than the sandbox conversation — variable preparation, a
+        // tool's own refusal. Recoverable by default, as upstream treats anything its protocol
+        // layer did not itself raise.
+        None => SandboxExecutionFailed::new_err(said),
+    }
+}
 use serde_json::{Map, Value};
 
+use dsrust::interpreter::InterpreterFailure;
 use dsrust::interpreter::{CodeInterpreter, DenoInterpreter, Executed, OutputField, Permissions};
 use dsrust::react::Tool;
 
@@ -180,10 +213,7 @@ impl RustSandbox {
             false => serde_json::from_str(variables)
                 .map_err(|error| PyValueError::new_err(format!("variables: {error}")))?,
         };
-        let ran = self
-            .inner
-            .execute(code, &given)
-            .map_err(|error| PyValueError::new_err(format!("{error:#}")))?;
+        let ran = self.inner.execute(code, &given).map_err(sandbox_failure)?;
         let kind = match ran {
             Executed::Submitted(_) => "submitted",
             Executed::Printed(_) => "printed",
