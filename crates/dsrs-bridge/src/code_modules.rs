@@ -383,9 +383,20 @@ pub(crate) fn responses_body(request: &str) -> PyResult<String> {
         .get("model")
         .and_then(Value::as_str)
         .unwrap_or_default();
+    // Upstream's own first step, and the reason this route tolerates what the typed one refuses:
+    // a chat dict reaching here may be a provider-SDK dump or carry Responses-native blocks, and
+    // `_sanitize_legacy_message` is where both are made readable. The rules are the crate's; only
+    // the routing is here.
     let messages: Vec<LmMessage> = written
         .get("messages")
-        .cloned()
+        .and_then(Value::as_array)
+        .map(|messages| {
+            messages
+                .iter()
+                .map(dsrust::lm::api::sanitized_legacy_message)
+                .collect()
+        })
+        .map(Value::Array)
         .map(serde_json::from_value)
         .transpose()
         .map_err(|error| PyValueError::new_err(format!("messages: {error}")))?

@@ -1043,7 +1043,8 @@
 "predict/rlm.py::RLM.forward.interpreter" = { status = "divergence", reason = "the other half of the same change: `forward` now takes the interpreter the factory built. See `RLM.interpreter_factory`" }
 
 [rust_only]
-"dsrust::predict::program_of_thought::ProgramOfThought::generate_lm" = { status = "mapped", reason = "dspy's `self.code_generate` predictor, as its own seam — upstream's tests stub the stages one at a time, and the bridge honours that only if each stage can carry its own model" }
+"dsrust::lm::api::sanitized_legacy_message" = { status = "mapped", reason = "dspy's `_sanitize_legacy_message` (clients/lm.py), the one door where a chat dict written by a provider SDK is tolerated: it drops the output-only keys an SDK dump carries beside the content and rewrites the Responses API's directed content blocks into their chat spellings. Public because the rules are the crate's — the bridge routes to it rather than reimplementing them — and because a caller migrating from an SDK holds exactly these dicts. Upstream is explicit that the tolerance lives here and nowhere else, so `LmMessage`'s own deserializer still refuses an unknown field" }
+"dsrust::predict::program_of_thought::ProgramOfThought::generate_lm" ={ status = "mapped", reason = "dspy's `self.code_generate` predictor, as its own seam — upstream's tests stub the stages one at a time, and the bridge honours that only if each stage can carry its own model" }
 "dsrust::predict::program_of_thought::ProgramOfThought::regenerate_lm" = { status = "mapped", reason = "dspy's `self.code_regenerate`; see `generate_lm`" }
 "dsrust::predict::program_of_thought::ProgramOfThought::answer_lm" = { status = "mapped", reason = "dspy's `self.generate_output`; see `generate_lm`" }
 "dsrust::predict::code_act::CodeAct::codeact_lm" = { status = "mapped", reason = "dspy's `self.codeact` predictor; see ProgramOfThought's `generate_lm`" }

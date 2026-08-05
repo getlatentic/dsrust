@@ -77,7 +77,9 @@ impl TryFrom<OpenAiShaped> for LmMessage {
             // only a message with neither key is empty by construction.
             None => parts_of(written.content.as_ref()),
         };
-        parts.extend(written.tool_calls.into_iter().flatten().map(tool_call_of));
+        for call in written.tool_calls.into_iter().flatten() {
+            parts.push(tool_call_of(call)?);
+        }
 
         Ok(LmMessage {
             role: written.role,
@@ -98,32 +100,57 @@ fn parts_of(content: Option<&Value>) -> Vec<LmPart> {
     }
 }
 
+/// A field read the way the `or` chains upstream reads one: present, a string, and not empty.
+fn truthy<'a>(fields: &'a Map<String, Value>, key: &str) -> Option<&'a str> {
+    fields
+        .get(key)
+        .and_then(Value::as_str)
+        .filter(|text| !text.is_empty())
+}
+
 /// dspy `_tool_call_from_openai`: the call under its OpenAI envelope, whose arguments arrive as
 /// JSON *text* far more often than as an object.
-fn tool_call_of(written: Value) -> LmPart {
-    let function = written.get("function").unwrap_or(&Value::Null);
+fn tool_call_of(written: Value) -> Result<LmPart, String> {
+    // Upstream coerces a non-mapping entry to a part and demands it already *be* a tool call.
+    // Across JSON only an object can be one, so anything else is refused rather than read as a
+    // call with no name and no arguments.
+    let Value::Object(written) = written else {
+        return Err(format!(
+            "a tool call is written as an object, not `{written}`"
+        ));
+    };
+    let function = written.get("function").and_then(Value::as_object);
+    // The Responses API gives a call two identifiers: `id` names the output *item*, `call_id`
+    // names the call a later tool result answers. Upstream takes `call_id` first, and a replay
+    // that took `id` addresses the item — a call the provider has no result waiting for.
+    let id = truthy(&written, "call_id")
+        .or_else(|| truthy(&written, "id"))
+        .map(str::to_owned);
     let name = function
-        .get("name")
-        .or_else(|| written.get("name"))
-        .and_then(Value::as_str)
+        .and_then(|function| truthy(function, "name"))
+        .or_else(|| truthy(&written, "name"))
         .unwrap_or_default()
         .to_owned();
-    let args = match function.get("arguments").or_else(|| written.get("args")) {
+    // Under the envelope where there is one, beside the call where the Responses shape puts it.
+    // An explicit null under the envelope falls through, as upstream's `if args is None` does.
+    let arguments = function
+        .and_then(|function| function.get("arguments"))
+        .filter(|arguments| !arguments.is_null())
+        .or_else(|| written.get("arguments"));
+    let args = match arguments {
+        // `_parse_json_object`: anything that is not a JSON object — unparseable text, or text
+        // that parses to a scalar or a list — is no arguments at all.
         Some(Value::String(text)) => serde_json::from_str(text).unwrap_or_default(),
         Some(Value::Object(args)) => args.clone(),
         _ => Map::new(),
     };
-    LmPart::ToolCall {
-        id: written
-            .get("id")
-            .or_else(|| written.get("call_id"))
-            .and_then(Value::as_str)
-            .map(str::to_owned),
+    Ok(LmPart::ToolCall {
+        id,
         name,
         args,
         provider_data: Map::new(),
         metadata: Map::new(),
-    }
+    })
 }
 
 #[cfg(test)]
@@ -177,6 +204,68 @@ mod tests {
         assert_eq!(name, "search");
         // Arguments arrive as JSON text far more often than as an object, and are read either way.
         assert_eq!(args["q"], json!("rust"));
+    }
+
+    /// The Responses shape: a flat call with both identifiers, and its arguments beside it.
+    ///
+    /// `id` names the output *item* and `call_id` names the call, so a replay that took `id`
+    /// addresses something the provider has no result waiting for. Upstream reads `call_id` first
+    /// and falls back to `id` only when there is none, which is the chat shape.
+    #[test]
+    fn a_responses_call_is_identified_by_its_call_id_not_its_item_id() {
+        let message = read(json!({
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [{
+                "id": "fc_1",
+                "type": "function_call",
+                "name": "get_weather",
+                "arguments": "{\"city\": \"Paris\"}",
+                "call_id": "call_1",
+                "status": "completed",
+            }],
+        }));
+        let LmPart::ToolCall { id, name, args, .. } = &message.parts[0] else {
+            panic!("the call is a part: {:?}", message.parts[0]);
+        };
+        assert_eq!(id.as_deref(), Some("call_1"));
+        // No `function` envelope, so both the name and the arguments are read off the call itself.
+        assert_eq!(name, "get_weather");
+        assert_eq!(args["city"], json!("Paris"));
+    }
+
+    /// Arguments that are not a JSON object are no arguments — upstream's `_parse_json_object`
+    /// answers `{}` to unparseable text and to text that parses to a scalar or a list alike.
+    #[test]
+    fn arguments_that_are_not_an_object_leave_the_call_with_none() {
+        for arguments in [
+            json!("{\"q\":"),
+            json!("[1, 2]"),
+            json!("7"),
+            json!(""),
+            json!(12),
+        ] {
+            let message = read(json!({
+                "role": "assistant",
+                "tool_calls": [{ "id": "call_1", "name": "f", "arguments": arguments }],
+            }));
+            let LmPart::ToolCall { args, .. } = &message.parts[0] else {
+                panic!("the call is a part");
+            };
+            assert!(args.is_empty(), "{arguments} left arguments behind");
+        }
+    }
+
+    /// A call written as anything but an object is refused, where upstream raises `TypeError`.
+    /// Read as a call it would be one with no name and no arguments, which a caller cannot tell
+    /// from a call the model really made.
+    #[test]
+    fn a_tool_call_that_is_not_an_object_is_refused() {
+        let refused: Result<LmMessage, _> = serde_json::from_value(json!({
+            "role": "assistant",
+            "tool_calls": ["search"],
+        }));
+        assert!(refused.is_err(), "a bare string is not a tool call");
     }
 
     /// A turn that is only calls has no content at all, which is what a provider sends.

@@ -18,10 +18,60 @@ pub fn part_of_block(block: &Value) -> LmPart {
         Some("input_audio") => audio(object),
         Some("video") => video(object),
         Some("document") => document(object),
-        // A file keeps its block: upstream re-emits that one verbatim rather than rebuilding it,
-        // since `file_data` and `file_id` do not survive the trip through a media source.
+        Some("file") => binary(block, object),
         _ => LmPart::legacy(block.clone()),
     }
+}
+
+/// dspy `_binary_dict_to_part`: a file block as the binary part it names.
+///
+/// The block is kept *as well* — carried in the part's metadata, and re-emitted verbatim by
+/// [`blocks_of`](super::wire::blocks_of) — whenever the typed part cannot spell it again: a part
+/// holds one source, so a block naming both `file_data` and a `file_id` loses one on the way back,
+/// and a `file_data` that is not a data URI would be re-wrapped under a media type nobody
+/// declared. Upstream's own rule, and its reason.
+///
+/// **Diverges** on a file block naming no source at all, where upstream raises. `part_of_block` is
+/// infallible — one of its callers deliberately keeps a malformed value visible rather than
+/// dropping it — so that block is carried whole instead, which at least re-emits byte for byte.
+fn binary(block: &Value, object: &serde_json::Map<String, Value>) -> LmPart {
+    let file = object.get("file").and_then(Value::as_object);
+    let read = |key: &str| file.and_then(|file| file.get(key)).and_then(Value::as_str);
+    let filename = read("filename").map(str::to_owned);
+    let part = |source, media_type: String, metadata| LmPart::Binary {
+        source,
+        media_type,
+        filename: filename.clone(),
+        metadata,
+    };
+    // Upstream's `_split_data_uri` is total where the crate's reader answers whether it was a data
+    // URI at all: anything else is opaque bytes under the default media type.
+    let split = |value: &str| {
+        data_uri(value).unwrap_or_else(|| ("application/octet-stream".to_owned(), value.to_owned()))
+    };
+
+    if let Some(file_data) = read("file_data") {
+        let lossy = read("file_id").is_some() || !file_data.starts_with("data:");
+        let (media_type, data) = split(file_data);
+        let mut metadata = Metadata::new();
+        if lossy {
+            metadata.insert(super::part::LEGACY_BLOCK.to_owned(), block.clone());
+        }
+        return part(LmSource::Data(data), media_type, metadata);
+    }
+    if let Some(data) = read("data") {
+        let (media_type, data) = split(data);
+        return part(LmSource::Data(data), media_type, Metadata::new());
+    }
+    if let Some(file_id) = read("file_id") {
+        // No source to read a media type off, so the part keeps its own default.
+        return part(
+            LmSource::FileId(file_id.to_owned()),
+            "application/octet-stream".to_owned(),
+            Metadata::new(),
+        );
+    }
+    LmPart::legacy(block.clone())
 }
 
 fn text_of(object: &serde_json::Map<String, Value>) -> String {
@@ -229,8 +279,11 @@ fn string_at(object: &serde_json::Map<String, Value>, key: &str) -> Option<Strin
 /// `data:image/png;base64,AAAA` split into its media type and its payload.
 fn data_uri(value: &str) -> Option<(String, String)> {
     let rest = value.strip_prefix("data:")?;
-    let (media_type, data) = rest.split_once(',')?;
-    let media_type = media_type.strip_suffix(";base64").unwrap_or(media_type);
+    let (header, data) = rest.split_once(',')?;
+    // Upstream's `_split_data_uri` keeps only what precedes the first `;`, which is the media type
+    // however many parameters follow it. Stripping a `;base64` *suffix* handled the common header
+    // and left `text/plain;charset=utf-8` reading as a media type with a charset glued on.
+    let media_type = header.split_once(';').map_or(header, |(media, _)| media);
     Some((media_type.to_owned(), data.to_owned()))
 }
 
@@ -260,6 +313,96 @@ mod tests {
                 "for {block}"
             );
         }
+    }
+
+    /// A file block is read into a binary part, not carried as an opaque one.
+    ///
+    /// It used to fall to the carrier, which round-trips byte for byte and so looked right from
+    /// the wire — but the part in between had no media type, no data and no filename, so anything
+    /// reading the typed model rather than re-rendering it saw an empty text part.
+    #[test]
+    fn a_file_block_is_read_as_the_binary_part_it_names() {
+        let part = part_of_block(&json!({
+            "type": "file",
+            "file": { "file_data": "data:application/pdf;base64,JVBERi0xLjQ=", "filename": "report.pdf" },
+        }));
+        let LmPart::Binary {
+            source,
+            media_type,
+            filename,
+            metadata,
+        } = &part
+        else {
+            panic!("got {part:?}")
+        };
+        assert_eq!(*source, LmSource::Data("JVBERi0xLjQ=".to_owned()));
+        assert_eq!(media_type, "application/pdf");
+        assert_eq!(filename.as_deref(), Some("report.pdf"));
+        // A data URI and no file id: the part spells the whole block, so nothing is carried.
+        assert!(metadata.is_empty());
+    }
+
+    /// A block naming both a source and a file id keeps the block as well, because the part holds
+    /// one source and would drop the other on the way back out.
+    #[test]
+    fn a_file_block_the_part_cannot_respell_is_carried_as_well_as_read() {
+        let block = json!({
+            "type": "file",
+            "file": {
+                "file_data": "data:application/pdf;base64,JVBERi0xLjQ=",
+                "file_id": "file_123",
+                "filename": "report.pdf",
+            },
+        });
+        let part = part_of_block(&block);
+        let LmPart::Binary {
+            source, media_type, ..
+        } = &part
+        else {
+            panic!("got {part:?}")
+        };
+        assert_eq!(*source, LmSource::Data("JVBERi0xLjQ=".to_owned()));
+        assert_eq!(media_type, "application/pdf");
+        assert_eq!(
+            part.legacy_block(),
+            Some(&block),
+            "the file id is only here"
+        );
+        assert_eq!(blocks_of(&part).expect("renders"), vec![block]);
+    }
+
+    /// Only a file id: there is no source to read a media type off, so the default stands.
+    #[test]
+    fn a_file_block_of_only_an_id_keeps_the_default_media_type() {
+        let part = part_of_block(&json!({
+            "type": "file",
+            "file": { "file_id": "f_1", "filename": "a.pdf" },
+        }));
+        let LmPart::Binary {
+            source, media_type, ..
+        } = &part
+        else {
+            panic!("got {part:?}")
+        };
+        assert_eq!(*source, LmSource::FileId("f_1".to_owned()));
+        assert_eq!(media_type, "application/octet-stream");
+    }
+
+    /// The media type is what precedes the first `;`, however many parameters follow it.
+    #[test]
+    fn a_data_uri_parameter_does_not_become_part_of_the_media_type() {
+        let part = part_of_block(&json!({
+            "type": "file",
+            "file": { "file_data": "data:text/plain;charset=utf-8;base64,YQ==" },
+        }));
+        let LmPart::Binary {
+            source, media_type, ..
+        } = &part
+        else {
+            panic!("got {part:?}")
+        };
+        assert_eq!(media_type, "text/plain");
+        assert_eq!(*source, LmSource::Data("YQ==".to_owned()));
     }
 
     #[test]
