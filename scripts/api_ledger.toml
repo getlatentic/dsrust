@@ -261,8 +261,8 @@
 # The classification is the load-bearing part — a recorded decision per method.
 
 [methods]
-"adapters/types/image.py::Image.from_path" = { status = "todo", reason = "new in 3.3.0: load an image off disk explicitly, which upstream now requires rather than inferring a path from the source. No counterpart here. Filed as `resource-loading-suite` with the upstream suite that covers it" }
-"adapters/types/audio.py::Audio.from_path" = { status = "todo", reason = "as `Image.from_path`; same story" }
+"adapters/types/image.py::Image.from_path" = { status = "mapped", rust = "Image::from_path", reason = "the explicit local read 3.3.0 requires rather than inferring a path from the source. The split is the point: the constructor keeps a locator and dereferences nothing, because it is reachable from application input; only this asks for the host" }
+"adapters/types/audio.py::Audio.from_path" = { status = "mapped", rust = "Audio::from_path", reason = "as `Image.from_path`, with upstream's audio-only check — `format` reaches the provider, so a non-audio suffix is refused rather than guessed at" }
 "signatures/signature.py::Signature.append_instructions" = { status = "divergence", rust = "Signature::instructions", reason = "a mutator that appends to the instruction string. `Signature.instructions` is a public `String` field here, so appending is `signature.instructions.push_str(…)` — a method for it would be a method for one operation on a field the caller already holds" }
 
 # --- the callback protocol: the twelve handlers, each a defaulted trait method ---
@@ -360,7 +360,7 @@
 "adapters/types/file.py::File.format" = { status = "mapped", rust = "format" }
 "adapters/types/file.py::File.from_bytes" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
 "adapters/types/file.py::File.from_file_id" = { status = "mapped", rust = "from_id" }
-"adapters/types/file.py::File.from_path" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
+"adapters/types/file.py::File.from_path" = { status = "mapped", rust = "File::from_path", reason = "as `Image.from_path`, keeping the basename: once the bytes are base64 the name is the only thing telling a model what the file is" }
 "adapters/types/file.py::File.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
 # Code
@@ -778,6 +778,11 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+"adapters/types/image.py::Image.from_path.file_path" = { status = "mapped", rust = "path", reason = "`impl AsRef<Path>`, so a `&str`, a `String` or a `PathBuf` all work where Python takes a `str`" }
+"adapters/types/audio.py::Audio.from_path.file_path" = { status = "mapped", rust = "path", reason = "as `Image.from_path.file_path`" }
+"adapters/types/file.py::File.from_path.file_path" = { status = "mapped", rust = "path", reason = "as `Image.from_path.file_path`" }
+"adapters/types/file.py::File.from_path.filename" = { status = "mapped", rust = "File::filename", reason = "upstream's optional override, which this type already had as a builder: `File::from_path(p)?.filename(\"other.txt\")`. Rust has no keyword defaults, and a second `Option` parameter on the constructor would say less than the named method does" }
+"adapters/types/file.py::File.from_path.mime_type" = { status = "mapped", rust = "File::from_path_as", reason = "the override as its own constructor, for the same reason `filename` is a builder. It earns naming rather than an `Option`: the media type is baked into the `data:` URI and is what a provider reads the bytes by, so a file whose suffix lies has to be able to say so" }
 "utils/callback.py::BaseCallback.on_module_start.call_id" = { status = "mapped", rust = "CallId", reason = "callback::CallId, which also carries the parent id dspy keeps in a separate context variable" }
 "utils/callback.py::BaseCallback.on_module_end.call_id" = { status = "mapped", rust = "CallId", reason = "callback::CallId, the same id the start handler was given" }
 "utils/callback.py::BaseCallback.on_module_start.instance" = { status = "divergence", reason = "dspy hands the handler the live object; Rust has no dyn value to pass that a handler could do anything with, so the start handler is given the name instead — `module`, `adapter` or `tool` as a &str. Enough to identify what fired, which is what upstream's handlers use it for" }
@@ -1043,7 +1048,7 @@
 "predict/rlm.py::RLM.forward.interpreter" = { status = "divergence", reason = "the other half of the same change: `forward` now takes the interpreter the factory built. See `RLM.interpreter_factory`" }
 
 [rust_only]
-"dsrust::interpreter::python_literal" = { status = "mapped", reason = "dspy's `PythonInterpreter._serialize_value`: one value as the Python source that rebuilds it. Public because it is the boundary itself — what comes back is pasted into the sandbox as code, so the quoting and the container layout are bytes the sandbox parses. Turning a Python object into something JSON can hold stays the caller's, which is where dspy raises on a value with no JSON form" }
+"dsrust::interpreter::python_literal" ={ status = "mapped", reason = "dspy's `PythonInterpreter._serialize_value`: one value as the Python source that rebuilds it. Public because it is the boundary itself — what comes back is pasted into the sandbox as code, so the quoting and the container layout are bytes the sandbox parses. Turning a Python object into something JSON can hold stays the caller's, which is where dspy raises on a value with no JSON form" }
 "dsrust::lm::openai::responses::close_object_schemas" ={ status = "mapped", reason = "dspy's `_close_object_schemas` (clients/openai_format.py). The Responses API refuses an object schema that leaves `additionalProperties` unspecified, and the walk is keyword-directed so a schema-shaped value in a `default` stays a value. Public because upstream's own test drives the rule directly, and because the class-to-schema step it sits behind is pydantic reflection a Rust caller does not have" }
 "dsrust::lm::openai::responses::responses_to_lm_response" = { status = "mapped", reason = "dspy's `responses_to_lm_response`, the pair to `request`. Public so a caller holding a raw Responses body — replayed from a log, or from an SDK this crate does not speak to — can read it into the typed model the way the provider path does" }
 "dsrust::lm::api::sanitized_legacy_message" ={ status = "mapped", reason = "dspy's `_sanitize_legacy_message` (clients/lm.py), the one door where a chat dict written by a provider SDK is tolerated: it drops the output-only keys an SDK dump carries beside the content and rewrites the Responses API's directed content blocks into their chat spellings. Public because the rules are the crate's — the bridge routes to it rather than reimplementing them — and because a caller migrating from an SDK holds exactly these dicts. Upstream is explicit that the tolerance lives here and nowhere else, so `LmMessage`'s own deserializer still refuses an unknown field" }

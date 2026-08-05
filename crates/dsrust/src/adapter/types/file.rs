@@ -39,6 +39,39 @@ impl File {
         self
     }
 
+    /// dspy `File.from_path`: read a local file, encode it as a `data:` URI, and keep its name.
+    ///
+    /// The name is kept because it is the only thing telling a model what the file *is* once the
+    /// bytes are base64 — upstream sends it beside the data for that reason. `application/octet-
+    /// stream` where the suffix names nothing, which is what a caller gets for an extensionless
+    /// file and is also what `.bin` means.
+    pub fn from_path(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
+        let path = path.as_ref();
+        Self::from_path_as(
+            path,
+            crate::resource::media_type_for(path, "application/octet-stream"),
+        )
+    }
+
+    /// The same, naming the media type rather than guessing it — upstream's `mime_type=`.
+    ///
+    /// For a file whose suffix lies, or has none: the media type is baked into the `data:` URI and
+    /// is what a provider decides how to read the bytes by, so a `.dat` that is really a PDF has to
+    /// be able to say so. Upstream's `filename=` override is the builder
+    /// [`filename`](Self::filename) that was already here.
+    pub fn from_path_as(
+        path: impl AsRef<std::path::Path>,
+        media_type: impl AsRef<str>,
+    ) -> anyhow::Result<Self> {
+        let path = path.as_ref();
+        let encoded = crate::resource::read_base64(path)?;
+        let file = Self::from_data(crate::resource::data_uri(media_type.as_ref(), &encoded));
+        Ok(match path.file_name().and_then(|name| name.to_str()) {
+            Some(name) => file.filename(name),
+            None => file,
+        })
+    }
+
     fn is_empty(&self) -> bool {
         self.file_data.is_none() && self.file_id.is_none() && self.filename.is_none()
     }
@@ -107,6 +140,38 @@ impl schemars::JsonSchema for File {
 mod tests {
     use super::*;
     use crate::adapter::types::base::{CUSTOM_TYPE_END, CUSTOM_TYPE_START};
+
+    /// Against dspy's own answer for the same bytes: `File.from_path` on a `.txt` holding
+    /// `file bytes` gives `data:text/plain;base64,ZmlsZSBieXRlcw==` and keeps the basename.
+    #[test]
+    fn from_path_encodes_the_bytes_and_keeps_the_name_dspy_keeps() {
+        let path = std::env::temp_dir().join("dsrs_file_from_path.txt");
+        std::fs::write(&path, b"file bytes").expect("writes");
+        let file = File::from_path(&path).expect("reads");
+        assert_eq!(
+            file.file_data.as_deref(),
+            Some("data:text/plain;base64,ZmlsZSBieXRlcw==")
+        );
+        assert_eq!(file.filename.as_deref(), Some("dsrs_file_from_path.txt"));
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A suffix the table does not know is `application/octet-stream`, which is upstream's
+    /// fallback and what an extensionless file gets.
+    #[test]
+    fn an_unknown_suffix_falls_back_to_opaque_bytes() {
+        let path = std::env::temp_dir().join("dsrs_file_from_path_unknown");
+        std::fs::write(&path, b"file bytes").expect("writes");
+        let file = File::from_path(&path).expect("reads");
+        assert!(
+            file.file_data
+                .as_deref()
+                .expect("data")
+                .starts_with("data:application/octet-stream;base64,"),
+            "{file:?}"
+        );
+        let _ = std::fs::remove_file(&path);
+    }
 
     /// The block carries only the fields that are set, in dspy's order, wrapped in the sentinels.
     #[test]

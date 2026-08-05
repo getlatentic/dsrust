@@ -4,8 +4,9 @@
 //! what lets the type land without a rendered byte moving.
 
 use anyhow::{Result, bail};
-use base64::Engine;
 use serde_json::{Value, json};
+
+use crate::resource::{data_uri, media_type_for, read_base64};
 
 use super::{Detail, DocumentSource, LmPart, LmSource};
 
@@ -212,38 +213,6 @@ fn media_source(source: &LmSource, media_type: &str) -> Result<String> {
     })
 }
 
-/// Data already spelled as a URI is left alone rather than encoded twice.
-fn data_uri(media_type: &str, data: &str) -> String {
-    match data.starts_with("data:") {
-        true => data.to_owned(),
-        false => format!("data:{media_type};base64,{data}"),
-    }
-}
-
-fn read_base64(path: &std::path::Path) -> Result<String> {
-    let bytes = std::fs::read(path)?;
-    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
-}
-
-/// A path's own media type when its extension names one, and the part's otherwise.
-fn media_type_for(path: &std::path::Path, fallback: &str) -> String {
-    let Some(extension) = path.extension().and_then(|e| e.to_str()) else {
-        return fallback.to_owned();
-    };
-    match extension.to_ascii_lowercase().as_str() {
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "gif" => "image/gif",
-        "webp" => "image/webp",
-        "wav" => "audio/wav",
-        "mp3" => "audio/mpeg",
-        "mp4" => "video/mp4",
-        "pdf" => "application/pdf",
-        _ => fallback,
-    }
-    .to_owned()
-}
-
 /// The bare format name, with the two spellings providers disagree on folded.
 fn media_format(media_type: &str) -> String {
     let format = media_type
@@ -346,6 +315,43 @@ mod tests {
             json!("data:image/png;base64,aGk="),
             "an encoded URI is not encoded a second time"
         );
+    }
+
+    /// A part sourced from a local *path* takes its media type from the filename, and the answer
+    /// is CPython's — `audio/x-wav` for a `.wav`, whose `x-` the format name then drops.
+    ///
+    /// Measured against dspy for the same file: `audio_to_openai` on a `.wav` path holding
+    /// `audio bytes` gives `{"data": "YXVkaW8gYnl0ZXM=", "format": "wav"}`, and `binary_to_openai`
+    /// on a `.txt` gives `data:text/plain;base64,ZmlsZSBieXRlcw==`.
+    ///
+    /// Nothing covered this path at all, and the table it read from was a third hand-written copy
+    /// that called a `.wav` `audio/wav` — so the block went out under a media type dspy does not
+    /// write, and every test stayed green.
+    #[test]
+    fn a_path_takes_the_media_type_cpython_gives_its_suffix() {
+        let audio = std::env::temp_dir().join("dsrs_wire_path.wav");
+        std::fs::write(&audio, b"audio bytes").expect("writes");
+        let block = audio_block(&LmSource::Path(audio.clone()), "audio/mpeg").expect("renders");
+        assert_eq!(
+            block["input_audio"],
+            json!({ "data": "YXVkaW8gYnl0ZXM=", "format": "wav" }),
+            "the suffix beats the part's declared media type, as upstream's `or` does"
+        );
+        let _ = std::fs::remove_file(&audio);
+
+        let doc = std::env::temp_dir().join("dsrs_wire_path.txt");
+        std::fs::write(&doc, b"file bytes").expect("writes");
+        let block = binary_block(
+            &LmSource::Path(doc.clone()),
+            "application/octet-stream",
+            Some("rl_f.txt"),
+        )
+        .expect("renders");
+        assert_eq!(
+            block["file"]["file_data"],
+            json!("data:text/plain;base64,ZmlsZSBieXRlcw==")
+        );
+        let _ = std::fs::remove_file(&doc);
     }
 
     #[test]

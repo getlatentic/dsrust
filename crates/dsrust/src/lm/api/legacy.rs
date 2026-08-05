@@ -247,29 +247,13 @@ fn classify(source: &str, default_media_type: String) -> (String, LmSource) {
     }
     match source.starts_with("http://") || source.starts_with("https://") {
         true => (
-            guessed_media_type(source).unwrap_or(default_media_type),
+            crate::mimetypes::guess(source)
+                .map(str::to_owned)
+                .unwrap_or(default_media_type),
             LmSource::Url(source.to_owned()),
         ),
         false => (default_media_type, LmSource::FileId(source.to_owned())),
     }
-}
-
-/// Python's `mimetypes.guess_type` for the handful of suffixes a document URL actually carries.
-/// An unknown suffix falls back to the block's declared type, exactly as upstream's `or` does.
-fn guessed_media_type(url: &str) -> Option<String> {
-    let path = url.split(['?', '#']).next().unwrap_or(url);
-    let suffix = path.rsplit_once('.')?.1.to_ascii_lowercase();
-    let media_type = match suffix.as_str() {
-        "pdf" => "application/pdf",
-        "txt" => "text/plain",
-        "html" | "htm" => "text/html",
-        "json" => "application/json",
-        "csv" => "text/csv",
-        "md" => "text/markdown",
-        "xml" => "text/xml",
-        _ => return None,
-    };
-    Some(media_type.to_owned())
 }
 
 fn string_at(object: &serde_json::Map<String, Value>, key: &str) -> Option<String> {

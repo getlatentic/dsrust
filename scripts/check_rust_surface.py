@@ -36,7 +36,7 @@ from rust_surface import surface
 LEDGER = pathlib.Path(__file__).parent / "api_ledger.toml"
 
 #: The measured floor. Lower it when the count falls; never raise it to make a run pass.
-BASELINE = 356
+BASELINE = 355
 
 
 def named_in_ledger(ledger: dict) -> set[str]:

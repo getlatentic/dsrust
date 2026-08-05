@@ -16,12 +16,49 @@ pub struct Audio {
 }
 
 impl Audio {
+    /// Already-encoded base64 and the format it is in. Touches nothing — see
+    /// [`Image::new`](super::Image::new) for why a constructor must not dereference what it is
+    /// handed, and [`from_path`](Self::from_path) for reading a local file.
     pub fn new(data: impl Into<String>, audio_format: impl Into<String>) -> Self {
         Self {
             data: data.into(),
             audio_format: audio_format.into(),
         }
     }
+
+    /// dspy `Audio.from_path`: read a local audio file and encode it as bare base64.
+    ///
+    /// Bare, not a `data:` URI — an `input_audio` block carries the payload and the format under
+    /// separate keys, which makes this the one media type that does not travel as a URI.
+    ///
+    /// Refuses a suffix that is not audio, as upstream does: `format` reaches the provider, and
+    /// guessing one for a `.txt` sends bytes no model can decode under a name saying it can.
+    pub fn from_path(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
+        let path = path.as_ref();
+        let guessed = crate::mimetypes::guess(&path.to_string_lossy());
+        let Some(media_type) = guessed.filter(|guess| guess.starts_with("audio/")) else {
+            anyhow::bail!(
+                "Unsupported MIME type for audio: {}",
+                guessed.unwrap_or("None")
+            );
+        };
+        Ok(Self::new(
+            crate::resource::read_base64(path)?,
+            normalized_format(media_type),
+        ))
+    }
+}
+
+/// dspy `_normalize_audio_format`: the subtype, less the `x-` an unregistered spelling carries.
+///
+/// CPython's table calls a `.wav` file `audio/x-wav` and a provider expects `wav`, so the prefix is
+/// upstream's to strip — and stripping it is what makes `from_path` on a `.wav` agree with a
+/// hand-built `Audio::new(data, "wav")`.
+fn normalized_format(media_type: &str) -> String {
+    let subtype = media_type
+        .split_once('/')
+        .map_or(media_type, |(_, sub)| sub);
+    subtype.strip_prefix("x-").unwrap_or(subtype).to_owned()
 }
 
 impl Type for Audio {
@@ -80,5 +117,45 @@ mod tests {
         let audio: Audio = serde_json::from_value(json!({ "data": "QUJD", "audio_format": "mp3" }))
             .expect("parses");
         assert_eq!(audio, Audio::new("QUJD", "mp3"));
+    }
+
+    /// Against dspy's own answer for the same bytes: `Audio.from_path` on a `.wav` holding
+    /// `audio bytes` gives `data="YXVkaW8gYnl0ZXM="` and `audio_format="wav"` — bare base64, and
+    /// the `x-` that CPython's `audio/x-wav` carries stripped back off.
+    #[test]
+    fn from_path_encodes_the_bytes_and_names_the_format_dspy_names() {
+        let path = std::env::temp_dir().join("dsrs_audio_from_path.wav");
+        std::fs::write(&path, b"audio bytes").expect("writes");
+        let audio = Audio::from_path(&path).expect("reads");
+        assert_eq!(audio.data, "YXVkaW8gYnl0ZXM=");
+        assert_eq!(audio.audio_format, "wav");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// A suffix that is not audio is refused rather than guessed at, which is upstream's rule and
+    /// its message. The alternative is a provider told `format: "plain"`.
+    #[test]
+    fn from_path_refuses_a_file_that_is_not_audio() {
+        let path = std::env::temp_dir().join("dsrs_audio_from_path.txt");
+        std::fs::write(&path, b"not audio").expect("writes");
+        let why = Audio::from_path(&path).expect_err("refused").to_string();
+        assert_eq!(why, "Unsupported MIME type for audio: text/plain");
+        let _ = std::fs::remove_file(&path);
+
+        let unknown = std::env::temp_dir().join("dsrs_audio_from_path.zzz");
+        std::fs::write(&unknown, b"not audio").expect("writes");
+        let why = Audio::from_path(&unknown).expect_err("refused").to_string();
+        assert_eq!(why, "Unsupported MIME type for audio: None");
+        let _ = std::fs::remove_file(&unknown);
+    }
+
+    /// The posture the whole resource-loading suite is about: a constructor is reachable from
+    /// application input, so it must never dereference what it is handed. Nothing here can — the
+    /// value is the encoded data — and this says so, so a later `Audio::new` that reads a path
+    /// fails a test rather than a review.
+    #[test]
+    fn the_constructor_keeps_what_it_is_given_and_reads_nothing() {
+        let locator = Audio::new("/etc/passwd", "wav");
+        assert_eq!(locator.data, "/etc/passwd");
     }
 }

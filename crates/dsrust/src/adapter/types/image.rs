@@ -17,8 +17,28 @@ pub struct Image {
 }
 
 impl Image {
+    /// The image at this locator, **without touching it**.
+    ///
+    /// A URL is kept as a reference and a `data:` URI as itself; neither is dereferenced. That is
+    /// upstream's rule and it is a security posture rather than a performance one — a constructor
+    /// is reachable from application input, so one that fetched what it was handed would turn a
+    /// user-supplied string into a request the host makes. Reading a local file is
+    /// [`from_path`](Self::from_path), which the caller asks for by name.
     pub fn new(url: impl Into<String>) -> Self {
         Self { url: url.into() }
+    }
+
+    /// dspy `Image.from_path`: read a local file and encode it as a `data:` URI.
+    ///
+    /// The media type is guessed from the suffix and defaults to `image/png`, as upstream's does
+    /// when `mimetypes` knows nothing. The guess is CPython's *shipped* table rather than the one
+    /// `mimetypes.guess_type` builds, which merges `/etc/mime.types` over it — so dspy's own answer
+    /// depends on the host for a handful of suffixes and this crate's does not.
+    pub fn from_path(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
+        let path = path.as_ref();
+        let media_type = crate::resource::media_type_for(path, "image/png");
+        let encoded = crate::resource::read_base64(path)?;
+        Ok(Self::new(crate::resource::data_uri(&media_type, &encoded)))
     }
 }
 
@@ -90,6 +110,30 @@ mod tests {
                 r#"[{"type":"image_url","image_url":{"url":"https://example.com/a.jpg"}}]"#
             ))
         );
+    }
+
+    /// Against dspy's own answer for the same bytes: `Image.from_path` on a `.png` holding
+    /// `image bytes` gives `data:image/png;base64,aW1hZ2UgYnl0ZXM=`.
+    #[test]
+    fn from_path_encodes_the_bytes_under_the_media_type_dspy_names() {
+        let path = std::env::temp_dir().join("dsrs_image_from_path.png");
+        std::fs::write(&path, b"image bytes").expect("writes");
+        assert_eq!(
+            Image::from_path(&path).expect("reads").url,
+            "data:image/png;base64,aW1hZ2UgYnl0ZXM=",
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    /// The posture the resource-loading suite is about: a locator handed to the constructor stays
+    /// a locator. `Image("/etc/passwd")` must not read `/etc/passwd`, and
+    /// `Image("https://evil.example/x.png")` must not fetch it — a constructor is reachable from
+    /// application input, and reading it is a request the *host* makes on a stranger's behalf.
+    #[test]
+    fn the_constructor_keeps_a_locator_and_dereferences_nothing() {
+        for locator in ["/etc/passwd", "https://evil.example/secret.png"] {
+            assert_eq!(Image::new(locator).url, locator);
+        }
     }
 
     #[test]

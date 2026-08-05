@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1209
+rust_tests = 1223
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -2934,7 +2934,7 @@ reproduces gepa as its own byte-compliant crate and an extension to it is an ext
 id = "resource-loading-suite"
 sprint = "api"
 title = "3.3.0's resource-loading tests read image and audio off disk, and nothing runs them"
-state = "todo"
+state = "done"
 size = "S"
 suites = ""
 plan = """
@@ -2951,6 +2951,37 @@ measured = """
 `Image`'s source positional-only and requires `from_path`/`from_url` rather than inferring a path,
 so the suite exercises constructors this crate does not have. Bigger than "wiring", and it is the
 whole of the red outside the interpreter modules and the LM wire.
+"""
+outcome = """
+2026-08-05. Not wiring, and the story's premise did not survive reading the file: all thirty cases
+drive dspy's own `Image`/`Audio`/`File` constructors, its `from_path`/`from_url` factories, its
+deprecation warnings and `requests`. Not one renders or parses. Running it would add thirty passing
+tests every one of which needs a "does not exercise Rust" line — a count without conformance, and
+thirty more declarations to get wrong.
+
+So the excuse in `check_coverage.py` now says *why* rather than "not yet wired", and what the suite
+is **about** is held where the rules live:
+
+  - **The posture.** A constructor is reachable from application input, so `Image::new` and
+    `Audio::new` keep a locator and dereference nothing — `/etc/passwd` stays a string. Their own
+    tests say so, so a later constructor that reads a path fails a test rather than a review.
+  - **The factories.** `Image::from_path`, `Audio::from_path`, `File::from_path` and
+    `File::from_path_as`, each measured against dspy's bytes for the same file. Audio refuses a
+    non-audio suffix as upstream does, because `format` reaches the provider.
+
+Reading it turned up a divergence nothing covered. The media type came from a **third** hand-written
+copy of `mimetypes.guess_type` — `legacy.rs` had a document-only one, `wire.rs` an image/audio one —
+and `wire.rs` called a `.wav` `audio/wav` where CPython says `audio/x-wav`, so a path-sourced audio
+block went out under a media type dspy does not write. One table now, in `src/mimetypes.rs`,
+generated from the interpreter.
+
+**And the table cannot simply be "what dspy answers".** `mimetypes.guess_type` calls `init()`, which
+merges `/etc/mime.types` over CPython's shipped table: on this machine six suffixes came back
+differently (`.flac`, `.m4a`, `.ogg` absent from the built-in table; `.aac`, `.opus`, `.xml`
+disagreeing). Recording dspy's answer would bake one host into a golden every other host fails, so
+the generator records the *built-in* answer and asserts it, writing the disagreements down as
+disagreements. A caller meeting one is meeting upstream's host-dependence rather than a divergence
+here.
 """
 
 [[story]]

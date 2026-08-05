@@ -42,9 +42,21 @@ EXCUSED = {
     # Live, by its own docstring: "provider behavior that cannot be verified with the mocked unit
     # tests". The crate's own live tests carry `#[ignore]` for the same reason.
     "tests/clients/test_lm_direct_live.py": "talks to a live provider",
-    # Reads image and audio resources off disk and through pydantic's TypeAdapter. Wants running
-    # rather than excusing, and is a slice of work rather than a line here.
-    "tests/adapters/test_resource_loading.py": "not yet wired (`resource-loading-suite`)",
+    # Thirty cases, and not one renders or parses: every one drives dspy's own `Image`/`Audio`/`File`
+    # constructors, its `from_path`/`from_url` factories, its deprecation warnings, and `requests`.
+    # Wiring it would add thirty passing tests all declared as not exercising Rust, which inflates a
+    # count without adding conformance.
+    #
+    # What it is *about* does reach here, and is held where the rules live rather than by running
+    # this file: construction never dereferences a locator (`Image::new`, `Audio::new`, and their
+    # own tests), the explicit factories do the reading (`Image::from_path`, `Audio::from_path`,
+    # `File::from_path`, each measured against dspy's bytes), and a non-audio suffix is refused
+    # rather than guessed at. The excuse used to say "not yet wired", which read as a scheduling
+    # problem; it is a shape problem, and the work it implied is done.
+    "tests/adapters/test_resource_loading.py": (
+        "dspy's own media-type constructors and factories; nothing in it renders or parses. The "
+        "rules it states are held in adapter/types/{image,audio,file}.rs"
+    ),
 
     # Providers and features outside the port's ceiling.
     "tests/clients/test_databricks.py": "a provider this crate does not speak",

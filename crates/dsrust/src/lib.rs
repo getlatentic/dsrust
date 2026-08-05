@@ -19,12 +19,14 @@ pub mod evaluate;
 pub mod example;
 pub mod interpreter;
 pub mod lm;
+mod mimetypes;
 pub mod module;
 pub mod observe;
 pub mod optimize;
 pub mod predict;
 mod python;
 pub mod react;
+mod resource;
 pub mod signature;
 
 pub use adapter::baml::BamlAdapter;
