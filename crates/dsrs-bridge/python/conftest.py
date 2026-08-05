@@ -401,9 +401,14 @@ DOES_NOT_EXERCISE_RUST = {
     "upstream_test_rlm.py::TestPythonInterpreter": (
         "only the two start() tests: they build dspy's PythonInterpreter directly, outside the pool"
     ),
-    "upstream_test_rlm.py::TestRLMAsyncMock": (
-        "dspy's `aforward`; the crate is async throughout, so its one `forward` is that method "
-        "and the sync cases above are the same code"
+    # `TestRLMAsyncMock` was here, saying the crate's one loop "is that method" — which was true of
+    # the crate and false of the harness: the shim overrode `forward` and not `aforward`, so every
+    # async case ran dspy's second loop and the reason described a crossing that was not happening.
+    # `RustRLM.aforward` leads to the same place now, and these are the sandbox and loop conformance
+    # the declaration was swallowing. One case in that class really does not cross, and says so on
+    # its own: it raises in `_validate_inputs`, before any interpreter is built.
+    "test_aforward_rejects_undeclared_inputs_before_interpreter_execution": (
+        "a ValueError before any interpreter exists"
     ),
     "upstream_test_rlm.py::TestBuildVariablesWithSerializable": (
         "SandboxSerializable, which is not ported (#21)"

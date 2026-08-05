@@ -341,6 +341,13 @@ class RustRLM(dspy.RLM):
     answered with — the layer no golden reaches.
     """
 
+    async def aforward(self, interpreter=None, /, **input_args):
+        # dspy keeps two loops that have to agree — `forward` and `aforward` — and the crate keeps
+        # one, which is async underneath either way. So the async door leads to the same place, and
+        # `test_interpreter_failure_propagates_async` is asking the crate's loop the question it
+        # was written to ask rather than dspy's.
+        return self.forward(interpreter, **input_args)
+
     def forward(self, interpreter=None, /, **input_args):
         # dspy 3.3.0 made the interpreter a positional-only first parameter of `forward`, so a
         # caller can hand one in and keep ownership of it. Accepted and passed through to
