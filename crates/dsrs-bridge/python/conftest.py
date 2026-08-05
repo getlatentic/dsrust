@@ -131,13 +131,13 @@ NOT_YET_IMPLEMENTED = {
     "test_nested_sets_and_tuples": (
         "a Python value with no JSON form — a set, or a tuple nested inside one"
     ),
-    "test_serialize_set": (
-        "a Python value with no JSON form — a set, or a tuple nested inside one"
-    ),
-    "test_serialize_set_mixed_types": (
-        "a Python value with no JSON form — a set, or a tuple nested inside one"
-    ),
 }
+
+# `test_serialize_set` and `test_serialize_set_mixed_types` were here for the same reason as
+# `test_nested_sets_and_tuples` and are not any more: dspy 3.3.0 added `_make_jsonable` and
+# `_dump_pydantic`, so a set is converted on dspy's side before it ever reaches this crate's
+# sandbox. They XPASSed at the new pin, which is what a strict xfail is for — a divergence that
+# upstream closes should be noticed rather than carried.
 
 
 # Upstream tests that pass without the crate rendering or parsing anything, with the reason.
