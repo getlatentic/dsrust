@@ -130,20 +130,34 @@ impl ProgramOfThought {
     ///
     /// The output reaches the third ask as a field the model reads, so it is `json.dumps` of the
     /// result exactly as upstream sends it — a submitted value unwrapped from its `FinalOutput`.
+    /// Fallible, because not every failure is one the model can be asked to fix. dspy 3.3.0 splits
+    /// the code's own failure — fed back as the error to correct, which is this loop — from the
+    /// interpreter's, which is terminal and propagates. Returning only the feedback pair meant a
+    /// dead sandbox was handed to the model as something to rewrite, and the run continued asking
+    /// an interpreter that was gone.
     fn execute(
         interpreter: &Arc<dyn CodeInterpreter>,
         code: &str,
-    ) -> (Option<String>, Option<String>) {
+    ) -> Result<(Option<String>, Option<String>)> {
         if code.is_empty() {
-            return (None, Some("Error: Empty code before execution.".to_owned()));
+            return Ok((None, Some("Error: Empty code before execution.".to_owned())));
         }
-        match interpreter.execute(code, &Map::new()) {
+        Ok(match interpreter.execute(code, &Map::new()) {
             Ok(executed) => (
                 Some(crate::adapter::python_json::json_dumps(executed.value())),
                 None,
             ),
+            // The interpreter's own failure ends the run; the code's is the next prompt.
+            Err(error)
+                if matches!(
+                    error.downcast_ref::<crate::interpreter::InterpreterFailure>(),
+                    Some(crate::interpreter::InterpreterFailure::Session(_))
+                ) =>
+            {
+                return Err(error);
+            }
             Err(error) => (None, Some(format!("{error}"))),
-        }
+        })
     }
 
     async fn run(&self, inputs: Example, trace: &mut Vec<TraceStep>) -> Result<Prediction> {
@@ -190,7 +204,7 @@ impl ProgramOfThought {
         let (mut code, mut error) = parse_generated_code(&written.example);
         let mut output = None;
         if error.is_none() {
-            (output, error) = Self::execute(interpreter, &code);
+            (output, error) = Self::execute(interpreter, &code)?;
         }
 
         let mut hop = 1;
@@ -206,7 +220,7 @@ impl ProgramOfThought {
             relabel(trace, mark, "code_regenerate");
             (code, error) = parse_generated_code(&written.example);
             if error.is_none() {
-                (output, error) = Self::execute(interpreter, &code);
+                (output, error) = Self::execute(interpreter, &code)?;
             }
             hop += 1;
         }

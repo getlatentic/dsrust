@@ -160,6 +160,17 @@ impl CodeAct {
                     let output = crate::adapter::python_json::json_dumps(executed.value());
                     trajectory.insert(format!("code_output_{turn}"), json!(output));
                 }
+                // The interpreter's own failure ends the run rather than becoming the next
+                // prompt: dspy 3.3.0 splits the code's failure from the interpreter's, and no
+                // rewrite repairs a dead sandbox.
+                Err(error)
+                    if matches!(
+                        error.downcast_ref::<crate::interpreter::InterpreterFailure>(),
+                        Some(crate::interpreter::InterpreterFailure::Session(_))
+                    ) =>
+                {
+                    return Err(error);
+                }
                 Err(error) => {
                     trajectory.insert(
                         format!("observation_{turn}"),

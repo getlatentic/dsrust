@@ -199,11 +199,15 @@ class RustProgramOfThought(dspy.ProgramOfThought):
                 _PredictorAsLM(self.generate_output),
                 self.max_iters,
             )
+        except dsrs_bridge.SandboxSessionFailed as error:
+            # The interpreter's own failure, carried across as a class rather than as prose, so a
+            # terminal one propagates as dspy's `CodeInterpreterError` instead of a bare
+            # `ValueError`. The loops stopped feeding these back to the model; this is the last
+            # step that used to flatten them again.
+            raise CodeInterpreterError(str(error)) from None
         except ValueError as error:
-            # The crate answers with an untyped `anyhow::Error`, which the bridge can only hand
-            # over as a ValueError, and dspy raises RuntimeError when the hops run out. The message
-            # is already upstream's byte for byte; only the class differs, so it is restored here.
-            # The real fix is the crate's error taxonomy (#10), after which this can read a type.
+            # dspy raises RuntimeError when the hops run out, and the message is already upstream's
+            # byte for byte; only the class differs, so it is restored here.
             if str(error).startswith("Max hops reached."):
                 raise RuntimeError(str(error)) from None
             raise

@@ -32,7 +32,7 @@ pyo3::create_exception!(
 /// sandbox declaring `class CodeInterpreterError` and raising it is still the code's own failure,
 /// and a text match reads it as the interpreter's. The crate already decides this structurally,
 /// from the JSON-RPC error code, so the answer only has to survive the boundary.
-fn sandbox_failure(error: anyhow::Error) -> PyErr {
+pub(crate) fn sandbox_failure(error: anyhow::Error) -> PyErr {
     let said = format!("{error:#}");
     match error.downcast_ref::<InterpreterFailure>() {
         Some(InterpreterFailure::Session(_)) => SandboxSessionFailed::new_err(said),

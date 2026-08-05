@@ -296,9 +296,20 @@ impl Rlm {
             };
             let outcome = match refused {
                 Some(error) => Err(error),
-                None => interpreter
-                    .execute(&code, &bound)
-                    .map_err(|error| format!("[Error] {error}")),
+                None => match interpreter.execute(&code, &bound) {
+                    Ok(executed) => Ok(executed),
+                    // The interpreter's own failure ends the episode; the code's is an
+                    // observation the model reads and answers. dspy 3.3.0's split.
+                    Err(error)
+                        if matches!(
+                            error.downcast_ref::<crate::interpreter::InterpreterFailure>(),
+                            Some(crate::interpreter::InterpreterFailure::Session(_))
+                        ) =>
+                    {
+                        return Err(error);
+                    }
+                    Err(error) => Err(format!("[Error] {error}")),
+                },
             };
 
             match outcome {

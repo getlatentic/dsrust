@@ -3000,33 +3000,31 @@ Three shapes inside that:
   - the rest follow from those two.
 """
 remaining = """
-2026-08-05, after eleven commits on `pin/dspy-3.3.0`: the lease, the terminal session, the
-per-stage crossing and the bridge's ownership are done and verified. Upstream is at 1002 passed /
-33 failed / 45 errors, and the 33 group four ways, each diagnosed from the run rather than guessed:
+2026-08-05, 1024 passed / 11 failed / 45 errors on `pin/dspy-3.3.0`. Both directions of the error
+boundary are typed now and the loops propagate a terminal failure instead of feeding it back. What
+is left, each diagnosed from the run:
 
-**Serialization bypass (~14, `test_python_interpreter.py`).** `RustPythonInterpreter.execute`
-replaces dspy's `execute` whole, so dspy's `_make_jsonable` host-side conversion layer — which is
-what turns a set, a dataclass, a pydantic model into JSON before the sandbox boundary — never runs.
-`json.dumps(variables)` then raises on a set. The strict xfails dropped earlier for
-`test_serialize_set` were dropped on exactly this reasoning ("dspy converts before it reaches the
-crate"), which is true of dspy's own interpreter and false of the shim. Fix in the shim: run
-`_make_jsonable` over variables and over tool returns, since both are dspy's own layer above the
-interpreter protocol. The tool-return half lives in the `_synchronous` wrapper.
+**Non-finite floats, 3 tests, and it is a protocol decision.** `serde_json::Value` cannot hold
+`inf` or `nan`, so such a value cannot cross this bridge as a number at all — Python's
+`json.dumps` writes `Infinity` and serde rejects it. dspy keeps it a float to
+`_serialize_value` and emits `float('inf')`. Closing it means choosing a JSON-safe carrier and
+teaching `interpreter::variables::literal` to rebuild it. `test_nested_sets_and_tuples` is the
+same boundary from the other side.
 
-**Error classes across the boundary (~8).** The crate's `InterpreterFailure::{Execution,Session}`
-split exists, but the bridge crosses everything as `ValueError` text and the shim picks the Python
-class by message-matching. `test_generated_exception_name_cannot_spoof_interpreter_failure` is the
-test that message-matching cannot pass, by design. The bridge should carry the variant
-structurally — a typed prefix or a custom PyO3 exception — and the shim raise
-`CodeExecutionError` vs `CodeInterpreterError` from that, not from prose.
+**`test_{pot,codeact}_shuts_down_factory_interpreter_when_execution_raises`.** The interpreter
+raises a bare `ValueError`, not one of dspy's two classes. `interpreter_failure` maps anything
+unrecognised to `Execution`, so the loop feeds it back and asks the *next* stage — which has no LM
+in these tests, and the assertion sees "No LM is loaded" instead. Read upstream's `except` clause
+in `program_of_thought.py` before choosing: the question is whether a non-dspy exception from an
+interpreter is recoverable at all, and the current default says yes without having checked.
 
-**`interpreter` as a declared signature input (2).** `test_{pot,codeact}_allows_interpreter_as_
-signature_input`: upstream permits `interpreter` as an ordinary input field when the signature
-declares it. The shims' new guard has the same condition as upstream's, so the failure is past the
-guard — unread; read the test before theorizing.
+**`test_{pot,codeact}_allows_interpreter_as_signature_input`, 2.** A signature that declares
+`interpreter` as an ordinary input field. Still unread.
 
-**Two `upstream_test_types.py` Responses round-trips and one `test_lm.py` tolerance case.** The
-typed-LM surface, unrelated to interpreters.
+**Three typed-LM cases** in `test_types.py` and `test_lm.py` — Responses round-trips, unrelated to
+interpreters.
+
+Plus 45 no-crossing declarations to write, which is bookkeeping rather than porting.
 """
 
 [[backlog]]

@@ -12,6 +12,7 @@
 
 use std::sync::Arc;
 
+use dsrust::interpreter::InterpreterFailure;
 use dsrust::interpreter::{CodeInterpreter, Executed};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -70,8 +71,15 @@ impl CodeInterpreter for PyInterpreter {
                 .inner
                 .bind(py)
                 .call_method("execute", (code,), Some(&kwargs))
-                // dspy raises the message the loop shows the model, so it crosses as written.
-                .map_err(|error| anyhow::anyhow!("{}", raised_message(py, &error)))?;
+                // dspy raises the message the loop shows the model, so it crosses as written —
+                // and *which* failure it was crosses with it. dspy 3.3.0 splits
+                // `CodeExecutionError` (the code's, recoverable, fed back to the model) from a
+                // bare `CodeInterpreterError` (the interpreter's, terminal). Flattening both into
+                // one anyhow error made a protocol failure look like something worth rewriting
+                // the code over, and the loop swallowed it instead of propagating.
+                //
+                // The other direction was typed first; this is its mirror.
+                .map_err(|error| interpreter_failure(py, &error))?;
             PyInterpreter::executed(py, &result)
         })
     }
@@ -243,7 +251,18 @@ where
     // Released while the loop runs, so the interpreter and the LM can be called back into Python.
     let prediction = py
         .detach(|| pollster::block_on(ask(repl, dsrust::Example::new(fields))))
-        .map_err(to_value_error)?;
+        // Only the *terminal* interpreter failure gets its own class here. Everything else a
+        // module raises — a parse failure, "Max hops reached." — is the module's own error and
+        // keeps crossing as `ValueError`, which is what the shim's `RuntimeError` restoration and
+        // dspy's `AdapterParseError` path both read. Mapping all of them cost three tests.
+        .map_err(
+            |error| match error.downcast_ref::<dsrust::interpreter::InterpreterFailure>() {
+                Some(dsrust::interpreter::InterpreterFailure::Session(_)) => {
+                    crate::sandbox::sandbox_failure(error)
+                }
+                _ => to_value_error(error),
+            },
+        )?;
     let output: serde_json::Map<String, Value> = prediction
         .example
         .fields()
@@ -379,4 +398,28 @@ fn refusing_factory() -> dsrust::interpreter::InterpreterFactory {
             "the bridge always passes a caller-owned interpreter; this factory must not fire"
         )
     })
+}
+
+/// A Python exception from dspy's interpreter, as the crate's typed failure.
+///
+/// `CodeExecutionError` subclasses `CodeInterpreterError` upstream, so the narrower class is
+/// tested first — the other order calls every code failure terminal.
+fn interpreter_failure(py: Python<'_>, error: &PyErr) -> anyhow::Error {
+    let said = raised_message(py, error);
+    let Ok(module) = py.import("dspy.primitives.code_interpreter") else {
+        return anyhow::Error::new(InterpreterFailure::Execution(said));
+    };
+    let is = |name: &str| {
+        module
+            .getattr(name)
+            .and_then(|class| error.value(py).is_instance(&class))
+            .unwrap_or(false)
+    };
+    match () {
+        _ if is("CodeExecutionError") => anyhow::Error::new(InterpreterFailure::Execution(said)),
+        _ if is("CodeInterpreterError") => anyhow::Error::new(InterpreterFailure::Session(said)),
+        // Anything else dspy's interpreter raised — a SyntaxError, a tool's own exception — is the
+        // submitted code's, which is the recoverable side.
+        _ => anyhow::Error::new(InterpreterFailure::Execution(said)),
+    }
 }
