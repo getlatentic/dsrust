@@ -179,6 +179,10 @@ impl Parser {
     fn starts_nested_inline_container(&self, idx: isize) -> bool {
         let opening_delimiter = self.get_char_at(idx);
         let mut prev_idx = idx - 1;
+        // A stalled cursor cannot spin silently here: every read goes through the counted
+        // `Source::at`, whose read floor panics — the bound the cursor-arithmetic lint asks for,
+        // held by the reader rather than by the loop, so the walk can keep upstream's index shape.
+        // ast-grep-ignore: cursor-arithmetic-loop
         while prev_idx >= 0 {
             let Some(prev_char) = self.get_char_at(prev_idx) else {
                 return true;
@@ -279,6 +283,10 @@ impl Parser {
     }
 
     fn skip_to_line_end(&self, mut idx: isize) -> isize {
+        // A stalled cursor cannot spin silently here: every read goes through the counted
+        // `Source::at`, whose read floor panics — the bound the cursor-arithmetic lint asks for,
+        // held by the reader rather than by the loop, so the walk can keep upstream's index shape.
+        // ast-grep-ignore: cursor-arithmetic-loop
         while self
             .get_char_at(idx)
             .is_some_and(|char| char != '\n' && char != '\r')

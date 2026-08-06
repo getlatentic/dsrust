@@ -100,16 +100,19 @@ fn pairwise_sum(values: &[f64]) -> f64 {
     }
     if n <= BLOCK {
         let mut accumulators: [f64; 8] = values[..8].try_into().expect("eight values");
-        let mut index = 8;
-        while index + 8 <= n {
-            for (slot, value) in accumulators.iter_mut().zip(&values[index..index + 8]) {
+        // `chunks_exact` walks the same eight-wide blocks the cursor loop did, in the same order,
+        // so every float lands in the same accumulator and the sum is bit-identical — and the
+        // iterator owns the progress, so there is no `index += 8` for a mutant to stall.
+        let blocks = values[8..].chunks_exact(8);
+        let tail = blocks.remainder();
+        for block in blocks {
+            for (slot, value) in accumulators.iter_mut().zip(block) {
                 *slot += value;
             }
-            index += 8;
         }
         let mut total = ((accumulators[0] + accumulators[1]) + (accumulators[2] + accumulators[3]))
             + ((accumulators[4] + accumulators[5]) + (accumulators[6] + accumulators[7]));
-        for value in &values[index..] {
+        for value in tail {
             total += value;
         }
         return total;

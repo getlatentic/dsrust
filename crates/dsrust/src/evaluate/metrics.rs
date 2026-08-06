@@ -47,28 +47,32 @@ fn remove_articles(text: &str) -> String {
     const ARTICLES: [&str; 3] = ["a", "an", "the"];
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
-    let mut index = 0;
-    while index < chars.len() {
-        let opens = index == 0 || !is_word(chars[index - 1]);
-        let article = opens.then(|| {
-            ARTICLES.into_iter().find(|article| {
-                let length = article.chars().count();
-                index + length <= chars.len()
-                    && chars[index..index + length]
-                        .iter()
-                        .copied()
-                        .eq(article.chars())
-                    && (index + length == chars.len() || !is_word(chars[index + length]))
+    // The walk shrinks a slice rather than advancing a cursor: every arm continues from a strict
+    // suffix of `rest`, so there is no index arithmetic for a mutant to stall — the shape the
+    // cursor-arithmetic lint enforces, after four spins of the `index += n` form elsewhere.
+    let mut rest: &[char] = &chars;
+    let mut opens = true;
+    while let Some((&first, tail)) = rest.split_first() {
+        let article = opens
+            .then(|| {
+                ARTICLES.into_iter().find(|article| {
+                    let length = article.chars().count();
+                    length <= rest.len()
+                        && rest[..length].iter().copied().eq(article.chars())
+                        && rest.get(length).copied().is_none_or(|next| !is_word(next))
+                })
             })
-        });
-        match article.flatten() {
+            .flatten();
+        match article {
             Some(article) => {
                 out.push(' ');
-                index += article.chars().count();
+                rest = &rest[article.chars().count()..];
+                opens = true;
             }
             None => {
-                out.push(chars[index]);
-                index += 1;
+                out.push(first);
+                opens = !is_word(first);
+                rest = tail;
             }
         }
     }

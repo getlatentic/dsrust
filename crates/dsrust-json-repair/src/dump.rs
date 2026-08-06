@@ -66,6 +66,9 @@ fn write_string(text: &str, ascii: bool, out: &mut String) {
     // reads for the same reason, and a writer's cursor is no different.
     #[cfg(debug_assertions)]
     let mut steps: u64 = 0;
+    // Already carrying the bound the lint asks for: the debug step counter above panics on a
+    // stalled walk, and the release build inherits the loop the counter proved finite.
+    // ast-grep-ignore: cursor-arithmetic-loop
     while at < bytes.len() {
         #[cfg(debug_assertions)]
         {

@@ -283,6 +283,10 @@ impl Parser {
         }
 
         let mut next_index = end + 1;
+        // A stalled cursor cannot spin silently here: every read goes through the counted
+        // `Source::at`, whose read floor panics — the bound the cursor-arithmetic lint asks for,
+        // held by the reader rather than by the loop, so the walk can keep upstream's index shape.
+        // ast-grep-ignore: cursor-arithmetic-loop
         while self.json_str.at(next_index).is_some_and(pychar::is_space) {
             next_index += 1;
         }

@@ -71,6 +71,10 @@ impl Parser {
     fn halve_backslash_run(&mut self, state: &mut StringParseState, active: char) -> bool {
         let run_start = self.index - 1;
         let mut run_end = self.index + 1;
+        // A stalled cursor cannot spin silently here: every read goes through the counted
+        // `Source::at`, whose read floor panics — the bound the cursor-arithmetic lint asks for,
+        // held by the reader rather than by the loop, so the walk can keep upstream's index shape.
+        // ast-grep-ignore: cursor-arithmetic-loop
         while self.json_str.at(run_end) == Some('\\') {
             run_end += 1;
         }

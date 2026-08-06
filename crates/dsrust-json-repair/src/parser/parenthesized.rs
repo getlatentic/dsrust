@@ -124,6 +124,10 @@ impl Parser {
     /// an aside, judged by what follows it and by its closing bracket ending the line.
     pub(crate) fn top_level_parenthesized_can_start_value(&self) -> bool {
         let mut position = self.index as isize - 1;
+        // A stalled cursor cannot spin silently here: every read goes through the counted
+        // `Source::at`, whose read floor panics — the bound the cursor-arithmetic lint asks for,
+        // held by the reader rather than by the loop, so the walk can keep upstream's index shape.
+        // ast-grep-ignore: cursor-arithmetic-loop
         while position >= 0 {
             let Some(ch) = self.json_str.at(position as usize) else {
                 break;

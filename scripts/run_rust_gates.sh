@@ -86,6 +86,17 @@ cargo build --all-targets
 echo "==> cargo fmt --check"
 cargo fmt --check
 
+echo "==> cursor-loop lint (scripts/lints/)"
+# A while-loop advancing by hand-maintained arithmetic is one mutated operator from a spin, and
+# the shape hung the suite four times in one day before this existed. The rule file carries the
+# history; a legitimate cursor loop carries an in-source suppression naming why a stall still
+# terminates loudly.
+if ! ast-grep --version > /dev/null 2>&1; then
+  echo "ast-grep is not installed: brew install ast-grep" >&2
+  exit 127
+fi
+bounded ast-grep scan --rule scripts/lints/cursor_arithmetic_loop.yml crates/
+
 echo "==> cargo doc --no-deps"
 # Fresh, because cargo caches rendered docs: seven unresolved intra-doc links sat at HEAD for as
 # long as nobody touched the files holding them, and this gate reported clean the whole time.

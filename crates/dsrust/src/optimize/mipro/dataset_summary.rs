@@ -148,19 +148,16 @@ pub(crate) async fn create_dataset_summary(
     let mut observations = text(&first, "observations");
 
     let mut skips = 0;
-    let mut calls = 0;
-    let mut start = view_data_batch_size;
-    while start < trainset.len() {
-        calls += 1;
-        if calls >= MAX_CALLS {
-            break;
-        }
-        let upper = (start + view_data_batch_size).min(trainset.len());
+    // `chunks` hands over the same `[start..start+batch]` windows the cursor loop cut, clamped at
+    // the end the same way, and `take` is upstream's `calls >= MAX_CALLS` bound: the increment ran
+    // before the check, so batch number MAX_CALLS was never asked. The iterator owns the
+    // progress — every bounds-and-step mutant of the old walk survived, because nothing ran it.
+    let batches = trainset[view_data_batch_size.min(trainset.len())..]
+        .chunks(view_data_batch_size.max(1)) // .max(1): upstream at zero asks nine empty batches and gives up — a bug declined, not reproduced
+        .take(MAX_CALLS - 1);
+    for batch in batches {
         let asked = Example::new([
-            (
-                "examples",
-                Value::String(examples_repr(&trainset[start..upper])),
-            ),
+            ("examples", Value::String(examples_repr(batch))),
             ("prior_observations", Value::String(observations.clone())),
         ]);
         // Upstream wraps the whole loop in `except Exception` and summarises what it already has,
@@ -172,7 +169,6 @@ pub(crate) async fn create_dataset_summary(
             break;
         };
         let added = text(&answered, "observations");
-        start += view_data_batch_size;
         if added.len() >= 8 && added[..8].eq_ignore_ascii_case("COMPLETE") {
             skips += 1;
             if skips >= MAX_SKIPS {

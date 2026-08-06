@@ -181,6 +181,9 @@ fn strip_comments(body: &str) -> String {
     // are iterator-shaped below, and the outer step count guards what remains.
     #[cfg(debug_assertions)]
     let mut steps: u64 = 0;
+    // Already carrying the bound the lint asks for: the debug step counter above panics on a
+    // stalled walk, and the release build inherits the loop the counter proved finite.
+    // ast-grep-ignore: cursor-arithmetic-loop
     while index < chars.len() {
         #[cfg(debug_assertions)]
         {

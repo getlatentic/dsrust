@@ -128,6 +128,10 @@ impl Parser {
         let length = self.len() as isize;
         let mut position = self.index as isize + idx;
         let mut backslashes = 0_usize;
+        // A stalled cursor cannot spin silently here: every read goes through the counted
+        // `Source::at`, whose read floor panics — the bound the cursor-arithmetic lint asks for,
+        // held by the reader rather than by the loop, so the walk can keep upstream's index shape.
+        // ast-grep-ignore: cursor-arithmetic-loop
         while position < length {
             let Some(ch) = usize::try_from(position)
                 .ok()
@@ -183,6 +187,10 @@ impl Parser {
         }
         self.log("The parser returned early, checking if there's more json elements");
         let mut values = vec![first];
+        // A stalled cursor cannot spin silently here: every read goes through the counted
+        // `Source::at`, whose read floor panics — the bound the cursor-arithmetic lint asks for,
+        // held by the reader rather than by the loop, so the walk can keep upstream's index shape.
+        // ast-grep-ignore: cursor-arithmetic-loop
         while self.index < self.len() {
             self.context.clear();
             self.deferred_contexts.clear();
@@ -220,6 +228,10 @@ impl Parser {
             return true;
         }
         let mut position = self.index as isize - 1;
+        // A stalled cursor cannot spin silently here: every read goes through the counted
+        // `Source::at`, whose read floor panics — the bound the cursor-arithmetic lint asks for,
+        // held by the reader rather than by the loop, so the walk can keep upstream's index shape.
+        // ast-grep-ignore: cursor-arithmetic-loop
         while position >= 0
             && self
                 .json_str

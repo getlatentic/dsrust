@@ -228,6 +228,10 @@ impl Parser {
     /// value wins. Anything else is two objects run together.
     fn should_split_duplicate_object(&self, rollback_index: usize) -> bool {
         let mut lookback = rollback_index as isize - self.index as isize - 1;
+        // A stalled cursor cannot spin silently here: every read goes through the counted
+        // `Source::at`, whose read floor panics — the bound the cursor-arithmetic lint asks for,
+        // held by the reader rather than by the loop, so the walk can keep upstream's index shape.
+        // ast-grep-ignore: cursor-arithmetic-loop
         while self
             .get_char_at(lookback)
             .is_some_and(crate::pychar::is_space)

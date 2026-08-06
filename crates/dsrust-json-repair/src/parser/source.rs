@@ -205,6 +205,9 @@ impl Source {
 const ASCII_SPACE: [bool; 128] = {
     let mut table = [false; 128];
     let mut byte = 0;
+    // `const` evaluation has no iterators to own the progress, so the bound is the literal the
+    // condition names.
+    // ast-grep-ignore: cursor-arithmetic-loop
     while byte < 128 {
         table[byte] = matches!(byte as u8, 9..=13 | 28..=31 | 32);
         byte += 1;
