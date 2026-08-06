@@ -200,6 +200,82 @@ fn text(prediction: &crate::example::Prediction, field: &str) -> String {
 mod tests {
     use super::*;
 
+    /// Every summarising ask runs hot — dspy's `temperature=1.0` — and the walk stops at
+    /// `MAX_CALLS`: with fourteen rows at a batch size of one, only nine loop batches are asked
+    /// (upstream increments before it checks, so batch ten was never asked), plus the opener and
+    /// the summariser. The temperature-field mutant and both arithmetic mutants of the bound need
+    /// a corpus this long to differ at all — the three-row tests above cannot see them.
+    #[tokio::test]
+    async fn the_walk_runs_hot_and_stops_at_max_calls() {
+        let rows: Vec<Example> = (0..14)
+            .map(|at| Example::new([("question", Value::String(format!("row {at}")))]))
+            .collect();
+        let script: Vec<Example> = (0..10)
+            .map(|at| Example::new([("observations", Value::String(format!("saw {at}. ")))]))
+            .chain([Example::new([(
+                "summary",
+                Value::String("Rows.".to_owned()),
+            )])])
+            .collect();
+        let lm = std::sync::Arc::new(crate::DummyLM::new(script));
+
+        create_dataset_summary(&rows, 1, &(lm.clone() as _))
+            .await
+            .expect("the script answers");
+        let asked = lm.asked();
+        assert_eq!(
+            asked.len(),
+            1 + (MAX_CALLS - 1) + 1,
+            "the opener, nine loop batches, and the summariser"
+        );
+        for ask in &asked {
+            assert_eq!(ask.config.temperature, Some(1.0), "dspy summarises hot");
+        }
+        let ninth = asked[MAX_CALLS - 1].last_message().to_owned();
+        assert!(
+            ninth.contains("row 9"),
+            "the last asked batch is row 9: {ninth}"
+        );
+        assert!(
+            !asked
+                .iter()
+                .any(|ask| ask.last_message().contains("row 10")),
+            "row 10 sits past the call budget and is never asked"
+        );
+    }
+
+    /// Five COMPLETE answers end the reading — dspy's MAX_SKIPS — and the batches past the fifth
+    /// are never asked. The skip counter's `*=` mutant never reaches five and reads on.
+    #[tokio::test]
+    async fn five_complete_answers_end_the_reading() {
+        let rows: Vec<Example> = (0..9)
+            .map(|at| Example::new([("question", Value::String(format!("row {at}")))]))
+            .collect();
+        let script: Vec<Example> = std::iter::once(Example::new([(
+            "observations",
+            Value::String("opening. ".to_owned()),
+        )]))
+        .chain(
+            (0..MAX_SKIPS)
+                .map(|_| Example::new([("observations", Value::String("COMPLETE".to_owned()))])),
+        )
+        .chain([Example::new([(
+            "summary",
+            Value::String("Rows.".to_owned()),
+        )])])
+        .collect();
+        let lm = std::sync::Arc::new(crate::DummyLM::new(script));
+
+        create_dataset_summary(&rows, 1, &(lm.clone() as _))
+            .await
+            .expect("the script answers");
+        assert_eq!(
+            lm.asked().len(),
+            1 + MAX_SKIPS + 1,
+            "the opener, five skipped batches, and the summariser — nothing after the fifth"
+        );
+    }
+
     /// The batching walk, driven by a scripted LM: three rows at a batch size of one is a first
     /// call plus two loop calls plus the summariser, each batch carrying only its own row and the
     /// observations accumulated so far.

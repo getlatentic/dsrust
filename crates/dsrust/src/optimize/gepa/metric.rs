@@ -46,7 +46,11 @@ fn python_float(score: f64) -> String {
         // Rust's Display says `NaN`; Python's str says `nan`, and this string reaches a prompt.
         return "nan".to_owned();
     }
-    if score.is_finite() && score == score.trunc() {
+    // No finiteness check: with nan handled above, the only non-finite values left are the two
+    // infinities, and `{:.1}` and `{}` both print them `inf`/`-inf` — so the `is_finite() &&` this
+    // carried could not change an answer, and its mutant survived to say so. Both spellings match
+    // Python's `str`.
+    if score == score.trunc() {
         format!("{score:.1}")
     } else {
         format!("{score}")

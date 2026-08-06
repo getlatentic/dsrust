@@ -175,6 +175,45 @@ where
 mod tests {
     use super::*;
 
+    /// `asked` decides who answers: everyone without a size, and a without-replacement draw of
+    /// exactly `size` with one. Observed through the reducer — the one caller — whose prediction
+    /// count is the draw's length, and whose members' call logs say nobody answered twice. All
+    /// three replacement mutants survived because no test ran a sized ensemble.
+    #[tokio::test]
+    async fn a_sized_ensemble_asks_exactly_that_many_distinct_members() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let seen = std::sync::Arc::new(AtomicUsize::new(0));
+        let counting = {
+            let seen = seen.clone();
+            move |predictions: &[crate::Prediction]| {
+                seen.store(predictions.len(), Ordering::SeqCst);
+                Ok(predictions.first().expect("someone answered").clone())
+            }
+        };
+        let members = |n: usize| -> Vec<Box<dyn crate::Module>> {
+            (0..n)
+                .map(|_| {
+                    Box::new(crate::optimize::scripted::Solver::new(
+                        crate::optimize::scripted::Answers::Correctly,
+                    )) as Box<dyn crate::Module>
+                })
+                .collect()
+        };
+        let ask = crate::example! { request: "capital of France?" }.with_inputs(["request"]);
+
+        let everyone = Ensemble::new(counting.clone()).compile(members(3));
+        crate::Module::forward(&everyone, ask.clone())
+            .await
+            .expect("answers");
+        assert_eq!(seen.load(Ordering::SeqCst), 3, "no size asks everyone");
+
+        let sampled = Ensemble::new(counting).size(2).seed(0).compile(members(3));
+        crate::Module::forward(&sampled, ask)
+            .await
+            .expect("answers");
+        assert_eq!(seen.load(Ordering::SeqCst), 2, "a size asks that many");
+    }
+
     /// The accessors answer for the programs actually held, and an optimizer walking the ensemble
     /// reaches every member's predictors under distinct indexed names.
     #[test]

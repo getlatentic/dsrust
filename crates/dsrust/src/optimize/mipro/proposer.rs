@@ -209,6 +209,73 @@ mod tests {
     use super::*;
     use crate::lm::{ChatModel, api};
 
+    /// The word class includes `_`, `'` and `-`, so a label spelled with any of them still strips.
+    /// The or-chain's mutants narrowed the class and a labelled line came through label and all.
+    #[test]
+    fn labels_spelled_with_underscores_and_apostrophes_still_strip() {
+        assert_eq!(strip_prefix("my_label: keep this"), "keep this");
+        assert_eq!(strip_prefix("Dave's Tip: keep this"), "keep this");
+        assert_eq!(strip_prefix("well-known Advice: keep this"), "keep this");
+    }
+
+    /// dspy's module summary line, exactly: `Predict(inputs) -> outputs`. Replaced wholesale, the
+    /// module description prompt described a nameless program and every test stayed green.
+    #[test]
+    fn module_code_spells_the_predict_line() {
+        let signature: Signature = "question, context -> answer".parse().expect("parses");
+        assert_eq!(
+            module_code(&signature),
+            "Predict(question, context) -> answer"
+        );
+    }
+
+    /// `describe` asks twice and hands both descriptions on — the program's, label stripped, and
+    /// the module's. Without program code it answers dspy's fixed strings and asks nothing. All
+    /// four tuple-replacement mutants survived because nothing read either half.
+    #[tokio::test]
+    async fn describe_hands_on_both_descriptions_or_the_fixed_strings() {
+        let lm = std::sync::Arc::new(crate::DummyLM::new([
+            crate::example! { program_description: "Program Description: solves questions" },
+            crate::example! { module_description: "answers directly" },
+        ]));
+        let proposer = GenerateModuleInstruction::new(
+            Some("class Program: ...".to_owned()),
+            InstructionInputs {
+                dataset_summary: false,
+                program_aware: true,
+                instruct_history: false,
+                tip: false,
+            },
+            lm.clone(),
+            crate::lm::Sampling::default(),
+        );
+        let (program, module) = proposer
+            .describe("No task demos provided.", "Predict(question) -> answer")
+            .await
+            .expect("the script answers");
+        assert_eq!(program, "solves questions", "the label is stripped");
+        assert_eq!(module, "answers directly");
+        assert_eq!(lm.asked().len(), 2);
+
+        let unaware = GenerateModuleInstruction::new(
+            None,
+            InstructionInputs {
+                dataset_summary: false,
+                program_aware: false,
+                instruct_history: false,
+                tip: false,
+            },
+            std::sync::Arc::new(crate::DummyLM::new([])),
+            crate::lm::Sampling::default(),
+        );
+        let (program, module) = unaware
+            .describe("No task demos provided.", "Predict(question) -> answer")
+            .await
+            .expect("no ask to fail");
+        assert_eq!(program, "Not available");
+        assert_eq!(module, "Not provided");
+    }
+
     #[test]
     fn strip_prefix_matches_dspy() {
         // From `dspy.propose.utils.strip_prefix`, run on 3.2.1. A label of up to five words and a
