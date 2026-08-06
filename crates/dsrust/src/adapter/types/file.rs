@@ -48,8 +48,17 @@ impl File {
     /// guess from and, unlike an image, no signature worth trusting across the formats a `File`
     /// carries. Upstream's default, and its own test asserts exactly this prefix.
     pub fn from_bytes(bytes: impl AsRef<[u8]>) -> Self {
+        Self::from_bytes_as(bytes, "application/octet-stream")
+    }
+
+    /// The same, naming the media type — upstream's `mime_type=`.
+    ///
+    /// Bytes a caller holds often *are* known: a PDF they just rendered, a CSV they just wrote. The
+    /// media type is baked into the `data:` URI and is what a provider decides how to read them by,
+    /// so being able to say so is the difference between a document and an opaque blob.
+    pub fn from_bytes_as(bytes: impl AsRef<[u8]>, media_type: impl AsRef<str>) -> Self {
         Self::from_data(crate::resource::data_uri(
-            "application/octet-stream",
+            media_type.as_ref(),
             &crate::resource::encode(bytes.as_ref()),
         ))
     }

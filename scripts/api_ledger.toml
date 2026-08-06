@@ -47,7 +47,7 @@
 "adapters/types/image.py::Image" = { status = "mapped", rust = "Image" }
 "adapters/types/image.py::encode_image" = { status = "mapped", rust = "Image::new, Image::from_bytes", reason = "the ingestion itself is Rust: a string is validated (a reference or a data URI kept, anything else refused by name) and bytes are identified by signature — identification is the only job PIL is really doing here, and reading a magic number needs no image library. The payload diverges deliberately: upstream already holds a PIL object once it has decoded, so it re-encodes through it, and that costs a JPEG its quality (measured: 5446 bytes to 2837, max channel delta 69 of 255) and an animated GIF every frame but the first (three to one). Matching upstream byte for byte would mean reproducing a data loss, so these are the caller's bytes unmodified under the media type upstream would have named" }
 "adapters/types/image.py::is_image" = { status = "divergence", reason = "Python isinstance probe; not needed with a typed Rust value" }
-"adapters/types/image.py::is_url" = { status = "divergence", reason = "Python URL sniff; not needed" }
+"adapters/types/image.py::is_url" = { status = "mapped", rust = "Image::new", reason = "the check inside it: an http(s) or `gs` scheme with a host is a reference a provider resolves, and anything else is refused. Not public on its own — a caller asking \"is this a URL\" is about to build an `Image`, and the constructor answers that with a value or a reason" }
 "adapters/types/audio.py::Audio" = { status = "mapped", rust = "Audio" }
 "adapters/types/audio.py::encode_audio" = { status = "mapped", rust = "Audio::parse, Audio::from_bytes, Audio::from_samples", reason = "each in-memory branch as its own constructor: a data URI split into payload and format, raw bytes under a named format, and samples written as a 16-bit PCM WAV. The array branch is upstream's `soundfile` call, reproduced from primitives because libsndfile's default WAV is a canonical RIFF header and nothing else — pinned byte for byte against soundfile's own output, including the float-to-PCM rule (floor then clamp), which was derived from a measured sweep rather than assumed" }
 "adapters/types/file.py::File" = { status = "mapped", rust = "File" }
@@ -347,7 +347,7 @@
 
 # Image
 "adapters/types/image.py::Image.format" = { status = "mapped", rust = "format" }
-"adapters/types/image.py::Image.from_PIL" = { status = "divergence", reason = "a PIL `Image` object, which is a Python value with no Rust counterpart — and deprecated upstream for removal in 3.4, replaced by `Image(pil_image)`. What it does that is not PIL-specific — bytes to a data URI under a sniffed media type — is `Image::from_bytes`" }
+"adapters/types/image.py::Image.from_PIL" = { status = "mapped", rust = "Image::from_rgb, Image::from_rgba", reason = "deprecated upstream for removal in 3.4, but what it does is not: `Image(pil_image)` is the supported spelling and this is that branch. A PIL object is a decoded pixel buffer, so the counterpart is one — RGB or RGBA samples, encoded to PNG (what `_encode_pil_image` falls back to for an in-memory image, which never carries a format of its own). The bytes are the `image` crate's and cannot match PIL's; the pixels round-trip, which is what a provider sees" }
 "adapters/types/image.py::Image.from_file" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
 
 # Audio
@@ -358,7 +358,7 @@
 
 # File
 "adapters/types/file.py::File.format" = { status = "mapped", rust = "format" }
-"adapters/types/file.py::File.from_bytes" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
+"adapters/types/file.py::File.from_bytes" = { status = "mapped", rust = "File::from_bytes", reason = "raw bytes as an opaque data URI under `application/octet-stream`, which is upstream's default when nothing names the type" }
 "adapters/types/file.py::File.from_file_id" = { status = "mapped", rust = "from_id" }
 "adapters/types/file.py::File.from_path" = { status = "mapped", rust = "File::from_path", reason = "as `Image.from_path`, keeping the basename: once the bytes are base64 the name is the only thing telling a model what the file is" }
 "adapters/types/file.py::File.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
@@ -606,8 +606,8 @@
 "adapters/json_adapter.py::JSONAdapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "JsonAdapter::parallel_tool_calls" }
 "adapters/json_adapter.py::JSONAdapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "JsonAdapter::use_native_function_calling" }
 "adapters/two_step_adapter.py::TwoStepAdapter.extraction_model" = { status = "mapped", rust = "extraction_model", reason = "TwoStepAdapter::extraction_model" }
-"adapters/types/image.py::Image.download" = { status = "divergence", reason = "dspy can fetch a url and inline it as base64; this crate sends the url or bytes the caller supplies and makes no request of its own" }
-"adapters/types/image.py::Image.verify" = { status = "divergence", reason = "pydantic validator plumbing for dspy's own constructor" }
+"adapters/types/image.py::Image.download" = { status = "mapped", rust = "Image::from_url", reason = "3.3.0 removed this as a constructor argument precisely because a value reachable from parsing could set it. Downloading is its own named constructor now, on both sides; a payload carrying `download` is refused by the deserializer rather than honoured or ignored" }
+"adapters/types/image.py::Image.verify" = { status = "mapped", rust = "Image::from_url_unverified", reason = "upstream's TLS switch, which survives 3.3.0 only on the explicit `from_url` factory. A named constructor rather than a `bool`: `false` at a call site says nothing about what it turns off, and a payload carrying `verify` is refused alongside `download`" }
 "adapters/types/tool.py::Tool.arg_desc" = { status = "divergence", reason = "per-argument prose lives in the `args` schema's `description`, which is where it is rendered from" }
 "adapters/types/tool.py::Tool.arg_types" = { status = "divergence", reason = "the JSON Schema in `args` carries each argument's type; dspy keeps the Python annotations beside it for its own coercion" }
 "adapters/types/tool.py::Tool.args" = { status = "mapped", rust = "args", reason = "Tool::args" }
@@ -778,6 +778,11 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+"adapters/types/file.py::File.from_bytes.file_bytes" = { status = "mapped", rust = "bytes", reason = "`impl AsRef<[u8]>`, so a slice, a `Vec` or an array all work" }
+"adapters/types/file.py::File.from_bytes.filename" = { status = "mapped", rust = "File::filename", reason = "the builder this type already had, as with `from_path`: `File::from_bytes(b)?.filename(\"report.pdf\")`" }
+"adapters/types/file.py::File.from_bytes.mime_type" = { status = "mapped", rust = "File::from_bytes_as", reason = "the override as its own constructor, matching `from_path_as`. Bytes a caller holds are often of a known type, and the media type is what a provider reads them by" }
+"adapters/types/image.py::Image.from_PIL.pil_image" = { status = "mapped", rust = "Image::from_rgb, Image::from_rgba", reason = "a decoded pixel buffer, which is what a PIL object is. Two constructors rather than a mode parameter, so dropping an alpha channel cannot happen by passing the wrong constant" }
+"adapters/types/image.py::is_url.string" = { status = "mapped", rust = "Image::new", reason = "its `source` parameter; see the `is_url` entry for why the check is not exposed on its own" }
 "adapters/types/image.py::encode_image.image" = { status = "mapped", rust = "Image::new, Image::from_bytes", reason = "the argument this dispatches on, which Rust spells as the choice of constructor rather than as a union" }
 "adapters/types/file.py::encode_file_to_dict.file_input" = { status = "mapped", rust = "File::parse, File::from_bytes", reason = "as `encode_image.image`" }
 "adapters/types/audio.py::encode_audio.audio" = { status = "mapped", rust = "Audio::parse, Audio::from_bytes, Audio::from_samples", reason = "as `encode_image.image`" }

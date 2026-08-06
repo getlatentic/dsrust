@@ -8,9 +8,13 @@ use super::base::{Formatted, Type, serialized};
 
 /// dspy's `Image`: an image by URL or base64 data URI, rendered as an `image_url` content block.
 ///
-/// dspy's constructor also accepts raw bytes, a PIL image, or a remote URL to download — each
-/// encoded to a data URI first. Those are Python objects a Rust caller does not hold; here the
-/// value is the `url` (an `http(s)`/`gs` URL, a local path, or a `data:` URI) as given.
+/// The value is always a `url` — a reference a provider resolves, or a `data:` URI carrying the
+/// bytes — and every way of arriving at one is a named constructor rather than a constructor that
+/// guesses. [`new`](Self::new) takes a reference, [`from_bytes`](Self::from_bytes) an encoded
+/// image, [`from_rgb`](Self::from_rgb) and [`from_rgba`](Self::from_rgba) decoded pixels,
+/// [`from_path`](Self::from_path) a local file and [`from_url`](Self::from_url) a remote one. Only
+/// the last two touch anything outside the process, which is upstream's 3.3.0 split and the reason
+/// a value that merely looks like a path is refused rather than read.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Image {
     pub url: String,
@@ -55,8 +59,8 @@ impl Image {
     ///
     /// So matching upstream byte for byte would mean reproducing a data loss. These are the
     /// caller's bytes, unmodified, under the media type upstream would have named — which is the
-    /// part a provider reads as meaning. The identification is the only job PIL is really doing
-    /// here, and reading a magic number needs no image library.
+    /// part a provider reads as meaning. Identification is the only job PIL is really doing on this
+    /// branch, and `image::guess_format` does it without decoding.
     pub fn from_bytes(bytes: impl AsRef<[u8]>) -> anyhow::Result<Self> {
         let bytes = bytes.as_ref();
         let Some(media_type) = sniffed(bytes) else {
@@ -68,6 +72,71 @@ impl Image {
         Ok(Self::reference(&crate::resource::data_uri(
             media_type,
             &crate::resource::encode(bytes),
+        )))
+    }
+
+    /// dspy `Image(pil_image)`: decoded pixels, encoded as a PNG and embedded.
+    ///
+    /// This is the branch PIL is genuinely load-bearing for, and it is **not** deprecated —
+    /// `Image(pil_image)` is what 3.3.0 points `Image.from_PIL` at. A caller holding pixels rather
+    /// than a file (a render, a chart, a captured frame) has upstream's exact need, and the
+    /// counterpart to a PIL object is a decoded buffer.
+    ///
+    /// Three bytes a pixel, row-major and tightly packed. PNG because that is what
+    /// `_encode_pil_image` falls back to for an image with no format of its own, which an in-memory
+    /// one never has.
+    ///
+    /// The bytes are the `image` crate's, not PIL's, and no two PNG encoders agree — filter choice
+    /// and deflate settings are an encoder's own. What holds is that the pixels survive, which is
+    /// the round trip asserted in the tests.
+    pub fn from_rgb(width: u32, height: u32, pixels: &[u8]) -> anyhow::Result<Self> {
+        Self::encoded(
+            image::RgbImage::from_raw(width, height, pixels.to_vec()),
+            3,
+            width,
+            height,
+            pixels.len(),
+        )
+    }
+
+    /// The same with an alpha channel: four bytes a pixel.
+    pub fn from_rgba(width: u32, height: u32, pixels: &[u8]) -> anyhow::Result<Self> {
+        Self::encoded(
+            image::RgbaImage::from_raw(width, height, pixels.to_vec()),
+            4,
+            width,
+            height,
+            pixels.len(),
+        )
+    }
+
+    /// One decoded buffer as a PNG data URI, or why the buffer was not one.
+    ///
+    /// `from_raw` answers `None` for a length that does not match the dimensions, and that is the
+    /// whole of the validation — a buffer half the size it claims would otherwise be encoded as an
+    /// image of whatever it happened to contain.
+    fn encoded<P, C>(
+        buffer: Option<image::ImageBuffer<P, C>>,
+        samples: usize,
+        width: u32,
+        height: u32,
+        given: usize,
+    ) -> anyhow::Result<Self>
+    where
+        P: image::Pixel<Subpixel = u8> + image::PixelWithColorType,
+        C: std::ops::Deref<Target = [u8]>,
+    {
+        let wanted = width as usize * height as usize * samples;
+        let Some(buffer) = buffer else {
+            anyhow::bail!(
+                "{width}x{height} at {samples} bytes a pixel needs {wanted} bytes, given {given}"
+            );
+        };
+        let mut png = Vec::new();
+        buffer.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)?;
+        Ok(Self::reference(crate::resource::data_uri(
+            "image/png",
+            &crate::resource::encode(&png),
         )))
     }
 
@@ -144,22 +213,16 @@ fn is_url(source: &str) -> bool {
         && !rest.split(['/', '?', '#']).next().unwrap_or("").is_empty()
 }
 
-/// The media type raw bytes announce about themselves, by the signature every one of these formats
-/// opens with — what PIL's `Image.open` does before it decodes anything.
+/// The media type raw bytes announce about themselves — what PIL's `Image.open` reads before it
+/// decodes anything, here `image::guess_format`.
 ///
-/// Named as PIL names them: `image/{format.lower()}`, which is what `_encode_pil_image` builds.
+/// The `image` crate rather than a hand-written signature table: it knows every format it can name
+/// rather than the six worth typing out, and identification is exactly the job PIL is doing on this
+/// path. Its answers are `image/{format}`, which is the shape `_encode_pil_image` builds too.
 fn sniffed(bytes: &[u8]) -> Option<&'static str> {
-    let starts = |signature: &[u8]| bytes.starts_with(signature);
-    match () {
-        _ if starts(b"\x89PNG\r\n\x1a\n") => Some("image/png"),
-        _ if starts(b"\xff\xd8\xff") => Some("image/jpeg"),
-        _ if starts(b"GIF87a") || starts(b"GIF89a") => Some("image/gif"),
-        // RIFF containers name their payload at byte 8; only the WEBP one is an image.
-        _ if starts(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") => Some("image/webp"),
-        _ if starts(b"BM") => Some("image/bmp"),
-        _ if starts(b"II\x2a\x00") || starts(b"MM\x00\x2a") => Some("image/tiff"),
-        _ => None,
-    }
+    image::guess_format(bytes)
+        .ok()
+        .map(|format| format.to_mime_type())
 }
 
 impl Type for Image {
@@ -330,6 +393,55 @@ mod tests {
                 image.url
             );
         }
+    }
+
+    /// Decoded pixels survive the encode — the whole claim, since the bytes cannot match PIL's.
+    ///
+    /// Closed in Rust rather than against Python: the same library that encodes will decode, so
+    /// this asserts what a provider will get rather than what the encoder believed it wrote.
+    #[test]
+    fn pixels_round_trip_through_the_png_they_are_encoded_as() {
+        let rgb: Vec<u8> = vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 9, 9, 9];
+        let image = Image::from_rgb(2, 2, &rgb).expect("encodes");
+        let payload = image
+            .url
+            .strip_prefix("data:image/png;base64,")
+            .expect("a png data uri");
+        let read = decoded(payload);
+        assert_eq!((read.width(), read.height()), (2, 2));
+        assert_eq!(read.to_rgb8().into_raw(), rgb);
+
+        // Alpha has to survive too, which is the reason the two constructors are separate: RGB
+        // would silently drop it, and a transparent image would arrive opaque.
+        let rgba: Vec<u8> = vec![255, 0, 0, 128, 0, 255, 0, 0, 0, 0, 255, 255, 1, 2, 3, 4];
+        let image = Image::from_rgba(2, 2, &rgba).expect("encodes");
+        let payload = image
+            .url
+            .strip_prefix("data:image/png;base64,")
+            .expect("a png data uri");
+        assert_eq!(decoded(payload).to_rgba8().into_raw(), rgba);
+    }
+
+    fn decoded(payload: &str) -> image::DynamicImage {
+        use base64::Engine;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(payload)
+            .expect("the payload is base64");
+        image::load_from_memory(&bytes).expect("what was written decodes")
+    }
+
+    /// A buffer that does not match the dimensions is refused rather than encoded as whatever it
+    /// happened to hold — the one thing `from_raw` checks, and the one a caller gets wrong.
+    #[test]
+    fn a_buffer_that_does_not_match_its_dimensions_is_refused() {
+        let why = Image::from_rgb(4, 4, &[0; 12])
+            .expect_err("refused")
+            .to_string();
+        assert_eq!(why, "4x4 at 3 bytes a pixel needs 48 bytes, given 12");
+        assert!(
+            Image::from_rgba(2, 2, &[0; 12]).is_err(),
+            "RGBA needs four a pixel"
+        );
     }
 
     /// Bytes that are not an image are refused, where upstream's PIL raises

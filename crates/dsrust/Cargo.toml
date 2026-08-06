@@ -41,6 +41,7 @@ tpe = { version = "0.1.0-alpha.1", path = "../dsrust-tpe", package = "dsrust-tpe
 tracing = "0.1"
 unicode-general-category = "1.1.0"
 unicode-normalization = "0.1.25"
+image = { version = "0.25.10", default-features = false, features = ["png"] }
 
 [dev-dependencies]
 # Only `#[tokio::test]` reaches for it: nothing in `src/` names a tokio type at runtime, so this
