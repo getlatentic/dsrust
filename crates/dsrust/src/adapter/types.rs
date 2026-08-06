@@ -15,7 +15,7 @@ pub mod image;
 pub mod reasoning;
 pub mod tool;
 
-pub use audio::Audio;
+pub use audio::{Audio, Container};
 pub use base::{Formatted, Type, serialized, to_field_value};
 pub use citation::{Citation, Citations};
 pub use code::Code;

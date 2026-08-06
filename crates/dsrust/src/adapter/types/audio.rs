@@ -73,10 +73,30 @@ impl Audio {
     /// `f32` because that is what libsndfile converts from and what the measurement was taken in:
     /// a sample is scaled by 32768 and clamped, so `1.0` lands on `32767` rather than wrapping.
     pub fn from_samples(samples: &[f32], sampling_rate: u32) -> Self {
-        Self::new(
-            crate::resource::encode(&wav_pcm16(samples, sampling_rate)),
-            "wav",
-        )
+        Self::from_samples_as(samples, sampling_rate, Container::Wav)
+            .expect("WAV is written from primitives and cannot fail")
+    }
+
+    /// The same, into a named container — dspy's `format=` on `from_array`.
+    ///
+    /// Both containers are given the *same* 16-bit samples, converted by libsndfile's own rule, so
+    /// a FLAC and a WAV of one recording decode to identical values. That is the property worth
+    /// having: which container a caller picks is a size and provider-support question, never a
+    /// question about the audio.
+    pub fn from_samples_as(
+        samples: &[f32],
+        sampling_rate: u32,
+        container: Container,
+    ) -> anyhow::Result<Self> {
+        let pcm: Vec<i16> = samples.iter().map(|sample| pcm16(*sample)).collect();
+        let encoded = match container {
+            Container::Wav => wav_pcm16(&pcm, sampling_rate),
+            Container::Flac => flac_pcm16(&pcm, sampling_rate)?,
+        };
+        Ok(Self::new(
+            crate::resource::encode(&encoded),
+            container.name(),
+        ))
     }
 
     /// dspy `Audio.from_path`: read a local audio file and encode it as bare base64.
@@ -130,15 +150,77 @@ impl Audio {
     }
 }
 
+/// What samples are written into — dspy's `format=`, which it hands to libsndfile.
+///
+/// Two rather than libsndfile's twenty-odd, and the cut is where the C toolchain starts. WAV is
+/// written here from primitives and is byte-identical to libsndfile's. FLAC is `flacenc`, which is
+/// pure Rust. Ogg Vorbis and MP3 are the two other formats a provider actually accepts and both
+/// only exist in Rust as bindings — `vorbis_rs` over libvorbis, `mp3lame-encoder` over LAME — so
+/// each would put a C build in front of everyone who depends on this crate. Named here so that
+/// stays a decision rather than an omission.
+///
+/// The libsndfile bindings would have been the faithful route, since upstream's `soundfile` is
+/// itself a binding to it and the bytes would agree exactly. The `sndfile` crate last shipped in
+/// April 2022 and `sndfile-sys` in July 2021, so that route is closed on maintenance rather than
+/// on principle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Container {
+    /// 16-bit PCM in a RIFF container — libsndfile's default, and upstream's.
+    Wav,
+    /// Lossless, and roughly half of what the same samples cost as WAV.
+    Flac,
+}
+
+impl Container {
+    /// The bare name an `input_audio` block carries, which is what a provider reads.
+    fn name(self) -> &'static str {
+        match self {
+            Container::Wav => "wav",
+            Container::Flac => "flac",
+        }
+    }
+}
+
+/// libsndfile's float-to-PCM rule, derived from its own output: scale by 32768, floor, clamp.
+///
+/// Shared so every container gets the same samples. `as i16` truncates toward zero and `round` goes
+/// to nearest, and each disagrees with libsndfile on three of the sixteen values in the golden's
+/// sweep — -0.99998 floors to -32768 where truncation gives -32767. The clamp is only ever reached
+/// by 1.0, which would otherwise scale to 32768 and wrap to -32768: the loudest sample becoming the
+/// quietest.
+fn pcm16(sample: f32) -> i16 {
+    (sample * 32768.0).floor().clamp(-32768.0, 32767.0) as i16
+}
+
+/// One mono FLAC at 16 bits a sample.
+fn flac_pcm16(pcm: &[i16], sampling_rate: u32) -> anyhow::Result<Vec<u8>> {
+    use flacenc::component::BitRepr;
+    use flacenc::error::Verify;
+
+    let widened: Vec<i32> = pcm.iter().map(|sample| i32::from(*sample)).collect();
+    let config = flacenc::config::Encoder::default()
+        .into_verified()
+        .map_err(|error| anyhow::anyhow!("flac encoder config: {error:?}"))?;
+    let source = flacenc::source::MemSource::from_samples(&widened, 1, 16, sampling_rate as usize);
+    let stream = flacenc::encode_with_fixed_block_size(&config, source, config.block_size)
+        .map_err(|error| anyhow::anyhow!("flac encode: {error:?}"))?;
+    let mut sink = flacenc::bitsink::ByteSink::new();
+    stream
+        .write(&mut sink)
+        .map_err(|error| anyhow::anyhow!("flac write: {error:?}"))?;
+    Ok(sink.as_slice().to_vec())
+}
+
 /// One mono 16-bit PCM WAV: the 44-byte canonical RIFF header, then the samples.
 ///
 /// libsndfile writes exactly this and nothing else — measured, not assumed. Every multi-byte field
 /// is little-endian, which is what `RIFF` (as against `RIFX`) declares.
-fn wav_pcm16(samples: &[f32], sampling_rate: u32) -> Vec<u8> {
+fn wav_pcm16(pcm: &[i16], sampling_rate: u32) -> Vec<u8> {
     const HEADER: u32 = 36;
     const CHANNELS: u16 = 1;
     const BITS: u16 = 16;
-    let payload = (samples.len() * 2) as u32;
+    let payload = (pcm.len() * 2) as u32;
 
     let mut wav = Vec::with_capacity(HEADER as usize + 8 + payload as usize);
     wav.extend_from_slice(b"RIFF");
@@ -155,15 +237,8 @@ fn wav_pcm16(samples: &[f32], sampling_rate: u32) -> Vec<u8> {
     wav.extend_from_slice(&BITS.to_le_bytes());
     wav.extend_from_slice(b"data");
     wav.extend_from_slice(&payload.to_le_bytes());
-    for sample in samples {
-        // libsndfile's conversion, derived from its own output rather than assumed: scale by
-        // 32768, take the **floor**, then clamp. `as i16` truncates toward zero and `round` goes
-        // to nearest, and each disagrees with libsndfile on three of the sixteen sampled values —
-        // -0.99998 floors to -32768 where truncation gives -32767, and -1e-5 floors to -1 where
-        // both others give 0. The clamp is only ever reached by 1.0, which would otherwise scale
-        // to 32768 and wrap to -32768: the loudest sample becoming the quietest.
-        let scaled = (sample * 32768.0).floor().clamp(-32768.0, 32767.0);
-        wav.extend_from_slice(&(scaled as i16).to_le_bytes());
+    for sample in pcm {
+        wav.extend_from_slice(&sample.to_le_bytes());
     }
     wav
 }
@@ -357,5 +432,44 @@ mod tests {
             );
             assert_eq!(audio.audio_format, "wav", "for {name}");
         }
+    }
+
+    /// FLAC is lossless, so the samples it decodes to must be *exactly* the ones WAV carries.
+    ///
+    /// Decoded by a second implementation — `claxon`, a dev-dependency — rather than by the encoder
+    /// that wrote it, so this asserts what a provider will get. The comparison is against the WAV
+    /// path's own PCM, which is the property that matters: which container a caller picks is a size
+    /// question, never a question about the audio.
+    #[test]
+    fn flac_carries_exactly_the_samples_wav_does() {
+        let samples: Vec<f32> = (0..2048)
+            .map(|step| (step as f32 * 0.05).sin() * 0.8)
+            .chain([1.0, -1.0, 0.0, -1e-5])
+            .collect();
+
+        let flac = Audio::from_samples_as(&samples, 44100, Container::Flac).expect("encodes");
+        assert_eq!(flac.audio_format, "flac");
+
+        use base64::Engine;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(&flac.data)
+            .expect("base64");
+        let mut reader = claxon::FlacReader::new(std::io::Cursor::new(bytes)).expect("a flac");
+        assert_eq!(reader.streaminfo().channels, 1);
+        assert_eq!(reader.streaminfo().bits_per_sample, 16);
+        assert_eq!(reader.streaminfo().sample_rate, 44100);
+        let decoded: Vec<i32> = reader.samples().map(|s| s.expect("a sample")).collect();
+
+        let expected: Vec<i32> = samples.iter().map(|s| i32::from(pcm16(*s))).collect();
+        assert_eq!(decoded, expected, "FLAC is lossless or it is not FLAC");
+
+        // And smaller than the WAV of the same audio, which is the only reason to pick it.
+        let wav = Audio::from_samples(&samples, 44100);
+        assert!(
+            flac.data.len() < wav.data.len(),
+            "flac {} vs wav {}",
+            flac.data.len(),
+            wav.data.len()
+        );
     }
 }
