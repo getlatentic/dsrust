@@ -95,10 +95,15 @@ BASELINES=(
 #       content_and_images while looking like it covered content_str, and the re-measurement was
 #       the only thing that could tell. The predicted `<`/`<=` equivalent vanished with the
 #       `while` it lived on.
+#   openai 0:0 — 2026-08-06, from 27 of 173 at first measurement. The distribution was the
+#       finding: the byte-verified chat wire contributed one survivor (`from_env`, which no
+#       captured byte can see); eleven sat in the Responses API, the newest wire with the least
+#       golden history. Byte-verification holds exactly where it exists.
 SLICES=(
   "adapter:0:0"
   "anthropic:0:0"
   "ollama:0:0"
+  "openai:0:0"
 )
 slice_files() {
   case "$1" in
@@ -111,6 +116,7 @@ slice_files() {
       crates/dsrust/src/adapter/types/history.rs ;;
     anthropic) printf '%s\n' 'crates/dsrust/src/lm/anthropic/**/*.rs' ;;
     ollama) printf '%s\n' 'crates/dsrust/src/lm/ollama/**/*.rs' ;;
+    openai) printf '%s\n' 'crates/dsrust/src/lm/openai/**/*.rs' ;;
   esac
 }
 
