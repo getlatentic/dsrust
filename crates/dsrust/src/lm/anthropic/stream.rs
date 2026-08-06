@@ -139,6 +139,22 @@ fn block_delta(event: &Value, delta: LmDelta) -> LmStreamEvent {
 mod tests {
     use super::*;
 
+    /// A `content_block_start` that opens a *text* block opens nothing on the wire out: only
+    /// `tool_use` starts carry a delta, because only they have an id and name to announce. The
+    /// guard's mutant (`if true`) emitted an empty tool-call delta for every text block, which a
+    /// consumer reads as a call with no name.
+    #[test]
+    fn a_text_block_start_emits_no_tool_call_delta() {
+        let mut state = StreamState::default();
+        let framed = frame(
+            "event: content_block_start\n\
+             data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}",
+            &mut state,
+        );
+        assert!(framed.events.is_empty(), "got {:?}", framed.events);
+        assert!(!framed.done);
+    }
+
     /// Extended thinking and a tool call stream under their own block indices: a thinking_delta
     /// builds a thinking part at 0, content_block_start opens the tool call at 1, and input_json_delta
     /// fills its arguments — reassembling into a thinking part then a tool call.

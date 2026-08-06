@@ -191,6 +191,66 @@ fn provider_data(body: &Value) -> Option<Value> {
 mod tests {
     use super::*;
 
+    /// Anthropic's documented usage shape, composed the way its pricing composes: cache creation
+    /// is charged as input, a cache read is input the caller did not resend, and both are stated
+    /// separately beside the total. Thirteen mutants survived in `usage`/`reported` because
+    /// nothing read any of this back.
+    #[test]
+    fn usage_composes_the_cache_counters_into_input() {
+        let read = usage(&json!({
+            "input_tokens": 3,
+            "output_tokens": 7,
+            "cache_creation_input_tokens": 10,
+            "cache_read_input_tokens": 20,
+        }))
+        .expect("tokens were spent");
+        assert_eq!(read.input_tokens, Some(33), "3 sent + 10 written + 20 read");
+        assert_eq!(read.output_tokens, Some(7));
+        assert_eq!(read.cache_read_tokens, Some(20));
+        assert_eq!(read.cache_write_tokens, Some(10));
+    }
+
+    /// A counter the provider did not mention is unknown, not zero — `Some(0)` would read as
+    /// "measured and free" to a cost report.
+    #[test]
+    fn absent_cache_counters_read_as_unknown_not_zero() {
+        let read = usage(&json!({ "input_tokens": 3, "output_tokens": 7 })).expect("spent");
+        assert_eq!(read.cache_read_tokens, None);
+        assert_eq!(read.cache_write_tokens, None);
+        assert_eq!(reported(0), None);
+        assert_eq!(reported(1), Some(1));
+    }
+
+    /// The gate is spent-anything, on either side: zero input with output still counts (a cached
+    /// call), input with zero output still counts (a cut-off call), and a usage that is absent,
+    /// not an object, or all zeroes is no usage at all.
+    #[test]
+    fn usage_exists_when_either_side_spent_and_otherwise_does_not() {
+        assert!(usage(&json!({ "input_tokens": 0, "output_tokens": 7 })).is_some());
+        assert!(usage(&json!({ "input_tokens": 3, "output_tokens": 0 })).is_some());
+        assert_eq!(
+            usage(&json!({ "input_tokens": 0, "output_tokens": 0 })),
+            None
+        );
+        assert_eq!(usage(&Value::Null), None);
+        assert_eq!(usage(&json!("not an object")), None);
+    }
+
+    /// `redacted_thinking` is thinking the API returns encrypted: the data must survive as a
+    /// redacted thinking part, because it is what a later turn sends back to keep the chain valid.
+    #[test]
+    fn redacted_thinking_survives_as_a_redacted_part() {
+        let output = output_of(&json!({ "content": [
+            { "type": "redacted_thinking", "data": "EmwKAhgBEgy3va==" },
+            { "type": "text", "text": "the reply" },
+        ]}));
+        let api::LmPart::Thinking { text, redacted, .. } = &output.parts[0] else {
+            panic!("expected thinking, got {:?}", output.parts)
+        };
+        assert_eq!(text, "EmwKAhgBEgy3va==");
+        assert!(*redacted, "redacted thinking must say so");
+    }
+
     #[test]
     fn a_refusal_carries_the_reason_anthropic_gave() {
         let error = reply(

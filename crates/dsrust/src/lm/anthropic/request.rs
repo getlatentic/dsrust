@@ -123,12 +123,17 @@ fn parsed_args(arguments: &Value) -> Value {
         .unwrap_or_else(|| json!({}))
 }
 
-/// One OpenAI-shaped content block as its Anthropic form. Text stays text; an `image_url` becomes an
-/// `image` with a typed `source`. Any other block — the ones this crate's parts do not produce for a
-/// chat turn — is carried through unchanged.
+/// One OpenAI-shaped content block as its Anthropic form. An `image_url` becomes an `image` with a
+/// typed `source`; everything else is carried through unchanged — including text.
+///
+/// Text passes through rather than being rebuilt, because the two shapes already agree on
+/// `{type, text}` and a rebuild strips whatever rides alongside. That is not hypothetical:
+/// Anthropic's prompt caching is a `cache_control` key *on a content block*, so a caller who put
+/// one on a carried text block had asked for caching, and the rebuild silently un-asked. A
+/// surviving mutant found this — deleting the text arm changed nothing any test could see, which
+/// meant the rebuild's only observable effect was the stripping.
 fn block(block: &Value) -> Value {
     match block["type"].as_str() {
-        Some("text") => json!({ "type": "text", "text": block["text"] }),
         Some("image_url") => {
             json!({ "type": "image", "source": image_source(&block["image_url"]) })
         }
@@ -188,6 +193,45 @@ fn tool_choice(choice: &LmToolChoice) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The named-tool shortcut needs *both* halves: exactly one allowed tool, and a mode that
+    /// permits calling it. Two allowed under `required` is `any`; one allowed under `none` is
+    /// still `none`, because the caller forbade tools and the allowlist does not un-forbid them.
+    #[test]
+    fn tool_choice_names_a_tool_only_when_one_is_allowed_and_callable() {
+        use crate::lm::api::{LmToolChoice, ToolChoiceMode};
+        let one = |mode| LmToolChoice {
+            mode,
+            allowed: Some(vec!["get_weather".to_owned()]),
+            ..LmToolChoice::default()
+        };
+        assert_eq!(
+            tool_choice(&one(ToolChoiceMode::Required)),
+            json!({ "type": "tool", "name": "get_weather" })
+        );
+        assert_eq!(
+            tool_choice(&one(ToolChoiceMode::None)),
+            json!({ "type": "none" })
+        );
+        let two = LmToolChoice {
+            mode: ToolChoiceMode::Required,
+            allowed: Some(vec!["a".to_owned(), "b".to_owned()]),
+            ..LmToolChoice::default()
+        };
+        assert_eq!(tool_choice(&two), json!({ "type": "any" }));
+    }
+
+    /// A carried text block keeps whatever rides on it — `cache_control` is Anthropic's prompt
+    /// caching, declared per block, and rebuilding `{type, text}` silently un-asks for it.
+    #[test]
+    fn a_text_blocks_cache_control_reaches_the_request() {
+        let carried = json!({
+            "type": "text",
+            "text": "the corpus",
+            "cache_control": { "type": "ephemeral" },
+        });
+        assert_eq!(block(&carried), carried);
+    }
 
     /// Faithfulness to dspy 3.3's actual Anthropic path: our body equals the one litellm puts on the
     /// wire for the same typed request — messages and system as block lists, tools in Anthropic's
