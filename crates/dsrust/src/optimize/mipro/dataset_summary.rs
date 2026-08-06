@@ -203,6 +203,84 @@ fn text(prediction: &crate::example::Prediction, field: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The batching walk, driven by a scripted LM: three rows at a batch size of one is a first
+    /// call plus two loop calls plus the summariser, each batch carrying only its own row and the
+    /// observations accumulated so far.
+    ///
+    /// Twenty mutants lived in this function — every bound and every `+=` of the walk, plus the
+    /// whole body replaceable by `Ok("")` — because nothing ever ran it. It needs an LM, and
+    /// "needs an LM" had been standing in for "cannot be tested".
+    #[tokio::test]
+    async fn the_walk_batches_the_trainset_and_folds_each_answer_in() {
+        let rows: Vec<Example> = ["alpha", "beta", "gamma"]
+            .iter()
+            .map(|word| Example::new([("question", Value::String((*word).to_owned()))]))
+            .collect();
+        let lm = std::sync::Arc::new(crate::DummyLM::new([
+            Example::new([("observations", Value::String("saw alpha. ".to_owned()))]),
+            Example::new([("observations", Value::String("saw beta. ".to_owned()))]),
+            Example::new([("observations", Value::String("saw gamma. ".to_owned()))]),
+            Example::new([("summary", Value::String("Three greek words.".to_owned()))]),
+        ]));
+
+        let summary = create_dataset_summary(&rows, 1, &(lm.clone() as _))
+            .await
+            .expect("the script answers");
+        assert_eq!(summary, "Three greek words.");
+
+        let asked: Vec<String> = lm
+            .asked()
+            .iter()
+            .map(|a| a.last_message().to_owned())
+            .collect();
+        assert_eq!(asked.len(), 4, "one per batch, plus the summariser");
+        // Each batch carries its own row and no other: the bounds mutants all widened or narrowed
+        // this window, and every one of them survived.
+        assert!(asked[0].contains("alpha"), "{}", asked[0]);
+        assert!(!asked[0].contains("beta"), "the first batch is one row");
+        assert!(asked[1].contains("beta") && !asked[1].contains("gamma"));
+        assert!(asked[2].contains("gamma"));
+        // And the observations accumulate, which is what `prior_observations` is for.
+        assert!(asked[2].contains("saw alpha."), "{}", asked[2]);
+        assert!(
+            asked[3].contains("saw gamma."),
+            "the summariser sees them all"
+        );
+    }
+
+    /// A batch answering `COMPLETE` contributes nothing and the walk goes on — upstream's own
+    /// skip. The `>= 8` length guard and the case-insensitive compare both had mutants standing.
+    #[tokio::test]
+    async fn a_complete_answer_is_skipped_rather_than_folded_in() {
+        let rows: Vec<Example> = ["alpha", "beta"]
+            .iter()
+            .map(|word| Example::new([("question", Value::String((*word).to_owned()))]))
+            .collect();
+        let lm = std::sync::Arc::new(crate::DummyLM::new([
+            Example::new([("observations", Value::String("saw alpha. ".to_owned()))]),
+            Example::new([(
+                "observations",
+                Value::String("complete, nothing new".to_owned()),
+            )]),
+            Example::new([("summary", Value::String("One word.".to_owned()))]),
+        ]));
+
+        create_dataset_summary(&rows, 1, &(lm.clone() as _))
+            .await
+            .expect("the script answers");
+        let asked: Vec<String> = lm
+            .asked()
+            .iter()
+            .map(|a| a.last_message().to_owned())
+            .collect();
+        let summariser = asked.last().expect("a summariser call");
+        assert!(summariser.contains("saw alpha."), "{summariser}");
+        assert!(
+            !summariser.contains("nothing new"),
+            "a COMPLETE batch is skipped, not folded in: {summariser}"
+        );
+    }
     use serde_json::json;
 
     fn golden() -> serde_json::Value {

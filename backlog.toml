@@ -2772,6 +2772,24 @@ Expect the provider wires to be the richest: they are byte-verified against capt
 OpenAI and diverge from litellm for Anthropic and ollama, so a survivor there is a line the byte
 goldens do not reach.
 """
+progress = """
+2026-08-06. The campaign ran every scope `can-the-suite-fail` named. Five dsrust slices measured
+and driven to 0:0 — adapter (1 of 159), anthropic (20 of 80), ollama (29 of 121), openai (27 of
+173), signature (21 of 250) — each with its floor and history in `run_mutants.sh`.
+
+**optimize is measured and not yet closed: 69 missed and 4 hanging of 572.** The survivor list is
+in the commit that records this. Two clusters are triaged; the rest is the open work:
+
+  - `mipro/dataset_summary.rs` 20 and `mipro/proposer.rs` 17 — **done**. Both were reachable only
+    through an LM, and "needs an LM" had been standing in for "cannot be tested": `DummyLM` is a
+    public export and drives the whole batching walk. `without_label`'s four hangs were cursor
+    arithmetic, rewritten as `take_while` runs.
+  - `random_search.rs` 8, `gepa/metric.rs` 6, `ensemble.rs` 5, `mipro/mod.rs` 3,
+    `copro/candidates.rs` 3, `better_together.rs` 3, and eight singletons — **open**.
+
+The lesson the two triaged clusters carry: a function that needs a model is not a function that
+cannot be tested, and thirty-seven mutants lived behind that assumption in one file pair.
+"""
 
 [[story]]
 id = "json-repair-parity-is-a-gate-nobody-runs"

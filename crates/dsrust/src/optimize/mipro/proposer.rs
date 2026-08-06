@@ -32,37 +32,36 @@ pub(super) fn strip_prefix(text: &str) -> String {
 fn without_label(text: &str) -> &str {
     let is_word = |c: char| c.is_alphanumeric() || c == '_' || c == '\'' || c == '-';
     let chars: Vec<(usize, char)> = text.char_indices().collect();
-    let mut at = 0;
-    while at < chars.len() && (chars[at].1 == '*' || chars[at].1.is_whitespace()) {
-        at += 1;
-    }
-    let mut words = 0;
-    while words < 5 {
-        let word_start = at;
-        while at < chars.len() && is_word(chars[at].1) {
-            at += 1;
-        }
-        if at == word_start {
+    // Every scan below is a `take_while` over the remaining slice rather than a hand-advanced
+    // cursor, so progress belongs to the iterator. Under the `while at < len { at += 1 }` form
+    // this replaces, four separate `+=` mutants each spun for the whole timeout — and a hang is
+    // detection only in the sense that the suite never finished.
+    let run = |from: usize, accepts: &dyn Fn(char) -> bool| {
+        chars[from..]
+            .iter()
+            .take_while(|(_, c)| accepts(*c))
+            .count()
+    };
+
+    let mut at = run(0, &|c: char| c == '*' || c.is_whitespace());
+    for _word in 0..5 {
+        let word = run(at, &is_word);
+        if word == 0 {
             break;
         }
-        words += 1;
-        if at < chars.len() && chars[at].1 == ':' {
-            at += 1;
-            while at < chars.len() && chars[at].1.is_whitespace() {
-                at += 1;
-            }
+        at += word;
+        if chars.get(at).is_some_and(|(_, c)| *c == ':') {
+            at += 1 + run(at + 1, &char::is_whitespace);
             return match chars.get(at) {
                 Some(&(byte, _)) => &text[byte..],
                 None => "",
             };
         }
-        let space_start = at;
-        while at < chars.len() && chars[at].1.is_whitespace() {
-            at += 1;
-        }
-        if at == space_start {
+        let spaces = run(at, &char::is_whitespace);
+        if spaces == 0 {
             break;
         }
+        at += spaces;
     }
     text
 }
