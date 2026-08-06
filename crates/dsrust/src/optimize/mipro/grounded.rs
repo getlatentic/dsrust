@@ -200,6 +200,86 @@ fn task_demos(signature: &Signature, sets: &[Vec<crate::Example>], chosen: usize
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every proposal is asked at `init_temperature` under its own rollout id — dspy's
+    /// `prompt_model.copy(rollout_id=…, temperature=init_temperature)`. The temperature-field
+    /// mutant left the ask at the default and nothing read the config back; DummyLM records it.
+    #[tokio::test]
+    async fn a_proposal_is_asked_at_init_temperature_with_a_rollout() {
+        let lm = std::sync::Arc::new(crate::DummyLM::new([
+            example! { proposed_instruction: "Answer better." },
+            example! { proposed_instruction: "Answer better still." },
+        ]));
+        let proposer = GroundedProposer {
+            dataset_summary: None,
+            program_code: None,
+            tip_aware: false,
+            prompt_model: lm.clone(),
+            init_temperature: 0.7,
+            fewshot_aware: false,
+        };
+        let mut rng = Rng::seeded(0);
+        proposer
+            .propose(
+                &["question -> answer".parse().expect("parses")],
+                2,
+                None,
+                &mut rng,
+            )
+            .await
+            .expect("the script answers");
+        let asked = lm.asked();
+        assert!(!asked.is_empty());
+        for ask in &asked {
+            assert_eq!(ask.config.temperature, Some(0.7), "dspy's init_temperature");
+            assert!(
+                ask.config.rollout_id.is_some(),
+                "each proposal draws its own rollout id"
+            );
+        }
+    }
+
+    /// The tip map: with `tip_aware` off no draw is made; on, the drawn tip crosses unless it is
+    /// the empty `none` tip, which reads as no tip — never `Some("")`. The deleted `!` inverted
+    /// exactly that, answering a tip only when there was none.
+    #[test]
+    fn select_tip_never_answers_an_empty_tip() {
+        let off = GroundedProposer {
+            dataset_summary: None,
+            program_code: None,
+            tip_aware: false,
+            prompt_model: std::sync::Arc::new(crate::DummyLM::new([])),
+            init_temperature: 0.5,
+            fewshot_aware: false,
+        };
+        assert_eq!(
+            off.select_tip(&mut Rng::seeded(0)),
+            None,
+            "no draw when off"
+        );
+
+        let on = GroundedProposer {
+            tip_aware: true,
+            ..off
+        };
+        let (mut some, mut none) = (false, false);
+        for seed in 0..64 {
+            // The parallel draw with the same seed says which tip the call must have seen.
+            let drawn = TIPS[Rng::seeded(seed).choice_index(TIPS.len())];
+            let answered = on.select_tip(&mut Rng::seeded(seed));
+            match drawn.is_empty() {
+                true => {
+                    assert_eq!(answered, None, "the empty none tip is no tip");
+                    none = true;
+                }
+                false => {
+                    assert_eq!(answered, Some(drawn));
+                    some = true;
+                }
+            }
+        }
+        assert!(some && none, "both branches must occur across 64 seeds");
+    }
     use crate::example;
 
     fn signature() -> Signature {

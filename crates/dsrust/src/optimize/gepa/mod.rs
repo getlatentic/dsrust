@@ -318,6 +318,27 @@ where
 #[cfg(test)]
 mod budget_tests {
     use super::*;
+
+    /// dspy's `auto_budget`, measured by running it — six parameter sets including both sides of
+    /// the one boundary a comparison mutant can move: at `full_eval_steps=4`, two candidates give
+    /// exactly four trials, so `trials < full_eval_steps` sits on its edge (180 against the 190
+    /// one step up). Every number here is dspy 3.3.0's own answer, not a transcription of the
+    /// formula.
+    #[test]
+    fn auto_budget_matches_dspys_own_arithmetic() {
+        let budget = |preds, cands, val, mb, steps| {
+            GEPA::<fn(&Example, &Prediction) -> super::metric::Feedback>::auto_budget(
+                preds, cands, val, mb, steps,
+            )
+            .expect("valid parameters")
+        };
+        assert_eq!(budget(1, 2, 10, 35, 4), 180, "trials == full_eval_steps");
+        assert_eq!(budget(1, 2, 10, 35, 5), 190, "trials < full_eval_steps");
+        assert_eq!(budget(1, 3, 10, 35, 5), 255);
+        assert_eq!(budget(1, 4, 10, 35, 5), 330);
+        assert_eq!(budget(2, 6, 30, 35, 5), 910);
+        assert_eq!(budget(1, 2, 10, 3, 4), 52);
+    }
     use serde_json::Value;
 
     /// dspy's own answers, recorded by `scripts/generate_gepa_budget_fixture.py`. Transcribed

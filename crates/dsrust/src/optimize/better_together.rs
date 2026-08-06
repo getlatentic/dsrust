@@ -237,6 +237,24 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `score` is the metric's average over the valset — every strategy comparison rides on it,
+    /// and all three constant-replacement mutants survived because no test read the number back.
+    #[tokio::test]
+    async fn score_is_the_metrics_average_over_the_valset() {
+        let together = BetterTogether::new(
+            exact_match,
+            [("p", Box::new(Writes("proposed")) as Box<dyn DynOptimizer>)],
+        );
+        let rows = trainset();
+        let capitals = together
+            .score(&Solver::new(Answers::Correctly), &rows)
+            .await;
+        // Correctly solves the two capital rows of six, and the score is dspy's percentage.
+        assert!((capitals - 33.33).abs() < 1e-9, "got {capitals}");
+        let none = together.score(&Solver::new(Answers::Wrongly), &rows).await;
+        assert_eq!(none, 0.0);
+    }
     use crate::evaluate::exact_match;
     use crate::optimize::scripted::{Answers, Solver, trainset};
     use crate::optimize::{LabeledFewShot, Optimizer};

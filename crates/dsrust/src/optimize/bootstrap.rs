@@ -402,6 +402,37 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `max_labeled_demos == 0` skips the labeling entirely, leaving the teacher whatever demos it
+    /// arrived with — dspy's own skip. The `>=` mutant labeled anyway, which *wipes* those demos:
+    /// LabeledFewShot at zero sets an empty set, and the difference is only visible on a teacher
+    /// that arrived with some.
+    #[tokio::test]
+    async fn zero_labeled_demos_leaves_the_teachers_own_demos_standing() {
+        let metric = crate::evaluate::exact_match;
+        let mut teacher = Solver::new(Answers::Correctly);
+        teacher
+            .demos
+            .push(example! { question: "kept?", answer: "kept" });
+        let optimizer = BootstrapFewShot {
+            max_labeled_demos: 0,
+            max_bootstrapped_demos: 1,
+            ..BootstrapFewShot::new(&metric)
+        };
+        optimizer
+            .bootstrap(&mut teacher, &trainset()[..1])
+            .await
+            .expect("bootstraps");
+        assert_eq!(
+            teacher.demos.len(),
+            1,
+            "the teacher's own demo survived the zero-labeled run"
+        );
+        assert_eq!(
+            teacher.demos[0].get("question"),
+            Some(&serde_json::json!("kept?"))
+        );
+    }
     use crate::evaluate::exact_match;
     use crate::example;
     use crate::optimize::scripted::{Answers, Lopsided, Pair, Solver, answers, trainset};

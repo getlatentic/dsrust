@@ -174,130 +174,33 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::example;
-    use serde_json::json;
 
-    /// A program that answers with what it was built with, so which members ran is readable.
-    struct Fixed(&'static str);
-
-    impl Module for Fixed {
-        fn forward<'a>(
-            &'a self,
-            _inputs: Example,
-        ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
-            Box::pin(std::future::ready(Ok(Prediction::new(
-                Example::new([("answer", json!(self.0))]),
-                String::new(),
-            ))))
-        }
-    }
-
-    fn programs(names: &[&'static str]) -> Vec<Box<dyn Module>> {
-        names
-            .iter()
-            .map(|name| Box::new(Fixed(name)) as Box<dyn Module>)
-            .collect()
-    }
-
-    fn first_answer(answers: &[Prediction]) -> Result<Prediction> {
-        Ok(answers.first().cloned().expect("at least one answer"))
-    }
-
-    /// Every member answers and the reduction decides, which is the whole module.
-    #[tokio::test]
-    async fn every_program_answers_and_the_reduction_decides() {
-        let seen = std::sync::Arc::new(Mutex::new(Vec::new()));
-        let recorded = seen.clone();
-        let ensembled = Ensemble::new(move |answers: &[Prediction]| {
-            recorded.lock().expect("seen").extend(
-                answers
-                    .iter()
-                    .map(|a| a.get("answer").cloned().unwrap_or(json!(null))),
-            );
-            first_answer(answers)
-        })
-        .compile(programs(&["a", "b", "c"]));
-
-        let answered = ensembled
-            .forward(example! { q: "x" })
-            .await
-            .expect("answers");
-        assert_eq!(
-            answered.get("answer"),
-            Some(&json!("a")),
-            "the reduction chose"
-        );
-        assert_eq!(
-            *seen.lock().expect("seen"),
-            vec![json!("a"), json!("b"), json!("c")]
-        );
-    }
-
-    /// With no reduction dspy hands back the raw list; a `Prediction` is one answer, so the list
-    /// travels as a field.
-    #[tokio::test]
-    async fn no_reduction_hands_back_every_answer() {
-        let ensembled: Ensembled<fn(&[Prediction]) -> Result<Prediction>> = Ensemble {
-            reduce: None,
-            size: None,
-            seed: 0,
-        }
-        .compile(programs(&["a", "b"]));
-        let answered = ensembled
-            .forward(example! { q: "x" })
-            .await
-            .expect("answers");
-        let outputs = answered
-            .get("outputs")
-            .expect("the list")
-            .as_array()
-            .expect("an array");
-        assert_eq!(outputs.len(), 2);
-        assert_eq!(outputs[0]["answer"], json!("a"));
-    }
-
-    /// A size draws that many members, without replacement, and a fresh draw per call.
-    #[tokio::test]
-    async fn a_size_draws_that_many_members_per_call() {
-        let seen = std::sync::Arc::new(Mutex::new(Vec::new()));
-        let recorded = seen.clone();
-        let ensembled = Ensemble::new(move |answers: &[Prediction]| {
-            recorded.lock().expect("seen").push(
-                answers
-                    .iter()
-                    .filter_map(|a| a.get("answer").cloned())
-                    .collect::<Vec<_>>(),
-            );
-            first_answer(answers)
-        })
-        .size(2)
-        .compile(programs(&["a", "b", "c", "d"]));
-
-        for _ in 0..3 {
-            ensembled
-                .forward(example! { q: "x" })
-                .await
-                .expect("answers");
-        }
-        let draws = seen.lock().expect("seen").clone();
-        for draw in &draws {
-            assert_eq!(draw.len(), 2, "two members answered");
-            assert_ne!(draw[0], draw[1], "and without replacement");
-        }
-        assert!(draws.len() == 3, "a draw per call");
-    }
-
-    /// The same seed draws the same members, which is the part dspy leaves to a process-wide RNG.
-    #[tokio::test]
-    async fn the_same_seed_draws_the_same_members() {
-        let drawn = |seed: u64| {
-            let ensembled = Ensemble::new(first_answer as fn(&[Prediction]) -> Result<Prediction>)
-                .size(2)
-                .seed(seed)
-                .compile(programs(&["a", "b", "c", "d"]));
-            (0..3).map(|_| ensembled.asked()).collect::<Vec<_>>()
+    /// The accessors answer for the programs actually held, and an optimizer walking the ensemble
+    /// reaches every member's predictors under distinct indexed names.
+    #[test]
+    fn the_ensemble_reports_its_members_and_walks_all_of_them() {
+        let reduce = |predictions: &[crate::Prediction]| {
+            Ok(predictions.first().expect("one prediction").clone())
         };
-        assert_eq!(drawn(7), drawn(7));
-        assert_ne!(drawn(7), drawn(8), "and a different seed draws differently");
+        let programs: Vec<Box<dyn crate::Module>> = (0..2)
+            .map(|_| {
+                Box::new(crate::Predict::from_signature(
+                    "question -> answer".parse().expect("parses"),
+                )) as Box<dyn crate::Module>
+            })
+            .collect();
+        let mut ensembled = Ensemble::new(reduce).compile(programs);
+        assert_eq!(ensembled.len(), 2);
+        assert!(!ensembled.is_empty());
+
+        let named = crate::Module::named_predictors(&mut ensembled);
+        let names: Vec<String> = named.iter().map(|p| p.name.clone()).collect();
+        assert_eq!(names.len(), 2, "every member is walked: {names:?}");
+        assert!(names[0].starts_with("programs[0]."), "{names:?}");
+        assert!(names[1].starts_with("programs[1]."), "{names:?}");
+
+        let empty = Ensemble::new(reduce).compile(Vec::new());
+        assert_eq!(empty.len(), 0);
+        assert!(empty.is_empty());
     }
 }

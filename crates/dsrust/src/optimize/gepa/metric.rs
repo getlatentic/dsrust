@@ -42,9 +42,48 @@ impl Feedback {
 /// value keeps a trailing `.0` (`str(1.0) == "1.0"`), where Rust's `Display` would drop it. Rust's
 /// shortest-round-trip `Display` matches Python's `repr` for the non-integral values GEPA scores use.
 fn python_float(score: f64) -> String {
+    if score.is_nan() {
+        // Rust's Display says `NaN`; Python's str says `nan`, and this string reaches a prompt.
+        return "nan".to_owned();
+    }
     if score.is_finite() && score == score.trunc() {
         format!("{score:.1}")
     } else {
         format!("{score}")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Python's `str(float)`, which is what the fallback feedback sentence carries: integral
+    /// values keep `.0`, non-integral print shortest-round-trip, and the non-finite spellings are
+    /// Python's — `inf` matches Rust's Display by luck, `nan` does not and was `NaN` until this.
+    #[test]
+    fn scores_print_the_way_python_str_prints_them() {
+        assert_eq!(python_float(1.0), "1.0");
+        assert_eq!(python_float(0.0), "0.0");
+        assert_eq!(python_float(-3.0), "-3.0");
+        assert_eq!(python_float(0.5), "0.5");
+        assert_eq!(python_float(f64::INFINITY), "inf");
+        assert_eq!(python_float(f64::NEG_INFINITY), "-inf");
+        assert_eq!(python_float(f64::NAN), "nan");
+    }
+
+    /// The fallback sentence itself, byte for byte, and the caller's own feedback verbatim when
+    /// there is one. Both replacement mutants of `text` survived because nothing read it.
+    #[test]
+    fn feedback_text_is_the_callers_or_dspys_score_sentence() {
+        let scored = Feedback {
+            score: 1.0,
+            feedback: None,
+        };
+        assert_eq!(scored.text(), "This trajectory got a score of 1.0.");
+        let spoken = Feedback {
+            score: 0.25,
+            feedback: Some("wrong city".to_owned()),
+        };
+        assert_eq!(spoken.text(), "wrong city");
     }
 }

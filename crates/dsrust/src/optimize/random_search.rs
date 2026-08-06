@@ -243,16 +243,7 @@ where
             }
         }
 
-        let best = attempts
-            .iter()
-            .enumerate()
-            // dspy keeps the *first* attempt to beat every earlier one — `score > max(scores)` —
-            // so a later tie does not displace an earlier winner.
-            .fold(None::<(usize, f64)>, |best, (at, attempt)| match best {
-                Some((_, high)) if attempt.score <= high => best,
-                _ => Some((at, attempt.score)),
-            });
-        if let Some((at, _)) = best {
+        if let Some((at, _)) = winner(&attempts) {
             student.load_state(&attempts[at].state)?;
         }
 
@@ -268,9 +259,146 @@ where
     }
 }
 
+/// dspy keeps the *first* attempt to beat every earlier one — `score > max(scores)` — so a later
+/// tie does not displace an earlier winner. Its own function because the rule is the whole of
+/// which program a search hands back, and three mutants of the inline fold survived unnoticed.
+fn winner(attempts: &[Attempt]) -> Option<(usize, f64)> {
+    attempts
+        .iter()
+        .enumerate()
+        .fold(None::<(usize, f64)>, |best, (at, attempt)| match best {
+            Some((_, high)) if attempt.score <= high => best,
+            _ => Some((at, attempt.score)),
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::optimize::scripted::{Answers, Solver, trainset};
+
+    /// The winner rule on its own: strictly-better replaces, a tie never does.
+    #[test]
+    fn the_winner_is_the_first_to_beat_every_earlier_attempt() {
+        let attempt = |seed: i64, score: f64| Attempt {
+            seed,
+            score,
+            state: ProgramState::new(Default::default()),
+        };
+        assert_eq!(winner(&[]), None);
+        let tie = [attempt(-3, 1.0), attempt(-2, 1.0)];
+        assert_eq!(
+            winner(&tie).map(|(at, _)| at),
+            Some(0),
+            "a tie keeps the earlier"
+        );
+        let later_better = [attempt(-3, 0.5), attempt(-2, 0.9), attempt(-1, 0.9)];
+        assert_eq!(winner(&later_better).map(|(at, _)| at), Some(1));
+        let earlier_better = [attempt(-3, 0.9), attempt(-2, 0.5)];
+        assert_eq!(winner(&earlier_better).map(|(at, _)| at), Some(0));
+    }
+
+    /// Each special seed, run alone through `restrict`, leaves the student in its own shape:
+    /// `-3` zero-shot, `-2` the first `k` labels when `labeled_sample` is off — dspy's seeded
+    /// draw would take rows 3 and 4, measured, so the deleted-field mutant cannot pass — and
+    /// `-1` the unshuffled bootstrap, whose demos carry the `augmented` mark.
+    #[tokio::test]
+    async fn each_special_seed_leaves_its_own_shape() {
+        let metric = crate::evaluate::exact_match;
+        let rows = trainset();
+
+        let mut student = Solver::new(Answers::Correctly);
+        BootstrapRandomSearch::new(&metric)
+            .restrict([-3])
+            .compile(&mut student, &rows, &rows)
+            .await
+            .expect("compiles");
+        assert!(student.demos.is_empty(), "zero-shot leaves no demos");
+
+        let mut student = Solver::new(Answers::Correctly);
+        BootstrapRandomSearch::new(&metric)
+            .restrict([-2])
+            .max_labeled_demos(2)
+            .labeled_sample(false)
+            .compile(&mut student, &rows, &rows)
+            .await
+            .expect("compiles");
+        let questions: Vec<_> = student
+            .demos
+            .iter()
+            .map(|demo| demo.get("question").cloned().expect("a question"))
+            .collect();
+        let first_two: Vec<_> = rows[..2]
+            .iter()
+            .map(|row| row.get("question").cloned().expect("a question"))
+            .collect();
+        assert_eq!(
+            questions, first_two,
+            "sample=false takes the first k in order"
+        );
+
+        let mut student = Solver::new(Answers::Correctly);
+        BootstrapRandomSearch::new(&metric)
+            .restrict([-1])
+            .max_bootstrapped_demos(1)
+            .max_labeled_demos(0)
+            .compile(&mut student, &rows, &rows)
+            .await
+            .expect("compiles");
+        // Identity, not the `augmented` marker: whether earned demos carry the marker is its own
+        // open question (two contradictory doc comments sit on `augmented_turn`), and this test
+        // is about which *arm* ran. Only the bootstrap arm can earn a demo the metric accepted.
+        assert_eq!(
+            crate::optimize::scripted::answers(&student.demos),
+            ["Paris"],
+            "the bootstrap arm earned its demo: {:?}",
+            student.demos
+        );
+    }
+
+    /// `stop_at_score` reads `scored >= bar`: a met bar ends the search after that attempt, an
+    /// unmet bar never does. The valset is the two capital rows `Correctly` actually solves, so
+    /// the score is 1.0 and the metric-call count says how many attempts ran — the one observer
+    /// that catches the comparison mutants in both directions.
+    #[tokio::test]
+    async fn stop_at_score_stops_exactly_when_the_bar_is_met() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        let rows = trainset();
+        let capitals = &rows[..2];
+        let calls = AtomicUsize::new(0);
+        let metric = |example: &Example, prediction: &Prediction| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            crate::evaluate::exact_match(example, prediction)
+        };
+
+        let mut student = Solver::new(Answers::Correctly);
+        BootstrapRandomSearch::new(&metric)
+            .restrict([-3, -2])
+            .stop_at_score(0.5)
+            .compile(&mut student, &rows, capitals)
+            .await
+            .expect("compiles");
+        let stopped = calls.swap(0, Ordering::SeqCst);
+        assert_eq!(
+            stopped,
+            capitals.len(),
+            "one attempt scored, then the bar ended it"
+        );
+
+        let mut student = Solver::new(Answers::Correctly);
+        BootstrapRandomSearch::new(&metric)
+            .restrict([-3, -2])
+            .stop_at_score(2.0)
+            .compile(&mut student, &rows, capitals)
+            .await
+            .expect("compiles");
+        let ran_on = calls.load(Ordering::SeqCst);
+        assert_eq!(
+            ran_on,
+            capitals.len() * 2,
+            "an unreachable bar stops nothing"
+        );
+    }
 
     /// Which attempts each search makes, against the seeds dspy's own `score_data` recorded.
     ///

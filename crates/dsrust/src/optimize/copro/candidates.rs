@@ -111,3 +111,42 @@ pub(super) fn best_program(predictors: &[Evaluations]) -> Option<Vec<String>> {
     all.sort_by(|a, b| b.score.total_cmp(&a.score));
     all.first().map(|winner| winner.program.clone())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn evaluated(instruction: &str, score: f64) -> Evaluated {
+        Evaluated {
+            instruction: instruction.to_owned(),
+            prefix: String::new(),
+            score,
+            program: Vec::new(),
+        }
+    }
+
+    /// A re-evaluation of the same candidate keeps the higher score and only the higher score —
+    /// dspy's dedup by (instruction, prefix), where the guard's mutants either never updated or
+    /// preferred the worse run.
+    #[test]
+    fn a_repeat_keeps_the_higher_score_only() {
+        let mut seen = Evaluations::default();
+        seen.record(evaluated("answer well", 0.4));
+        seen.record(evaluated("answer well", 0.7));
+        assert_eq!(seen.best().score, 0.7, "the better run replaced the worse");
+        seen.record(evaluated("answer well", 0.5));
+        assert_eq!(seen.best().score, 0.7, "the worse run replaced nothing");
+    }
+
+    /// `max(values(), key=score)` keeps the *earliest* on a tie, which is the coordinate-ascent
+    /// winner the next round builds on.
+    #[test]
+    fn best_takes_the_earliest_of_a_tie() {
+        let mut seen = Evaluations::default();
+        seen.record(evaluated("first", 0.9));
+        seen.record(evaluated("second", 0.9));
+        assert_eq!(seen.best().instruction, "first");
+        seen.record(evaluated("third", 1.0));
+        assert_eq!(seen.best().instruction, "third");
+    }
+}

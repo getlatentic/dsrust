@@ -319,6 +319,34 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Proposals are drawn at `init_temperature` — dspy passes it to every BasicGenerateInstruction
+    /// call, and the deleted field left the draw at the default with nothing reading the config.
+    #[tokio::test]
+    async fn proposals_are_drawn_at_init_temperature() {
+        let lm = std::sync::Arc::new(crate::DummyLM::new([example! {
+            proposed_instruction: "Try harder.",
+            proposed_prefix_for_output_field: "Answer:"
+        }]));
+        let copro = COPRO::new(exact_match)
+            .prompt_model(lm.clone())
+            .init_temperature(1.2);
+        copro
+            .propose(
+                super::signatures::basic_generate_instruction(),
+                1,
+                [(
+                    "basic_instruction",
+                    serde_json::json!("Answer the question."),
+                )],
+            )
+            .await
+            .expect("the script answers");
+        let asked = lm.asked();
+        assert_eq!(asked.len(), 1);
+        assert_eq!(asked[0].config.temperature, Some(1.2));
+        assert_eq!(asked[0].config.completions, Some(1));
+    }
     use crate::evaluate::exact_match;
     use crate::example;
     use crate::lm::{ChatModel, api};

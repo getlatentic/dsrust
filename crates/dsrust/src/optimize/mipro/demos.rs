@@ -98,6 +98,30 @@ fn clear_demos<S: Module + ?Sized>(student: &mut S) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The builder passes the metric threshold through — deleted, every bootstrap accepted every
+    /// trace and the threshold a caller set did nothing.
+    #[test]
+    fn the_builder_keeps_the_metric_threshold() {
+        let metric = |_: &crate::Example, _: &crate::Prediction| 1.0;
+        let built = bootstrap(4, 2, &metric, Some(0.75));
+        assert_eq!(built.metric_threshold, Some(0.75));
+        assert_eq!(built.max_bootstrapped_demos, 4);
+        assert_eq!(built.max_labeled_demos, 2);
+    }
+
+    /// `clear_demos` actually clears — replaced by `()`, every fewshot round started from the
+    /// previous round's demos instead of from none.
+    #[test]
+    fn clear_demos_empties_every_predictor() {
+        let mut student =
+            crate::Predict::from_signature("question -> answer".parse().expect("parses"));
+        student
+            .demos
+            .push(crate::example! { question: "q", answer: "a" });
+        clear_demos(&mut student);
+        assert!(student.demos.is_empty());
+    }
     use std::sync::Arc;
 
     use serde_json::Value;

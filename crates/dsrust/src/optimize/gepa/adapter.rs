@@ -260,3 +260,52 @@ fn rendered_map(example: &Example) -> Reflective {
             .collect(),
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::example;
+
+    /// The reflective dataset is built from the captured traces, one record per example whose
+    /// trace touched the predictor — not a default-shaped placeholder, which is what the
+    /// replacement mutant handed the reflection prompt while every test stayed green.
+    #[test]
+    fn the_reflective_dataset_carries_the_captured_trace() {
+        let mut student =
+            crate::optimize::scripted::Solver::new(crate::optimize::scripted::Answers::Correctly);
+        let metric = |_: &Example, _: &crate::Prediction| super::super::metric::Feedback {
+            score: 1.0,
+            feedback: None,
+        };
+        let trainset = crate::optimize::scripted::trainset();
+        let mut adapter = Adapter::new(
+            &mut student,
+            &metric,
+            std::sync::Arc::new(crate::DummyLM::new([])),
+            &trainset,
+            &trainset,
+            0.0,
+            1,
+            None,
+        );
+        adapter.captured = vec![Captured {
+            trace: vec![crate::TraceStep {
+                predictor: "self".to_owned(),
+                inputs: example! { question: "capital of France?" },
+                outputs: example! { answer: "Paris" },
+            }],
+            feedback: "right city".to_owned(),
+        }];
+
+        let dataset = adapter.reflective_dataset("self");
+        assert_eq!(dataset.len(), 1, "one captured example touched `self`");
+        let sample = &dataset[0];
+        let rendered = render_prompt("", std::slice::from_ref(sample), None);
+        assert!(rendered.contains("capital of France?"), "{rendered}");
+        assert!(rendered.contains("right city"), "{rendered}");
+        assert!(
+            adapter.reflective_dataset("someone_else").is_empty(),
+            "a predictor nothing traced gets no records"
+        );
+    }
+}

@@ -394,6 +394,65 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Under a preset, `minibatch` is recomputed from the subsampled valset — on only when the
+    /// subsample is strictly larger than `MIN_MINIBATCH_SIZE`, which is dspy's own `>`.
+    #[test]
+    fn a_preset_turns_minibatching_on_only_past_the_minimum() {
+        let model: Arc<dyn crate::lm::DynChatModel> = Arc::new(Studio);
+        let mipro =
+            MIPROv2::new(|_: &crate::Example, _: &crate::Prediction| 1.0, model).auto(Auto::Light);
+        let example = |at: usize| {
+            crate::Example::new([("question", serde_json::json!(at.to_string()))])
+                .with_inputs(["question"])
+        };
+        let mut rng = Rng::seeded(0);
+        let at_minimum: Vec<crate::Example> =
+            (0..minibatch::MIN_MINIBATCH_SIZE).map(example).collect();
+        let mode = mipro.run_mode(1, false, at_minimum, &mut rng);
+        assert!(!mode.minibatch, "at the minimum is not past it");
+
+        let mut rng = Rng::seeded(0);
+        let past: Vec<crate::Example> = (0..minibatch::MIN_MINIBATCH_SIZE + 1)
+            .map(example)
+            .collect();
+        let mode = mipro.run_mode(1, false, past, &mut rng);
+        assert!(mode.minibatch, "one past the minimum turns it on");
+    }
+
+    /// The two refusals of `datasets`, in dspy's words: an empty trainset always, and one example
+    /// only when no valset was given. The `<` mutants moved the second boundary in both
+    /// directions — `==` admitted a one-example trainset, `<=` refused a two-example one.
+    #[test]
+    fn datasets_refuses_what_dspy_refuses() {
+        let model: Arc<dyn crate::lm::DynChatModel> = Arc::new(Studio);
+        let mipro = MIPROv2::new(|_: &crate::Example, _: &crate::Prediction| 1.0, model);
+        let example = |q: &str| {
+            crate::Example::new([("question", serde_json::json!(q))]).with_inputs(["question"])
+        };
+        let one = [example("only")];
+        let why = mipro
+            .datasets(&one, None)
+            .expect_err("one example cannot split")
+            .to_string();
+        assert_eq!(
+            why,
+            "Trainset must have at least 2 examples if no valset specified."
+        );
+
+        let two = [example("a"), example("b")];
+        assert!(mipro.datasets(&two, None).is_ok(), "two is the minimum");
+        assert!(
+            mipro.datasets(&one, Some(&two)).is_ok(),
+            "a caller-supplied valset lifts the minimum"
+        );
+        let none: [crate::Example; 0] = [];
+        let why = mipro
+            .datasets(&none, Some(&two))
+            .expect_err("empty is refused regardless")
+            .to_string();
+        assert_eq!(why, "Trainset cannot be empty.");
+    }
     use crate::evaluate::exact_match;
     use crate::example;
     use crate::lm::{ChatModel, api};
