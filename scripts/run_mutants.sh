@@ -88,9 +88,17 @@ BASELINES=(
 #   anthropic 0:0 — 2026-08-06, from 20 of 80 at first measurement: thirteen usage mutants nothing
 #       read, and one genuine fix — `block()`'s text rebuild stripped `cache_control`, so the
 #       mutant deleting the arm was the better program and became the code.
+#   ollama 0:0 — 2026-08-06, from 25+4 of 121 at first measurement, in three passes: the timeouts
+#       were a stub that hung when never called (bounded now) and cursor arithmetic a mutant could
+#       spin (flatten is a bounded `for` now — a stalled round runs out of rounds and the assert
+#       names it). The second pass graded the first: a block-list test on a *user* turn covered
+#       content_and_images while looking like it covered content_str, and the re-measurement was
+#       the only thing that could tell. The predicted `<`/`<=` equivalent vanished with the
+#       `while` it lived on.
 SLICES=(
   "adapter:0:0"
   "anthropic:0:0"
+  "ollama:0:0"
 )
 slice_files() {
   case "$1" in
@@ -102,6 +110,7 @@ slice_files() {
       crates/dsrust/src/adapter/demos.rs \
       crates/dsrust/src/adapter/types/history.rs ;;
     anthropic) printf '%s\n' 'crates/dsrust/src/lm/anthropic/**/*.rs' ;;
+    ollama) printf '%s\n' 'crates/dsrust/src/lm/ollama/**/*.rs' ;;
   esac
 }
 
