@@ -42,12 +42,21 @@ impl Image {
     /// The format is read off the bytes themselves rather than from a filename, because there is no
     /// filename — upstream hands them to PIL for the same reason.
     ///
-    /// **Diverges in the payload, and this one cannot be closed.** `_encode_pil_image` *re-encodes*
-    /// through PIL and emits what PIL wrote, so upstream's base64 is not the caller's bytes: for
-    /// the one-pixel PNG in upstream's own test the two are the same length and different content.
-    /// Matching that would mean reproducing PIL's zlib settings, which is a worse implementation of
-    /// a worse idea — re-encoding is lossy for a JPEG and pointless for the rest. These are the
-    /// caller's bytes, under the media type upstream would have named.
+    /// **The payload diverges, deliberately.** Upstream reaches PIL to *identify* these bytes and
+    /// then, because it already has a PIL object, re-encodes through it — so what reaches the model
+    /// is what PIL wrote rather than what the caller passed. That is not free, and the cost is
+    /// measured rather than argued:
+    ///
+    ///   - a JPEG saved at quality 95 comes back re-encoded at PIL's default 75 — 5446 bytes to
+    ///     2837, with a maximum channel difference of 69 out of 255. Visible degradation of an
+    ///     image the caller had already encoded the way they wanted it;
+    ///   - a three-frame animated GIF comes back as a one-frame still, 219 bytes to 95. `Image.save`
+    ///     writes one frame unless asked for `save_all`, and upstream does not ask.
+    ///
+    /// So matching upstream byte for byte would mean reproducing a data loss. These are the
+    /// caller's bytes, unmodified, under the media type upstream would have named — which is the
+    /// part a provider reads as meaning. The identification is the only job PIL is really doing
+    /// here, and reading a magic number needs no image library.
     pub fn from_bytes(bytes: impl AsRef<[u8]>) -> anyhow::Result<Self> {
         let bytes = bytes.as_ref();
         let Some(media_type) = sniffed(bytes) else {
@@ -288,10 +297,10 @@ mod tests {
 
     /// Raw bytes name their own format — upstream reaches PIL, this reads the signature.
     ///
-    /// **The payload diverges and cannot be made not to**: `_encode_pil_image` re-encodes, so
-    /// dspy's base64 for upstream's own one-pixel PNG is a different 68 bytes from the input's.
-    /// These are the caller's bytes. What is held is the part that reaches the provider as meaning
-    /// — the media type — and upstream's own test asserts no more than that prefix either.
+    /// **The payload diverges on purpose**: upstream re-encodes through PIL, which costs a JPEG its
+    /// quality (measured: 5446 bytes to 2837, max channel delta 69) and an animated GIF every frame
+    /// but the first (three frames to one). The byte-for-byte assertion below is the whole claim —
+    /// these bytes were not touched. Upstream's own test asserts no more than the media-type prefix.
     #[test]
     fn bytes_are_identified_by_signature_and_kept_as_given() {
         let png = b"\x89PNG\r\n\x1a\n and then some";
