@@ -82,6 +82,10 @@ BASELINES=(
 #   1 — `parse_json`'s `start < end` against `start <= end`. `find('{')` and `rfind('}')` cannot
 #       return the same index, because a byte is not both braces, so nothing can tell the two apart.
 #       Equivalent, and recorded in the source so a later run does not offer it again as work.
+#
+# The floor of 1:0 predates the json-repair merge, which pointed `parse.rs` at the new crate and
+# dropped this whole block from the runner — so the number stood in a comment for a code base it no
+# longer described, with nothing able to check it. Re-measured 2026-08-06 by the restored runner.
 ADAPTER_SLICE=(
   crates/dsrust/src/adapter/parse.rs
   crates/dsrust/src/adapter/chat.rs
@@ -90,7 +94,8 @@ ADAPTER_SLICE=(
   crates/dsrust/src/adapter/demos.rs
   crates/dsrust/src/adapter/types/history.rs
 )
-ADAPTER_BASELINE=1
+ADAPTER_MISSED=1
+ADAPTER_HANGS=0
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each
 # holding their own copy of the same dependency object code. That is the right default and it is why
@@ -152,29 +157,54 @@ if ! cargo mutants --version > /dev/null 2>&1; then
   exit 127
 fi
 
-# One place that decides pass or fail, so a package run and a file-scoped run cannot drift apart.
-check_ratchet() {
-  local label="$1" allowed="$2" log="$3"
-  # TIMEOUT counts too. A mutant that hangs was detected only in the sense that the suite never
-  # finished — it is a line whose behaviour no assertion pins, same as a survivor, and letting it
-  # go uncounted would let the number fall silently as tests got slower.
-  local missed
-  missed=$(grep -cE "^(MISSED|TIMEOUT)" "$log" || true)
+# One place that decides pass or fail, so the package runs and the file-scoped slice cannot drift
+# apart. Two floors, never one: MISSED is a line no assertion pins and wants a test; TIMEOUT is a
+# mutant that spins instead of failing and wants an exit condition. Collapsing them hid a real
+# improvement once (see the header), and it was also how this function went stale the first time —
+# the two-floor rework was written inline in the loop, this single-total version was left defined
+# and uncalled, and the adapter slice that only this could check silently stopped running.
+check_floors() {
+  local label="$1" allowed_missed="$2" allowed_hangs="$3" log="$4" status=0
+  local missed hangs
+  missed=$(grep -cE "^MISSED" "$log" || true)
+  hangs=$(grep -cE "^TIMEOUT" "$log" || true)
   tail -1 "$log"
-  if [ "$missed" -gt "$allowed" ]; then
-    echo "  RATCHET BROKEN: $missed survivors, baseline $allowed" >&2
-    grep -E "^(MISSED|TIMEOUT)" "$log" | sed 's/ in [0-9].*//' >&2
-    return 1
-  elif [ "$missed" -lt "$allowed" ]; then
-    echo "  $missed survivors, below the baseline of $allowed — lower the baseline in this script"
-  else
-    echo "  $missed survivors, at the baseline"
-  fi
-  return 0
+  local kind found floor word pattern
+  for kind in missed hangs; do
+    case "$kind" in
+      missed) found=$missed; floor=$allowed_missed; word="unpinned"; pattern="^MISSED" ;;
+      hangs)  found=$hangs;  floor=$allowed_hangs;  word="hanging";  pattern="^TIMEOUT" ;;
+    esac
+    if [ "$found" -gt "$floor" ]; then
+      echo "  RATCHET BROKEN ($label): $found $word, floor $floor" >&2
+      grep -E "$pattern" "$log" | sed 's/ in [0-9].*//' >&2
+      status=1
+    elif [ "$found" -lt "$floor" ]; then
+      echo "  $found $word, below the floor of $floor — lower it in this script"
+    else
+      echo "  $found $word, at the floor"
+    fi
+  done
+  return "$status"
 }
 
 status=0
 matched=0
+
+# The adapter slice, run when no scope was named or `adapter` was. File-scoped because dsrust whole
+# is a five-hour run, and this is the byte-critical heart of it.
+if [ "$#" -eq 0 ] || [ "${1:-}" = "adapter" ]; then
+  matched=1
+  echo "==> cargo mutants -p dsrust, adapter slice (floors: $ADAPTER_MISSED missed, $ADAPTER_HANGS hanging; -j $JOBS x $CARGO_BUILD_JOBS)"
+  log="target/mutants-adapter.log"
+  files=()
+  for file in "${ADAPTER_SLICE[@]}"; do files+=(--file "$file"); done
+  set +e
+  nice -n 10 cargo mutants -p dsrust --timeout 120 -j "$JOBS" "${files[@]}" > "$log" 2>&1
+  set -e
+  check_floors "adapter" "$ADAPTER_MISSED" "$ADAPTER_HANGS" "$log" || status=1
+fi
+
 for entry in "${BASELINES[@]}"; do
   package="${entry%%:*}"
   rest="${entry#*:}"
@@ -189,27 +219,7 @@ for entry in "${BASELINES[@]}"; do
   set +e
   nice -n 10 cargo mutants -p "$package" --timeout 120 -j "$JOBS" > "$log" 2>&1
   set -e
-  # A hang is not a passing test, so it is still a floor — but it is a different defect from a line
-  # no assertion pins, and it wants different work: an exit condition rather than a test case.
-  # Counted apart so that turning one into the other reads as what it is.
-  missed=$(grep -cE "^MISSED" "$log" || true)
-  hangs=$(grep -cE "^TIMEOUT" "$log" || true)
-  tail -1 "$log"
-  for kind in missed hangs; do
-    case "$kind" in
-      missed) found=$missed; floor=$allowed_missed; word="unpinned"; pattern="^MISSED" ;;
-      hangs)  found=$hangs;  floor=$allowed_hangs;  word="hanging";  pattern="^TIMEOUT" ;;
-    esac
-    if [ "$found" -gt "$floor" ]; then
-      echo "  RATCHET BROKEN: $found $word, floor $floor" >&2
-      grep -E "$pattern" "$log" | sed 's/ in [0-9].*//' >&2
-      status=1
-    elif [ "$found" -lt "$floor" ]; then
-      echo "  $found $word, below the floor of $floor — lower it in this script"
-    else
-      echo "  $found $word, at the floor"
-    fi
-  done
+  check_floors "$package" "$allowed_missed" "$allowed_hangs" "$log" || status=1
 done
 
 # A named package with no entry ran nothing and exited 0, which reads as a clean run. A crate has to
