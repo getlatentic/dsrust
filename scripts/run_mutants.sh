@@ -99,11 +99,18 @@ BASELINES=(
 #       finding: the byte-verified chat wire contributed one survivor (`from_env`, which no
 #       captured byte can see); eleven sat in the Responses API, the newest wire with the least
 #       golden history. Byte-verification holds exactly where it exists.
+#   signature 0:0 — 2026-08-06, from 18 missed + 3 hanging of 250. Two of the eighteen were
+#       branches that could not be told from their neighbours — `union`'s `Option<T>` case wrote
+#       byte-identical JSON to its general arm, and `object`'s is_object guard could not change
+#       what `node` already answers — so both were deleted rather than tested. The mutant count
+#       fell 250 -> 222 with them and the prefix rewrites: code that cannot be wrong has mutation
+#       sites, and removing it removes them.
 SLICES=(
   "adapter:0:0"
   "anthropic:0:0"
   "ollama:0:0"
   "openai:0:0"
+  "signature:0:0"
 )
 slice_files() {
   case "$1" in
@@ -117,6 +124,9 @@ slice_files() {
     anthropic) printf '%s\n' 'crates/dsrust/src/lm/anthropic/**/*.rs' ;;
     ollama) printf '%s\n' 'crates/dsrust/src/lm/ollama/**/*.rs' ;;
     openai) printf '%s\n' 'crates/dsrust/src/lm/openai/**/*.rs' ;;
+    signature) printf '%s\n' \
+      'crates/dsrust/src/signature/**/*.rs' \
+      crates/dsrust/src/signature.rs ;;
   esac
 }
 
