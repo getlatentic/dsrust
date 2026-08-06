@@ -51,7 +51,7 @@ fn an_image_field_becomes_an_image_url_block() {
         Input::new("question", json!("describe")),
         Input::new(
             "photo",
-            serde_json::to_value(Image::new("https://example.com/a.jpg")).unwrap(),
+            serde_json::to_value(Image::new("https://example.com/a.jpg").unwrap()).unwrap(),
         ),
     ];
     let Content::Blocks(blocks) = user_content(&signature, &inputs) else {
@@ -151,7 +151,7 @@ fn a_derived_signature_maps_custom_type_input_fields() {
                 Input::new("code", serde_json::to_value(Code::new("x = 1")).unwrap()),
                 Input::new(
                     "photo",
-                    serde_json::to_value(Image::new("https://x/a.jpg")).unwrap(),
+                    serde_json::to_value(Image::new("https://x/a.jpg").unwrap()).unwrap(),
                 ),
             ],
         )

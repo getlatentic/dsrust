@@ -13,6 +13,11 @@ dependencies = [
     "pytest-asyncio",
     "maturin",
     "pillow",
+    # Generator-only, for `scripts/generate_wav_fixture.py`. dspy treats both as optional
+    # (`SF_AVAILABLE`) and no upstream suite here needs them; they are declared so the WAV golden
+    # that `Audio::from_samples` is held to can be regenerated rather than trusted.
+    "soundfile",
+    "numpy",
     # dspy builds its evaluation display table with pandas, and `test_evaluate` compares the frame
     # it produced. Bounded below 3 because dspy 3.3 asks for `pandas>=2.1.1` and 3.0 renames a
     # column it reads back — an upstream/pandas mismatch, not this port's.

@@ -20,6 +20,11 @@ pub(crate) fn data_uri(media_type: &str, data: &str) -> String {
     }
 }
 
+/// Bytes as base64, which is the one spelling every provider agrees on.
+pub(crate) fn encode(bytes: &[u8]) -> String {
+    base64::engine::general_purpose::STANDARD.encode(bytes)
+}
+
 /// A local file's bytes, base64-encoded.
 ///
 /// Refused by name where the path is not a file, which is upstream's `File not found: …` — the

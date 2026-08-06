@@ -17,14 +17,54 @@ pub struct Image {
 }
 
 impl Image {
-    /// The image at this locator, **without touching it**.
+    /// dspy `encode_image`, string branch: a remote reference, or an already-encoded data URI.
     ///
-    /// A URL is kept as a reference and a `data:` URI as itself; neither is dereferenced. That is
-    /// upstream's rule and it is a security posture rather than a performance one — a constructor
-    /// is reachable from application input, so one that fetched what it was handed would turn a
-    /// user-supplied string into a request the host makes. Reading a local file is
-    /// [`from_path`](Self::from_path), which the caller asks for by name.
-    pub fn new(url: impl Into<String>) -> Self {
+    /// **Refuses anything else**, including a local path, and says which factory to use instead.
+    /// That is stronger than "does not fetch it", and the strength is the point: a constructor is
+    /// reachable from application input, so one that quietly kept `/etc/passwd` would put a local
+    /// path in an `image_url` block and send it to a provider. Upstream refuses; so does this.
+    ///
+    /// A URL is kept as a reference for the provider to resolve and a `data:` URI as itself.
+    /// Neither is dereferenced — reading is [`from_path`](Self::from_path), downloading is
+    /// [`from_url`](Self::from_url), and both are asked for by name.
+    pub fn new(source: impl AsRef<str>) -> anyhow::Result<Self> {
+        let source = source.as_ref();
+        if source.starts_with("data:") || is_url(source) {
+            return Ok(Self::reference(source));
+        }
+        anyhow::bail!(
+            "Unrecognized image string: {source}. Local files must be loaded with Image.from_path()."
+        )
+    }
+
+    /// dspy `encode_image`, bytes branch: raw image bytes as a `data:` URI.
+    ///
+    /// The format is read off the bytes themselves rather than from a filename, because there is no
+    /// filename — upstream hands them to PIL for the same reason.
+    ///
+    /// **Diverges in the payload, and this one cannot be closed.** `_encode_pil_image` *re-encodes*
+    /// through PIL and emits what PIL wrote, so upstream's base64 is not the caller's bytes: for
+    /// the one-pixel PNG in upstream's own test the two are the same length and different content.
+    /// Matching that would mean reproducing PIL's zlib settings, which is a worse implementation of
+    /// a worse idea — re-encoding is lossy for a JPEG and pointless for the rest. These are the
+    /// caller's bytes, under the media type upstream would have named.
+    pub fn from_bytes(bytes: impl AsRef<[u8]>) -> anyhow::Result<Self> {
+        let bytes = bytes.as_ref();
+        let Some(media_type) = sniffed(bytes) else {
+            anyhow::bail!(
+                "Bytes could not be identified as an image: {} bytes",
+                bytes.len()
+            );
+        };
+        Ok(Self::reference(&crate::resource::data_uri(
+            media_type,
+            &crate::resource::encode(bytes),
+        )))
+    }
+
+    /// A value already known to be a reference or a data URI — the factories' own way back in,
+    /// which must not re-run a check the value has already passed.
+    fn reference(url: impl Into<String>) -> Self {
         Self { url: url.into() }
     }
 
@@ -38,7 +78,10 @@ impl Image {
         let path = path.as_ref();
         let media_type = crate::resource::media_type_for(path, "image/png");
         let encoded = crate::resource::read_base64(path)?;
-        Ok(Self::new(crate::resource::data_uri(&media_type, &encoded)))
+        Ok(Self::reference(crate::resource::data_uri(
+            &media_type,
+            &encoded,
+        )))
     }
 
     /// dspy `Image.from_url`: download the image and embed it as a `data:` URI.
@@ -72,7 +115,41 @@ impl Image {
         let media_type = content_type
             .or_else(|| crate::mimetypes::guess(url).map(str::to_owned))
             .ok_or_else(|| anyhow::anyhow!("Could not determine MIME type for URL: {url}"))?;
-        Ok(Self::new(crate::resource::data_uri(&media_type, &encoded)))
+        Ok(Self::reference(crate::resource::data_uri(
+            &media_type,
+            &encoded,
+        )))
+    }
+}
+
+/// dspy `is_url`: a scheme a provider can resolve, and a host to resolve it against.
+///
+/// Three schemes, not two — `gs://` is Google Cloud Storage, which Gemini reads directly. Wider
+/// than [`is_http_url`](crate::resource::is_http_url), which guards *fetching* and so must not
+/// admit a scheme this process would have to interpret itself.
+fn is_url(source: &str) -> bool {
+    let Some((scheme, rest)) = source.split_once("://") else {
+        return false;
+    };
+    matches!(scheme, "http" | "https" | "gs")
+        && !rest.split(['/', '?', '#']).next().unwrap_or("").is_empty()
+}
+
+/// The media type raw bytes announce about themselves, by the signature every one of these formats
+/// opens with — what PIL's `Image.open` does before it decodes anything.
+///
+/// Named as PIL names them: `image/{format.lower()}`, which is what `_encode_pil_image` builds.
+fn sniffed(bytes: &[u8]) -> Option<&'static str> {
+    let starts = |signature: &[u8]| bytes.starts_with(signature);
+    match () {
+        _ if starts(b"\x89PNG\r\n\x1a\n") => Some("image/png"),
+        _ if starts(b"\xff\xd8\xff") => Some("image/jpeg"),
+        _ if starts(b"GIF87a") || starts(b"GIF89a") => Some("image/gif"),
+        // RIFF containers name their payload at byte 8; only the WEBP one is an image.
+        _ if starts(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") => Some("image/webp"),
+        _ if starts(b"BM") => Some("image/bmp"),
+        _ if starts(b"II\x2a\x00") || starts(b"MM\x00\x2a") => Some("image/tiff"),
+        _ => None,
     }
 }
 
@@ -104,7 +181,7 @@ impl<'de> Deserialize<'de> for Image {
     /// fetch. So it is an error, in upstream's words.
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         match Value::deserialize(deserializer)? {
-            Value::String(url) => Ok(Self::new(url)),
+            Value::String(url) => Self::new(url).map_err(de::Error::custom),
             Value::Object(mut map) => match map.remove("url") {
                 _ if map.contains_key("download") || map.contains_key("verify") => {
                     Err(de::Error::custom(
@@ -112,7 +189,7 @@ impl<'de> Deserialize<'de> for Image {
                          use Image.from_url(url, verify=...) to download a remote image.",
                     ))
                 }
-                Some(Value::String(url)) => Ok(Self::new(url)),
+                Some(Value::String(url)) => Self::new(url).map_err(de::Error::custom),
                 _ => Err(de::Error::custom(
                     "`url` field is required for `dspy.Image`",
                 )),
@@ -145,7 +222,7 @@ mod tests {
     /// render's string round trip can split it back into a content part.
     #[test]
     fn it_renders_as_a_sentinel_wrapped_image_block() {
-        let image = Image::new("https://example.com/a.jpg");
+        let image = Image::new("https://example.com/a.jpg").expect("a reference");
         assert_eq!(
             image.format(),
             Formatted::Blocks(vec![
@@ -174,14 +251,93 @@ mod tests {
         let _ = std::fs::remove_file(&path);
     }
 
-    /// The posture the resource-loading suite is about: a locator handed to the constructor stays
-    /// a locator. `Image("/etc/passwd")` must not read `/etc/passwd`, and
-    /// `Image("https://evil.example/x.png")` must not fetch it — a constructor is reachable from
-    /// application input, and reading it is a request the *host* makes on a stranger's behalf.
+    /// The rule is stronger than "does not fetch it": a local path is **refused**.
+    ///
+    /// Measured — `dspy.Image("/etc/passwd")` raises `ValueError`, and so does
+    /// `dspy.Image(url="/etc/passwd")`. An earlier version of this test asserted the path was
+    /// *kept*, which was a divergence written down as the expected answer: keeping it puts a local
+    /// path inside an `image_url` block and sends it to a provider.
     #[test]
-    fn the_constructor_keeps_a_locator_and_dereferences_nothing() {
-        for locator in ["/etc/passwd", "https://evil.example/secret.png"] {
-            assert_eq!(Image::new(locator).url, locator);
+    fn a_local_path_is_refused_rather_than_kept() {
+        for locator in ["/etc/passwd", "clip.png", "file:///etc/passwd"] {
+            let why = Image::new(locator).expect_err("refused").to_string();
+            assert_eq!(
+                why,
+                format!(
+                    "Unrecognized image string: {locator}. \
+                     Local files must be loaded with Image.from_path()."
+                ),
+                "for {locator}"
+            );
+        }
+    }
+
+    /// A reference the provider resolves is kept and not fetched — including `gs://`, which dspy's
+    /// `is_url` admits alongside http(s) because Gemini reads Cloud Storage directly.
+    #[test]
+    fn a_provider_resolvable_reference_is_kept_untouched() {
+        for locator in [
+            "https://evil.example/secret.png",
+            "http://example.com/a.png",
+            "gs://bucket/a.png",
+            "data:image/png;base64,QQ==",
+        ] {
+            assert_eq!(Image::new(locator).expect("kept").url, locator);
+        }
+    }
+
+    /// Raw bytes name their own format — upstream reaches PIL, this reads the signature.
+    ///
+    /// **The payload diverges and cannot be made not to**: `_encode_pil_image` re-encodes, so
+    /// dspy's base64 for upstream's own one-pixel PNG is a different 68 bytes from the input's.
+    /// These are the caller's bytes. What is held is the part that reaches the provider as meaning
+    /// — the media type — and upstream's own test asserts no more than that prefix either.
+    #[test]
+    fn bytes_are_identified_by_signature_and_kept_as_given() {
+        let png = b"\x89PNG\r\n\x1a\n and then some";
+        let image = Image::from_bytes(png).expect("identified");
+        assert!(
+            image.url.starts_with("data:image/png;base64,"),
+            "{}",
+            image.url
+        );
+        assert_eq!(
+            image.url,
+            format!("data:image/png;base64,{}", crate::resource::encode(png)),
+            "the caller's bytes, not a re-encoding"
+        );
+
+        for (bytes, expected) in [
+            (b"\xff\xd8\xff\xe0rest".to_vec(), "image/jpeg"),
+            (b"GIF89a rest".to_vec(), "image/gif"),
+            (b"RIFF\x00\x00\x00\x00WEBPrest".to_vec(), "image/webp"),
+            (b"BM rest".to_vec(), "image/bmp"),
+            (b"II\x2a\x00rest".to_vec(), "image/tiff"),
+        ] {
+            let image = Image::from_bytes(&bytes).expect("identified");
+            assert!(
+                image.url.starts_with(&format!("data:{expected};base64,")),
+                "{expected}: {}",
+                image.url
+            );
+        }
+    }
+
+    /// Bytes that are not an image are refused, where upstream's PIL raises
+    /// `UnidentifiedImageError` and it is re-raised as a `ValueError`. A RIFF container that is not
+    /// a WEBP is the interesting one — it shares four opening bytes with one.
+    #[test]
+    fn bytes_that_are_not_an_image_are_refused() {
+        for bytes in [
+            b"not an image".to_vec(),
+            b"RIFF\x00\x00\x00\x00WAVEfmt ".to_vec(),
+            Vec::new(),
+        ] {
+            let why = Image::from_bytes(&bytes).expect_err("refused").to_string();
+            assert!(
+                why.starts_with("Bytes could not be identified as an image:"),
+                "{why}"
+            );
         }
     }
 
@@ -218,8 +374,12 @@ mod tests {
         let bare: Image =
             serde_json::from_value(json!("data:image/png;base64,AAAA")).expect("parses");
         assert_eq!(bare.url, "data:image/png;base64,AAAA");
-        let mapped: Image = serde_json::from_value(json!({ "url": "u" })).expect("parses");
-        assert_eq!(mapped.url, "u");
+        let mapped: Image =
+            serde_json::from_value(json!({ "url": "https://example.com/a.png" })).expect("parses");
+        assert_eq!(mapped.url, "https://example.com/a.png");
+        // The mapping form is validated too, which is where an untrusted payload arrives:
+        // `TypeAdapter(Image).validate_python({"url": "/etc/passwd"})` raises upstream.
+        assert!(serde_json::from_value::<Image>(json!({ "url": "/etc/passwd" })).is_err());
         assert!(serde_json::from_value::<Image>(json!({ "no_url": 1 })).is_err());
         assert!(serde_json::from_value::<Image>(json!(3)).is_err());
     }

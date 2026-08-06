@@ -26,6 +26,34 @@ impl File {
         }
     }
 
+    /// dspy `encode_file_to_dict`, string branch: a `data:` URI and nothing else.
+    ///
+    /// **Refuses a path or a URL**, naming the factory that reads one. A `File` has no reference
+    /// form — a provider is handed the bytes or a file id it already holds — so a locator here is
+    /// a caller reaching for the wrong door, and keeping it would put a local path on the wire.
+    pub fn parse(source: impl AsRef<str>) -> anyhow::Result<Self> {
+        let source = source.as_ref();
+        if !source.starts_with("data:") {
+            anyhow::bail!(
+                "String file inputs must be data URIs, received: {source}. \
+                 Load local files with File.from_path()."
+            );
+        }
+        Ok(Self::from_data(source))
+    }
+
+    /// dspy `File(bytes)`: raw bytes the caller already holds.
+    ///
+    /// `application/octet-stream`, because nothing here names the type — there is no filename to
+    /// guess from and, unlike an image, no signature worth trusting across the formats a `File`
+    /// carries. Upstream's default, and its own test asserts exactly this prefix.
+    pub fn from_bytes(bytes: impl AsRef<[u8]>) -> Self {
+        Self::from_data(crate::resource::data_uri(
+            "application/octet-stream",
+            &crate::resource::encode(bytes.as_ref()),
+        ))
+    }
+
     /// A file by a provider-side id.
     pub fn from_id(file_id: impl Into<String>) -> Self {
         Self {
@@ -171,6 +199,35 @@ mod tests {
             "{file:?}"
         );
         let _ = std::fs::remove_file(&path);
+    }
+
+    /// Bytes with nothing naming their type are opaque — measured against `dspy.File(b"file
+    /// bytes")`, which gives exactly this, and upstream's own test asserts this prefix.
+    #[test]
+    fn bytes_become_an_opaque_data_uri() {
+        assert_eq!(
+            File::from_bytes(b"file bytes").file_data.as_deref(),
+            Some("data:application/octet-stream;base64,ZmlsZSBieXRlcw==")
+        );
+    }
+
+    /// A locator is refused in upstream's words. A `File` has no reference form, so keeping one
+    /// would put a local path on the wire under a key a provider reads as content.
+    #[test]
+    fn a_string_that_is_not_a_data_uri_is_refused() {
+        let why = File::parse("/etc/passwd").expect_err("refused").to_string();
+        assert_eq!(
+            why,
+            "String file inputs must be data URIs, received: /etc/passwd. \
+             Load local files with File.from_path()."
+        );
+        assert_eq!(
+            File::parse("data:text/plain;base64,QQ==")
+                .expect("a data uri")
+                .file_data
+                .as_deref(),
+            Some("data:text/plain;base64,QQ==")
+        );
     }
 
     /// The block carries only the fields that are set, in dspy's order, wrapped in the sentinels.

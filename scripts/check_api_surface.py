@@ -61,7 +61,16 @@ def is_defined(identifier: str, source: str) -> bool:
     what pushed entries toward generic ones: `LMRequest.from_call` was mapped to `new` because
     writing `LmRequest::from_items` would have failed the gate. A bare `new` proves only that the
     word appears somewhere in 160 files, so being specific has to be the thing that passes.
+
+    A comma-separated list means *all of these*, and every one must be defined. One Python function
+    that dispatches on its argument's type is often several Rust constructors — `encode_image` is
+    `Image::new` and `Image::from_bytes` — and without this the entry had to name one of them and
+    stay quiet about the rest, which is the same pressure toward the generic that the paragraph
+    above describes.
     """
+    if "," in identifier:
+        parts = [part.strip() for part in identifier.split(",")]
+        return all(part and is_defined(part, source) for part in parts)
     if "::" in identifier:
         owner, member = identifier.rsplit("::", 1)
         return is_defined(owner, source) and is_defined(member, source)
