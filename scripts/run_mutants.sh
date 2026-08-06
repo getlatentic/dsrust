@@ -16,7 +16,7 @@
 #
 #     ./scripts/run_mutants.sh            # the adapter slice, then every scoped crate
 #     ./scripts/run_mutants.sh dsrust-tpe # one of them
-#     ./scripts/run_mutants.sh adapter    # just the adapter slice (~55 minutes)
+#     ./scripts/run_mutants.sh adapter    # one dsrust slice (see SLICES; ~40-80 minutes each)
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -76,26 +76,34 @@ BASELINES=(
   "dsrust-json-repair:156:1"
 )
 
-# The one `dsrust` slice with a floor. Scoped by file because the whole crate is a five-hour run,
-# and a gate nobody runs is not a gate.
+# The `dsrust` slices with floors. Scoped because the whole crate is a five-hour run, and a gate
+# nobody runs is not a gate. Each entry is name:missed:hangs, with its files in SLICE_FILES below.
 #
-# 0:0 as of 2026-08-06, and the count held at 1 across the json-repair merge *by coincidence*: the
-# old survivor (`parse_json`'s `start < end`, an equivalent) moved into dsrust-json-repair with the
-# merge, and a new one appeared at the same count — the `!text.is_empty()` guard on `section_value`'s
-# literal fallback, which nothing pinned because the fuzz corpus's signature has no field that
-# reaches the fallback distinguishably. Three `note: Any` cases in the parse golden now pin it with
-# dspy as the oracle; the hand-applied mutant fails `note_single_quoted_literal`. A floor that stays
-# level is not evidence the survivors are the same survivors.
-ADAPTER_SLICE=(
-  crates/dsrust/src/adapter/parse.rs
-  crates/dsrust/src/adapter/chat.rs
-  crates/dsrust/src/adapter/prompt.rs
-  crates/dsrust/src/adapter/exchange.rs
-  crates/dsrust/src/adapter/demos.rs
-  crates/dsrust/src/adapter/types/history.rs
+#   adapter 0:0 — as of 2026-08-06. The count held at 1 across the json-repair merge *by
+#       coincidence*: the old survivor (`parse_json`'s `start < end`, an equivalent) moved into
+#       dsrust-json-repair with the merge, and a new one appeared at the same count — the
+#       `!text.is_empty()` guard on `section_value`'s literal fallback, now pinned by three
+#       `note: Any` cases in the parse golden with dspy as the oracle. A floor that stays level is
+#       not evidence the survivors are the same survivors.
+#   anthropic 0:0 — 2026-08-06, from 20 of 80 at first measurement: thirteen usage mutants nothing
+#       read, and one genuine fix — `block()`'s text rebuild stripped `cache_control`, so the
+#       mutant deleting the arm was the better program and became the code.
+SLICES=(
+  "adapter:0:0"
+  "anthropic:0:0"
 )
-ADAPTER_MISSED=0
-ADAPTER_HANGS=0
+slice_files() {
+  case "$1" in
+    adapter) printf '%s\n' \
+      crates/dsrust/src/adapter/parse.rs \
+      crates/dsrust/src/adapter/chat.rs \
+      crates/dsrust/src/adapter/prompt.rs \
+      crates/dsrust/src/adapter/exchange.rs \
+      crates/dsrust/src/adapter/demos.rs \
+      crates/dsrust/src/adapter/types/history.rs ;;
+    anthropic) printf '%s\n' 'crates/dsrust/src/lm/anthropic/**/*.rs' ;;
+  esac
+}
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each
 # holding their own copy of the same dependency object code. That is the right default and it is why
@@ -191,19 +199,25 @@ check_floors() {
 status=0
 matched=0
 
-# The adapter slice, run when no scope was named or `adapter` was. File-scoped because dsrust whole
-# is a five-hour run, and this is the byte-critical heart of it.
-if [ "$#" -eq 0 ] || [ "${1:-}" = "adapter" ]; then
+# The dsrust slices, each run when no scope was named or its name was.
+for entry in "${SLICES[@]}"; do
+  slice="${entry%%:*}"
+  rest="${entry#*:}"
+  slice_missed="${rest%%:*}"
+  slice_hangs="${rest##*:}"
+  if [ "$#" -gt 0 ] && [ "${1:-}" != "$slice" ]; then
+    continue
+  fi
   matched=1
-  echo "==> cargo mutants -p dsrust, adapter slice (floors: $ADAPTER_MISSED missed, $ADAPTER_HANGS hanging; -j $JOBS x $CARGO_BUILD_JOBS)"
-  log="target/mutants-adapter.log"
+  echo "==> cargo mutants -p dsrust, $slice slice (floors: $slice_missed missed, $slice_hangs hanging; -j $JOBS x $CARGO_BUILD_JOBS)"
+  log="target/mutants-$slice.log"
   files=()
-  for file in "${ADAPTER_SLICE[@]}"; do files+=(--file "$file"); done
+  while IFS= read -r file; do files+=(--file "$file"); done < <(slice_files "$slice")
   set +e
   nice -n 10 cargo mutants -p dsrust --timeout 120 -j "$JOBS" "${files[@]}" > "$log" 2>&1
   set -e
-  check_floors "adapter" "$ADAPTER_MISSED" "$ADAPTER_HANGS" "$log" || status=1
-fi
+  check_floors "$slice" "$slice_missed" "$slice_hangs" "$log" || status=1
+done
 
 for entry in "${BASELINES[@]}"; do
   package="${entry%%:*}"
