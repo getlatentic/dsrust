@@ -368,6 +368,24 @@ fn response_format(schema: &Value, json_format: JsonFormat) -> Value {
 mod tests {
     use super::super::token_limit::TokenLimitField;
     use super::*;
+
+    /// `from_env` reads the environment — replaced by `Default::default()` it compiled and every
+    /// test passed, because every test injects its endpoint explicitly. One test, both variables,
+    /// set and removed in the same function so parallel tests cannot interleave half a state.
+    #[test]
+    fn from_env_reads_the_base_url_and_key() {
+        unsafe {
+            std::env::set_var(BASE_URL_VAR, "http://env-test:1234/v1");
+            std::env::set_var("OPENAI_API_KEY", "sk-env-test");
+        }
+        let config = OpenAiConfig::from_env();
+        unsafe {
+            std::env::remove_var(BASE_URL_VAR);
+            std::env::remove_var("OPENAI_API_KEY");
+        }
+        assert_eq!(config.base_url, "http://env-test:1234/v1");
+        assert_eq!(config.api_key.as_deref(), Some("sk-env-test"));
+    }
     use crate::lm::api::interop::raise_request;
     use crate::lm::{ChatTurn, DEFAULT_PROVIDER_TIMEOUT, OutputMode, Sampling};
 

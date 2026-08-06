@@ -420,6 +420,116 @@ fn function_call_part(item: &Value) -> api::LmPart {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// dspy's truthiness for content, spelled out: null, the empty string and the empty list are
+    /// falsy; text, a block list and everything else are not. Three mutants lived in this one
+    /// three-line function.
+    #[test]
+    fn falsy_is_dspys_truthiness_for_content() {
+        assert!(falsy(&Value::Null));
+        assert!(falsy(&json!("")));
+        assert!(falsy(&json!([])));
+        assert!(!falsy(&json!("text")));
+        assert!(!falsy(&json!([{ "type": "text", "text": "x" }])));
+        assert!(!falsy(&json!(0)), "zero is content, not absence");
+    }
+
+    /// The content item is dropped only for an assistant turn of *only* tool calls — an assistant
+    /// with empty content and no calls still emits its (empty) item, and a user turn always does.
+    #[test]
+    fn only_an_assistant_turn_of_only_calls_drops_its_content_item() {
+        let only_calls = input(&[json!({
+            "role": "assistant",
+            "content": Value::Null,
+            "tool_calls": [{ "id": "call_1", "function": { "name": "f", "arguments": "{}" } }],
+        })]);
+        assert_eq!(only_calls.len(), 1, "just the call: {only_calls:?}");
+        assert_eq!(only_calls[0]["type"], "function_call");
+
+        let empty_no_calls = input(&[json!({ "role": "assistant", "content": "" })]);
+        assert_eq!(empty_no_calls.len(), 1, "the empty item still travels");
+        assert_eq!(empty_no_calls[0]["role"], "assistant");
+    }
+
+    /// The file block's keys move to the top of an `input_file`, each emitted even when absent —
+    /// upstream emits the nulls, so the bytes match only if this does.
+    #[test]
+    fn a_file_block_flattens_into_an_input_file_item_nulls_and_all() {
+        let flattened = content_block(
+            &json!({ "type": "file", "file": { "file_data": "data:application/pdf;base64,QQ==" } }),
+            "input_text",
+        );
+        assert_eq!(
+            flattened,
+            json!({
+                "type": "input_file",
+                "file_data": "data:application/pdf;base64,QQ==",
+                "filename": Value::Null,
+                "file_id": Value::Null,
+            })
+        );
+    }
+
+    /// A tool result's block-list content joins to its text — the Array arm of `output_text`.
+    #[test]
+    fn output_text_joins_a_block_list() {
+        assert_eq!(
+            output_text(&json!([{ "type": "text", "text": "a" }, { "type": "text", "text": "b" }])),
+            "ab"
+        );
+        assert_eq!(output_text(&json!("bare")), "bare");
+        assert_eq!(output_text(&json!(7)), "");
+    }
+
+    /// `streaming_body` is the request body with the flag set — replaced wholesale by
+    /// `Ok(Default::default())` it sent `null` to the provider and nothing here noticed.
+    #[test]
+    fn streaming_body_is_the_request_with_the_flag_set() {
+        let call = api::LmRequest::new(
+            "",
+            vec![api::LmMessage::user(vec![api::LmPart::text("hi")])],
+        );
+        let streaming = streaming_body("gpt-4o-mini", &call, JsonFormat::Schema).expect("builds");
+        let mut plain = request("gpt-4o-mini", &call, JsonFormat::Schema).expect("builds");
+        plain["stream"] = json!(true);
+        assert_eq!(streaming, plain);
+    }
+
+    /// The provider body rides along at both levels of the parsed response, as on the chat side.
+    #[test]
+    fn the_responses_body_rides_along_at_both_levels() {
+        let body = json!({
+            "id": "resp_1",
+            "model": "gpt-4o-mini",
+            "output": [{ "type": "message", "content": [{ "type": "output_text", "text": "hi" }] }],
+        });
+        let response = responses_to_lm_response(&body, "fallback");
+        assert_eq!(response.provider_response, Some(body.clone()));
+        assert_eq!(response.outputs[0].provider_output, Some(body.clone()));
+    }
+
+    /// A bare `{text}` item is text; a bare `{}` is nothing. The mutant turning the `&&` into `||`
+    /// made every unknown item an empty text part.
+    #[test]
+    fn a_bare_text_item_is_text_and_a_bare_nothing_is_nothing() {
+        let bare = content_item_parts(&json!({ "text": "hi" }));
+        assert_eq!(bare, vec![api::LmPart::text("hi")]);
+        assert!(content_item_parts(&json!({})).is_empty());
+        assert!(content_item_parts(&json!({ "type": "unmodelled_v9" })).is_empty());
+    }
+
+    /// One allowed tool under mode `none` is refused: the caller forbade tools, and the allowlist
+    /// does not un-forbid them. The mutant answered it with a named tool.
+    #[test]
+    fn one_allowed_tool_under_mode_none_is_still_refused() {
+        let mut body = json!({});
+        let choice = api::LmToolChoice {
+            mode: api::ToolChoiceMode::None,
+            allowed: Some(vec!["get_weather".to_owned()]),
+            ..api::LmToolChoice::default()
+        };
+        assert!(apply_responses_tool_choice(&mut body, &choice).is_err());
+    }
     use crate::lm::api::{LmDelta, LmStreamEvent};
     use crate::lm::streaming::{Framed, StreamState};
 

@@ -157,6 +157,26 @@ fn nonnull(value: &Value) -> Option<Value> {
 mod tests {
     use super::*;
 
+    use serde_json::json;
+
+    /// The raw body rides along at both levels — dspy keeps the provider response for callers
+    /// that read fields the typed model does not carry, and deleting either field lost it
+    /// silently because nothing read it back.
+    #[test]
+    fn the_provider_body_rides_along_at_both_levels() {
+        let body = json!({
+            "id": "chatcmpl-1",
+            "model": "gpt-4o-mini",
+            "choices": [{ "message": { "content": "hi" }, "finish_reason": "stop" }],
+        });
+        let response = completion_to_lm_response(&body, "fallback");
+        assert_eq!(response.provider_response, Some(body.clone()));
+        assert_eq!(
+            response.outputs[0].provider_output,
+            Some(body["choices"][0].clone())
+        );
+    }
+
     /// Faithfulness to dspy 3.3's response boundary: our `reply` parses each raw response into the
     /// same `LMResponse` dspy's `completion_to_lm_response` builds — reasoning part first, tool calls
     /// carrying the raw call, usage aliased, the id and finish reason kept. The fixture is generated

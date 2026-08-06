@@ -91,3 +91,68 @@ pub(in crate::lm) fn apply_tool_choice(request: &mut Value, choice: &api::LmTool
         request["parallel_tool_calls"] = json!(parallel);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// Unreadable arguments are kept as evidence, not discarded: the raw text and the reason land
+    /// in provider_data, and the call goes on with no arguments — upstream's own contract, whose
+    /// test asserts the keys are there.
+    #[test]
+    fn unreadable_arguments_keep_the_evidence_and_empty_the_args() {
+        let mut provider_data = api::Metadata::new();
+        let args = unreadable_arguments(&mut provider_data, "not json", None);
+        assert!(args.is_empty());
+        assert_eq!(provider_data["raw_arguments"], json!("not json"));
+        assert_eq!(
+            provider_data["arguments_parse_error"],
+            json!("tool-call arguments are not a JSON object")
+        );
+
+        let mut provider_data = api::Metadata::new();
+        let why = serde_json::from_str::<serde_json::Value>("{bad").unwrap_err();
+        unreadable_arguments(&mut provider_data, "{bad", Some(why));
+        assert!(
+            provider_data["arguments_parse_error"]
+                .as_str()
+                .is_some_and(|text| !text.is_empty()),
+            "the parser's own reason travels"
+        );
+    }
+
+    /// The extras are provider_data *minus the wire's own keys* — replaced by an empty iterator,
+    /// every vendor extension silently stopped reaching the request.
+    #[test]
+    fn provider_extras_are_the_data_minus_the_wire_keys() {
+        let mut spec = api::LmToolSpec::new("f", api::Metadata::new());
+        spec.provider_data.insert("vendor_key".to_owned(), json!(1));
+        spec.provider_data
+            .insert("name".to_owned(), json!("shadow"));
+        let extras: Vec<_> = provider_extras(&spec).collect();
+        assert_eq!(extras.len(), 1, "{extras:?}");
+        assert_eq!(extras[0].0, "vendor_key");
+        let rendered = tool_json(&spec);
+        assert_eq!(rendered["function"]["vendor_key"], json!(1));
+        assert_eq!(
+            rendered["function"]["name"],
+            json!("f"),
+            "the wire key wins"
+        );
+    }
+
+    /// One allowed tool under mode `none` falls back to the bare mode on the chat wire — this
+    /// renderer cannot refuse, so `none` must survive the allowlist rather than become a named call.
+    #[test]
+    fn one_allowed_tool_under_mode_none_stays_none_on_the_chat_wire() {
+        let mut request = json!({});
+        let choice = api::LmToolChoice {
+            mode: api::ToolChoiceMode::None,
+            allowed: Some(vec!["get_weather".to_owned()]),
+            ..api::LmToolChoice::default()
+        };
+        apply_tool_choice(&mut request, &choice);
+        assert_eq!(request["tool_choice"], json!("none"));
+    }
+}

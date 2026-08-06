@@ -121,6 +121,26 @@ pub(super) fn events<'h>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+
+    /// A tool call's part index is the content offset *plus* its slot: with reasoning at part 0
+    /// shifting content, call slot 1 lands at part 2. The `+` mutants collapsed every call onto
+    /// the reasoning part.
+    #[test]
+    fn tool_call_slots_ride_above_the_content_offset() {
+        let mut state = StreamState {
+            content_offset: 1,
+            ..StreamState::default()
+        };
+        let chunk = json!({ "choices": [{ "index": 0, "delta": { "tool_calls": [
+            { "index": 1, "id": "call_2", "function": { "name": "g", "arguments": "{" } },
+        ] } }] });
+        let events = events_from_chunk(&chunk, &mut state);
+        let [LmStreamEvent::Delta { part_index, .. }] = &events[..] else {
+            panic!("one delta: {events:?}")
+        };
+        assert_eq!(*part_index, 2, "offset 1 + slot 1");
+    }
 
     fn events_of(body: &str) -> Vec<LmStreamEvent> {
         let mut state = StreamState::default();

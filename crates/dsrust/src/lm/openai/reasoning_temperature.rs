@@ -69,6 +69,31 @@ pub(super) fn checked(
 mod tests {
     use super::*;
 
+    /// The refusal is a diagnostic, and its fields are what a caller reads to fix the call:
+    /// which model, which provider, and what to change. Three field-deletion mutants survived
+    /// because the existing tests checked only that the call was refused.
+    #[test]
+    fn the_refusal_names_the_model_the_provider_and_the_fix() {
+        let config = crate::lm::api::LmConfig {
+            temperature: Some(0.7),
+            reasoning: Some(crate::lm::api::LmReasoningConfig {
+                effort: Some("high".to_owned()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let refused = checked(&config, "o3-mini", "chat").expect_err("refused");
+        assert!(
+            refused
+                .message
+                .contains("only support the default temperature"),
+            "{}",
+            refused.message
+        );
+        assert_eq!(refused.model.as_deref(), Some("o3-mini"));
+        assert_eq!(refused.provider.as_deref(), Some("openai"));
+    }
+
     fn config(effort: Option<&str>, temperature: Option<f64>) -> api::LmConfig {
         api::LmConfig {
             temperature,

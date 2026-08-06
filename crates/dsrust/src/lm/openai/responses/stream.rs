@@ -75,3 +75,64 @@ fn event_delta(event: &Value) -> &str {
 }
 
 // -------- reply: Responses body -> LmResponse --------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lm::api::{LmDelta, LmStreamEvent};
+    use crate::lm::streaming::StreamState;
+    use serde_json::json;
+
+    /// Only a `function_call` item announces a tool call on add; a message item added must emit
+    /// nothing. The guard's mutants announced a nameless call for every item, or none ever.
+    #[test]
+    fn only_a_function_call_item_announces_itself_on_add() {
+        let mut state = StreamState::default();
+        let call = frame(
+            "data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"function_call\",\"call_id\":\"call_1\",\"name\":\"f\"}}",
+            &mut state,
+        );
+        let [
+            LmStreamEvent::Delta {
+                delta: LmDelta::ToolCallDelta { id, name, .. },
+                ..
+            },
+        ] = &call.events[..]
+        else {
+            panic!("one tool-call delta: {:?}", call.events)
+        };
+        assert_eq!(id.as_deref(), Some("call_1"));
+        assert_eq!(name.as_deref(), Some("f"));
+
+        let mut state = StreamState::default();
+        let message = frame(
+            "data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"message\"}}",
+            &mut state,
+        );
+        assert!(message.events.is_empty(), "{:?}", message.events);
+    }
+
+    /// A failed or incomplete response closes the stream with the provider's own message — the
+    /// arm deleted, a dead stream just went silent and the caller waited on nothing.
+    #[test]
+    fn a_failed_response_closes_with_the_providers_message() {
+        let mut state = StreamState::default();
+        let failed = frame(
+            "data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"message\":\"overloaded\"}}}",
+            &mut state,
+        );
+        assert!(failed.done, "the stream is over");
+        let [LmStreamEvent::Error { error }] = &failed.events[..] else {
+            panic!("one error event: {:?}", failed.events)
+        };
+        assert_eq!(error, "overloaded");
+
+        let mut state = StreamState::default();
+        let incomplete = frame("data: {\"type\":\"response.incomplete\"}", &mut state);
+        assert!(incomplete.done);
+        let [LmStreamEvent::Error { error }] = &incomplete.events[..] else {
+            panic!("one error event: {:?}", incomplete.events)
+        };
+        assert_eq!(error, "the responses stream did not complete");
+    }
+}
