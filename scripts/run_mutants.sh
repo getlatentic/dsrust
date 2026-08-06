@@ -175,12 +175,17 @@ export CARGO_BUILD_BUILD_DIR
 # The product is what lands on the machine: `-j 3` with cargo's default inner parallelism is three
 # concurrent builds each taking every core it can find. This box is shared with whoever is using it,
 # so both ends are capped and the whole thing is niced.
-# One job by default rather than two: a run at two sat at 200% CPU for half an hour on this
-# machine and had to be killed by hand, because a mutant that *hangs* holds its core for the
-# whole timeout instead of finishing early. The hangs are gone, and the default stays at one —
-# the box is shared with an editor and other worktree sessions, and a measurement is not worth
-# making it unusable. Raise it deliberately when nothing else needs the cores.
-JOBS=${DSRS_MUTANT_JOBS:-1}
+# Three jobs by default. It was one for a long time, after a run at two sat at 200% CPU for half
+# an hour and had to be killed by hand — a mutant that *hangs* holds its core for the whole
+# timeout instead of finishing early. That reason expired twice over and the default was never
+# revisited: the relative `build-dir` above restores the per-job isolation `-j` needs (validated
+# by running one file serially and at `-j`, which agree), and the hang classes that caused the
+# original pile-up are closed in every slice measured since.
+#
+# The cost of not revisiting it was real: the 2026-08-06 campaign ran some twelve hours serially
+# on a ten-core machine, most of it avoidable. 3 x 2 leaves four cores for the editor and other
+# worktree sessions, which is what the caution was actually protecting.
+JOBS=${DSRS_MUTANT_JOBS:-3}
 export CARGO_BUILD_JOBS=${DSRS_MUTANT_BUILD_JOBS:-2}
 
 trap 'rm -rf "$ROOT/mutants.out" "$ROOT/mutants.out.old"' EXIT
