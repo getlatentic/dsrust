@@ -49,6 +49,8 @@ PUB_USE = re.compile(r"^\s*pub\s+use\s+([^;]+);", re.M)
 #:
 #: `impl Trait for Type` is deliberately not matched. Its methods are the trait's, the trait is
 #: recorded where it is declared, and counting them again would tally every impl of `Display`.
+MOD_OPEN = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?mod\s+[A-Za-z_][A-Za-z0-9_]*\s*\{")
+
 OWNER = re.compile(r"^(?:impl(?:<[^>]*>)?\s+(?!.*\bfor\b)|pub\s+trait\s+)([A-Za-z_][A-Za-z0-9_]*)")
 
 #: Only bare `pub` is surface: `pub(crate)` and `pub(super)` cannot be named by a caller, and the
@@ -81,12 +83,37 @@ def reexported(clause: str) -> list[str]:
     return [name for name in names if name and name[0].isalpha() or name.startswith("_")]
 
 
+def without_test_modules(source: str) -> str:
+    """The file with its `#[cfg(test)]` modules cut out.
+
+    A `pub struct` inside `mod tests` is not API — `cfg(test)` compiles it out of every build a
+    caller sees — but the item scan matches at any indentation, so three derive-test doubles
+    (`DocTask`, `AttrTask`, `JudgeTask`) sat in the surface count as if a caller could reach them.
+    The cut relies on the same convention the owner tracking already does: rustfmt puts a module's
+    `mod` line and its closing brace at column zero, with everything between indented.
+    """
+    kept: list[str] = []
+    lines = source.splitlines()
+    at = 0
+    while at < len(lines):
+        line = lines[at]
+        if line.strip() == "#[cfg(test)]" and at + 1 < len(lines) and MOD_OPEN.match(lines[at + 1]):
+            at += 2
+            while at < len(lines) and lines[at] != "}":
+                at += 1
+            at += 1  # the closing brace
+            continue
+        kept.append(line)
+        at += 1
+    return "\n".join(kept)
+
+
 def walk(crate: str, path: pathlib.Path, prefix: str, seen: set[pathlib.Path]) -> set[str]:
     """Every public item reachable through this module, keyed `crate::path::Name`."""
     if path in seen or not path.exists():
         return set()
     seen.add(path)
-    source = path.read_text()
+    source = without_test_modules(path.read_text())
     found = set()
 
     owner: str | None = None
