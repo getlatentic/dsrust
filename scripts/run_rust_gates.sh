@@ -73,6 +73,13 @@ cat target/last-cargo-test.txt
 python3 scripts/record_rust_tests.py < target/last-cargo-test.txt
 [ "$STATUS" -eq 0 ] || exit "$STATUS"
 
+# The optional features, which the run above does not reach. `mp3` is off by default because LAME
+# is LGPL-3.0 and this crate is MIT/Apache — so its encoder and the test that decodes what the
+# encoder wrote are invisible to `--workspace`, which is how a test comes to never run at all.
+# Counted separately rather than added to the ratchet: the total above is the default build's.
+echo "==> cargo test -p dsrust --features mp3 (optional, not in the count)"
+bounded cargo test -p dsrust --features mp3 --lib adapter::types::audio
+
 echo "==> cargo build --all-targets"
 cargo build --all-targets
 

@@ -43,12 +43,25 @@ unicode-general-category = "1.1.0"
 unicode-normalization = "0.1.25"
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 flacenc = "0.5.1"
+mp3lame-encoder = { version = "0.2.4", optional = true }
 
 [dev-dependencies]
 claxon = "0.4.3"
+symphonia = { version = "0.6.0", default-features = false, features = ["mp3"] }
 # Only `#[tokio::test]` reaches for it: nothing in `src/` names a tokio type at runtime, so this
 # crate requires a reactor without depending on the crate that provides one. A caller picks their
 # own runtime features; asking for `rt-multi-thread` here would hand every consumer the
 # work-stealing scheduler whether their program wants it or not.
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+# MP3 encoding for `Audio::from_samples_as`, off by default and deliberately so.
+#
+# `mp3lame-encoder` and `mp3lame-sys` are **LGPL-3.0**, where this crate is MIT OR Apache-2.0.
+# Enabling this links LAME into the consumer's binary and brings LGPL obligations with it —
+# notices, and permitting the library to be replaced — which is a choice only the consumer can
+# make. It also needs a C toolchain to build. Off by default keeps the default build permissive
+# and pure Rust; a caller who needs MP3 (OpenAI accepts wav and mp3 for audio input, and nothing
+# else) turns it on knowing what it costs.
+mp3 = ["dep:mp3lame-encoder"]

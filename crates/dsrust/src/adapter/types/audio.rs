@@ -92,6 +92,8 @@ impl Audio {
         let encoded = match container {
             Container::Wav => wav_pcm16(&pcm, sampling_rate),
             Container::Flac => flac_pcm16(&pcm, sampling_rate)?,
+            #[cfg(feature = "mp3")]
+            Container::Mp3 => mp3_pcm16(&pcm, sampling_rate)?,
         };
         Ok(Self::new(
             crate::resource::encode(&encoded),
@@ -170,6 +172,14 @@ pub enum Container {
     Wav,
     /// Lossless, and roughly half of what the same samples cost as WAV.
     Flac,
+    /// Lossy, and the only other container OpenAI accepts for audio input.
+    ///
+    /// Behind the **`mp3`** feature, off by default: the encoder is LAME through
+    /// `mp3lame-encoder`, which is LGPL-3.0 where this crate is MIT OR Apache-2.0. Linking it
+    /// brings LGPL obligations to whoever ships the binary, so the choice belongs to them and not
+    /// to this crate. It also wants a C toolchain.
+    #[cfg(feature = "mp3")]
+    Mp3,
 }
 
 impl Container {
@@ -178,6 +188,8 @@ impl Container {
         match self {
             Container::Wav => "wav",
             Container::Flac => "flac",
+            #[cfg(feature = "mp3")]
+            Container::Mp3 => "mp3",
         }
     }
 }
@@ -210,6 +222,40 @@ fn flac_pcm16(pcm: &[i16], sampling_rate: u32) -> anyhow::Result<Vec<u8>> {
         .write(&mut sink)
         .map_err(|error| anyhow::anyhow!("flac write: {error:?}"))?;
     Ok(sink.as_slice().to_vec())
+}
+
+/// One mono MP3 through LAME, at its default quality.
+///
+/// Lossy, so unlike WAV and FLAC the samples that come back are near the ones that went in rather
+/// than equal to them. That is the format, not the binding — and it is why this is opt-in beside
+/// its licence: a caller reaching for MP3 has a provider that demands it, not a preference.
+#[cfg(feature = "mp3")]
+fn mp3_pcm16(pcm: &[i16], sampling_rate: u32) -> anyhow::Result<Vec<u8>> {
+    use mp3lame_encoder::{Builder, FlushNoGap, MonoPcm};
+
+    let mut builder = Builder::new().ok_or_else(|| anyhow::anyhow!("lame would not start"))?;
+    builder
+        .set_num_channels(1)
+        .map_err(|error| anyhow::anyhow!("lame channels: {error}"))?;
+    builder
+        .set_sample_rate(sampling_rate)
+        .map_err(|error| anyhow::anyhow!("lame sample rate: {error}"))?;
+    let mut encoder = builder
+        .build()
+        .map_err(|error| anyhow::anyhow!("lame build: {error}"))?;
+
+    let mut out = Vec::with_capacity(mp3lame_encoder::max_required_buffer_size(pcm.len()));
+    let written = encoder
+        .encode(MonoPcm(pcm), out.spare_capacity_mut())
+        .map_err(|error| anyhow::anyhow!("lame encode: {error}"))?;
+    // SAFETY: `encode` reports how many bytes of the spare capacity it initialised.
+    unsafe { out.set_len(written) };
+    let flushed = encoder
+        .flush::<FlushNoGap>(out.spare_capacity_mut())
+        .map_err(|error| anyhow::anyhow!("lame flush: {error}"))?;
+    // SAFETY: as above, for the frames the flush emitted.
+    unsafe { out.set_len(out.len() + flushed) };
+    Ok(out)
 }
 
 /// One mono 16-bit PCM WAV: the 44-byte canonical RIFF header, then the samples.
@@ -470,6 +516,91 @@ mod tests {
             "flac {} vs wav {}",
             flac.data.len(),
             wav.data.len()
+        );
+    }
+
+    /// MP3 is lossy, so the claim is bounded rather than exact: real frames, the right duration,
+    /// and audio that still resembles what went in.
+    ///
+    /// Decoded by symphonia — a second implementation again — because the failure this guards
+    /// against is silence. A LAME call that is never flushed returns bytes that look like an MP3,
+    /// decode without error, and contain nothing; only listening to the samples catches it.
+    #[cfg(feature = "mp3")]
+    #[test]
+    fn mp3_decodes_back_to_audio_that_resembles_what_went_in() {
+        use symphonia::core::codecs::audio::AudioDecoderOptions;
+        use symphonia::core::formats::probe::Hint;
+        use symphonia::core::formats::{FormatOptions, TrackType};
+        use symphonia::core::io::MediaSourceStream;
+        use symphonia::core::meta::MetadataOptions;
+
+        // A second of a steady tone, which is easy to compare against and impossible to fake.
+        let rate = 44100u32;
+        let samples: Vec<f32> = (0..rate)
+            .map(|step| (step as f32 / rate as f32 * 440.0 * std::f32::consts::TAU).sin() * 0.5)
+            .collect();
+
+        let audio = Audio::from_samples_as(&samples, rate, Container::Mp3).expect("encodes");
+        assert_eq!(audio.audio_format, "mp3");
+
+        use base64::Engine;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(&audio.data)
+            .expect("base64");
+        assert!(!bytes.is_empty(), "an unflushed encoder returns nothing");
+
+        let stream =
+            MediaSourceStream::new(Box::new(std::io::Cursor::new(bytes)), Default::default());
+        let mut hint = Hint::new();
+        hint.with_extension("mp3");
+        let mut format = symphonia::default::get_probe()
+            .probe(
+                &hint,
+                stream,
+                FormatOptions::default(),
+                MetadataOptions::default(),
+            )
+            .expect("what was written probes as an mp3");
+        let track = format
+            .default_track(TrackType::Audio)
+            .expect("an audio track");
+        let track_id = track.id;
+        let mut decoder = symphonia::default::get_codecs()
+            .make_audio_decoder(
+                track
+                    .codec_params
+                    .as_ref()
+                    .expect("codec parameters")
+                    .audio()
+                    .expect("audio parameters"),
+                &AudioDecoderOptions::default(),
+            )
+            .expect("a decoder");
+
+        let mut decoded: Vec<f32> = Vec::new();
+        while let Ok(Some(packet)) = format.next_packet() {
+            if packet.track_id != track_id {
+                continue;
+            }
+            if let Ok(buffer) = decoder.decode(&packet) {
+                let mut interleaved = Vec::new();
+                buffer.copy_to_vec_interleaved(&mut interleaved);
+                decoded.extend_from_slice(&interleaved);
+            }
+        }
+
+        // LAME pads the start, so the length is near rather than equal — but it must be *audio*,
+        // and roughly a second of it.
+        assert!(
+            decoded.len() as f32 > rate as f32 * 0.9,
+            "decoded {} samples of an expected {rate}",
+            decoded.len()
+        );
+        // The tone survived: a silent or garbage decode fails this and a correct one passes easily.
+        let peak = decoded.iter().fold(0f32, |peak, s| peak.max(s.abs()));
+        assert!(
+            (0.3..=0.7).contains(&peak),
+            "peak {peak} — the 0.5 tone did not survive"
         );
     }
 }
