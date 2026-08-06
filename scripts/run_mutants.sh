@@ -79,13 +79,13 @@ BASELINES=(
 # The one `dsrust` slice with a floor. Scoped by file because the whole crate is a five-hour run,
 # and a gate nobody runs is not a gate.
 #
-#   1 — `parse_json`'s `start < end` against `start <= end`. `find('{')` and `rfind('}')` cannot
-#       return the same index, because a byte is not both braces, so nothing can tell the two apart.
-#       Equivalent, and recorded in the source so a later run does not offer it again as work.
-#
-# The floor of 1:0 predates the json-repair merge, which pointed `parse.rs` at the new crate and
-# dropped this whole block from the runner — so the number stood in a comment for a code base it no
-# longer described, with nothing able to check it. Re-measured 2026-08-06 by the restored runner.
+# 0:0 as of 2026-08-06, and the count held at 1 across the json-repair merge *by coincidence*: the
+# old survivor (`parse_json`'s `start < end`, an equivalent) moved into dsrust-json-repair with the
+# merge, and a new one appeared at the same count — the `!text.is_empty()` guard on `section_value`'s
+# literal fallback, which nothing pinned because the fuzz corpus's signature has no field that
+# reaches the fallback distinguishably. Three `note: Any` cases in the parse golden now pin it with
+# dspy as the oracle; the hand-applied mutant fails `note_single_quoted_literal`. A floor that stays
+# level is not evidence the survivors are the same survivors.
 ADAPTER_SLICE=(
   crates/dsrust/src/adapter/parse.rs
   crates/dsrust/src/adapter/chat.rs
@@ -94,7 +94,7 @@ ADAPTER_SLICE=(
   crates/dsrust/src/adapter/demos.rs
   crates/dsrust/src/adapter/types/history.rs
 )
-ADAPTER_MISSED=1
+ADAPTER_MISSED=0
 ADAPTER_HANGS=0
 
 # This machine shares `build.build-dir` across every project, to keep agent worktrees from each

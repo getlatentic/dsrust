@@ -30,6 +30,7 @@ which is worse than the reverse.
 from __future__ import annotations
 
 import json
+from typing import Any
 import pathlib
 import sys
 
@@ -76,6 +77,19 @@ class Unicode(dspy.Signature):
     question: str = dspy.InputField()
     réponse: str = dspy.OutputField()
     答え: str = dspy.OutputField()
+
+
+class Freeform(dspy.Signature):
+    """Answer, and note anything.
+
+    `note: Any` is the one annotation that reaches `parse_value`'s literal fallback and hands the
+    result back unvalidated — a scalar drags in `parse-time-casting`, and a `list[str]` turns the
+    interesting cases into refusals whose messages may not separate the branch under test.
+    """
+
+    question: str = dspy.InputField()
+    answer: str = dspy.OutputField()
+    note: Any = dspy.OutputField()
 
 
 class Tagged(dspy.Signature):
@@ -324,6 +338,26 @@ CASES = [
         "tags_smart_quotes",
         Tagged,
         "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[\u201ca\u201d, \u201cb\u201d]",
+    ),
+    # The literal fallback itself, on the branch order the code comments name: json-repair first,
+    # and Python's own literal syntax only where json-repair answered the empty string — its
+    # "found nothing" report. Each case is one arm. A mutant deleting the `!` in the crate's
+    # `!text.is_empty()` guard survived the whole adapter slice because nothing pinned any of
+    # these: the fuzz corpus's signature has no field that reaches the fallback distinguishably.
+    (
+        "note_single_quoted_literal",
+        Freeform,
+        "[[ ## answer ## ]]\nParis\n\n[[ ## note ## ]]\n'a'",
+    ),
+    (
+        "note_python_true",
+        Freeform,
+        "[[ ## answer ## ]]\nParis\n\n[[ ## note ## ]]\nTrue",
+    ),
+    (
+        "note_bare_word",
+        Freeform,
+        "[[ ## answer ## ]]\nParis\n\n[[ ## note ## ]]\nhello",
     ),
     (
         "typed_field_that_will_not_parse",

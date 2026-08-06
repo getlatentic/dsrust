@@ -356,6 +356,48 @@
       "diverges": false
     },
     {
+      "name": "note_single_quoted_literal",
+      "signature": "question -> answer: str, note: typing.Any",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## note ## ]]\n'a'",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "note": "a"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "note_python_true",
+      "signature": "question -> answer: str, note: typing.Any",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## note ## ]]\nTrue",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "note": true
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "note_bare_word",
+      "signature": "question -> answer: str, note: typing.Any",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## note ## ]]\nhello",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "note": "hello"
+        }
+      },
+      "diverges": false
+    },
+    {
       "name": "typed_field_that_will_not_parse",
       "signature": "question -> answer: str, score: int, tags: list[str]",
       "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\nvery high\n\n[[ ## tags ## ]]\n[\"a\"]",
