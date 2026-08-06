@@ -92,6 +92,45 @@ fn frame(line: &str, state: &mut StreamState) -> Framed {
 mod tests {
     use super::*;
 
+    /// An empty `thinking` string is silence, not a thinking part: without the filter every plain
+    /// chunk would open a thinking delta and shift the text to part 1.
+    #[test]
+    fn empty_thinking_emits_nothing_and_shifts_nothing() {
+        let mut state = StreamState::default();
+        let framed = frame(
+            r#"{"message": {"thinking": "", "content": "hi"}, "done": false}"#,
+            &mut state,
+        );
+        let [LmStreamEvent::Delta { part_index, .. }] = &framed.events[..] else {
+            panic!("one text delta: {:?}", framed.events)
+        };
+        assert_eq!(*part_index, 0, "text stays at part 0 when nothing thought");
+    }
+
+    /// The close carries the reason, and only `length` reads as truncated.
+    #[test]
+    fn the_close_reason_reads_truncated_only_for_length() {
+        let mut state = StreamState::default();
+        let cut = frame(
+            r#"{"message": {"content": ""}, "done": true, "done_reason": "length"}"#,
+            &mut state,
+        );
+        let [LmStreamEvent::OutputEnd { truncated, .. }] = &cut.events[..] else {
+            panic!("one closing event: {:?}", cut.events)
+        };
+        assert!(truncated);
+
+        let mut state = StreamState::default();
+        let done = frame(
+            r#"{"message": {"content": ""}, "done": true, "done_reason": "stop"}"#,
+            &mut state,
+        );
+        let [LmStreamEvent::OutputEnd { truncated, .. }] = &done.events[..] else {
+            panic!("one closing event: {:?}", done.events)
+        };
+        assert!(!truncated);
+    }
+
     /// ollama's line-delimited JSON: a reply chunk per line, the last carrying `done` and the counts
     /// named after the passes that produced them.
     #[test]

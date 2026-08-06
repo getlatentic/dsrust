@@ -130,6 +130,24 @@ fn tool_call(call: &Value) -> api::LmPart {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `done_reason` is the one thing a caller acts on: `length` means the reply was cut off, so
+    /// both the flag and the kept reason are pinned, both ways round.
+    #[test]
+    fn done_reason_reaches_the_output_and_length_means_truncated() {
+        let cut = output_of(&json!({
+            "message": { "content": "partial" },
+            "done_reason": "length",
+        }));
+        assert!(cut.truncated);
+        assert_eq!(cut.finish_reason.as_deref(), Some("length"));
+        let done = output_of(&json!({
+            "message": { "content": "whole" },
+            "done_reason": "stop",
+        }));
+        assert!(!done.truncated);
+        assert_eq!(done.finish_reason.as_deref(), Some("stop"));
+    }
     use serde_json::json;
 
     /// ollama names its counts after the passes that produce them and puts them at the top

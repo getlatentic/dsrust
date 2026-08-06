@@ -72,3 +72,32 @@ pub(super) fn provider_data(body: &Value) -> Option<Value> {
 pub(crate) fn refusal(body: &serde_json::Value) -> String {
     body["error"].as_str().unwrap_or("unknown error").to_owned()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The counters are optional on each side independently: ollama omits `prompt_eval_count`
+    /// entirely on a fully cached prompt, and the one it did report must survive alone.
+    #[test]
+    fn one_sided_counts_still_report_and_absent_ones_stay_unknown() {
+        let cached = usage(&json!({ "eval_count": 9 })).expect("output was counted");
+        assert_eq!(cached.input_tokens, None, "omitted is unknown, not zero");
+        assert_eq!(cached.output_tokens, Some(9));
+        let input_only = usage(&json!({ "prompt_eval_count": 4 })).expect("input was counted");
+        assert_eq!(input_only.input_tokens, Some(4));
+        assert_eq!(input_only.output_tokens, None);
+        assert_eq!(usage(&json!({ "done": true })), None, "neither counted");
+    }
+
+    /// ollama's error body is a bare `{"error": …}`, and the message is the difference between
+    /// "prompt too long" and a blank 500.
+    #[test]
+    fn the_refusal_is_ollamas_own_message() {
+        assert_eq!(
+            refusal(&json!({ "error": "model 'x' not found" })),
+            "model 'x' not found"
+        );
+        assert_eq!(refusal(&json!({})), "unknown error");
+    }
+}

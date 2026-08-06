@@ -36,7 +36,25 @@ impl Stub {
         let host = format!("http://{}", listener.local_addr().expect("a bound address"));
         let body = body.to_string();
         let served = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().expect("one connection");
+            // Bounded, because a blocking accept turns "the code under test never called the
+            // server" into a hang at the later join — three capability mutants were detected only
+            // as suite timeouts for exactly this reason. Ten seconds is far past any real call.
+            listener.set_nonblocking(true).expect("nonblocking");
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(
+                            std::time::Instant::now() < deadline,
+                            "the code under test never called the stub"
+                        );
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                    Err(error) => panic!("accept failed: {error}"),
+                }
+            };
+            stream.set_nonblocking(false).expect("blocking stream");
             let request = read_request(&mut stream);
             write_response(&mut stream, &body);
             request

@@ -101,6 +101,30 @@ fn remember(asked: (String, String), found: Capabilities) {
 mod tests {
     use super::*;
 
+    /// The memo is one map for the process, keyed by host and model, and a written answer reads
+    /// back. Five mutants replaced `known()` with a fresh map per call — remember would write into
+    /// one map and remembered read from another — and nothing noticed, because no test ever went
+    /// round the trip.
+    #[test]
+    fn a_remembered_answer_reads_back_under_its_own_key() {
+        let mine = (
+            "http://memo-test-host:11434".to_owned(),
+            "memo-test-model".to_owned(),
+        );
+        assert_eq!(remembered(&mine), None, "not asked yet");
+        remember(
+            mine.clone(),
+            Capabilities {
+                function_calling: true,
+                ..Capabilities::default()
+            },
+        );
+        let read = remembered(&mine).expect("written answers read back");
+        assert!(read.function_calling);
+        let other = (mine.0.clone(), "some-other-model".to_owned());
+        assert_eq!(remembered(&other), None, "keys do not bleed across models");
+    }
+
     #[test]
     fn a_template_that_mentions_tools_is_a_model_that_can_call_them() {
         // Both spellings ollama's own templates use, and the case litellm folds away.

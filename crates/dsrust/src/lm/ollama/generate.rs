@@ -175,11 +175,16 @@ fn merge(
     accepts: fn(&str) -> bool,
     mut render: impl FnMut(&Value) -> String,
 ) -> String {
-    let mut merged = String::new();
-    while *i < messages.len() && accepts(messages[*i]["role"].as_str().unwrap_or_default()) {
-        merged.push_str(&render(&messages[*i]));
-        *i += 1;
-    }
+    // Progress is structural: the run is measured off the slice and the cursor advances by its
+    // length, so there is no per-iteration `+= 1` for a mutant to break into a spin. The old shape
+    // hung for the whole timeout under exactly that mutation, which is detection only in the sense
+    // that the suite never finished.
+    let run = messages[*i..]
+        .iter()
+        .take_while(|message| accepts(message["role"].as_str().unwrap_or_default()))
+        .count();
+    let merged = messages[*i..*i + run].iter().map(&mut render).collect();
+    *i += run;
     merged
 }
 
@@ -343,6 +348,86 @@ fn frame(line: &str, state: &mut StreamState) -> Framed {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A role none of the three merges accept must be *skipped*, not spun on. The stall guard is
+    /// the loop's whole progress for that case, and two arithmetic mutants of it survived because
+    /// no test ever presented an unplaceable role.
+    #[test]
+    fn an_unknown_role_is_skipped_rather_than_looped_on() {
+        let prompt = flatten(&[
+            json!({ "role": "user", "content": "first" }),
+            json!({ "role": "developer", "content": "unplaceable" }),
+            json!({ "role": "user", "content": "second" }),
+        ]);
+        assert!(prompt.text.contains("first"));
+        assert!(prompt.text.contains("second"), "the walk continued past it");
+        assert!(!prompt.text.contains("unplaceable"));
+    }
+
+    /// litellm's `convert_content_list_to_str`: a block-list content flattens to its text runs.
+    #[test]
+    fn block_list_content_flattens_to_its_text() {
+        let prompt = flatten(&[json!({
+            "role": "user",
+            "content": [
+                { "type": "text", "text": "look at " },
+                { "type": "text", "text": "this" },
+            ],
+        })]);
+        assert!(prompt.text.contains("look at this"), "{}", prompt.text);
+    }
+
+    /// The generate reply carries why generation stopped, and `length` means cut off.
+    #[test]
+    fn the_reply_keeps_done_reason_and_length_means_truncated() {
+        let cut =
+            reply("m", &json!({ "response": "part", "done_reason": "length" })).expect("content");
+        assert!(cut.outputs[0].truncated);
+        assert_eq!(cut.outputs[0].finish_reason.as_deref(), Some("length"));
+        let done =
+            reply("m", &json!({ "response": "whole", "done_reason": "stop" })).expect("content");
+        assert!(!done.outputs[0].truncated);
+        assert_eq!(done.outputs[0].finish_reason.as_deref(), Some("stop"));
+    }
+
+    /// The closing line: an empty `response` adds no empty delta, a non-done line does not close,
+    /// and the reason's truncation reads both ways.
+    #[test]
+    fn the_done_line_closes_with_the_reason_and_adds_no_empty_delta() {
+        let mut state = StreamState::default();
+        let open = frame(r#"{"response": "hi", "done": false}"#, &mut state);
+        assert!(!open.done, "not closed yet");
+        assert_eq!(open.events.len(), 1);
+
+        let mut state = StreamState::default();
+        let cut = frame(
+            r#"{"response": "", "done": true, "done_reason": "length"}"#,
+            &mut state,
+        );
+        assert!(cut.done);
+        let [
+            LmStreamEvent::OutputEnd {
+                finish_reason,
+                truncated,
+                ..
+            },
+        ] = &cut.events[..]
+        else {
+            panic!("an empty response adds no delta: {:?}", cut.events)
+        };
+        assert_eq!(finish_reason.as_deref(), Some("length"));
+        assert!(truncated);
+
+        let mut state = StreamState::default();
+        let done = frame(
+            r#"{"response": "", "done": true, "done_reason": "stop"}"#,
+            &mut state,
+        );
+        let [LmStreamEvent::OutputEnd { truncated, .. }] = &done.events[..] else {
+            panic!("one closing event: {:?}", done.events)
+        };
+        assert!(!truncated);
+    }
 
     /// Faithfulness to litellm's `ollama/` path: our body equals the one litellm puts on the wire
     /// for the same typed request — the conversation flattened by `ollama_pt`, `options` with
