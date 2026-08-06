@@ -168,6 +168,19 @@ CASES = [
         "values": {"photo": dspy.Image(url="https://example.com/a.jpg")},
     },
     {
+        # Audio had no golden at all, where image had one: every audio render rested on
+        # hand-written tests agreeing with the code they test. Unlike an image, audio travels as
+        # an `input_audio` block carrying bare base64 beside a bare format name — the one media
+        # type that does not ride in a data URI — so the block split is different enough to earn
+        # its own measured render. The value is built with dspy's keyword form, which keeps the
+        # payload exactly as given.
+        "name": "audio_input_field",
+        "instructions": "Transcribe the clip.",
+        "inputs": [{"name": "clip", "type": dspy.Audio, "kind": "json:Audio", "desc": None}],
+        "outputs": [{"name": "transcript", "type": str, "kind": "str", "desc": None}],
+        "values": {"clip": dspy.Audio(data="YXVkaW8gYnl0ZXM=", audio_format="wav")},
+    },
+    {
         # Refine's feedback step, and the widest signature dspy ships: nine inputs, a float pair,
         # a list and a dict output. Its instructions and its `advice` description reach a prompt
         # verbatim — including upstream's "kind ofscenario", where two literals meet without a

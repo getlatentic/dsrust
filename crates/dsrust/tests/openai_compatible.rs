@@ -585,3 +585,62 @@ fn the_builders_key_goes_to_the_provider_the_model_names() {
         .expect("a model id");
     assert_eq!(routed.openrouter_api_key.as_deref(), Some("sk-or-probe"));
 }
+
+/// The whole audio path at once: samples through `Audio::from_samples`, into a signature that
+/// declares the field, rendered by `Predict`, and read off the socket as the provider will.
+///
+/// Each stage below this has its own oracle — the WAV bytes are pinned to libsndfile's, the
+/// adapter render to a golden generated from dspy, the block shape to the wire tests — but nothing
+/// proved the stages compose. The strong assertions ride on that: the `input_audio` block's data
+/// must be the *same string* the constructor produced (transport changed nothing) and must equal
+/// the committed golden's bytes (the constructor produced what libsndfile does).
+#[tokio::test]
+async fn an_audio_value_rides_the_wire_as_the_block_dspy_sends() {
+    use dsrust::adapter::types::Audio;
+    use dsrust::{Predict, call};
+
+    let reply = serde_json::to_string(&json!({
+        "choices": [{ "message": {
+            "content": "[[ ## transcript ## ]]\nwater sounds\n\n[[ ## completed ## ]]"
+        } }]
+    }))
+    .expect("a reply body");
+    let stub = Stub::answering(200, &reply);
+
+    // The golden's `a_few_samples` case, so the encoded bytes have a measured answer.
+    let audio = Audio::from_samples(&[0.0, 0.5, -0.5, 1.0], 8000);
+    let encoded = audio.data.clone();
+    let golden: Value = serde_json::from_str(
+        &std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/conformance/constants/wav_pcm16.json"),
+        )
+        .expect("the wav golden is committed"),
+    )
+    .expect("the golden parses");
+    assert_eq!(
+        encoded, golden["cases"]["a_few_samples"]["base64"],
+        "the constructor writes libsndfile's bytes"
+    );
+
+    let qa = Predict!("clip: Audio -> transcript").set_lm(std::sync::Arc::new(probe_lm(&stub)));
+    let out = call!(qa, clip = audio).await.expect("the stub answers");
+    assert_eq!(
+        out.get("transcript").and_then(Value::as_str),
+        Some("water sounds")
+    );
+
+    let request = stub.received();
+    let content = &request.body["messages"][1]["content"];
+    let blocks = content.as_array().expect("a media turn renders as blocks");
+    assert_eq!(
+        blocks[0],
+        json!({ "type": "text", "text": "[[ ## clip ## ]]\n" })
+    );
+    assert_eq!(
+        blocks[1],
+        json!({ "type": "input_audio", "input_audio": { "data": encoded, "format": "wav" } }),
+        "the bytes the constructor made are the bytes on the wire"
+    );
+    assert_eq!(blocks.len(), 3, "prefix, audio, and the respond-with tail");
+}
