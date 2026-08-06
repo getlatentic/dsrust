@@ -135,7 +135,15 @@ fn flatten(messages: &[Value]) -> Prompt {
     let mut text = String::new();
     let mut images = Vec::new();
     let mut i = 0;
-    while i < messages.len() {
+    // A `for` over a range that cannot grow: each round consumes at least one message (the three
+    // merges, or the stall guard for a role none of them place), so `len` rounds always suffice —
+    // and a round that consumes nothing runs out of rounds instead of spinning. Three mutants of
+    // the cursor arithmetic hung for the full timeout under the `while` this replaces; under a
+    // bounded loop the same mutants fall out early and the assert below names them.
+    for _round in 0..messages.len() {
+        if i >= messages.len() {
+            break;
+        }
         let start = i;
         let user = merge(messages, &mut i, is_user, |message| {
             content_and_images(message, &mut images)
@@ -151,6 +159,11 @@ fn flatten(messages: &[Value]) -> Prompt {
             i += 1;
         }
     }
+    assert!(
+        i >= messages.len(),
+        "the prompt walk stalled at {i} of {} — a round consumed nothing",
+        messages.len()
+    );
     Prompt { text, images }
 }
 
@@ -365,15 +378,23 @@ mod tests {
     }
 
     /// litellm's `convert_content_list_to_str`: a block-list content flattens to its text runs.
+    ///
+    /// On a **system** turn, deliberately: the user path reads blocks through
+    /// `content_and_images`, so a user-turn version of this test left `content_str`'s Array arm
+    /// unpinned while looking like it covered it — the mutant survived the first version of this
+    /// very test.
     #[test]
     fn block_list_content_flattens_to_its_text() {
-        let prompt = flatten(&[json!({
-            "role": "user",
-            "content": [
-                { "type": "text", "text": "look at " },
-                { "type": "text", "text": "this" },
-            ],
-        })]);
+        let prompt = flatten(&[
+            json!({
+                "role": "system",
+                "content": [
+                    { "type": "text", "text": "look at " },
+                    { "type": "text", "text": "this" },
+                ],
+            }),
+            json!({ "role": "user", "content": "ok" }),
+        ]);
         assert!(prompt.text.contains("look at this"), "{}", prompt.text);
     }
 
