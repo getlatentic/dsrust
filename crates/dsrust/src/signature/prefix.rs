@@ -43,18 +43,21 @@ fn is_decimal(character: char) -> bool {
 /// split at both boundaries, and why the pass below exists to find the second.
 fn split_before_a_capitalised_word(chars: &[char]) -> Vec<char> {
     let mut split = Vec::with_capacity(chars.len());
-    let mut at = 0;
-    while at < chars.len() {
-        let opens_a_word = chars.get(at + 1).is_some_and(char::is_ascii_uppercase);
-        let run = lowercase_run(chars, at + 2);
+    // Progress is the slice, not a cursor: `split_first` takes one character off, and every arm
+    // continues from a strict suffix of what is left — so there is no arithmetic a mutant can
+    // break into a loop that never advances. Under the `while at < len` form this replaces, a
+    // single `+=` turned into `*=` hung for the whole timeout.
+    let mut rest = chars;
+    while let Some((&first, tail)) = rest.split_first() {
+        let run = lowercase_run(tail, 1);
+        let opens_a_word = tail.first().is_some_and(char::is_ascii_uppercase);
+        split.push(first);
         if opens_a_word && run > 0 {
-            split.push(chars[at]);
             split.push('_');
-            split.extend(&chars[at + 1..at + 2 + run]);
-            at += 2 + run;
+            split.extend(&tail[..1 + run]);
+            rest = &tail[1 + run..];
         } else {
-            split.push(chars[at]);
-            at += 1;
+            rest = tail;
         }
     }
     split
@@ -70,18 +73,19 @@ fn lowercase_run(chars: &[char], from: usize) -> usize {
 /// One two-character expression: where `boundary` holds, an underscore goes between.
 fn split_between(chars: &[char], boundary: impl Fn(char, char) -> bool) -> Vec<char> {
     let mut split = Vec::with_capacity(chars.len());
-    let mut at = 0;
-    while at < chars.len() {
-        match chars.get(at + 1) {
+    // As above: each arm continues from a strict suffix, so the walk cannot stall.
+    let mut rest = chars;
+    while let Some((&left, tail)) = rest.split_first() {
+        match tail.split_first() {
             // Both characters are consumed, so a run of boundaries splits every other gap —
             // which is what a non-overlapping substitution does.
-            Some(&right) if boundary(chars[at], right) => {
-                split.extend([chars[at], '_', right]);
-                at += 2;
+            Some((&right, after)) if boundary(left, right) => {
+                split.extend([left, '_', right]);
+                rest = after;
             }
             _ => {
-                split.push(chars[at]);
-                at += 1;
+                split.push(left);
+                rest = tail;
             }
         }
     }

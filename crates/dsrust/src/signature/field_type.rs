@@ -388,6 +388,42 @@ fn coerce_float(name: &str, value: &mut Value) -> Result<()> {
 mod tests {
     use super::*;
 
+    /// dspy's `SIMPLE_TYPES`: the six kinds a generated `def` can spell, and `None` for anything
+    /// else — which is what sends a value over unannotated. The `bool` and `float` arms and both
+    /// container guards were all deletable without a test noticing.
+    #[test]
+    fn python_name_spells_the_six_simple_types_and_refuses_the_rest() {
+        assert_eq!(python_name(&FieldKind::Str), Some("str"));
+        assert_eq!(python_name(&FieldKind::Reasoning), Some("str"));
+        assert_eq!(python_name(&FieldKind::Bool), Some("bool"));
+        assert_eq!(python_name(&FieldKind::Int), Some("int"));
+        assert_eq!(python_name(&FieldKind::Float), Some("float"));
+        let json = |annotation: &str| {
+            FieldKind::Json(JsonType {
+                annotation: annotation.to_owned(),
+                ..JsonType::default()
+            })
+        };
+        assert_eq!(python_name(&json("list[str]")), Some("list"));
+        assert_eq!(python_name(&json("dict[str, int]")), Some("dict"));
+        assert_eq!(
+            python_name(&json("Recipe")),
+            None,
+            "a declared struct has no Python spelling here"
+        );
+    }
+
+    /// Each literal member's JSON-schema type, which `property_schema` compares across a set to
+    /// decide whether one `type` holds of all of them. Replaced by a constant, every set looked
+    /// mixed and the `type` key silently stopped being emitted.
+    #[test]
+    fn each_literal_member_names_its_own_schema_type() {
+        assert_eq!(LiteralValue::Str("a".into()).schema_type(), "string");
+        assert_eq!(LiteralValue::Bare("a".into()).schema_type(), "string");
+        assert_eq!(LiteralValue::Int(1).schema_type(), "integer");
+        assert_eq!(LiteralValue::Bool(true).schema_type(), "boolean");
+    }
+
     /// The expected strings are upstream's own, from
     /// `test_chat_adapter_quotes_literals_as_expected`: dspy quotes a member with double
     /// quotes only to avoid escaping a single quote it contains.

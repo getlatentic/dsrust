@@ -436,6 +436,46 @@ impl Signature {
 mod tests {
     use super::*;
 
+    /// A `Literal` set whose members share a JSON type states it; a mixed one cannot and states
+    /// only the enum. The comparison mutant made every set look mixed, so the `type` key silently
+    /// stopped reaching a structured-output provider.
+    #[test]
+    fn a_literal_states_its_type_only_when_every_member_shares_one() {
+        let literal = |values: Vec<LiteralValue>| OutField {
+            name: "choice".to_owned(),
+            kind: FieldKind::Str,
+            values: Some(values),
+            ..OutField::default()
+        };
+        let same = literal(vec![
+            LiteralValue::Str("a".to_owned()),
+            LiteralValue::Str("b".to_owned()),
+        ])
+        .property_schema();
+        assert_eq!(same["type"], json!("string"));
+        assert_eq!(same["enum"], json!(["a", "b"]));
+
+        let mixed = literal(vec![
+            LiteralValue::Str("a".to_owned()),
+            LiteralValue::Int(1),
+        ])
+        .property_schema();
+        assert_eq!(mixed.get("type"), None, "no one type holds of both");
+        assert_eq!(mixed["enum"], json!(["a", 1]));
+    }
+
+    /// `with_instructions` is what every optimizer proposal is, and the field it sets was
+    /// deletable: the copy kept the original objective and each scored proposal was the same one.
+    #[test]
+    fn with_instructions_replaces_the_objective_and_keeps_the_fields() {
+        let original: Signature = "question -> answer".parse().expect("parses");
+        let proposed = original.with_instructions("Answer in French.");
+        assert_eq!(proposed.instructions, "Answer in French.");
+        assert_ne!(original.instructions, proposed.instructions);
+        assert_eq!(proposed.inputs, original.inputs);
+        assert_eq!(proposed.outputs, original.outputs);
+    }
+
     fn signature() -> super::Signature {
         Signature::single_input(
             "Pick a color.",

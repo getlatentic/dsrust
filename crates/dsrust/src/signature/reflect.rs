@@ -90,12 +90,11 @@ fn union(arms: Vec<Value>, models: &mut Vec<Value>) -> Value {
         .filter(|arm| !is_null(arm))
         .map(|arm| node(arm, models))
         .collect();
-    // `Option<T>` is a two-armed choice of which one arm is null, so what is left is one type
-    // rather than a choice, and only the optionality survives.
-    match of.as_slice() {
-        [only] if optional => json!({ "kind": "union", "of": [only], "optional": true }),
-        _ => json!({ "kind": "union", "of": of, "optional": optional }),
-    }
+    // `Option<T>` needs no case of its own: a two-armed choice with a null arm leaves one type in
+    // `of` and `optional` true, which is what the general form already writes. It *had* one, and
+    // the two arms were byte-identical — which is why both mutants of its guard survived, and how
+    // a branch that can never be told from its neighbour announces itself.
+    json!({ "kind": "union", "of": of, "optional": optional })
 }
 
 fn is_null(schema: &Value) -> bool {
@@ -116,10 +115,13 @@ fn items(schema: &Value, models: &mut Vec<Value>) -> Value {
 fn object(schema: &Value, models: &mut Vec<Value>) -> Value {
     let properties = schema.get("properties").and_then(Value::as_object);
     if properties.is_none() {
-        let value = match schema.get("additionalProperties") {
-            Some(values) if values.is_object() => node(values, models),
-            _ => json!({ "kind": "named", "name": "any" }),
-        };
+        // No `is_object` guard: `node` answers "any" for a schema that declares no type, which a
+        // bare `true`/`false` `additionalProperties` is — so the guard could not change an answer
+        // and its mutant survived. Letting `node` decide removes the branch rather than testing it.
+        let value = schema.get("additionalProperties").map_or_else(
+            || json!({ "kind": "named", "name": "any" }),
+            |values| node(values, models),
+        );
         // serde keys every map it writes by a string, so there is no other key type to find.
         return json!({ "kind": "dict", "key": { "kind": "str" }, "value": value });
     }
@@ -160,6 +162,57 @@ fn model(schema: &Value, models: &mut Vec<Value>) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every JSON-schema scalar name maps to the kind BAML prints, and an unnamed one is `any`.
+    /// The `number` and `boolean` arms were both deletable without a test noticing.
+    #[test]
+    fn every_scalar_type_name_maps_to_its_kind() {
+        let mut models = Vec::new();
+        for (declared, kind) in [
+            ("string", "str"),
+            ("integer", "int"),
+            ("number", "float"),
+            ("boolean", "bool"),
+        ] {
+            assert_eq!(
+                node(&json!({ "type": declared }), &mut models),
+                json!({ "kind": kind }),
+                "for {declared}"
+            );
+        }
+        assert_eq!(
+            node(&json!({}), &mut models),
+            json!({ "kind": "named", "name": "any" }),
+            "a schema naming no type describes anything"
+        );
+    }
+
+    /// A `type` written as an array. One name is not a choice — it is that type, read through
+    /// `declared_type`'s Array arm — while two names are, and the null arm is lifted into
+    /// `optional` rather than becoming an arm of its own. Three mutants lived in this gap: the
+    /// Array arm, its null filter, and `union_arms`' arity test.
+    #[test]
+    fn a_type_array_is_a_type_when_it_names_one_and_a_choice_when_it_names_two() {
+        let mut models = Vec::new();
+        assert_eq!(
+            node(&json!({ "type": ["string"] }), &mut models),
+            json!({ "kind": "str" }),
+            "one name is not a union"
+        );
+        assert_eq!(
+            node(&json!({ "type": ["string", "null"] }), &mut models),
+            json!({ "kind": "union", "of": [{ "kind": "str" }], "optional": true }),
+            "the null arm becomes optionality"
+        );
+        assert_eq!(
+            node(&json!({ "type": ["string", "integer"] }), &mut models),
+            json!({
+                "kind": "union",
+                "of": [{ "kind": "str" }, { "kind": "int" }],
+                "optional": false,
+            })
+        );
+    }
     use schemars::JsonSchema;
 
     fn tree<T: JsonSchema>() -> Value {
