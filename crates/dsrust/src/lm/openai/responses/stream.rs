@@ -81,7 +81,6 @@ mod tests {
     use super::*;
     use crate::lm::api::{LmDelta, LmStreamEvent};
     use crate::lm::streaming::StreamState;
-    use serde_json::json;
 
     /// Only a `function_call` item announces a tool call on add; a message item added must emit
     /// nothing. The guard's mutants announced a nameless call for every item, or none ever.

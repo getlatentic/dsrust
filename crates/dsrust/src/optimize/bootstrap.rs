@@ -213,7 +213,7 @@ where
             Some(metric) => self.accepts(metric(example, &prediction)),
         };
         Ok(accepted.then(|| Solved {
-            program: solved_turn(&inputs, &prediction.example),
+            program: augmented_turn(&inputs, &prediction.example),
             per_predictor: trace
                 .into_iter()
                 .map(|step| (step.predictor, augmented_turn(&step.inputs, &step.outputs)))
@@ -301,42 +301,29 @@ fn restore_config<T: Module + ?Sized>(teacher: &mut T, resting: &[Sampling]) {
     }
 }
 
-/// dspy `Example(augmented=True, **inputs, **outputs)`: the request as it was asked and the
-/// reply that worked, one solved turn.
-///
-/// The `augmented` marker is deliberately not carried. dspy's adapters render a demo by walking
-/// the signature's fields, so the marker never reaches a prompt; the only reader is
-/// `propose/grounded_proposer.py`, which belongs to MIPROv2 rather than to this optimizer.
-/// Setting it here would put a field on every demo that every adapter would then have to know
-/// to ignore.
 /// dspy `Example(augmented=True, **inputs, **outputs)`: a demo the teacher earned, marked as such.
 ///
-/// The marker is read, not decoration. MIPROv2's grounded proposer shows the proposer *only*
-/// augmented demos, and a compiled program carries it to disk — so a program compiled here and
-/// opened in Python must have it where dspy's would. It comes first because dspy passes it first
-/// and a Python dict keeps insertion order.
+/// The marker is read, not decoration. MIPROv2's grounded proposer gathers *only* augmented
+/// demos, and a compiled program carries the key to disk — so a program compiled here and opened
+/// in Python must have it where dspy's would. It comes first because dspy passes it first and a
+/// Python dict keeps insertion order.
 ///
-/// Only the per-predictor trace demos are marked. The program-level demo is not, in either.
+/// Every earned demo carries it, the untraced program's included. dspy has no unmarked earned
+/// demo to match: `dspy.settings.trace` fills from `Predict.__call__`, so a program that answered
+/// has a trace, and `name2traces` is the only place `_train` reads demos from. The untraced arm of
+/// [`Bootstrapped`](super::earned::Bootstrapped) stands in for that trace, so it stands in for the
+/// marker too. Only labelled demos drawn from the trainset go unmarked, on both sides.
 fn augmented_turn(inputs: &Example, outputs: &Example) -> Example {
-    let demo = solved_turn(inputs, outputs);
-    let keys: Vec<String> = demo
-        .fields()
-        .filter(|(name, _)| demo.is_input(name))
-        .map(|(name, _)| name.to_owned())
-        .collect();
     let mut marked = Example::new([("augmented", serde_json::Value::Bool(true))]);
-    for (name, value) in demo.fields() {
+    for (name, value) in inputs.fields().chain(outputs.fields()) {
         marked.set(name, value.clone());
     }
+    let keys: Vec<String> = inputs
+        .fields()
+        .filter(|(name, _)| inputs.is_input(name))
+        .map(|(name, _)| name.to_owned())
+        .collect();
     marked.with_inputs(keys)
-}
-
-fn solved_turn(inputs: &Example, outputs: &Example) -> Example {
-    let mut demo = inputs.clone();
-    for (name, value) in outputs.fields() {
-        demo.set(name, value.clone());
-    }
-    demo
 }
 
 /// Hide the example being solved from the teacher's own demos, and answer with what was hidden.

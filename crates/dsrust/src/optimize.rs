@@ -27,6 +27,8 @@ mod rng;
 #[cfg(test)]
 mod conformance;
 #[cfg(test)]
+mod goldens;
+#[cfg(test)]
 pub(crate) mod scripted;
 
 /// What an optimizer's scoring passes are bounded by — dspy's `num_threads` and `max_errors`, which

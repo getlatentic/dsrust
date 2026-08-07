@@ -15,6 +15,7 @@ use std::collections::BTreeMap;
 use serde_json::Value;
 
 use super::BootstrapFewShot;
+use super::goldens::{fields, recorded_fields};
 use super::scripted::{Answers, Pair, Solver, trainset};
 use crate::evaluate::exact_match;
 use crate::example::{Example, Prediction};
@@ -47,12 +48,13 @@ fn turn(demo: &Example) -> (String, String) {
     (read("question"), read("answer"))
 }
 
-fn expected_turns(case: &Value) -> Vec<(String, String)> {
-    case["predictors"][0]["demos"]
+/// Every field of every demo the fixture records for one predictor, in order.
+fn recorded_demos(predictor: &Value) -> Vec<BTreeMap<String, String>> {
+    predictor["demos"]
         .as_array()
         .expect("demos")
         .iter()
-        .map(|demo| (field(demo, "question"), field(demo, "answer")))
+        .map(recorded_fields)
         .collect()
 }
 
@@ -119,12 +121,16 @@ fn the_fixture_describes_the_program_the_rust_side_runs() {
     );
 }
 
-/// Every budget upstream branches on, compared demo for demo.
+/// Every budget upstream branches on, compared demo for demo and field for field.
 ///
 /// The bootstrapped prefix is deterministic — the trainset walked in order, filtered by the
 /// metric. The tail is drawn by `random.sample` over a shuffled validation set, so matching it at
 /// all depends on [`super::rng`] reproducing CPython's generator: an approximation gives the right
 /// count in the wrong order, which is the failure this whole comparison exists to detect.
+///
+/// Comparing whole demos rather than their question and answer is what reaches `augmented`.
+/// `Solver` records no trace, so its demos take the untraced path through [`super::earned`] —
+/// the one arm of that split no traced double exercises.
 #[tokio::test]
 async fn keeps_the_demos_dspy_keeps() {
     for case in cases() {
@@ -134,40 +140,10 @@ async fn keeps_the_demos_dspy_keeps() {
             .await
             .expect("compile succeeds");
 
-        let ours: Vec<(String, String)> = student.demos.iter().map(turn).collect();
-        assert_eq!(ours, expected_turns(&case), "at {}", label(&case));
+        let ours: Vec<BTreeMap<String, String>> = student.demos.iter().map(fields).collect();
+        let expected = recorded_demos(&case["predictors"][0]);
+        assert_eq!(ours, expected, "at {}", label(&case));
     }
-}
-
-/// Every field a demo carries. Which fields those are is the evidence once a program has more
-/// than one predictor, because a demo the drafting half earned names a draft and one the
-/// answering half earned names no question.
-///
-/// `augmented` is one of them, and used not to be: it was filtered out of dspy's side, so the
-/// marker distinguishing an earned demo from a labelled one went uncompared for as long as the
-/// crate did not set it.
-fn fields(demo: &Example) -> BTreeMap<String, String> {
-    demo.fields()
-        .map(|(name, value)| (name.to_owned(), rendered(value)))
-        .collect()
-}
-
-/// A field value as text, keeping a bool distinguishable from an absent string — `augmented` is a
-/// bool on both sides, and mapping it through `as_str` would flatten it to the empty string and
-/// compare equal to anything.
-fn rendered(value: &Value) -> String {
-    match value {
-        Value::Bool(flag) => flag.to_string(),
-        other => other.as_str().unwrap_or_default().to_owned(),
-    }
-}
-
-fn expected_fields(demo: &Value) -> BTreeMap<String, String> {
-    demo.as_object()
-        .expect("a demo")
-        .iter()
-        .map(|(name, value)| (name.clone(), rendered(value)))
-        .collect()
 }
 
 /// A pipeline's demos, per predictor, against dspy's.
@@ -195,17 +171,13 @@ async fn a_pipeline_keeps_the_demos_dspy_keeps_for_each_predictor() {
             ("second", &student.second_demos),
         ];
         for (name, demos) in ours {
-            let expected: Vec<BTreeMap<String, String>> = case["predictors"]
+            let recorded = case["predictors"]
                 .as_array()
                 .expect("predictors")
                 .iter()
                 .find(|entry| field(entry, "predictor") == name)
-                .unwrap_or_else(|| panic!("the fixture records no predictor {name:?}"))["demos"]
-                .as_array()
-                .expect("demos")
-                .iter()
-                .map(expected_fields)
-                .collect();
+                .unwrap_or_else(|| panic!("the fixture records no predictor {name:?}"));
+            let expected = recorded_demos(recorded);
             let actual: Vec<BTreeMap<String, String>> = demos.iter().map(fields).collect();
             assert_eq!(actual, expected, "predictor {name} at {}", label(case));
         }

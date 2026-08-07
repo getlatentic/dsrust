@@ -55,16 +55,19 @@
         ],
         [
           {
+            "augmented": true,
             "question": "capital of France?",
             "answer": "Paris"
           },
           {
+            "augmented": true,
             "question": "capital of Germany?",
             "answer": "Berlin"
           }
         ],
         [
           {
+            "augmented": true,
             "question": "capital of France?",
             "answer": "Paris"
           },
@@ -75,6 +78,7 @@
         ],
         [
           {
+            "augmented": true,
             "question": "capital of Germany?",
             "answer": "Berlin"
           },
@@ -94,22 +98,26 @@
         [],
         [
           {
+            "augmented": true,
             "question": "capital of France?",
             "answer": "Paris"
           }
         ],
         [
           {
+            "augmented": true,
             "question": "capital of France?",
             "answer": "Paris"
           },
           {
+            "augmented": true,
             "question": "capital of Germany?",
             "answer": "Berlin"
           }
         ],
         [
           {
+            "augmented": true,
             "question": "capital of Germany?",
             "answer": "Berlin"
           }
@@ -143,6 +151,7 @@
         ],
         [
           {
+            "augmented": true,
             "question": "capital of France?",
             "answer": "Paris"
           },

@@ -320,6 +320,43 @@ mod tests {
         );
     }
 
+    /// The sets a real bootstrap builds are sets this filter can read.
+    ///
+    /// Every other test here hands `task_demos` demos marked by hand, so all of them pass while
+    /// the marker is missing from the demos Step 1 actually produces — and the failure is silent,
+    /// because an unmarked set filters down to `NO_DEMOS` and reads as "no demos were gathered"
+    /// rather than as a fault. `Solver` records no trace, which is the arm that used to lose it.
+    #[tokio::test]
+    async fn the_demos_step_one_builds_reach_a_proposal() {
+        let mut student =
+            crate::optimize::scripted::Solver::new(crate::optimize::scripted::Answers::Correctly);
+        let sets = crate::optimize::mipro::demos::create_demo_sets(
+            &mut student,
+            4,
+            &crate::optimize::scripted::trainset(),
+            2,
+            2,
+            &crate::evaluate::exact_match,
+            None,
+            &mut Rng::seeded(0),
+        )
+        .await
+        .expect("the scripted program bootstraps");
+
+        // Set 2 is the unshuffled bootstrap, the one that earns demos. Reading from candidate 2
+        // starts the rotation there, so what comes back is what the bootstrap earned.
+        let shown = task_demos(&signature(), &sets[0], 2);
+        assert_ne!(
+            shown, NO_DEMOS,
+            "a bootstrapped set grounds a proposal: {:?}",
+            sets[0]
+        );
+        assert!(
+            shown.contains("capital of France?"),
+            "grounded in a demo the teacher earned, not a labelled one: {shown}"
+        );
+    }
+
     /// Only demos the teacher earned are shown. A labelled one drawn from the trainset carries no
     /// `augmented` marker and demonstrates nothing about what the program can do.
     #[test]
