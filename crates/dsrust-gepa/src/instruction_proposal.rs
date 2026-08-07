@@ -117,6 +117,10 @@ fn render_sections<'a>(
 /// first and last ``` fences (skipping an optional language line). A single or absent fence falls back
 /// to stripping whatever partial fence is present.
 pub fn extract_new_instruction(lm_out: &str) -> String {
+    // The two `-1` defaults are dspy's sentinel and neither can be told from another value: `find`
+    // and `rfind` answer `None` together — a string either contains the fence or it does not — and
+    // in that case `start` is at least 2 while `end` is at most 1, so the branch below is taken
+    // whatever the sentinels are. Recorded because a mutation run keeps offering both.
     let find = lm_out.find("```").map(|i| i as isize).unwrap_or(-1);
     let start = find + 3;
     let end = lm_out.rfind("```").map(|i| i as isize).unwrap_or(-1);
@@ -148,6 +152,9 @@ fn match_opening_fence(lm_out: &str) -> Option<usize> {
     let rest = lm_out.strip_prefix("```")?;
     let tag_len = rest.find(char::is_whitespace).unwrap_or(rest.len());
     let mut end = 3 + tag_len;
+    // Stepping over the newline. Skipping it entirely is invisible — the caller trims, so a
+    // leading newline goes either way — which is why the mutant that leaves `end` alone survives
+    // where the one that walks it *backwards* is caught. Kept as dspy's regex has it.
     if lm_out[end..].starts_with('\n') {
         end += 1;
     }
@@ -159,6 +166,9 @@ fn match_opening_fence(lm_out: &str) -> Option<usize> {
 /// newline, so a space before the newline leaves the content untouched.
 fn skip_language_line(content: &str) -> &str {
     match content.find('\n') {
+        // As in `match_opening_fence`: keeping the newline rather than stepping over it cannot be
+        // seen through the caller's trim, so `newline + 1` and `newline` are indistinguishable.
+        // dspy's regex consumes it, so this does.
         Some(newline) if content[..newline].chars().all(|c| !c.is_whitespace()) => {
             &content[newline + 1..]
         }

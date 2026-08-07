@@ -102,12 +102,21 @@ CASES = [
     ("two_components_seed5", ["instr_a", "instr_b"], 4, 5, 4, 3, 60, 1.0, 5, False, "tradeoff", 5),
     ("merge_seed1", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 1, True, "merge", 5),
     ("merge_seed3", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge", 5),
-    # The same run with the invocation cap set to one, so the cap actually *bites*. Every case
-    # above leaves `max_merge_invocations` at gepa's default of 5 and none accepts five merges, so
-    # the whole schedule — the cap comparison, the `due` decrement and the `total_tested`
-    # increment — was unreachable, and five mutants of it survived. Under a cap of one, a second
-    # accepted program finds no merge due and the run diverges from the uncapped case.
-    ("merge_capped", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 1, True, "merge", 1),
+    # The invocation cap, in the one regime where it changes anything. Two components at any cap
+    # from one to five gives the identical run — the extra attempts a larger cap allows all come
+    # back with no mergeable pair — so a capped *two*-component case looked like coverage and
+    # discriminated nothing; measured, and five mutants of the schedule survived it.
+    #
+    # Three components split the Pareto front wider, so attempts keep finding pairs and the cap
+    # genuinely bounds the run: at seed 3 a cap of one accepts two merges against four uncapped,
+    # over 12 candidates against 14. Both arms are recorded, because the pair is what separates the
+    # `total_tested < cap` comparison from its neighbours, and the `due` and `total_tested`
+    # arithmetic from theirs.
+    ("merge_capped", ["a", "b", "c"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge", 1),
+    ("merge_uncapped_three", ["a", "b", "c"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge", 5),
+    # And a cap of zero, which forbids merging outright: `total_tested < 0` is false where
+    # `<= 0` would be true, so this is the arm that separates those two spellings.
+    ("merge_forbidden", ["a", "b", "c"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge", 0),
 ]
 
 
