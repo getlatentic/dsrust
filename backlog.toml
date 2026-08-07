@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1306
+rust_tests = 1307
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -891,6 +891,15 @@ never set it. Three things followed from that, found in order:
     the invention cancelled, which is why 19 recorded cases agreed.
 
 Now set, recorded as dspy writes it, and compared rather than stripped.
+
+**That pass closed only the traced arm, and this line overstated it for a week.** The projection
+came back twice more, and the fix reached only demos earned through `forward_traced` — which the
+`Module` trait does not require, so a caller's own module took the untraced fallback and got
+*unmarked* demos, which `task_demos` then filtered out entirely. Settled 2026-08-07: every earned
+demo is marked, and the comparison is whole-demo in all three places that had narrowed it
+(`optimize/conformance.rs`, `mipro/demos.rs`, `generate_demo_sets_fixture.py`, whose
+`demo_sets.json` had held zero occurrences of the key on either side). See the commit; the general
+lesson is [[projections-hide-divergence]] and it took three sittings to actually land.
 
 `fewshot_aware_proposer` is what remains: `use_task_demos` builds `task_demos` from the demo sets as
 `[current] + [after] + [before]` and gathers examples up to `num_demos_in_context`, falling back to
