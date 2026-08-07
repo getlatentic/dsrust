@@ -2772,7 +2772,10 @@ state = "todo"
 size = "M"
 suites = ""
 plan = """
-Measured 2026-08-02 with `./scripts/run_mutants.sh dsrust-gepa`, which ratchets at 27. The number
+Measured 2026-08-02 with `./scripts/run_mutants.sh dsrust-gepa`. **The floor is 24, not the 27
+this said until 2026-08-07** — three were closed after the number was written here and the ratchet
+moved without the story following. Read `run_mutants.sh` for the live figure; a count in prose is a
+transcription, and this one had drifted. The number
 was 46, re-measured at exactly 46 under the fixed methodology before anything was closed — so unlike
 the adapter slice these are real gaps rather than an artifact of the shared build directory. Nineteen
 were closed the same day; these are what is left, and they live in a shell-script comment until they
@@ -2908,7 +2911,7 @@ into something that fails.
 id = "json-repair-mutation-baseline"
 sprint = "conformance"
 title = "dsrust-json-repair has no entry in run_mutants.sh, and the one measurement was void"
-state = "todo"
+state = "done"
 size = "M"
 suites = []
 plan = """
@@ -2924,6 +2927,21 @@ Two things measured on the void run are still worth carrying over, because they 
 skips when the campaign corpus is absent and cargo-mutants copies a tree that never has it — which
 is why `json_repair_sweep.json` was committed. And parallelism is not an option here: `-j` reports
 survivors that are nothing of the sort, measured at 24 against a serial 0.
+"""
+outcome = """
+2026-08-07, on audit. **This story's premise expired and nobody noticed.** It opens "the crate is
+the only workspace member with no ratchet"; `run_mutants.sh` has carried
+`dsrust-json-repair:156:1` since the port merged, arrived at across four measurements whose history
+is in the script's own comment (296 and 79 at the first honest measurement, worked down through two
+optimisation arcs that each re-pinned what they touched, with the hang class closed to the one
+watcher-replaced mutant no guard can survive).
+
+The two carry-overs it names both landed too: `json_repair_sweep.json` is committed, so
+`tests/fuzz.rs` no longer skips in a copied tree, and the serial-only rule is in the script with
+the measurement behind it (24 survivors at `-j` against a serial 0).
+
+Left standing, and moved to `mutation-coverage-gaps` where the other unfinished floors live: the
+whole-crate `dsrust` run, still some five hours and still scoped by slice instead.
 """
 
 [[story]]
