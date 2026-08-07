@@ -32,19 +32,18 @@ cd "$ROOT"
 #
 #   dsrust-tpe 1 — `n < 25` against `n <= 25` in `default_weights`. At n=25 the ramp is empty either
 #                  way and both arms return twenty-five ones, so nothing can tell them apart.
-#   pyrng      4 — one equivalent and three that hang rather than fail. `hi = len - 1` in `choices`
-#                  against `hi = len`: the bound is unreachable because `random()` is strictly below
-#                  one, so the target never reaches the top cumulative weight, and CPython refuses
-#                  the all-zero weights that would be the only other way there. The three timeouts
-#                  are `bisect_right`'s comparison and `below`'s rejection loop, where the mutant
-#                  spins instead of answering — detected, but as a hang rather than a failure.
-#   dsrust-gepa 46 — 35 survivors and 11 non-terminating, and the largest gap measured so far. The
-#                    survivors cluster in `engine.rs` (the optimize and propose loops), `merge.rs`
-#                    and `instruction_proposal.rs`'s fence parsing; the non-terminating ones are all
-#                    `pyset.rs` arithmetic where the mutant spins instead of answering. `pyset`'s
-#                    intersection tie was in that list and is not any more — see the note in
-#                    `generate_pyset_fixture.py`. This number is a floor to work down, not a
-#                    finished state.
+#   pyrng      7 — every one a reasoned equivalent with its note in the source, and none of them
+#                  hanging any more: the three that used to spin (`bisect_right`'s comparison and
+#                  `below`'s rejection loop) are `partition_point` walks now, so the same mutants
+#                  fail in milliseconds instead of burning the timeout. `choices`' `len - 1` needs
+#                  `random_double() * total` to reach `total`, which a draw strictly below one does
+#                  not; `twist`'s `|` and `^` act on disjoint masks; `getrandbits` at exactly 32
+#                  shifts by zero either way; and both `<=` spellings in the two searches need a
+#                  draw landing exactly on a cumulative boundary.
+#
+#   Both re-measured 2026-08-07 under the fixed methodology and both reproduced exactly (151 and
+#   203 mutants). They had stood since before that fix, and "probably unchanged" is not a
+#   measurement — the campaign had just twice found a level number hiding a changed set.
 #   dsrust-json-repair 156 unpinned, 1 hanging — of 1932 viable in 56 minutes. The hang class is
 #                    closed: the read counter lives in `Source::at` where no direct reader can
 #                    drift out of its reach, the comment-strip and whitespace skips are

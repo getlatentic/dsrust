@@ -2848,9 +2848,12 @@ outcome = """
 `optimize` are measured and ratcheted at 0:0, scoped by file the way the adapter slice was. See
 `can-the-suite-fail` for what the six runs found.
 
-`dsrust-tpe:1` and `pyrng:7` still predate the methodology fix and are still unre-measured — both
-small, and the point of re-running them is that nothing about either number says in advance whether
-it will reproduce. That is what `dsrust` whole would need too: 3619 mutants at roughly half a minute
+`dsrust-tpe:1` and `pyrng:7` were the last two predating the methodology fix. Re-measured
+2026-08-07: **both reproduced exactly** — 151 mutants / 1 missed and 203 / 7 missed, no hangs on
+either. Worth the twenty minutes precisely because the answer was not knowable in advance; the
+campaign had twice found a level number hiding a completely changed survivor set. Every one of the
+eight is a reasoned equivalent carrying its note in the source, and pyrng's three former hangs are
+gone with the halving loops they lived in. That is what `dsrust` whole would need too: 3619 mutants at roughly half a minute
 each, which is why it stays scoped by slice rather than run entire.
 """
 
