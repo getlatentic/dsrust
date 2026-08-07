@@ -113,6 +113,21 @@ EXTRACT_CASES = [
     "   ```lang\nleading whitespace before the fence```   ",
     "```",
     "```json\n{\"key\": \"value\"}\n```",
+    # An *unclosed* fence carrying a language tag and a newline, which is the only shape that
+    # reaches the `end += 1` in `match_opening_fence`: the closed cases go down the two-fence path
+    # instead, and the one unclosed case above ("```only an opening fence") has a space after the
+    # tag rather than a newline, so the increment never fired and two mutants of it survived.
+    "```json\nan unclosed body with a tag",
+    "```markdown\nfirst line\nsecond line",
+    # A language tag containing a space. `skip_language_line` matches only where the first
+    # whitespace *is* the newline, so this must be left alone — with the guard forced true the
+    # first line is eaten as if it were a tag, which no closed case could tell apart.
+    "```\nlang tag\nbody\n```",
+    "```lang tag\nbody\n```",
+    # A fence pair with nothing between them, and one with only a newline: the `start >= end`
+    # boundary itself, where `find + 3` meets `rfind`.
+    "``````",
+    "```\n```",
 ]
 
 

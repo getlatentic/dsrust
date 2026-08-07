@@ -332,6 +332,30 @@
     {
       "lm_out": "```json\n{\"key\": \"value\"}\n```",
       "new_instruction": "{\"key\": \"value\"}"
+    },
+    {
+      "lm_out": "```json\nan unclosed body with a tag",
+      "new_instruction": "an unclosed body with a tag"
+    },
+    {
+      "lm_out": "```markdown\nfirst line\nsecond line",
+      "new_instruction": "first line\nsecond line"
+    },
+    {
+      "lm_out": "```\nlang tag\nbody\n```",
+      "new_instruction": "lang tag\nbody"
+    },
+    {
+      "lm_out": "```lang tag\nbody\n```",
+      "new_instruction": "lang tag\nbody"
+    },
+    {
+      "lm_out": "``````",
+      "new_instruction": ""
+    },
+    {
+      "lm_out": "```\n```",
+      "new_instruction": ""
     }
   ]
 }

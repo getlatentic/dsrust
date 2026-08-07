@@ -140,7 +140,10 @@ async fn reproduces_the_runs_gepa_produces() {
             perfect_score: case["perfect_score"].as_f64().expect("perfect_score"),
             skip_perfect_score: true,
             use_merge: case["use_merge"].as_bool().unwrap_or(false),
-            max_merge_invocations: 5,
+            // From the case, not hard-coded: every case left this at gepa's default of 5 and
+            // none accepted five merges, so the cap comparison, the `due` decrement and the
+            // `total_tested` increment were all unreachable and five mutants of them survived.
+            max_merge_invocations: case["max_merge_invocations"].as_u64().unwrap_or(5) as usize,
             seed: case["seed"].as_u64().expect("seed"),
             // The golden was recorded from gepa under its defaults; naming them keeps a later
             // change of default from silently re-pointing this at another strategy.

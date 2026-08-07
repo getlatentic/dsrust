@@ -87,7 +87,7 @@ class ScriptedAdapter:
 
 
 # (label, components, cap, trainset, valset, minibatch, max_metric_calls, perfect, seed, use_merge,
-# mode). Varied seeds force distinct selection draws; a small budget forces an early stop; the
+# mode, max_merge_invocations). Varied seeds force distinct selection draws; a small budget forces an early stop; the
 # two-component cases split the Pareto front and make acceptance depend on the shuffled minibatch;
 # perfect_score=0.0 makes the seed already-perfect. The `merge_*` cases turn merge on: they run long
 # enough to grow the candidate pool past index 7 (where CPython set order stops matching sorted) and
@@ -95,19 +95,25 @@ class ScriptedAdapter:
 # subsample accept test, and the interleaving of merge draws with reflective ones — is exercised
 # end to end, not just the merge functions in isolation.
 CASES = [
-    ("single_seed0", ["instruction"], 4, 5, 6, 2, 40, 1.0, 0, False, "tradeoff"),
-    ("single_small_budget", ["instruction"], 3, 4, 4, 2, 10, 1.0, 2, False, "tradeoff"),
-    ("skip_perfect", ["instruction"], 4, 4, 4, 2, 8, 0.0, 3, False, "tradeoff"),
-    ("two_components_seed1", ["instr_a", "instr_b"], 3, 6, 4, 2, 50, 1.0, 1, False, "tradeoff"),
-    ("two_components_seed5", ["instr_a", "instr_b"], 4, 5, 4, 3, 60, 1.0, 5, False, "tradeoff"),
-    ("merge_seed1", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 1, True, "merge"),
-    ("merge_seed3", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge"),
+    ("single_seed0", ["instruction"], 4, 5, 6, 2, 40, 1.0, 0, False, "tradeoff", 5),
+    ("single_small_budget", ["instruction"], 3, 4, 4, 2, 10, 1.0, 2, False, "tradeoff", 5),
+    ("skip_perfect", ["instruction"], 4, 4, 4, 2, 8, 0.0, 3, False, "tradeoff", 5),
+    ("two_components_seed1", ["instr_a", "instr_b"], 3, 6, 4, 2, 50, 1.0, 1, False, "tradeoff", 5),
+    ("two_components_seed5", ["instr_a", "instr_b"], 4, 5, 4, 3, 60, 1.0, 5, False, "tradeoff", 5),
+    ("merge_seed1", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 1, True, "merge", 5),
+    ("merge_seed3", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge", 5),
+    # The same run with the invocation cap set to one, so the cap actually *bites*. Every case
+    # above leaves `max_merge_invocations` at gepa's default of 5 and none accepts five merges, so
+    # the whole schedule — the cap comparison, the `due` decrement and the `total_tested`
+    # increment — was unreachable, and five mutants of it survived. Under a cap of one, a second
+    # accepted program finds no merge due and the run diverges from the uncapped case.
+    ("merge_capped", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 1, True, "merge", 1),
 ]
 
 
 def build_once(
     label, components, cap, trainset_size, valset_size, minibatch_size,
-    max_metric_calls, perfect, seed, use_merge, mode,
+    max_metric_calls, perfect, seed, use_merge, mode, max_merge_invocations,
 ) -> dict:
     trainset = list(range(trainset_size))
     valset = list(range(valset_size))
@@ -123,7 +129,7 @@ def build_once(
         perfect_score=perfect,
         seed=seed,
         use_merge=use_merge,
-        max_merge_invocations=5,
+        max_merge_invocations=max_merge_invocations,
         raise_on_exception=True,
     )
 
@@ -138,6 +144,7 @@ def build_once(
         "perfect_score": perfect,
         "seed": seed,
         "use_merge": use_merge,
+        "max_merge_invocations": max_merge_invocations,
         "mode": mode,
         "seed_candidate": seed_candidate,
         "result": {

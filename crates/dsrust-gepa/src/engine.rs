@@ -218,6 +218,16 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         // empty trainset produces, and which then spins here forever on a real run rather than on
         // a mutated one. Upstream asserts the sampler has enough ids; this checks the effect
         // instead, which also covers an adapter that reports no evaluations.
+        //
+        // **Both mutants of the `state.i > 0` below are unreachable, not untested.** Every path
+        // through an iteration spends: `next_minibatch_ids` refuses an empty trainset outright
+        // (`batch.rs`, and `an_empty_trainset_is_refused_rather_than_sampled` pins it), so a
+        // subsample is never empty; `try_merge` counts its subsample before every `Rejected`, and
+        // `NoMerge` returns before spending but falls through to `propose`, which spends. So the
+        // equality can never hold and neither spelling of the guard can be told from the other.
+        // It stays anyway, for the reason `pyset`'s probe bound stays: it turns a hang into a
+        // break if the assert above it is ever softened, and a bound that cannot fire is still a
+        // bound. Recorded here so a mutation run does not keep offering it as work.
         let mut spent_last_iteration = state.total_num_evals;
         while state.total_num_evals < self.max_metric_calls {
             if state.i > 0 && state.total_num_evals == spent_last_iteration {
