@@ -119,7 +119,11 @@ fn dspy_loads_and_runs_what_this_crate_saved() {
         ChainOfThought::from_signature("question -> answer".parse().expect("a signature"));
     for predictor in compiled.named_predictors() {
         predictor.signature.instructions = "Answer with GOOD precision.".into();
+        // `augmented` first, where a bootstrap puts it. It is the one demo key that is not a
+        // signature field, so it is the one the adapter has no reason to render and a reader has
+        // no reason to keep — and MIPROv2's proposer is the reader that needs it kept.
         *predictor.demos = vec![Example::new([
+            ("augmented", json!(true)),
             ("question", json!("2+2?")),
             ("reasoning", json!("add them")),
             ("answer", json!("4")),
@@ -148,6 +152,10 @@ fn dspy_loads_and_runs_what_this_crate_saved() {
     // The script prints what dspy read back, so a silent success cannot pass for a real one.
     assert!(report.contains("Answer with GOOD precision."), "{report}");
     assert!(report.contains("demos=1"), "{report}");
+    assert!(
+        report.contains("demo_keys=['answer', 'augmented', 'question', 'reasoning']"),
+        "dspy kept the bootstrap marker, which its own proposer gathers on:\n{report}"
+    );
 }
 
 /// The state parses back into its own types, so a file written by an older build still loads.

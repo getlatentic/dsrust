@@ -97,7 +97,16 @@ fn clear_demos<S: Module + ?Sized>(student: &mut S) {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+    use std::sync::Arc;
+
+    use serde_json::Value;
+
+    use super::super::super::goldens;
     use super::*;
+    use crate::evaluate::exact_match;
+    use crate::predict::Predict;
+    use crate::{DummyLM, example};
 
     /// The builder passes the metric threshold through — deleted, every bootstrap accepted every
     /// trace and the threshold a caller set did nothing.
@@ -122,13 +131,6 @@ mod tests {
         clear_demos(&mut student);
         assert!(student.demos.is_empty());
     }
-    use std::sync::Arc;
-
-    use serde_json::Value;
-
-    use crate::evaluate::exact_match;
-    use crate::predict::Predict;
-    use crate::{DummyLM, example};
 
     fn fixture() -> Value {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -165,25 +167,21 @@ mod tests {
         Arc::new(DummyLM::keyed(pairs))
     }
 
-    /// The answers of a demo set, which identify the examples: a bootstrapped demo carries the
-    /// model's answer, a labelled one the trainset's, and every answer here is distinct.
-    fn answers(demos: &[Example]) -> Vec<String> {
-        demos
-            .iter()
-            .map(|demo| {
-                demo.get("answer")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_owned()
-            })
-            .collect()
+    /// A demo set, every field of every demo.
+    ///
+    /// This compared the answers alone, which identify the examples but say nothing about how
+    /// they got into the set. `augmented` is the difference between a demo the teacher earned and
+    /// one drawn from the trainset, and it is the key [`super::super::grounded`] gathers on — so a
+    /// set that lost it still held the right examples and still grounded no proposal.
+    fn built(set: &[Example]) -> Vec<BTreeMap<String, String>> {
+        set.iter().map(goldens::fields).collect()
     }
 
-    fn expected(set: &Value) -> Vec<String> {
+    fn expected(set: &Value) -> Vec<BTreeMap<String, String>> {
         set.as_array()
             .expect("a set")
             .iter()
-            .map(|demo| demo["answer"].as_str().expect("answer").to_owned())
+            .map(goldens::recorded_fields)
             .collect()
     }
 
@@ -209,14 +207,14 @@ mod tests {
             .await
             .expect("builds the sets");
 
-            let built: Vec<Vec<String>> = sets[0].iter().map(|set| answers(set)).collect();
-            let want: Vec<Vec<String>> = case["sets"]
+            let ours: Vec<_> = sets[0].iter().map(|set| built(set)).collect();
+            let want: Vec<_> = case["sets"]
                 .as_array()
                 .expect("sets")
                 .iter()
                 .map(expected)
                 .collect();
-            assert_eq!(built, want, "case {case}");
+            assert_eq!(ours, want, "case {case}");
         }
     }
 }

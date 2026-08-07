@@ -59,8 +59,15 @@ CASES = [
 ]
 
 
-def demos_of(predictor) -> list[dict]:
-    return [{"question": d.question, "answer": d.answer} for d in predictor.demos]
+def demos_of(demos) -> list[dict]:
+    """Every field each demo carries, not just the turn.
+
+    This projected each demo down to its question and answer, which drops `augmented` — the marker
+    a bootstrap writes and MIPROv2's own proposer gathers on. Both sides of the comparison lost it
+    together, so a port that never wrote the marker matched this golden exactly, and the proposer
+    it feeds would have been shown nothing while every test stayed green.
+    """
+    return [dict(demo.toDict()) for demo in demos]
 
 
 def build_once(num_sets: int, max_labeled: int, max_bootstrapped: int, seed: int) -> dict:
@@ -77,7 +84,7 @@ def build_once(num_sets: int, max_labeled: int, max_bootstrapped: int, seed: int
         rng=random.Random(seed),
     )
     # demo_candidates[predictor_index] = list of sets, each a list of demos.
-    sets = [[{"question": d.question, "answer": d.answer} for d in one_set] for one_set in demo_candidates[0]]
+    sets = [demos_of(one_set) for one_set in demo_candidates[0]]
     return {
         "num_sets": num_sets,
         "max_labeled": max_labeled,

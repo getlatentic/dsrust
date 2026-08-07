@@ -345,13 +345,19 @@ mod tests {
             .compile(&mut student, &rows, &rows)
             .await
             .expect("compiles");
-        // Identity, not the `augmented` marker: whether earned demos carry the marker is its own
-        // open question (two contradictory doc comments sit on `augmented_turn`), and this test
-        // is about which *arm* ran. Only the bootstrap arm can earn a demo the metric accepted.
+        // Only the bootstrap arm can earn a demo the metric accepted, and only an earned demo
+        // carries the marker — so the two together say which arm ran and that it wrote what dspy
+        // writes. `Solver` records no trace, which is the arm that used to drop the marker.
         assert_eq!(
             crate::optimize::scripted::answers(&student.demos),
             ["Paris"],
             "the bootstrap arm earned its demo: {:?}",
+            student.demos
+        );
+        assert_eq!(
+            student.demos[0].get("augmented"),
+            Some(&serde_json::json!(true)),
+            "an earned demo is marked: {:?}",
             student.demos
         );
     }
