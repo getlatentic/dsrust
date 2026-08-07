@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1285
+rust_tests = 1306
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -669,7 +669,7 @@ allowance can be deleted and the rule becomes "no disagreements at all".
 id = "can-the-suite-fail"
 sprint = "conformance"
 title = "Measure whether the conformance suite can fail, rather than that it passes"
-state = "in-progress"
+state = "done"
 size = "L"
 suites = []
 plan = """
@@ -794,6 +794,47 @@ changes, and a hang is the one failure no assertion can report. Three of them to
 live hazard rather than a mutation artifact: an empty trainset spins GEPA forever.
 
 What remains is scoped as `gepa-mutation-survivors` and `mutation-coverage-gaps`.
+"""
+outcome = """
+2026-08-06/07. Every scope this story named is measured and at a floor of 0:0, recorded in
+`run_mutants.sh`'s slice table with each one's history:
+
+    adapter    159 mutants,   1 survivor  -> 0:0
+    anthropic   80 mutants,  20 survivors -> 0:0
+    ollama     121 mutants,  29 survivors -> 0:0
+    openai     173 mutants,  27 survivors -> 0:0
+    signature  250 mutants,  21 survivors -> 0:0   (222 after the dead branches went)
+    optimize   572 mutants,  73 survivors -> 0:0   (545 likewise)
+
+**The premise held, and the survivors were the "could not fail" list enumerated.** What the six
+runs added to it:
+
+  - **A survivor can mean the mutant is the better program.** anthropic's `block()` rebuilt a text
+    block as `{type, text}`; the rebuild's only observable effect was stripping `cache_control`,
+    so a caller who asked for prompt caching was silently un-asked. The mutant that deleted the arm
+    is now the code.
+  - **A survivor can mean a branch that cannot be told from its neighbour**, and the tell is *both*
+    mutants of a guard surviving. Three found and deleted rather than tested: `union`'s `Option<T>`
+    case wrote byte-identical JSON to its general arm, `object`'s is_object guard could not change
+    what `node` already answers, and `python_float`'s `is_finite` distinguishes nothing once nan is
+    handled. Code that cannot be wrong still costs mutation sites — 250 -> 222 and 572 -> 545.
+  - **"Needs an LM" had been standing in for "cannot be tested."** Thirty-seven survivors sat in
+    two MIPRO files whose every line runs behind a model call; `DummyLM` is a public export and
+    drives all of it.
+  - **The distribution is itself a finding.** The byte-verified OpenAI chat wire contributed one
+    survivor — `from_env`, which no captured byte can see — while eleven sat in the Responses API,
+    the newest wire with the least golden history.
+  - **Re-measurement grades the fixer.** Three times a pass's own tests were the next pass's
+    survivors: a block-list test on a *user* turn covered `content_and_images` while looking like
+    it covered `content_str`; a three-row corpus could not reach a bound that bites at batch ten;
+    `asked` had never run while `len` and `is_empty` had. A floor is only trustworthy after the
+    run that produced it has been re-run.
+  - **A level floor is not evidence the survivors are the same survivors.** The adapter slice read
+    1 before and after the json-repair merge, and the set had completely turned over.
+
+The hang class produced its own systematic fix: nine cursor-arithmetic loops hung or threatened to,
+every one with the same repair, so the shape is a lint now — `scripts/lints/
+cursor_arithmetic_loop.yml`, in `run_rust_gates.sh`.
 """
 
 [[story]]
@@ -2753,7 +2794,7 @@ out equivalent like pyset's, and the work is to say which rather than to reach a
 id = "mutation-coverage-gaps"
 sprint = "conformance"
 title = "Three crates ratcheted, and the byte-critical modules the story named are not among them"
-state = "todo"
+state = "done"
 size = "M"
 suites = ""
 plan = """
@@ -2789,6 +2830,16 @@ in the commit that records this. Two clusters are triaged; the rest is the open 
 
 The lesson the two triaged clusters carry: a function that needs a model is not a function that
 cannot be tested, and thirty-seven mutants lived behind that assumption in one file pair.
+"""
+outcome = """
+2026-08-07. The gaps this story named are closed: `signature`, all three provider wires and
+`optimize` are measured and ratcheted at 0:0, scoped by file the way the adapter slice was. See
+`can-the-suite-fail` for what the six runs found.
+
+`dsrust-tpe:1` and `pyrng:7` still predate the methodology fix and are still unre-measured — both
+small, and the point of re-running them is that nothing about either number says in advance whether
+it will reproduce. That is what `dsrust` whole would need too: 3619 mutants at roughly half a minute
+each, which is why it stays scoped by slice rather than run entire.
 """
 
 [[story]]

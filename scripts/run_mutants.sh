@@ -105,12 +105,21 @@ BASELINES=(
 #       what `node` already answers — so both were deleted rather than tested. The mutant count
 #       fell 250 -> 222 with them and the prefix rewrites: code that cannot be wrong has mutation
 #       sites, and removing it removes them.
+#   optimize 0:0 — 2026-08-07, from 69 missed + 4 hanging of 572, in three passes, and the richest
+#       scope by far. Two clusters were reachable only through a model call, and "needs an LM" had
+#       been standing in for "cannot be tested" — `DummyLM` is a public export and drives the whole
+#       batching walk. The second pass then graded the first and the third graded the second: a
+#       three-row corpus cannot reach a bound that bites at batch ten, tests that never read the
+#       config leave a temperature deletable, and `asked` — the function deciding who answers an
+#       ensemble — had never run while `len` and `is_empty` had. Every residue was a limit of the
+#       previous pass's tests rather than noise.
 SLICES=(
   "adapter:0:0"
   "anthropic:0:0"
   "ollama:0:0"
   "openai:0:0"
   "signature:0:0"
+  "optimize:0:0"
 )
 slice_files() {
   case "$1" in
@@ -127,6 +136,9 @@ slice_files() {
     signature) printf '%s\n' \
       'crates/dsrust/src/signature/**/*.rs' \
       crates/dsrust/src/signature.rs ;;
+    optimize) printf '%s\n' \
+      'crates/dsrust/src/optimize/**/*.rs' \
+      crates/dsrust/src/optimize.rs ;;
   esac
 }
 
