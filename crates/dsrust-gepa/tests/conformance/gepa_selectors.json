@@ -1411,6 +1411,46 @@
       }
     }
   ],
+  "epsilon_ties": {
+    "scores": [
+      0.5,
+      0.1,
+      0.9,
+      0.4,
+      0.7,
+      0.2
+    ],
+    "cases": [
+      {
+        "seed": 0,
+        "epsilon": 0.8444218515250481,
+        "pick": 2,
+        "after": 0.7579544029403025,
+        "would_pick_under_le": 3
+      },
+      {
+        "seed": 3,
+        "epsilon": 0.23796462709189137,
+        "pick": 2,
+        "after": 0.5442292252959519,
+        "would_pick_under_le": 4
+      },
+      {
+        "seed": 5,
+        "epsilon": 0.6229016948897019,
+        "pick": 2,
+        "after": 0.7417869892607294,
+        "would_pick_under_le": 5
+      },
+      {
+        "seed": 8,
+        "epsilon": 0.2267058593810488,
+        "pick": 2,
+        "after": 0.9622950358343828,
+        "would_pick_under_le": 3
+      }
+    ]
+  },
   "components": {
     "candidate": {
       "instructions": "a",

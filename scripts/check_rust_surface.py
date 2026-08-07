@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """Gate the surface this crate invented, the way `check_api_surface.py` gates the one it ports.
 
 That script walks **dspy to Rust** and is at 247/247 across four tables. It says nothing about the

@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1307
+rust_tests = 1310
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -2768,7 +2768,7 @@ here at all; size it before promising it.
 id = "gepa-mutation-survivors"
 sprint = "conformance"
 title = "Twenty-seven lines of the flagship optimizer that no test constrains"
-state = "todo"
+state = "done"
 size = "M"
 suites = ""
 plan = """
@@ -2800,6 +2800,46 @@ bound; `minused` against `minused + 1` cannot differ because `add` only ever cal
 
 **What proves it.** The ratchet falls. It is a floor, not a target of zero: some of the 27 will turn
 out equivalent like pyset's, and the work is to say which rather than to reach a number.
+"""
+outcome = """
+2026-08-07. **46 -> 13 over three passes, and the thirteen left are every one a reasoned equivalent
+with its note in the source** — the fence walks (4), the anti-stall guard (2), `merged_candidate`
+and the pair swap (2), `select_eval_subsample`'s two `> 0` guards (2), and `pyset` (3). Floor
+lowered to 13 in `run_mutants.sh`, which now carries the reason for each the way the other
+baselines do; gepa was the one entry with a bare number and no note.
+
+**Each pass graded the one before it, and both times the residue was the previous pass's own test.**
+
+  - Pass two: the merge cap had never bitten — generator and test both hard-coded
+    `max_merge_invocations=5` and no case accepts five merges, so the cap comparison, the `due`
+    decrement and the `total_tested` increment were all unreachable. A capped case went in and
+    killed *none* of its five, because at two components every cap from 1 to 5 reproduces the same
+    run: the extra attempts a larger cap allows all come back with no mergeable pair. Sweeping the
+    cap space found that three components discriminate — at seed 3, cap 1 accepts 2 merges over 12
+    candidates, cap 5 accepts 4 over 14, cap 0 forbids merging. All three arms recorded, since the
+    *pair* is what separates `total_tested < cap` from its neighbours.
+  - Pass three: `num - selected.len()` against `num + selected.len()` in the subsample's take is
+    **invisible in the returned ids**. The list is truncated to `num`, and CPython's `sample`
+    returns the same prefix for a larger `k`, so a round taking one too many changes nothing that
+    was being compared — only where the generator was left. Every subsample case now records the
+    next draw, which is the assertion the selector fixture had and this one did not; the existing
+    `balanced` case was already enough to kill it once the fixture looked.
+
+**Two findings that were not tests.**
+
+  - `select_eval_subsample`'s agreeing bucket was spelled `a == b`; gepa spells it as the
+    *complement* of the two ordered buckets. The two disagree on nan — it compares false against
+    everything, so a nan pair falls out of both orderings and into gepa's third bucket, where the
+    `==` reading left it in no bucket at all. Reachable: `optimize/gepa/metric.rs` already handles
+    a nan score on the way to a prompt. Fixed to upstream's spelling, with a `nan_pair` case
+    carrying the value as a string because JSON has no nan, and the old spelling now fails it.
+  - `MergeProposer.schedule_if_needed` looks like a second `merges_due` increment site and has
+    **zero callers** — dead code upstream, which is why a cap of 1 can still accept two merges.
+
+**And the coin exactly on epsilon.** `select_with`'s `<` needed `rng.random()` to equal epsilon,
+which no fixed epsilon reaches by chance — so the fixture sets epsilon to a seed's own first draw.
+gepa sends the tie to `idxmax`; a `<=` port takes the uniform draw instead. The golden records the
+index that port would land on, and the generator refuses to write a tie where the two agree.
 """
 
 [[story]]

@@ -103,6 +103,52 @@ fn both_selectors_choose_what_gepa_chooses() {
     }
 }
 
+/// The coin landing exactly *on* epsilon, which no fixed epsilon reaches by chance.
+///
+/// `random()` returns a multiple of 2⁻⁵³, so the fixture sets epsilon to a seed's own first draw
+/// and the comparison is an exact tie. gepa's `<` sends a tie to `idxmax`; a `<=` port takes the
+/// uniform draw instead, landing on a different candidate one draw further along — the golden
+/// records that index too, and the generator refuses to write a tie where the two agree.
+#[test]
+fn a_coin_exactly_on_epsilon_falls_to_idxmax() {
+    let golden = golden();
+    let ties = &golden["epsilon_ties"];
+    let scores: Vec<f64> = ties["scores"]
+        .as_array()
+        .expect("scores")
+        .iter()
+        .map(|score| score.as_f64().expect("a score"))
+        .collect();
+
+    let cases = ties["cases"].as_array().expect("tie cases");
+    assert!(!cases.is_empty(), "the fixture records no epsilon ties");
+    for case in cases {
+        let seed = case["seed"].as_u64().expect("a seed");
+        let epsilon = case["epsilon"].as_f64().expect("epsilon");
+        let selection = gepa::CandidateSelection::EpsilonGreedy { epsilon };
+
+        let mut rng = Random::seeded(seed);
+        assert_eq!(
+            rng.random(),
+            epsilon,
+            "seed {seed}: the fixture's epsilon must be this seed's own first draw, or nothing ties"
+        );
+
+        let mut rng = Random::seeded(seed);
+        let picked = gepa::select_with(selection, &[], &scores, &mut rng);
+        assert_eq!(
+            picked as u64,
+            case["pick"].as_u64().expect("a pick"),
+            "seed {seed}: a tie goes to idxmax, not to the uniform draw"
+        );
+        assert_eq!(
+            rng.random(),
+            case["after"].as_f64().expect("after"),
+            "seed {seed}: generator left in a different place"
+        );
+    }
+}
+
 /// Both component selectors, against the package: which components one reflection rewrites, and
 /// where round-robin leaves the cursor.
 ///

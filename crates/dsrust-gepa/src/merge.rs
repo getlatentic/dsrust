@@ -124,6 +124,7 @@ fn find_common_ancestor_pair(
         if i == j {
             continue;
         }
+        // Equality is refused above, so this orders a pair that already differs.
         if j < i {
             std::mem::swap(&mut i, &mut j);
         }
@@ -226,6 +227,8 @@ fn merged_candidate(
         let source = if (anc == a || anc == b) && a != b {
             // One matches the ancestor; take the other's value — the one that changed it.
             if anc == a { id2 } else { id1 }
+        // The `&&` is upstream's, and it reads as an `||` here: a candidate matching the ancestor
+        // on exactly one side also differs from it on the other, which the arm above already took.
         } else if anc != a && anc != b {
             // Both changed it: the stronger descendant, or a coin flip when they tie.
             match agg_scores[id1].total_cmp(&agg_scores[id2]) {
@@ -261,11 +264,17 @@ pub fn select_eval_subsample(
             .filter(|&id| keep(scores1[id], scores2[id]))
             .collect()
     };
-    let buckets = [
-        bucket(&|a, b| a > b),
-        bucket(&|a, b| b > a),
-        bucket(&|a, b| a == b),
-    ];
+    let ahead = bucket(&|a, b| a > b);
+    let behind = bucket(&|a, b| b > a);
+    // gepa spells the third bucket as the complement of the other two rather than as `a == b`, and
+    // the two disagree on nan: it compares false against everything, so a nan pair falls out of
+    // both orderings and lands here, where `a == b` would leave it in no bucket at all.
+    let level: Vec<usize> = common_ids
+        .iter()
+        .copied()
+        .filter(|id| !ahead.contains(id) && !behind.contains(id))
+        .collect();
+    let buckets = [ahead, behind, level];
     let n_each = 1.max(num.div_ceil(3));
 
     let mut selected: Vec<usize> = Vec::new();
@@ -279,6 +288,8 @@ pub fn select_eval_subsample(
             .filter(|id| !selected.contains(id))
             .collect();
         let take = available.len().min(n_each).min(num - selected.len());
+        // gepa's guard, kept though it decides nothing: `sample` at `k = 0` draws nothing and
+        // returns nothing, so the branch it skips is already a no-op. Same below.
         if take > 0 {
             selected.extend(rng.sample(&available, take));
         }

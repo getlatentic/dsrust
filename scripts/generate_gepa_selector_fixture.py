@@ -62,6 +62,14 @@ CASES = [
 #: takes the same branch, so the fixture agreed with a port that ignored the coin entirely.
 SEEDS = list(range(10)) + [31, 32, 43, 49, 55]
 
+#: The coin landing *exactly on* epsilon, which no fixed epsilon reaches by chance. `random()`
+#: returns a multiple of 2**-53, so an epsilon set to a seed's own first draw makes
+#: `rng.random() < self.epsilon` an exact tie — the one shape separating `<` from `<=`. gepa takes
+#: the `idxmax` branch and a `<=` port takes the uniform draw, at a different index and one draw
+#: further along.
+TIE_SEEDS = [0, 3, 5, 8]
+TIE_SCORES = [0.5, 0.1, 0.9, 0.4, 0.7, 0.2]
+
 
 class ComponentState:
     """The two attributes a component selector reads: the component list and the per-candidate
@@ -100,6 +108,34 @@ def picks(make, fronts, scores):
         chosen.append(selector.select_candidate_idx(State(fronts, scores)))
         after.append(rng.random())
     return chosen, after
+
+
+def epsilon_ties() -> list[dict]:
+    """Each tie seed's pick, with epsilon set to that seed's own first draw.
+
+    Recorded with the index a `<=` port would land on instead, so the case cannot quietly stop
+    discriminating: `main` refuses to write a fixture where the two agree.
+    """
+    ties = []
+    for seed in TIE_SEEDS:
+        epsilon = random.Random(seed).random()
+        rng = random.Random(seed)
+        selector = EpsilonGreedyCandidateSelector(epsilon=epsilon, rng=rng)
+        pick = selector.select_candidate_idx(State([], TIE_SCORES))
+
+        # What the `<=` spelling would do: the same coin, then the uniform draw it takes instead.
+        other = random.Random(seed)
+        other.random()
+        ties.append(
+            {
+                "seed": seed,
+                "epsilon": epsilon,
+                "pick": pick,
+                "after": rng.random(),
+                "would_pick_under_le": other.randint(0, len(TIE_SCORES) - 1),
+            }
+        )
+    return ties
 
 
 def main() -> None:
@@ -154,6 +190,7 @@ def main() -> None:
         ),
         "seeds": SEEDS,
         "cases": cases,
+        "epsilon_ties": {"scores": TIE_SCORES, "cases": epsilon_ties()},
         "components": {
             "candidate": candidate,
             # Recorded as a list beside the object: JSON preserves the order but serde_json's
@@ -174,6 +211,11 @@ def main() -> None:
     print(
         f"  epsilon branch taken at {sum(coin_below)} of {len(SEEDS)} seeds", file=sys.stderr
     )
+    # A tie case that both spellings answer the same way is a case that cannot fail.
+    blind = [tie["seed"] for tie in fixture["epsilon_ties"]["cases"] if tie["pick"] == tie["would_pick_under_le"]]
+    if blind:
+        raise SystemExit(f"epsilon ties at seeds {blind} do not separate `<` from `<=`")
+    print(f"  {len(TIE_SEEDS)} epsilon ties, each separating `<` from `<=`", file=sys.stderr)
 
 
 if __name__ == "__main__":

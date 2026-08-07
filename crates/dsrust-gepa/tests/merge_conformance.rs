@@ -17,12 +17,17 @@ fn golden() -> Value {
     serde_json::from_str(&text).expect("the golden parses")
 }
 
+/// A score list. JSON has no nan, so the generator writes one as `"nan"`.
 fn floats(value: &Value) -> Vec<f64> {
     value
         .as_array()
         .expect("a list")
         .iter()
-        .map(|v| v.as_f64().expect("a number"))
+        .map(|v| match v.as_str() {
+            Some("nan") => f64::NAN,
+            Some(other) => panic!("unexpected score {other:?}"),
+            None => v.as_f64().expect("a number"),
+        })
         .collect()
 }
 
@@ -136,6 +141,13 @@ fn selects_the_subsample_gepa_selects() {
         let mut rng = Random::seeded(seed);
         let selected = select_eval_subsample(&scores1, &scores2, &common_ids, &mut rng, num);
         assert_eq!(selected, usizes(&case["selected"]), "{name}: subsample");
+        // The ids alone cannot see an over-draw — the list is truncated to `num` and a larger `k`
+        // returns the same prefix — so a round taking one too many shows up only here.
+        assert_eq!(
+            rng.random(),
+            case["after"].as_f64().expect("after"),
+            "{name}: generator left in a different place"
+        );
     }
 }
 

@@ -44,6 +44,24 @@ cd "$ROOT"
 #   Both re-measured 2026-08-07 under the fixed methodology and both reproduced exactly (151 and
 #   203 mutants). They had stood since before that fix, and "probably unchanged" is not a
 #   measurement — the campaign had just twice found a level number hiding a changed set.
+#   dsrust-gepa 13 — every one a reasoned equivalent with its note in the source, worked down from 46
+#                  across three passes. Four in the fence walks (`find` and `rfind` answer `None`
+#                  together, so neither `-1` sentinel is reachable as a difference; and skipping the
+#                  newline is invisible through the caller's `trim`). Two on the engine's anti-stall
+#                  guard, which cannot fire because `batch.rs` refuses an empty trainset and every
+#                  other path spends. Two in `merged_candidate` and the pair swap, both unreachable
+#                  given the arm immediately above them — the `&&`/`||` confirmed by enumerating the
+#                  whole triple space rather than argued. Two on `select_eval_subsample`'s `> 0`
+#                  guards, where `sample` at `k = 0` neither draws nor appends, so the branch they
+#                  skip is already a no-op. Three in `pyset`, the probe bound and the resize `+ 1`.
+#
+#                  The three passes each graded the one before it: pass two found that pass one's
+#                  merge-cap case reproduced the uncapped run byte for byte, and pass three found
+#                  that a `-` against a `+` in the subsample's take is invisible in the returned ids
+#                  — truncation and `sample`'s stable prefix absorb it — and shows up only in where
+#                  the generator was left. Both fixes came from sweeping the parameter against gepa
+#                  for a configuration that separates the spellings, not from reasoning about which
+#                  case would.
 #   dsrust-json-repair 156 unpinned, 1 hanging — of 1932 viable in 56 minutes. The hang class is
 #                    closed: the read counter lives in `Source::at` where no direct reader can
 #                    drift out of its reach, the comment-strip and whitespace skips are
@@ -71,7 +89,7 @@ cd "$ROOT"
 BASELINES=(
   "dsrust-tpe:1:0"
   "pyrng:7:0"
-  "dsrust-gepa:24:0"
+  "dsrust-gepa:13:0"
   "dsrust-json-repair:156:1"
 )
 
