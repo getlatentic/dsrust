@@ -939,6 +939,7 @@ impl<S: Send + Sync> Module for Predict<S> {
                 predictor: "self".to_owned(),
                 inputs,
                 outputs: prediction.example.clone(),
+                signature: self.signature.clone(),
             });
             Ok(prediction)
         })

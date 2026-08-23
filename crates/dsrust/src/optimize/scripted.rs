@@ -226,11 +226,13 @@ impl Module for Pair {
                 predictor: "first".to_owned(),
                 inputs,
                 outputs: Example::new([("draft", json!(draft))]),
+                signature: self.first.clone(),
             });
             trace.push(TraceStep {
                 predictor: "second".to_owned(),
                 inputs: Example::new([("draft", json!(draft))]),
                 outputs: Example::new([("answer", json!(answered))]),
+                signature: self.second.clone(),
             });
             Ok(prediction)
         })
@@ -323,6 +325,7 @@ impl Module for Lopsided {
                 predictor: "ran".to_owned(),
                 inputs,
                 outputs: prediction.example.clone(),
+                signature: self.ran.clone(),
             });
             Ok(prediction)
         })

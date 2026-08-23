@@ -77,7 +77,7 @@ pub use types::{
 };
 pub mod stream;
 pub use stream::{FieldListener, stream_field};
-mod history;
+pub(crate) mod history;
 pub mod parse;
 pub(crate) mod prompt;
 pub use prompt::field_description;

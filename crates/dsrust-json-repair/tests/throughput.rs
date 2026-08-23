@@ -10,15 +10,31 @@
 //! calibration loop of plain arithmetic measured in the same process. A faster machine speeds both
 //! sides; a dead cache slows one. Like the mutation baselines, the number is a ratchet — lowering
 //! it is a decision someone writes down, not a retry.
+//!
+//! **The yardstick has to be a loop the optimiser cannot collapse**, which the first one was not.
+//! CI measured a ratio of 7.58 where this machine measures 1.00, and the parse was the *faster*
+//! half of the two — 2.00ms on the runner against 2.47ms here. What differed was the calibration:
+//! 264µs against 2459µs for the same two million iterations, about 0.13 cycles each, which is not
+//! a serial multiply-add chain running. With `black_box` only on the result, LLVM is free to
+//! collapse the chain, and on x86-64 it does while on aarch64 it does not. So the yardstick, not
+//! the parser, was what the ratio measured. `black_box` inside the loop is what makes the two
+//! machines comparable at all.
 
 use std::time::Instant;
 
 /// Parse time across the corpus, in calibration units.
 ///
-/// Measured 1.22–1.28 over three runs on the tree this was written against; killing the lookahead
-/// cache measures 11.6 on the same corpus. The floor sits at four times the clean reading and
-/// half the broken one, so it catches the regression and never a noisy neighbour.
-const FLOOR: f64 = 5.0;
+/// Re-measured after the calibration loop stopped being collapsible, which moved the unit and so
+/// moved every reading with it: **clean 0.29, lookahead cache killed 4.27**. The old floor of 5
+/// was set against the old unit, where clean read 1.25 and broken 11.6 — and against the corrected
+/// unit it sits *above* the broken reading, so the test this file exists to be would have gone
+/// green on a dead cache. Fixing the yardstick is what exposed that; nothing about the parser
+/// changed.
+///
+/// 2.0 keeps the original rule — several times the clean reading, comfortably under the broken one
+/// — at seven times clean and half of broken. The reading on a CI runner under the corrected unit
+/// has not been observed yet; the first run that reports one is what confirms this number travels.
+const FLOOR: f64 = 2.0;
 
 #[test]
 fn the_fast_paths_are_alive() {
@@ -52,7 +68,9 @@ fn the_fast_paths_are_alive() {
         let start = Instant::now();
         let mut sink = 0u64;
         for i in 0..2_000_000u64 {
-            sink = sink.wrapping_mul(31).wrapping_add(i);
+            // Inside the loop, not only on the result: see the module note. Without it the chain
+            // is collapsible and the unit stops meaning the same thing on two machines.
+            sink = std::hint::black_box(sink.wrapping_mul(31).wrapping_add(i));
         }
         std::hint::black_box(sink);
         start.elapsed()

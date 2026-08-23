@@ -63,6 +63,14 @@ pub struct TraceStep {
     pub predictor: String,
     pub inputs: Example,
     pub outputs: Example,
+    /// The predictor's signature as it stood for this call, which is dspy's `trace[i][0].signature`
+    /// reached through the predictor object the tuple's first slot holds.
+    ///
+    /// GEPA needs it for two things a name cannot answer: which trace entries belong to the
+    /// component being reflected on — upstream matches `signature.equals`, so two predictors
+    /// sharing a signature *and* an instruction pool together — and which input is the `History`,
+    /// which is a question about the field's annotation rather than its value.
+    pub signature: crate::signature::Signature,
 }
 
 /// What a program of your own has to say: how to run it.

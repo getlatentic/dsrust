@@ -192,6 +192,7 @@ impl ReActV2 {
             predictor: "react".to_owned(),
             inputs,
             outputs: pred.example.clone(),
+            signature: self.react.signature.clone(),
         });
         let calls = coerce_tool_calls(&pred)?;
         Ok((pred, calls))

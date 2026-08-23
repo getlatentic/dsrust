@@ -106,5 +106,148 @@
         }
       ]
     }
-  ]
+  ],
+  "history": {
+    "messages": [
+      {
+        "question": "first?",
+        "answer": "one"
+      },
+      {
+        "question": "second?",
+        "answer": "two"
+      }
+    ],
+    "question": "third?",
+    "answer": "three",
+    "records": [
+      {
+        "Inputs": {
+          "Context": "```json\n  0: {'question': 'first?', 'answer': 'one'}\n  1: {'question': 'second?', 'answer': 'two'}\n```",
+          "question": "third?"
+        },
+        "Generated Outputs": {
+          "answer": "three"
+        },
+        "Feedback": "reflected on third?"
+      }
+    ]
+  },
+  "shared_signature": {
+    "question": "q?",
+    "answers": {
+      "q?": "mid",
+      "mid": "end"
+    },
+    "cases": [
+      {
+        "seed": 0,
+        "components": {
+          "alpha": [
+            {
+              "Inputs": {
+                "question": "mid"
+              },
+              "Generated Outputs": {
+                "answer": "end"
+              },
+              "Feedback": "reflected on mid"
+            }
+          ],
+          "beta": [
+            {
+              "Inputs": {
+                "question": "mid"
+              },
+              "Generated Outputs": {
+                "answer": "end"
+              },
+              "Feedback": "reflected on mid"
+            }
+          ]
+        }
+      },
+      {
+        "seed": 1,
+        "components": {
+          "alpha": [
+            {
+              "Inputs": {
+                "question": "q?"
+              },
+              "Generated Outputs": {
+                "answer": "mid"
+              },
+              "Feedback": "reflected on q?"
+            }
+          ],
+          "beta": [
+            {
+              "Inputs": {
+                "question": "q?"
+              },
+              "Generated Outputs": {
+                "answer": "mid"
+              },
+              "Feedback": "reflected on q?"
+            }
+          ]
+        }
+      },
+      {
+        "seed": 2,
+        "components": {
+          "alpha": [
+            {
+              "Inputs": {
+                "question": "q?"
+              },
+              "Generated Outputs": {
+                "answer": "mid"
+              },
+              "Feedback": "reflected on q?"
+            }
+          ],
+          "beta": [
+            {
+              "Inputs": {
+                "question": "q?"
+              },
+              "Generated Outputs": {
+                "answer": "mid"
+              },
+              "Feedback": "reflected on q?"
+            }
+          ]
+        }
+      },
+      {
+        "seed": 3,
+        "components": {
+          "alpha": [
+            {
+              "Inputs": {
+                "question": "q?"
+              },
+              "Generated Outputs": {
+                "answer": "mid"
+              },
+              "Feedback": "reflected on q?"
+            }
+          ],
+          "beta": [
+            {
+              "Inputs": {
+                "question": "q?"
+              },
+              "Generated Outputs": {
+                "answer": "mid"
+              },
+              "Feedback": "reflected on q?"
+            }
+          ]
+        }
+      }
+    ]
+  }
 }

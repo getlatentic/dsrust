@@ -170,7 +170,18 @@ where
     /// dspy `make_reflective_dataset` for one predictor: an `Inputs`/`Generated Outputs`/`Feedback`
     /// record per captured example whose trace touched this predictor. The predictor's inputs and
     /// outputs render the way dspy's `str(value)` does ([`Example::rendered`]).
-    fn reflective_dataset(&mut self, predictor: &str) -> Vec<ReflectiveSample> {
+    ///
+    /// `signature` is the component's own, and the trace is matched against it rather than against
+    /// the component's *name*: upstream filters on `t[0].signature.equals(module.signature)`, so
+    /// two predictors sharing a signature and an instruction pool their instances together. That is
+    /// reachable at the seed candidate, where two identically-declared `Predict`s start from the
+    /// same instruction — measured against dspy, every seed then has at least one component
+    /// reflecting on a step belonging to the other.
+    fn reflective_dataset(
+        &mut self,
+        predictor: &str,
+        signature: &crate::signature::Signature,
+    ) -> Vec<ReflectiveSample> {
         let mut samples = Vec::new();
         for captured in &self.captured {
             // dspy draws one of the instances rather than taking the first, and draws even when
@@ -179,7 +190,7 @@ where
             let instances: Vec<&TraceStep> = captured
                 .trace
                 .iter()
-                .filter(|step| step.predictor == predictor)
+                .filter(|step| step.signature.equals(signature))
                 .collect();
             if instances.is_empty() {
                 continue;
@@ -196,7 +207,10 @@ where
             let feedback =
                 (self.metric)(&captured.example, &captured.prediction, &reflecting).text();
             samples.push(vec![
-                ("Inputs".to_owned(), rendered_map(&step.inputs)),
+                (
+                    "Inputs".to_owned(),
+                    rendered_inputs(&step.inputs, signature),
+                ),
                 ("Generated Outputs".to_owned(), rendered_map(&step.outputs)),
                 ("Feedback".to_owned(), Reflective::Text(feedback)),
             ]);
@@ -253,9 +267,23 @@ where
         // A component whose runs produced nothing is left out of both paths: upstream skips it
         // rather than proposing against an empty dataset, and a caller's proposer is not handed one
         // it cannot use either.
+        // dspy's `make_reflective_dataset` opens with `build_program(candidate)`, so the signature
+        // a trace is matched against carries *this candidate's* instruction rather than whatever
+        // the student last ran — and since `equals` compares instructions first, that is what
+        // decides whether two components pool their instances.
+        set_instructions(self.student, candidate);
+        let signatures: BTreeMap<String, crate::signature::Signature> = self
+            .student
+            .named_predictors()
+            .into_iter()
+            .map(|predictor| (predictor.name.clone(), predictor.signature.clone()))
+            .collect();
         let datasets: BTreeMap<String, super::ReflectiveDataset> = components
             .iter()
-            .map(|name| (name.clone(), self.reflective_dataset(name)))
+            .filter_map(|name| {
+                let signature = signatures.get(name)?;
+                Some((name.clone(), self.reflective_dataset(name, signature)))
+            })
             .filter(|(_, dataset)| !dataset.is_empty())
             .collect();
 
@@ -277,6 +305,46 @@ where
         }
         new_texts
     }
+}
+
+/// A predictor's *inputs* as a GEPA reflective map.
+///
+/// dspy lifts a `History` input out of the field map into a fenced `Context` block and drops the
+/// original key, so the conversation reaches the reflection model as one numbered listing rather
+/// than as a JSON blob in a field. Upstream decides by `isinstance(input_val, History)`; this
+/// decides by the signature's annotation, which is the same question asked of the declaration
+/// rather than of the value — and the only one available once a value is an untyped `Value`.
+///
+/// Each message is `str(message)` on a Python dict: single-quoted, `None`/`True` spellings, which
+/// is what [`crate::python::repr`] already renders for the prompts that show Python source.
+fn rendered_inputs(inputs: &Example, signature: &crate::signature::Signature) -> Reflective {
+    let history = crate::adapter::history::field_name(signature);
+    let mut entries: Vec<(String, Reflective)> = Vec::new();
+    if let Some(value) = history.and_then(|name| inputs.get(name)) {
+        entries.push(("Context".to_owned(), Reflective::Text(context_block(value))));
+    }
+    for (name, rendered) in inputs.rendered() {
+        if Some(name.as_str()) == history {
+            continue;
+        }
+        entries.push((name, Reflective::Text(rendered)));
+    }
+    Reflective::Map(entries)
+}
+
+/// dspy's `Context` value: a ```` ```json ```` fence around one `  {i}: {message}` line per
+/// exchange. The fence says json and the contents are Python dict reprs; that is upstream's, not a
+/// transcription slip.
+fn context_block(history: &serde_json::Value) -> String {
+    let mut block = String::from("```json\n");
+    let messages = history
+        .get("messages")
+        .and_then(serde_json::Value::as_array);
+    for (index, message) in messages.into_iter().flatten().enumerate() {
+        block.push_str(&format!("  {index}: {}\n", crate::python::repr(message)));
+    }
+    block.push_str("```");
+    block
 }
 
 /// An example's fields as a GEPA reflective map: field name → its rendered value, in declaration
@@ -325,18 +393,21 @@ mod tests {
                 predictor: "self".to_owned(),
                 inputs: example! { question: "capital of France?" },
                 outputs: example! { answer: "Paris" },
+                signature: qa_signature("Answer."),
             }],
         }];
 
-        let dataset = adapter.reflective_dataset("self");
+        let dataset = adapter.reflective_dataset("self", &qa_signature("Answer."));
         assert_eq!(dataset.len(), 1, "one captured example touched `self`");
         let sample = &dataset[0];
         let rendered = render_prompt("", std::slice::from_ref(sample), None);
         assert!(rendered.contains("capital of France?"), "{rendered}");
         assert!(rendered.contains("right city"), "{rendered}");
         assert!(
-            adapter.reflective_dataset("someone_else").is_empty(),
-            "a predictor nothing traced gets no records"
+            adapter
+                .reflective_dataset("someone_else", &qa_signature("Something else."))
+                .is_empty(),
+            "a signature nothing traced gets no records"
         );
     }
 
@@ -357,10 +428,7 @@ mod tests {
     /// two records can share inputs and still disagree about which step the feedback describes.
     #[test]
     fn reflects_on_the_instance_dspy_draws() {
-        let golden: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../tests/conformance/optimize/gepa_reflective.json"
-        ))
-        .expect("the reflective golden parses");
+        let golden = golden();
         let answers = &golden["answers"];
         let questions: Vec<&str> = golden["questions"]
             .as_array()
@@ -405,9 +473,13 @@ mod tests {
                 None,
                 seed,
             );
-            adapter.captured = questions.iter().map(|q| two_hops(q, answers)).collect();
+            let instruction = golden["instruction"].as_str().expect("the instruction");
+            adapter.captured = questions
+                .iter()
+                .map(|q| two_hops(q, answers, instruction))
+                .collect();
 
-            let dataset = adapter.reflective_dataset("step");
+            let dataset = adapter.reflective_dataset("step", &qa_signature(instruction));
             let records = case["records"].as_array().expect("records");
             assert_eq!(dataset.len(), records.len(), "seed {seed}: record count");
             for (sample, record) in dataset.iter().zip(records) {
@@ -427,9 +499,72 @@ mod tests {
         }
     }
 
+    fn golden() -> serde_json::Value {
+        serde_json::from_str(include_str!(
+            "../../../tests/conformance/optimize/gepa_reflective.json"
+        ))
+        .expect("the reflective golden parses")
+    }
+
+    /// The student a fixture-driven test hands the adapter: only its `named_predictors` matter,
+    /// and these tests set `captured` directly rather than running it.
+    fn student() -> crate::optimize::scripted::Solver {
+        crate::optimize::scripted::Solver::new(crate::optimize::scripted::Answers::Correctly)
+    }
+
+    /// dspy's fixture metric: feedback naming the instance GEPA drew, which is what the
+    /// five-argument call makes writable and what makes the draw visible in the record.
+    fn metric_naming_the_drawn_step()
+    -> impl Fn(&Example, &crate::Prediction, &MetricContext<'_>) -> super::super::metric::Feedback
+    {
+        |_: &Example, _: &crate::Prediction, ctx: &MetricContext<'_>| {
+            let seen = ctx
+                .predictor_step
+                .and_then(|step| step.inputs.get("question"))
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("-");
+            super::super::metric::Feedback::new(1.0, format!("reflected on {seen}"))
+        }
+    }
+
+    fn adapter_over<'a, M>(
+        student: &'a mut crate::optimize::scripted::Solver,
+        metric: &'a M,
+        seed: u64,
+    ) -> Adapter<'a, crate::optimize::scripted::Solver, M> {
+        Adapter::new(
+            student,
+            metric,
+            std::sync::Arc::new(crate::DummyLM::new([])),
+            &[],
+            &[],
+            0.0,
+            1,
+            None,
+            seed,
+        )
+    }
+
+    /// `question -> answer` under one instruction, which is the shape both fixture programs
+    /// declare. Built once so a step's signature and the one it is matched against agree for the
+    /// same reason dspy's do — they came from the same declaration.
+    fn qa_signature(instruction: &str) -> crate::Signature {
+        crate::Signature {
+            instructions: instruction.to_owned(),
+            inputs: vec![crate::signature::InField {
+                name: "question".to_owned(),
+                ..Default::default()
+            }],
+            outputs: vec![crate::signature::OutField {
+                name: "answer".to_owned(),
+                ..Default::default()
+            }],
+        }
+    }
+
     /// The two hops one example produces, both named `step` — dspy's `TwoHop`, whose single
     /// `Predict` is called twice, so one component owns two trace instances.
-    fn two_hops(question: &str, answers: &serde_json::Value) -> Captured {
+    fn two_hops(question: &str, answers: &serde_json::Value, instruction: &str) -> Captured {
         let answer_to = |q: &str| {
             answers[q]
                 .as_str()
@@ -446,13 +581,112 @@ mod tests {
                     predictor: "step".to_owned(),
                     inputs: example! { question: question },
                     outputs: example! { answer: first.clone() },
+                    signature: qa_signature(instruction),
                 },
                 crate::TraceStep {
                     predictor: "step".to_owned(),
                     inputs: example! { question: first },
                     outputs: example! { answer: second },
+                    signature: qa_signature(instruction),
                 },
             ],
+        }
+    }
+
+    /// A `History` input is hoisted out of the field map into a fenced `Context` block, and its
+    /// own key does not appear — dspy's, whose fence says json around Python dict reprs.
+    #[test]
+    fn a_history_input_is_hoisted_into_context() {
+        let golden = golden();
+        let history = &golden["history"];
+        let messages: Vec<serde_json::Value> =
+            history["messages"].as_array().expect("messages").to_vec();
+        let question = history["question"].as_str().expect("a question");
+        let answer = history["answer"].as_str().expect("an answer");
+
+        let mut signature = qa_signature(golden["instruction"].as_str().expect("instruction"));
+        signature.inputs.push(crate::signature::InField {
+            name: "history".to_owned(),
+            kind: crate::signature::FieldKind::Json(crate::signature::JsonType::plain("History")),
+            ..Default::default()
+        });
+
+        let mut inputs = example! { question: question };
+        inputs.set("history", serde_json::json!({ "messages": messages }));
+        let (mut student, metric) = (student(), metric_naming_the_drawn_step());
+        let mut adapter = adapter_over(&mut student, &metric, 0);
+        adapter.captured = vec![Captured {
+            example: inputs.clone(),
+            prediction: crate::Prediction::new(example! { answer: answer }, "raw"),
+            trace: vec![crate::TraceStep {
+                predictor: "step".to_owned(),
+                inputs,
+                outputs: example! { answer: answer },
+                signature: signature.clone(),
+            }],
+        }];
+
+        let dataset = adapter.reflective_dataset("step", &signature);
+        let records = history["records"].as_array().expect("records");
+        assert_eq!(dataset.len(), records.len());
+        assert_eq!(
+            rendered_section(&dataset[0], "Inputs"),
+            golden_section(&records[0], "Inputs"),
+            "the history field is dropped and Context takes its place, first"
+        );
+    }
+
+    /// Two predictors declaring the same signature pool their trace instances once their
+    /// instructions agree, which is what the seed candidate makes true — so a component can be
+    /// handed a step belonging to the other. Matching by the predictor's *name* never does that.
+    #[test]
+    fn predictors_sharing_a_signature_pool_their_instances() {
+        let golden = golden();
+        let shared = &golden["shared_signature"];
+        let question = shared["question"].as_str().expect("a question");
+        let answers = &shared["answers"];
+        let instruction = golden["instruction"].as_str().expect("instruction");
+        let signature = qa_signature(instruction);
+        let middle = answers[question].as_str().expect("the first answer");
+        let end = answers[middle].as_str().expect("the second answer");
+
+        for case in shared["cases"].as_array().expect("cases") {
+            let seed = case["seed"].as_u64().expect("a seed");
+            let (mut student, metric) = (student(), metric_naming_the_drawn_step());
+            let mut adapter = adapter_over(&mut student, &metric, seed);
+            adapter.captured = vec![Captured {
+                example: example! { question: question },
+                prediction: crate::Prediction::new(example! { answer: end }, "raw"),
+                trace: vec![
+                    crate::TraceStep {
+                        predictor: "alpha".to_owned(),
+                        inputs: example! { question: question },
+                        outputs: example! { answer: middle },
+                        signature: signature.clone(),
+                    },
+                    crate::TraceStep {
+                        predictor: "beta".to_owned(),
+                        inputs: example! { question: middle },
+                        outputs: example! { answer: end },
+                        signature: signature.clone(),
+                    },
+                ],
+            }];
+
+            // Upstream walks `components_to_update` in order off one generator, so the order the
+            // two datasets are built in is part of what is being compared.
+            for name in ["alpha", "beta"] {
+                let dataset = adapter.reflective_dataset(name, &signature);
+                let expected = case["components"][name].as_array().expect("records");
+                assert_eq!(dataset.len(), expected.len(), "seed {seed}: {name} count");
+                for (sample, record) in dataset.iter().zip(expected) {
+                    assert_eq!(
+                        rendered_section(sample, "Inputs"),
+                        golden_section(record, "Inputs"),
+                        "seed {seed}: {name} reflected on a different instance"
+                    );
+                }
+            }
         }
     }
 

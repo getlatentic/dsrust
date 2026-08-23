@@ -105,6 +105,7 @@ mod tests {
             predictor: "predict".to_owned(),
             inputs: example! { question: "Why is the sky blue?" },
             outputs: example! { answer: "Rayleigh scattering." },
+            signature: crate::Signature::single_input("Answer.", Vec::new()),
         }]
     }
 

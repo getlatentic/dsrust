@@ -37,7 +37,7 @@ const TOOL_CALL_RESULTS: &str = "tool_call_results";
 ///
 /// dspy matches on the field's annotation being `History` itself, so a signature carries at most
 /// one and the first wins.
-pub(super) fn field_name(signature: &Signature) -> Option<&str> {
+pub(crate) fn field_name(signature: &Signature) -> Option<&str> {
     signature
         .inputs
         .iter()

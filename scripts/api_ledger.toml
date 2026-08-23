@@ -414,7 +414,7 @@
 "signatures/signature.py::Signature.append" = { status = "mapped", rust = "append" }
 "signatures/signature.py::Signature.delete" = { status = "mapped", rust = "delete" }
 "signatures/signature.py::Signature.dump_state" = { status = "mapped", rust = "PredictorState" }
-"signatures/signature.py::Signature.equals" = { status = "divergence", reason = "reproduced as `PartialEq`" }
+"signatures/signature.py::Signature.equals" = { status = "mapped", rust = "Signature::equals", reason = "upstream compares the instructions and then each field's `json_schema_extra` — the side, the prefix and the description — and **not** the annotation, so two signatures typed differently still count equal. Derived `PartialEq` also compares the kind, the closed set and the constraints, which is stricter; this said `reproduced as PartialEq` until GEPA's trace matching needed the real semantics, where the stricter question pools fewer instances than dspy pools. The prefix compares resolved, since upstream stores the inferred one rather than a `None`" }
 "signatures/signature.py::Signature.insert" = { status = "mapped", rust = "insert" }
 "signatures/signature.py::Signature.load_state" = { status = "mapped", rust = "restore" }
 "signatures/signature.py::Signature.prepend" = { status = "mapped", rust = "prepend" }
@@ -778,6 +778,7 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+"signatures/signature.py::Signature.equals.other" = { status = "mapped", rust = "Signature::equals", reason = "the signature being compared against. Upstream also accepts a non-Signature and answers `False`; a typed `&Signature` makes that unrepresentable rather than answered" }
 "adapters/types/file.py::File.from_bytes.file_bytes" = { status = "mapped", rust = "bytes", reason = "`impl AsRef<[u8]>`, so a slice, a `Vec` or an array all work" }
 "adapters/types/file.py::File.from_bytes.filename" = { status = "mapped", rust = "File::filename", reason = "the builder this type already had, as with `from_path`: `File::from_bytes(b)?.filename(\"report.pdf\")`" }
 "adapters/types/file.py::File.from_bytes.mime_type" = { status = "mapped", rust = "File::from_bytes_as", reason = "the override as its own constructor, matching `from_path_as`. Bytes a caller holds are often of a known type, and the media type is what a provider reads them by" }

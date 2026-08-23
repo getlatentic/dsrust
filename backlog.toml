@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1311
+rust_tests = 1313
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -4213,7 +4213,26 @@ strictest witness that the same instance was picked, and the projection its doc 
 gone. Confirmed red with a metric that ignores the context: `reflected on -` against
 `reflected on Paris`.
 
-**Still open:** the `History` hoist and the signature-equality match.
+**The `History` hoist and the signature-equality match — closed 2026-08-23**, and both wanted the
+same missing thing: the predictor's signature on `TraceStep`. A name cannot answer either question.
+
+  - **Signature matching.** Upstream filters `t[0].signature.equals(module.signature)`, and
+    `equals` compares instructions *first* — so two identically-declared predictors pool their
+    instances the moment their instructions agree, which is exactly the seed candidate, before GEPA
+    has rewritten either. Measured against dspy at four seeds: **every one has a component
+    reflecting on a step belonging to the other predictor**, which matching by name never does.
+  - **The `History` hoist.** dspy lifts a `History` input into a fenced `Context` key and drops the
+    original field; each message is `str(message)` on a Python dict, so the block holds
+    single-quoted reprs inside a fence that says json. `python::repr` already rendered that for the
+    prompts showing Python source. Upstream decides by `isinstance`; this decides by the
+    signature's annotation, which `adapter::history::field_name` already answers.
+
+**And `Signature.equals` was in the ledger as "reproduced as `PartialEq`", which it is not.**
+Upstream compares the instructions and each field's `json_schema_extra` — side, prefix, description
+— and **not** the annotation. Derived `PartialEq` compares the kind, the closed set and the
+constraints too, which is stricter and would pool fewer instances than dspy pools. Written as
+`Signature::equals` and reclassified `mapped`; the API gate then asked for its parameter, which is
+the gate working.
 
 **And one option, not a defect.** `add_format_failure_as_feedback` defaults to `False` upstream, so
 dspy's default also drops format-failure traces — which is what this crate does unconditionally.

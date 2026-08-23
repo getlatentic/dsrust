@@ -1,10 +1,12 @@
 use anyhow::{Result, anyhow};
 use serde_json::{Map, Value, json};
 
+mod equality;
 mod field_type;
 mod parse;
 mod prefix;
 mod reflect;
+mod side;
 
 use field_type::annotation_of;
 pub(crate) use field_type::coerce_value;
@@ -13,6 +15,7 @@ pub use field_type::{FieldKind, JsonType, LiteralValue, TypeDescription, python_
 pub use parse::parse;
 pub use prefix::infer_prefix;
 pub use reflect::json_field_reflection;
+pub use side::{FieldEdit, Side};
 
 /// The derive plus its call-site macros: `Predict!(Task { field: value, ... })` and the
 /// `ChainOfThought!` twin evaluate to one typed module call awaiting the caller's `?`.
@@ -158,64 +161,6 @@ impl std::str::FromStr for Signature {
 
     fn from_str(spelling: &str) -> Result<Self> {
         parse::parse(spelling)
-    }
-}
-
-/// A field being added, carrying which side of the signature it belongs to.
-///
-/// dspy reads that off the field's own `__dspy_field_type`, because a Python `InputField` and an
-/// `OutputField` are the same class with a marker. Rust has two types, so the side is the type —
-/// this is what lets one `insert` take either without a runtime look-up.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Side {
-    Input(InField),
-    Output(OutField),
-}
-
-impl Side {
-    /// What upstream's error message calls this side.
-    fn side_name(&self) -> &'static str {
-        match self {
-            Side::Input(_) => "input",
-            Side::Output(_) => "output",
-        }
-    }
-}
-
-impl From<InField> for Side {
-    fn from(field: InField) -> Self {
-        Side::Input(field)
-    }
-}
-
-impl From<OutField> for Side {
-    fn from(field: OutField) -> Self {
-        Side::Output(field)
-    }
-}
-
-/// One field of a signature, handed to a caller editing it in place.
-#[derive(Debug)]
-pub enum FieldEdit<'a> {
-    Input(&'a mut InField),
-    Output(&'a mut OutField),
-}
-
-impl FieldEdit<'_> {
-    /// The field's description, whichever side it is on.
-    pub fn set_desc(&mut self, desc: impl Into<String>) {
-        match self {
-            FieldEdit::Input(field) => field.desc = desc.into(),
-            FieldEdit::Output(field) => field.desc = desc.into(),
-        }
-    }
-
-    /// The field's kind, whichever side it is on — upstream's `type_` argument.
-    pub fn set_kind(&mut self, kind: FieldKind) {
-        match self {
-            FieldEdit::Input(field) => field.kind = kind,
-            FieldEdit::Output(field) => field.kind = kind,
-        }
     }
 }
 

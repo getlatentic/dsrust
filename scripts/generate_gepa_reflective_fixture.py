@@ -115,6 +115,110 @@ def _feedback_fn(metric_fn):
     return feedback_fn
 
 
+class WithHistory(dspy.Signature):
+    """Answer the question."""
+
+    question: str = dspy.InputField()
+    history: dspy.History = dspy.InputField()
+    answer: str = dspy.OutputField()
+
+
+class HistoryProgram(dspy.Module):
+    """One predictor whose signature declares a `History` input."""
+
+    def __init__(self):
+        super().__init__()
+        self.step = dspy.Predict(WithHistory)
+
+    def forward(self, question, history):
+        return self.step(question=question, history=history)
+
+
+#: The exchanges the history carries, and the question asked on top of them.
+HISTORY_MESSAGES = [
+    {"question": "first?", "answer": "one"},
+    {"question": "second?", "answer": "two"},
+]
+HISTORY_QUESTION = "third?"
+HISTORY_ANSWER = "three"
+
+
+def history_case() -> dict:
+    """dspy hoists a `History` input into a fenced `Context` key and drops the original field.
+
+    Each message is `str(message)` on a Python dict, so the block is single-quoted Python reprs
+    inside a fence that says json — upstream's, not a transcription slip.
+    """
+    dspy.settings.configure(lm=DummyLM({HISTORY_QUESTION: {"answer": HISTORY_ANSWER}}))
+    adapter = DspyAdapter(
+        student_module=HistoryProgram(),
+        metric_fn=metric,
+        feedback_map={"step": _feedback_fn(metric)},
+        rng=random.Random(0),
+    )
+    history = dspy.History(messages=[dict(m) for m in HISTORY_MESSAGES])
+    trainset = [
+        dspy.Example(
+            question=HISTORY_QUESTION, history=history, answer=HISTORY_ANSWER
+        ).with_inputs("question", "history")
+    ]
+    candidate = {"step": INSTRUCTION}
+    with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+        batch = adapter.evaluate(trainset, candidate, capture_traces=True)
+        dataset = adapter.make_reflective_dataset(candidate, batch, ["step"])
+    return {
+        "messages": HISTORY_MESSAGES,
+        "question": HISTORY_QUESTION,
+        "answer": HISTORY_ANSWER,
+        "records": dataset["step"],
+    }
+
+
+class TwoNames(dspy.Module):
+    """Two *differently named* predictors declaring the same signature."""
+
+    def __init__(self):
+        super().__init__()
+        self.alpha = dspy.Predict("question -> answer")
+        self.beta = dspy.Predict("question -> answer")
+
+    def forward(self, question):
+        first = self.alpha(question=question)
+        return self.beta(question=first.answer)
+
+
+def shared_signature_case(seed: int) -> dict:
+    """Both components under the *same* instruction, which is the seed candidate's shape.
+
+    dspy filters the trace with `t[0].signature.equals(module.signature)` and `equals` compares
+    instructions first, so two identically-declared predictors pool their instances the moment
+    their instructions agree — which is exactly before GEPA has rewritten either. Every seed then
+    has at least one component reflecting on a step belonging to the other, which matching by the
+    predictor's *name* never does.
+    """
+    dspy.settings.configure(
+        lm=DummyLM({q: {"answer": a} for q, a in SHARED_ANSWERS.items()})
+    )
+    candidate = {name: INSTRUCTION for name in ("alpha", "beta")}
+    adapter = DspyAdapter(
+        student_module=TwoNames(),
+        metric_fn=metric,
+        feedback_map={name: _feedback_fn(metric) for name in candidate},
+        rng=random.Random(seed),
+    )
+    trainset = [
+        dspy.Example(question=SHARED_QUESTION, answer="end").with_inputs("question")
+    ]
+    with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+        batch = adapter.evaluate(trainset, candidate, capture_traces=True)
+        dataset = adapter.make_reflective_dataset(candidate, batch, ["alpha", "beta"])
+    return {"seed": seed, "components": {name: dataset[name] for name in candidate}}
+
+
+SHARED_QUESTION = "q?"
+SHARED_ANSWERS = {"q?": "mid", "mid": "end"}
+
+
 def main() -> None:
     cases = [case(seed) for seed in SEEDS]
     reflected = {c["seed"]: [r["Inputs"]["question"] for r in c["records"]] for c in cases}
@@ -130,6 +234,12 @@ def main() -> None:
         "questions": QUESTIONS,
         "instruction": INSTRUCTION,
         "cases": cases,
+        "history": history_case(),
+        "shared_signature": {
+            "question": SHARED_QUESTION,
+            "answers": SHARED_ANSWERS,
+            "cases": [shared_signature_case(seed) for seed in SEEDS],
+        },
     }
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / "gepa_reflective.json"
