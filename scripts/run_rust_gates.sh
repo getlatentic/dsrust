@@ -81,7 +81,10 @@ echo "==> cargo test -p dsrust --features mp3 (optional, not in the count)"
 bounded cargo test -p dsrust --features mp3 --lib adapter::types::audio
 
 echo "==> cargo build --all-targets"
-cargo build --all-targets
+# The same scope CI builds, so the two cannot drift into checking different things. Both
+# exclude `dsrs-bridge` for the same reason: it is a PyO3 shim for the upstream suite, not
+# something a consumer builds, and `cargo test --workspace` above already covers it here.
+cargo build --all-targets --workspace --exclude dsrs-bridge
 
 echo "==> cargo fmt --check"
 cargo fmt --check
@@ -105,7 +108,7 @@ rm -rf target/doc
 # is not enforcing it. Three appeared in one session — a link left pointing at a renamed method, and
 # two names that became ambiguous once a macro joined a function of the same name — each noticed only
 # by grepping output nobody was required to read.
-RUSTDOCFLAGS="-D warnings" cargo doc --no-deps
+RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --exclude dsrs-bridge
 
 echo "==> throughput floor (release, so the debug counters compile out)"
 # The one regression the correctness suites cannot see: an optimisation produces identical output

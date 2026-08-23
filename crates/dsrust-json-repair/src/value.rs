@@ -138,8 +138,9 @@ impl Value {
 /// eight times slower per byte than its small-object twin. Indexing *every* object swung the cost
 /// the other way: most objects a model emits hold a handful of keys, the map made `Value` more
 /// than twice its size, and the depth-240 recursion tests overflowed their stack on the fatter
-/// frames. So the index is boxed, absent below [`INDEX_AT`], and derived state throughout: every
-/// mutation leaves it exactly the positions of `entries`, and equality reads the entries alone.
+/// frames. So the index is boxed, absent below `INDEX_AT` (sixteen entries), and derived state
+/// throughout: every mutation leaves it exactly the positions of `entries`, and equality reads
+/// the entries alone.
 #[derive(Clone, Debug, Default)]
 pub struct Object {
     entries: Vec<(String, Value)>,
