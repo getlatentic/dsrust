@@ -180,7 +180,15 @@ cd "$WORK"
 set +e
 # Written to the file rather than teed, because `bounded` backgrounds its command and a pipeline
 # would put the watchdog on the wrong end. The transcript is echoed afterwards.
-PYTHONPATH="$WORK:$SRC" bounded "$VENV/bin/python" -m pytest \
+# `DENO_NO_PACKAGE_JSON=1` because dspy's sandbox tests shell out to `deno run runner.js`, which
+# imports `npm:pyodide`. Deno walks *up* from the run for a `package.json` and switches to
+# node_modules resolution when it finds one — and any `package.json` in a parent of this checkout
+# does that, whatever it is for. Here it was one in the home directory holding a `wrangler`
+# devDependency: pyodide is in Deno's global cache and not in that `node_modules`, so 27 upstream
+# RLM tests failed on `Could not find a matching package for 'npm:pyodide'`, with nothing in this
+# repo changed. The same insulation `run_mutants.sh` gives the build directory: a gate must not
+# read differently because of a file outside the project.
+DENO_NO_PACKAGE_JSON=1 PYTHONPATH="$WORK:$SRC" bounded "$VENV/bin/python" -m pytest \
   $(for f in "${SUITES[@]}"; do echo "upstream_$(basename "$f")"; done) \
   "$@" > "$WORK/last-run.txt" 2>&1
 STATUS=$?
