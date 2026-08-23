@@ -271,6 +271,7 @@ where
                 self.failure_score,
                 self.num_threads,
                 self.proposer.clone(),
+                self.seed,
             ),
             trainset_size: trainset.len(),
             valset_size: valset.len(),

@@ -4144,3 +4144,70 @@ Closing this means either porting enough of litellm's resolution to say which of
 wins, or deciding the pair is out of scope and saying so in the README beside the interop claim.
 Recorded 2026-08-02 while shipping `saved-lm-round-trip`.
 """
+
+[[story]]
+id = "gepa-reflective-dataset"
+sprint = "conformance"
+title = "GEPA reflects on the first turn where dspy draws a random one, and nothing pins either"
+state = "todo"
+size = "M"
+suites = ""
+plan = """
+Found 2026-08-23 while triaging `surface-the-other-way`: reading `gepa_utils.py` beside
+`optimize/gepa/adapter.rs` to write one ledger entry for `Example::rendered`.
+
+**Nothing has ever pinned `make_reflective_dataset`.** `generate_gepa_engine_fixture.py` stubs it —
+the fake adapter it drives returns a canned dataset so the *engine* can be measured — so the
+function that decides what the reflection model is shown has no oracle on either side. Every other
+part of GEPA is compared against the package; this one is compared against nothing.
+
+**The divergence that costs the most.** dspy picks which trace instance to reflect on with
+`self.rng.choice(trace_instances)`; this crate takes `.find(|step| step.predictor == predictor)`,
+the first. They agree only when a predictor ran once per example. **ReAct pushes one `TraceStep`
+named `react` per turn**, so a multi-turn program has several, and GEPA over a ReAct is a supported
+call here.
+
+Measured against the real `DspyAdapter`, a two-hop module calling one `Predict` twice:
+
+    seed 0: reflected on the SECOND hop  ['Paris', 'the Seine']
+    seed 1: reflected on the first hop   ['capital of France?', 'capital of Germany?']
+    seed 2: first        seed 3: first
+
+So the port is right at three of those four seeds by coincidence and wrong at the fourth, and which
+turn the reflection sees changes what the optimiser learns.
+
+**Contained, which is the good news.** `gepa.py:553` builds `rng = random.Random(self.seed)` and
+hands it to the adapter, but passes `optimize(..., seed=self.seed)` — the engine builds its *own*
+generator from the same seed. Two streams from one seed, not one shared stream, so an adapter-side
+draw does not desynchronise the engine. The fix is a second `Random` on `Adapter`, not a re-thread
+of the run.
+
+**Two smaller ones in the same function.**
+
+  - **Match key.** dspy selects `[t for t in trace if t[0].signature.equals(module.signature)]` —
+    by *signature equality*, so two distinct predictors sharing a signature both match. This crate
+    matches the predictor's name. Closing it needs the signature on `TraceStep`, which is why it is
+    separable from the draw.
+  - **`History` is not hoisted.** dspy lifts a `History` input out of the field map into a fenced
+    ```` ```json ```` block under a `Context` key and drops the original key; this crate renders it
+    as an ordinary field. `adapter/types/history.rs` exists and `optimize/gepa/` never mentions it,
+    so the shape reaching the reflection model differs whenever a signature carries history.
+
+**The feedback callback is two arguments here and five upstream.** dspy calls the caller's metric
+as `metric_fn(module_inputs, module_outputs, captured_trace, pred_name, trace_for_pred)`, where
+`trace_for_pred` is `[(predictor, selected_inputs, selected_outputs)]` — the *selected* instance.
+This crate's is `Fn(&Example, &Prediction) -> Feedback`, so which predictor is being reflected on
+and what it saw never reach the metric, and the per-predictor feedback function that GEPA's own
+docs treat as the idiom cannot be written. Upstream also calls it once per selected instance where
+this crate computes one module-level feedback per example and reuses it. The bare-score default
+(`This trajectory got a score of {o}.`) is ported; the arity is not. Unrecorded anywhere before
+2026-08-23 — not in the ledger, not in the backlog, not in a source comment.
+
+**And one option, not a defect.** `add_format_failure_as_feedback` defaults to `False` upstream, so
+dspy's default also drops format-failure traces — which is what this crate does unconditionally.
+The gap is the missing knob, not a wrong answer; it belongs with `api-3`'s constructor audit.
+
+**What proves it.** A generator driving the real `DspyAdapter.make_reflective_dataset` over a
+program whose trace repeats a predictor, a `History` case beside it, and a Rust test comparing whole
+records — not a projection of them, for the reason `projections-hide-divergence` gives.
+"""

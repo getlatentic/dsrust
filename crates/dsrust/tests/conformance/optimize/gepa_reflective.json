@@ -1,0 +1,110 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_gepa_reflective_fixture.py",
+  "dspy_version": "3.3.0",
+  "note": "dspy's DspyAdapter.make_reflective_dataset over a two-hop program: one predictor, two trace instances per example. Which instance is reflected on comes from rng.choice(trace_instances), so it moves with the seed.",
+  "answers": {
+    "capital of France?": "Paris",
+    "Paris": "the Seine",
+    "capital of Germany?": "Berlin",
+    "Berlin": "the Spree"
+  },
+  "questions": [
+    "capital of France?",
+    "capital of Germany?"
+  ],
+  "instruction": "Answer the question.",
+  "cases": [
+    {
+      "seed": 0,
+      "records": [
+        {
+          "Inputs": {
+            "question": "Paris"
+          },
+          "Generated Outputs": {
+            "answer": "the Seine"
+          },
+          "Feedback": "reflected on Paris"
+        },
+        {
+          "Inputs": {
+            "question": "Berlin"
+          },
+          "Generated Outputs": {
+            "answer": "the Spree"
+          },
+          "Feedback": "reflected on Berlin"
+        }
+      ]
+    },
+    {
+      "seed": 1,
+      "records": [
+        {
+          "Inputs": {
+            "question": "capital of France?"
+          },
+          "Generated Outputs": {
+            "answer": "Paris"
+          },
+          "Feedback": "reflected on capital of France?"
+        },
+        {
+          "Inputs": {
+            "question": "capital of Germany?"
+          },
+          "Generated Outputs": {
+            "answer": "Berlin"
+          },
+          "Feedback": "reflected on capital of Germany?"
+        }
+      ]
+    },
+    {
+      "seed": 2,
+      "records": [
+        {
+          "Inputs": {
+            "question": "capital of France?"
+          },
+          "Generated Outputs": {
+            "answer": "Paris"
+          },
+          "Feedback": "reflected on capital of France?"
+        },
+        {
+          "Inputs": {
+            "question": "capital of Germany?"
+          },
+          "Generated Outputs": {
+            "answer": "Berlin"
+          },
+          "Feedback": "reflected on capital of Germany?"
+        }
+      ]
+    },
+    {
+      "seed": 3,
+      "records": [
+        {
+          "Inputs": {
+            "question": "capital of France?"
+          },
+          "Generated Outputs": {
+            "answer": "Paris"
+          },
+          "Feedback": "reflected on capital of France?"
+        },
+        {
+          "Inputs": {
+            "question": "capital of Germany?"
+          },
+          "Generated Outputs": {
+            "answer": "Berlin"
+          },
+          "Feedback": "reflected on capital of Germany?"
+        }
+      ]
+    }
+  ]
+}
