@@ -41,7 +41,44 @@ def pinned_tag() -> str:
     return (ROOT / "scripts" / "DSPY_VERSION").read_text().strip()
 
 
-def exported(module: str, tag: str) -> list[str] | None:
+def pinned_tree(tag: str) -> str:
+    """The commit to read the pinned source from: the gitlink the superproject records.
+
+    Not the tag. `actions/checkout` fetches a submodule's *commit* and not its tags, so resolving
+    `3.3.0:dspy/...` fails on CI while the correct tree is sitting right there checked out — which
+    read as "the submodule is missing" and failed the gate on a tree that was perfectly fine. The
+    gitlink is also the better authority: it is what review saw and what `git submodule update`
+    restores, where a tag is a name that has to be fetched separately to mean anything.
+
+    The tag still verifies the *version* wherever it is available, which on a development machine
+    is always. Where it is not, the commit is checked and the name is taken on trust — said out
+    loud rather than assumed, because a gate that quietly checks a different tree is the failure
+    this whole file exists to have stopped once already.
+    """
+    recorded = subprocess.run(
+        ["git", "-C", str(ROOT), "rev-parse", f"HEAD:third_party/dspy"],
+        capture_output=True,
+        text=True,
+    )
+    if recorded.returncode != 0:
+        return tag
+    commit = recorded.stdout.strip()
+    tagged = subprocess.run(
+        ["git", "-C", str(DSPY), "rev-parse", f"{tag}^{{commit}}"],
+        capture_output=True,
+        text=True,
+    )
+    if tagged.returncode != 0:
+        print(f"  {tag} is not a tag in the submodule here; reading the recorded commit {commit[:8]}")
+    elif tagged.stdout.strip() != commit:
+        raise SystemExit(
+            f"the submodule gitlink {commit[:8]} is not {tag} ({tagged.stdout.strip()[:8]}) — "
+            "the pin and scripts/DSPY_VERSION disagree"
+        )
+    return commit
+
+
+def exported(module: str, tree: str) -> list[str] | None:
     """A module's own `__all__` at the pinned tag, [] where it declares none, None where unreadable.
 
     The three-way answer is the point. Folding "declares no `__all__`" together with "I could not
@@ -49,7 +86,7 @@ def exported(module: str, tag: str) -> list[str] | None:
     OK, in a worktree where the submodule is an empty directory — a pass that read nothing.
     """
     shown = subprocess.run(
-        ["git", "-C", str(DSPY), "show", f"{tag}:dspy/{module}"],
+        ["git", "-C", str(DSPY), "show", f"{tree}:dspy/{module}"],
         capture_output=True,
         text=True,
     )
@@ -80,6 +117,7 @@ def answered(ledger: dict) -> set[str]:
 
 def main() -> int:
     tag = pinned_tag()
+    tree = pinned_tree(tag)
     ledger = tomllib.loads(LEDGER.read_text())
     known = answered(ledger)
 
@@ -88,7 +126,7 @@ def main() -> int:
     unreadable: list[str] = []
     declaring = 0
     for module in PORTED_MODULES:
-        names = exported(module, tag)
+        names = exported(module, tree)
         if names is None:
             unreadable.append(module)
             continue
