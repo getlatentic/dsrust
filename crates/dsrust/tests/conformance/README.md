@@ -7,8 +7,8 @@ expectation only ever tests the copying.
 Regenerate with the pinned interpreter, which `scripts/DSPY_VERSION` names:
 
 ```sh
-.dspy-venv/bin/python scripts/generate_fixtures.py     # the *.json beside this file
-.dspy-venv/bin/python scripts/generate_rng_fixture.py  # rng/cpython_random.json
+.venv/bin/python scripts/generate_fixtures.py     # the *.json beside this file
+.venv/bin/python scripts/generate_rng_fixture.py  # rng/cpython_random.json
 ```
 
 ## `*.json` — rendered prompts

@@ -112,7 +112,7 @@ fn a_rewritten_field_description_survives_the_round_trip() {
 ///
 ///     cargo test -p dsrust --test saved_program -- --ignored
 #[test]
-#[ignore = "needs .dspy-venv, as the conformance suite does"]
+#[ignore = "needs the project venv, as the conformance suite does"]
 fn dspy_loads_and_runs_what_this_crate_saved() {
     let path = scratch("for-python");
     let mut compiled =
@@ -138,7 +138,12 @@ fn dspy_loads_and_runs_what_this_crate_saved() {
         .parent()
         .and_then(std::path::Path::parent)
         .expect("the crate sits two levels under the workspace root");
-    let checked = std::process::Command::new(root.join(".dspy-venv/bin/python"))
+    // `.venv`, which is what `uv sync` creates and what every gate uses. This named `.dspy-venv`
+    // until CI ran it: that directory exists only on the machine this was written on, is a
+    // leftover on Python 3.12, and carries **dspy 3.3.0b1** where `scripts/DSPY_VERSION` pins
+    // 3.3.0 — so the one test asking whether dspy can read what this crate saved was asking the
+    // beta, and passing here for a reason no other machine had.
+    let checked = std::process::Command::new(root.join(".venv/bin/python"))
         .arg(root.join("scripts/check_saved_program.py"))
         .arg(&path)
         .output()
