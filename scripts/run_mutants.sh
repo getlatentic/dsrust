@@ -199,6 +199,18 @@ slice_files() {
 CARGO_BUILD_BUILD_DIR="mutants-build"
 export CARGO_BUILD_BUILD_DIR
 
+# The half that covers a *hand*-run lives in `.cargo/mutants.toml`, which cargo-mutants reads on
+# every invocation in this repo — the export above only protects runs that come through here, and
+# the marker escaped the first time precisely because someone ran the tool directly. Refuse rather
+# than run without it: a poisoned shared cache reads as a corrupted toolchain, `git status` shows
+# nothing, and clearing it costs two `cargo clean`s.
+if ! grep -q 'build.build-dir=\\"mutants-build\\"' "$ROOT/.cargo/mutants.toml" 2>/dev/null; then
+  echo "refusing to run: .cargo/mutants.toml no longer pins a relative build-dir." >&2
+  echo "Without it a hand-run of cargo mutants writes mutated rlibs into the shared" >&2
+  echo "build directory every other project on this machine links from." >&2
+  exit 2
+fi
+
 # How many mutants run at once, and how many rustc processes each may spawn.
 #
 # The product is what lands on the machine: `-j 3` with cargo's default inner parallelism is three

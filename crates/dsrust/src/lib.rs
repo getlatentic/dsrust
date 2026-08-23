@@ -47,7 +47,7 @@ pub use lm::Capabilities;
 pub use module::{Ask, Forward, Module, NamedPredictor, PredictorState, ProgramState, TraceStep};
 pub use optimize::{
     Attempt, BootstrapFewShot, BootstrapRandomSearch, COPRO, DynOptimizer, Ensemble, Ensembled,
-    Feedback, GEPA, GepaOutcome, LabeledFewShot, MIPROv2, Optimizer,
+    Feedback, GEPA, GepaOutcome, LabeledFewShot, MIPROv2, MetricContext, Optimizer,
 };
 pub use react::{
     FnTool, ReAct, ReActV2, Tool, Trajectory, mcp_tool, mcp_tool_args, mcp_tool_result,

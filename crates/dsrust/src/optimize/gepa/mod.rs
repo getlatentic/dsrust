@@ -29,7 +29,7 @@ pub use gepa::Candidate;
 
 pub use gepa::GepaOutcome;
 pub use gepa::Reflective;
-pub use metric::Feedback;
+pub use metric::{Feedback, MetricContext};
 pub use proposer::{InstructionProposer, ReflectiveDataset};
 
 use adapter::{Adapter, set_instructions};
@@ -71,7 +71,7 @@ pub struct GEPA<M> {
 
 impl<M> GEPA<M>
 where
-    M: Fn(&Example, &Prediction) -> Feedback + Send + Sync,
+    M: Fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback + Send + Sync,
 {
     /// A GEPA optimizer with dspy's defaults, save the budget — set it with
     /// [`max_metric_calls`](Self::max_metric_calls) before compiling.
@@ -138,11 +138,10 @@ where
     /// [`auto_budget`](Self::auto_budget) works one out from the shape of the run:
     ///
     /// ```no_run
-    /// # use dsrust::GEPA;
-    /// # let gepa: GEPA<fn(&dsrust::Example, &dsrust::Prediction) -> dsrust::optimize::Feedback>
-    /// #     = todo!();
-    /// gepa.max_metric_calls(GEPA::<fn(&dsrust::Example, &dsrust::Prediction)
-    ///     -> dsrust::optimize::Feedback>::auto_budget(1, 8, 50, 35, 5)?);
+    /// # use dsrust::{Example, Feedback, GEPA, MetricContext, Prediction};
+    /// # type Metric = fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback;
+    /// # let gepa: GEPA<Metric> = todo!();
+    /// gepa.max_metric_calls(GEPA::<Metric>::auto_budget(1, 8, 50, 35, 5)?);
     /// # Ok::<(), String>(())
     /// ```
     pub fn max_metric_calls(mut self, calls: usize) -> Self {
@@ -293,7 +292,7 @@ where
 
 impl<M> Optimizer for GEPA<M>
 where
-    M: Fn(&Example, &Prediction) -> Feedback + Send + Sync,
+    M: Fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback + Send + Sync,
 {
     /// GEPA has no teacher — it optimizes instructions from a metric. With no valset it scores on
     /// the whole trainset, which is upstream's own `valset = valset or trainset` and *not* the
@@ -328,7 +327,7 @@ mod budget_tests {
     #[test]
     fn auto_budget_matches_dspys_own_arithmetic() {
         let budget = |preds, cands, val, mb, steps| {
-            GEPA::<fn(&Example, &Prediction) -> super::metric::Feedback>::auto_budget(
+            GEPA::<fn(&Example, &Prediction, &MetricContext<'_>) -> super::metric::Feedback>::auto_budget(
                 preds, cands, val, mb, steps,
             )
             .expect("valid parameters")
@@ -364,14 +363,15 @@ mod budget_tests {
         let cases = golden["cases"].as_array().expect("cases");
         assert!(!cases.is_empty(), "no cases to check");
         for case in cases {
-            let answered = GEPA::<fn(&Example, &Prediction) -> Feedback>::auto_budget(
-                field(case, "num_preds"),
-                field(case, "num_candidates"),
-                field(case, "valset_size"),
-                field(case, "minibatch_size"),
-                field(case, "full_eval_steps"),
-            )
-            .expect("a budget");
+            let answered =
+                GEPA::<fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback>::auto_budget(
+                    field(case, "num_preds"),
+                    field(case, "num_candidates"),
+                    field(case, "valset_size"),
+                    field(case, "minibatch_size"),
+                    field(case, "full_eval_steps"),
+                )
+                .expect("a budget");
             assert_eq!(answered, field(case, "budget"), "for {case}");
         }
     }
@@ -381,7 +381,10 @@ mod budget_tests {
     /// type system doing what the check does.
     #[test]
     fn a_full_eval_step_below_one_is_refused() {
-        let refused = GEPA::<fn(&Example, &Prediction) -> Feedback>::auto_budget(1, 2, 10, 35, 0)
+        let refused =
+            GEPA::<fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback>::auto_budget(
+                1, 2, 10, 35, 0,
+            )
             .expect_err("zero is refused");
         assert_eq!(refused, "full_eval_steps must be >= 1.");
     }
@@ -399,7 +402,7 @@ mod budget_tests {
             .expect("a case on dspy's defaults");
         let expected = field(defaulted, "budget");
         assert_eq!(
-            GEPA::<fn(&Example, &Prediction) -> Feedback>::auto_budget(
+            GEPA::<fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback>::auto_budget(
                 field(defaulted, "num_preds"),
                 field(defaulted, "num_candidates"),
                 field(defaulted, "valset_size"),

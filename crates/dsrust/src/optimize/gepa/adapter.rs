@@ -12,7 +12,7 @@ use gepa::{
     render_prompt,
 };
 
-use super::metric::Feedback;
+use super::metric::{Feedback, MetricContext};
 use crate::example::{Example, Prediction};
 use crate::lm::DynChatModel;
 use crate::lm::api::{LmMessage, LmPart, LmRequest};
@@ -35,9 +35,14 @@ pub(super) fn set_instructions<S: Module + ?Sized>(student: &mut S, candidate: &
 
 /// One example's captured run, kept from a `capture_traces=true` evaluation so [`Adapter::propose_new_texts`]
 /// can build the reflective dataset — dspy's `eval_batch.trajectories`.
+///
+/// The example and its prediction travel with the trace because the feedback text is *not* computed
+/// here: dspy calls the metric again at reflection time, once per record, with the predictor it
+/// drew. So what scoring keeps is the run, not a sentence about it.
 struct Captured {
+    example: Example,
+    prediction: Prediction,
     trace: Vec<TraceStep>,
-    feedback: String,
 }
 
 /// dspy's `DspyAdapter`, over one student program mutated in place per candidate. Generic over the
@@ -94,11 +99,11 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
 impl<S, M> Adapter<'_, S, M>
 where
     S: Module + ?Sized,
-    M: Fn(&Example, &Prediction) -> Feedback + Send + Sync,
+    M: Fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback + Send + Sync,
 {
     /// Run the candidate program over `examples`, scoring each with the metric. When capturing, the
-    /// per-example traces and feedback are stashed for the reflection step. dspy never raises for one
-    /// example's failure — a failed run scores `failure_score` and contributes no trace.
+    /// per-example runs are stashed for the reflection step. dspy never raises for one example's
+    /// failure — a failed run scores `failure_score` and contributes no trace.
     async fn evaluate(
         &mut self,
         examples: &[Example],
@@ -137,22 +142,27 @@ where
         }
     }
 
-    /// One example: run the (already-built) program with tracing, then score it. Returns the score and,
-    /// when capturing, the trace and feedback for reflection.
+    /// One example: run the (already-built) program with tracing, then score it. Returns the score
+    /// and, when capturing, the run itself for reflection.
     async fn run_one(&self, example: &Example, capture_traces: bool) -> (f64, Option<Captured>) {
         let inputs = example.inputs().expect("a dataset row declares its inputs");
         let mut trace = Vec::new();
         let Ok(prediction) = self.student.forward_traced(inputs, &mut trace).await else {
             let captured = capture_traces.then(|| Captured {
+                example: example.clone(),
+                prediction: Prediction::new(Example::default(), String::new()),
                 trace: Vec::new(),
-                feedback: String::new(),
             });
             return (self.failure_score, captured);
         };
-        let feedback = (self.metric)(example, &prediction);
+        // dspy's scoring call is the ordinary metric call — `Evaluate` and `bootstrap_trace_data`
+        // pass no predictor, and a trace only while capturing.
+        let scoring = MetricContext::scoring(capture_traces.then_some(trace.as_slice()));
+        let feedback = (self.metric)(example, &prediction, &scoring);
         let captured = capture_traces.then(|| Captured {
+            example: example.clone(),
+            prediction: prediction.clone(),
             trace,
-            feedback: feedback.text(),
         });
         (feedback.score, captured)
     }
@@ -175,13 +185,20 @@ where
                 continue;
             }
             let step = instances[self.rng.choice_index(instances.len())];
+            // dspy calls the metric a second time here, with the predictor it wants feedback for
+            // and the instance it just drew, and keeps only the text — the score stays the one
+            // scoring produced, which is what upstream's `fb["score"] = module_score` does.
+            let reflecting = MetricContext {
+                trace: Some(&captured.trace),
+                predictor: Some(predictor),
+                predictor_step: Some(step),
+            };
+            let feedback =
+                (self.metric)(&captured.example, &captured.prediction, &reflecting).text();
             samples.push(vec![
                 ("Inputs".to_owned(), rendered_map(&step.inputs)),
                 ("Generated Outputs".to_owned(), rendered_map(&step.outputs)),
-                (
-                    "Feedback".to_owned(),
-                    Reflective::Text(captured.feedback.clone()),
-                ),
+                ("Feedback".to_owned(), Reflective::Text(feedback)),
             ]);
         }
         samples
@@ -202,7 +219,7 @@ where
 impl<S, M> GepaAdapter for Adapter<'_, S, M>
 where
     S: Module + ?Sized + Send,
-    M: Fn(&Example, &Prediction) -> Feedback + Send + Sync,
+    M: Fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback + Send + Sync,
 {
     async fn evaluate_minibatch(
         &mut self,
@@ -286,9 +303,8 @@ mod tests {
     fn the_reflective_dataset_carries_the_captured_trace() {
         let mut student =
             crate::optimize::scripted::Solver::new(crate::optimize::scripted::Answers::Correctly);
-        let metric = |_: &Example, _: &crate::Prediction| super::super::metric::Feedback {
-            score: 1.0,
-            feedback: None,
+        let metric = |_: &Example, _: &crate::Prediction, _: &MetricContext<'_>| {
+            super::super::metric::Feedback::new(1.0, "right city")
         };
         let trainset = crate::optimize::scripted::trainset();
         let mut adapter = Adapter::new(
@@ -303,12 +319,13 @@ mod tests {
             0,
         );
         adapter.captured = vec![Captured {
+            example: example! { question: "capital of France?" },
+            prediction: crate::Prediction::new(example! { answer: "Paris" }, "raw"),
             trace: vec![crate::TraceStep {
                 predictor: "self".to_owned(),
                 inputs: example! { question: "capital of France?" },
                 outputs: example! { answer: "Paris" },
             }],
-            feedback: "right city".to_owned(),
         }];
 
         let dataset = adapter.reflective_dataset("self");
@@ -335,11 +352,9 @@ mod tests {
     /// draw happens to land there. It lands on the second hop at seed 0 and the first at 1-3 — a
     /// fixture at one seed would have agreed with a port that never draws, three times in four.
     ///
-    /// **`Feedback` is recorded and not compared.** dspy calls the metric with five arguments, the
-    /// last being the *selected* instance, so its feedback names the hop that was drawn; this
-    /// crate's metric takes two and computes one module-level feedback per example. That gap is
-    /// `gepa-reflective-dataset` in the backlog, with the `History` hoist and the
-    /// signature-equality match; the golden holds upstream's text so closing it has an oracle.
+    /// `Feedback` is compared too, which is what the metric's context buys: upstream's text names
+    /// the hop that was drawn, so it is the strictest witness that the *same* instance was picked —
+    /// two records can share inputs and still disagree about which step the feedback describes.
     #[test]
     fn reflects_on_the_instance_dspy_draws() {
         let golden: serde_json::Value = serde_json::from_str(include_str!(
@@ -368,9 +383,15 @@ mod tests {
             let mut student = crate::optimize::scripted::Solver::new(
                 crate::optimize::scripted::Answers::Correctly,
             );
-            let metric = |_: &Example, _: &crate::Prediction| super::super::metric::Feedback {
-                score: 1.0,
-                feedback: None,
+            // dspy's fixture metric: feedback naming the instance GEPA drew, which is exactly
+            // what the five-argument call makes writable.
+            let metric = |_: &Example, _: &crate::Prediction, ctx: &MetricContext<'_>| {
+                let seen = ctx
+                    .predictor_step
+                    .and_then(|step| step.inputs.get("question"))
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("-");
+                super::super::metric::Feedback::new(1.0, format!("reflected on {seen}"))
             };
             let trainset = crate::optimize::scripted::trainset();
             let mut adapter = Adapter::new(
@@ -397,6 +418,11 @@ mod tests {
                         "seed {seed}: {section} — a different trace instance was reflected on"
                     );
                 }
+                assert_eq!(
+                    text_section(sample, "Feedback"),
+                    record["Feedback"].as_str().expect("upstream's feedback"),
+                    "seed {seed}: Feedback"
+                );
             }
         }
     }
@@ -413,6 +439,8 @@ mod tests {
         let first = answer_to(question);
         let second = answer_to(&first);
         Captured {
+            example: example! { question: question },
+            prediction: crate::Prediction::new(example! { answer: second.clone() }, "raw"),
             trace: vec![
                 crate::TraceStep {
                     predictor: "step".to_owned(),
@@ -425,7 +453,6 @@ mod tests {
                     outputs: example! { answer: second },
                 },
             ],
-            feedback: String::new(),
         }
     }
 
@@ -444,6 +471,17 @@ mod tests {
                 _ => panic!("{section}.{name} is not text"),
             })
             .collect()
+    }
+
+    fn text_section<'a>(sample: &'a ReflectiveSample, section: &str) -> &'a str {
+        let (_, value) = sample
+            .iter()
+            .find(|(name, _)| name == section)
+            .unwrap_or_else(|| panic!("the record has a {section} section"));
+        match value {
+            Reflective::Text(text) => text,
+            _ => panic!("{section} is not text"),
+        }
     }
 
     fn golden_section(record: &serde_json::Value, section: &str) -> Vec<(String, String)> {

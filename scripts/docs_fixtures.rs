@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use dsrust::lm::{DynChatModel, LM, LmFailure, configure};
-use dsrust::optimize::Feedback;
+use dsrust::optimize::{Feedback, MetricContext};
 use dsrust::signature::SignatureSpec;
 use dsrust::{
     BestOfN, BootstrapFewShot, ChainOfThought, ChatModel, CodeAct, Evaluate, Example, Forward, GEPA,
@@ -51,7 +51,7 @@ struct Investigate {
 struct Prose {
     trainset: Vec<Example>,
     valset: Vec<Example>,
-    metric: fn(&Example, &Prediction) -> Feedback,
+    metric: fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback,
     reflection_lm: Arc<dyn DynChatModel>,
     tools: Vec<Box<dyn Tool>>,
     /// The module a fragment is calling — named for whatever the section is about.
@@ -71,7 +71,7 @@ fn prose() -> Prose {
     Prose {
         trainset: Vec::new(),
         valset: Vec::new(),
-        metric: |_, _| Feedback::new(0.0, String::new()),
+        metric: |_, _, _| Feedback::new(0.0, String::new()),
         reflection_lm: Arc::new(dsrust::DummyLM::new(Vec::new())),
         tools: Vec::new(),
         extractor: Predict!("question -> answer"),

@@ -6,10 +6,10 @@
 //! `[constructors]` table was added to make visible.
 
 use dsrust::optimize::Scoring;
-use dsrust::{DummyLM, Example, Feedback, GEPA, Prediction};
+use dsrust::{DummyLM, Example, Feedback, GEPA, MetricContext, Prediction};
 
 /// A metric that ignores its inputs; these tests assert on the options, not on a compile.
-fn metric(_: &Example, _: &Prediction) -> Feedback {
+fn metric(_: &Example, _: &Prediction, _: &MetricContext<'_>) -> Feedback {
     Feedback::new(1.0, "fine")
 }
 

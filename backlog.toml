@@ -4193,15 +4193,27 @@ of the run.
     as an ordinary field. `adapter/types/history.rs` exists and `optimize/gepa/` never mentions it,
     so the shape reaching the reflection model differs whenever a signature carries history.
 
-**The feedback callback is two arguments here and five upstream.** dspy calls the caller's metric
+**The feedback callback was two arguments here and five upstream — closed 2026-08-23.** dspy calls the caller's metric
 as `metric_fn(module_inputs, module_outputs, captured_trace, pred_name, trace_for_pred)`, where
 `trace_for_pred` is `[(predictor, selected_inputs, selected_outputs)]` — the *selected* instance.
 This crate's is `Fn(&Example, &Prediction) -> Feedback`, so which predictor is being reflected on
 and what it saw never reach the metric, and the per-predictor feedback function that GEPA's own
 docs treat as the idiom cannot be written. Upstream also calls it once per selected instance where
 this crate computes one module-level feedback per example and reuses it. The bare-score default
-(`This trajectory got a score of {o}.`) is ported; the arity is not. Unrecorded anywhere before
-2026-08-23 — not in the ledger, not in the backlog, not in a source comment.
+(`This trajectory got a score of {o}.`) was already ported; the arity was not. Unrecorded anywhere
+before 2026-08-23 — not in the ledger, not in the backlog, not in a source comment.
+
+`MetricContext` carries dspy's last three arguments as one struct, since two are absent half the
+time and an `Option` says which moment the metric is in. `Captured` now holds the example and the
+prediction rather than a feedback sentence, because the text is computed at reflection time as
+upstream computes it, once per record, from the instance that was drawn — and the score stays the
+one scoring produced, which is what dspy's `fb["score"] = module_score` does. The conformance test
+compares `Feedback` as well now: upstream's text names the hop that was drawn, so it is the
+strictest witness that the same instance was picked, and the projection its doc used to declare is
+gone. Confirmed red with a metric that ignores the context: `reflected on -` against
+`reflected on Paris`.
+
+**Still open:** the `History` hoist and the signature-equality match.
 
 **And one option, not a defect.** `add_format_failure_as_feedback` defaults to `False` upstream, so
 dspy's default also drops format-failure traces — which is what this crate does unconditionally.

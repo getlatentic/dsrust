@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use anyhow::Result;
 use serde_json::Value;
 
-use super::{Feedback, GEPA};
+use super::{Feedback, GEPA, MetricContext};
 use crate::example;
 use crate::example::{Example, Prediction};
 use crate::lm::ChatModel;
@@ -66,8 +66,9 @@ impl ChatModel for Reflector {
     }
 }
 
-/// A GEPA feedback metric: exact-match on the answer, with a word of feedback either way.
-fn metric(gold: &Example, pred: &Prediction) -> Feedback {
+/// A GEPA feedback metric: exact-match on the answer, with a word of feedback either way. The
+/// context is unread on purpose — dspy's protocol calls this the program level.
+fn metric(gold: &Example, pred: &Prediction, _: &MetricContext<'_>) -> Feedback {
     let correct = gold.get("answer") == pred.get("answer");
     if correct {
         Feedback::new(1.0, "Correct.")
