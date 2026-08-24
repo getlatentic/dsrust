@@ -24,6 +24,7 @@ import sys
 import tomllib
 
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
+import rust_members
 from api_surface import PORTED_MODULES, full_surface
 
 ROOT = pathlib.Path(__file__).parent.parent
@@ -73,6 +74,14 @@ def is_defined(identifier: str, source: str) -> bool:
         return all(part and is_defined(part, source) for part in parts)
     if "::" in identifier:
         owner, member = identifier.rsplit("::", 1)
+        # The *pair*, where the owner is a type this crate defines. Grepping the two halves
+        # separately let `MIPROv2::compile` pass on `COPRO`'s — nine types have a `compile`, so
+        # deleting any one of them left every entry green. `rust_members` reads the impl blocks,
+        # a trait's defaulted methods included, and answers `None` for an owner it could not read
+        # at all, which falls through rather than failing a name that is really there.
+        owns = rust_members.has(owner.rsplit("::", 1)[-1], member)
+        if owns is not None:
+            return owns
         return is_defined(owner, source) and is_defined(member, source)
     keyword = r"(?:" + "|".join(DEFINES) + r")\s+" + re.escape(identifier) + r"\b"
     reexport = r"pub use [^\n]*\b" + re.escape(identifier) + r"\b"
@@ -163,6 +172,30 @@ def report(label: str, defined: set[str], entries: dict) -> None:
         print(f"  resolved   : {resolved}/{total} ({100 * resolved // total}%)")
 
 
+#: Mapped entries whose `rust` names a bare identifier rather than `Type::member`.
+#:
+#: Not a target of zero — a free function (`format_field_value`, `majority`) and a type (`Predict`)
+#: *are* the specific answer, and 210 of these are one or the other. What the ratchet stops is the
+#: other kind: a member name written bare, which `is_defined` then resolves against any type that
+#: happens to have one. `Parallel.forward` was mapped to `forward` and passed on forty other types'
+#: `forward`; renaming `Parallel::run` today fails that entry by name.
+BARE_FLOOR = 210
+
+
+def report_bare(tables: dict) -> int:
+    """Count them, and say so, so the number cannot drift the way an uncounted one did."""
+    bare = [
+        (key, part)
+        for entry_table in tables.values()
+        for key, entry in entry_table.items()
+        if entry.get("status") == "mapped"
+        for part in [p.strip() for p in (entry.get("rust") or "").split(",")]
+        if part and "::" not in part
+    ]
+    print(f"bare `rust` identifiers on mapped entries: {len(bare)} (floor {BARE_FLOOR})")
+    return len(bare)
+
+
 def main() -> None:
     surface = full_surface()
     ledger_file = tomllib.loads(LEDGER.read_text())
@@ -214,6 +247,21 @@ def main() -> None:
     report("methods of mapped classes", defined_methods, methods)
     report("constructor parameters of mapped classes", defined_params, constructors)
     report("parameters of mapped methods and functions", defined_arguments, parameters)
+
+    bare = report_bare(
+        {
+            "symbols": ledger,
+            "methods": methods,
+            "constructors": constructors,
+            "parameters": parameters,
+        }
+    )
+    if bare > BARE_FLOOR:
+        failures.append(
+            f"bare `rust` identifiers rose to {bare} from a floor of {BARE_FLOOR}. A bare name is "
+            f"resolved against any type that has one, so it cannot detect its own item's deletion "
+            f"— write `Type::member` where the name is a member. Lower BARE_FLOOR when it drops."
+        )
 
     todos = sorted(k for k in defined if ledger.get(k, {}).get("status") == "todo")
     todos += sorted(k for k in defined_methods if methods.get(k, {}).get("status") == "todo")

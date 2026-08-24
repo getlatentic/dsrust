@@ -4698,7 +4698,7 @@ orphan. So this closes the path by construction and is not a fix resting on a di
 id = "bare-names-in-the-ledger"
 sprint = "api"
 title = "522 ledger entries name a bare Rust identifier, so 106 of them cannot detect their own deletion"
-state = "todo"
+state = "done"
 size = "M"
 suites = []
 plan = """
@@ -4726,4 +4726,39 @@ function — `dsrust::example!`, a module-level `fn` — stays bare and is fine.
 **What proves it.** The count of bare `rust` values over the four dspy-keyed tables, reported by the
 gate rather than by a one-off script, with a floor that only moves down. And a control per pass:
 delete the Rust item an entry names and watch *that* entry fail, which today it would not.
+"""
+
+done = """
+The story said to qualify the names. Doing that first showed the qualification was worthless on its
+own, and the real defect was one layer down.
+
+**`is_defined` never checked the pair.** `Type::member` was resolved as `is_defined(Type)` **and**
+`is_defined(member)`, each a grep over 160 files. So `MIPROv2::compile` passed on `COPRO`'s
+`compile`, and writing the qualified name bought nothing. Measured both ways: renaming
+`Parallel::run` fails the gate today by name — `? predict/parallel.py::Parallel.forward ->
+Parallel::run` — and passes it under the old check, with the same rename in place.
+
+`scripts/rust_members.py` answers "does this type name this member" by reading the blocks: inherent
+`impl`, `impl Trait for Type`, `trait`, `struct`, `enum`. Two things it must get right, and the
+first draft got neither: an `impl` header can run over several lines and end in a `where` clause,
+and a trait's **defaulted** method is reachable on every implementor without appearing in the impl
+body — so `Predict::dump_state` is real though only `Module` writes one. It returns `None` for an
+owner it could not read, which falls back rather than failing a name that is really there.
+
+**My own sweep was wrong, and the checker I then wrote caught it.** Qualifying all 369 bare mapped
+entries to `Owner::member` looked like it resolved — under the *old* check, which of course passed
+both halves. The pair check rejected 104 of them, and they were mine: entries whose bare value names
+a **type**, not a member. `BestOfN.N` maps to `BestOfN`; writing `BestOfN::BestOfN` is nonsense.
+Reverted and re-applied only where the pair actually holds: 235 qualified, 134 left bare.
+
+**Two entries named things that were not there.** `Parallel.forward` was mapped to `forward`; this
+crate spells it `run`, and the bare name passed on forty other types' `forward`.
+`File.from_bytes.file_bytes` was mapped to `bytes`, which passed because somewhere there is a
+`mod bytes` — a module, unrelated, satisfying a claim about a parameter. Both now name the item they
+mean, along with 21 others whose bare name had a single unambiguous home.
+
+**The floor is 210 and is not aiming at zero.** A free function (`majority`, `format_field_value`)
+and a type (`Predict`) *are* the specific answer; the 210 are one or the other. What the ratchet
+stops is a *member* name written bare. Regressing one entry raises the count to 211 and fails the
+gate with the reason.
 """

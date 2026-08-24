@@ -268,18 +268,18 @@
 "signatures/signature.py::Signature.append_instructions" = { status = "divergence", rust = "Signature::instructions", reason = "a mutator that appends to the instruction string. `Signature.instructions` is a public `String` field here, so appending is `signature.instructions.push_str(…)` — a method for it would be a method for one operation on a field the caller already holds" }
 
 # --- the callback protocol: the twelve handlers, each a defaulted trait method ---
-"utils/callback.py::BaseCallback.on_module_start" = { status = "mapped", rust = "on_module_start" }
-"utils/callback.py::BaseCallback.on_module_end" = { status = "mapped", rust = "on_module_end" }
-"utils/callback.py::BaseCallback.on_lm_start" = { status = "mapped", rust = "on_lm_start" }
-"utils/callback.py::BaseCallback.on_lm_end" = { status = "mapped", rust = "on_lm_end" }
-"utils/callback.py::BaseCallback.on_adapter_format_start" = { status = "mapped", rust = "on_adapter_format_start" }
-"utils/callback.py::BaseCallback.on_adapter_format_end" = { status = "mapped", rust = "on_adapter_format_end" }
-"utils/callback.py::BaseCallback.on_adapter_parse_start" = { status = "mapped", rust = "on_adapter_parse_start" }
-"utils/callback.py::BaseCallback.on_adapter_parse_end" = { status = "mapped", rust = "on_adapter_parse_end" }
-"utils/callback.py::BaseCallback.on_tool_start" = { status = "mapped", rust = "on_tool_start" }
-"utils/callback.py::BaseCallback.on_tool_end" = { status = "mapped", rust = "on_tool_end" }
-"utils/callback.py::BaseCallback.on_evaluate_start" = { status = "mapped", rust = "on_evaluate_start" }
-"utils/callback.py::BaseCallback.on_evaluate_end" = { status = "mapped", rust = "on_evaluate_end" }
+"utils/callback.py::BaseCallback.on_module_start" = { status = "mapped", rust = "Callback::on_module_start" }
+"utils/callback.py::BaseCallback.on_module_end" = { status = "mapped", rust = "Callback::on_module_end" }
+"utils/callback.py::BaseCallback.on_lm_start" = { status = "mapped", rust = "Callback::on_lm_start" }
+"utils/callback.py::BaseCallback.on_lm_end" = { status = "mapped", rust = "Callback::on_lm_end" }
+"utils/callback.py::BaseCallback.on_adapter_format_start" = { status = "mapped", rust = "Callback::on_adapter_format_start" }
+"utils/callback.py::BaseCallback.on_adapter_format_end" = { status = "mapped", rust = "Callback::on_adapter_format_end" }
+"utils/callback.py::BaseCallback.on_adapter_parse_start" = { status = "mapped", rust = "Callback::on_adapter_parse_start" }
+"utils/callback.py::BaseCallback.on_adapter_parse_end" = { status = "mapped", rust = "Callback::on_adapter_parse_end" }
+"utils/callback.py::BaseCallback.on_tool_start" = { status = "mapped", rust = "Callback::on_tool_start" }
+"utils/callback.py::BaseCallback.on_tool_end" = { status = "mapped", rust = "Callback::on_tool_end" }
+"utils/callback.py::BaseCallback.on_evaluate_start" = { status = "mapped", rust = "Callback::on_evaluate_start" }
+"utils/callback.py::BaseCallback.on_evaluate_end" = { status = "mapped", rust = "Callback::on_evaluate_end" }
 
 # Adapter
 "adapters/base.py::Adapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
@@ -289,7 +289,7 @@
 "adapters/base.py::Adapter.format_demos" = { status = "divergence", reason = "folded into adapter/demos.rs" }
 "adapters/base.py::Adapter.format_field_description" = { status = "mapped", rust = "field_description" }
 "adapters/base.py::Adapter.format_field_structure" = { status = "divergence", reason = "a section every adapter writes, each in its own file rather than through one overridable hook: `chat.rs`, `json.rs`, `xml.rs` and `BamlAdapter::field_structure` all emit \"All interactions will be structured in the following way…\". This said only BAML stated one until 2026-08-24, which was false of three adapters" }
-"adapters/base.py::Adapter.format_system_message" = { status = "mapped", rust = "system_message" }
+"adapters/base.py::Adapter.format_system_message" = { status = "mapped", rust = "Adapter::system_message" }
 "adapters/base.py::Adapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 "adapters/base.py::Adapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 "adapters/base.py::Adapter.parse" = { status = "mapped", rust = "Adapter::parse" }
@@ -324,7 +324,7 @@
 "adapters/xml_adapter.py::XMLAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 
 # BAMLAdapter
-"adapters/baml_adapter.py::BAMLAdapter.format_field_structure" = { status = "mapped", rust = "field_structure" }
+"adapters/baml_adapter.py::BAMLAdapter.format_field_structure" = { status = "mapped", rust = "BamlAdapter::field_structure" }
 "adapters/baml_adapter.py::BAMLAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 
 # TwoStepAdapter
@@ -337,11 +337,11 @@
 
 # Type
 "adapters/types/base_type.py::Type.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
-"adapters/types/base_type.py::Type.description" = { status = "mapped", rust = "description" }
+"adapters/types/base_type.py::Type.description" = { status = "mapped", rust = "Type::description" }
 "adapters/types/base_type.py::Type.extract_custom_type_from_annotation" = { status = "divergence", reason = "Python annotation walking; a Rust field states its type directly" }
 "adapters/types/base_type.py::Type.format" = { status = "mapped", rust = "Type::format" }
-"adapters/types/base_type.py::Type.is_streamable" = { status = "mapped", rust = "is_streamable" }
-"adapters/types/base_type.py::Type.parse_lm_response" = { status = "mapped", rust = "parse_lm_response" }
+"adapters/types/base_type.py::Type.is_streamable" = { status = "mapped", rust = "Type::is_streamable" }
+"adapters/types/base_type.py::Type.parse_lm_response" = { status = "mapped", rust = "Type::parse_lm_response" }
 "adapters/types/base_type.py::Type.parse_stream_chunk" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
 "adapters/types/base_type.py::Type.serialize_model" = { status = "mapped", rust = "serialized" }
 
@@ -359,28 +359,28 @@
 # File
 "adapters/types/file.py::File.format" = { status = "mapped", rust = "File::format" }
 "adapters/types/file.py::File.from_bytes" = { status = "mapped", rust = "File::from_bytes", reason = "raw bytes as an opaque data URI under `application/octet-stream`, which is upstream's default when nothing names the type" }
-"adapters/types/file.py::File.from_file_id" = { status = "mapped", rust = "from_id" }
+"adapters/types/file.py::File.from_file_id" = { status = "mapped", rust = "File::from_id" }
 "adapters/types/file.py::File.from_path" = { status = "mapped", rust = "File::from_path", reason = "as `Image.from_path`, keeping the basename: once the bytes are base64 the name is the only thing telling a model what the file is" }
 "adapters/types/file.py::File.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
 # Code
-"adapters/types/code.py::Code.description" = { status = "mapped", rust = "description" }
+"adapters/types/code.py::Code.description" = { status = "mapped", rust = "Code::description" }
 "adapters/types/code.py::Code.format" = { status = "mapped", rust = "Code::format" }
 "adapters/types/code.py::Code.serialize_model" = { status = "divergence", reason = "reproduced as the type's `Serialize`, via the `Type` seam's `serialized`" }
 "adapters/types/code.py::Code.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
 # Citations
 "adapters/types/citation.py::Citations.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
-"adapters/types/citation.py::Citations.description" = { status = "mapped", rust = "description" }
+"adapters/types/citation.py::Citations.description" = { status = "mapped", rust = "Citations::description" }
 "adapters/types/citation.py::Citations.format" = { status = "mapped", rust = "Citations::format" }
 "adapters/types/citation.py::Citations.from_dict_list" = { status = "mapped", rust = "Citations::new" }
-"adapters/types/citation.py::Citations.is_streamable" = { status = "mapped", rust = "is_streamable" }
-"adapters/types/citation.py::Citations.parse_lm_response" = { status = "mapped", rust = "parse_lm_response" }
+"adapters/types/citation.py::Citations.is_streamable" = { status = "mapped", rust = "Citations::is_streamable" }
+"adapters/types/citation.py::Citations.parse_lm_response" = { status = "mapped", rust = "Citations::parse_lm_response" }
 "adapters/types/citation.py::Citations.parse_stream_chunk" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
 "adapters/types/citation.py::Citations.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
 # Document
-"adapters/types/document.py::Document.description" = { status = "mapped", rust = "description" }
+"adapters/types/document.py::Document.description" = { status = "mapped", rust = "Document::description" }
 "adapters/types/document.py::Document.format" = { status = "mapped", rust = "Document::format" }
 "adapters/types/document.py::Document.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
@@ -400,108 +400,108 @@
 "adapters/types/tool.py::Tool.from_mcp_tool" = { status = "mapped", rust = "mcp_tool" }
 
 # ToolCalls
-"adapters/types/tool.py::ToolCalls.description" = { status = "mapped", rust = "description" }
+"adapters/types/tool.py::ToolCalls.description" = { status = "mapped", rust = "ToolCalls::description" }
 "adapters/types/tool.py::ToolCalls.format" = { status = "mapped", rust = "ToolCalls::format" }
-"adapters/types/tool.py::ToolCalls.from_dict_list" = { status = "mapped", rust = "from_dict_list" }
+"adapters/types/tool.py::ToolCalls.from_dict_list" = { status = "mapped", rust = "ToolCalls::from_dict_list" }
 "adapters/types/tool.py::ToolCalls.serialize_model" = { status = "divergence", reason = "reproduced as the type's `Serialize`, via the `Type` seam's `serialized`" }
 "adapters/types/tool.py::ToolCalls.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
 # ToolCallResults
-"adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values" = { status = "mapped", rust = "from_tool_calls_and_values" }
+"adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values" = { status = "mapped", rust = "ToolCallResults::from_tool_calls_and_values" }
 "adapters/types/tool.py::ToolCallResults.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
 # Signature
 "signatures/signature.py::Signature.append" = { status = "mapped", rust = "Signature::append" }
-"signatures/signature.py::Signature.delete" = { status = "mapped", rust = "delete" }
+"signatures/signature.py::Signature.delete" = { status = "mapped", rust = "Signature::delete" }
 "signatures/signature.py::Signature.dump_state" = { status = "mapped", rust = "PredictorState" }
 "signatures/signature.py::Signature.equals" = { status = "mapped", rust = "Signature::equals", reason = "upstream compares the instructions and then each field's `json_schema_extra` — the side, the prefix and the description — and **not** the annotation, so two signatures typed differently still count equal. Derived `PartialEq` also compares the kind, the closed set and the constraints, which is stricter; this said `reproduced as PartialEq` until GEPA's trace matching needed the real semantics, where the stricter question pools fewer instances than dspy pools. The prefix compares resolved, since upstream stores the inferred one rather than a `None`" }
 "signatures/signature.py::Signature.insert" = { status = "mapped", rust = "Signature::insert" }
-"signatures/signature.py::Signature.load_state" = { status = "mapped", rust = "restore" }
-"signatures/signature.py::Signature.prepend" = { status = "mapped", rust = "prepend" }
-"signatures/signature.py::Signature.with_instructions" = { status = "mapped", rust = "with_instructions" }
-"signatures/signature.py::Signature.with_updated_fields" = { status = "mapped", rust = "with_updated_fields" }
+"signatures/signature.py::Signature.load_state" = { status = "mapped", rust = "SignatureState::restore" }
+"signatures/signature.py::Signature.prepend" = { status = "mapped", rust = "Signature::prepend" }
+"signatures/signature.py::Signature.with_instructions" = { status = "mapped", rust = "Signature::with_instructions" }
+"signatures/signature.py::Signature.with_updated_fields" = { status = "mapped", rust = "Signature::with_updated_fields" }
 
 # Predict
 "predict/predict.py::Predict.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
 "predict/predict.py::Predict.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
-"predict/predict.py::Predict.dump_state" = { status = "mapped", rust = "dump_state" }
-"predict/predict.py::Predict.forward" = { status = "mapped", rust = "forward" }
+"predict/predict.py::Predict.dump_state" = { status = "mapped", rust = "Predict::dump_state" }
+"predict/predict.py::Predict.forward" = { status = "mapped", rust = "Predict::forward" }
 "predict/predict.py::Predict.get_config" = { status = "mapped", rust = "Predict::config" }
-"predict/predict.py::Predict.load_state" = { status = "mapped", rust = "load_state" }
+"predict/predict.py::Predict.load_state" = { status = "mapped", rust = "Predict::load_state" }
 "predict/predict.py::Predict.reset" = { status = "divergence", reason = "clearing a predictor's learned state; a Rust caller rebuilds it or assigns the fields `named_predictors` exposes" }
 "predict/predict.py::Predict.update_config" = { status = "mapped", rust = "Predict::config" }
 
 # ChainOfThought
 "predict/chain_of_thought.py::ChainOfThought.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
-"predict/chain_of_thought.py::ChainOfThought.forward" = { status = "mapped", rust = "forward" }
+"predict/chain_of_thought.py::ChainOfThought.forward" = { status = "mapped", rust = "ChainOfThought::forward" }
 
 # ReAct
 "predict/react.py::ReAct.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
-"predict/react.py::ReAct.forward" = { status = "mapped", rust = "forward" }
-"predict/react.py::ReAct.truncate_trajectory" = { status = "mapped", rust = "truncate_oldest" }
+"predict/react.py::ReAct.forward" = { status = "mapped", rust = "ReAct::forward" }
+"predict/react.py::ReAct.truncate_trajectory" = { status = "mapped", rust = "Trajectory::truncate_oldest" }
 
 # ReActV2
-"predict/react_v2.py::ReActV2.forward" = { status = "mapped", rust = "forward" }
+"predict/react_v2.py::ReActV2.forward" = { status = "mapped", rust = "ReActV2::forward" }
 
 # Refine
-"predict/refine.py::Refine.forward" = { status = "mapped", rust = "forward" }
+"predict/refine.py::Refine.forward" = { status = "mapped", rust = "Refine::forward" }
 
 # BestOfN
-"predict/best_of_n.py::BestOfN.forward" = { status = "mapped", rust = "forward" }
+"predict/best_of_n.py::BestOfN.forward" = { status = "mapped", rust = "BestOfN::forward" }
 
 # Parallel
-"predict/parallel.py::Parallel.forward" = { status = "mapped", rust = "forward" }
+"predict/parallel.py::Parallel.forward" = { status = "mapped", rust = "Parallel::run" }
 
 # MultiChainComparison
-"predict/multi_chain_comparison.py::MultiChainComparison.forward" = { status = "mapped", rust = "forward" }
+"predict/multi_chain_comparison.py::MultiChainComparison.forward" = { status = "mapped", rust = "MultiChainComparison::forward" }
 
 # Example
 "primitives/example.py::Example.copy" = { status = "divergence", reason = "reproduced as `Clone`" }
 "primitives/example.py::Example.get" = { status = "mapped", rust = "Example::get" }
-"primitives/example.py::Example.inputs" = { status = "mapped", rust = "inputs" }
-"primitives/example.py::Example.items" = { status = "mapped", rust = "fields" }
+"primitives/example.py::Example.inputs" = { status = "mapped", rust = "Example::inputs" }
+"primitives/example.py::Example.items" = { status = "mapped", rust = "Example::fields" }
 "primitives/example.py::Example.keys" = { status = "divergence", reason = "Python object protocol (mapping, iteration, copy); Rust uses the standard traits instead" }
-"primitives/example.py::Example.labels" = { status = "mapped", rust = "labels" }
+"primitives/example.py::Example.labels" = { status = "mapped", rust = "Example::labels" }
 "primitives/example.py::Example.toDict" = { status = "divergence", reason = "Python object protocol (mapping, iteration, copy); Rust uses the standard traits instead" }
 "primitives/example.py::Example.values" = { status = "divergence", reason = "Python object protocol (mapping, iteration, copy); Rust uses the standard traits instead" }
-"primitives/example.py::Example.with_inputs" = { status = "mapped", rust = "with_inputs" }
+"primitives/example.py::Example.with_inputs" = { status = "mapped", rust = "Example::with_inputs" }
 "primitives/example.py::Example.without" = { status = "divergence", reason = "**no public counterpart.** `subset` keeps rather than drops, and it is private — `inputs` and `labels` are the two callers, and both are about the input/output split rather than about removing a named field. A caller wanting dspy's `without` rebuilds the example from `fields()`. This entry pointed at `subset` until 2026-08-24, which a caller cannot reach" }
 
 # Prediction
 "primitives/prediction.py::Prediction.completions" = { status = "mapped", rust = "Completions" }
 "primitives/prediction.py::Prediction.from_completions" = { status = "mapped", rust = "Prediction::from_candidates" }
-"primitives/prediction.py::Prediction.get_lm_usage" = { status = "mapped", rust = "usage" }
-"primitives/prediction.py::Prediction.set_lm_usage" = { status = "mapped", rust = "set_lm_usage" }
+"primitives/prediction.py::Prediction.get_lm_usage" = { status = "mapped", rust = "Prediction::usage" }
+"primitives/prediction.py::Prediction.set_lm_usage" = { status = "mapped", rust = "Prediction::set_lm_usage" }
 
 # Completions
-"primitives/prediction.py::Completions.items" = { status = "mapped", rust = "items" }
+"primitives/prediction.py::Completions.items" = { status = "mapped", rust = "Completions::items" }
 
 # Module
 "primitives/module.py::Module.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
 "primitives/module.py::Module.batch" = { status = "mapped", rust = "Parallel" }
-"primitives/module.py::Module.get_lm" = { status = "mapped", rust = "lm" }
+"primitives/module.py::Module.get_lm" = { status = "mapped", rust = "Predict::lm" }
 "primitives/module.py::Module.inspect_history" = { status = "divergence", reason = "Python REPL history printing" }
 "primitives/module.py::Module.map_named_predictors" = { status = "divergence", reason = "`named_predictors` hands back `&mut` references, so a caller maps over them directly" }
-"primitives/module.py::Module.named_predictors" = { status = "mapped", rust = "named_predictors" }
-"primitives/module.py::Module.predictors" = { status = "mapped", rust = "named_predictors" }
+"primitives/module.py::Module.named_predictors" = { status = "mapped", rust = "Module::named_predictors" }
+"primitives/module.py::Module.predictors" = { status = "mapped", rust = "Module::named_predictors" }
 "primitives/module.py::Module.set_lm" = { status = "mapped", rust = "Predict::set_lm", reason = "every module carries its own — `ChainOfThought`, `CodeAct`, `ProgramOfThought`, `ReAct`, `ReActV2`, `Rlm` and `Predict` each have one, where dspy inherits a single `Module.set_lm`. `Module` here is a trait and declares no such method: a default body would need a field every implementor happens to have" }
 
 # Teleprompter
-"teleprompt/teleprompt.py::Teleprompter.compile" = { status = "mapped", rust = "compile" }
+"teleprompt/teleprompt.py::Teleprompter.compile" = { status = "mapped", rust = "Optimizer::compile" }
 "teleprompt/teleprompt.py::Teleprompter.get_params" = { status = "divergence", reason = "reads the optimizer's own `__dict__`; a Rust optimizer's configuration is its public fields" }
 
 # BootstrapFewShot
-"teleprompt/bootstrap.py::BootstrapFewShot.compile" = { status = "mapped", rust = "compile" }
+"teleprompt/bootstrap.py::BootstrapFewShot.compile" = { status = "mapped", rust = "BootstrapFewShot::compile" }
 
 # LabeledFewShot
-"teleprompt/vanilla.py::LabeledFewShot.compile" = { status = "mapped", rust = "compile" }
+"teleprompt/vanilla.py::LabeledFewShot.compile" = { status = "mapped", rust = "LabeledFewShot::compile" }
 
 # MIPROv2
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile" = { status = "mapped", rust = "compile" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile" = { status = "mapped", rust = "MIPROv2::compile" }
 
 # GEPA
-"teleprompt/gepa/gepa.py::GEPA.auto_budget" = { status = "mapped", rust = "auto_budget" }
-"teleprompt/gepa/gepa.py::GEPA.compile" = { status = "mapped", rust = "compile" }
+"teleprompt/gepa/gepa.py::GEPA.auto_budget" = { status = "mapped", rust = "GEPA::auto_budget" }
+"teleprompt/gepa/gepa.py::GEPA.compile" = { status = "mapped", rust = "GEPA::compile" }
 
 # BaseLM
 "clients/base_lm.py::BaseLM.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
@@ -512,28 +512,28 @@
 "clients/base_lm.py::BaseLM.inspect_history" = { status = "divergence", reason = "Python REPL history printing" }
 "clients/base_lm.py::BaseLM.load_state" = { status = "mapped", rust = "saved::rebuild", reason = "the model a saved block names, built again. dspy imports the class the block names when the file is trusted; a Rust binary has no importer, so a block naming a subclass is refused either way" }
 "clients/base_lm.py::BaseLM.supported_params" = { status = "divergence", reason = "dspy's only consumer is JSONAdapter checking whether response_format is in lm.supported_params, and that branch is unreachable here: litellm answers this per *provider* once a model carries a prefix, and `ModelRef` refuses anything but `provider/model-id`. `gpt-4` lacks it; `openai/gpt-4` has it, and only the second is a model this crate can hold. The premise is pinned by `tests/lm_capabilities.rs::every_model_this_crate_can_hold_takes_a_response_format`, so it cannot quietly stop being true. The other predicate that adapter reads, supports_response_schema, is on `Capabilities`" }
-"clients/base_lm.py::BaseLM.supports_function_calling" = { status = "mapped", rust = "capabilities" }
-"clients/base_lm.py::BaseLM.supports_reasoning" = { status = "mapped", rust = "capabilities" }
-"clients/base_lm.py::BaseLM.supports_response_schema" = { status = "mapped", rust = "capabilities" }
+"clients/base_lm.py::BaseLM.supports_function_calling" = { status = "mapped", rust = "ChatModel::capabilities" }
+"clients/base_lm.py::BaseLM.supports_reasoning" = { status = "mapped", rust = "ChatModel::capabilities" }
+"clients/base_lm.py::BaseLM.supports_response_schema" = { status = "mapped", rust = "ChatModel::capabilities" }
 "clients/base_lm.py::BaseLM.update_history" = { status = "divergence", reason = "dspy's global call log; the crate returns each response to its caller" }
 
 # LM
 "clients/lm.py::LM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
 "clients/lm.py::LM.dump_state" = { status = "mapped", rust = "saved::dump", reason = "upstream's override: the three finetuning keys appended, and a reasoning model's cap popped from `max_completion_tokens` and re-set as `max_tokens`, which moves it to the end of the block. Both reproduced, byte-compared in tests/saved_lm.rs" }
 "clients/lm.py::LM.finetune" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
-"clients/lm.py::LM.forward" = { status = "mapped", rust = "forward" }
+"clients/lm.py::LM.forward" = { status = "mapped", rust = "LM::forward" }
 "clients/lm.py::LM.infer_provider" = { status = "mapped", rust = "Provider" }
 "clients/lm.py::LM.kill" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
 "clients/lm.py::LM.launch" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
 "clients/lm.py::LM.load_state" = { status = "mapped", rust = "saved::rebuild", reason = "upstream's override reads `max_completion_tokens` where `max_tokens` is absent; `rebuild` takes either" }
 "clients/lm.py::LM.reinforce" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
 "clients/lm.py::LM.supported_params" = { status = "divergence", reason = "dspy's only consumer is JSONAdapter checking whether response_format is in lm.supported_params, and that branch is unreachable here: litellm answers this per *provider* once a model carries a prefix, and `ModelRef` refuses anything but `provider/model-id`. `gpt-4` lacks it; `openai/gpt-4` has it, and only the second is a model this crate can hold. The premise is pinned by `tests/lm_capabilities.rs::every_model_this_crate_can_hold_takes_a_response_format`, so it cannot quietly stop being true. The other predicate that adapter reads, supports_response_schema, is on `Capabilities`" }
-"clients/lm.py::LM.supports_function_calling" = { status = "mapped", rust = "capabilities" }
-"clients/lm.py::LM.supports_reasoning" = { status = "mapped", rust = "capabilities" }
-"clients/lm.py::LM.supports_response_schema" = { status = "mapped", rust = "capabilities" }
+"clients/lm.py::LM.supports_function_calling" = { status = "mapped", rust = "LM::capabilities" }
+"clients/lm.py::LM.supports_reasoning" = { status = "mapped", rust = "LM::capabilities" }
+"clients/lm.py::LM.supports_response_schema" = { status = "mapped", rust = "LM::capabilities" }
 
 # Cache
-"clients/cache.py::Cache.cache_key" = { status = "mapped", rust = "cache_key" }
+"clients/cache.py::Cache.cache_key" = { status = "mapped", rust = "LmRequest::cache_key" }
 "clients/cache.py::Cache.get" = { status = "divergence", reason = "`ResponseCache::replay` is the separate read, and reading counts as a use so a request asked throughout a long run is not the one evicted. `Cached::forward` is the transparent path most callers take — look up, and store the answer if there was none. This entry said \"there is no separate read\" until 2026-08-24, which contradicted the `replay` entry pointing back at this very symbol" }
 "clients/cache.py::Cache.load_memory_cache" = { status = "divergence", reason = "dspy persists its in-memory cache to disk on demand; the crate's disk cache (lm/cache/disk.rs) is written as it goes" }
 "clients/cache.py::Cache.put" = { status = "divergence", reason = "as `get`" }
@@ -542,48 +542,48 @@
 
 # LMMessage
 "core/types.py::LMMessage.normalize_parts" = { status = "divergence", reason = "pydantic validation of the parts list; reproduced by the typed `LmPart` enum" }
-"core/types.py::LMMessage.text" = { status = "mapped", rust = "text" }
+"core/types.py::LMMessage.text" = { status = "mapped", rust = "LmMessage::text" }
 
 # LMRequest
 "core/types.py::LMRequest.from_call" = { status = "mapped", rust = "LmRequest::from_items", reason = "two constructors rather than one: from_messages is the adapter door, from_items the direct-call one. Upstream raises when both are passed; two constructors make it unwritable" }
 "core/types.py::LMRequest.from_prompt_or_messages" = { status = "divergence", reason = "builds a request from dspy's legacy prompt/messages pair; the crate's boundary is typed-only" }
-"core/types.py::LMRequest.with_config_overrides" = { status = "mapped", rust = "configured" }
+"core/types.py::LMRequest.with_config_overrides" = { status = "mapped", rust = "LmRequest::configured" }
 
 # ProgramOfThought
-"predict/program_of_thought.py::ProgramOfThought.forward" = { status = "mapped", rust = "forward" }
+"predict/program_of_thought.py::ProgramOfThought.forward" = { status = "mapped", rust = "ProgramOfThought::forward" }
 
 # CodeInterpreter
-"primitives/code_interpreter.py::CodeInterpreter.execute" = { status = "mapped", rust = "execute" }  # carries `variables`, as upstream's does
-"primitives/code_interpreter.py::CodeInterpreter.shutdown" = { status = "mapped", rust = "shutdown" }
-"primitives/code_interpreter.py::CodeInterpreter.start" = { status = "mapped", rust = "start" }
+"primitives/code_interpreter.py::CodeInterpreter.execute" = { status = "mapped", rust = "CodeInterpreter::execute" }  # carries `variables`, as upstream's does
+"primitives/code_interpreter.py::CodeInterpreter.shutdown" = { status = "mapped", rust = "CodeInterpreter::shutdown" }
+"primitives/code_interpreter.py::CodeInterpreter.start" = { status = "mapped", rust = "CodeInterpreter::start" }
 "primitives/code_interpreter.py::CodeInterpreter.tools" = { status = "divergence", reason = "dspy exposes host functions the sandboxed code may call back into; a Rust caller wires those into its own interpreter, since the crate ships none" }
 
 # CodeAct
-"predict/code_act.py::CodeAct.forward" = { status = "mapped", rust = "forward" }
+"predict/code_act.py::CodeAct.forward" = { status = "mapped", rust = "CodeAct::forward" }
 
 # BetterTogether
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile" = { status = "mapped", rust = "compile" }
-"teleprompt/ensemble.py::Ensemble.compile" = { status = "mapped", rust = "compile" }
-"teleprompt/bettertogether.py::BetterTogether.compile" = { status = "mapped", rust = "compile" }
-"teleprompt/copro_optimizer.py::COPRO.compile" = { status = "mapped", rust = "compile" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile" = { status = "mapped", rust = "BootstrapRandomSearch::compile" }
+"teleprompt/ensemble.py::Ensemble.compile" = { status = "mapped", rust = "Ensemble::compile" }
+"teleprompt/bettertogether.py::BetterTogether.compile" = { status = "mapped", rust = "BetterTogether::compile" }
+"teleprompt/copro_optimizer.py::COPRO.compile" = { status = "mapped", rust = "COPRO::compile" }
 
 # RLM
-"predict/rlm.py::RLM.forward" = { status = "mapped", rust = "forward" }
+"predict/rlm.py::RLM.forward" = { status = "mapped", rust = "Rlm::forward" }
 "predict/rlm.py::RLM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward` is the async method" }
-"predict/rlm.py::RLM.tools" = { status = "mapped", rust = "tools", reason = "Rlm::tools" }
+"predict/rlm.py::RLM.tools" = { status = "mapped", rust = "Rlm::tools", reason = "Rlm::tools" }
 
 # the REPL types
 "primitives/repl_types.py::REPLVariable.format" = { status = "mapped", rust = "ReplVariable::format" }
-"primitives/repl_types.py::REPLVariable.from_value" = { status = "mapped", rust = "from_value" }
+"primitives/repl_types.py::REPLVariable.from_value" = { status = "mapped", rust = "ReplVariable::from_value" }
 "primitives/repl_types.py::REPLVariable.serialize_model" = { status = "divergence", reason = "reproduced by the `Type` seam: a Text-formatted value crosses as its prose, via `serialized`" }
-"primitives/repl_types.py::REPLEntry.format" = { status = "mapped", rust = "format_at" }
-"primitives/repl_types.py::REPLEntry.format_output" = { status = "mapped", rust = "format_output" }
+"primitives/repl_types.py::REPLEntry.format" = { status = "mapped", rust = "ReplEntry::format_at" }
+"primitives/repl_types.py::REPLEntry.format_output" = { status = "mapped", rust = "ReplEntry::format_output" }
 "primitives/repl_types.py::REPLHistory.append" = { status = "mapped", rust = "ReplHistory::append" }
 "primitives/repl_types.py::REPLHistory.format" = { status = "mapped", rust = "ReplHistory::format" }
-"primitives/sandbox_serializable.py::SandboxSerializable.sandbox_setup" = { status = "mapped", rust = "sandbox_setup" }
-"primitives/sandbox_serializable.py::SandboxSerializable.to_sandbox" = { status = "mapped", rust = "to_sandbox" }
-"primitives/sandbox_serializable.py::SandboxSerializable.sandbox_assignment" = { status = "mapped", rust = "sandbox_assignment" }
-"primitives/sandbox_serializable.py::SandboxSerializable.rlm_preview" = { status = "mapped", rust = "rlm_preview" }
+"primitives/sandbox_serializable.py::SandboxSerializable.sandbox_setup" = { status = "mapped", rust = "SandboxSerializable::sandbox_setup" }
+"primitives/sandbox_serializable.py::SandboxSerializable.to_sandbox" = { status = "mapped", rust = "SandboxSerializable::to_sandbox" }
+"primitives/sandbox_serializable.py::SandboxSerializable.sandbox_assignment" = { status = "mapped", rust = "SandboxSerializable::sandbox_assignment" }
+"primitives/sandbox_serializable.py::SandboxSerializable.rlm_preview" = { status = "mapped", rust = "SandboxSerializable::rlm_preview" }
 "primitives/sandbox_serializable.py::SandboxSerializable.to_repl_variable" = { status = "divergence", reason = "a one-call forward to `build_repl_variable`, which the free function already is; upstream keeps both because a Python method reads better on the instance" }
 "primitives/repl_types.py::REPLHistory.serialize_model" = { status = "divergence", reason = "as `REPLVariable.serialize_model`" }
 
@@ -595,8 +595,8 @@
 
 "adapters/base.py::Adapter.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and all six are ported: `Callback` in src/callback.rs, fired from src/observe.rs, this adapter's format and parse included. What has no counterpart is the *per-instance list*. Upstream stores one on every Adapter through the base class and unions it with the configured ones; a Rust Adapter is a trait an implementor writes, with no shared __init__ to hold a list. So the list is per process (configure_callbacks) or per model (`LM::callbacks`), and a handler is told which adapter it is watching, which is what a per-instance list is read for here. tests/callback.rs holds the sequence to dspy's own" }
 "adapters/base.py::Adapter.native_response_types" = { status = "divergence", reason = "dspy's per-adapter list of output types answered by a native provider feature rather than rendered, defaulting to [Citations, Reasoning]. Both are on that path here — adapter/native_reasoning.rs and adapter/native_citations.rs — each keyed on the model rather than on the adapter, which is where upstream keys it too: `adapt_to_native_lm_feature` is handed the lm and reads `lm.model`. What has no counterpart is the *list*, which is dspy's seam for taking a type back *off* the native path; nothing here has asked for that, and a per-adapter list with two fixed entries would be a knob with no caller. tests/citations_native.rs holds both arms of the Citations carve-out to goldens generated by running dspy" }
-"adapters/base.py::Adapter.parallel_tool_calls" = { status = "mapped", rust = "parallel_tool_calls", reason = "the same field on each adapter" }
-"adapters/base.py::Adapter.use_native_function_calling" = { status = "mapped", rust = "use_native_function_calling", reason = "the same field on each adapter" }
+"adapters/base.py::Adapter.parallel_tool_calls" = { status = "mapped", rust = "ChatAdapter::parallel_tool_calls", reason = "the same field on each adapter" }
+"adapters/base.py::Adapter.use_native_function_calling" = { status = "mapped", rust = "ChatAdapter::use_native_function_calling", reason = "the same field on each adapter" }
 "adapters/xml_adapter.py::XMLAdapter.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and all six are ported: `Callback` in src/callback.rs, fired from src/observe.rs, this adapter's format and parse included. What has no counterpart is the *per-instance list*. Upstream stores one on every Adapter through the base class and unions it with the configured ones; a Rust Adapter is a trait an implementor writes, with no shared __init__ to hold a list. So the list is per process (configure_callbacks) or per model (`LM::callbacks`), and a handler is told which adapter it is watching, which is what a per-instance list is read for here. tests/callback.rs holds the sequence to dspy's own" }
 "adapters/xml_adapter.py::XMLAdapter.use_native_function_calling" = { status = "mapped", rust = "XmlAdapter::use_native_function_calling", reason = "XmlAdapter::use_native_function_calling. Inherited upstream — `XMLAdapter` defines no `__init__` — so this was unsayable here while the Rust type was a unit struct" }
 "adapters/xml_adapter.py::XMLAdapter.parallel_tool_calls" = { status = "mapped", rust = "XmlAdapter::parallel_tool_calls", reason = "XmlAdapter::parallel_tool_calls" }
@@ -755,25 +755,25 @@
 "adapters/json_adapter.py::JSONAdapter.callbacks" = { status = "divergence", reason = "dspy fires a BaseCallback at six points and all six are ported: `Callback` in src/callback.rs, fired from src/observe.rs, this adapter's format and parse included. What has no counterpart is the *per-instance list*. Upstream stores one on every Adapter through the base class and unions it with the configured ones; a Rust Adapter is a trait an implementor writes, with no shared __init__ to hold a list. So the list is per process (configure_callbacks) or per model (`LM::callbacks`), and a handler is told which adapter it is watching, which is what a per-instance list is read for here. tests/callback.rs holds the sequence to dspy's own" }
 "adapters/json_adapter.py::JSONAdapter.parallel_tool_calls" = { status = "mapped", rust = "JsonAdapter::parallel_tool_calls", reason = "JsonAdapter::parallel_tool_calls" }
 "adapters/json_adapter.py::JSONAdapter.use_native_function_calling" = { status = "mapped", rust = "JsonAdapter::use_native_function_calling", reason = "JsonAdapter::use_native_function_calling" }
-"adapters/two_step_adapter.py::TwoStepAdapter.extraction_model" = { status = "mapped", rust = "extraction_model", reason = "TwoStepAdapter::extraction_model" }
+"adapters/two_step_adapter.py::TwoStepAdapter.extraction_model" = { status = "mapped", rust = "TwoStepAdapter::extraction_model", reason = "TwoStepAdapter::extraction_model" }
 "adapters/types/image.py::Image.download" = { status = "mapped", rust = "Image::from_url", reason = "3.3.0 removed this as a constructor argument precisely because a value reachable from parsing could set it. Downloading is its own named constructor now, on both sides; a payload carrying `download` is refused by the deserializer rather than honoured or ignored" }
 "adapters/types/image.py::Image.verify" = { status = "mapped", rust = "Image::from_url_unverified", reason = "upstream's TLS switch, which survives 3.3.0 only on the explicit `from_url` factory. A named constructor rather than a `bool`: `false` at a call site says nothing about what it turns off, and a payload carrying `verify` is refused alongside `download`" }
 "adapters/types/tool.py::Tool.arg_desc" = { status = "divergence", reason = "per-argument prose lives in the `args` schema's `description`, which is where it is rendered from" }
 "adapters/types/tool.py::Tool.arg_types" = { status = "divergence", reason = "the JSON Schema in `args` carries each argument's type; dspy keeps the Python annotations beside it for its own coercion" }
-"adapters/types/tool.py::Tool.args" = { status = "mapped", rust = "args", reason = "Tool::args" }
-"adapters/types/tool.py::Tool.desc" = { status = "mapped", rust = "description", reason = "Tool::description" }
+"adapters/types/tool.py::Tool.args" = { status = "mapped", rust = "Tool::args", reason = "Tool::args" }
+"adapters/types/tool.py::Tool.desc" = { status = "mapped", rust = "Tool::description", reason = "Tool::description" }
 "adapters/types/tool.py::Tool.func" = { status = "mapped", rust = "FnTool", reason = "FnTool's closure, or an impl of the Tool trait" }
-"adapters/types/tool.py::Tool.name" = { status = "mapped", rust = "name", reason = "Tool::name" }
+"adapters/types/tool.py::Tool.name" = { status = "mapped", rust = "Tool::name", reason = "Tool::name" }
 "clients/base_lm.py::BaseLM.cache" = { status = "mapped", rust = "LM::cache", reason = "LM::cache / LmBuilder::cache" }
 "clients/base_lm.py::BaseLM.callbacks" = { status = "mapped", rust = "LM::callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. `LM::callbacks` sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
-"clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
+"clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "Sampling::max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
 "clients/base_lm.py::BaseLM.model" = { status = "mapped", rust = "LM", reason = "LM::new, positional" }
 "clients/base_lm.py::BaseLM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "the wire enum LM routes on" }
-"clients/base_lm.py::BaseLM.num_retries" = { status = "mapped", rust = "retry", reason = "LM::retry / LmBuilder::num_retries; the policy itself is lm::Retry" }
-"clients/base_lm.py::BaseLM.temperature" = { status = "mapped", rust = "temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
+"clients/base_lm.py::BaseLM.num_retries" = { status = "mapped", rust = "LM::retry", reason = "LM::retry / LmBuilder::num_retries; the policy itself is lm::Retry" }
+"clients/base_lm.py::BaseLM.temperature" = { status = "mapped", rust = "Sampling::temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
 "clients/cache.py::Cache.disk_cache_dir" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new's root" }
 "clients/cache.py::Cache.disk_size_limit_bytes" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new takes the byte ceiling as its second argument" }
-"clients/cache.py::Cache.enable_disk_cache" = { status = "mapped", rust = "enable_disk_cache", reason = "ResponseCache::enable_disk_cache, present or absent" }
+"clients/cache.py::Cache.enable_disk_cache" = { status = "mapped", rust = "ResponseCache::enable_disk_cache", reason = "ResponseCache::enable_disk_cache, present or absent" }
 "clients/cache.py::Cache.enable_memory_cache" = { status = "mapped", rust = "ResponseCache", reason = "ResponseCache::new, always on; a caller opts out per LM with without_cache" }
 "clients/cache.py::Cache.memory_max_entries" = { status = "mapped", rust = "ResponseCache::new", reason = "ResponseCache::new takes the cap" }
 "clients/cache.py::Cache.restrict_pickle" = { status = "divergence", reason = "dspy guards against unpickling arbitrary types; nothing here pickles, and the disk cache is JSON" }
@@ -782,50 +782,50 @@
 "clients/lm.py::LM.callbacks" = { status = "mapped", rust = "LM::callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. `LM::callbacks` sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
 "clients/lm.py::LM.finetuning_model" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.launch_kwargs" = { status = "deferred", reason = "provider launch for finetuning, out of the 1.0 ceiling" }
-"clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
+"clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "LmBuilder::max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
 "clients/lm.py::LM.model" = { status = "mapped", rust = "LM::new", reason = "LM::new / LM::builder, positional" }
 "clients/lm.py::LM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "OpenAiWire / ModelRef routing decides chat vs responses" }
-"clients/lm.py::LM.num_retries" = { status = "mapped", rust = "retry", reason = "LM::retry / LmBuilder::num_retries; three asks and two retries, as upstream's stop_after_attempt counts" }
+"clients/lm.py::LM.num_retries" = { status = "mapped", rust = "LM::retry", reason = "LM::retry / LmBuilder::num_retries; three asks and two retries, as upstream's stop_after_attempt counts" }
 "clients/lm.py::LM.provider" = { status = "deferred", reason = "not a routing override, which is what this entry used to say: `provider=` takes a `dspy.clients.provider.Provider` — the finetuning lifecycle object with launch/kill/finetune/reinforce — and `self.provider.launch(self, ...)` is the only thing read off it. That class is already deferred as out of the 1.0 inference/optimization ceiling, so its constructor parameter is too. Routing here is `ModelRef::parse` off the prefix, which is what dspy's own `infer_provider`/`_provider_name` do" }
-"clients/lm.py::LM.temperature" = { status = "mapped", rust = "temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
+"clients/lm.py::LM.temperature" = { status = "mapped", rust = "LmBuilder::temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
 "clients/lm.py::LM.train_kwargs" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.use_developer_role" = { status = "mapped", rust = "LmBuilder::use_developer_role", reason = "LmBuilder::use_developer_role / LM::use_developer_role; applied on the Responses wire only, as upstream's is" }
-"evaluate/evaluate.py::Evaluate.devset" = { status = "mapped", rust = "devset", reason = "Evaluate::devset" }
+"evaluate/evaluate.py::Evaluate.devset" = { status = "mapped", rust = "Evaluate::devset", reason = "Evaluate::devset" }
 "evaluate/evaluate.py::Evaluate.display_progress" = { status = "divergence", reason = "progress is the caller's to render; tracing spans carry the events" }
 "evaluate/evaluate.py::Evaluate.display_table" = { status = "divergence", reason = "dspy prints a pandas table; Outcome carries the rows for a caller to render" }
-"evaluate/evaluate.py::Evaluate.failure_score" = { status = "mapped", rust = "failure_score", reason = "Evaluate::failure_score" }
+"evaluate/evaluate.py::Evaluate.failure_score" = { status = "mapped", rust = "Evaluate::failure_score", reason = "Evaluate::failure_score" }
 "evaluate/evaluate.py::Evaluate.max_errors" = { status = "mapped", rust = "Evaluate::max_errors" }
-"evaluate/evaluate.py::Evaluate.metric" = { status = "mapped", rust = "metric", reason = "Evaluate::metric" }
+"evaluate/evaluate.py::Evaluate.metric" = { status = "mapped", rust = "Evaluate::metric", reason = "Evaluate::metric" }
 "evaluate/evaluate.py::Evaluate.num_threads" = { status = "mapped", rust = "Evaluate::num_threads" }
 "evaluate/evaluate.py::Evaluate.provide_traceback" = { status = "divergence", reason = "a failed row keeps its error string in Scored::prediction" }
 "evaluate/evaluate.py::Evaluate.save_as_csv" = { status = "divergence", reason = "serialising the outcome is the caller's; Outcome::results is public" }
 "evaluate/evaluate.py::Evaluate.save_as_json" = { status = "divergence", reason = "serialising the outcome is the caller's; Outcome::results is public" }
-"evaluate/evaluate.py::EvaluationResult.results" = { status = "mapped", rust = "results", reason = "Outcome::results" }
-"evaluate/evaluate.py::EvaluationResult.score" = { status = "mapped", rust = "score", reason = "Outcome::score" }
+"evaluate/evaluate.py::EvaluationResult.results" = { status = "mapped", rust = "Evaluation::results", reason = "Outcome::results" }
+"evaluate/evaluate.py::EvaluationResult.score" = { status = "mapped", rust = "Evaluation::score", reason = "Outcome::score" }
 "predict/best_of_n.py::BestOfN.N" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's n" }
-"predict/best_of_n.py::BestOfN.fail_count" = { status = "mapped", rust = "fail_count", reason = "BestOfN::fail_count" }
+"predict/best_of_n.py::BestOfN.fail_count" = { status = "mapped", rust = "BestOfN::fail_count", reason = "BestOfN::fail_count" }
 "predict/best_of_n.py::BestOfN.module" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new, positional" }
 "predict/best_of_n.py::BestOfN.reward_fn" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's reward" }
 "predict/best_of_n.py::BestOfN.threshold" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's threshold" }
 "predict/chain_of_thought.py::ChainOfThought.rationale_field" = { status = "mapped", rust = "ChainOfThought::rationale", reason = "takes a whole OutField, so the description, closed set, schema and prefix are all the caller's. Only the name is fixed at `reasoning`, because upstream prepends under that name too" }
 "predict/chain_of_thought.py::ChainOfThought.rationale_field_type" = { status = "mapped", rust = "ChainOfThought::rationale", reason = "the type travels as OutField::kind, so the one constructor carries both of upstream's arguments" }
-"predict/chain_of_thought.py::ChainOfThought.signature" = { status = "mapped", rust = "ChainOfThought", reason = "ChainOfThought::new, positional" }
+"predict/chain_of_thought.py::ChainOfThought.signature" = { status = "mapped", rust = "ChainOfThought::ChainOfThought", reason = "ChainOfThought::new, positional" }
 "predict/code_act.py::CodeAct.max_iters" = { status = "mapped", rust = "CodeAct::max_iters", reason = "CodeAct::max_iters" }
 "predict/code_act.py::CodeAct.signature" = { status = "mapped", rust = "CodeAct::new", reason = "CodeAct::new, positional" }
 "predict/code_act.py::CodeAct.tools" = { status = "mapped", rust = "CodeAct::new", reason = "CodeAct::new, positional" }
-"predict/multi_chain_comparison.py::MultiChainComparison.M" = { status = "mapped", rust = "attempts", reason = "MultiChainComparison::attempts' attempts" }
-"predict/multi_chain_comparison.py::MultiChainComparison.signature" = { status = "mapped", rust = "attempts", reason = "MultiChainComparison::attempts, positional" }
+"predict/multi_chain_comparison.py::MultiChainComparison.M" = { status = "mapped", rust = "MultiChainComparison::attempts", reason = "MultiChainComparison::attempts' attempts" }
+"predict/multi_chain_comparison.py::MultiChainComparison.signature" = { status = "mapped", rust = "MultiChainComparison::attempts", reason = "MultiChainComparison::attempts, positional" }
 "predict/multi_chain_comparison.py::MultiChainComparison.temperature" = { status = "divergence", reason = "dspy raises the temperature for the comparison ask; set it on the module's config or the LM instead" }
-"predict/parallel.py::Parallel.access_examples" = { status = "mapped", rust = "access_examples", reason = "Parallel::access_examples" }
-"predict/parallel.py::Parallel.disable_progress_bar" = { status = "mapped", rust = "disable_progress_bar", reason = "Parallel::disable_progress_bar" }
-"predict/parallel.py::Parallel.max_errors" = { status = "mapped", rust = "max_errors", reason = "Parallel::max_errors" }
-"predict/parallel.py::Parallel.num_threads" = { status = "mapped", rust = "max_in_flight", reason = "Parallel::max_in_flight" }
-"predict/parallel.py::Parallel.provide_traceback" = { status = "mapped", rust = "provide_traceback", reason = "Parallel::provide_traceback" }
-"predict/parallel.py::Parallel.return_failed_examples" = { status = "mapped", rust = "return_failed_examples", reason = "Parallel::return_failed_examples" }
-"predict/parallel.py::Parallel.straggler_limit" = { status = "mapped", rust = "straggler_limit", reason = "Parallel::straggler_limit" }
+"predict/parallel.py::Parallel.access_examples" = { status = "mapped", rust = "Parallel::access_examples", reason = "Parallel::access_examples" }
+"predict/parallel.py::Parallel.disable_progress_bar" = { status = "mapped", rust = "Parallel::disable_progress_bar", reason = "Parallel::disable_progress_bar" }
+"predict/parallel.py::Parallel.max_errors" = { status = "mapped", rust = "Parallel::max_errors", reason = "Parallel::max_errors" }
+"predict/parallel.py::Parallel.num_threads" = { status = "mapped", rust = "Parallel::max_in_flight", reason = "Parallel::max_in_flight" }
+"predict/parallel.py::Parallel.provide_traceback" = { status = "mapped", rust = "Parallel::provide_traceback", reason = "Parallel::provide_traceback" }
+"predict/parallel.py::Parallel.return_failed_examples" = { status = "mapped", rust = "Parallel::return_failed_examples", reason = "Parallel::return_failed_examples" }
+"predict/parallel.py::Parallel.straggler_limit" = { status = "mapped", rust = "Parallel::straggler_limit", reason = "Parallel::straggler_limit" }
 "predict/parallel.py::Parallel.timeout" = { status = "mapped", rust = "Parallel::timeout", reason = "Parallel::timeout" }
 "predict/predict.py::Predict.callbacks" = { status = "divergence", reason = "dspy's Module.__init__ stores a per-instance list every subclass inherits, and both of the registration paths its own documentation shows are ported: process-wide (configure_callbacks) and per model (`LM::callbacks`). A Rust Module is a trait, so there is no shared constructor to hold a list and each of the eight module structs would carry its own field — while a derived Module could not have one at all. A handler is told which module type it is watching and CallId::parent gives the call it sits under. Filed as `callbacks-per-module`" }
-"predict/predict.py::Predict.signature" = { status = "mapped", rust = "from_signature", reason = "Predict::from_signature / the predict! macro" }
+"predict/predict.py::Predict.signature" = { status = "mapped", rust = "Predict::from_signature", reason = "Predict::from_signature / the predict! macro" }
 "predict/program_of_thought.py::ProgramOfThought.max_iters" = { status = "mapped", rust = "ProgramOfThought::max_iters", reason = "ProgramOfThought::max_iters" }
 "predict/program_of_thought.py::ProgramOfThought.signature" = { status = "mapped", rust = "ProgramOfThought::new", reason = "ProgramOfThought::new, positional" }
 "predict/react.py::ReAct.max_iters" = { status = "mapped", rust = "ReAct::max_iters", reason = "ReAct::max_iters" }
@@ -835,101 +835,101 @@
 "predict/react_v2.py::ReActV2.signature" = { status = "mapped", rust = "ReActV2", reason = "ReActV2::new, positional" }
 "predict/react_v2.py::ReActV2.tools" = { status = "mapped", rust = "ReActV2", reason = "ReActV2::new, positional" }
 "predict/refine.py::Refine.N" = { status = "mapped", rust = "Refine", reason = "Refine::new's n" }
-"predict/refine.py::Refine.fail_count" = { status = "mapped", rust = "fail_count", reason = "Refine::fail_count" }
+"predict/refine.py::Refine.fail_count" = { status = "mapped", rust = "Refine::fail_count", reason = "Refine::fail_count" }
 "predict/refine.py::Refine.module" = { status = "mapped", rust = "Refine", reason = "Refine::new, positional" }
 "predict/refine.py::Refine.reward_fn" = { status = "mapped", rust = "Refine", reason = "Refine::new's reward" }
 "predict/refine.py::Refine.threshold" = { status = "mapped", rust = "Refine", reason = "Refine::new's threshold" }
 "predict/rlm.py::RLM.max_iters" = { status = "mapped", rust = "Rlm::max_iters", reason = "Rlm::max_iters" }
-"predict/rlm.py::RLM.max_llm_calls" = { status = "mapped", rust = "max_llm_calls", reason = "Rlm::max_llm_calls" }
-"predict/rlm.py::RLM.max_output_chars" = { status = "mapped", rust = "max_output_chars", reason = "Rlm::max_output_chars" }
+"predict/rlm.py::RLM.max_llm_calls" = { status = "mapped", rust = "Rlm::max_llm_calls", reason = "Rlm::max_llm_calls" }
+"predict/rlm.py::RLM.max_output_chars" = { status = "mapped", rust = "Rlm::max_output_chars", reason = "Rlm::max_output_chars" }
 "predict/rlm.py::RLM.signature" = { status = "mapped", rust = "Rlm", reason = "Rlm::new, positional" }
-"predict/rlm.py::RLM.sub_lm" = { status = "mapped", rust = "action_lm", reason = "Rlm::action_lm / `Rlm::extract_lm`" }
-"predict/rlm.py::RLM.tools" = { status = "mapped", rust = "tools", reason = "Rlm::tools" }
+"predict/rlm.py::RLM.sub_lm" = { status = "mapped", rust = "Rlm::action_lm", reason = "Rlm::action_lm / `Rlm::extract_lm`" }
+"predict/rlm.py::RLM.tools" = { status = "mapped", rust = "Rlm::tools", reason = "Rlm::tools" }
 "predict/rlm.py::RLM.verbose" = { status = "divergence", reason = "dspy prints each iteration's code and output. RLM opens one `observe::module_shown` span for the whole call and none per iteration, so the substitute is coarser than the flag it replaces — the trajectory itself is in the returned prediction rather than on the way past" }
 "primitives/code_interpreter.py::FinalOutput.output" = { status = "mapped", rust = "Executed", reason = "Executed::Submitted carries the submitted value" }
-"primitives/example.py::Example.base" = { status = "mapped", rust = "with_inputs", reason = "Example's Clone plus with_inputs, which is what dspy's base= copies" }
+"primitives/example.py::Example.base" = { status = "mapped", rust = "Example::with_inputs", reason = "Example's Clone plus with_inputs, which is what dspy's base= copies" }
 "primitives/module.py::Module.callbacks" = { status = "divergence", reason = "dspy's Module.__init__ stores a per-instance list every subclass inherits, and both of the registration paths its own documentation shows are ported: process-wide (configure_callbacks) and per model (`LM::callbacks`). A Rust Module is a trait, so there is no shared constructor to hold a list and each of the eight module structs would carry its own field — while a derived Module could not have one at all. A handler is told which module type it is watching and CallId::parent gives the call it sits under. Filed as `callbacks-per-module`" }
 "primitives/prediction.py::Completions.list_or_dict" = { status = "divergence", reason = "dspy accepts either shape; LmResponse::outputs is always a list" }
 "primitives/prediction.py::Completions.signature" = { status = "divergence", reason = "dspy's Completions keeps the signature to render itself; LmResponse carries the outputs and the adapter holds the signature" }
 "teleprompt/bettertogether.py::BetterTogether.metric" = { status = "mapped", rust = "BetterTogether", reason = "BetterTogether::new, positional" }
-"teleprompt/bootstrap.py::BootstrapFewShot.max_bootstrapped_demos" = { status = "mapped", rust = "max_bootstrapped_demos", reason = "BootstrapFewShot::max_bootstrapped_demos" }
-"teleprompt/bootstrap.py::BootstrapFewShot.max_errors" = { status = "mapped", rust = "max_errors", reason = "BootstrapFewShot::max_errors" }
-"teleprompt/bootstrap.py::BootstrapFewShot.max_labeled_demos" = { status = "mapped", rust = "max_labeled_demos", reason = "BootstrapFewShot::max_labeled_demos" }
-"teleprompt/bootstrap.py::BootstrapFewShot.max_rounds" = { status = "mapped", rust = "max_rounds", reason = "BootstrapFewShot::max_rounds" }
-"teleprompt/bootstrap.py::BootstrapFewShot.metric" = { status = "mapped", rust = "metric", reason = "BootstrapFewShot::metric" }
-"teleprompt/bootstrap.py::BootstrapFewShot.metric_threshold" = { status = "mapped", rust = "metric_threshold", reason = "BootstrapFewShot::metric_threshold" }
+"teleprompt/bootstrap.py::BootstrapFewShot.max_bootstrapped_demos" = { status = "mapped", rust = "BootstrapFewShot::max_bootstrapped_demos", reason = "BootstrapFewShot::max_bootstrapped_demos" }
+"teleprompt/bootstrap.py::BootstrapFewShot.max_errors" = { status = "mapped", rust = "BootstrapFewShot::max_errors", reason = "BootstrapFewShot::max_errors" }
+"teleprompt/bootstrap.py::BootstrapFewShot.max_labeled_demos" = { status = "mapped", rust = "BootstrapFewShot::max_labeled_demos", reason = "BootstrapFewShot::max_labeled_demos" }
+"teleprompt/bootstrap.py::BootstrapFewShot.max_rounds" = { status = "mapped", rust = "BootstrapFewShot::max_rounds", reason = "BootstrapFewShot::max_rounds" }
+"teleprompt/bootstrap.py::BootstrapFewShot.metric" = { status = "mapped", rust = "BootstrapFewShot::metric", reason = "BootstrapFewShot::metric" }
+"teleprompt/bootstrap.py::BootstrapFewShot.metric_threshold" = { status = "mapped", rust = "BootstrapFewShot::metric_threshold", reason = "BootstrapFewShot::metric_threshold" }
 "teleprompt/bootstrap.py::BootstrapFewShot.teacher_settings" = { status = "divergence", reason = "dspy's teacher settings are a thread-local config dict; the teacher's own LM is set on the module with `set_lm`" }
-"teleprompt/copro_optimizer.py::COPRO.breadth" = { status = "mapped", rust = "breadth", reason = "COPRO::breadth" }
-"teleprompt/copro_optimizer.py::COPRO.depth" = { status = "mapped", rust = "depth", reason = "COPRO::depth" }
-"teleprompt/copro_optimizer.py::COPRO.init_temperature" = { status = "mapped", rust = "init_temperature", reason = "COPRO::init_temperature" }
+"teleprompt/copro_optimizer.py::COPRO.breadth" = { status = "mapped", rust = "COPRO::breadth", reason = "COPRO::breadth" }
+"teleprompt/copro_optimizer.py::COPRO.depth" = { status = "mapped", rust = "COPRO::depth", reason = "COPRO::depth" }
+"teleprompt/copro_optimizer.py::COPRO.init_temperature" = { status = "mapped", rust = "COPRO::init_temperature", reason = "COPRO::init_temperature" }
 "teleprompt/copro_optimizer.py::COPRO.metric" = { status = "mapped", rust = "COPRO", reason = "COPRO::new, positional" }
-"teleprompt/copro_optimizer.py::COPRO.prompt_model" = { status = "mapped", rust = "prompt_model", reason = "COPRO::prompt_model" }
+"teleprompt/copro_optimizer.py::COPRO.prompt_model" = { status = "mapped", rust = "COPRO::prompt_model", reason = "COPRO::prompt_model" }
 "teleprompt/copro_optimizer.py::COPRO.track_stats" = { status = "divergence", reason = "dspy accumulates per-round statistics onto the compiled program; the outcome carries them here" }
 "teleprompt/ensemble.py::Ensemble.deterministic" = { status = "divergence", reason = "dspy raises on deterministic=True — it is unimplemented upstream; the seed is set with seed" }
 "teleprompt/ensemble.py::Ensemble.reduce_fn" = { status = "mapped", rust = "Ensemble", reason = "Ensemble::new, positional" }
-"teleprompt/ensemble.py::Ensemble.size" = { status = "mapped", rust = "size", reason = "Ensemble::size" }
+"teleprompt/ensemble.py::Ensemble.size" = { status = "mapped", rust = "Ensemble::size", reason = "Ensemble::size" }
 "teleprompt/gepa/gepa.py::GEPA.add_format_failure_as_feedback" = { status = "divergence", reason = "the flag filters `FailedPrediction` entries out of the reflective dataset, and a Rust trace has none to filter: `TraceStep` is {predictor, inputs, outputs} with no failure arm, because a predictor whose parse failed returns `Err` and ends the run rather than recording a step carrying the raw completion. So dspy's default (false) is already this crate's behaviour and setting it true would add nothing. What it would take first is bootstrap_trace.py's FailedPrediction — a step holding the completion text and a format reward — which is a change to the trace every optimizer reads, not to GEPA" }
-"teleprompt/gepa/gepa.py::GEPA.auto" = { status = "mapped", rust = "auto_budget", reason = "GEPA::auto_budget / auto_metric_calls" }
-"teleprompt/gepa/gepa.py::GEPA.candidate_selection_strategy" = { status = "mapped", rust = "candidate_selection_strategy", reason = "gepa::CandidateSelection, both arms dspy declares: Pareto (the survivor set then a frequency-weighted draw) and CurrentBest (gepa's idxmax over the aggregate valset scores, ties to the earliest). Not a preference over one sequence — Pareto draws from the shared generator and CurrentBest does not, so switching moves every later draw. Measured caveat: dspy annotates the parameter Literal[\"pareto\", \"current_best\"] but passes the string straight to gepa.optimize, whose factory map also accepts \"epsilon_greedy\" (eps=0.1) and \"top_k_pareto\" (k=5) — reachable at runtime, outside dspy's declared contract, and not built here — filed as `gepa-remaining-selectors` rather than left in this reason" }
-"teleprompt/gepa/gepa.py::GEPA.component_selector" = { status = "mapped", rust = "component_selector", reason = "gepa::ComponentSelection, both arms gepa's string map holds: RoundRobin (one component, the parent's cursor advancing so a family cycles across generations) and All (every component in the seed candidate's key order). Unlike candidate_selection_strategy the map has no third entry, so this one is complete. A caller-supplied selector object is the same seam as instruction_proposer and is tracked there" }
-"teleprompt/gepa/gepa.py::GEPA.failure_score" = { status = "mapped", rust = "failure_score", reason = "GEPA::failure_score" }
+"teleprompt/gepa/gepa.py::GEPA.auto" = { status = "mapped", rust = "GEPA::auto_budget", reason = "GEPA::auto_budget / auto_metric_calls" }
+"teleprompt/gepa/gepa.py::GEPA.candidate_selection_strategy" = { status = "mapped", rust = "GEPA::candidate_selection_strategy", reason = "gepa::CandidateSelection, both arms dspy declares: Pareto (the survivor set then a frequency-weighted draw) and CurrentBest (gepa's idxmax over the aggregate valset scores, ties to the earliest). Not a preference over one sequence — Pareto draws from the shared generator and CurrentBest does not, so switching moves every later draw. Measured caveat: dspy annotates the parameter Literal[\"pareto\", \"current_best\"] but passes the string straight to gepa.optimize, whose factory map also accepts \"epsilon_greedy\" (eps=0.1) and \"top_k_pareto\" (k=5) — reachable at runtime, outside dspy's declared contract, and not built here — filed as `gepa-remaining-selectors` rather than left in this reason" }
+"teleprompt/gepa/gepa.py::GEPA.component_selector" = { status = "mapped", rust = "GEPA::component_selector", reason = "gepa::ComponentSelection, both arms gepa's string map holds: RoundRobin (one component, the parent's cursor advancing so a family cycles across generations) and All (every component in the seed candidate's key order). Unlike candidate_selection_strategy the map has no third entry, so this one is complete. A caller-supplied selector object is the same seam as instruction_proposer and is tracked there" }
+"teleprompt/gepa/gepa.py::GEPA.failure_score" = { status = "mapped", rust = "GEPA::failure_score", reason = "GEPA::failure_score" }
 "teleprompt/gepa/gepa.py::GEPA.gepa_kwargs" = { status = "divergence", reason = "a passthrough to the gepa library's own optimizer; dsrust-gepa is called directly" }
 "teleprompt/gepa/gepa.py::GEPA.instruction_proposer" = { status = "mapped", rust = "InstructionProposer", reason = "a trait rather than a bare fn, because a caller writing one wants their own state and GEPA stores it behind a pointer, so it is object-safe by hand like DynChatModel. It replaces the whole proposal step as upstream's does — the reflection tree is not consulted — and is handed the reflection model explicitly, where upstream reaches it through `with dspy.context(lm=reflection_lm)` around the call; without that a Rust proposer would be strictly less able than a Python one. Handed only the components whose runs produced something, which upstream skips too" }
 "teleprompt/gepa/gepa.py::GEPA.log_dir" = { status = "divergence", reason = "dspy writes its run log to disk. **Nothing here writes one, and no span is emitted by this optimizer** — the only tracing points in the tree are in `evaluate.rs`, which a GEPA run does not go through: the adapter runs the student directly. What a caller gets instead is `GepaOutcome`, which carries the candidates, their parents, the aggregate scores, the eval counts and the discovery order — the same content dspy attaches under `track_stats`, in memory rather than on disk. This said \"tracing spans are the record here\" until 2026-08-24, which was the same untrue-substitution shape as the `callbacks` entry and false in the same way." }
-"teleprompt/gepa/gepa.py::GEPA.max_full_evals" = { status = "mapped", rust = "auto_budget", reason = "an arm of GEPA::auto_budget's arithmetic" }
-"teleprompt/gepa/gepa.py::GEPA.max_merge_invocations" = { status = "mapped", rust = "max_merge_invocations", reason = "GEPA::max_merge_invocations" }
-"teleprompt/gepa/gepa.py::GEPA.max_metric_calls" = { status = "mapped", rust = "max_metric_calls", reason = "GEPA::max_metric_calls" }
+"teleprompt/gepa/gepa.py::GEPA.max_full_evals" = { status = "mapped", rust = "GEPA::auto_budget", reason = "an arm of GEPA::auto_budget's arithmetic" }
+"teleprompt/gepa/gepa.py::GEPA.max_merge_invocations" = { status = "mapped", rust = "GEPA::max_merge_invocations", reason = "GEPA::max_merge_invocations" }
+"teleprompt/gepa/gepa.py::GEPA.max_metric_calls" = { status = "mapped", rust = "GEPA::max_metric_calls", reason = "GEPA::max_metric_calls" }
 "teleprompt/gepa/gepa.py::GEPA.metric" = { status = "mapped", rust = "GEPA", reason = "GEPA::new, positional" }
-"teleprompt/gepa/gepa.py::GEPA.num_threads" = { status = "mapped", rust = "num_threads", reason = "GEPA::num_threads, threaded into the adapter's evaluation, which ran strictly sequentially before. Order-preserving (`buffered`, not `buffer_unordered`) so a trace still lines up with the example that produced it and the reflection reads the same dataset whatever the count. Default one, upstream's `num_threads=None`" }
-"teleprompt/gepa/gepa.py::GEPA.perfect_score" = { status = "mapped", rust = "perfect_score", reason = "GEPA::perfect_score" }
+"teleprompt/gepa/gepa.py::GEPA.num_threads" = { status = "mapped", rust = "GEPA::num_threads", reason = "GEPA::num_threads, threaded into the adapter's evaluation, which ran strictly sequentially before. Order-preserving (`buffered`, not `buffer_unordered`) so a trace still lines up with the example that produced it and the reflection reads the same dataset whatever the count. Default one, upstream's `num_threads=None`" }
+"teleprompt/gepa/gepa.py::GEPA.perfect_score" = { status = "mapped", rust = "GEPA::perfect_score", reason = "GEPA::perfect_score" }
 "teleprompt/gepa/gepa.py::GEPA.reflection_lm" = { status = "mapped", rust = "GEPA", reason = "GEPA::new's second argument" }
-"teleprompt/gepa/gepa.py::GEPA.reflection_minibatch_size" = { status = "mapped", rust = "reflection_minibatch_size", reason = "GEPA::reflection_minibatch_size" }
-"teleprompt/gepa/gepa.py::GEPA.seed" = { status = "mapped", rust = "seed", reason = "GEPA::seed" }
-"teleprompt/gepa/gepa.py::GEPA.skip_perfect_score" = { status = "mapped", rust = "skip_perfect_score", reason = "GEPA::skip_perfect_score" }
+"teleprompt/gepa/gepa.py::GEPA.reflection_minibatch_size" = { status = "mapped", rust = "GEPA::reflection_minibatch_size", reason = "GEPA::reflection_minibatch_size" }
+"teleprompt/gepa/gepa.py::GEPA.seed" = { status = "mapped", rust = "GEPA::seed", reason = "GEPA::seed" }
+"teleprompt/gepa/gepa.py::GEPA.skip_perfect_score" = { status = "mapped", rust = "GEPA::skip_perfect_score", reason = "GEPA::skip_perfect_score" }
 "teleprompt/gepa/gepa.py::GEPA.track_best_outputs" = { status = "divergence", reason = "GepaOutcome carries the best candidate's outputs" }
 "teleprompt/gepa/gepa.py::GEPA.track_stats" = { status = "divergence", reason = "`GepaOutcome` carries the run's record — the candidates, their parents, the aggregate scores, the eval counts and the discovery order. dspy attaches the same content to the program instead" }
-"teleprompt/gepa/gepa.py::GEPA.use_merge" = { status = "mapped", rust = "use_merge", reason = "GEPA::use_merge" }
+"teleprompt/gepa/gepa.py::GEPA.use_merge" = { status = "mapped", rust = "GEPA::use_merge", reason = "GEPA::use_merge" }
 "teleprompt/gepa/gepa.py::GEPA.use_mlflow" = { status = "divergence", reason = "experiment tracking, which is the caller's to wire" }
 "teleprompt/gepa/gepa.py::GEPA.use_wandb" = { status = "divergence", reason = "experiment tracking, which is the caller's to wire" }
 "teleprompt/gepa/gepa.py::GEPA.wandb_api_key" = { status = "divergence", reason = "experiment tracking, which is the caller's to wire" }
 "teleprompt/gepa/gepa.py::GEPA.wandb_init_kwargs" = { status = "divergence", reason = "experiment tracking, which is the caller's to wire" }
 "teleprompt/gepa/gepa.py::GEPA.warn_on_score_mismatch" = { status = "divergence", reason = "dspy warns when a re-evaluated score differs. **Nothing warns here and no span is emitted** — this optimizer has no tracing points at all, and the mismatch is simply not reported. The score kept is upstream's either way: the module-level one, as dspy's `fb[\"score\"] = module_score` does after warning. Said 'tracing carries the event' until 2026-08-24, which was the third entry making that claim and the third time it was untrue" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.auto" = { status = "mapped", rust = "auto", reason = "mipro::Auto, the whole of _set_hyperparams_from_run_mode: the preset's candidate count and val_size, the valset subsample drawn off the shared RNG before Step 1 so every later draw moves, minibatch recomputed from the subsample (overriding the caller's argument, which upstream discards here), the split into num_instruct_candidates (n/2 when demos are searched) and num_fewshot_candidates (n), and num_trials from the search space. Minibatch trials, the param_score_dict averaging, get_program_with_highest_avg_score (the pin's fallthrough, not main's raise) and the interleaved full evaluations that are fed back to the sampler as trials of their own all land with it. Mutually exclusive with num_candidates/num_trials as upstream is, encoded so the pair it raises on cannot be built. Golden: 10 auto/minibatch cases in tests/conformance/optimize/mipro.json" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.auto" = { status = "mapped", rust = "MIPROv2::auto", reason = "mipro::Auto, the whole of _set_hyperparams_from_run_mode: the preset's candidate count and val_size, the valset subsample drawn off the shared RNG before Step 1 so every later draw moves, minibatch recomputed from the subsample (overriding the caller's argument, which upstream discards here), the split into num_instruct_candidates (n/2 when demos are searched) and num_fewshot_candidates (n), and num_trials from the search space. Minibatch trials, the param_score_dict averaging, get_program_with_highest_avg_score (the pin's fallthrough, not main's raise) and the interleaved full evaluations that are fed back to the sampler as trials of their own all land with it. Mutually exclusive with num_candidates/num_trials as upstream is, encoded so the pair it raises on cannot be built. Golden: 10 auto/minibatch cases in tests/conformance/optimize/mipro.json" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.init_temperature" = { status = "mapped", rust = "MIPROv2::init_temperature" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.log_dir" = { status = "divergence", reason = "dspy writes a run log to disk. **Nothing here writes one, and this optimizer emits no span** — see `GEPA.log_dir`, which carried the identical claim and was wrong the same way. `compile_traced` returns the trials, which is the run record a caller can keep; `compile` returns nothing." }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_bootstrapped_demos" = { status = "mapped", rust = "max_bootstrapped_demos", reason = "the demo half of the search, not a setter: with either count non-zero Step 1 builds the sets at the caller's counts rather than at dspy's in-context constants, Step 3 gains a demo parameter per predictor, and the winning trial's set is left on the predictor. Held to dspy across four few-shot cases in tests/conformance/optimize/mipro.json — the trial sequence, not only the winner" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_bootstrapped_demos" = { status = "mapped", rust = "MIPROv2::max_bootstrapped_demos", reason = "the demo half of the search, not a setter: with either count non-zero Step 1 builds the sets at the caller's counts rather than at dspy's in-context constants, Step 3 gains a demo parameter per predictor, and the winning trial's set is left on the predictor. Held to dspy across four few-shot cases in tests/conformance/optimize/mipro.json — the trial sequence, not only the winner" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.max_errors" = { status = "mapped", rust = "MIPROv2::scoring", reason = "both of dspy's scoring bounds travel together as optimize::Scoring, since every optimizer that builds an Evaluate needs the pair" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_labeled_demos" = { status = "mapped", rust = "max_labeled_demos", reason = "as max_bootstrapped_demos; both zero is dspy's zeroshot_opt and the same test. `(0, k>0)` is unreachable upstream — create_n_fewshot_demo_sets calls randint(1, 0) and raises — so it is not a case here" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.max_labeled_demos" = { status = "mapped", rust = "MIPROv2::max_labeled_demos", reason = "as max_bootstrapped_demos; both zero is dspy's zeroshot_opt and the same test. `(0, k>0)` is unreachable upstream — create_n_fewshot_demo_sets calls randint(1, 0) and raises — so it is not a case here" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.metric" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new, positional" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.metric_threshold" = { status = "mapped", rust = "MIPROv2::metric_threshold" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.num_candidates" = { status = "mapped", rust = "num_candidates", reason = "MIPROv2::num_candidates" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.num_candidates" = { status = "mapped", rust = "MIPROv2::num_candidates", reason = "MIPROv2::num_candidates" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.num_threads" = { status = "mapped", rust = "MIPROv2::scoring", reason = "both of dspy's scoring bounds travel together as optimize::Scoring, since every optimizer that builds an Evaluate needs the pair" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.prompt_model" = { status = "mapped", rust = "MIPROv2", reason = "MIPROv2::new's second argument" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.seed" = { status = "mapped", rust = "seed", reason = "MIPROv2::seed" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.task_model" = { status = "mapped", rust = "task_model", reason = "MIPROv2::task_model, scoped around Step 1 and Step 3 with lm::context — which is where upstream puts `with dspy.context(lm=self.task_model)` — and deliberately not around Step 2, which is prompt_model's. Unset means the configured model, as upstream's `task_model or settings.lm` does. A predictor carrying its own model still asks that one in both, since dspy's Predict.forward resolves `self.lm or settings.lm` and a scope reaches only the predictors that defer" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.seed" = { status = "mapped", rust = "MIPROv2::seed", reason = "MIPROv2::seed" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.task_model" = { status = "mapped", rust = "MIPROv2::task_model", reason = "MIPROv2::task_model, scoped around Step 1 and Step 3 with lm::context — which is where upstream puts `with dspy.context(lm=self.task_model)` — and deliberately not around Step 2, which is prompt_model's. Unset means the configured model, as upstream's `task_model or settings.lm` does. A predictor carrying its own model still asks that one in both, since dspy's Predict.forward resolves `self.lm or settings.lm` and a scope reaches only the predictors that defer" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.teacher_settings" = { status = "divergence", reason = "dspy's teacher config dict; the teacher's LM is set on the module with `set_lm`" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.track_stats" = { status = "divergence", reason = "`compile_traced` returns `Vec<Trial>` — each trial's parameters and score, which is what dspy attaches to the program under `track_stats`. Precisely: the plain `compile` returns nothing, so a caller wanting the record asks for it by calling the traced form" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.verbose" = { status = "divergence", reason = "dspy prints its progress. **MIPROv2 emits no span of its own** — the tracing points it inherits are `Evaluate`'s, one per scoring pass, which is not the per-trial progress `verbose` prints. What a caller can read back is `compile_traced`'s trials" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_bootstrapped_demos" = { status = "mapped", rust = "max_bootstrapped_demos", reason = "max_bootstrapped_demos" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_bootstrapped_demos" = { status = "mapped", rust = "BootstrapRandomSearch::max_bootstrapped_demos", reason = "max_bootstrapped_demos" }
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_errors" = { status = "mapped", rust = "BootstrapRandomSearch::scoring", reason = "both of dspy's scoring bounds travel together as optimize::Scoring, since every optimizer that builds an Evaluate needs the pair" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_labeled_demos" = { status = "mapped", rust = "max_labeled_demos", reason = "max_labeled_demos" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_rounds" = { status = "mapped", rust = "max_rounds", reason = "max_rounds" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_labeled_demos" = { status = "mapped", rust = "BootstrapRandomSearch::max_labeled_demos", reason = "max_labeled_demos" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.max_rounds" = { status = "mapped", rust = "BootstrapRandomSearch::max_rounds", reason = "max_rounds" }
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.metric" = { status = "mapped", rust = "BootstrapRandomSearch", reason = "BootstrapRandomSearch::new, positional" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.metric_threshold" = { status = "mapped", rust = "metric_threshold", reason = "metric_threshold" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.num_candidate_programs" = { status = "mapped", rust = "num_candidate_programs", reason = "num_candidate_programs" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.metric_threshold" = { status = "mapped", rust = "BootstrapRandomSearch::metric_threshold", reason = "metric_threshold" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.num_candidate_programs" = { status = "mapped", rust = "BootstrapRandomSearch::num_candidate_programs", reason = "num_candidate_programs" }
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.num_threads" = { status = "mapped", rust = "BootstrapRandomSearch::scoring", reason = "both of dspy's scoring bounds travel together as optimize::Scoring, since every optimizer that builds an Evaluate needs the pair" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.stop_at_score" = { status = "mapped", rust = "stop_at_score", reason = "stop_at_score" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.stop_at_score" = { status = "mapped", rust = "BootstrapRandomSearch::stop_at_score", reason = "stop_at_score" }
 "teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.teacher_settings" = { status = "divergence", reason = "dspy's teacher config dict; the teacher's LM is set on the module with `set_lm`" }
 "teleprompt/vanilla.py::LabeledFewShot.k" = { status = "mapped", rust = "LabeledFewShot", reason = "LabeledFewShot::new, positional" }
 "utils/exceptions.py::ContextWindowExceededError.message" = { status = "mapped", rust = "ContextWindowExceeded", reason = "ContextWindowExceeded::message" }
 "utils/exceptions.py::ContextWindowExceededError.model" = { status = "mapped", rust = "ContextWindowExceeded", reason = "ContextWindowExceeded::model" }
-"utils/exceptions.py::LMUnsupportedFeatureError.message" = { status = "mapped", rust = "message", reason = "LmFailure::message" }
-"utils/exceptions.py::LMUnsupportedFeatureError.features" = { status = "mapped", rust = "features", reason = "LmFailure::features. Populated by the one raise site on an inference path — lm/openai/reasoning_temperature.rs, dspy's _validate_openai_reasoning_temperature, which refuses a reasoning model asked to reason at a chosen temperature and names [\"temperature\", \"reasoning\"]. Upstream's other two raise sites are finetune/reinforce, whose Provider class is deferred" }
-"utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
+"utils/exceptions.py::LMUnsupportedFeatureError.message" = { status = "mapped", rust = "LmFailure::message", reason = "LmFailure::message" }
+"utils/exceptions.py::LMUnsupportedFeatureError.features" = { status = "mapped", rust = "LmFailure::features", reason = "LmFailure::features. Populated by the one raise site on an inference path — lm/openai/reasoning_temperature.rs, dspy's _validate_openai_reasoning_temperature, which refuses a reasoning model asked to reason at a chosen temperature and names [\"temperature\", \"reasoning\"]. Upstream's other two raise sites are finetune/reinforce, whose Provider class is deferred" }
+"utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "LmFailure::issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
 "signatures/signature.py::Signature.equals.other" = { status = "mapped", rust = "Signature::equals", reason = "the signature being compared against. Upstream also accepts a non-Signature and answers `False`; a typed `&Signature` makes that unrepresentable rather than answered" }
-"adapters/types/file.py::File.from_bytes.file_bytes" = { status = "mapped", rust = "bytes", reason = "`impl AsRef<[u8]>`, so a slice, a `Vec` or an array all work" }
+"adapters/types/file.py::File.from_bytes.file_bytes" = { status = "mapped", rust = "File::from_bytes", reason = "`impl AsRef<[u8]>`, so a slice, a `Vec` or an array all work" }
 "adapters/types/file.py::File.from_bytes.filename" = { status = "mapped", rust = "File::filename", reason = "the builder this type already had, as with `from_path`: `File::from_bytes(b)?.filename(\"report.pdf\")`" }
 "adapters/types/file.py::File.from_bytes.mime_type" = { status = "mapped", rust = "File::from_bytes_as", reason = "the override as its own constructor, matching `from_path_as`. Bytes a caller holds are often of a known type, and the media type is what a provider reads them by" }
 "adapters/types/image.py::Image.from_PIL.pil_image" = { status = "mapped", rust = "Image::from_rgb, Image::from_rgba", reason = "a decoded pixel buffer, which is what a PIL object is. Two constructors rather than a mode parameter, so dropping an alpha channel cannot happen by passing the wrong constant" }
@@ -946,13 +946,13 @@
 "adapters/types/audio.py::Audio.from_array.array" = { status = "mapped", rust = "Audio::from_samples", reason = "its `samples` parameter: `&[f32]`, which is what libsndfile converts from and what the conversion rule was measured in. The numpy container is Python's; the encoding is what reaches the model" }
 "adapters/types/audio.py::Audio.from_array.sampling_rate" = { status = "mapped", rust = "Audio::from_samples", reason = "its `sampling_rate` parameter, which reaches the WAV header as the sample rate and the derived byte rate" }
 "adapters/types/audio.py::Audio.from_array.format" = { status = "mapped", rust = "Audio::from_samples_as, Container", reason = "a named container rather than libsndfile's twenty-odd format strings. WAV is written from primitives and is byte-identical to libsndfile's; FLAC is `flacenc`, pure Rust, and round-trips to exactly the samples WAV carries; MP3 is LAME through `mp3lame-encoder` behind an off-by-default `mp3` feature, because that crate is LGPL-3.0 where this one is MIT OR Apache-2.0 and the obligation belongs to whoever ships the binary. Ogg Vorbis would be `vorbis_rs` over libvorbis and is not taken: it is the one of the four a provider is least likely to want and it costs a C build. Binding libsndfile itself would have matched upstream byte for byte — `soundfile` is one — but `sndfile` last shipped April 2022 and `sndfile-sys` July 2021, so that is closed on maintenance. There is no single pure-Rust crate that encodes all of them; symphonia, the obvious candidate, is decode-only" }
-"adapters/types/image.py::Image.from_url.url" = { status = "mapped", rust = "url", reason = "`impl AsRef<str>`" }
+"adapters/types/image.py::Image.from_url.url" = { status = "mapped", rust = "Image::url", reason = "`impl AsRef<str>`" }
 "adapters/types/image.py::Image.from_url.verify" = { status = "mapped", rust = "Image::from_url_unverified", reason = "upstream's TLS switch as its own constructor rather than a `bool` parameter: `false` at a call site says nothing about what it turns off, and this is the one argument whose wrong value is silent" }
-"adapters/types/audio.py::Audio.from_url.url" = { status = "mapped", rust = "url", reason = "as `Image.from_url.url`" }
+"adapters/types/audio.py::Audio.from_url.url" = { status = "mapped", rust = "Audio::from_url", reason = "as `Image.from_url.url`" }
 "adapters/types/audio.py::Audio.from_url.verify" = { status = "mapped", rust = "Audio::from_url_unverified", reason = "as `Image.from_url.verify`" }
-"adapters/types/image.py::Image.from_path.file_path" = { status = "mapped", rust = "path", reason = "`impl AsRef<Path>`, so a `&str`, a `String` or a `PathBuf` all work where Python takes a `str`" }
-"adapters/types/audio.py::Audio.from_path.file_path" = { status = "mapped", rust = "path", reason = "as `Image.from_path.file_path`" }
-"adapters/types/file.py::File.from_path.file_path" = { status = "mapped", rust = "path", reason = "as `Image.from_path.file_path`" }
+"adapters/types/image.py::Image.from_path.file_path" = { status = "mapped", rust = "Image::from_path", reason = "`impl AsRef<Path>`, so a `&str`, a `String` or a `PathBuf` all work where Python takes a `str`" }
+"adapters/types/audio.py::Audio.from_path.file_path" = { status = "mapped", rust = "Audio::from_path", reason = "as `Image.from_path.file_path`" }
+"adapters/types/file.py::File.from_path.file_path" = { status = "mapped", rust = "File::from_path", reason = "as `Image.from_path.file_path`" }
 "adapters/types/file.py::File.from_path.filename" = { status = "mapped", rust = "File::filename", reason = "upstream's optional override, which this type already had as a builder: `File::from_path(p)?.filename(\"other.txt\")`. Rust has no keyword defaults, and a second `Option` parameter on the constructor would say less than the named method does" }
 "adapters/types/file.py::File.from_path.mime_type" = { status = "mapped", rust = "File::from_path_as", reason = "the override as its own constructor, for the same reason `filename` is a builder. It earns naming rather than an `Option`: the media type is baked into the `data:` URI and is what a provider reads the bytes by, so a file whose suffix lies has to be able to say so" }
 "utils/callback.py::BaseCallback.on_module_start.call_id" = { status = "mapped", rust = "CallId", reason = "callback::CallId, which also carries the parent id dspy keeps in a separate context variable" }
@@ -989,7 +989,7 @@
 "utils/callback.py::BaseCallback.on_lm_start.inputs" = { status = "divergence", rust = "LmRequest", reason = "dspy passes the call kwargs as a dict; the crate passes the typed adapters-produce-api::LmRequest the call was built from, which carries the same information under names the compiler checks" }
 "utils/callback.py::BaseCallback.on_adapter_format_start.inputs" = { status = "divergence", reason = "dspy packs signature, demos and inputs into one kwargs dict; the crate passes the three as their own parameters, so a handler reads a &Signature rather than digging a key out" }
 "utils/callback.py::BaseCallback.on_adapter_parse_start.inputs" = { status = "divergence", reason = "dspy's kwargs dict holds the adapter and the completion string; the crate passes `adapter: &str` and `raw: &str`" }
-"utils/callback.py::BaseCallback.on_tool_start.inputs" = { status = "mapped", rust = "on_tool_start", reason = "the tool's arguments as the JSON value it was called with" }
+"utils/callback.py::BaseCallback.on_tool_start.inputs" = { status = "mapped", rust = "Callback::on_tool_start", reason = "the tool's arguments as the JSON value it was called with" }
 "utils/callback.py::BaseCallback.on_evaluate_start.inputs" = { status = "divergence", reason = "dspy's kwargs dict carries the devset and thread count; the crate passes `rows: usize` and `threads: usize`, the two facts a handler reads from it" }
 "evaluate/metrics.py::em_score.prediction" = { status = "mapped", rust = "em_score", reason = "the same first parameter, under the same name" }
 "evaluate/metrics.py::em_score.ground_truth" = { status = "divergence", rust = "em_score", reason = "spelled `truth`; the pair reads as (prediction, truth) at the call site rather than repeating the longer word" }
@@ -1013,16 +1013,16 @@
 "signatures/signature.py::Signature.append.field" = { status = "mapped", rust = "Signature::append", reason = "the field to add, as a `Side` that says which half it joins" }
 "signatures/signature.py::Signature.append.name" = { status = "divergence", rust = "append", reason = "carried on the `Side` value rather than beside it: dspy takes (name, field, type_) as three loose arguments that must agree, where one typed value cannot disagree with itself" }
 "signatures/signature.py::Signature.append.type_" = { status = "divergence", rust = "append", reason = "carried on the `Side`'s field kind; see the name entry beside it" }
-"signatures/signature.py::Signature.prepend.field" = { status = "mapped", rust = "prepend", reason = "the field to add, as a `Side` that says which half it joins" }
+"signatures/signature.py::Signature.prepend.field" = { status = "mapped", rust = "Signature::prepend", reason = "the field to add, as a `Side` that says which half it joins" }
 "signatures/signature.py::Signature.prepend.name" = { status = "divergence", rust = "prepend", reason = "carried on the `Side` value rather than beside it: dspy takes (name, field, type_) as three loose arguments that must agree, where one typed value cannot disagree with itself" }
 "signatures/signature.py::Signature.prepend.type_" = { status = "divergence", rust = "prepend", reason = "carried on the `Side`'s field kind; see the name entry beside it" }
 "signatures/signature.py::Signature.insert.field" = { status = "mapped", rust = "Signature::insert", reason = "the field to add, as a `Side`" }
 "signatures/signature.py::Signature.insert.index" = { status = "mapped", rust = "Signature::insert", reason = "the same signed index, negative counting from the end as upstream's does" }
 "signatures/signature.py::Signature.insert.name" = { status = "divergence", rust = "insert", reason = "carried on the `Side` value; see Signature.append.name" }
 "signatures/signature.py::Signature.insert.type_" = { status = "divergence", rust = "insert", reason = "carried on the `Side`'s field kind; see Signature.append.name" }
-"signatures/signature.py::Signature.delete.name" = { status = "mapped", rust = "delete", reason = "the field name to remove" }
-"signatures/signature.py::Signature.with_instructions.instructions" = { status = "mapped", rust = "with_instructions", reason = "the replacement instructions; `impl Into<String>` so a literal needs no ceremony" }
-"signatures/signature.py::Signature.with_updated_fields.name" = { status = "mapped", rust = "with_updated_fields", reason = "the field to edit" }
+"signatures/signature.py::Signature.delete.name" = { status = "mapped", rust = "Signature::delete", reason = "the field name to remove" }
+"signatures/signature.py::Signature.with_instructions.instructions" = { status = "mapped", rust = "Signature::with_instructions", reason = "the replacement instructions; `impl Into<String>` so a literal needs no ceremony" }
+"signatures/signature.py::Signature.with_updated_fields.name" = { status = "mapped", rust = "Signature::with_updated_fields", reason = "the field to edit" }
 "signatures/signature.py::Signature.with_updated_fields.kwargs" = { status = "divergence", rust = "FieldEdit", reason = "dspy takes **kwargs and copies whichever pydantic FieldInfo attributes it recognises; the crate takes a closure over a `FieldEdit`, so the editable attributes are the ones the type exposes and a typo is a compile error rather than a silently ignored key" }
 "signatures/signature.py::Signature.with_updated_fields.type_" = { status = "divergence", rust = "FieldEdit", reason = "set through the same `FieldEdit` closure as the rest; see the kwargs entry beside it" }
 "signatures/signature.py::Signature.load_state.state" = { status = "divergence", rust = "load_state", reason = "a Signature has no load_state of its own here — Module::load_state restores instructions and demos for the whole program, which is the only place dspy's is reached from and the only shape the saved file has" }
@@ -1048,73 +1048,73 @@
 "core/types.py::Developer.parts" = { status = "mapped", rust = "Developer", reason = "the `Developer!` macro takes parts positionally as dspy's *parts does, so a string and an image sit in one turn — which an array could not hold" }
 "core/types.py::Developer.name" = { status = "mapped", rust = "LmMessage", reason = "LmMessage::name, a builder rather than a constructor argument: Rust has no keyword arguments, and a builder keeps the macro's positional parts unambiguous" }
 "core/types.py::Developer.metadata" = { status = "mapped", rust = "LmMessage", reason = "LmMessage::metadata; see the name entry beside it" }
-"core/types.py::LMRequest.from_call.items" = { status = "mapped", rust = "from_items", reason = "the run of items a direct call passes" }
-"core/types.py::LMRequest.from_call.model" = { status = "mapped", rust = "from_items", reason = "the same first parameter on both constructors" }
+"core/types.py::LMRequest.from_call.items" = { status = "mapped", rust = "LmRequest::from_items", reason = "the run of items a direct call passes" }
+"core/types.py::LMRequest.from_call.model" = { status = "mapped", rust = "LmRequest::from_items", reason = "the same first parameter on both constructors" }
 "core/types.py::LMRequest.from_call.messages" = { status = "divergence", rust = "from_messages", reason = "its own constructor rather than a second optional argument. Upstream raises when both `items` and `messages` are given; two constructors make that unwritable" }
 "core/types.py::LMRequest.from_call.prompt" = { status = "divergence", rust = "from_items", reason = "a bare prompt string is one item, so it goes through `from_items` — passing a single string is upstream's prompt=. Upstream raises when it is combined with either of the others, which again cannot be written here" }
-"core/types.py::LMRequest.from_call.tools" = { status = "mapped", rust = "tools", reason = "LmRequest::tools, a builder taking the specs the request offers" }
+"core/types.py::LMRequest.from_call.tools" = { status = "mapped", rust = "LmRequest::tools", reason = "LmRequest::tools, a builder taking the specs the request offers" }
 "core/types.py::LMRequest.from_call.kwargs" = { status = "divergence", rust = "configured", reason = "dspy sweeps the remaining keyword arguments into the request's config; the crate takes an `LmConfig` through `configured`, so the settable keys are the ones the type has and a misspelling does not travel to the provider" }
 "core/types.py::LMRequest.with_config_overrides.kwargs" = { status = "divergence", rust = "configured", reason = "the same `LmConfig` rather than loose keys; see the from_call.kwargs entry" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.student" = { status = "mapped", rust = "compile", reason = "the program to rewrite, taken by &mut rather than returned: a compile here edits in place, since Rust has no deep copy of a dyn Module to hand back" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.trainset" = { status = "mapped", rust = "compile", reason = "what Step 1 bootstraps from" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.valset" = { status = "mapped", rust = "compile", reason = "what each trial scores on; None splits the trainset 20/80 as `_set_and_validate_datasets` does" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.student" = { status = "mapped", rust = "MIPROv2::compile", reason = "the program to rewrite, taken by &mut rather than returned: a compile here edits in place, since Rust has no deep copy of a dyn Module to hand back" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.trainset" = { status = "mapped", rust = "MIPROv2::compile", reason = "what Step 1 bootstraps from" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.valset" = { status = "mapped", rust = "MIPROv2::compile", reason = "what each trial scores on; None splits the trainset 20/80 as `_set_and_validate_datasets` does" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.teacher" = { status = "divergence", rust = "compile", reason = "MIPROv2 proposes instructions from a metric and has no teacher to learn from; the Optimizer trait carries the parameter for the optimizers that do, and MIPROv2's impl refuses a teacher rather than ignoring one" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.num_trials" = { status = "mapped", rust = "num_trials", reason = "MIPROv2::num_trials, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.max_bootstrapped_demos" = { status = "mapped", rust = "max_bootstrapped_demos", reason = "MIPROv2::max_bootstrapped_demos, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.max_labeled_demos" = { status = "mapped", rust = "max_labeled_demos", reason = "MIPROv2::max_labeled_demos, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.seed" = { status = "mapped", rust = "seed", reason = "MIPROv2::seed, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.minibatch" = { status = "mapped", rust = "minibatch", reason = "MIPROv2::minibatch, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.minibatch_size" = { status = "mapped", rust = "minibatch_size", reason = "MIPROv2::minibatch_size, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.minibatch_full_eval_steps" = { status = "mapped", rust = "minibatch_full_eval_steps", reason = "MIPROv2::minibatch_full_eval_steps, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.tip_aware_proposer" = { status = "mapped", rust = "tip_aware_proposer", reason = "MIPROv2::tip_aware_proposer, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.num_trials" = { status = "mapped", rust = "MIPROv2::num_trials", reason = "MIPROv2::num_trials, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.max_bootstrapped_demos" = { status = "mapped", rust = "MIPROv2::max_bootstrapped_demos", reason = "MIPROv2::max_bootstrapped_demos, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.max_labeled_demos" = { status = "mapped", rust = "MIPROv2::max_labeled_demos", reason = "MIPROv2::max_labeled_demos, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.seed" = { status = "mapped", rust = "MIPROv2::seed", reason = "MIPROv2::seed, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.minibatch" = { status = "mapped", rust = "MIPROv2::minibatch", reason = "MIPROv2::minibatch, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.minibatch_size" = { status = "mapped", rust = "MIPROv2::minibatch_size", reason = "MIPROv2::minibatch_size, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.minibatch_full_eval_steps" = { status = "mapped", rust = "MIPROv2::minibatch_full_eval_steps", reason = "MIPROv2::minibatch_full_eval_steps, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.tip_aware_proposer" = { status = "mapped", rust = "MIPROv2::tip_aware_proposer", reason = "MIPROv2::tip_aware_proposer, a builder method under dspy's own name — upstream splits its configuration between __init__ and compile, and a builder is one place for both" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.program_aware_proposer" = { status = "divergence", rust = "program_code", reason = "dspy reads the program's source to describe it to the proposer; Rust has no source at runtime, so the caller supplies the pseudo-code and passing it is what turns the proposer on. Upstream's own `program_code_string` seam, made the only way in" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.data_aware_proposer" = { status = "mapped", rust = "data_aware_proposer", reason = "MIPROv2::data_aware_proposer, on by default as upstream is. Produces the summary in the same place upstream does — before any tip is drawn, taking no draw of its own — through the three signatures of propose/dataset_summary_generator.py, and swallows a failure to run without one as upstream does" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.view_data_batch_size" = { status = "mapped", rust = "view_data_batch_size", reason = "MIPROv2::view_data_batch_size, default 10, read only when data_aware_proposer is on" }
-"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.fewshot_aware_proposer" = { status = "mapped", rust = "fewshot_aware_proposer", reason = "MIPROv2::fewshot_aware_proposer, on by default as upstream is. Candidate k is grounded in demo set k — dspy's demo_set_i is the candidate index — reading its own set first and then the ones after and before it, taking up to three *augmented* demos and rendering each as create_example_string does. Candidate zero is shown the fallback whatever the flag says, which is upstream's `or demo_set_i == 0`" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.data_aware_proposer" = { status = "mapped", rust = "MIPROv2::data_aware_proposer", reason = "MIPROv2::data_aware_proposer, on by default as upstream is. Produces the summary in the same place upstream does — before any tip is drawn, taking no draw of its own — through the three signatures of propose/dataset_summary_generator.py, and swallows a failure to run without one as upstream does" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.view_data_batch_size" = { status = "mapped", rust = "MIPROv2::view_data_batch_size", reason = "MIPROv2::view_data_batch_size, default 10, read only when data_aware_proposer is on" }
+"teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.fewshot_aware_proposer" = { status = "mapped", rust = "MIPROv2::fewshot_aware_proposer", reason = "MIPROv2::fewshot_aware_proposer, on by default as upstream is. Candidate k is grounded in demo set k — dspy's demo_set_i is the candidate index — reading its own set first and then the ones after and before it, taking up to three *augmented* demos and rendering each as create_example_string does. Candidate zero is shown the fallback whatever the flag says, which is upstream's `or demo_set_i == 0`" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.requires_permission_to_run" = { status = "divergence", reason = "dspy prints an estimated cost and blocks on `input()` before a long run. A library that reads stdin owns the terminal, which this one does not; a caller who wants a confirmation writes it around the call" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.provide_traceback" = { status = "mapped", rust = "Scoring", reason = "carried on the `Scoring` an optimizer is given, which is where dspy's num_threads and max_errors also live — they are all arguments to the Evaluate a teleprompter builds" }
-"teleprompt/teleprompt.py::Teleprompter.compile.student" = { status = "mapped", rust = "compile", reason = "the Optimizer trait's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
-"teleprompt/teleprompt.py::Teleprompter.compile.trainset" = { status = "mapped", rust = "compile", reason = "the Optimizer trait's training examples" }
-"teleprompt/bootstrap.py::BootstrapFewShot.compile.student" = { status = "mapped", rust = "compile", reason = "BootstrapFewShot's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
-"teleprompt/bootstrap.py::BootstrapFewShot.compile.trainset" = { status = "mapped", rust = "compile", reason = "BootstrapFewShot's training examples" }
-"teleprompt/vanilla.py::LabeledFewShot.compile.student" = { status = "mapped", rust = "compile", reason = "LabeledFewShot's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
-"teleprompt/vanilla.py::LabeledFewShot.compile.trainset" = { status = "mapped", rust = "compile", reason = "LabeledFewShot's training examples" }
-"teleprompt/copro_optimizer.py::COPRO.compile.student" = { status = "mapped", rust = "compile", reason = "COPRO's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
-"teleprompt/copro_optimizer.py::COPRO.compile.trainset" = { status = "mapped", rust = "compile", reason = "COPRO's training examples" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile.student" = { status = "mapped", rust = "compile", reason = "BootstrapFewShotWithRandomSearch's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile.trainset" = { status = "mapped", rust = "compile", reason = "BootstrapFewShotWithRandomSearch's training examples" }
-"teleprompt/bettertogether.py::BetterTogether.compile.student" = { status = "mapped", rust = "compile", reason = "BetterTogether's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
-"teleprompt/bettertogether.py::BetterTogether.compile.trainset" = { status = "mapped", rust = "compile", reason = "BetterTogether's training examples" }
-"teleprompt/gepa/gepa.py::GEPA.compile.student" = { status = "mapped", rust = "compile", reason = "GEPA's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
-"teleprompt/gepa/gepa.py::GEPA.compile.trainset" = { status = "mapped", rust = "compile", reason = "GEPA's training examples" }
-"teleprompt/teleprompt.py::Teleprompter.compile.teacher" = { status = "mapped", rust = "compile", reason = "the Optimizer trait carries `teacher: Option<&mut dyn Module>`; an optimizer with nothing to learn from a teacher refuses one rather than ignoring it" }
-"teleprompt/bootstrap.py::BootstrapFewShot.compile.teacher" = { status = "mapped", rust = "compile", reason = "the Optimizer trait carries `teacher: Option<&mut dyn Module>`; an optimizer with nothing to learn from a teacher refuses one rather than ignoring it" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile.teacher" = { status = "mapped", rust = "compile", reason = "the Optimizer trait carries `teacher: Option<&mut dyn Module>`; an optimizer with nothing to learn from a teacher refuses one rather than ignoring it" }
-"teleprompt/bettertogether.py::BetterTogether.compile.teacher" = { status = "mapped", rust = "compile", reason = "the Optimizer trait carries `teacher: Option<&mut dyn Module>`; an optimizer with nothing to learn from a teacher refuses one rather than ignoring it" }
-"teleprompt/gepa/gepa.py::GEPA.compile.teacher" = { status = "mapped", rust = "compile", reason = "the Optimizer trait carries `teacher: Option<&mut dyn Module>`; an optimizer with nothing to learn from a teacher refuses one rather than ignoring it" }
-"teleprompt/gepa/gepa.py::GEPA.compile.valset" = { status = "mapped", rust = "compile", reason = "GEPA scores candidates on the valset and tracks the Pareto front over it, so it is a required third argument rather than an optional one" }
-"teleprompt/teleprompt.py::Teleprompter.compile.valset" = { status = "mapped", rust = "compile", reason = "the Optimizer trait takes `valset: Option<&[Example]>`. What None means is each optimizer's own, because upstream's differ: GEPA's is `valset or trainset` and MIPROv2's `_set_and_validate_datasets` keeps the first 20% and scores on the last 80%. An optimizer that never scores refuses one" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile.valset" = { status = "mapped", rust = "compile", reason = "the Optimizer trait takes `valset: Option<&[Example]>`. What None means is each optimizer's own, because upstream's differ: GEPA's is `valset or trainset` and MIPROv2's `_set_and_validate_datasets` keeps the first 20% and scores on the last 80%. An optimizer that never scores refuses one" }
-"teleprompt/bettertogether.py::BetterTogether.compile.valset" = { status = "mapped", rust = "compile", reason = "the Optimizer trait takes `valset: Option<&[Example]>`. What None means is each optimizer's own, because upstream's differ: GEPA's is `valset or trainset` and MIPROv2's `_set_and_validate_datasets` keeps the first 20% and scores on the last 80%. An optimizer that never scores refuses one" }
+"teleprompt/teleprompt.py::Teleprompter.compile.student" = { status = "mapped", rust = "Optimizer::compile", reason = "the Optimizer trait's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
+"teleprompt/teleprompt.py::Teleprompter.compile.trainset" = { status = "mapped", rust = "Optimizer::compile", reason = "the Optimizer trait's training examples" }
+"teleprompt/bootstrap.py::BootstrapFewShot.compile.student" = { status = "mapped", rust = "BootstrapFewShot::compile", reason = "BootstrapFewShot's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
+"teleprompt/bootstrap.py::BootstrapFewShot.compile.trainset" = { status = "mapped", rust = "BootstrapFewShot::compile", reason = "BootstrapFewShot's training examples" }
+"teleprompt/vanilla.py::LabeledFewShot.compile.student" = { status = "mapped", rust = "LabeledFewShot::compile", reason = "LabeledFewShot's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
+"teleprompt/vanilla.py::LabeledFewShot.compile.trainset" = { status = "mapped", rust = "LabeledFewShot::compile", reason = "LabeledFewShot's training examples" }
+"teleprompt/copro_optimizer.py::COPRO.compile.student" = { status = "mapped", rust = "COPRO::compile", reason = "COPRO's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
+"teleprompt/copro_optimizer.py::COPRO.compile.trainset" = { status = "mapped", rust = "COPRO::compile", reason = "COPRO's training examples" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile.student" = { status = "mapped", rust = "BootstrapRandomSearch::compile", reason = "BootstrapFewShotWithRandomSearch's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile.trainset" = { status = "mapped", rust = "BootstrapRandomSearch::compile", reason = "BootstrapFewShotWithRandomSearch's training examples" }
+"teleprompt/bettertogether.py::BetterTogether.compile.student" = { status = "mapped", rust = "BetterTogether::compile", reason = "BetterTogether's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
+"teleprompt/bettertogether.py::BetterTogether.compile.trainset" = { status = "mapped", rust = "BetterTogether::compile", reason = "BetterTogether's training examples" }
+"teleprompt/gepa/gepa.py::GEPA.compile.student" = { status = "mapped", rust = "GEPA::compile", reason = "GEPA's first argument, taken by &mut and rewritten in place — dspy returns a deep copy, and Rust has none to make of a dyn Module" }
+"teleprompt/gepa/gepa.py::GEPA.compile.trainset" = { status = "mapped", rust = "GEPA::compile", reason = "GEPA's training examples" }
+"teleprompt/teleprompt.py::Teleprompter.compile.teacher" = { status = "mapped", rust = "Optimizer::compile", reason = "the Optimizer trait carries `teacher: Option<&mut dyn Module>`; an optimizer with nothing to learn from a teacher refuses one rather than ignoring it" }
+"teleprompt/bootstrap.py::BootstrapFewShot.compile.teacher" = { status = "mapped", rust = "BootstrapFewShot::compile", reason = "the Optimizer trait carries `teacher: Option<&mut dyn Module>`; an optimizer with nothing to learn from a teacher refuses one rather than ignoring it" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile.teacher" = { status = "mapped", rust = "BootstrapRandomSearch::compile", reason = "the Optimizer trait carries `teacher: Option<&mut dyn Module>`; an optimizer with nothing to learn from a teacher refuses one rather than ignoring it" }
+"teleprompt/bettertogether.py::BetterTogether.compile.teacher" = { status = "mapped", rust = "BetterTogether::compile", reason = "the Optimizer trait carries `teacher: Option<&mut dyn Module>`; an optimizer with nothing to learn from a teacher refuses one rather than ignoring it" }
+"teleprompt/gepa/gepa.py::GEPA.compile.teacher" = { status = "mapped", rust = "GEPA::compile", reason = "the Optimizer trait carries `teacher: Option<&mut dyn Module>`; an optimizer with nothing to learn from a teacher refuses one rather than ignoring it" }
+"teleprompt/gepa/gepa.py::GEPA.compile.valset" = { status = "mapped", rust = "GEPA::compile", reason = "GEPA scores candidates on the valset and tracks the Pareto front over it, so it is a required third argument rather than an optional one" }
+"teleprompt/teleprompt.py::Teleprompter.compile.valset" = { status = "mapped", rust = "Optimizer::compile", reason = "the Optimizer trait takes `valset: Option<&[Example]>`. What None means is each optimizer's own, because upstream's differ: GEPA's is `valset or trainset` and MIPROv2's `_set_and_validate_datasets` keeps the first 20% and scores on the last 80%. An optimizer that never scores refuses one" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile.valset" = { status = "mapped", rust = "BootstrapRandomSearch::compile", reason = "the Optimizer trait takes `valset: Option<&[Example]>`. What None means is each optimizer's own, because upstream's differ: GEPA's is `valset or trainset` and MIPROv2's `_set_and_validate_datasets` keeps the first 20% and scores on the last 80%. An optimizer that never scores refuses one" }
+"teleprompt/bettertogether.py::BetterTogether.compile.valset" = { status = "mapped", rust = "BetterTogether::compile", reason = "the Optimizer trait takes `valset: Option<&[Example]>`. What None means is each optimizer's own, because upstream's differ: GEPA's is `valset or trainset` and MIPROv2's `_set_and_validate_datasets` keeps the first 20% and scores on the last 80%. An optimizer that never scores refuses one" }
 "teleprompt/teleprompt.py::Teleprompter.compile.kwargs" = { status = "divergence", reason = "dspy's base class swallows whatever a subclass wants and each reads its own keys back out; the trait names its three arguments and every optimizer's own configuration is on its builder, where the compiler checks it" }
 "teleprompt/copro_optimizer.py::COPRO.compile.eval_kwargs" = { status = "mapped", rust = "Scoring", reason = "COPRO::scoring, the Scoring an optimizer bounds its evaluation with — dspy's eval_kwargs is the same dict handed to the Evaluate it builds" }
-"teleprompt/vanilla.py::LabeledFewShot.compile.sample" = { status = "mapped", rust = "sample", reason = "LabeledFewShot::sample, whether the demos are drawn at random or taken in order" }
-"teleprompt/ensemble.py::Ensemble.compile.programs" = { status = "mapped", rust = "compile", reason = "the programs to run together; Ensemble is the one optimizer whose compile takes programs rather than a student" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile.labeled_sample" = { status = "mapped", rust = "labeled_sample", reason = "BootstrapRandomSearch::labeled_sample, on by default as upstream is. It reaches exactly one attempt — seed -2, the labels-only one — where it becomes LabeledFewShot's `sample`, so it changes one candidate of n+3 rather than the run. The golden records the demos that attempt keeps under both arms, on a trainset where drawing and taking-in-order disagree" }
-"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile.restrict" = { status = "mapped", rust = "restrict", reason = "BootstrapRandomSearch::restrict: attempt only these seeds. It filters the range the loop already walks, so it narrows and never extends — a seed the search would not have reached is dropped rather than added — and it does not spare the three baselines. Skipping moves nothing, since each shuffled attempt seeds its own generator with its own seed, which is what makes it usable for resuming a search" }
-"teleprompt/bettertogether.py::BetterTogether.compile.strategy" = { status = "mapped", rust = "compile", reason = "the `p -> w -> p` string that says which optimizers run in which order, parsed as dspy parses it" }
-"teleprompt/bettertogether.py::BetterTogether.compile.shuffle_trainset_between_steps" = { status = "mapped", rust = "shuffle_trainset_between_steps", reason = "whether the trainset is reshuffled between steps, off the same seeded generator" }
-"teleprompt/bettertogether.py::BetterTogether.compile.valset_ratio" = { status = "mapped", rust = "valset_ratio", reason = "how much of the trainset each step holds back" }
-"teleprompt/bettertogether.py::BetterTogether.compile.seed" = { status = "mapped", rust = "seed", reason = "the seed for the shuffle between steps" }
+"teleprompt/vanilla.py::LabeledFewShot.compile.sample" = { status = "mapped", rust = "LabeledFewShot::sample", reason = "LabeledFewShot::sample, whether the demos are drawn at random or taken in order" }
+"teleprompt/ensemble.py::Ensemble.compile.programs" = { status = "mapped", rust = "Ensemble::compile", reason = "the programs to run together; Ensemble is the one optimizer whose compile takes programs rather than a student" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile.labeled_sample" = { status = "mapped", rust = "BootstrapRandomSearch::labeled_sample", reason = "BootstrapRandomSearch::labeled_sample, on by default as upstream is. It reaches exactly one attempt — seed -2, the labels-only one — where it becomes LabeledFewShot's `sample`, so it changes one candidate of n+3 rather than the run. The golden records the demos that attempt keeps under both arms, on a trainset where drawing and taking-in-order disagree" }
+"teleprompt/random_search.py::BootstrapFewShotWithRandomSearch.compile.restrict" = { status = "mapped", rust = "BootstrapRandomSearch::restrict", reason = "BootstrapRandomSearch::restrict: attempt only these seeds. It filters the range the loop already walks, so it narrows and never extends — a seed the search would not have reached is dropped rather than added — and it does not spare the three baselines. Skipping moves nothing, since each shuffled attempt seeds its own generator with its own seed, which is what makes it usable for resuming a search" }
+"teleprompt/bettertogether.py::BetterTogether.compile.strategy" = { status = "mapped", rust = "BetterTogether::compile", reason = "the `p -> w -> p` string that says which optimizers run in which order, parsed as dspy parses it" }
+"teleprompt/bettertogether.py::BetterTogether.compile.shuffle_trainset_between_steps" = { status = "mapped", rust = "BetterTogether::shuffle_trainset_between_steps", reason = "whether the trainset is reshuffled between steps, off the same seeded generator" }
+"teleprompt/bettertogether.py::BetterTogether.compile.valset_ratio" = { status = "mapped", rust = "BetterTogether::valset_ratio", reason = "how much of the trainset each step holds back" }
+"teleprompt/bettertogether.py::BetterTogether.compile.seed" = { status = "mapped", rust = "BetterTogether::seed", reason = "the seed for the shuffle between steps" }
 "teleprompt/bettertogether.py::BetterTogether.compile.optimizer_compile_args" = { status = "divergence", reason = "dspy passes a dict through to whichever optimizer a step runs; here each optimizer is already configured on its own builder before it is handed over, so there is nothing left to forward" }
 "teleprompt/bettertogether.py::BetterTogether.compile.num_threads" = { status = "mapped", rust = "Scoring", reason = "carried on the Scoring each step's optimizer was built with, which is where dspy's num_threads ends up too" }
 "teleprompt/bettertogether.py::BetterTogether.compile.max_errors" = { status = "mapped", rust = "Scoring", reason = "carried on the Scoring each step's optimizer was built with, which is where dspy's max_errors ends up too" }
 "teleprompt/bettertogether.py::BetterTogether.compile.provide_traceback" = { status = "mapped", rust = "Scoring", reason = "carried on the Scoring each step's optimizer was built with, which is where dspy's provide_traceback ends up too" }
-"teleprompt/gepa/gepa.py::GEPA.auto_budget.num_preds" = { status = "mapped", rust = "auto_budget", reason = "the same parameter under dspy's name; auto_budget is arithmetic over these five and reproduces it exactly" }
-"teleprompt/gepa/gepa.py::GEPA.auto_budget.num_candidates" = { status = "mapped", rust = "auto_budget", reason = "the same parameter under dspy's name; auto_budget is arithmetic over these five and reproduces it exactly" }
-"teleprompt/gepa/gepa.py::GEPA.auto_budget.valset_size" = { status = "mapped", rust = "auto_budget", reason = "the same parameter under dspy's name; auto_budget is arithmetic over these five and reproduces it exactly" }
-"teleprompt/gepa/gepa.py::GEPA.auto_budget.minibatch_size" = { status = "mapped", rust = "auto_budget", reason = "the same parameter under dspy's name; auto_budget is arithmetic over these five and reproduces it exactly" }
-"teleprompt/gepa/gepa.py::GEPA.auto_budget.full_eval_steps" = { status = "mapped", rust = "auto_budget", reason = "the same parameter under dspy's name; auto_budget is arithmetic over these five and reproduces it exactly" }
+"teleprompt/gepa/gepa.py::GEPA.auto_budget.num_preds" = { status = "mapped", rust = "GEPA::auto_budget", reason = "the same parameter under dspy's name; auto_budget is arithmetic over these five and reproduces it exactly" }
+"teleprompt/gepa/gepa.py::GEPA.auto_budget.num_candidates" = { status = "mapped", rust = "GEPA::auto_budget", reason = "the same parameter under dspy's name; auto_budget is arithmetic over these five and reproduces it exactly" }
+"teleprompt/gepa/gepa.py::GEPA.auto_budget.valset_size" = { status = "mapped", rust = "GEPA::auto_budget", reason = "the same parameter under dspy's name; auto_budget is arithmetic over these five and reproduces it exactly" }
+"teleprompt/gepa/gepa.py::GEPA.auto_budget.minibatch_size" = { status = "mapped", rust = "GEPA::auto_budget", reason = "the same parameter under dspy's name; auto_budget is arithmetic over these five and reproduces it exactly" }
+"teleprompt/gepa/gepa.py::GEPA.auto_budget.full_eval_steps" = { status = "mapped", rust = "GEPA::auto_budget", reason = "the same parameter under dspy's name; auto_budget is arithmetic over these five and reproduces it exactly" }
 "adapters/base.py::Adapter.format.signature" = { status = "mapped", rust = "Signature", reason = "the signature being rendered or parsed, the first argument on the trait as on dspy's" }
 "adapters/base.py::Adapter.parse.signature" = { status = "mapped", rust = "Signature", reason = "the signature being rendered or parsed, the first argument on the trait as on dspy's" }
 "adapters/base.py::Adapter.format_field_description.signature" = { status = "mapped", rust = "Signature", reason = "the signature being rendered or parsed, the first argument on the trait as on dspy's" }
@@ -1135,50 +1135,50 @@
 "adapters/two_step_adapter.py::TwoStepAdapter.format.demos" = { status = "mapped", rust = "TwoStepAdapter::format", reason = "the few-shot examples to render ahead of the request" }
 "adapters/two_step_adapter.py::TwoStepAdapter.format.inputs" = { status = "mapped", rust = "TwoStepAdapter::format", reason = "the values to render, as `&[Input]` — a borrowed name-and-value pair rather than a dict, so nothing is cloned to render it" }
 "adapters/baml_adapter.py::BAMLAdapter.format_field_structure.signature" = { status = "mapped", rust = "Signature", reason = "the signature being rendered or parsed, the first argument on BamlAdapter as on dspy's" }
-"adapters/types/base_type.py::Type.parse_lm_response.response" = { status = "mapped", rust = "parse_lm_response", reason = "the reply a custom type reads itself out of" }
+"adapters/types/base_type.py::Type.parse_lm_response.response" = { status = "mapped", rust = "Type::parse_lm_response", reason = "the reply a custom type reads itself out of" }
 "adapters/types/base_type.py::split_message_content_for_custom_types.messages" = { status = "mapped", rust = "split_custom_types", reason = "the messages whose text is split around the custom-type placeholders" }
 "adapters/types/citation.py::Citations.from_dict_list.citations_dicts" = { status = "divergence", rust = "Citations", reason = "spelled `dicts` on the Rust constructor; `citations_dicts` repeats the type it is being built into" }
-"adapters/types/citation.py::Citations.parse_lm_response.response" = { status = "mapped", rust = "parse_lm_response", reason = "the reply the citations are read out of" }
-"adapters/types/file.py::File.from_file_id.file_id" = { status = "mapped", rust = "from_id", reason = "the provider's id for an already-uploaded file" }
-"adapters/types/file.py::File.from_file_id.filename" = { status = "mapped", rust = "from_id", reason = "the name shown to the model beside the id" }
+"adapters/types/citation.py::Citations.parse_lm_response.response" = { status = "mapped", rust = "Citations::parse_lm_response", reason = "the reply the citations are read out of" }
+"adapters/types/file.py::File.from_file_id.file_id" = { status = "mapped", rust = "File::from_id", reason = "the provider's id for an already-uploaded file" }
+"adapters/types/file.py::File.from_file_id.filename" = { status = "mapped", rust = "File::from_id", reason = "the name shown to the model beside the id" }
 "adapters/types/tool.py::Tool.from_mcp_tool.session" = { status = "mapped", rust = "mcp_tool", reason = "the MCP session the tool is called through" }
 "adapters/types/tool.py::Tool.from_mcp_tool.tool" = { status = "mapped", rust = "mcp_tool", reason = "the MCP tool description to wrap" }
 "adapters/types/tool.py::ToolCalls.from_dict_list.tool_calls_dicts" = { status = "divergence", rust = "ToolCalls", reason = "spelled `dicts`; see Citations.from_dict_list.citations_dicts" }
-"adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values.tool_calls" = { status = "mapped", rust = "from_tool_calls_and_values", reason = "the same `tool_calls`, zipped into one result per call as upstream does" }
-"adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values.values" = { status = "mapped", rust = "from_tool_calls_and_values", reason = "the same `values`, zipped into one result per call as upstream does" }
-"adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values.is_errors" = { status = "mapped", rust = "from_tool_calls_and_values", reason = "the same `is_errors`, zipped into one result per call as upstream does" }
-"clients/cache.py::Cache.cache_key.request" = { status = "mapped", rust = "cache_key", reason = "the request being keyed; the crate hangs `cache_key` on LmRequest itself rather than on the cache, since the key is a property of the request" }
+"adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values.tool_calls" = { status = "mapped", rust = "ToolCallResults::from_tool_calls_and_values", reason = "the same `tool_calls`, zipped into one result per call as upstream does" }
+"adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values.values" = { status = "mapped", rust = "ToolCallResults::from_tool_calls_and_values", reason = "the same `values`, zipped into one result per call as upstream does" }
+"adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values.is_errors" = { status = "mapped", rust = "ToolCallResults::from_tool_calls_and_values", reason = "the same `is_errors`, zipped into one result per call as upstream does" }
+"clients/cache.py::Cache.cache_key.request" = { status = "mapped", rust = "LmRequest::cache_key", reason = "the request being keyed; the crate hangs `cache_key` on LmRequest itself rather than on the cache, since the key is a property of the request" }
 "clients/cache.py::Cache.cache_key.ignored_args_for_cache_key" = { status = "divergence", rust = "cache_key", reason = "dspy takes the ignore-list per call; the crate has the same names as a constant beside the key function, because varying them per call would make two callers disagree about what is the same request" }
-"clients/lm.py::LM.forward.messages" = { status = "mapped", rust = "call", reason = "the turns to send; `lm.call(items![...])` takes them as items, of which a message is one" }
+"clients/lm.py::LM.forward.messages" = { status = "mapped", rust = "LM::call", reason = "the turns to send; `lm.call(items![...])` takes them as items, of which a message is one" }
 "clients/lm.py::LM.forward.prompt" = { status = "divergence", rust = "call", reason = "a bare string is one item, so `lm.call(items!['...'])` is upstream's prompt=; there is no separate parameter to disagree with the others" }
 "clients/lm.py::LM.forward.kwargs" = { status = "divergence", rust = "Sampling", reason = "per-call overrides are an `LmConfig`/`Sampling` rather than loose keys, so a misspelling is a compile error instead of something the provider rejects" }
 "predict/aggregation.py::majority.prediction_or_completions" = { status = "divergence", rust = "majority", reason = "spelled `completions`: the crate takes the completions directly, where dspy accepts a Prediction, a Completions or a list and unwraps whichever it was given" }
 "predict/aggregation.py::majority.normalize" = { status = "mapped", rust = "majority", reason = "how a value is normalised before votes are counted" }
 "predict/aggregation.py::majority.field" = { status = "mapped", rust = "majority", reason = "which field is voted on; None takes the signature's last output as upstream does" }
-"predict/best_of_n.py::BestOfN.forward.kwargs" = { status = "mapped", rust = "forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
-"predict/chain_of_thought.py::ChainOfThought.forward.kwargs" = { status = "mapped", rust = "forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
-"predict/code_act.py::CodeAct.forward.kwargs" = { status = "mapped", rust = "forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
-"predict/multi_chain_comparison.py::MultiChainComparison.forward.kwargs" = { status = "mapped", rust = "forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
-"predict/predict.py::Predict.forward.kwargs" = { status = "mapped", rust = "forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
-"predict/program_of_thought.py::ProgramOfThought.forward.kwargs" = { status = "mapped", rust = "forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
-"predict/refine.py::Refine.forward.kwargs" = { status = "mapped", rust = "forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
-"predict/react.py::ReAct.forward.input_args" = { status = "mapped", rust = "forward", reason = "the input fields, as an `Example`; see Predict.forward.kwargs" }
-"predict/react_v2.py::ReActV2.forward.input_args" = { status = "mapped", rust = "forward", reason = "the input fields, as an `Example`; see Predict.forward.kwargs" }
-"predict/rlm.py::RLM.forward.input_args" = { status = "mapped", rust = "forward", reason = "the input fields, as an `Example`; see Predict.forward.kwargs" }
-"predict/multi_chain_comparison.py::MultiChainComparison.forward.completions" = { status = "mapped", rust = "forward", reason = "the attempts to compare, carried on the Example the module is asked with" }
+"predict/best_of_n.py::BestOfN.forward.kwargs" = { status = "mapped", rust = "BestOfN::forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
+"predict/chain_of_thought.py::ChainOfThought.forward.kwargs" = { status = "mapped", rust = "ChainOfThought::forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
+"predict/code_act.py::CodeAct.forward.kwargs" = { status = "mapped", rust = "CodeAct::forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
+"predict/multi_chain_comparison.py::MultiChainComparison.forward.kwargs" = { status = "mapped", rust = "MultiChainComparison::forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
+"predict/predict.py::Predict.forward.kwargs" = { status = "mapped", rust = "Predict::forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
+"predict/program_of_thought.py::ProgramOfThought.forward.kwargs" = { status = "mapped", rust = "ProgramOfThought::forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
+"predict/refine.py::Refine.forward.kwargs" = { status = "mapped", rust = "Refine::forward", reason = "the input fields, as an `Example` rather than keyword arguments — Rust has none, and an Example is what a signature's inputs already are" }
+"predict/react.py::ReAct.forward.input_args" = { status = "mapped", rust = "ReAct::forward", reason = "the input fields, as an `Example`; see Predict.forward.kwargs" }
+"predict/react_v2.py::ReActV2.forward.input_args" = { status = "mapped", rust = "ReActV2::forward", reason = "the input fields, as an `Example`; see Predict.forward.kwargs" }
+"predict/rlm.py::RLM.forward.input_args" = { status = "mapped", rust = "Rlm::forward", reason = "the input fields, as an `Example`; see Predict.forward.kwargs" }
+"predict/multi_chain_comparison.py::MultiChainComparison.forward.completions" = { status = "mapped", rust = "MultiChainComparison::forward", reason = "the attempts to compare, carried on the Example the module is asked with" }
 "predict/parallel.py::Parallel.forward.exec_pairs" = { status = "divergence", rust = "run", reason = "spelled by what it is: `Parallel::run` takes the module and the examples rather than a list of (module, example) pairs, since every pair in a batch shares its module" }
 "predict/parallel.py::Parallel.forward.num_threads" = { status = "divergence", rust = "Parallel", reason = "Parallel::max_in_flight; see primitives/module.py::Module.batch.num_threads" }
 "predict/predict.py::Predict.dump_state.json_mode" = { status = "divergence", rust = "dump_state", reason = "dspy's flag chooses between two on-disk shapes; the crate writes the one dspy.load reads, so there is nothing to choose" }
-"predict/predict.py::Predict.load_state.state" = { status = "mapped", rust = "load_state", reason = "the saved state to restore, as the ProgramState the file parses to" }
+"predict/predict.py::Predict.load_state.state" = { status = "mapped", rust = "Predict::load_state", reason = "the saved state to restore, as the ProgramState the file parses to" }
 "predict/predict.py::Predict.load_state.allow_unsafe_lm_state" = { status = "divergence", rust = "load_state_trusted", reason = "the flag is a method rather than a parameter: `load_state` is the safe call nearly everyone makes and a bare `false` at every site says less than the name does. What it gates is upstream's, measured against dspy's own round-trip in tests/lm_state.rs — an ordinary load drops api_base, base_url and model_list and keeps the pin; a trusted one keeps the endpoint. It is narrower than dspy in two places, both asserted: `base_url` and `model_list` are kept by the sanitiser and then not honoured, the first being litellm's alias for a field already set and the second its router's, which this crate has no counterpart to; and dspy's flag also permits importing the LM class a block names, which no Rust binary can do. This entry read `nothing to gate` until `saved-lm-round-trip` gave it something" }
 "predict/predict.py::Predict.update_config.kwargs" = { status = "divergence", rust = "Sampling", reason = "per-predictor overrides are a typed `Sampling` rather than loose keys; see clients/lm.py::LM.forward.kwargs" }
-"predict/react.py::ReAct.truncate_trajectory.trajectory" = { status = "mapped", rust = "truncate_oldest", reason = "the trajectory to shorten when the context will not hold it" }
-"primitives/code_interpreter.py::CodeInterpreter.execute.code" = { status = "mapped", rust = "execute", reason = "the Python to run in the sandbox" }
-"primitives/code_interpreter.py::CodeInterpreter.execute.variables" = { status = "mapped", rust = "execute", reason = "the names injected above the code, as dspy's `_inject_variables` writes them" }
+"predict/react.py::ReAct.truncate_trajectory.trajectory" = { status = "mapped", rust = "Trajectory::truncate_oldest", reason = "the trajectory to shorten when the context will not hold it" }
+"primitives/code_interpreter.py::CodeInterpreter.execute.code" = { status = "mapped", rust = "CodeInterpreter::execute", reason = "the Python to run in the sandbox" }
+"primitives/code_interpreter.py::CodeInterpreter.execute.variables" = { status = "mapped", rust = "CodeInterpreter::execute", reason = "the names injected above the code, as dspy's `_inject_variables` writes them" }
 "primitives/example.py::Example.get.key" = { status = "divergence", rust = "get", reason = "spelled `name`: an Example's keys are field names, which is what every other method here calls them" }
 "primitives/example.py::Example.get.default" = { status = "divergence", rust = "get", reason = "the crate returns `Option<&Value>`, so a caller writes its own default with `unwrap_or` rather than passing one in — and can tell absent from present-and-null, which dspy's default cannot" }
 "primitives/example.py::Example.items.include_dspy" = { status = "divergence", rust = "items", reason = "dspy's internal keys are stored beside the user's and this flag says whether to show them; the crate keeps the input-field marks out of the map entirely, so there is nothing to filter" }
-"primitives/example.py::Example.with_inputs.keys" = { status = "mapped", rust = "with_inputs", reason = "the field names that count as inputs" }
+"primitives/example.py::Example.with_inputs.keys" = { status = "mapped", rust = "Example::with_inputs", reason = "the field names that count as inputs" }
 "primitives/prediction.py::Prediction.from_completions.list_or_dict" = { status = "divergence", rust = "from_completions", reason = "spelled `completions` and typed as one thing: dspy accepts a list of dicts or a dict of lists and normalises whichever arrived" }
 "primitives/prediction.py::Prediction.from_completions.signature" = { status = "mapped", rust = "Prediction::from_candidates", reason = "the signature the completions belong to" }
 "primitives/prediction.py::Prediction.set_lm_usage.value" = { status = "divergence", rust = "set_lm_usage", reason = "spelled `usage`, and typed `Option<LmUsage>` rather than a bare dict" }
@@ -1188,14 +1188,14 @@
 "primitives/repl_types.py::REPLEntry.format.index" = { status = "mapped", rust = "ReplEntry::format_at", reason = "which turn this is, numbered as upstream numbers them" }
 "primitives/repl_types.py::REPLEntry.format.max_output_chars" = { status = "mapped", rust = "ReplEntry::format_at", reason = "how much of a turn's output is shown before it is elided" }
 "primitives/repl_types.py::REPLEntry.format_output.max_output_chars" = { status = "mapped", rust = "ReplEntry::format_output", reason = "how much of a turn's output is shown before it is elided" }
-"primitives/repl_types.py::REPLEntry.format_output.output" = { status = "mapped", rust = "format_output", reason = "the output text to elide and render" }
-"primitives/repl_types.py::REPLVariable.from_value.name" = { status = "mapped", rust = "from_value", reason = "the same `name`; a REPL variable is its name, its value, the field it came from and how much of it to preview" }
-"primitives/repl_types.py::REPLVariable.from_value.value" = { status = "mapped", rust = "from_value", reason = "the same `value`; a REPL variable is its name, its value, the field it came from and how much of it to preview" }
-"primitives/repl_types.py::REPLVariable.from_value.field_info" = { status = "mapped", rust = "from_value", reason = "the same `field_info`; a REPL variable is its name, its value, the field it came from and how much of it to preview" }
-"primitives/repl_types.py::REPLVariable.from_value.preview_chars" = { status = "mapped", rust = "from_value", reason = "the same `preview_chars`; a REPL variable is its name, its value, the field it came from and how much of it to preview" }
-"primitives/sandbox_serializable.py::SandboxSerializable.rlm_preview.max_chars" = { status = "mapped", rust = "rlm_preview", reason = "how much of a value the preview shows" }
-"primitives/sandbox_serializable.py::SandboxSerializable.sandbox_assignment.var_name" = { status = "mapped", rust = "sandbox_assignment", reason = "the name the value is bound to inside the sandbox" }
-"primitives/sandbox_serializable.py::SandboxSerializable.sandbox_assignment.data_expr" = { status = "mapped", rust = "sandbox_assignment", reason = "the Python expression the value is written as" }
+"primitives/repl_types.py::REPLEntry.format_output.output" = { status = "mapped", rust = "ReplEntry::format_output", reason = "the output text to elide and render" }
+"primitives/repl_types.py::REPLVariable.from_value.name" = { status = "mapped", rust = "ReplVariable::from_value", reason = "the same `name`; a REPL variable is its name, its value, the field it came from and how much of it to preview" }
+"primitives/repl_types.py::REPLVariable.from_value.value" = { status = "mapped", rust = "ReplVariable::from_value", reason = "the same `value`; a REPL variable is its name, its value, the field it came from and how much of it to preview" }
+"primitives/repl_types.py::REPLVariable.from_value.field_info" = { status = "mapped", rust = "ReplVariable::from_value", reason = "the same `field_info`; a REPL variable is its name, its value, the field it came from and how much of it to preview" }
+"primitives/repl_types.py::REPLVariable.from_value.preview_chars" = { status = "mapped", rust = "ReplVariable::from_value", reason = "the same `preview_chars`; a REPL variable is its name, its value, the field it came from and how much of it to preview" }
+"primitives/sandbox_serializable.py::SandboxSerializable.rlm_preview.max_chars" = { status = "mapped", rust = "SandboxSerializable::rlm_preview", reason = "how much of a value the preview shows" }
+"primitives/sandbox_serializable.py::SandboxSerializable.sandbox_assignment.var_name" = { status = "mapped", rust = "SandboxSerializable::sandbox_assignment", reason = "the name the value is bound to inside the sandbox" }
+"primitives/sandbox_serializable.py::SandboxSerializable.sandbox_assignment.data_expr" = { status = "mapped", rust = "SandboxSerializable::sandbox_assignment", reason = "the Python expression the value is written as" }
 "primitives/sandbox_serializable.py::build_repl_variable.name" = { status = "mapped", rust = "build_repl_variable", reason = "the same `name`" }
 "primitives/sandbox_serializable.py::build_repl_variable.obj" = { status = "mapped", rust = "build_repl_variable", reason = "the same `obj`" }
 "primitives/sandbox_serializable.py::build_repl_variable.field_info" = { status = "mapped", rust = "build_repl_variable", reason = "the same `field_info`" }
