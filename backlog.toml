@@ -4359,7 +4359,7 @@ records — not a projection of them, for the reason `projections-hide-divergenc
 id = "surface-private-modules"
 sprint = "api"
 title = "The surface gate reads pub mod only, and 208 public methods are written elsewhere"
-state = "todo"
+state = "done"
 size = "M"
 suites = ""
 plan = """
@@ -4394,4 +4394,26 @@ worth doing *before* the zero is quoted anywhere as a completeness claim.
 **What proves it.** The walk reaches an inherent `impl` on a public type regardless of the module's
 visibility, the count rises by roughly 208, and every one of them is classified — with the baseline
 back at zero over the whole surface rather than over part of it.
+"""
+outcome = """
+Closed 2026-08-24, the same day it was filed. **830 -> 1164 items, and back to zero unclassified.**
+
+Two gaps, not one. A private module's items are reachable through the *type* they hang off, so the
+walk descends into `mod` as well as `pub mod` and records what it finds under the nearest public
+ancestor — `predict/building.rs`'s methods are `dsrust::predict::Predict::*`, which is the path a
+caller writes. And **no trait method had ever been counted**: `ITEM` requires `pub`, and a trait's
+methods do not carry one because inside a `pub trait` they are public by construction. `Module`,
+`Adapter`, `ChatModel`, `DynChatModel`, `Tool`, `GepaAdapter`, `SignatureSpec`, `Ends` and
+`CodeInterpreter` had none of their contracts in the surface.
+
+**Widening needed a guard the narrow walk never did.** An `impl Foo` block is public surface only
+where `Foo` is declared bare-`pub`. `pub(crate) struct Parzen` and `pub(super) struct Evaluations`
+both carry `pub fn` methods nothing outside can name, and the first pass counted six — caught by the
+checker's own stale-entry rule after they had been written into the ledger, which is the guard
+working on the person who widened it.
+
+The 265 reasons are written by kind, because the kinds are the finding: dspy takes a constructor
+keyword where this takes a builder setter, and dspy inherits a method from a base class where this
+declares one on a trait. Those two sentences cover most of a surface a reader would otherwise have
+to justify a line at a time.
 """

@@ -41,6 +41,11 @@ ITEM = re.compile(
     re.M,
 )
 PUB_MOD = re.compile(r"^\s*pub\s+mod\s+(\w+)\s*;", re.M)
+#: A *private* `mod x;`. Its own path is unreachable, but a `pub fn` in an `impl` on a public type
+#: inside it is public API all the same — this crate keeps builder methods in `building.rs` by
+#: convention, so `Predict::callbacks` lives in one. Walked under the *parent's* prefix, which is
+#: the path a caller actually names.
+PRIVATE_MOD = re.compile(r"^mod\s+(\w+)\s*;", re.M)
 PUB_USE = re.compile(r"^\s*pub\s+use\s+([^;]+);", re.M)
 
 #: An inherent `impl Type` or a `trait Type`, at column zero — where rustfmt puts a top-level item,
@@ -52,6 +57,20 @@ PUB_USE = re.compile(r"^\s*pub\s+use\s+([^;]+);", re.M)
 MOD_OPEN = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?mod\s+[A-Za-z_][A-Za-z0-9_]*\s*\{")
 
 OWNER = re.compile(r"^(?:impl(?:<[^>]*>)?\s+(?!.*\bfor\b)|pub\s+trait\s+)([A-Za-z_][A-Za-z0-9_]*)")
+#: A trait's own method declaration, which carries no `pub` — inside a `pub trait` every method is
+#: public by construction. `Module::callbacks` is one, and `ITEM` requiring `pub` is why no trait
+#: method was ever counted.
+TRAIT_ITEM = re.compile(
+    r"^\s*(?:async\s+|unsafe\s+|const\s+)*(?:fn|type|const)\s+([A-Za-z_][A-Za-z0-9_]*)"
+)
+TRAIT_OPEN = re.compile(r"^pub\s+trait\s+([A-Za-z_][A-Za-z0-9_]*)")
+#: A type declared bare-`pub`. An `impl Foo` block contributes public surface only when `Foo` itself
+#: is one: `pub(crate) struct Parzen` and `pub(super) struct Evaluations` both have `pub fn` methods,
+#: and neither is reachable from outside. Collected once across the workspace, because an `impl` and
+#: its type are often in different files.
+PUBLIC_TYPE = re.compile(
+    r"^pub\s+(?:struct|enum|trait|type|union)\s+([A-Za-z_][A-Za-z0-9_]*)", re.M
+)
 
 #: Only bare `pub` is surface: `pub(crate)` and `pub(super)` cannot be named by a caller, and the
 #: patterns above require a space after `pub` so a restricted item never matches in the first place.
@@ -108,8 +127,31 @@ def without_test_modules(source: str) -> str:
     return "\n".join(kept)
 
 
-def walk(crate: str, path: pathlib.Path, prefix: str, seen: set[pathlib.Path]) -> set[str]:
-    """Every public item reachable through this module, keyed `crate::path::Name`."""
+def public_types(root: pathlib.Path) -> set[str]:
+    """Every type declared bare-`pub` anywhere in the workspace."""
+    found: set[str] = set()
+    for path in root.rglob("*.rs"):
+        found |= set(PUBLIC_TYPE.findall(path.read_text(errors="ignore")))
+    return found
+
+
+PUBLIC: set[str] = set()
+
+
+def walk(
+    crate: str,
+    path: pathlib.Path,
+    prefix: str,
+    seen: set[pathlib.Path],
+    owned_only: bool = False,
+) -> set[str]:
+    """Every public item reachable through this module, keyed `crate::path::Name`.
+
+    `owned_only` is set while walking a *private* module: there, a bare `pub fn` at module level is
+    not reachable — nothing can name the module — but a `pub fn` in an `impl` on a public type is,
+    under the type's own path. So only items with an owner are recorded, and they are recorded under
+    the nearest public ancestor's prefix, which is the path a caller writes.
+    """
     if path in seen or not path.exists():
         return set()
     seen.add(path)
@@ -117,16 +159,23 @@ def walk(crate: str, path: pathlib.Path, prefix: str, seen: set[pathlib.Path]) -
     found = set()
 
     owner: str | None = None
+    in_trait = False
     for line in source.splitlines():
         if owner and line == "}":
-            owner = None
+            owner, in_trait = None, False
         # The item first, then the block it opens: `pub trait Foo` matches both patterns, and it is
         # declared at the module — only what follows it belongs to `Foo`.
+        if owner and PUBLIC and owner not in PUBLIC:
+            continue  # an impl on a type nobody outside can name
         if match := ITEM.match(line):
-            where = f"{prefix}::{owner}" if owner else prefix
-            found.add(f"{where}::{match.group(2)}")
+            if owner or not owned_only:
+                where = f"{prefix}::{owner}" if owner else prefix
+                found.add(f"{where}::{match.group(2)}")
+        elif in_trait and (declared := TRAIT_ITEM.match(line)):
+            found.add(f"{prefix}::{owner}::{declared.group(1)}")
         if not line[:1].isspace() and (start := OWNER.match(line)):
             owner = start.group(1)
+            in_trait = TRAIT_OPEN.match(line) is not None
 
     for clause in PUB_USE.findall(source):
         for name in reexported(clause):
@@ -137,11 +186,18 @@ def walk(crate: str, path: pathlib.Path, prefix: str, seen: set[pathlib.Path]) -
         child = module_file(directory, name) or module_file(path.parent, name)
         if child:
             found |= walk(crate, child, f"{prefix}::{name}", seen)
+    for name in PRIVATE_MOD.findall(source):
+        child = module_file(directory, name) or module_file(path.parent, name)
+        if child:
+            # The prefix does not descend: a private module contributes to its parent's path.
+            found |= walk(crate, child, prefix, seen, owned_only=True)
     return found
 
 
 def surface() -> dict[str, set[str]]:
     """Each crate's public items, keyed by crate."""
+    global PUBLIC
+    PUBLIC = public_types(ROOT / "crates")
     out = {}
     for crate, src in CRATES.items():
         out[crate] = walk(crate, src / "lib.rs", crate, set())

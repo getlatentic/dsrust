@@ -1071,6 +1071,272 @@
 
 [rust_only]
 
+# What the surface walk could not see until it read private modules and trait bodies.
+#
+# This crate keeps builder methods in private `building.rs`-style modules, and a trait's own
+# methods carry no `pub` because they do not need one. Both are public API; neither was counted.
+# The shapes repeat, so the reasons do: dspy takes constructor keywords and this takes builder
+# setters; dspy inherits methods from a base class and this declares them on a trait.
+"dsrust::adapter::Adapter::extraction" = { status = "divergence", reason = "`Adapter::extraction` — the `Adapter` trait's contract: how a signature and its values become a prompt, and how a reply becomes fields" }
+"dsrust::adapter::Adapter::json_fallback" = { status = "divergence", reason = "`Adapter::json_fallback` — the `Adapter` trait's contract: how a signature and its values become a prompt, and how a reply becomes fields" }
+"dsrust::adapter::Adapter::name" = { status = "divergence", reason = "`Adapter::name` — the `Adapter` trait's contract: how a signature and its values become a prompt, and how a reply becomes fields" }
+"dsrust::adapter::Adapter::native_function_calling" = { status = "divergence", reason = "`Adapter::native_function_calling` — the `Adapter` trait's contract: how a signature and its values become a prompt, and how a reply becomes fields" }
+"dsrust::adapter::Adapter::output_mode" = { status = "divergence", reason = "`Adapter::output_mode` — the `Adapter` trait's contract: how a signature and its values become a prompt, and how a reply becomes fields" }
+"dsrust::adapter::ChatAdapter::json_fallback_adapter" = { status = "divergence", reason = "`ChatAdapter::json_fallback_adapter`, part of the same type's surface" }
+"dsrust::adapter::ChatAdapter::new" = { status = "divergence", reason = "`ChatAdapter::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::adapter::ChatAdapter::without_json_fallback" = { status = "divergence", reason = "`ChatAdapter`'s `without_json_fallback`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::adapter::Input::record" = { status = "divergence", reason = "`Input::record`, part of the same type's surface" }
+"dsrust::adapter::TwoStepAdapter::new" = { status = "divergence", reason = "`TwoStepAdapter::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::adapter::types::base::Type::description" = { status = "divergence", reason = "`Type::description`, part of the same type's surface" }
+"dsrust::adapter::types::document::MediaType::as_str" = { status = "divergence", reason = "`MediaType::as_str`, part of the same type's surface" }
+"dsrust::adapter::types::tool::ToolCall::id" = { status = "divergence", reason = "`ToolCall::id`, part of the same type's surface" }
+"dsrust::adapter::types::tool::ToolCalls::description" = { status = "divergence", reason = "`ToolCalls::description`, part of the same type's surface" }
+"dsrust::callback::CallId::id" = { status = "divergence", reason = "`CallId::id` — a call's identity and its parent, which is how a handler rebuilds the tree a program ran as" }
+"dsrust::callback::CallId::parent" = { status = "divergence", reason = "`CallId::parent` — a call's identity and its parent, which is how a handler rebuilds the tree a program ran as" }
+"dsrust::callback::Ends::describe" = { status = "divergence", reason = "`Ends::describe` — the two things an asynchronous point answers with, so one function serves both" }
+"dsrust::callback::Ends::ended" = { status = "divergence", reason = "`Ends::ended` — the two things an asynchronous point answers with, so one function serves both" }
+"dsrust::interpreter::CodeInterpreter::define_outputs" = { status = "divergence", reason = "`CodeInterpreter::define_outputs` — the interpreter seam, so a caller who cannot run Deno can supply another" }
+"dsrust::interpreter::CodeInterpreter::define_tools" = { status = "divergence", reason = "`CodeInterpreter::define_tools` — the interpreter seam, so a caller who cannot run Deno can supply another" }
+"dsrust::interpreter::sandbox::SandboxSerializable::type_name" = { status = "divergence", reason = "`SandboxSerializable::type_name`, part of the same type's surface" }
+"dsrust::lm::Capabilities::listed" = { status = "divergence", reason = "`Capabilities::listed` — what a model can do, from the frozen registry snapshot or stated outright" }
+"dsrust::lm::Capabilities::of" = { status = "divergence", reason = "`Capabilities::of` — what a model can do, from the frozen registry snapshot or stated outright" }
+"dsrust::lm::ChatModel::call" = { status = "divergence", reason = "`ChatModel::call` — the `ChatModel` trait an author implements — one typed request in, one response out" }
+"dsrust::lm::ChatModel::callbacks" = { status = "divergence", reason = "`ChatModel::callbacks` — the `ChatModel` trait an author implements — one typed request in, one response out" }
+"dsrust::lm::ChatModel::native_citations_usable" = { status = "divergence", reason = "`ChatModel::native_citations_usable` — the `ChatModel` trait an author implements — one typed request in, one response out" }
+"dsrust::lm::ChatModel::native_reasoning_usable" = { status = "divergence", reason = "`ChatModel::native_reasoning_usable` — the `ChatModel` trait an author implements — one typed request in, one response out" }
+"dsrust::lm::ChatTurn::assistant" = { status = "divergence", reason = "`ChatTurn::assistant` — one rendered turn, before it is collapsed onto a provider's wire" }
+"dsrust::lm::ChatTurn::user" = { status = "divergence", reason = "`ChatTurn::user` — one rendered turn, before it is collapsed onto a provider's wire" }
+"dsrust::lm::ContextWindowExceeded::CODE" = { status = "divergence", reason = "`ContextWindowExceeded::CODE` — the one provider failure dspy gives its own class and message" }
+"dsrust::lm::ContextWindowExceeded::DEFAULT_MESSAGE" = { status = "divergence", reason = "`ContextWindowExceeded::DEFAULT_MESSAGE` — the one provider failure dspy gives its own class and message" }
+"dsrust::lm::ContextWindowExceeded::detected" = { status = "divergence", reason = "`ContextWindowExceeded::detected` — the one provider failure dspy gives its own class and message" }
+"dsrust::lm::DynChatModel::capabilities_dyn" = { status = "divergence", reason = "`DynChatModel::capabilities_dyn` — the object-safe twin of `ChatModel`, so a program can hold whichever model was configured. Every method is the `_dyn` of one on the typed trait" }
+"dsrust::lm::DynChatModel::dump_state_dyn" = { status = "divergence", reason = "`DynChatModel::dump_state_dyn` — the object-safe twin of `ChatModel`, so a program can hold whichever model was configured. Every method is the `_dyn` of one on the typed trait" }
+"dsrust::lm::DynChatModel::forward_dyn" = { status = "divergence", reason = "`DynChatModel::forward_dyn` — the object-safe twin of `ChatModel`, so a program can hold whichever model was configured. Every method is the `_dyn` of one on the typed trait" }
+"dsrust::lm::DynChatModel::native_citations_usable_dyn" = { status = "divergence", reason = "`DynChatModel::native_citations_usable_dyn` — the object-safe twin of `ChatModel`, so a program can hold whichever model was configured. Every method is the `_dyn` of one on the typed trait" }
+"dsrust::lm::DynChatModel::native_reasoning_usable_dyn" = { status = "divergence", reason = "`DynChatModel::native_reasoning_usable_dyn` — the object-safe twin of `ChatModel`, so a program can hold whichever model was configured. Every method is the `_dyn` of one on the typed trait" }
+"dsrust::lm::LM::forward_stream" = { status = "divergence", reason = "`LM::forward_stream`, part of the same type's surface" }
+"dsrust::lm::LmErrorKind::code" = { status = "divergence", reason = "`LmErrorKind::code` — dspy's error taxonomy as a closed set, which is what `is_retryable` branches on" }
+"dsrust::lm::LmErrorKind::from_status" = { status = "divergence", reason = "`LmErrorKind::from_status` — dspy's error taxonomy as a closed set, which is what `is_retryable` branches on" }
+"dsrust::lm::LmErrorKind::is_configuration" = { status = "divergence", reason = "`LmErrorKind::is_configuration` — dspy's error taxonomy as a closed set, which is what `is_retryable` branches on" }
+"dsrust::lm::LmErrorKind::is_from_provider" = { status = "divergence", reason = "`LmErrorKind::is_from_provider` — dspy's error taxonomy as a closed set, which is what `is_retryable` branches on" }
+"dsrust::lm::LmErrorKind::is_retryable" = { status = "divergence", reason = "`LmErrorKind::is_retryable` — dspy's error taxonomy as a closed set, which is what `is_retryable` branches on" }
+"dsrust::lm::LmFailure::from_body" = { status = "divergence", reason = "`LmFailure::from_body` — a provider failure, built from whichever half of the wire reported it — a status, a body, a transport error — and read back by the parts a caller acts on. dspy raises a litellm exception and reads its attributes; a typed error is what makes `is_retryable` a branch rather than a string match" }
+"dsrust::lm::LmFailure::from_provider" = { status = "divergence", reason = "`LmFailure::from_provider` — a provider failure, built from whichever half of the wire reported it — a status, a body, a transport error — and read back by the parts a caller acts on. dspy raises a litellm exception and reads its attributes; a typed error is what makes `is_retryable` a branch rather than a string match" }
+"dsrust::lm::LmFailure::from_status" = { status = "divergence", reason = "`LmFailure::from_status` — a provider failure, built from whichever half of the wire reported it — a status, a body, a transport error — and read back by the parts a caller acts on. dspy raises a litellm exception and reads its attributes; a typed error is what makes `is_retryable` a branch rather than a string match" }
+"dsrust::lm::LmFailure::from_transport" = { status = "divergence", reason = "`LmFailure::from_transport` — a provider failure, built from whichever half of the wire reported it — a status, a body, a transport error — and read back by the parts a caller acts on. dspy raises a litellm exception and reads its attributes; a typed error is what makes `is_retryable` a branch rather than a string match" }
+"dsrust::lm::LmFailure::headers" = { status = "divergence", reason = "`LmFailure::headers` — a provider failure, built from whichever half of the wire reported it — a status, a body, a transport error — and read back by the parts a caller acts on. dspy raises a litellm exception and reads its attributes; a typed error is what makes `is_retryable` a branch rather than a string match" }
+"dsrust::lm::LmFailure::is_retryable" = { status = "divergence", reason = "`LmFailure::is_retryable` — a provider failure, built from whichever half of the wire reported it — a status, a body, a transport error — and read back by the parts a caller acts on. dspy raises a litellm exception and reads its attributes; a typed error is what makes `is_retryable` a branch rather than a string match" }
+"dsrust::lm::LmFailure::new" = { status = "divergence", reason = "`LmFailure::new` — a provider failure, built from whichever half of the wire reported it — a status, a body, a transport error — and read back by the parts a caller acts on. dspy raises a litellm exception and reads its attributes; a typed error is what makes `is_retryable` a branch rather than a string match" }
+"dsrust::lm::LmFailure::on_model" = { status = "divergence", reason = "`LmFailure::on_model` — a provider failure, built from whichever half of the wire reported it — a status, a body, a transport error — and read back by the parts a caller acts on. dspy raises a litellm exception and reads its attributes; a typed error is what makes `is_retryable` a branch rather than a string match" }
+"dsrust::lm::LmFailure::provider_code" = { status = "divergence", reason = "`LmFailure::provider_code` — a provider failure, built from whichever half of the wire reported it — a status, a body, a transport error — and read back by the parts a caller acts on. dspy raises a litellm exception and reads its attributes; a typed error is what makes `is_retryable` a branch rather than a string match" }
+"dsrust::lm::LmFailure::request_id" = { status = "divergence", reason = "`LmFailure::request_id` — a provider failure, built from whichever half of the wire reported it — a status, a body, a transport error — and read back by the parts a caller acts on. dspy raises a litellm exception and reads its attributes; a typed error is what makes `is_retryable` a branch rather than a string match" }
+"dsrust::lm::LmFailure::retry_after" = { status = "divergence", reason = "`LmFailure::retry_after` — a provider failure, built from whichever half of the wire reported it — a status, a body, a transport error — and read back by the parts a caller acts on. dspy raises a litellm exception and reads its attributes; a typed error is what makes `is_retryable` a branch rather than a string match" }
+"dsrust::lm::LmUsage::counted" = { status = "divergence", reason = "`LmUsage::counted` — what a call cost, and the merge an accumulating tracker needs" }
+"dsrust::lm::LmUsage::fill_aliases" = { status = "divergence", reason = "`LmUsage::fill_aliases` — what a call cost, and the merge an accumulating tracker needs" }
+"dsrust::lm::LmUsage::merge" = { status = "divergence", reason = "`LmUsage::merge` — what a call cost, and the merge an accumulating tracker needs" }
+"dsrust::lm::LmUsage::total" = { status = "divergence", reason = "`LmUsage::total` — what a call cost, and the merge an accumulating tracker needs" }
+"dsrust::lm::ModelRef::parse" = { status = "divergence", reason = "`ModelRef::parse` — `provider/model-id`, parsed — dspy's `infer_provider` off the prefix" }
+"dsrust::lm::ModelRef::reference" = { status = "divergence", reason = "`ModelRef::reference` — `provider/model-id`, parsed — dspy's `infer_provider` off the prefix" }
+"dsrust::lm::Role::as_str" = { status = "divergence", reason = "`Role::as_str`, part of the same type's surface" }
+"dsrust::lm::Sampling::rollout" = { status = "divergence", reason = "`Sampling::rollout`, part of the same type's surface" }
+"dsrust::lm::TokenLimitField::wire_name" = { status = "divergence", reason = "`TokenLimitField::wire_name`, part of the same type's surface" }
+"dsrust::lm::TokenLimitRule::field_for" = { status = "divergence", reason = "`TokenLimitRule::field_for`, part of the same type's surface" }
+"dsrust::lm::api::Content::text" = { status = "divergence", reason = "`Content::text`, part of the same type's surface" }
+"dsrust::lm::api::LmConfig::from_kwargs" = { status = "divergence", reason = "`LmConfig::from_kwargs` — the per-call settings, and the two readers that are not plain fields" }
+"dsrust::lm::api::LmConfig::rollout_id" = { status = "divergence", reason = "`LmConfig::rollout_id` — the per-call settings, and the two readers that are not plain fields" }
+"dsrust::lm::api::LmDelta::text" = { status = "divergence", reason = "`LmDelta::text` — one streamed increment" }
+"dsrust::lm::api::LmDelta::thinking" = { status = "divergence", reason = "`LmDelta::thinking` — one streamed increment" }
+"dsrust::lm::api::LmHistoryEntry::new" = { status = "divergence", reason = "`LmHistoryEntry::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::lm::api::LmMessage::assistant" = { status = "divergence", reason = "`LmMessage::assistant` — one turn. `user`/`system`/`assistant`/`developer` are upstream's `User(...)`/`System(...)` constructor helpers" }
+"dsrust::lm::api::LmMessage::developer" = { status = "divergence", reason = "`LmMessage::developer` — one turn. `user`/`system`/`assistant`/`developer` are upstream's `User(...)`/`System(...)` constructor helpers" }
+"dsrust::lm::api::LmMessage::metadata" = { status = "divergence", reason = "`LmMessage::metadata` — one turn. `user`/`system`/`assistant`/`developer` are upstream's `User(...)`/`System(...)` constructor helpers" }
+"dsrust::lm::api::LmMessage::name" = { status = "divergence", reason = "`LmMessage::name` — one turn. `user`/`system`/`assistant`/`developer` are upstream's `User(...)`/`System(...)` constructor helpers" }
+"dsrust::lm::api::LmMessage::new" = { status = "divergence", reason = "`LmMessage::new` — one turn. `user`/`system`/`assistant`/`developer` are upstream's `User(...)`/`System(...)` constructor helpers" }
+"dsrust::lm::api::LmMessage::system" = { status = "divergence", reason = "`LmMessage::system` — one turn. `user`/`system`/`assistant`/`developer` are upstream's `User(...)`/`System(...)` constructor helpers" }
+"dsrust::lm::api::LmMessage::text" = { status = "divergence", reason = "`LmMessage::text` — one turn. `user`/`system`/`assistant`/`developer` are upstream's `User(...)`/`System(...)` constructor helpers" }
+"dsrust::lm::api::LmMessage::user" = { status = "divergence", reason = "`LmMessage::user` — one turn. `user`/`system`/`assistant`/`developer` are upstream's `User(...)`/`System(...)` constructor helpers" }
+"dsrust::lm::api::LmOutput::as_text" = { status = "divergence", reason = "`LmOutput::as_text` — one candidate of a reply" }
+"dsrust::lm::api::LmOutput::text" = { status = "divergence", reason = "`LmOutput::text` — one candidate of a reply" }
+"dsrust::lm::api::LmOutput::tool_calls" = { status = "divergence", reason = "`LmOutput::tool_calls` — one candidate of a reply" }
+"dsrust::lm::api::LmOutputBuilder::apply" = { status = "divergence", reason = "`LmOutputBuilder::apply` — dspy's `LMOutputBuilder`: the accumulator that folds a stream's deltas into an output" }
+"dsrust::lm::api::LmOutputBuilder::new" = { status = "divergence", reason = "`LmOutputBuilder::new` — dspy's `LMOutputBuilder`: the accumulator that folds a stream's deltas into an output" }
+"dsrust::lm::api::LmOutputBuilder::to_response" = { status = "divergence", reason = "`LmOutputBuilder::to_response` — dspy's `LMOutputBuilder`: the accumulator that folds a stream's deltas into an output" }
+"dsrust::lm::api::LmPart::as_text" = { status = "divergence", reason = "`LmPart::as_text` — one part of a message. The named constructors are the union's variants written as functions, which is how a caller builds a part without naming the enum" }
+"dsrust::lm::api::LmPart::citation" = { status = "divergence", reason = "`LmPart::citation` — one part of a message. The named constructors are the union's variants written as functions, which is how a caller builds a part without naming the enum" }
+"dsrust::lm::api::LmPart::image_url" = { status = "divergence", reason = "`LmPart::image_url` — one part of a message. The named constructors are the union's variants written as functions, which is how a caller builds a part without naming the enum" }
+"dsrust::lm::api::LmPart::legacy" = { status = "divergence", reason = "`LmPart::legacy` — one part of a message. The named constructors are the union's variants written as functions, which is how a caller builds a part without naming the enum" }
+"dsrust::lm::api::LmPart::legacy_block" = { status = "divergence", reason = "`LmPart::legacy_block` — one part of a message. The named constructors are the union's variants written as functions, which is how a caller builds a part without naming the enum" }
+"dsrust::lm::api::LmPart::metadata" = { status = "divergence", reason = "`LmPart::metadata` — one part of a message. The named constructors are the union's variants written as functions, which is how a caller builds a part without naming the enum" }
+"dsrust::lm::api::LmPart::refusal" = { status = "divergence", reason = "`LmPart::refusal` — one part of a message. The named constructors are the union's variants written as functions, which is how a caller builds a part without naming the enum" }
+"dsrust::lm::api::LmPart::text" = { status = "divergence", reason = "`LmPart::text` — one part of a message. The named constructors are the union's variants written as functions, which is how a caller builds a part without naming the enum" }
+"dsrust::lm::api::LmPart::thinking" = { status = "divergence", reason = "`LmPart::thinking` — one part of a message. The named constructors are the union's variants written as functions, which is how a caller builds a part without naming the enum" }
+"dsrust::lm::api::LmRequest::new" = { status = "divergence", reason = "`LmRequest::new` — the typed request the adapter boundary produces and every wire reads" }
+"dsrust::lm::api::LmRequest::output_schema" = { status = "divergence", reason = "`LmRequest::output_schema` — the typed request the adapter boundary produces and every wire reads" }
+"dsrust::lm::api::LmRequest::system" = { status = "divergence", reason = "`LmRequest::system` — the typed request the adapter boundary produces and every wire reads" }
+"dsrust::lm::api::LmRequest::tools" = { status = "divergence", reason = "`LmRequest::tools` — the typed request the adapter boundary produces and every wire reads" }
+"dsrust::lm::api::LmRequest::user_messages" = { status = "divergence", reason = "`LmRequest::user_messages` — the typed request the adapter boundary produces and every wire reads" }
+"dsrust::lm::api::LmRequest::watchable" = { status = "divergence", reason = "`LmRequest::watchable` — the typed request the adapter boundary produces and every wire reads" }
+"dsrust::lm::api::LmRequest::wire_messages" = { status = "divergence", reason = "`LmRequest::wire_messages` — the typed request the adapter boundary produces and every wire reads" }
+"dsrust::lm::api::LmRequestPatch::merge" = { status = "divergence", reason = "`LmRequestPatch::merge`, part of the same type's surface" }
+"dsrust::lm::api::LmResponse::completions" = { status = "divergence", reason = "`LmResponse::completions` — the typed reply, and the readers a caller reaches for rather than walking the outputs" }
+"dsrust::lm::api::LmResponse::first_text" = { status = "divergence", reason = "`LmResponse::first_text` — the typed reply, and the readers a caller reaches for rather than walking the outputs" }
+"dsrust::lm::api::LmResponse::model" = { status = "divergence", reason = "`LmResponse::model` — the typed reply, and the readers a caller reaches for rather than walking the outputs" }
+"dsrust::lm::api::LmResponse::provider_response" = { status = "divergence", reason = "`LmResponse::provider_response` — the typed reply, and the readers a caller reaches for rather than walking the outputs" }
+"dsrust::lm::api::LmResponse::spend" = { status = "divergence", reason = "`LmResponse::spend` — the typed reply, and the readers a caller reaches for rather than walking the outputs" }
+"dsrust::lm::api::LmResponse::text" = { status = "divergence", reason = "`LmResponse::text` — the typed reply, and the readers a caller reaches for rather than walking the outputs" }
+"dsrust::lm::api::LmStreamEvent::delta" = { status = "divergence", reason = "`LmStreamEvent::delta` — one event of a stream" }
+"dsrust::lm::api::LmStreamEvent::end" = { status = "divergence", reason = "`LmStreamEvent::end` — one event of a stream" }
+"dsrust::lm::api::LmToolSpec::described" = { status = "divergence", reason = "`LmToolSpec::described` — a tool as the request declares it, and its OpenAI spelling" }
+"dsrust::lm::api::LmToolSpec::new" = { status = "divergence", reason = "`LmToolSpec::new` — a tool as the request declares it, and its OpenAI spelling" }
+"dsrust::lm::api::LmToolSpec::to_openai" = { status = "divergence", reason = "`LmToolSpec::to_openai` — a tool as the request declares it, and its OpenAI spelling" }
+"dsrust::lm::cache::disk::DiskCache::size" = { status = "divergence", reason = "`DiskCache`'s `size`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::lm::headers::request_id" = { status = "divergence", reason = "`headers::request_id` — the two response headers a retry policy reads" }
+"dsrust::lm::headers::retry_after" = { status = "divergence", reason = "`headers::retry_after` — the two response headers a retry policy reads" }
+"dsrust::lm::retry::Retry::attempts" = { status = "divergence", reason = "`Retry`'s `attempts`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::module::Ask::Answer" = { status = "divergence", reason = "`Ask::Answer`, part of the same type's surface" }
+"dsrust::module::Ask::ask" = { status = "divergence", reason = "`Ask::ask` — the call itself, which Python reaches through `__call__`" }
+"dsrust::module::Forward::forward" = { status = "divergence", reason = "`Forward::forward` — the call itself, which Python reaches through `__call__`" }
+"dsrust::module::Module::callbacks" = { status = "divergence", reason = "`Module::callbacks` — the `Module` trait's own contract — what a caller takes and an optimizer walks" }
+"dsrust::module::Module::dump_state" = { status = "divergence", reason = "`Module::dump_state` — the `Module` trait's own contract — what a caller takes and an optimizer walks" }
+"dsrust::module::Module::forward" = { status = "divergence", reason = "`Module::forward` — the `Module` trait's own contract — what a caller takes and an optimizer walks" }
+"dsrust::module::Module::forward_traced" = { status = "divergence", reason = "`Module::forward_traced` — the `Module` trait's own contract — what a caller takes and an optimizer walks" }
+"dsrust::module::Module::load" = { status = "divergence", reason = "`Module::load` — the `Module` trait's own contract — what a caller takes and an optimizer walks" }
+"dsrust::module::Module::load_state_with" = { status = "divergence", reason = "`Module::load_state_with` — the `Module` trait's own contract — what a caller takes and an optimizer walks" }
+"dsrust::module::Module::load_trusted" = { status = "divergence", reason = "`Module::load_trusted` — the `Module` trait's own contract — what a caller takes and an optimizer walks" }
+"dsrust::module::Module::save" = { status = "divergence", reason = "`Module::save` — the `Module` trait's own contract — what a caller takes and an optimizer walks" }
+"dsrust::module::Module::set_config" = { status = "divergence", reason = "`Module::set_config` — the `Module` trait's own contract — what a caller takes and an optimizer walks" }
+"dsrust::module::PredictorState::of" = { status = "divergence", reason = "`PredictorState::of` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::module::ProgramState::get" = { status = "divergence", reason = "`ProgramState::get`, part of the same type's surface" }
+"dsrust::module::ProgramState::new" = { status = "divergence", reason = "`ProgramState::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::module::SignatureState::of" = { status = "divergence", reason = "`SignatureState::of` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::module::Trust::allows_redirect" = { status = "divergence", reason = "`Trust::allows_redirect`, part of the same type's surface" }
+"dsrust::optimize::Auto" = { status = "divergence", reason = "`optimize::Auto`, part of the same type's surface" }
+"dsrust::optimize::BetterTogether::compile" = { status = "divergence", reason = "`BetterTogether::compile` — the call itself, which Python reaches through `__call__`" }
+"dsrust::optimize::BetterTogether::new" = { status = "divergence", reason = "`BetterTogether::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::optimize::BetterTogether::seed" = { status = "divergence", reason = "`BetterTogether`'s `seed`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::BetterTogether::without_shuffling" = { status = "divergence", reason = "`BetterTogether`'s `without_shuffling`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::BootstrapFewShot::compile" = { status = "divergence", reason = "`BootstrapFewShot::compile` — the call itself, which Python reaches through `__call__`" }
+"dsrust::optimize::BootstrapFewShot::compile_with_teacher" = { status = "divergence", reason = "`BootstrapFewShot::compile_with_teacher` — the call itself, which Python reaches through `__call__`" }
+"dsrust::optimize::BootstrapFewShot::new" = { status = "divergence", reason = "`BootstrapFewShot::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::optimize::BootstrapFewShot::without_metric" = { status = "divergence", reason = "`BootstrapFewShot`'s `without_metric`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::BootstrapRandomSearch::compile" = { status = "divergence", reason = "`BootstrapRandomSearch::compile` — the call itself, which Python reaches through `__call__`" }
+"dsrust::optimize::BootstrapRandomSearch::max_bootstrapped_demos" = { status = "divergence", reason = "`BootstrapRandomSearch`'s `max_bootstrapped_demos`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::BootstrapRandomSearch::max_labeled_demos" = { status = "divergence", reason = "`BootstrapRandomSearch`'s `max_labeled_demos`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::BootstrapRandomSearch::metric_threshold" = { status = "divergence", reason = "`BootstrapRandomSearch`'s `metric_threshold`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::BootstrapRandomSearch::new" = { status = "divergence", reason = "`BootstrapRandomSearch::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::optimize::COPRO::compile" = { status = "divergence", reason = "`COPRO::compile` — the call itself, which Python reaches through `__call__`" }
+"dsrust::optimize::COPRO::init_temperature" = { status = "divergence", reason = "`COPRO`'s `init_temperature`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::COPRO::new" = { status = "divergence", reason = "`COPRO::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::optimize::DynOptimizer::compile_dyn" = { status = "divergence", reason = "`DynOptimizer::compile_dyn`, part of the same type's surface" }
+"dsrust::optimize::Ensemble::compile" = { status = "divergence", reason = "`Ensemble::compile` — the call itself, which Python reaches through `__call__`" }
+"dsrust::optimize::Ensemble::new" = { status = "divergence", reason = "`Ensemble::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::optimize::Ensemble::seed" = { status = "divergence", reason = "`Ensemble`'s `seed`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::Ensemble::size" = { status = "divergence", reason = "`Ensemble`'s `size`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::Ensembled::is_empty" = { status = "divergence", reason = "`Ensembled::is_empty`, part of the same type's surface" }
+"dsrust::optimize::Ensembled::len" = { status = "divergence", reason = "`Ensembled::len`, part of the same type's surface" }
+"dsrust::optimize::Feedback::new" = { status = "divergence", reason = "`Feedback::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::optimize::Feedback::score_only" = { status = "divergence", reason = "`Feedback::score_only`, part of the same type's surface" }
+"dsrust::optimize::GEPA::compile" = { status = "divergence", reason = "`GEPA::compile` — the call itself, which Python reaches through `__call__`" }
+"dsrust::optimize::GEPA::instruction_proposer" = { status = "divergence", reason = "`GEPA`'s `instruction_proposer`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::GEPA::new" = { status = "divergence", reason = "`GEPA::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::optimize::GEPA::num_threads" = { status = "divergence", reason = "`GEPA`'s `num_threads`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::GEPA::seed" = { status = "divergence", reason = "`GEPA`'s `seed`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::InstructionProposer::propose" = { status = "divergence", reason = "`InstructionProposer::propose`, part of the same type's surface" }
+"dsrust::optimize::LabeledFewShot::compile" = { status = "divergence", reason = "`LabeledFewShot::compile` — the call itself, which Python reaches through `__call__`" }
+"dsrust::optimize::LabeledFewShot::new" = { status = "divergence", reason = "`LabeledFewShot::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::optimize::MIPROv2::compile" = { status = "divergence", reason = "`MIPROv2::compile` — the call itself, which Python reaches through `__call__`" }
+"dsrust::optimize::MIPROv2::compile_traced" = { status = "divergence", reason = "`MIPROv2::compile_traced` — the call itself, which Python reaches through `__call__`" }
+"dsrust::optimize::MIPROv2::max_bootstrapped_demos" = { status = "divergence", reason = "`MIPROv2`'s `max_bootstrapped_demos`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::MIPROv2::max_labeled_demos" = { status = "divergence", reason = "`MIPROv2`'s `max_labeled_demos`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::MIPROv2::new" = { status = "divergence", reason = "`MIPROv2::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::optimize::MIPROv2::seed" = { status = "divergence", reason = "`MIPROv2`'s `seed`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::optimize::Optimizer::compile" = { status = "divergence", reason = "`Optimizer::compile` — the call itself, which Python reaches through `__call__`" }
+"dsrust::optimize::minibatch::Auto" = { status = "divergence", reason = "`minibatch::Auto` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
+"dsrust::optimize::minibatch::Auto::candidates" = { status = "divergence", reason = "`Auto::candidates` — MIPROv2's `auto` presets — the trial and candidate counts each level sets" }
+"dsrust::optimize::minibatch::Auto::instruction_candidates" = { status = "divergence", reason = "`Auto::instruction_candidates` — MIPROv2's `auto` presets — the trial and candidate counts each level sets" }
+"dsrust::optimize::minibatch::Auto::val_size" = { status = "divergence", reason = "`Auto::val_size` — MIPROv2's `auto` presets — the trial and candidate counts each level sets" }
+"dsrust::optimize::minibatch::Averages" = { status = "divergence", reason = "`minibatch::Averages` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
+"dsrust::optimize::minibatch::Averages::highest_average" = { status = "divergence", reason = "`Averages::highest_average` — the running per-candidate averages a minibatch search keeps" }
+"dsrust::optimize::minibatch::Averages::mark_evaluated" = { status = "divergence", reason = "`Averages::mark_evaluated` — the running per-candidate averages a minibatch search keeps" }
+"dsrust::optimize::minibatch::Averages::record" = { status = "divergence", reason = "`Averages::record` — the running per-candidate averages a minibatch search keeps" }
+"dsrust::optimize::minibatch::MIN_MINIBATCH_SIZE" = { status = "divergence", reason = "`minibatch::MIN_MINIBATCH_SIZE` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
+"dsrust::optimize::minibatch::adjusted_trials" = { status = "divergence", reason = "`minibatch::adjusted_trials` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
+"dsrust::optimize::minibatch::batch" = { status = "divergence", reason = "`minibatch::batch` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
+"dsrust::optimize::minibatch::full_evaluation_due" = { status = "divergence", reason = "`minibatch::full_evaluation_due` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
+"dsrust::optimize::minibatch::subsample" = { status = "divergence", reason = "`minibatch::subsample` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
+"dsrust::predict::Answered::failure" = { status = "divergence", reason = "`Answered::failure`, part of the same type's surface" }
+"dsrust::predict::Answered::into_results" = { status = "divergence", reason = "`Answered::into_results`, part of the same type's surface" }
+"dsrust::predict::BestOfN::fail_count" = { status = "divergence", reason = "`BestOfN`'s `fail_count`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::predict::BestOfN::into_inner" = { status = "divergence", reason = "`BestOfN::into_inner`, part of the same type's surface" }
+"dsrust::predict::BestOfN::new" = { status = "divergence", reason = "`BestOfN::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::predict::BestOfN::run" = { status = "divergence", reason = "`BestOfN::run` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::ChainOfThought::call" = { status = "divergence", reason = "`ChainOfThought::call` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::ChainOfThought::call_typed" = { status = "divergence", reason = "`ChainOfThought::call_typed` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::ChainOfThought::call_typed_with" = { status = "divergence", reason = "`ChainOfThought::call_typed_with` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::ChainOfThought::call_with" = { status = "divergence", reason = "`ChainOfThought::call_with` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::ChainOfThought::from_signature" = { status = "divergence", reason = "`ChainOfThought::from_signature` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::predict::ChainOfThought::set_lm" = { status = "divergence", reason = "`ChainOfThought`'s `set_lm`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::predict::ChainOfThought::signature" = { status = "divergence", reason = "`ChainOfThought`'s `signature`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::predict::ChainOfThought::task" = { status = "divergence", reason = "`ChainOfThought`'s `task`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::predict::MultiChainComparison::attempts" = { status = "divergence", reason = "`MultiChainComparison`'s `attempts`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::predict::MultiChainComparison::compare" = { status = "divergence", reason = "`MultiChainComparison::compare` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::MultiChainComparison::from_signature" = { status = "divergence", reason = "`MultiChainComparison::from_signature` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::predict::Parallel::new" = { status = "divergence", reason = "`Parallel::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::predict::Parallel::run" = { status = "divergence", reason = "`Parallel::run` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::Predict::adapter" = { status = "divergence", reason = "`Predict`'s `adapter`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::predict::Predict::call" = { status = "divergence", reason = "`Predict::call` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::Predict::call_inputs" = { status = "divergence", reason = "`Predict::call_inputs` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::Predict::call_inputs_with" = { status = "divergence", reason = "`Predict::call_inputs_with` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::Predict::call_typed" = { status = "divergence", reason = "`Predict::call_typed` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::Predict::call_typed_with" = { status = "divergence", reason = "`Predict::call_typed_with` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::Predict::call_with" = { status = "divergence", reason = "`Predict::call_with` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::Predict::callbacks" = { status = "divergence", reason = "`Predict`'s `callbacks`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::predict::Predict::demos" = { status = "divergence", reason = "`Predict`'s `demos`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::predict::Predict::feedback_retry" = { status = "divergence", reason = "`Predict`'s `feedback_retry`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::predict::Predict::forward_completions" = { status = "divergence", reason = "`Predict::forward_completions` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::Predict::from_signature" = { status = "divergence", reason = "`Predict::from_signature` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::predict::Predict::new" = { status = "divergence", reason = "`Predict::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::predict::Predict::parse" = { status = "divergence", reason = "`Predict::parse` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::predict::Predict::task" = { status = "divergence", reason = "`Predict`'s `task`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::predict::TypedChainOfThought::call_inputs" = { status = "divergence", reason = "`TypedChainOfThought::call_inputs` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::TypedChainOfThought::call_inputs_with" = { status = "divergence", reason = "`TypedChainOfThought::call_inputs_with` — the call itself, which Python reaches through `__call__`" }
+"dsrust::predict::refine::Refine::fail_count" = { status = "divergence", reason = "`Refine`'s `fail_count`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::predict::rlm::Rlm::tools" = { status = "divergence", reason = "`Rlm::tools`, part of the same type's surface" }
+"dsrust::react::FnTool::new" = { status = "divergence", reason = "`FnTool::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::react::ReActV2::adapter" = { status = "divergence", reason = "`ReActV2`'s `adapter`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::react::ReActV2::new" = { status = "divergence", reason = "`ReActV2::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::react::ReActV2::set_lm" = { status = "divergence", reason = "`ReActV2`'s `set_lm`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
+"dsrust::react::ReActV2::tool_names" = { status = "divergence", reason = "`ReActV2::tool_names`, part of the same type's surface" }
+"dsrust::react::ReActV2::turn_signature" = { status = "divergence", reason = "`ReActV2::turn_signature`, part of the same type's surface" }
+"dsrust::react::ReActV2::turn_tools" = { status = "divergence", reason = "`ReActV2::turn_tools`, part of the same type's surface" }
+"dsrust::react::Tool::call" = { status = "divergence", reason = "`Tool::call` — the `Tool` trait a callable declares itself through: its name, its prose, and the two call shapes" }
+"dsrust::react::Tool::call_value" = { status = "divergence", reason = "`Tool::call_value` — the `Tool` trait a callable declares itself through: its name, its prose, and the two call shapes" }
+"dsrust::react::Tool::description" = { status = "divergence", reason = "`Tool::description` — the `Tool` trait a callable declares itself through: its name, its prose, and the two call shapes" }
+"dsrust::react::Tool::name" = { status = "divergence", reason = "`Tool::name` — the `Tool` trait a callable declares itself through: its name, its prose, and the two call shapes" }
+"dsrust::react::Trajectory::as_value" = { status = "divergence", reason = "`Trajectory::as_value` — ReAct's turns so far, as the `trajectory` field renders them" }
+"dsrust::react::Trajectory::is_empty" = { status = "divergence", reason = "`Trajectory::is_empty` — ReAct's turns so far, as the `trajectory` field renders them" }
+"dsrust::react::Trajectory::rendered" = { status = "divergence", reason = "`Trajectory::rendered` — ReAct's turns so far, as the `trajectory` field renders them" }
+"dsrust::signature::FieldKind::annotation" = { status = "divergence", reason = "`FieldKind::annotation` — what a field's declared type says about rendering and coercion" }
+"dsrust::signature::FieldKind::opaque_json" = { status = "divergence", reason = "`FieldKind::opaque_json` — what a field's declared type says about rendering and coercion" }
+"dsrust::signature::FieldKind::schema_type" = { status = "divergence", reason = "`FieldKind::schema_type` — what a field's declared type says about rendering and coercion" }
+"dsrust::signature::JsonType::descriptions" = { status = "divergence", reason = "`JsonType::descriptions` — the `Json` kind's carrier: the annotation as dspy prints it" }
+"dsrust::signature::JsonType::plain" = { status = "divergence", reason = "`JsonType::plain` — the `Json` kind's carrier: the annotation as dspy prints it" }
+"dsrust::signature::JsonType::reflected" = { status = "divergence", reason = "`JsonType::reflected` — the `Json` kind's carrier: the annotation as dspy prints it" }
+"dsrust::signature::SignatureSpec::Inputs" = { status = "divergence", reason = "`SignatureSpec::Inputs` — what `#[derive(Signature)]` collects: the two field structs and the values they render as" }
+"dsrust::signature::SignatureSpec::Outputs" = { status = "divergence", reason = "`SignatureSpec::Outputs` — what `#[derive(Signature)]` collects: the two field structs and the values they render as" }
+"dsrust::signature::SignatureSpec::input_pairs" = { status = "divergence", reason = "`SignatureSpec::input_pairs` — what `#[derive(Signature)]` collects: the two field structs and the values they render as" }
+"dsrust::signature::SignatureSpec::signature" = { status = "divergence", reason = "`SignatureSpec::signature` — what `#[derive(Signature)]` collects: the two field structs and the values they render as" }
+"gepa::EvalBatch::scored" = { status = "divergence", reason = "`EvalBatch::scored`, part of the same type's surface" }
+"gepa::EvalBatch::traced" = { status = "divergence", reason = "`EvalBatch::traced`, part of the same type's surface" }
+"gepa::GepaAdapter::evaluate_minibatch" = { status = "divergence", reason = "`GepaAdapter::evaluate_minibatch` — gepa's `GEPAAdapter` protocol as a trait — evaluate a batch, propose new texts" }
+"gepa::GepaAdapter::evaluate_valset" = { status = "divergence", reason = "`GepaAdapter::evaluate_valset` — gepa's `GEPAAdapter` protocol as a trait — evaluate a batch, propose new texts" }
+"gepa::GepaAdapter::evaluate_valset_ids" = { status = "divergence", reason = "`GepaAdapter::evaluate_valset_ids` — gepa's `GEPAAdapter` protocol as a trait — evaluate a batch, propose new texts" }
+"gepa::GepaAdapter::propose_new_texts" = { status = "divergence", reason = "`GepaAdapter::propose_new_texts` — gepa's `GEPAAdapter` protocol as a trait — evaluate a batch, propose new texts" }
+"pyrng::cpython::Random::sample" = { status = "divergence", reason = "`Random::sample`, part of the same type's surface" }
+"tpe::TpeSampler::ask" = { status = "divergence", reason = "`TpeSampler::ask` — optuna's `TPESampler`, whose decisions MIPROv2's search *is*" }
+"tpe::TpeSampler::new" = { status = "divergence", reason = "`TpeSampler::new` — optuna's `TPESampler`, whose decisions MIPROv2's search *is*" }
+"tpe::TpeSampler::tell" = { status = "divergence", reason = "`TpeSampler::tell` — optuna's `TPESampler`, whose decisions MIPROv2's search *is*" }
+
 # The bare-name tail: what a Python object model gives for free and Rust has to spell.
 #
 # These were all *accounted for by name* until the surface check stopped treating a bare `new` as

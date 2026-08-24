@@ -54,11 +54,14 @@ LEDGER = pathlib.Path(__file__).parent / "api_ledger.toml"
 #: item, 13 by a qualified `Owner::method`, and none by a bare ambiguous word.** Turning the rule on
 #: reopened 104 entries that had read as classified an hour earlier.
 #:
-#: **And the zero is over an incomplete surface.** `rust_surface.py` descends only into `pub mod`,
-#: but a `pub fn` on a *public type* is public API wherever it is written — and 208 of them live in
-#: private modules, which is a quarter as many again as the 830 counted here. `MIPROv2` has 19
-#: builder methods that way, `GEPA` 14, `Predict` 10. Filed as `surface-private-modules`; until it
-#: lands, this gate is a floor on a subset rather than on the whole.
+#: **The surface it counts was itself incomplete until 2026-08-24.** The walk descended only into
+#: `pub mod`, and a trait's methods carry no `pub` at all — so a `pub fn` on a public type written
+#: in a private module was invisible, and no trait method had ever been counted. Both are public API.
+#: Reading them took the surface from **830 to 1164** and reopened 265 entries.
+#:
+#: Widening it also needed a guard it did not have before: an `impl Foo` block is public surface only
+#: where `Foo` is declared bare-`pub`. `pub(crate) struct Parzen` and `pub(super) struct Evaluations`
+#: both carry `pub fn` methods that nothing outside can name, and the first pass counted six of them.
 BASELINE = 0
 
 
