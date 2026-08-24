@@ -1550,8 +1550,47 @@ chose, and component names that do not sort into insertion order.
 id = "surface-the-other-way"
 sprint = "api"
 title = "Nothing asks whether a public Rust symbol has a dspy counterpart, which is how an uncalled setter survived"
-state = "in-progress"
-progress = "Extractor, ratchet and first tranche landed 2026-08-01: 767 public items, 445 unclassified. The triage is the remaining work."
+state = "done"
+progress = """
+Extractor, ratchet and first tranche landed 2026-08-01: 767 public items, 445 unclassified.
+
+**Closed 2026-08-24 at zero.** All 830 public items have a ledger answer, so the fourth table has
+stopped being a ratchet and become an ordinary gate: a new `pub` without an entry fails the run,
+exactly as an unmapped dspy symbol fails the three tables walking the other way. 242 divergences,
+167 mapped, 13 re-exports.
+
+Worked in six tranches, and the value was never the count — it was that each cluster turned out to
+have **one cause repeated**, which is a claim about the port rather than a list:
+
+  - `pyrng` and `dsrust-gepa` (104): every item exists because a draw order or an iteration order
+    *is* behaviour. Classified `divergence`, since dspy only *calls* `random` and delegates its
+    flagship optimizer to `gepa` — no dspy counterpart exists to map to. Each entry names the C,
+    Python or gepa function it reproduces.
+  - `lm` (77): the divergences are all one thing — **dspy delegates to litellm**, which holds a
+    module-level session, a provider registry and a backoff schedule dspy never names. Talking to
+    providers directly makes all of that surface here.
+  - `interpreter` (18): two `json_schema_extra` reads have no Rust counterpart, so a variable's
+    description and its constraints travel as arguments where upstream reads them off a `FieldInfo`.
+  - `adapter::types` (13): dspy keeps these as **live objects** across a program's turns where this
+    crate keeps data — which is why `to_value_with_ids` exists beside a `Serialize` that
+    deliberately drops the id.
+  - the rest (72): three causes, stated once at the head of the block — no object identity, no
+    run-time reflection, and a trait that cannot decorate its implementors the way
+    `__init_subclass__` does.
+
+**Two things a reader should know before trusting the zero.**
+
+The check matches by identifier **part**, so a `len` named in any reason accounts for every `len` in
+every crate. At zero the split is **422 keyed explicitly against 408 accounted for by name**.
+Tightening it would reopen several hundred entries and is a decision about the ratchet, not a fix —
+but it is why "zero unclassified" is a weaker statement than it sounds.
+
+And a reason written quickly can be worse than none. `DiskCache::from_env` went in claiming it reads
+dspy's `DSPY_CACHEDIR` "so a process sharing a cache directory with a Python run finds it". It reads
+`DSRS_CACHEDIR`, and the module says why in as many words: entries are JSON where upstream pickles,
+so the two *must not* collide. Caught by spot-checking asserted upstream names against the pin —
+five per tranche, one wrong in the first, none after.
+"""
 size = "M"
 suites = []
 plan = """

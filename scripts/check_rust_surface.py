@@ -36,8 +36,15 @@ from rust_surface import surface
 
 LEDGER = pathlib.Path(__file__).parent / "api_ledger.toml"
 
-#: The measured floor. Lower it when the count falls; never raise it to make a run pass.
-BASELINE = 85
+#: **Zero, as of 2026-08-24.** Every public item this crate exposes has a ledger answer, so this
+#: has stopped being a ratchet and become an ordinary gate: a new `pub` without an entry fails the
+#: run, exactly as an unmapped dspy symbol fails the three tables walking the other way.
+#:
+#: What the number does *not* say: the check matches by identifier **part**, so a `len` named in any
+#: reason accounts for every `len` in every crate. The split at zero is 422 items keyed explicitly
+#: against 408 accounted for by name. Tightening that is a decision about the ratchet rather than a
+#: fix — it would reopen several hundred — but a reader should know which half they are trusting.
+BASELINE = 0
 
 
 def named_in_ledger(ledger: dict) -> set[str]:
