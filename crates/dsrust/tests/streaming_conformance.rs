@@ -64,6 +64,48 @@ fn a_listeners_chunks_are_dspys_chunks() {
     }
 }
 
+/// The same, over the XML wire — the same rule with different identifiers, which is why it is the
+/// same listener rather than a third one.
+///
+/// The difference that matters: a tag closes *itself* (`</answer>`), where a marker section closes
+/// when the next one opens. So an XML field left unclosed is never ended by whatever follows it.
+#[test]
+fn an_xml_listeners_chunks_are_dspys_chunks() {
+    let recorded = golden();
+    let cases = recorded["xml_cases"].as_array().expect("xml_cases");
+    assert!(!cases.is_empty(), "the golden carries no XML cases");
+
+    for case in cases {
+        let mut listener = FieldListener::xml(case["field"].as_str().expect("a field"));
+        let mut ours: Vec<(String, bool)> = case["deltas"]
+            .as_array()
+            .expect("deltas")
+            .iter()
+            .filter_map(|delta| listener.push(delta.as_str().expect("a delta")))
+            .map(|chunk| (chunk.text, chunk.is_last))
+            .collect();
+        if let Some(tail) = listener.finish() {
+            ours.push((tail.text, tail.is_last));
+        }
+        let theirs: Vec<(String, bool)> = case["chunks"]
+            .as_array()
+            .expect("chunks")
+            .iter()
+            .map(|chunk| {
+                (
+                    chunk["text"].as_str().expect("text").to_owned(),
+                    chunk["is_last"].as_bool().expect("is_last"),
+                )
+            })
+            .collect();
+        assert_eq!(
+            ours, theirs,
+            "case `{}` diverges from dspy\n  source: {}",
+            case["name"], recorded["_source"]
+        );
+    }
+}
+
 /// The same, over the JSON wire, where the field ends because the *object* moved on rather than
 /// because a marker arrived.
 ///

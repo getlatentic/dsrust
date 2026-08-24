@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1335
+rust_tests = 1336
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -2226,8 +2226,24 @@ text after the marker was whitespace, which trims to the same thing either way. 
 `{"answer":` then ` "Paris"`, where it does not. Both listeners now defer as upstream does and both
 goldens pass, this time for the reason they claim to. See [[no-conformance-slips]].
 
-**Still to come:** `streamify` over a whole module, `StatusMessageProvider` and its callback, and
-the XML listener — the last is small, its end identifier being a literal `</field>`.
+**The XML listener is done too, and is the same listener.** Its rule differs from the marker wire
+only in the identifiers, which is upstream's own arrangement — `adapter_identifiers` entries that
+differ in nothing else. So `FieldListener` takes a `Wire` value and `FieldListener::xml` is the tag
+spelling of it, rather than a third near-copy.
+
+Adding it caught a conflation that would have shipped: dspy's `end_pattern_contains` is *not* the
+end identifier. On the marker wire they are the same string (`[[ ##`); on the tag wire they are
+`</` and `</answer>`. Treating them as one let the closing tag leak out a piece at a time — `">"`,
+`"<judgement"`, `">"` — and the listener never stopped, streaming the *next* field's text as the
+answer's. The golden failed on exactly that.
+
+**Twice now, adding a second wire has exposed a fault in the first** — the deferred first delta, and
+this. Both were invisible while only one wire had a golden, because the ChatAdapter identifiers make
+the two rules coincide. Worth remembering when the next adapter is ported: a rule that is only ever
+exercised at one set of constants is not yet tested. See [[no-conformance-slips]].
+
+**Still to come:** `streamify` over a whole module and `StatusMessageProvider` with its callback —
+the program level, where a listener has to be matched to the predictor whose field it names.
 """
 
 [[story]]

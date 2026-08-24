@@ -92,6 +92,28 @@ JSON_CASES: dict[str, tuple[str, list[str]]] = {
 }
 
 
+#: And over the XML wire, whose end identifier is a literal `</field>` rather than the *next*
+#: field's marker — so a field that is never closed behaves differently from the ChatAdapter case.
+XML_CASES: dict[str, tuple[str, list[str]]] = {
+    # Upstream's own recorded stream from `test_stream_listener_returns_correct_chunk_xml_adapter`.
+    "xml_recorded_gpt_4o_mini": (
+        "answer",
+        ["<", "answer", ">", "To", " get", " to", " the", " other", " side", "!", "<", "/answer",
+         ">", "<", "judgement", ">", "The", " answer", " is", " humorous", ".", "<", "/judgement",
+         ">"],
+    ),
+    "xml_closing_tag_in_one_delta": ("answer", ["<answer>", "Par", "is", "</answer>"]),
+    "xml_a_later_field": (
+        "judgement",
+        ["<answer>", "Paris", "</answer>", "<judgement>", "fun", "ny", "</judgement>"],
+    ),
+    "xml_an_angle_bracket_in_the_text": (
+        "answer",
+        ["<answer>", "a < b", " and c", "</answer>"],
+    ),
+}
+
+
 def chunks_of(field: str, deltas: list[str], adapter=None) -> list[dict]:
     """What `StreamListener` yields for one stream, `finalize` included."""
     dspy.configure(adapter=adapter or dspy.ChatAdapter())
@@ -117,6 +139,15 @@ def main() -> None:
         "cases": [
             {"name": name, "field": field, "deltas": deltas, "chunks": chunks_of(field, deltas)}
             for name, (field, deltas) in CASES.items()
+        ],
+        "xml_cases": [
+            {
+                "name": name,
+                "field": field,
+                "deltas": deltas,
+                "chunks": chunks_of(field, deltas, dspy.XMLAdapter()),
+            }
+            for name, (field, deltas) in XML_CASES.items()
         ],
         "json_cases": [
             {

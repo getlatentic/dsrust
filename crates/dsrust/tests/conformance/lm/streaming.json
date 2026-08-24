@@ -233,6 +233,147 @@
       ]
     }
   ],
+  "xml_cases": [
+    {
+      "name": "xml_recorded_gpt_4o_mini",
+      "field": "answer",
+      "deltas": [
+        "<",
+        "answer",
+        ">",
+        "To",
+        " get",
+        " to",
+        " the",
+        " other",
+        " side",
+        "!",
+        "<",
+        "/answer",
+        ">",
+        "<",
+        "judgement",
+        ">",
+        "The",
+        " answer",
+        " is",
+        " humorous",
+        ".",
+        "<",
+        "/judgement",
+        ">"
+      ],
+      "chunks": [
+        {
+          "text": "To",
+          "is_last": false
+        },
+        {
+          "text": " get",
+          "is_last": false
+        },
+        {
+          "text": " to",
+          "is_last": false
+        },
+        {
+          "text": " the",
+          "is_last": false
+        },
+        {
+          "text": " other",
+          "is_last": false
+        },
+        {
+          "text": " side",
+          "is_last": false
+        },
+        {
+          "text": "!",
+          "is_last": false
+        },
+        {
+          "text": "",
+          "is_last": true
+        }
+      ]
+    },
+    {
+      "name": "xml_closing_tag_in_one_delta",
+      "field": "answer",
+      "deltas": [
+        "<answer>",
+        "Par",
+        "is",
+        "</answer>"
+      ],
+      "chunks": [
+        {
+          "text": "Par",
+          "is_last": false
+        },
+        {
+          "text": "is",
+          "is_last": false
+        },
+        {
+          "text": "",
+          "is_last": true
+        }
+      ]
+    },
+    {
+      "name": "xml_a_later_field",
+      "field": "judgement",
+      "deltas": [
+        "<answer>",
+        "Paris",
+        "</answer>",
+        "<judgement>",
+        "fun",
+        "ny",
+        "</judgement>"
+      ],
+      "chunks": [
+        {
+          "text": "fun",
+          "is_last": false
+        },
+        {
+          "text": "ny",
+          "is_last": false
+        },
+        {
+          "text": "",
+          "is_last": true
+        }
+      ]
+    },
+    {
+      "name": "xml_an_angle_bracket_in_the_text",
+      "field": "answer",
+      "deltas": [
+        "<answer>",
+        "a < b",
+        " and c",
+        "</answer>"
+      ],
+      "chunks": [
+        {
+          "text": "a < b",
+          "is_last": false
+        },
+        {
+          "text": " and c",
+          "is_last": false
+        },
+        {
+          "text": "",
+          "is_last": true
+        }
+      ]
+    }
+  ],
   "json_cases": [
     {
       "name": "json_recorded_gpt_4o_mini",
