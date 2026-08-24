@@ -53,7 +53,7 @@ fn it_reads_as_str_in_the_field_list_and_carries_no_schema_note() {
 
 #[test]
 fn it_still_earns_the_output_requirement_hint() {
-    let (_system, turns) = ChatAdapter::new()
+    let rendered = ChatAdapter::new()
         .format(
             &Explain::signature(),
             &[],
@@ -63,13 +63,11 @@ fn it_still_earns_the_output_requirement_hint() {
             )],
         )
         .expect("renders");
-    let last = turns
+    let last = rendered
         .last()
         .expect("a user turn")
-        .content
         .text()
-        .unwrap_or_default()
-        .to_owned();
+        .unwrap_or_default();
     // dspy asks `annotation is not str`; Reasoning is not, so the hint stays — named "str".
     assert!(
         last.contains("`[[ ## reasoning ## ]]` (must be formatted as a valid Python str)"),

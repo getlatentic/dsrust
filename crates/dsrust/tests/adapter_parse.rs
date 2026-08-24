@@ -47,7 +47,7 @@ fn a_signature_whose_fields_are_not_ascii_renders_markers_it_can_read_back() {
     let signature: Signature = "question -> réponse: str, 答え: str"
         .parse()
         .expect("a signature may name its fields the way Python names an identifier");
-    let (system, turns) = ChatAdapter::default()
+    let rendered = ChatAdapter::default()
         .format(
             &signature,
             &[],
@@ -57,18 +57,19 @@ fn a_signature_whose_fields_are_not_ascii_renders_markers_it_can_read_back() {
             )],
         )
         .expect("renders");
+    let (system, turns) = rendered.split_first().expect("a render is never empty");
 
     // dspy==3.3.0b1, `ChatAdapter().format(U, [], {...})`, copied from its output.
+    let system = system.text().expect("a system message");
     assert!(
         system.contains("[[ ## réponse ## ]]\n{réponse}\n\n[[ ## 答え ## ]]\n{答え}"),
         "the system prompt does not carry the markers dspy renders:\n{system}"
     );
     assert_eq!(
-        turns[0].content,
+        turns[0].text().expect("text"),
         "[[ ## question ## ]]\nQuelle est la capitale?\n\nRespond with the corresponding output \
          fields, starting with the field `[[ ## réponse ## ]]`, then `[[ ## 答え ## ]]`, and then \
          ending with the marker for `[[ ## completed ## ]]`."
-            .into()
     );
 
     let reply = "[[ ## réponse ## ]]\nParis\n\n[[ ## 答え ## ]]\nはい\n\n[[ ## completed ## ]]\n";

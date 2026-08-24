@@ -11,6 +11,8 @@ use anyhow::Result;
 use serde_json::Value;
 
 use crate::example::Example;
+use crate::lm::api::LmMessage;
+use crate::lm::messages_of;
 use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::Signature;
 
@@ -63,7 +65,7 @@ impl Adapter for JsonAdapter {
         signature: &Signature,
         demos: &[Example],
         inputs: &[Input<'_>],
-    ) -> Result<(String, Vec<ChatTurn>)> {
+    ) -> Result<Vec<LmMessage>> {
         let (asked, mut turns) = conversation(
             signature,
             demos,
@@ -77,7 +79,10 @@ impl Adapter for JsonAdapter {
         )));
         // dspy splits in the base `format`, which both adapters inherit, so a custom type
         // reaches a provider as blocks whichever wire format carries the rest of the request.
-        Ok((json_system(signature), blocks::split_custom_types(turns)))
+        Ok(messages_of(
+            &json_system(signature),
+            &blocks::split_custom_types(turns),
+        ))
     }
 
     fn system_message(&self, signature: &Signature) -> Result<String> {

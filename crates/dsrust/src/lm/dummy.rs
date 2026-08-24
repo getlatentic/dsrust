@@ -210,12 +210,11 @@ mod tests {
     use super::*;
     use crate::example;
     use crate::lm::OutputMode;
-    use crate::lm::api::interop::raise_request;
+    use crate::lm::api::{LmMessage, request_of};
 
     fn ask(lm: &DummyLM, message: &str) -> Result<String> {
-        let request = raise_request(
-            "system",
-            &[ChatTurn::user(message)],
+        let request = request_of(
+            vec![LmMessage::system(["system"]), LmMessage::user([message])],
             OutputMode::Text,
             &Sampling::default(),
         );
@@ -317,9 +316,8 @@ mod tests {
     fn json_mode_returns_an_object_the_way_a_provider_would() {
         let lm = DummyLM::new([example! { answer: "red" }]);
         let schema = serde_json::json!({});
-        let request = raise_request(
-            "system",
-            &[ChatTurn::user("ask")],
+        let request = request_of(
+            vec![LmMessage::system(["system"]), LmMessage::user(["ask"])],
             OutputMode::Json { schema: &schema },
             &Sampling::default(),
         );

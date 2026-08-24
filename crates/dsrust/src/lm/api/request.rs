@@ -2,11 +2,12 @@
 
 use serde_json::{Value, json};
 
-use super::config::LmConfig;
+use super::config::{LmCacheConfig, LmConfig, RolloutId};
 use super::message::{LmMessage, LmToolSpec};
 use super::part::{LmPart, Metadata};
 use super::wire::{Content, content_of};
 use crate::adapter::python_json::json_dumps;
+use crate::lm::{OutputMode, Sampling};
 
 /// One call as a value. The model is part of it, which is what lets a request be routed and
 /// cached without ambient state deciding who answers.
@@ -239,11 +240,73 @@ fn assistant_tool_call(part: &LmPart) -> Option<Value> {
     Some(call)
 }
 
+/// A rendered conversation as the request that carries it. The model is left blank — this crate
+/// keeps it on the [`LM`](crate::lm::LM) rather than in the request, so the provider fills it and
+/// the cache key is taken against it separately.
+pub(crate) fn request_of(
+    messages: Vec<LmMessage>,
+    mode: OutputMode,
+    config: &Sampling,
+) -> LmRequest {
+    LmRequest::new("", messages).configured(config_of(mode, config))
+}
+
+/// The four sampling fields as the typed config, the rollout back under its nested cache. The mode
+/// becomes the response format, the one place `OutputMode` lives in the config rather than beside
+/// it.
+fn config_of(mode: OutputMode, config: &Sampling) -> LmConfig {
+    LmConfig {
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        n: config.completions,
+        response_format: match mode {
+            OutputMode::Json { schema } => Some(schema.clone()),
+            OutputMode::Text => None,
+        },
+        cache: config.rollout_id.map(|id| LmCacheConfig {
+            rollout_id: Some(RolloutId::Number(id as i64)),
+            ..LmCacheConfig::default()
+        }),
+        ..LmConfig::default()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::lm::api::{LmPart, RolloutId};
     use serde_json::json;
+
+    /// The mode and the four sampling fields cross into the typed config, a numeric rollout folded
+    /// under the nested cache where the key reads it.
+    #[test]
+    fn the_mode_and_sampling_fields_cross_into_the_typed_config() {
+        let schema = json!({ "type": "object" });
+        let built = request_of(
+            vec![LmMessage::user(["Why?"])],
+            OutputMode::Json { schema: &schema },
+            &Sampling {
+                temperature: Some(0.7),
+                max_tokens: Some(256),
+                completions: Some(3),
+                rollout_id: Some(5),
+            },
+        );
+
+        assert_eq!(built.config.temperature, Some(0.7));
+        assert_eq!(built.config.max_tokens, Some(256));
+        assert_eq!(built.config.n, Some(3));
+        assert_eq!(built.output_schema(), Some(&schema));
+        assert_eq!(built.config.rollout_id(), Some(&RolloutId::Number(5)));
+    }
+
+    /// A plain render carries no response format, so it asks in text mode — not with an empty
+    /// schema, which would change what every ordinary call asks for.
+    #[test]
+    fn a_render_with_no_schema_asks_for_no_response_format() {
+        let built = request_of(Vec::new(), OutputMode::Text, &Sampling::default());
+        assert_eq!(built.output_schema(), None);
+    }
 
     fn request() -> LmRequest {
         LmRequest::new(

@@ -386,8 +386,8 @@ mod tests {
         assert_eq!(config.base_url, "http://env-test:1234/v1");
         assert_eq!(config.api_key.as_deref(), Some("sk-env-test"));
     }
-    use crate::lm::api::interop::raise_request;
-    use crate::lm::{ChatTurn, DEFAULT_PROVIDER_TIMEOUT, OutputMode, Sampling};
+    use crate::lm::api::{LmMessage, request_of};
+    use crate::lm::{DEFAULT_PROVIDER_TIMEOUT, OutputMode, Sampling};
 
     fn schema() -> Value {
         json!({
@@ -400,9 +400,8 @@ mod tests {
 
     fn json_request(json_format: JsonFormat) -> Value {
         let schema = schema();
-        let call = raise_request(
-            "be helpful",
-            &[ChatTurn::user("hi")],
+        let call = request_of(
+            vec![LmMessage::system(["be helpful"]), LmMessage::user(["hi"])],
             OutputMode::Json { schema: &schema },
             &Sampling::default(),
         );
@@ -422,9 +421,8 @@ mod tests {
 
     /// The same body, with the caller naming how the reply should be sampled.
     fn sampled_request(model: &str, token_limit_rule: TokenLimitRule, config: Sampling) -> Value {
-        let call = raise_request(
-            "be helpful",
-            &[ChatTurn::user("hi")],
+        let call = request_of(
+            vec![LmMessage::system(["be helpful"]), LmMessage::user(["hi"])],
             OutputMode::Text,
             &config,
         );
@@ -629,9 +627,8 @@ mod tests {
             ..Sampling::default()
         };
         for model in ["openai/gpt-5", "openai/o3", "openai/gpt-oss-120b"] {
-            let call = raise_request(
-                "be helpful",
-                &[ChatTurn::user("hi")],
+            let call = request_of(
+                vec![LmMessage::system(["be helpful"]), LmMessage::user(["hi"])],
                 OutputMode::Text,
                 &capped,
             );

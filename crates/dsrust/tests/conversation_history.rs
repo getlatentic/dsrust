@@ -23,15 +23,16 @@ fn fixture() -> Value {
 
 /// The turns an adapter produced, as `(role, content)` — the shape the golden records.
 fn turns(signature: &Signature, demos: &[Example], values: &[Input<'_>]) -> Vec<(String, String)> {
-    let (_system, turns) = ChatAdapter::default()
+    let rendered = ChatAdapter::default()
         .format(signature, demos, values)
         .expect("renders");
-    turns
+    // The system message leads; the golden records the turns after it.
+    rendered[1..]
         .iter()
         .map(|turn| {
             (
                 turn.role.as_str().to_owned(),
-                turn.content.text().unwrap_or_default().to_owned(),
+                turn.text().unwrap_or_default(),
             )
         })
         .collect()

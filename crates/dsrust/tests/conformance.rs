@@ -7,7 +7,7 @@
 //! codebases. A divergence here is a bug in this crate until upstream is shown to be wrong.
 
 use dsrust::adapter::Input;
-use dsrust::lm::Content;
+use dsrust::lm::api::LmRequest;
 use dsrust::signature::{FieldKind, InField, JsonType, OutField, Signature};
 use dsrust::{Adapter, ChainOfThought, ChatAdapter, Example, ReAct};
 use serde_json::Value;
@@ -183,13 +183,14 @@ fn assert_same(label: &str, fixture: &Fixture, expected: &str, actual: &str) {
 ///
 /// The shapes are compared against each other rather than coerced: a message dspy rendered as
 /// blocks must not pass because ours happened to render as prose that reads the same.
-fn assert_content(fixture: &Fixture, index: usize, expected: &Value, actual: &Content) {
-    let label = format!("turn {index}");
+/// A rendered message's content against dspy's. Prose gets the character-level diff, since that
+/// is the failure a reader has to localise; anything structured is compared whole.
+fn assert_content(fixture: &Fixture, label: &str, expected: &Value, actual: &Value) {
     match (expected, actual) {
-        (Value::String(expected), Content::Text(actual)) => {
-            assert_same(&label, fixture, expected, actual)
+        (Value::String(expected), Value::String(actual)) => {
+            assert_same(label, fixture, expected, actual)
         }
-        (Value::Array(expected), Content::Blocks(actual)) => {
+        (Value::Array(expected), Value::Array(actual)) => {
             assert_eq!(
                 expected.len(),
                 actual.len(),
@@ -207,18 +208,8 @@ fn assert_content(fixture: &Fixture, index: usize, expected: &Value, actual: &Co
             }
         }
         (expected, actual) => panic!(
-            "{label} of fixture `{}` disagrees on shape\n  source: {}\n\n  dspy rendered: {}\n  we rendered:   {}\n",
-            fixture.name,
-            fixture.source,
-            match expected {
-                Value::String(_) => "prose",
-                _ => "blocks",
-            },
-            match actual {
-                Content::Text(_) => "prose",
-                Content::Blocks(_) => "blocks",
-                Content::Parts(_) => "parts",
-            },
+            "{label} of fixture `{}` disagrees on shape\n  source: {}\n\n  dspy rendered: {expected}\n  we rendered:   {actual}\n",
+            fixture.name, fixture.source,
         ),
     }
 }
@@ -233,14 +224,25 @@ fn chat_adapter_renders_what_python_dspy_renders() {
             .iter()
             .map(|(name, value)| Input::new(name.as_str(), value.clone()))
             .collect();
-        let (system, turns) = ChatAdapter::default()
+        let rendered = ChatAdapter::default()
             .format(&fixture.signature, &fixture.demos, &values)
             .expect("the fixture renders");
-        assert_same(
-            "system message",
+        // Compared as the messages that go on the wire, which is the shape dspy's `format`
+        // answers in and the shape the fixture generator read its `expected` values out of.
+        let wire = LmRequest::new("", rendered).wire_messages();
+        let (system, turns) = wire.split_first().expect("a render is never empty");
+        // The generator checks this on the Python side before it splits dspy's list; checking it
+        // here too is what makes the split a comparison rather than a shared assumption.
+        assert_eq!(
+            system["role"], "system",
+            "fixture `{}` leads with `{}`, not the system message",
+            fixture.name, system["role"]
+        );
+        assert_content(
             &fixture,
-            &fixture.expected_system,
-            &system,
+            "system message",
+            &Value::String(fixture.expected_system.clone()),
+            &system["content"],
         );
         assert_eq!(
             turns.len(),
@@ -250,9 +252,14 @@ fn chat_adapter_renders_what_python_dspy_renders() {
             fixture.expected_turns.len(),
             turns.len()
         );
-        for (index, (expected, actual)) in fixture.expected_turns.iter().zip(&turns).enumerate() {
-            assert_eq!(expected.0, actual.role.as_str(), "turn {index} role");
-            assert_content(&fixture, index, &expected.1, &actual.content);
+        for (index, (expected, actual)) in fixture.expected_turns.iter().zip(turns).enumerate() {
+            assert_eq!(expected.0, actual["role"], "turn {index} role");
+            assert_content(
+                &fixture,
+                &format!("turn {index}"),
+                &expected.1,
+                &actual["content"],
+            );
         }
     }
 }

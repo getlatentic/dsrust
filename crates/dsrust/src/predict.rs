@@ -5,7 +5,7 @@ use serde_json::Value;
 
 use crate::adapter::native_citations;
 use crate::adapter::native_reasoning::{self, ReasoningEffort};
-use crate::adapter::{Adapter, Feedback, Input, native_tools, turns_for};
+use crate::adapter::{Adapter, Feedback, Input, messages_for, native_tools};
 use crate::example::{Example, Prediction};
 use crate::lm::{Capabilities, DynChatModel, Sampling, api};
 use crate::module::{Module, NamedPredictor, TraceStep};
@@ -196,15 +196,14 @@ impl<S> Predict<S> {
             .as_ref()
             .map_or(asked, |plan| plan.signature.clone());
         let schema = asked.schema();
-        let (system, opening) =
-            crate::observe::formatting(adapter, &asked, &self.demos, &hinted, || {
-                adapter.format(&asked, &self.demos, &hinted)
-            })?;
+        let opening = crate::observe::formatting(adapter, &asked, &self.demos, &hinted, || {
+            adapter.format(&asked, &self.demos, &hinted)
+        })?;
         let mode = adapter.output_mode(&schema);
-        let turns = turns_for(opening, feedback);
+        let messages = messages_for(opening, feedback);
         // The typed 3.3 boundary: predict hands the model an `LMRequest`. Behind it the request
         // is lowered to the shape the providers still speak, so no wire byte moves.
-        let mut request = api::interop::raise_request(&system, &turns, mode, &self.config);
+        let mut request = api::request_of(messages, mode, &self.config);
         if let Some(plan) = native {
             request.tools = plan.tools;
             ask_for_parallel_calls(&mut request, asking.parallel);

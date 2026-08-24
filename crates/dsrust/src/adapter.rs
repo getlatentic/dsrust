@@ -2,6 +2,7 @@ use anyhow::Result;
 use serde_json::Value;
 
 use crate::example::Example;
+use crate::lm::api::LmMessage;
 use crate::lm::{ChatTurn, DynChatModel, OutputMode};
 use crate::signature::Signature;
 
@@ -114,9 +115,13 @@ pub trait Adapter: Send + Sync {
         "Adapter"
     }
 
-    /// The whole conversation to send, with no model call: the system message, then the
-    /// turns. Mirrors `Adapter.format`, which returns a message list for the same reason —
-    /// a demo or a conversation history expands into several turns, not one.
+    /// The whole conversation to send, with no model call — dspy's `Adapter.format`, which
+    /// answers with a message list for the same reason: a demo or a conversation history expands
+    /// into several turns, not one.
+    ///
+    /// **The system prompt is the first message, not a value beside the turns.** The pair this
+    /// used to answer with made it a different kind of thing from the turns, which is a
+    /// distinction neither upstream's type nor the wire has.
     ///
     /// `demos` are the solved examples that precede the real request. An optimizer's whole
     /// output is a set of these, so an adapter that cannot render them cannot run a compiled
@@ -126,7 +131,7 @@ pub trait Adapter: Send + Sync {
         signature: &Signature,
         demos: &[Example],
         inputs: &[Input<'_>],
-    ) -> Result<(String, Vec<ChatTurn>)>;
+    ) -> Result<Vec<LmMessage>>;
 
     /// Extract the signature's fields from a raw reply. A reply that does not speak this
     /// adapter's format at all fails here; a reply missing individual fields parses and
@@ -254,18 +259,21 @@ fn live_inputs<'a>(asked: &Signature, inputs: &[Input<'a>]) -> Vec<Input<'a>> {
         .collect()
 }
 
-/// The turns a module sends for one attempt: whatever the adapter rendered, plus the rejected
+/// The messages a module sends for one attempt: whatever the adapter rendered, plus the rejected
 /// reply and its error when this is a feedback retry.
-pub fn turns_for(mut turns: Vec<ChatTurn>, feedback: Option<&Feedback>) -> Vec<ChatTurn> {
+pub fn messages_for(
+    mut messages: Vec<LmMessage>,
+    feedback: Option<&Feedback>,
+) -> Vec<LmMessage> {
     if let Some(feedback) = feedback {
-        turns.push(ChatTurn::assistant(feedback.previous.clone()));
-        turns.push(ChatTurn::user(format!(
+        messages.push(LmMessage::assistant([feedback.previous.clone()]));
+        messages.push(LmMessage::user([format!(
             "Your previous reply was rejected: {}. Send the corrected reply now, in the same \
              format, with every output field present and valid.",
             feedback.error
-        )));
+        )]));
     }
-    turns
+    messages
 }
 
 #[cfg(test)]
@@ -278,17 +286,16 @@ mod tests {
             previous: "[[ ## color ## ]]\ngreen".into(),
             error: "color must be one of red, blue; got \"green\"".into(),
         };
-        let turns = turns_for(vec![ChatTurn::user("draft it")], Some(&feedback));
+        let turns = messages_for(vec![LmMessage::user(["draft it"])], Some(&feedback));
         assert_eq!(turns.len(), 3);
-        assert_eq!(turns[1].content.text().unwrap(), "[[ ## color ## ]]\ngreen");
+        assert_eq!(turns[1].text().unwrap(), "[[ ## color ## ]]\ngreen");
         assert!(
             turns[2]
-                .content
                 .text()
                 .unwrap()
                 .contains("color must be one of red, blue")
         );
-        assert!(turns_for(vec![ChatTurn::user("draft it")], None).len() == 1);
+        assert!(messages_for(vec![LmMessage::user(["draft it"])], None).len() == 1);
     }
 }
 

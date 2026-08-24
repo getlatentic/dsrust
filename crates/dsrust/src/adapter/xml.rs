@@ -9,6 +9,8 @@ use anyhow::Result;
 use serde_json::Value;
 
 use crate::example::Example;
+use crate::lm::api::LmMessage;
+use crate::lm::messages_of;
 use crate::lm::ChatTurn;
 use crate::signature::Signature;
 
@@ -82,15 +84,15 @@ impl super::Adapter for XmlAdapter {
         signature: &Signature,
         demos: &[Example],
         inputs: &[Input<'_>],
-    ) -> Result<(String, Vec<ChatTurn>)> {
+    ) -> Result<Vec<LmMessage>> {
         let (asked, mut turns) = conversation(signature, demos, inputs, STYLE, false);
         turns.push(ChatTurn::user(user_message(
             &asked,
             &live_inputs(&asked, inputs),
         )));
-        Ok((
-            self.system_message(signature)?,
-            blocks::split_custom_types(turns),
+        Ok(messages_of(
+            &self.system_message(signature)?,
+            &blocks::split_custom_types(turns),
         ))
     }
 
@@ -168,11 +170,12 @@ mod tests {
 
     #[test]
     fn the_request_wraps_each_input_then_names_the_tags_to_answer_in() {
-        let (_, turns) = XmlAdapter
+        let rendered = XmlAdapter
             .format(&signature(), &[], &[Input::new("room", json!("the study"))])
             .expect("renders");
+        let turns = &rendered[1..];
         assert_eq!(
-            turns[0].content.text().unwrap(),
+            turns[0].text().unwrap(),
             "<room>\nthe study\n</room>\n\n\
              Respond with the corresponding output fields wrapped in XML tags `<color>`, \
              then `<why>`."
@@ -197,12 +200,13 @@ mod tests {
     fn a_demo_reads_as_a_solved_exchange_in_tags() {
         // No closing marker: an XML reply ends where its last tag closes.
         let demo = crate::example! { room: "the den", color: "green", why: "It rests." };
-        let (_, turns) = XmlAdapter
+        let rendered = XmlAdapter
             .format(&signature(), &[demo], &[Input::new("room", json!("study"))])
             .expect("renders");
-        assert_eq!(turns[0].content.text().unwrap(), "<room>\nthe den\n</room>");
+        let turns = &rendered[1..];
+        assert_eq!(turns[0].text().unwrap(), "<room>\nthe den\n</room>");
         assert_eq!(
-            turns[1].content.text().unwrap(),
+            turns[1].text().unwrap(),
             "<color>\ngreen\n</color>\n\n<why>\nIt rests.\n</why>"
         );
     }

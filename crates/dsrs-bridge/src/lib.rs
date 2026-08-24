@@ -456,10 +456,13 @@ fn extractor_instructions(outputs: Vec<PyOutField>) -> PyResult<String> {
     Ok(dsrust::adapter::extractor_signature(&signature).instructions)
 }
 
-/// Render one exchange for the named adapter, as `(system, [(role, content), ...])`.
+/// Render one exchange for the named adapter, as the message list dspy's own `format` answers
+/// with — each message the JSON text of the whole message, system prompt included.
 ///
-/// Each content crosses as JSON, because a message carrying a custom type is a list of blocks
-/// rather than a string and both spellings have to survive intact.
+/// The whole message rather than a role and a content: a turn carrying tool calls or a tool result
+/// has keys beside `content`, and a message crossing as JSON keeps a block list distinguishable
+/// from a string. Handing the system message across too is what keeps Python from having to build
+/// one, which would let the shim answer for a shape the crate is supposed to be judged on.
 #[pyfunction]
 #[pyo3(signature = (adapter, instructions, inputs, outputs, values, demos = None, use_native_function_calling = false))]
 fn format_messages(
@@ -470,7 +473,7 @@ fn format_messages(
     values: Vec<(String, String, bool)>,
     demos: Option<Vec<Vec<(String, String)>>>,
     use_native_function_calling: bool,
-) -> PyResult<(String, Vec<String>)> {
+) -> PyResult<Vec<String>> {
     let signature = build_signature(instructions, inputs, outputs)?;
     // Python sends each value as JSON text so its structure survives the crossing; the
     // adapter renders it, which is where dspy renders too. The flag beside it is Python's own
@@ -499,19 +502,17 @@ fn format_messages(
             )
         })
         .collect();
-    let (system, turns) = adapter
+    let rendered = adapter
         .format(&signature, &demos, &pairs)
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
-    // The whole message, not a role and a content: a turn carrying tool calls or a tool result
-    // has keys beside `content`, and the crate is what states their shape.
-    let turns = dsrust::lm::api::wire_messages_of(&turns)
+    dsrust::lm::api::LmRequest::new("", rendered)
+        .wire_messages()
         .iter()
         .map(|message| {
             serde_json::to_string(message)
                 .map_err(|error| PyValueError::new_err(format!("bad message: {error}")))
         })
-        .collect::<PyResult<_>>()?;
-    Ok((system, turns))
+        .collect()
 }
 
 /// Run this crate's own `Predict` for a signature, driven by a Python LM — the module-level

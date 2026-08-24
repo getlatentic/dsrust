@@ -588,9 +588,11 @@ mod tests {
     #[test]
     fn a_requested_schema_rides_under_text_format_and_goes_out_closed() {
         let schema = json!({ "type": "object", "properties": { "answer": { "type": "string" } } });
-        let call = crate::lm::api::interop::raise_request(
-            "be helpful",
-            &[crate::lm::ChatTurn::user("hi")],
+        let call = crate::lm::api::request_of(
+            vec![
+                crate::lm::api::LmMessage::system(["be helpful"]),
+                crate::lm::api::LmMessage::user(["hi"]),
+            ],
             crate::lm::OutputMode::Json { schema: &schema },
             &crate::lm::Sampling::default(),
         );

@@ -18,6 +18,8 @@ use serde_json::Value;
 use crate::adapter::python_json::format_value;
 use crate::adapter::{Adapter, ChatAdapter, Extraction};
 use crate::example::Example;
+use crate::lm::api::LmMessage;
+use crate::lm::messages_of;
 use crate::lm::{ChatTurn, DynChatModel};
 use crate::signature::{InField, Signature};
 
@@ -168,7 +170,7 @@ impl Adapter for TwoStepAdapter {
         signature: &Signature,
         demos: &[Example],
         inputs: &[Input<'_>],
-    ) -> Result<(String, Vec<ChatTurn>)> {
+    ) -> Result<Vec<LmMessage>> {
         let mut turns: Vec<ChatTurn> = demos
             .iter()
             .flat_map(|demo| {
@@ -179,7 +181,7 @@ impl Adapter for TwoStepAdapter {
             })
             .collect();
         turns.push(ChatTurn::user(user_message(signature, inputs)));
-        Ok((task_description(signature), turns))
+        Ok(messages_of(&task_description(signature), &turns))
     }
 
     fn system_message(&self, signature: &Signature) -> Result<String> {
@@ -292,15 +294,16 @@ mod tests {
     #[test]
     fn a_demo_reads_in_the_same_prose_the_request_uses() {
         let demo = example! { question: "Where?", answer: "Paris" };
-        let (_, turns) = adapter()
+        let rendered = adapter()
             .format(
                 &signature(),
                 &[demo],
                 &[Input::new("question", json!("Why?"))],
             )
             .expect("renders");
-        assert_eq!(turns[0].content.text(), Some("question: Where?"));
-        assert_eq!(turns[1].content.text(), Some("answer: Paris"));
-        assert_eq!(turns[2].content.text(), Some("question: Why?"));
+        let turns = &rendered[1..];
+        assert_eq!(turns[0].text().as_deref(), Some("question: Where?"));
+        assert_eq!(turns[1].text().as_deref(), Some("answer: Paris"));
+        assert_eq!(turns[2].text().as_deref(), Some("question: Why?"));
     }
 }

@@ -5,7 +5,6 @@
 //! see them as solved turns before the real request.
 
 use dsrust::adapter::Input;
-use dsrust::lm::Role;
 use dsrust::signature::{FieldKind, InField, OutField, Signature};
 use dsrust::{Adapter, ChatAdapter, Example};
 use serde_json::json;
@@ -32,34 +31,34 @@ fn demos_become_solved_turns_before_the_request() {
         demo("something warm", "amber"),
     ];
     let inputs = [Input::new("request", json!("something bold"))];
-    let (_, turns) = ChatAdapter::default()
+    let rendered = ChatAdapter::default()
         .format(&signature(), &demos, &inputs)
         .expect("renders");
+    let turns = &rendered[1..];
 
     // Two demos, each a user/assistant pair, then the real ask.
-    let roles: Vec<Role> = turns.iter().map(|turn| turn.role).collect();
+    let roles: Vec<&str> = turns.iter().map(|turn| turn.role.as_str()).collect();
     assert_eq!(
         roles,
         [
-            Role::User,
-            Role::Assistant,
-            Role::User,
-            Role::Assistant,
-            Role::User
+            "user",
+            "assistant",
+            "user",
+            "assistant",
+            "user"
         ]
     );
 
     assert_eq!(
-        turns[0].content.text().unwrap(),
+        turns[0].text().unwrap(),
         "[[ ## request ## ]]\nsomething calm"
     );
     assert_eq!(
-        turns[1].content.text().unwrap(),
+        turns[1].text().unwrap(),
         "[[ ## colour ## ]]\nblue\n\n[[ ## completed ## ]]\n"
     );
     assert!(
         turns[4]
-            .content
             .text()
             .unwrap()
             .starts_with("[[ ## request ## ]]\nsomething bold")
@@ -68,14 +67,12 @@ fn demos_become_solved_turns_before_the_request() {
     // Only the real ask carries the format reminder; a demo already shows the answer.
     assert!(
         !turns[0]
-            .content
             .text()
             .unwrap()
             .contains("Respond with the corresponding output fields")
     );
     assert!(
         turns[4]
-            .content
             .text()
             .unwrap()
             .contains("Respond with the corresponding output fields")
@@ -115,14 +112,15 @@ fn a_demo_renders_every_value_shape_the_way_python_prints_it() {
     ])
     .with_inputs(inputs);
 
-    let (_, turns) = ChatAdapter::default()
+    let rendered = ChatAdapter::default()
         .format(&signature, &[demo], &[])
         .expect("renders");
+    let turns = &rendered[1..];
 
     // A nested `null` keeps JSON's spelling because `json.dumps` writes it; only the bool,
     // which is a field value in its own right, reaches Python's `str`.
     assert_eq!(
-        turns[0].content.text().unwrap(),
+        turns[0].text().unwrap(),
         concat!(
             "[[ ## obj ## ]]\n{\"a\": 1, \"b\": {\"c\": [1, 2]}}\n\n",
             "[[ ## arr ## ]]\n[1, \"two\", true, null]\n\n",
@@ -132,7 +130,7 @@ fn a_demo_renders_every_value_shape_the_way_python_prints_it() {
         )
     );
     assert_eq!(
-        turns[1].content.text().unwrap(),
+        turns[1].text().unwrap(),
         "[[ ## out ## ]]\ndone\n\n[[ ## completed ## ]]\n"
     );
 }
@@ -143,14 +141,14 @@ fn a_demo_renders_every_value_shape_the_way_python_prints_it() {
 fn a_demo_with_no_answer_is_dropped_rather_than_half_shown() {
     let unanswered = Example::new([("request", json!("something calm"))]);
     let inputs = [Input::new("request", json!("something bold"))];
-    let (_, turns) = ChatAdapter::default()
+    let rendered = ChatAdapter::default()
         .format(&signature(), &[unanswered], &inputs)
         .expect("renders");
+    let turns = &rendered[1..];
 
     assert_eq!(turns.len(), 1, "only the real request survives");
     assert!(
         turns[0]
-            .content
             .text()
             .unwrap()
             .starts_with("[[ ## request ## ]]\nsomething bold")
@@ -167,21 +165,22 @@ fn a_partial_demo_is_flagged_and_leads_the_whole_ones() {
     ]);
     let inputs = [Input::new("request", json!("something bold"))];
     let demos = [demo("something warm", "amber"), partial];
-    let (_, turns) = ChatAdapter::default()
+    let rendered = ChatAdapter::default()
         .format(&signature(), &demos, &inputs)
         .expect("renders");
+    let turns = &rendered[1..];
 
     assert_eq!(
-        turns[0].content.text().unwrap(),
+        turns[0].text().unwrap(),
         "This is an example of the task, though some input or output fields are not supplied.\
          \n\n[[ ## request ## ]]\nsomething calm"
     );
     assert_eq!(
-        turns[1].content.text().unwrap(),
+        turns[1].text().unwrap(),
         "[[ ## colour ## ]]\nNone\n\n[[ ## completed ## ]]\n"
     );
     assert_eq!(
-        turns[2].content.text().unwrap(),
+        turns[2].text().unwrap(),
         "[[ ## request ## ]]\nsomething warm"
     );
 }

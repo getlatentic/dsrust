@@ -7,10 +7,10 @@
 //! string crossing from the Python bridge.
 
 use dsrust::adapter::{Adapter, ChatAdapter, Input};
-use dsrust::lm::Content;
+use dsrust::lm::api::LmRequest;
 use dsrust::signature::{FieldKind, InField, JsonType, OutField, Signature, SignatureSpec};
 use dsrust::{Audio, Code, File, Image};
-use serde_json::json;
+use serde_json::{Value, json};
 
 /// `question` plus a custom-type input, answering `answer`.
 fn signature_with(custom_field: &str, annotation: &str) -> Signature {
@@ -34,12 +34,14 @@ fn signature_with(custom_field: &str, annotation: &str) -> Signature {
     }
 }
 
-/// The user turn a `ChatAdapter` renders for these inputs.
-fn user_content(signature: &Signature, inputs: &[Input<'_>]) -> Content {
-    let (_system, turns) = ChatAdapter::default()
+/// The user message's content as it goes on the wire — the value dspy's `format` puts under
+/// `content`, so a block list is compared as the JSON a provider receives.
+fn user_content(signature: &Signature, inputs: &[Input<'_>]) -> Value {
+    let rendered = ChatAdapter::default()
         .format(signature, &[], inputs)
         .expect("formats");
-    turns.into_iter().next_back().expect("a user turn").content
+    let mut wire = LmRequest::new("", rendered).wire_messages();
+    wire.pop().expect("a user turn")["content"].take()
 }
 
 /// An `Image` value becomes an `image_url` content block, split out of the field text by the
@@ -54,9 +56,8 @@ fn an_image_field_becomes_an_image_url_block() {
             serde_json::to_value(Image::new("https://example.com/a.jpg").unwrap()).unwrap(),
         ),
     ];
-    let Content::Blocks(blocks) = user_content(&signature, &inputs) else {
-        panic!("an image field renders a multimodal message");
-    };
+    let content = user_content(&signature, &inputs);
+    let blocks = content.as_array().expect("an image field renders a multimodal message");
     assert!(blocks.contains(
         &json!({ "type": "image_url", "image_url": { "url": "https://example.com/a.jpg" } })
     ));
@@ -73,9 +74,8 @@ fn an_audio_field_becomes_an_input_audio_block() {
             serde_json::to_value(Audio::new("QUJD", "wav")).unwrap(),
         ),
     ];
-    let Content::Blocks(blocks) = user_content(&signature, &inputs) else {
-        panic!("an audio field renders a multimodal message");
-    };
+    let content = user_content(&signature, &inputs);
+    let blocks = content.as_array().expect("an audio field renders a multimodal message");
     assert!(blocks.contains(
         &json!({ "type": "input_audio", "input_audio": { "data": "QUJD", "format": "wav" } })
     ));
@@ -92,9 +92,8 @@ fn a_file_field_becomes_a_file_block() {
             serde_json::to_value(File::from_id("file-1").filename("a.txt")).unwrap(),
         ),
     ];
-    let Content::Blocks(blocks) = user_content(&signature, &inputs) else {
-        panic!("a file field renders a multimodal message");
-    };
+    let content = user_content(&signature, &inputs);
+    let blocks = content.as_array().expect("a file field renders a multimodal message");
     assert!(blocks.contains(
         &json!({ "type": "file", "file": { "file_id": "file-1", "filename": "a.txt" } })
     ));
@@ -110,7 +109,7 @@ fn a_code_field_renders_inline_as_text() {
         Input::new("snippet", serde_json::to_value(Code::new("x = 1")).unwrap()),
     ];
     let content = user_content(&signature, &inputs);
-    let text = content.text().expect("code renders as text, not a block");
+    let text = content.as_str().expect("code renders as text, not a block");
     assert!(text.contains("[[ ## snippet ## ]]\nx = 1"), "got: {text}");
 }
 
@@ -156,9 +155,11 @@ fn a_derived_signature_maps_custom_type_input_fields() {
             ],
         )
         .expect("renders");
-    let Content::Blocks(blocks) = &rendered.1.last().expect("a user turn").content else {
-        panic!("a derived image input renders a multimodal message");
-    };
+    let wire = LmRequest::new("", rendered).wire_messages();
+    let content = &wire.last().expect("a user turn")["content"];
+    let blocks = content
+        .as_array()
+        .expect("a derived image input renders a multimodal message");
     assert!(
         blocks
             .iter()
@@ -191,9 +192,10 @@ struct Generate {
 #[test]
 fn a_derived_code_output_carries_its_description_and_drops_the_schema() {
     let signature = Generate::signature();
-    let (system, _turns) = ChatAdapter::default()
+    let rendered = ChatAdapter::default()
         .format(&signature, &[], &[Input::new("task", json!("sort a list"))])
         .expect("formats");
+    let system = rendered[0].text().expect("a system message");
     // dspy's `Code.description()`, reached through the derive — byte-for-byte its prose.
     assert!(
         system.contains(
@@ -244,13 +246,14 @@ struct Judge {
 
 #[test]
 fn a_callers_own_type_description_flows_through_the_derive() {
-    let (system, _turns) = ChatAdapter::default()
+    let rendered = ChatAdapter::default()
         .format(
             &Judge::signature(),
             &[],
             &[Input::new("answer", json!("42"))],
         )
         .expect("formats");
+    let system = rendered[0].text().expect("a system message");
     assert!(
         system.contains("Type description of Rating: A whole-number star rating from 0 to 5."),
         "got: {system}"

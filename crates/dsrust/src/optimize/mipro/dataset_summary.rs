@@ -426,13 +426,14 @@ mod tests {
                 .iter()
                 .map(|field| crate::adapter::Input::new(field.name.as_str(), json!("")))
                 .collect();
-            let (system, _) = crate::adapter::Adapter::format(
+            let rendered = crate::adapter::Adapter::format(
                 &crate::adapter::ChatAdapter::default(),
                 &signature,
                 &[],
                 &inputs,
             )
             .expect("renders");
+            let system = rendered[0].text().expect("a system message");
             assert_eq!(
                 system,
                 recorded[name].as_str().expect("a rendered signature"),

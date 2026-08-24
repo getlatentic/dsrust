@@ -8,7 +8,7 @@ use anyhow::{Result, anyhow};
 use dsrust::Example;
 use dsrust::adapter::Input;
 use dsrust::adapter::python_json::format_value;
-use dsrust::lm::ChatTurn;
+use dsrust::lm::api::LmMessage;
 use dsrust::signature::{OutField, Signature};
 use dsrust::{Adapter, ChatAdapter};
 use serde_json::{Map, Value, json};
@@ -22,7 +22,7 @@ impl Adapter for XmlAdapter {
         signature: &Signature,
         _demos: &[Example],
         inputs: &[Input<'_>],
-    ) -> anyhow::Result<(String, Vec<ChatTurn>)> {
+    ) -> anyhow::Result<Vec<LmMessage>> {
         let user = inputs
             .iter()
             .map(|input| {
@@ -31,7 +31,10 @@ impl Adapter for XmlAdapter {
             })
             .collect::<Vec<_>>()
             .join("\n");
-        Ok((self.system_message(signature)?, vec![ChatTurn::user(user)]))
+        Ok(vec![
+            LmMessage::system([self.system_message(signature)?]),
+            LmMessage::user([user]),
+        ])
     }
 
     fn system_message(&self, signature: &Signature) -> anyhow::Result<String> {
@@ -78,13 +81,14 @@ fn signature() -> Signature {
 #[test]
 fn an_adapter_defined_outside_the_crate_formats_and_parses() {
     let inputs = [Input::new("request", json!("something calm"))];
-    let (system, turns) = XmlAdapter
+    let rendered = XmlAdapter
         .format(&signature(), &[], &inputs)
         .expect("renders");
-    assert!(system.contains("<colour>...</colour>"));
+    let (system, turns) = rendered.split_first().expect("a render is never empty");
+    assert!(system.text().expect("a system message").contains("<colour>...</colour>"));
     assert_eq!(turns.len(), 1);
     assert_eq!(
-        turns[0].content.text().unwrap(),
+        turns[0].text().unwrap(),
         "<request>something calm</request>"
     );
 
@@ -100,7 +104,8 @@ fn a_custom_adapter_is_interchangeable_with_the_shipped_ones() {
         vec![Box::new(ChatAdapter::default()), Box::new(XmlAdapter)];
     let inputs = [Input::new("request", json!("something calm"))];
     for adapter in &adapters {
-        let (system, _) = adapter.format(&signature(), &[], &inputs).expect("renders");
+        let rendered = adapter.format(&signature(), &[], &inputs).expect("renders");
+        let system = rendered[0].text().expect("a system message");
         assert!(
             system.contains("Pick a colour."),
             "every adapter carries the instruction"

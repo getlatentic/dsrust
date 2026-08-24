@@ -129,12 +129,12 @@ fn a_compiled_program_and_an_uncompiled_one_render_differently() {
     LabeledFewShot::new(2).compile(&mut compiled, &trainset());
 
     let inputs = [Input::new("request", json!("capital of Spain?"))];
-    let (_, bare_turns) = ChatAdapter::default()
+    let bare_turns = &ChatAdapter::default()
         .format(&signature(), &bare.demos, &inputs)
-        .expect("renders");
-    let (_, compiled_turns) = ChatAdapter::default()
+        .expect("renders")[1..];
+    let compiled_turns = &ChatAdapter::default()
         .format(&signature(), &compiled.demos, &inputs)
-        .expect("renders");
+        .expect("renders")[1..];
 
     assert_eq!(bare_turns.len(), 1);
     assert_eq!(compiled_turns.len(), 5);

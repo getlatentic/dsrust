@@ -37,7 +37,7 @@ use serde_json::Value;
 use crate::adapter::Input;
 use crate::evaluate::Evaluation;
 use crate::example::{Example, Prediction};
-use crate::lm::{ChatTurn, api};
+use crate::lm::api;
 use crate::signature::Signature;
 
 mod context;
@@ -45,13 +45,10 @@ mod context;
 pub use context::CallId;
 pub(crate) use context::{Under, entered};
 
-/// What an adapter rendered, for [`Callback::on_adapter_format_end`].
-///
-/// dspy's `format` returns the message list; here the system prompt and the turns are that same
-/// list before it is collapsed onto a provider's wire, which is the value the adapter produced.
+/// What an adapter rendered, for [`Callback::on_adapter_format_end`]: the message list, which is
+/// what dspy's `format` answers with and the value the adapter actually produced.
 pub struct Rendered<'a> {
-    pub system: &'a str,
-    pub turns: &'a [ChatTurn],
+    pub messages: &'a [api::LmMessage],
 }
 
 /// dspy's `BaseCallback`: implement the handlers you want, ignore the rest.

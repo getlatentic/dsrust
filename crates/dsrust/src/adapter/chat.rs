@@ -10,6 +10,8 @@ use anyhow::Result;
 use serde_json::Value;
 
 use crate::example::Example;
+use crate::lm::api::LmMessage;
+use crate::lm::messages_of;
 use crate::lm::ChatTurn;
 use crate::signature::Signature;
 
@@ -98,7 +100,7 @@ impl Adapter for ChatAdapter {
         signature: &Signature,
         demos: &[Example],
         inputs: &[Input<'_>],
-    ) -> Result<(String, Vec<ChatTurn>)> {
+    ) -> Result<Vec<LmMessage>> {
         let (asked, mut turns) = conversation(
             signature,
             demos,
@@ -110,9 +112,9 @@ impl Adapter for ChatAdapter {
             &asked,
             &live_inputs(&asked, inputs),
         )));
-        Ok((
-            self.system_message(signature)?,
-            blocks::split_custom_types(turns),
+        Ok(messages_of(
+            &self.system_message(signature)?,
+            &blocks::split_custom_types(turns),
         ))
     }
 

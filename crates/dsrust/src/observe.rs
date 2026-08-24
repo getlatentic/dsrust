@@ -240,8 +240,8 @@ pub fn formatting(
     signature: &crate::Signature,
     demos: &[Example],
     inputs: &[Input<'_>],
-    rendering: impl FnOnce() -> Result<(String, Vec<crate::lm::ChatTurn>)>,
-) -> Result<(String, Vec<crate::lm::ChatTurn>)> {
+    rendering: impl FnOnce() -> Result<Vec<crate::lm::api::LmMessage>>,
+) -> Result<Vec<crate::lm::api::LmMessage>> {
     let watch = adapter_point("adapter.format", adapter.name());
     let _entered = watch.span.enter();
     let named = adapter.name();
@@ -253,17 +253,12 @@ pub fn formatting(
 
     let _under = callback::entered(&watch.call);
     let answered = rendering();
-    watch.finished(answered.as_ref(), |(system, turns)| {
-        format!(
-            "{{\"system_bytes\":{},\"turns\":{}}}",
-            system.len(),
-            turns.len()
-        )
+    watch.finished(answered.as_ref(), |messages| {
+        format!("{{\"messages\":{}}}", messages.len())
     });
     if callback::watching(&watch.instance) {
-        let rendered = answered.as_ref().map(|(system, turns)| Rendered {
-            system,
-            turns: turns.as_slice(),
+        let rendered = answered.as_ref().map(|messages| Rendered {
+            messages: messages.as_slice(),
         });
         callback::tell(&watch.instance, |callback| {
             callback.on_adapter_format_end(&watch.call, rendered.as_ref().map_err(|error| *error))

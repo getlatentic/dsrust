@@ -17,6 +17,8 @@ use anyhow::Result;
 use serde_json::Value;
 
 use crate::example::Example;
+use crate::lm::api::LmMessage;
+use crate::lm::messages_of;
 use crate::lm::{ChatTurn, OutputMode};
 use crate::signature::Signature;
 
@@ -88,15 +90,15 @@ impl Adapter for BamlAdapter {
         signature: &Signature,
         demos: &[Example],
         inputs: &[Input<'_>],
-    ) -> Result<(String, Vec<ChatTurn>)> {
+    ) -> Result<Vec<LmMessage>> {
         let (asked, mut turns) = conversation(signature, demos, inputs, STYLE, false);
         turns.push(ChatTurn::user(user_message(
             &asked,
             &live_inputs(&asked, inputs),
         )));
-        Ok((
-            self.system_message(signature)?,
-            blocks::split_custom_types(turns),
+        Ok(messages_of(
+            &self.system_message(signature)?,
+            &blocks::split_custom_types(turns),
         ))
     }
 
@@ -303,11 +305,12 @@ mod tests {
             Input::record("patient", patient()),
             Input::new("question", json!("What is the diagnosis?")),
         ];
-        let (_, turns) = BamlAdapter
+        let rendered = BamlAdapter
             .format(&signature(), &[], &inputs)
             .expect("renders");
+        let turns = &rendered[1..];
         assert_eq!(
-            turns[0].content.text().expect("one text turn"),
+            turns[0].text().expect("one text turn"),
             "[[ ## patient ## ]]\n\
              {\n  \"name\": \"John Doe\",\n  \"age\": 45\n}\n\n\
              [[ ## question ## ]]\n\
@@ -324,17 +327,17 @@ mod tests {
         let mut signature = signature();
         signature.inputs[0].kind = FieldKind::Json(JsonType::plain("dict[str, str]"));
         let inputs = vec![Input::new("patient", patient())];
-        let (_, turns) = BamlAdapter
+        let rendered = BamlAdapter
             .format(&signature, &[], &inputs)
             .expect("renders");
+        let turns = &rendered[1..];
         assert!(
             turns[0]
-                .content
                 .text()
                 .expect("one text turn")
                 .starts_with("[[ ## patient ## ]]\n{\"name\": \"John Doe\", \"age\": 45}"),
             "got: {:?}",
-            turns[0].content.text()
+            turns[0].text().as_deref()
         );
     }
 
@@ -347,12 +350,14 @@ mod tests {
                        \"image_url\": {\"url\": \"https://example.com/a.jpg\"}}]\
                        <<CUSTOM-TYPE-END-IDENTIFIER>>"],
         });
-        let (_, turns) = BamlAdapter
+        let rendered = BamlAdapter
             .format(&signature(), &[], &[Input::new("patient", embedded)])
             .expect("renders");
-        let crate::lm::Content::Blocks(blocks) = &turns[0].content else {
-            panic!("got: {:?}", turns[0].content)
-        };
+        let wire = crate::lm::api::LmRequest::new("", rendered).wire_messages();
+        let content = &wire[1]["content"];
+        let blocks = content
+            .as_array()
+            .unwrap_or_else(|| panic!("a record input renders blocks, got: {content}"));
         assert!(blocks.contains(&json!({
             "type": "image_url",
             "image_url": { "url": "https://example.com/a.jpg" },
@@ -373,21 +378,22 @@ mod tests {
             question: "Who?",
             answer: "Jane Doe",
         };
-        let (_, turns) = BamlAdapter
+        let rendered = BamlAdapter
             .format(
                 &signature(),
                 &[demo],
                 &[Input::record("patient", patient())],
             )
             .expect("renders");
+        let turns = &rendered[1..];
         assert_eq!(
-            turns[0].content.text().expect("a rendered demo"),
+            turns[0].text().expect("a rendered demo"),
             "[[ ## patient ## ]]\n\
              {\"name\": \"Jane Doe\", \"age\": 30}\n\n\
              [[ ## question ## ]]\nWho?"
         );
         assert_eq!(
-            turns[1].content.text().expect("a rendered demo"),
+            turns[1].text().expect("a rendered demo"),
             "{\n  \"answer\": \"Jane Doe\"\n}"
         );
     }

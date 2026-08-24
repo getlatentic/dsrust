@@ -37,9 +37,10 @@ fn agent() -> ReActV2 {
 fn the_turn_signature_system_message_is_dspys_byte_for_byte() {
     let agent = agent();
     let inputs = [Input::new("question", json!("cats"))];
-    let (system, _turns) = ChatAdapter::default()
+    let rendered = ChatAdapter::default()
         .format(agent.turn_signature(), &[], &inputs)
         .expect("formats");
+    let system = rendered[0].text().expect("a system message");
     assert_eq!(system, include_str!("goldens/react_v2_turn_system.txt"));
 }
 
@@ -53,13 +54,12 @@ fn the_turn_signature_user_message_is_dspys_byte_for_byte() {
         Input::new("history", json!({ "messages": [] })),
         Input::new("tools", agent.turn_tools().clone()),
     ];
-    let (_system, turns) = ChatAdapter::default()
+    let rendered = ChatAdapter::default()
         .format(agent.turn_signature(), &[], &inputs)
         .expect("formats");
-    let user = turns
+    let user = rendered
         .last()
         .expect("a user turn")
-        .content
         .text()
         .expect("prose");
     assert_eq!(user, include_str!("goldens/react_v2_turn_user.txt"));

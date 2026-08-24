@@ -1468,7 +1468,7 @@ removing the scoping and watching it fail, then restoring it.
 id = "s13-3"
 sprint = "s13"
 title = "The adapter boundary still produces ChatTurn, not LmMessage — the last slice of the 3.3 typed LM types"
-state = "todo"
+state = "done"
 size = "L"
 suites = []
 plan = """
@@ -1495,6 +1495,43 @@ of the old shape and goes with it.
 
 **What proves it.** Every adapter golden still passes, `interop.rs` is gone rather than unused, and
 `crates/dsrust/tests/conformance.rs` reads `LmMessage` where it reads `ChatTurn` today.
+"""
+
+done = """
+`Adapter::format` answers with `Vec<LmMessage>`, the system prompt the first message rather than a
+value beside the turns — which is the shape dspy's own `format` returns and the shape the wire has.
+All five adapters, `Rendered` in `callback.rs`, `turns_for` (now `messages_for`), and both real
+consumers moved with it. `interop.rs` is gone: `messages_of` and the block-to-part read live with
+`ChatTurn` in `lm/turn.rs`, `request_of` and `config_of` with `LmRequest` in `lm/api/request.rs`.
+`wire_messages_of` went too — it converted `&[ChatTurn]` for one caller, and after the change no
+caller holds turns to convert.
+
+**The oracle held at every stage.** 1314 Rust tests and upstream's own suite — 1035 passed, 15
+skipped, 4 xfailed — with no golden regenerated. The bytes did not move.
+
+**A hole closed on the way.** The Python shim built `{"role": "system", "content": system}` itself
+out of the bridge's first return value, so the system message's *shape* was Python's answer, not the
+crate's. `format_messages` now returns the whole list and the shim only parses it. Proved by
+tampering: prefixing the crate's system message fails 43 upstream tests, each comparing the exact
+Rust bytes against dspy's recorded history. Before this, that prefix would have shown up inside a
+message Python had assembled.
+
+`conformance.rs` compares through `LmRequest::wire_messages()` — the JSON dspy's `format` answers
+with — and *asserts* the leading message is the system one. The fixture generator checks the same
+thing on the Python side before it splits, so what was one shared assumption is now two
+comparisons. Confirmed live by tampering the first message and watching it name the fixture.
+
+**What this slice did not do.** The plan also names `Sampling -> api::LmConfig` as "the same layer
+on the config side". That conversion survives, as `config_of` in `lm/api/request.rs`, and should:
+`Sampling` is the four knobs a retry-shaped module varies per attempt — dspy's own
+`lm.copy(rollout_id=n, temperature=1.0)` — and folding it into the whole typed config would make
+every module carry `LmConfig` to vary two fields. The pair it was grouped with was a leftover;
+this one is a type.
+
+**Found while doing it, not fixed here.** `DummyLM`'s `Asked` holds the same `(system, turns)` pair
+one layer down, re-split from the request it already received — and `recorded_turns` maps any
+non-assistant role to `Role::User`, so a `tool` message from `adapter/history.rs` is recorded as a
+user turn. dspy's `DummyLM` works over `messages` throughout. Filed as `asked-holds-the-pair`.
 """
 
 [[story]]
@@ -2684,7 +2721,7 @@ state = "planned"
 # The types are this crate's own boundary; dspy tests them through litellm, which there is nothing
 # here to run. clients/test_lm.py runs and holds what the two do share.
 suites = []
-still_pending = "the adapter boundary still produces ChatTurn, not LmMessage — filed as the `s13-3` story"
+still_pending = ""
 outcome = "Every type in dspy 3.3's LM contract exists here, with nothing modelled by a stand-in."
 notes = '''
 Reference: docs/lm-api-3.3.md, measured from dspy-3.3.0b1/dspy/core/types.py. That file also holds
@@ -2714,31 +2751,20 @@ Order, leaves first, so nothing is half-typed at any point:
          so a Rust caller can build a multimodal prompt at all, and `tests/conformance.rs` reads
          turn content as a `Value` rather than `.as_str()` — with `image_input_field.json` as the
          case that proves it.
-  s13-3  HALF DONE. LmMessage{role, parts, name, metadata} and LmToolSpec exist in
-         `lm/api/message.rs`. What is left is the replacing: `Adapter::format` still answers with
-         `Vec<ChatTurn>`, so every adapter and every caller of one speaks the older type and the
-         typed message is converted to at the provider edge rather than produced at the source.
-         This is the last slice, and the only one that touches all five adapters.
+  s13-3  DONE. `Adapter::format` answers with `Vec<LmMessage>`, the system prompt its first
+         message — dspy's own shape. All five adapters, `Rendered`, `messages_for` (was
+         `turns_for`) and both consumers moved with it; `interop.rs` is gone, its two halves now
+         living with the types they are about. `wire_messages_of` went with it: after the change
+         no caller holds turns to convert.
 
-         `ChatTurn` is not the whole of it, and saying so understated the slice. `call::LmConfig`
-         is the same pre-3.3 layer — the sampling config every module varies and `Predict` stores —
-         and `lm/api/interop.rs` bridges it to `api::LmConfig` as `CallConfig` -> `ApiConfig`, which
-         is the same edge conversion `ChatTurn` gets. s13-4 marked the *typed* config done and left
-         its predecessor in place. Measured 2026-07-30: `ChatTurn` is 83 mentions across 20 files,
-         `LmConfig` 160 across 27, and the second is ambiguous at every one of them because both
-         types are called `LmConfig` — which is how a test came to record the wrong one today.
-         The rename is done: `call::LmConfig` is `Sampling`, which is what it is — how one call is
-         sampled, varied per attempt by every retry-shaped module. `api::LmConfig` keeps the name,
-         because it is dspy's `LMConfig`. Only five files now name both, and each is a genuine
-         bridge: `lm.rs` re-exports them, `interop.rs` converts between them, and the other three
-         take a `Sampling` while asserting on the `api::LmConfig` that reached the wire. What is
-         left of this slice is the replacing itself. Re-measured 2026-07-31: `ChatTurn` 86 mentions
-         across 21 files, `Sampling` 113 across 19, and 19 call sites reach `interop::raise_request`
-         — the edge conversion this slice deletes.
+         `Sampling -> api::LmConfig` survives as `config_of`, and should — it is the four knobs a
+         retry-shaped module varies per attempt, not a leftover layer. The plan grouped the two;
+         only one was a leftover.
 
-         It is tracked here rather than as a story, which is why it has no plan and nobody has
-         picked it up: `still_pending` on a sprint says work remains and says nothing about what
-         doing it looks like. It wants filing as one before it is started.
+         The bridge now hands Python the whole message list. Python had been building the system
+         message itself, so its shape was Python's answer; tampering the crate's system message
+         now fails 43 upstream tests against dspy's recorded history.
+
   s13-4  DONE. `lm/api/config.rs`: the typed fields, the nested configs, `extensions` catching
          anything unrecognised, and the flat aliases folded on construction. `rollout_id` lives at
          `cache.rollout_id` and is int-or-string.
@@ -4448,4 +4474,41 @@ The 265 reasons are written by kind, because the kinds are the finding: dspy tak
 keyword where this takes a builder setter, and dspy inherits a method from a base class where this
 declares one on a trait. Those two sentences cover most of a surface a reader would otherwise have
 to justify a line at a time.
+"""
+
+[[story]]
+id = "asked-holds-the-pair"
+sprint = "s13"
+title = "DummyLM records (system, turns) and loses the tool role doing it"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+Found while landing `s13-3`, which replaced the same pair at the adapter boundary.
+
+`Asked` in `lm/dummy.rs` — what a test asserts on after a scripted run — holds `system: String` and
+`turns: Vec<ChatTurn>`, built by `recorded_turns` re-splitting the `LmRequest` it was handed. Its
+own doc says what it is: "the inverse of what an adapter rendered into the request". After s13-3
+the adapter renders messages, so this un-does a conversion nothing does any more.
+
+**It is not only shape.** `recorded_turns` maps the role with
+`match message.role.as_str() { "assistant" => Role::Assistant, _ => Role::User }`, so a `tool`
+message becomes a user turn. `adapter/history.rs:188` builds exactly those for a native
+tool-calling history, which means a scripted ReAct exchange records its tool results as things the
+user said. `content_of(..).unwrap_or_else(|_| Content::Text(String::new()))` on the line below
+turns a content it cannot collapse into empty prose rather than a failure.
+
+dspy's `DummyLM.forward(prompt=None, messages=None, ...)` works over `messages` end to end —
+`messages[-1]["content"]`, `messages[:-1]` — and never splits the system prompt out. The split is
+this crate's, and both defects are downstream of it.
+
+`Asked { messages: Vec<LmMessage>, json_mode, config }`, `last_message()` reading the last message's
+text, and `recorded_turns` deleted. Roughly 40 assertion sites across `predict.rs`,
+`react_conformance.rs`, `two_step_end_to_end.rs`, `complex_fields.rs` and `tool_schema.rs` read
+`.system` or `.turns` and move with it.
+
+**What proves it.** A scripted native-tool-calling exchange records a `tool`-role message as a tool
+message — a test that fails today if written against `Asked`, since there is no `Role::Tool` for it
+to arrive as. Every existing assertion still passes, and `recorded_turns` is gone rather than
+unused.
 """

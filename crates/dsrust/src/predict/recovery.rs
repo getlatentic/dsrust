@@ -25,7 +25,7 @@ impl<S> Predict<S> {
         asking: Option<LmUsage>,
     ) -> Result<Validated> {
         let text = [Input::new("text", Value::String(raw.clone()))];
-        let (system, turns) = extraction
+        let messages = extraction
             .adapter
             .format(&extraction.signature, &[], &text)?;
         let schema = extraction.signature.schema();
@@ -33,7 +33,7 @@ impl<S> Predict<S> {
         // Left at the provider's defaults rather than given the module's config: this call
         // rewrites prose the model already produced into fields, so a temperature chosen to
         // vary the *answer* would only vary the transcription of one.
-        let request = api::interop::raise_request(&system, &turns, mode, &Sampling::default());
+        let request = api::request_of(messages, mode, &Sampling::default());
         let extracted = extraction
             .model
             .forward_dyn(&request)

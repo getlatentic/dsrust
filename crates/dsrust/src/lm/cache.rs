@@ -265,14 +265,16 @@ impl<M: ChatModel + Send + Sync> ChatModel for Cached<M> {
 mod tests {
     use super::*;
     use crate::example;
-    use crate::lm::api::interop::raise_request;
+    use crate::lm::api::{LmMessage, request_of};
     use crate::lm::dummy::DummyLM;
-    use crate::lm::{ChatTurn, LmUsage, OutputMode, Sampling};
+    use crate::lm::{LmUsage, OutputMode, Sampling};
 
     fn ask(lm: &Cached<DummyLM>, config: Sampling) -> LmResponse {
-        let request = raise_request(
-            "be helpful",
-            &[ChatTurn::user("what colour?")],
+        let request = request_of(
+            vec![
+                LmMessage::system(["be helpful"]),
+                LmMessage::user(["what colour?"]),
+            ],
             OutputMode::Text,
             &config,
         );

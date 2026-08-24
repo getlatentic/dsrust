@@ -356,19 +356,20 @@ mod tests {
                 .fields()
                 .map(|(name, value)| Input::new(name, value.clone()))
                 .collect();
-            let (system, turns) = ChatAdapter::default()
+            let rendered = ChatAdapter::default()
                 .format(&module.predict.signature, &[], &values)
                 .expect("the prompt renders");
+            let (system, turns) = rendered.split_first().expect("a render is never empty");
 
             assert_eq!(
-                system,
+                system.text().expect("a system message"),
                 case["system"].as_str().expect("a system message"),
                 "system message of {}",
                 case["name"]
             );
             assert_eq!(turns.len(), 1, "one user turn for {}", case["name"]);
             assert_eq!(
-                turns[0].content.text().expect("text"),
+                turns[0].text().expect("text"),
                 case["user"].as_str().expect("a user message"),
                 "user message of {}",
                 case["name"]

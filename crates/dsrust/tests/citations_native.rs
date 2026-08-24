@@ -73,13 +73,14 @@ fn an_anthropic_model_is_not_asked_for_the_field() {
     assert_eq!(recorded["renders_the_field"], Value::Bool(false));
 
     let planned = native_citations::plan(&cited(), true).expect("a Citations output on Anthropic");
-    let (system, _) = ChatAdapter::default()
+    let rendered = ChatAdapter::default()
         .format(
             &planned.signature,
             &[],
             &[Input::new("question", serde_json::json!("Who wrote it?"))],
         )
         .expect("renders");
+    let system = rendered[0].text().expect("a system message");
 
     // Byte for byte against what dspy rendered, not merely "the word is absent": dropping the
     // field changes the numbering of every output line after it, and a `contains` check would pass
@@ -98,13 +99,14 @@ fn any_other_provider_is_still_asked_for_the_field() {
     assert_eq!(recorded["renders_the_field"], Value::Bool(true));
 
     assert_eq!(native_citations::plan(&cited(), false), None);
-    let (system, _) = ChatAdapter::default()
+    let rendered = ChatAdapter::default()
         .format(
             &cited(),
             &[],
             &[Input::new("question", serde_json::json!("Who wrote it?"))],
         )
         .expect("renders");
+    let system = rendered[0].text().expect("a system message");
     assert_eq!(
         system,
         recorded["system"].as_str().expect("system"),

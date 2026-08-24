@@ -139,7 +139,7 @@ class _RustBacked:
             for name, value in inputs.items()
             if name in signature.input_fields
         ]
-        system, turns = dsrs_bridge.format_messages(
+        rendered = dsrs_bridge.format_messages(
             self.WIRE,
             signature.instructions,
             describe(signature.input_fields),
@@ -150,9 +150,10 @@ class _RustBacked:
             # replays; the crate's adapter is what acts on it.
             getattr(self, "use_native_function_calling", False),
         )
-        # Each turn crosses as the whole message the crate rendered, since a tool result and an
-        # assistant turn carrying tool calls have keys beside `content`.
-        messages = [{"role": "system", "content": system}] + [json.loads(turn) for turn in turns]
+        # Each message crosses whole, the system prompt among them, since a tool result and an
+        # assistant turn carrying tool calls have keys beside `content` — and since a system
+        # message Python built here would be Python answering for the crate's own render.
+        messages = [json.loads(message) for message in rendered]
         if custom_history is not None:
             # dspy orders these demos, history, then the live request, and the crate's last turn
             # is that request.
