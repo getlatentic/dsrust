@@ -56,6 +56,12 @@ IDENT = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)`")
 #: and had been renamed; `LM::with_retry` twice more, in two `mapped` entries the check skipped
 #: entirely — 258 entries name a qualified path and are not divergences.
 BARE_PATH = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+)\b")
+#: A `with_`-prefixed name, which is a builder setter in this workspace and almost never a dspy one
+#: — upstream has only `with_inputs`, `with_instructions` and `with_updated_fields`. Checked against
+#: *both* trees, so citing a Python name stays legal while a renamed Rust one does not: `with_lm`
+#: was named in three entries and `with_extract_lm` in a fourth, none of them qualified, so no
+#: `::` rule could see them.
+WITH_NAME = re.compile(r"\b(with_[a-z][a-z0-9_]*)\b")
 DEFINITION = re.compile(
     r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?"
     r"(?:fn|struct|enum|const|static|type|trait|mod|union)\s+([A-Za-z_][A-Za-z0-9_]*)",
@@ -92,9 +98,21 @@ def tree() -> tuple[set[str], set[str]]:
     return names, files
 
 
+def upstream_names() -> set[str]:
+    """Every `def`/`class` name in the pinned dspy, so citing a Python name is not an error."""
+    found: set[str] = set()
+    pinned = ROOT / "third_party" / "dspy" / "dspy"
+    if not pinned.is_dir():
+        return found
+    for path in pinned.rglob("*.py"):
+        found |= set(re.findall(r"^\s*(?:def|class)\s+([A-Za-z_][A-Za-z0-9_]*)", path.read_text(errors="ignore"), re.M))
+    return found
+
+
 def main() -> int:
     ledger = tomllib.loads(LEDGER.read_text())
     names, files = tree()
+    theirs = upstream_names()
 
     missing: list[tuple[str, str, str]] = []
     unverified: list[tuple[str, str]] = []
@@ -127,6 +145,9 @@ def main() -> int:
             # `LmBuilder::callbacks`, and every one of those reasons said "there is no" — which no
             # substitution-only check ever looks at. A reason may still name a Python symbol or an
             # environment variable in backticks, and those carry no `::`.
+            for named in set(WITH_NAME.findall(reason + " " + str(entry.get("rust") or ""))):
+                if named not in names and named not in theirs:
+                    missing.append((key, "with_ name", named))
             for ident in set(BARE_PATH.findall(reason + " " + str(entry.get("rust") or ""))):
                 parts = ident.split("::")
                 if parts[0] in OURS:

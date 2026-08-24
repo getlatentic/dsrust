@@ -56,6 +56,9 @@ impl SchemaRepairer {
     }
 
     /// Plugs in the check upstream imports `jsonschema` for.
+    ///
+    /// Keeps the `with_` prefix, where a builder setter in this workspace normally drops it: the
+    /// unprefixed name is the reader below. Same reason `LM::with_capabilities` keeps its.
     pub fn with_validator(mut self, validator: Rc<dyn SchemaValidator>) -> Self {
         self.validator = Some(validator);
         self
