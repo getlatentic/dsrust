@@ -56,7 +56,25 @@ PUB_USE = re.compile(r"^\s*pub\s+use\s+([^;]+);", re.M)
 #: recorded where it is declared, and counting them again would tally every impl of `Display`.
 MOD_OPEN = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?mod\s+[A-Za-z_][A-Za-z0-9_]*\s*\{")
 
-OWNER = re.compile(r"^(?:impl(?:<[^>]*>)?\s+(?!.*\bfor\b)|pub\s+trait\s+)([A-Za-z_][A-Za-z0-9_]*)")
+OWNER = re.compile(r"^(?:impl\s+(?!.*\bfor\b)|pub\s+trait\s+)([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def without_generics(line: str) -> str:
+    """The line with every balanced `<…>` removed, so a type name is findable.
+
+    `impl<E: Iterator<Item = LmStreamEvent>> LmStream<E>` defeats a `<[^>]*>` pattern: the class
+    stops at the *first* `>`, which is the inner one. Counting is the only way to skip a generic
+    parameter list, and three of `LmStream`'s methods were missing for exactly that reason.
+    """
+    out, depth = [], 0
+    for char in line:
+        if char == "<":
+            depth += 1
+        elif char == ">":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            out.append(char)
+    return "".join(out)
 #: A trait's own method declaration, which carries no `pub` — inside a `pub trait` every method is
 #: public by construction. `Module::callbacks` is one, and `ITEM` requiring `pub` is why no trait
 #: method was ever counted.
@@ -68,6 +86,14 @@ TRAIT_OPEN = re.compile(r"^pub\s+trait\s+([A-Za-z_][A-Za-z0-9_]*)")
 #: is one: `pub(crate) struct Parzen` and `pub(super) struct Evaluations` both have `pub fn` methods,
 #: and neither is reachable from outside. Collected once across the workspace, because an `impl` and
 #: its type are often in different files.
+#: An exported macro. `#[macro_export]` puts it at the crate root whatever module it is written in,
+#: and `macro_rules!` carries no `pub` — so `example!` and `input!`, the two most caller-facing
+#: things this crate has, were invisible to a walk keyed on `pub`.
+MACRO = re.compile(r"^macro_rules!\s+([A-Za-z_][A-Za-z0-9_]*)", re.M)
+#: A public field inside a struct body. `pub score: f64` is API a caller reads and writes.
+PUB_FIELD = re.compile(r"^\s+pub\s+([a-z_][a-z0-9_]*)\s*:")
+#: A struct whose body is about to open, so its fields can be attributed to it.
+STRUCT_OPEN = re.compile(r"^pub\s+struct\s+([A-Za-z_][A-Za-z0-9_]*)[^;]*\{\s*$")
 PUBLIC_TYPE = re.compile(
     r"^pub\s+(?:struct|enum|trait|type|union)\s+([A-Za-z_][A-Za-z0-9_]*)", re.M
 )
@@ -160,9 +186,10 @@ def walk(
 
     owner: str | None = None
     in_trait = False
+    in_struct: str | None = None
     for line in source.splitlines():
-        if owner and line == "}":
-            owner, in_trait = None, False
+        if line == "}":
+            owner, in_trait, in_struct = None, False, None
         # The item first, then the block it opens: `pub trait Foo` matches both patterns, and it is
         # declared at the module — only what follows it belongs to `Foo`.
         if owner and PUBLIC and owner not in PUBLIC:
@@ -173,9 +200,17 @@ def walk(
                 found.add(f"{where}::{match.group(2)}")
         elif in_trait and (declared := TRAIT_ITEM.match(line)):
             found.add(f"{prefix}::{owner}::{declared.group(1)}")
-        if not line[:1].isspace() and (start := OWNER.match(line)):
+        elif in_struct and (field := PUB_FIELD.match(line)):
+            found.add(f"{prefix}::{in_struct}::{field.group(1)}")
+        if not line[:1].isspace() and (start := OWNER.match(without_generics(line))):
             owner = start.group(1)
             in_trait = TRAIT_OPEN.match(line) is not None
+        elif opened := STRUCT_OPEN.match(line):
+            in_struct = opened.group(1)
+
+    if "#[macro_export]" in source:
+        for name in MACRO.findall(source):
+            found.add(f"{crate}::{name}")
 
     for clause in PUB_USE.findall(source):
         for name in reexported(clause):

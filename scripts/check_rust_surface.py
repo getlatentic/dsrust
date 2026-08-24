@@ -62,6 +62,13 @@ LEDGER = pathlib.Path(__file__).parent / "api_ledger.toml"
 #: Widening it also needed a guard it did not have before: an `impl Foo` block is public surface only
 #: where `Foo` is declared bare-`pub`. `pub(crate) struct Parzen` and `pub(super) struct Evaluations`
 #: both carry `pub fn` methods that nothing outside can name, and the first pass counted six of them.
+#:
+#: **What settled the question of whether the walk is complete: rustdoc's own JSON.** Diffing against
+#: `cargo +nightly rustdoc --output-format json` found three more classes it could not see — exported
+#: macros (`macro_rules!` carries no `pub`), public struct fields, and a type behind a generic
+#: parameter list with *nested* generics, which `<[^>]*>` stops inside. 1164 -> 1502. Run
+#: `scripts/check_surface_against_rustdoc.py` after changing the walk; it needs nightly, which is why
+#: it is not in the gate.
 BASELINE = 0
 
 

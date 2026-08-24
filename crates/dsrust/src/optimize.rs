@@ -85,7 +85,9 @@ pub use gepa::{
     ReflectiveDataset,
 };
 pub use labeled::LabeledFewShot;
-pub use mipro::MIPROv2;
+// `Trial` travels beside it: `MIPROv2::compile_traced` answers with `Vec<Trial>`, and a type a
+// caller cannot name is one they cannot put in a signature, a field or a `let`.
+pub use mipro::{MIPROv2, Trial};
 pub use random_search::{Attempt, BootstrapRandomSearch};
 
 use std::pin::Pin;

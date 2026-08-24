@@ -1071,6 +1071,359 @@
 
 [rust_only]
 
+"dsrust::optimize::Trial" = { status = "mapped", rust = "Trial", reason = "one entry of dspy's `trial_logs`, as the optuna study records it — the parameters a trial proposed and what it scored. Exported 2026-08-24: `MIPROv2::compile_traced` answers with `Vec<Trial>` and this was `pub` inside a private module, so a caller could hold the value and not name the type. Found by diffing the surface walk against rustdoc's own JSON, which lists an item by where it is *defined*" }
+"dsrust::optimize::Trial::params" = { status = "mapped", reason = "`Trial::params` — the parameter values this trial proposed, as optuna records them" }
+
+"dsrust::lm::api::LmStream::new" = { status = "mapped", reason = "`LmStream::new` — dspy `LMStream(...)`, wrapping an event iterator" }
+"dsrust::lm::api::LmStream::collect" = { status = "mapped", reason = "`LmStream::collect` — drain the stream, which is what upstream's `for event in stream` amounts to when a caller wants the whole reply" }
+"dsrust::lm::api::LmStream::result" = { status = "mapped", reason = "`LmStream::result` — the `LmResponse` the stream folded up to, dspy's `stream.result`" }
+
+# Macros, and the public fields a line-reading walk could not attribute to their struct.
+#
+# `example!` and `input!` are the most caller-facing things this crate has and were invisible to
+# the surface gate until 2026-08-24: `macro_rules!` carries no `pub`, and `#[macro_export]` puts
+# the name at the crate root wherever it is written. The fields are the other half — `pub score:
+# f64` is API a caller reads and writes, and most of them belong to a type already classified.
+"dsrust::RLM" = { status = "divergence", reason = "`RLM!` — the call-site twin of the derive, evaluating to one typed RLM call awaiting the caller's `?`" }
+"dsrust::adapter::ChatAdapter::parallel_tool_calls" = { status = "divergence", reason = "`ChatAdapter::parallel_tool_calls`, part of the same type's surface; see the entry for `ChatAdapter`" }
+"dsrust::adapter::ChatAdapter::use_native_function_calling" = { status = "divergence", reason = "`ChatAdapter::use_native_function_calling`, part of the same type's surface; see the entry for `ChatAdapter`" }
+"dsrust::adapter::Extraction::adapter" = { status = "divergence", reason = "`Extraction::adapter`, part of the same type's surface; see the entry for `Extraction`" }
+"dsrust::adapter::Extraction::model" = { status = "divergence", reason = "`Extraction::model`, part of the same type's surface; see the entry for `Extraction`" }
+"dsrust::adapter::Extraction::signature" = { status = "divergence", reason = "`Extraction::signature`, part of the same type's surface; see the entry for `Extraction`" }
+"dsrust::adapter::Feedback::error" = { status = "divergence", reason = "`Feedback::error`, part of the same type's surface; see the entry for `Feedback`" }
+"dsrust::adapter::Feedback::previous" = { status = "divergence", reason = "`Feedback::previous`, part of the same type's surface; see the entry for `Feedback`" }
+"dsrust::adapter::Input::name" = { status = "divergence", reason = "`Input::name`, part of the same type's surface; see the entry for `Input`" }
+"dsrust::adapter::Input::value" = { status = "divergence", reason = "`Input::value`, part of the same type's surface; see the entry for `Input`" }
+"dsrust::adapter::JsonAdapter::parallel_tool_calls" = { status = "divergence", reason = "`JsonAdapter::parallel_tool_calls`, part of the same type's surface; see the entry for `JsonAdapter`" }
+"dsrust::adapter::JsonAdapter::use_native_function_calling" = { status = "divergence", reason = "`JsonAdapter::use_native_function_calling`, part of the same type's surface; see the entry for `JsonAdapter`" }
+"dsrust::adapter::NativeFunctionCalling::enabled" = { status = "divergence", reason = "`NativeFunctionCalling::enabled`, part of the same type's surface; see the entry for `NativeFunctionCalling`" }
+"dsrust::adapter::NativeFunctionCalling::parallel" = { status = "divergence", reason = "`NativeFunctionCalling::parallel`, part of the same type's surface; see the entry for `NativeFunctionCalling`" }
+"dsrust::adapter::TwoStepAdapter::extraction_adapter" = { status = "divergence", reason = "`TwoStepAdapter::extraction_adapter`, part of the same type's surface; see the entry for `TwoStepAdapter`" }
+"dsrust::adapter::native_citations::NativeCitations::field" = { status = "divergence", reason = "`NativeCitations::field`, part of the same type's surface; see the entry for `NativeCitations`" }
+"dsrust::adapter::native_citations::NativeCitations::signature" = { status = "divergence", reason = "`NativeCitations::signature`, part of the same type's surface; see the entry for `NativeCitations`" }
+"dsrust::adapter::native_reasoning::NativeReasoning::effort" = { status = "divergence", reason = "`NativeReasoning::effort`, part of the same type's surface; see the entry for `NativeReasoning`" }
+"dsrust::adapter::native_reasoning::NativeReasoning::signature" = { status = "divergence", reason = "`NativeReasoning::signature`, part of the same type's surface; see the entry for `NativeReasoning`" }
+"dsrust::adapter::native_tools::NativeTools::signature" = { status = "divergence", reason = "`NativeTools::signature`, part of the same type's surface; see the entry for `NativeTools`" }
+"dsrust::adapter::native_tools::NativeTools::tools" = { status = "divergence", reason = "`NativeTools::tools`, part of the same type's surface; see the entry for `NativeTools`" }
+"dsrust::adapter::parse::FieldMismatch::adapter_name" = { status = "divergence", reason = "`FieldMismatch::adapter_name`, part of the same type's surface; see the entry for `FieldMismatch`" }
+"dsrust::adapter::parse::FieldMismatch::expected_fields" = { status = "divergence", reason = "`FieldMismatch::expected_fields`, part of the same type's surface; see the entry for `FieldMismatch`" }
+"dsrust::adapter::parse::FieldMismatch::lm_response" = { status = "divergence", reason = "`FieldMismatch::lm_response`, part of the same type's surface; see the entry for `FieldMismatch`" }
+"dsrust::adapter::parse::FieldMismatch::message" = { status = "divergence", reason = "`FieldMismatch::message`, part of the same type's surface; see the entry for `FieldMismatch`" }
+"dsrust::adapter::parse::FieldMismatch::parsed" = { status = "divergence", reason = "`FieldMismatch::parsed`, part of the same type's surface; see the entry for `FieldMismatch`" }
+"dsrust::adapter::types::audio::Audio::audio_format" = { status = "divergence", reason = "`Audio::audio_format`, part of the same type's surface; see the entry for `Audio`" }
+"dsrust::adapter::types::audio::Audio::data" = { status = "divergence", reason = "`Audio::data`, part of the same type's surface; see the entry for `Audio`" }
+"dsrust::adapter::types::citation::Citation::cited_text" = { status = "divergence", reason = "`Citation::cited_text`, part of the same type's surface; see the entry for `Citation`" }
+"dsrust::adapter::types::citation::Citation::document_index" = { status = "divergence", reason = "`Citation::document_index`, part of the same type's surface; see the entry for `Citation`" }
+"dsrust::adapter::types::citation::Citation::end_char_index" = { status = "divergence", reason = "`Citation::end_char_index`, part of the same type's surface; see the entry for `Citation`" }
+"dsrust::adapter::types::citation::Citation::kind" = { status = "divergence", reason = "`Citation::kind`, part of the same type's surface; see the entry for `Citation`" }
+"dsrust::adapter::types::citation::Citation::start_char_index" = { status = "divergence", reason = "`Citation::start_char_index`, part of the same type's surface; see the entry for `Citation`" }
+"dsrust::adapter::types::citation::Citations::citations" = { status = "divergence", reason = "`Citations::citations`, part of the same type's surface; see the entry for `Citations`" }
+"dsrust::adapter::types::code::Code::code" = { status = "divergence", reason = "`Code::code`, part of the same type's surface; see the entry for `Code`" }
+"dsrust::adapter::types::code::Code::language" = { status = "divergence", reason = "`Code::language`, part of the same type's surface; see the entry for `Code`" }
+"dsrust::adapter::types::document::Document::data" = { status = "divergence", reason = "`Document::data`, part of the same type's surface; see the entry for `Document`" }
+"dsrust::adapter::types::file::File::file_data" = { status = "divergence", reason = "`File::file_data`, part of the same type's surface; see the entry for `File`" }
+"dsrust::adapter::types::file::File::file_id" = { status = "divergence", reason = "`File::file_id`, part of the same type's surface; see the entry for `File`" }
+"dsrust::adapter::types::history::History::messages" = { status = "divergence", reason = "`History::messages`, part of the same type's surface; see the entry for `History`" }
+"dsrust::adapter::types::reasoning::Reasoning::content" = { status = "divergence", reason = "`Reasoning::content`, part of the same type's surface; see the entry for `Reasoning`" }
+"dsrust::adapter::types::tool::ToolCall::args" = { status = "divergence", reason = "`ToolCall::args`, part of the same type's surface; see the entry for `ToolCall`" }
+"dsrust::adapter::types::tool::ToolCall::name" = { status = "divergence", reason = "`ToolCall::name`, part of the same type's surface; see the entry for `ToolCall`" }
+"dsrust::adapter::types::tool::ToolCallResult::call_id" = { status = "divergence", reason = "`ToolCallResult::call_id`, part of the same type's surface; see the entry for `ToolCallResult`" }
+"dsrust::adapter::types::tool::ToolCallResult::is_error" = { status = "divergence", reason = "`ToolCallResult::is_error`, part of the same type's surface; see the entry for `ToolCallResult`" }
+"dsrust::adapter::types::tool::ToolCallResult::name" = { status = "divergence", reason = "`ToolCallResult::name`, part of the same type's surface; see the entry for `ToolCallResult`" }
+"dsrust::adapter::types::tool::ToolCallResult::value" = { status = "divergence", reason = "`ToolCallResult::value`, part of the same type's surface; see the entry for `ToolCallResult`" }
+"dsrust::adapter::types::tool::ToolCallResults::tool_call_results" = { status = "divergence", reason = "`ToolCallResults::tool_call_results`, part of the same type's surface; see the entry for `ToolCallResults`" }
+"dsrust::adapter::types::tool::ToolCalls::results" = { status = "divergence", reason = "`ToolCalls::results`, part of the same type's surface; see the entry for `ToolCalls`" }
+"dsrust::adapter::types::tool::ToolCalls::tool_call_results" = { status = "divergence", reason = "`ToolCalls::tool_call_results`, part of the same type's surface; see the entry for `ToolCalls`" }
+"dsrust::adapter::types::tool::ToolCalls::tool_calls" = { status = "divergence", reason = "`ToolCalls::tool_calls`, part of the same type's surface; see the entry for `ToolCalls`" }
+"dsrust::asks_with_a_prediction" = { status = "divergence", reason = "a test-only macro asserting a module's ask carries a prediction; exported because the conformance suites in two crates use it" }
+"dsrust::call" = { status = "divergence", reason = "`call!` — one typed module call, expanding to the module plus its inputs struct" }
+"dsrust::callback::Rendered::system" = { status = "divergence", reason = "`Rendered::system`, part of the same type's surface; see the entry for `Rendered`" }
+"dsrust::callback::Rendered::turns" = { status = "divergence", reason = "`Rendered::turns`, part of the same type's surface; see the entry for `Rendered`" }
+"dsrust::evaluate::Evaluate::failure_score" = { status = "divergence", reason = "`Evaluate::failure_score`, part of the same type's surface; see the entry for `Evaluate`" }
+"dsrust::evaluate::Evaluate::metric" = { status = "divergence", reason = "`Evaluate::metric`, part of the same type's surface; see the entry for `Evaluate`" }
+"dsrust::evaluate::Evaluate::program" = { status = "divergence", reason = "`Evaluate::program`, part of the same type's surface; see the entry for `Evaluate`" }
+"dsrust::evaluate::Evaluation::results" = { status = "divergence", reason = "`Evaluation::results`, part of the same type's surface; see the entry for `Evaluation`" }
+"dsrust::evaluate::Evaluation::score" = { status = "divergence", reason = "`Evaluation::score`, part of the same type's surface; see the entry for `Evaluation`" }
+"dsrust::evaluate::Scored::example" = { status = "divergence", reason = "`Scored::example`, part of the same type's surface; see the entry for `Scored`" }
+"dsrust::evaluate::Scored::prediction" = { status = "divergence", reason = "`Scored::prediction`, part of the same type's surface; see the entry for `Scored`" }
+"dsrust::evaluate::Scored::score" = { status = "divergence", reason = "`Scored::score`, part of the same type's surface; see the entry for `Scored`" }
+"dsrust::example" = { status = "divergence", reason = "`example!` — dspy's `dspy.Example(question=…, answer=…)`. A macro because Python takes keywords and Rust does not; the fields go through `serde_json::json!`, so a literal, a variable or a nested structure all work. A trainset row says which fields are inputs with a `.with_inputs([…])` beside it, as upstream does" }
+"dsrust::example::Example::fields" = { status = "divergence", reason = "`Example::fields`, part of the same type's surface; see the entry for `Example`" }
+"dsrust::example::Example::inputs" = { status = "divergence", reason = "`Example::inputs`, part of the same type's surface; see the entry for `Example`" }
+"dsrust::example::Prediction::completions" = { status = "divergence", reason = "`Prediction::completions`, part of the same type's surface; see the entry for `Prediction`" }
+"dsrust::example::Prediction::example" = { status = "divergence", reason = "`Prediction::example`, part of the same type's surface; see the entry for `Prediction`" }
+"dsrust::example::Prediction::raw" = { status = "divergence", reason = "`Prediction::raw`, part of the same type's surface; see the entry for `Prediction`" }
+"dsrust::example::Prediction::usage" = { status = "divergence", reason = "`Prediction::usage`, part of the same type's surface; see the entry for `Prediction`" }
+"dsrust::example::completions::Completions::items" = { status = "divergence", reason = "`Completions::items`, part of the same type's surface; see the entry for `Completions`" }
+"dsrust::input" = { status = "divergence", reason = "`input!` — `example!` plus `with_inputs` over *every* field, which is what asking a module means. The pair is the whole difference between a call and a trainset row: a row carries labels beside its inputs and has to say which are which" }
+"dsrust::interpreter::OutputField::name" = { status = "divergence", reason = "`OutputField::name`, part of the same type's surface; see the entry for `OutputField`" }
+"dsrust::interpreter::OutputField::python_type" = { status = "divergence", reason = "`OutputField::python_type`, part of the same type's surface; see the entry for `OutputField`" }
+"dsrust::interpreter::deno::Permissions::env" = { status = "divergence", reason = "`Permissions::env`, part of the same type's surface; see the entry for `Permissions`" }
+"dsrust::interpreter::deno::Permissions::network" = { status = "divergence", reason = "`Permissions::network`, part of the same type's surface; see the entry for `Permissions`" }
+"dsrust::interpreter::deno::Permissions::read" = { status = "divergence", reason = "`Permissions::read`, part of the same type's surface; see the entry for `Permissions`" }
+"dsrust::interpreter::deno::Permissions::write" = { status = "divergence", reason = "`Permissions::write`, part of the same type's surface; see the entry for `Permissions`" }
+"dsrust::interpreter::repl::ReplEntry::code" = { status = "divergence", reason = "`ReplEntry::code`, part of the same type's surface; see the entry for `ReplEntry`" }
+"dsrust::interpreter::repl::ReplEntry::output" = { status = "divergence", reason = "`ReplEntry::output`, part of the same type's surface; see the entry for `ReplEntry`" }
+"dsrust::interpreter::repl::ReplEntry::reasoning" = { status = "divergence", reason = "`ReplEntry::reasoning`, part of the same type's surface; see the entry for `ReplEntry`" }
+"dsrust::interpreter::repl::ReplHistory::entries" = { status = "divergence", reason = "`ReplHistory::entries`, part of the same type's surface; see the entry for `ReplHistory`" }
+"dsrust::interpreter::repl::ReplHistory::max_output_chars" = { status = "divergence", reason = "`ReplHistory::max_output_chars`, part of the same type's surface; see the entry for `ReplHistory`" }
+"dsrust::interpreter::repl::ReplVariable::name" = { status = "divergence", reason = "`ReplVariable::name`, part of the same type's surface; see the entry for `ReplVariable`" }
+"dsrust::interpreter::repl::ReplVariable::preview" = { status = "divergence", reason = "`ReplVariable::preview`, part of the same type's surface; see the entry for `ReplVariable`" }
+"dsrust::interpreter::repl::ReplVariable::total_length" = { status = "divergence", reason = "`ReplVariable::total_length`, part of the same type's surface; see the entry for `ReplVariable`" }
+"dsrust::interpreter::repl::ReplVariable::type_name" = { status = "divergence", reason = "`ReplVariable::type_name`, part of the same type's surface; see the entry for `ReplVariable`" }
+"dsrust::items" = { status = "divergence", reason = "`items!` — the positional arguments of a direct model call, which is upstream's `lm(*items)`" }
+"dsrust::lm::Capabilities::function_calling" = { status = "divergence", reason = "`Capabilities::function_calling`, part of the same type's surface; see the entry for `Capabilities`" }
+"dsrust::lm::Capabilities::reasoning" = { status = "divergence", reason = "`Capabilities::reasoning`, part of the same type's surface; see the entry for `Capabilities`" }
+"dsrust::lm::Capabilities::response_schema" = { status = "divergence", reason = "`Capabilities::response_schema`, part of the same type's surface; see the entry for `Capabilities`" }
+"dsrust::lm::ChatTurn::content" = { status = "divergence", reason = "`ChatTurn::content`, part of the same type's surface; see the entry for `ChatTurn`" }
+"dsrust::lm::ChatTurn::role" = { status = "divergence", reason = "`ChatTurn::role`, part of the same type's surface; see the entry for `ChatTurn`" }
+"dsrust::lm::ContextWindowExceeded::message" = { status = "divergence", reason = "`ContextWindowExceeded::message`, part of the same type's surface; see the entry for `ContextWindowExceeded`" }
+"dsrust::lm::ContextWindowExceeded::model" = { status = "divergence", reason = "`ContextWindowExceeded::model`, part of the same type's surface; see the entry for `ContextWindowExceeded`" }
+"dsrust::lm::LM::config" = { status = "divergence", reason = "`LM::config`, part of the same type's surface; see the entry for `LM`" }
+"dsrust::lm::LM::model" = { status = "divergence", reason = "`LM::model`, part of the same type's surface; see the entry for `LM`" }
+"dsrust::lm::LM::openai" = { status = "divergence", reason = "`LM::openai`, part of the same type's surface; see the entry for `LM`" }
+"dsrust::lm::LmFailure::kind" = { status = "divergence", reason = "`LmFailure::kind` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmFailure::message" = { status = "divergence", reason = "`LmFailure::message` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmFailure::model" = { status = "divergence", reason = "`LmFailure::model` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmFailure::provider" = { status = "divergence", reason = "`LmFailure::provider` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmFailure::status" = { status = "divergence", reason = "`LmFailure::status` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmUsage::cache_read_tokens" = { status = "divergence", reason = "`LmUsage::cache_read_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmUsage::cache_write_tokens" = { status = "divergence", reason = "`LmUsage::cache_write_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmUsage::completion_tokens" = { status = "divergence", reason = "`LmUsage::completion_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmUsage::details" = { status = "divergence", reason = "`LmUsage::details` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmUsage::extra" = { status = "divergence", reason = "`LmUsage::extra` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmUsage::input_audio_tokens" = { status = "divergence", reason = "`LmUsage::input_audio_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmUsage::input_tokens" = { status = "divergence", reason = "`LmUsage::input_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmUsage::output_audio_tokens" = { status = "divergence", reason = "`LmUsage::output_audio_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmUsage::output_tokens" = { status = "divergence", reason = "`LmUsage::output_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmUsage::prompt_tokens" = { status = "divergence", reason = "`LmUsage::prompt_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmUsage::reasoning_tokens" = { status = "divergence", reason = "`LmUsage::reasoning_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::LmUsage::total_tokens" = { status = "divergence", reason = "`LmUsage::total_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::ModelRef::id" = { status = "divergence", reason = "`ModelRef::id`, part of the same type's surface; see the entry for `ModelRef`" }
+"dsrust::lm::ModelRef::provider" = { status = "divergence", reason = "`ModelRef::provider`, part of the same type's surface; see the entry for `ModelRef`" }
+"dsrust::lm::Sampling::completions" = { status = "divergence", reason = "`Sampling::completions`, part of the same type's surface; see the entry for `Sampling`" }
+"dsrust::lm::Sampling::max_tokens" = { status = "divergence", reason = "`Sampling::max_tokens`, part of the same type's surface; see the entry for `Sampling`" }
+"dsrust::lm::Sampling::rollout_id" = { status = "divergence", reason = "`Sampling::rollout_id`, part of the same type's surface; see the entry for `Sampling`" }
+"dsrust::lm::Sampling::temperature" = { status = "divergence", reason = "`Sampling::temperature`, part of the same type's surface; see the entry for `Sampling`" }
+"dsrust::lm::api::LmCacheConfig::enabled" = { status = "divergence", reason = "`LmCacheConfig::enabled` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmCacheConfig::rollout_id" = { status = "divergence", reason = "`LmCacheConfig::rollout_id` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmConfig::cache" = { status = "divergence", reason = "`LmConfig::cache` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmConfig::extensions" = { status = "divergence", reason = "`LmConfig::extensions` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmConfig::logprobs" = { status = "divergence", reason = "`LmConfig::logprobs` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmConfig::max_tokens" = { status = "divergence", reason = "`LmConfig::max_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmConfig::n" = { status = "divergence", reason = "`LmConfig::n` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmConfig::prompt_cache" = { status = "divergence", reason = "`LmConfig::prompt_cache` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmConfig::reasoning" = { status = "divergence", reason = "`LmConfig::reasoning` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmConfig::response_format" = { status = "divergence", reason = "`LmConfig::response_format` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmConfig::stop" = { status = "divergence", reason = "`LmConfig::stop` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmConfig::temperature" = { status = "divergence", reason = "`LmConfig::temperature` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmConfig::tool_choice" = { status = "divergence", reason = "`LmConfig::tool_choice` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmConfig::top_p" = { status = "divergence", reason = "`LmConfig::top_p` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmHistoryEntry::extra" = { status = "divergence", reason = "`LmHistoryEntry::extra` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmHistoryEntry::model_type" = { status = "divergence", reason = "`LmHistoryEntry::model_type` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmHistoryEntry::request" = { status = "divergence", reason = "`LmHistoryEntry::request` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmHistoryEntry::response" = { status = "divergence", reason = "`LmHistoryEntry::response` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmHistoryEntry::timestamp" = { status = "divergence", reason = "`LmHistoryEntry::timestamp` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmHistoryEntry::uuid" = { status = "divergence", reason = "`LmHistoryEntry::uuid` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmMessage::parts" = { status = "divergence", reason = "`LmMessage::parts` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmMessage::role" = { status = "divergence", reason = "`LmMessage::role` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmOutput::finish_reason" = { status = "divergence", reason = "`LmOutput::finish_reason` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmOutput::logprobs" = { status = "divergence", reason = "`LmOutput::logprobs` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmOutput::metadata" = { status = "divergence", reason = "`LmOutput::metadata` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmOutput::parts" = { status = "divergence", reason = "`LmOutput::parts` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmOutput::provider_data" = { status = "divergence", reason = "`LmOutput::provider_data` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmOutput::provider_output" = { status = "divergence", reason = "`LmOutput::provider_output` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmOutput::truncated" = { status = "divergence", reason = "`LmOutput::truncated` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmPromptCacheConfig::enabled" = { status = "divergence", reason = "`LmPromptCacheConfig::enabled` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmPromptCacheConfig::key" = { status = "divergence", reason = "`LmPromptCacheConfig::key` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmReasoningConfig::effort" = { status = "divergence", reason = "`LmReasoningConfig::effort` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmReasoningConfig::max_tokens" = { status = "divergence", reason = "`LmReasoningConfig::max_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmReasoningConfig::summary" = { status = "divergence", reason = "`LmReasoningConfig::summary` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequest::config" = { status = "divergence", reason = "`LmRequest::config` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequest::messages" = { status = "divergence", reason = "`LmRequest::messages` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequest::metadata" = { status = "divergence", reason = "`LmRequest::metadata` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequest::model" = { status = "divergence", reason = "`LmRequest::model` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequestPatch::assistant_parts" = { status = "divergence", reason = "`LmRequestPatch::assistant_parts` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequestPatch::config" = { status = "divergence", reason = "`LmRequestPatch::config` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequestPatch::delete_input_fields" = { status = "divergence", reason = "`LmRequestPatch::delete_input_fields` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequestPatch::delete_output_fields" = { status = "divergence", reason = "`LmRequestPatch::delete_output_fields` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequestPatch::messages" = { status = "divergence", reason = "`LmRequestPatch::messages` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequestPatch::metadata" = { status = "divergence", reason = "`LmRequestPatch::metadata` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequestPatch::system_parts" = { status = "divergence", reason = "`LmRequestPatch::system_parts` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequestPatch::tools" = { status = "divergence", reason = "`LmRequestPatch::tools` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmRequestPatch::user_parts" = { status = "divergence", reason = "`LmRequestPatch::user_parts` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmResponse::cache_hit" = { status = "divergence", reason = "`LmResponse::cache_hit` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmResponse::cost" = { status = "divergence", reason = "`LmResponse::cost` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmResponse::metadata" = { status = "divergence", reason = "`LmResponse::metadata` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmResponse::outputs" = { status = "divergence", reason = "`LmResponse::outputs` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmResponse::provider_data" = { status = "divergence", reason = "`LmResponse::provider_data` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmResponse::response_id" = { status = "divergence", reason = "`LmResponse::response_id` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmResponse::usage" = { status = "divergence", reason = "`LmResponse::usage` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmStream::request" = { status = "divergence", reason = "`LmStream::request` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmToolChoice::allowed" = { status = "divergence", reason = "`LmToolChoice::allowed` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmToolChoice::mode" = { status = "divergence", reason = "`LmToolChoice::mode` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmToolChoice::parallel" = { status = "divergence", reason = "`LmToolChoice::parallel` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmToolSpec::description" = { status = "divergence", reason = "`LmToolSpec::description` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmToolSpec::metadata" = { status = "divergence", reason = "`LmToolSpec::metadata` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmToolSpec::name" = { status = "divergence", reason = "`LmToolSpec::name` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmToolSpec::parameters" = { status = "divergence", reason = "`LmToolSpec::parameters` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmToolSpec::provider_data" = { status = "divergence", reason = "`LmToolSpec::provider_data` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::api::LmToolSpec::strict" = { status = "divergence", reason = "`LmToolSpec::strict` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::builder::LmBuilder::max_tokens" = { status = "divergence", reason = "`LmBuilder::max_tokens` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::builder::LmBuilder::temperature" = { status = "divergence", reason = "`LmBuilder::temperature` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
+"dsrust::lm::dummy::Asked::config" = { status = "divergence", reason = "`Asked::config`, part of the same type's surface; see the entry for `Asked`" }
+"dsrust::lm::dummy::Asked::json_mode" = { status = "divergence", reason = "`Asked::json_mode`, part of the same type's surface; see the entry for `Asked`" }
+"dsrust::lm::dummy::Asked::system" = { status = "divergence", reason = "`Asked::system`, part of the same type's surface; see the entry for `Asked`" }
+"dsrust::lm::dummy::Asked::turns" = { status = "divergence", reason = "`Asked::turns`, part of the same type's surface; see the entry for `Asked`" }
+"dsrust::lm::openai::OpenAiConfig::api_key" = { status = "divergence", reason = "`OpenAiConfig::api_key` — part of what the OpenAI wire needs beyond an `LmConfig` — litellm assembles this from its own registry, and the crate has none" }
+"dsrust::lm::openai::OpenAiConfig::base_url" = { status = "divergence", reason = "`OpenAiConfig::base_url` — part of what the OpenAI wire needs beyond an `LmConfig` — litellm assembles this from its own registry, and the crate has none" }
+"dsrust::lm::openai::OpenAiConfig::json_format" = { status = "divergence", reason = "`OpenAiConfig::json_format` — part of what the OpenAI wire needs beyond an `LmConfig` — litellm assembles this from its own registry, and the crate has none" }
+"dsrust::lm::openai::OpenAiConfig::key_var" = { status = "divergence", reason = "`OpenAiConfig::key_var` — part of what the OpenAI wire needs beyond an `LmConfig` — litellm assembles this from its own registry, and the crate has none" }
+"dsrust::lm::openai::OpenAiConfig::token_limit_rule" = { status = "divergence", reason = "`OpenAiConfig::token_limit_rule` — part of what the OpenAI wire needs beyond an `LmConfig` — litellm assembles this from its own registry, and the crate has none" }
+"dsrust::lm::openai::OpenAiConfig::wire" = { status = "divergence", reason = "`OpenAiConfig::wire` — part of what the OpenAI wire needs beyond an `LmConfig` — litellm assembles this from its own registry, and the crate has none" }
+"dsrust::module::FieldState::description" = { status = "divergence", reason = "`FieldState::description`, part of the same type's surface; see the entry for `FieldState`" }
+"dsrust::module::FieldState::prefix" = { status = "divergence", reason = "`FieldState::prefix`, part of the same type's surface; see the entry for `FieldState`" }
+"dsrust::module::Metadata::dependency_versions" = { status = "divergence", reason = "`Metadata::dependency_versions`, part of the same type's surface; see the entry for `Metadata`" }
+"dsrust::module::NamedPredictor::config" = { status = "divergence", reason = "`NamedPredictor::config`, part of the same type's surface; see the entry for `NamedPredictor`" }
+"dsrust::module::NamedPredictor::demos" = { status = "divergence", reason = "`NamedPredictor::demos`, part of the same type's surface; see the entry for `NamedPredictor`" }
+"dsrust::module::NamedPredictor::hint" = { status = "divergence", reason = "`NamedPredictor::hint`, part of the same type's surface; see the entry for `NamedPredictor`" }
+"dsrust::module::NamedPredictor::lm" = { status = "divergence", reason = "`NamedPredictor::lm`, part of the same type's surface; see the entry for `NamedPredictor`" }
+"dsrust::module::NamedPredictor::name" = { status = "divergence", reason = "`NamedPredictor::name`, part of the same type's surface; see the entry for `NamedPredictor`" }
+"dsrust::module::NamedPredictor::signature" = { status = "divergence", reason = "`NamedPredictor::signature`, part of the same type's surface; see the entry for `NamedPredictor`" }
+"dsrust::module::PredictorState::demos" = { status = "divergence", reason = "`PredictorState::demos`, part of the same type's surface; see the entry for `PredictorState`" }
+"dsrust::module::PredictorState::lm" = { status = "divergence", reason = "`PredictorState::lm`, part of the same type's surface; see the entry for `PredictorState`" }
+"dsrust::module::PredictorState::signature" = { status = "divergence", reason = "`PredictorState::signature`, part of the same type's surface; see the entry for `PredictorState`" }
+"dsrust::module::PredictorState::traces" = { status = "divergence", reason = "`PredictorState::traces`, part of the same type's surface; see the entry for `PredictorState`" }
+"dsrust::module::PredictorState::train" = { status = "divergence", reason = "`PredictorState::train`, part of the same type's surface; see the entry for `PredictorState`" }
+"dsrust::module::ProgramState::metadata" = { status = "divergence", reason = "`ProgramState::metadata`, part of the same type's surface; see the entry for `ProgramState`" }
+"dsrust::module::ProgramState::predictors" = { status = "divergence", reason = "`ProgramState::predictors`, part of the same type's surface; see the entry for `ProgramState`" }
+"dsrust::module::SignatureState::fields" = { status = "divergence", reason = "`SignatureState::fields`, part of the same type's surface; see the entry for `SignatureState`" }
+"dsrust::module::SignatureState::instructions" = { status = "divergence", reason = "`SignatureState::instructions`, part of the same type's surface; see the entry for `SignatureState`" }
+"dsrust::module::TraceStep::inputs" = { status = "divergence", reason = "`TraceStep::inputs`, part of the same type's surface; see the entry for `TraceStep`" }
+"dsrust::module::TraceStep::outputs" = { status = "divergence", reason = "`TraceStep::outputs`, part of the same type's surface; see the entry for `TraceStep`" }
+"dsrust::module::TraceStep::predictor" = { status = "divergence", reason = "`TraceStep::predictor`, part of the same type's surface; see the entry for `TraceStep`" }
+"dsrust::module::TraceStep::signature" = { status = "divergence", reason = "`TraceStep::signature`, part of the same type's surface; see the entry for `TraceStep`" }
+"dsrust::optimize::Attempt::score" = { status = "divergence", reason = "`Attempt::score`, part of the same type's surface; see the entry for `Attempt`" }
+"dsrust::optimize::Attempt::seed" = { status = "divergence", reason = "`Attempt::seed`, part of the same type's surface; see the entry for `Attempt`" }
+"dsrust::optimize::Attempt::state" = { status = "divergence", reason = "`Attempt::state`, part of the same type's surface; see the entry for `Attempt`" }
+"dsrust::optimize::BetterTogether::metric" = { status = "divergence", reason = "`BetterTogether::metric` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::BetterTogether::scoring" = { status = "divergence", reason = "`BetterTogether::scoring` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::BootstrapFewShot::max_bootstrapped_demos" = { status = "divergence", reason = "`BootstrapFewShot::max_bootstrapped_demos` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::BootstrapFewShot::max_errors" = { status = "divergence", reason = "`BootstrapFewShot::max_errors` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::BootstrapFewShot::max_labeled_demos" = { status = "divergence", reason = "`BootstrapFewShot::max_labeled_demos` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::BootstrapFewShot::max_rounds" = { status = "divergence", reason = "`BootstrapFewShot::max_rounds` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::BootstrapFewShot::metric" = { status = "divergence", reason = "`BootstrapFewShot::metric` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::BootstrapFewShot::metric_threshold" = { status = "divergence", reason = "`BootstrapFewShot::metric_threshold` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::BootstrapRandomSearch::max_rounds" = { status = "divergence", reason = "`BootstrapRandomSearch::max_rounds` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::Feedback::feedback" = { status = "divergence", reason = "`Feedback::feedback`, part of the same type's surface; see the entry for `Feedback`" }
+"dsrust::optimize::Feedback::score" = { status = "divergence", reason = "`Feedback::score`, part of the same type's surface; see the entry for `Feedback`" }
+"dsrust::optimize::GEPA::candidate_selection_strategy" = { status = "divergence", reason = "`GEPA::candidate_selection_strategy` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::GEPA::component_selector" = { status = "divergence", reason = "`GEPA::component_selector` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::GEPA::failure_score" = { status = "divergence", reason = "`GEPA::failure_score` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::GEPA::max_merge_invocations" = { status = "divergence", reason = "`GEPA::max_merge_invocations` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::GEPA::max_metric_calls" = { status = "divergence", reason = "`GEPA::max_metric_calls` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::GEPA::perfect_score" = { status = "divergence", reason = "`GEPA::perfect_score` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::GEPA::skip_perfect_score" = { status = "divergence", reason = "`GEPA::skip_perfect_score` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::GEPA::use_merge" = { status = "divergence", reason = "`GEPA::use_merge` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::LabeledFewShot::k" = { status = "divergence", reason = "`LabeledFewShot::k` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::LabeledFewShot::sample" = { status = "divergence", reason = "`LabeledFewShot::sample` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::LabeledFewShot::seed" = { status = "divergence", reason = "`LabeledFewShot::seed` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::MIPROv2::minibatch_size" = { status = "divergence", reason = "`MIPROv2::minibatch_size` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::MIPROv2::program_code" = { status = "divergence", reason = "`MIPROv2::program_code` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
+"dsrust::optimize::MetricContext::predictor" = { status = "divergence", reason = "`MetricContext::predictor`, part of the same type's surface; see the entry for `MetricContext`" }
+"dsrust::optimize::MetricContext::trace" = { status = "divergence", reason = "`MetricContext::trace`, part of the same type's surface; see the entry for `MetricContext`" }
+"dsrust::optimize::Scoring::max_errors" = { status = "divergence", reason = "`Scoring::max_errors`, part of the same type's surface; see the entry for `Scoring`" }
+"dsrust::optimize::Scoring::num_threads" = { status = "divergence", reason = "`Scoring::num_threads`, part of the same type's surface; see the entry for `Scoring`" }
+"dsrust::optimize::StepResult::score" = { status = "divergence", reason = "`StepResult::score`, part of the same type's surface; see the entry for `StepResult`" }
+"dsrust::optimize::StepResult::state" = { status = "divergence", reason = "`StepResult::state`, part of the same type's surface; see the entry for `StepResult`" }
+"dsrust::optimize::StepResult::strategy" = { status = "divergence", reason = "`StepResult::strategy`, part of the same type's surface; see the entry for `StepResult`" }
+"dsrust::optimize::Trial::score" = { status = "divergence", reason = "`Trial::score`, part of the same type's surface; see the entry for `Trial`" }
+"dsrust::predict::Answered::failed" = { status = "divergence", reason = "`Answered::failed`, part of the same type's surface; see the entry for `Answered`" }
+"dsrust::predict::Answered::results" = { status = "divergence", reason = "`Answered::results`, part of the same type's surface; see the entry for `Answered`" }
+"dsrust::predict::BestOfN::n" = { status = "divergence", reason = "`BestOfN::n`, part of the same type's surface; see the entry for `BestOfN`" }
+"dsrust::predict::BestOfN::reward" = { status = "divergence", reason = "`BestOfN::reward`, part of the same type's surface; see the entry for `BestOfN`" }
+"dsrust::predict::BestOfN::threshold" = { status = "divergence", reason = "`BestOfN::threshold`, part of the same type's surface; see the entry for `BestOfN`" }
+"dsrust::predict::Parallel::max_errors" = { status = "divergence", reason = "`Parallel::max_errors`, part of the same type's surface; see the entry for `Parallel`" }
+"dsrust::predict::Predict::lm" = { status = "divergence", reason = "`Predict::lm`, part of the same type's surface; see the entry for `Predict`" }
+"dsrust::predict::Predict::signature" = { status = "divergence", reason = "`Predict::signature`, part of the same type's surface; see the entry for `Predict`" }
+"dsrust::predict::Steering::forced_tool" = { status = "divergence", reason = "`Steering::forced_tool`, part of the same type's surface; see the entry for `Steering`" }
+"dsrust::predict::Steering::predicted_output" = { status = "divergence", reason = "`Steering::predicted_output`, part of the same type's surface; see the entry for `Steering`" }
+"dsrust::predict::Steering::reasoning_effort" = { status = "divergence", reason = "`Steering::reasoning_effort`, part of the same type's surface; see the entry for `Steering`" }
+"dsrust::predict::code_act::CodeAct::signature" = { status = "divergence", reason = "`CodeAct::signature`, part of the same type's surface; see the entry for `CodeAct`" }
+"dsrust::predict::program_of_thought::ProgramOfThought::signature" = { status = "divergence", reason = "`ProgramOfThought::signature`, part of the same type's surface; see the entry for `ProgramOfThought`" }
+"dsrust::predict::refine::Refine::n" = { status = "divergence", reason = "`Refine::n`, part of the same type's surface; see the entry for `Refine`" }
+"dsrust::predict::refine::Refine::program_code" = { status = "divergence", reason = "`Refine::program_code`, part of the same type's surface; see the entry for `Refine`" }
+"dsrust::predict::refine::Refine::reward" = { status = "divergence", reason = "`Refine::reward`, part of the same type's surface; see the entry for `Refine`" }
+"dsrust::predict::refine::Refine::reward_code" = { status = "divergence", reason = "`Refine::reward_code`, part of the same type's surface; see the entry for `Refine`" }
+"dsrust::predict::refine::Refine::threshold" = { status = "divergence", reason = "`Refine::threshold`, part of the same type's surface; see the entry for `Refine`" }
+"dsrust::predict::rlm::Rlm::max_output_chars" = { status = "divergence", reason = "`Rlm::max_output_chars`, part of the same type's surface; see the entry for `Rlm`" }
+"dsrust::predict::rlm::Rlm::signature" = { status = "divergence", reason = "`Rlm::signature`, part of the same type's surface; see the entry for `Rlm`" }
+"dsrust::react::FnTool::args" = { status = "divergence", reason = "`FnTool::args`, part of the same type's surface; see the entry for `FnTool`" }
+"dsrust::react::FnTool::call" = { status = "divergence", reason = "`FnTool::call`, part of the same type's surface; see the entry for `FnTool`" }
+"dsrust::react::FnTool::description" = { status = "divergence", reason = "`FnTool::description`, part of the same type's surface; see the entry for `FnTool`" }
+"dsrust::react::FnTool::name" = { status = "divergence", reason = "`FnTool::name`, part of the same type's surface; see the entry for `FnTool`" }
+"dsrust::react::ReAct::signature" = { status = "divergence", reason = "`ReAct::signature`, part of the same type's surface; see the entry for `ReAct`" }
+"dsrust::react::ReActV2::signature" = { status = "divergence", reason = "`ReActV2::signature`, part of the same type's surface; see the entry for `ReActV2`" }
+"dsrust::react::Step::args" = { status = "divergence", reason = "`Step::args`, part of the same type's surface; see the entry for `Step`" }
+"dsrust::react::Step::observation" = { status = "divergence", reason = "`Step::observation`, part of the same type's surface; see the entry for `Step`" }
+"dsrust::react::Step::thought" = { status = "divergence", reason = "`Step::thought`, part of the same type's surface; see the entry for `Step`" }
+"dsrust::react::Step::tool" = { status = "divergence", reason = "`Step::tool`, part of the same type's surface; see the entry for `Step`" }
+"dsrust::react::Tool::args" = { status = "divergence", reason = "`Tool::args`, part of the same type's surface; see the entry for `Tool`" }
+"dsrust::react::Trajectory::steps" = { status = "divergence", reason = "`Trajectory::steps`, part of the same type's surface; see the entry for `Trajectory`" }
+"dsrust::signature::InField::constraints" = { status = "divergence", reason = "`InField::constraints` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::InField::desc" = { status = "divergence", reason = "`InField::desc` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::InField::kind" = { status = "divergence", reason = "`InField::kind` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::InField::name" = { status = "divergence", reason = "`InField::name` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::InField::prefix" = { status = "divergence", reason = "`InField::prefix` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::InField::values" = { status = "divergence", reason = "`InField::values` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::JsonType::annotation" = { status = "divergence", reason = "`JsonType::annotation`, part of the same type's surface; see the entry for `JsonType`" }
+"dsrust::signature::JsonType::reflection" = { status = "divergence", reason = "`JsonType::reflection`, part of the same type's surface; see the entry for `JsonType`" }
+"dsrust::signature::OutField::constraints" = { status = "divergence", reason = "`OutField::constraints` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::OutField::desc" = { status = "divergence", reason = "`OutField::desc` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::OutField::kind" = { status = "divergence", reason = "`OutField::kind` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::OutField::name" = { status = "divergence", reason = "`OutField::name` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::OutField::prefix" = { status = "divergence", reason = "`OutField::prefix` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::OutField::schema" = { status = "divergence", reason = "`OutField::schema` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::OutField::values" = { status = "divergence", reason = "`OutField::values` — one attribute of a signature field, which dspy keeps in a pydantic `FieldInfo`'s `json_schema_extra` and this keeps as a typed member" }
+"dsrust::signature::Signature::inputs" = { status = "divergence", reason = "`Signature::inputs`, part of the same type's surface; see the entry for `Signature`" }
+"dsrust::signature::Signature::outputs" = { status = "divergence", reason = "`Signature::outputs`, part of the same type's surface; see the entry for `Signature`" }
+"dsrust::signature::TypeDescription::name" = { status = "divergence", reason = "`TypeDescription::name`, part of the same type's surface; see the entry for `TypeDescription`" }
+"dsrust::signature::TypeDescription::replaces_schema" = { status = "divergence", reason = "`TypeDescription::replaces_schema`, part of the same type's surface; see the entry for `TypeDescription`" }
+"dsrust::signature::TypeDescription::text" = { status = "divergence", reason = "`TypeDescription::text`, part of the same type's surface; see the entry for `TypeDescription`" }
+"gepa::EvalBatch::captured_traces" = { status = "divergence", reason = "`EvalBatch::captured_traces`, part of the same type's surface; see the entry for `EvalBatch`" }
+"gepa::EvalBatch::scores" = { status = "divergence", reason = "`EvalBatch::scores`, part of the same type's surface; see the entry for `EvalBatch`" }
+"gepa::engine::GepaEngine::adapter" = { status = "divergence", reason = "`GepaEngine::adapter` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaEngine::candidate_selection_strategy" = { status = "divergence", reason = "`GepaEngine::candidate_selection_strategy` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaEngine::component_selector" = { status = "divergence", reason = "`GepaEngine::component_selector` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaEngine::max_merge_invocations" = { status = "divergence", reason = "`GepaEngine::max_merge_invocations` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaEngine::max_metric_calls" = { status = "divergence", reason = "`GepaEngine::max_metric_calls` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaEngine::minibatch_size" = { status = "divergence", reason = "`GepaEngine::minibatch_size` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaEngine::perfect_score" = { status = "divergence", reason = "`GepaEngine::perfect_score` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaEngine::seed" = { status = "divergence", reason = "`GepaEngine::seed` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaEngine::skip_perfect_score" = { status = "divergence", reason = "`GepaEngine::skip_perfect_score` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaEngine::trainset_size" = { status = "divergence", reason = "`GepaEngine::trainset_size` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaEngine::use_merge" = { status = "divergence", reason = "`GepaEngine::use_merge` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaEngine::valset_size" = { status = "divergence", reason = "`GepaEngine::valset_size` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaOutcome::best" = { status = "divergence", reason = "`GepaOutcome::best` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaOutcome::best_idx" = { status = "divergence", reason = "`GepaOutcome::best_idx` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaOutcome::candidates" = { status = "divergence", reason = "`GepaOutcome::candidates` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaOutcome::iterations" = { status = "divergence", reason = "`GepaOutcome::iterations` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaOutcome::num_full_ds_evals" = { status = "divergence", reason = "`GepaOutcome::num_full_ds_evals` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaOutcome::num_metric_calls_by_discovery" = { status = "divergence", reason = "`GepaOutcome::num_metric_calls_by_discovery` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaOutcome::parents" = { status = "divergence", reason = "`GepaOutcome::parents` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaOutcome::total_num_evals" = { status = "divergence", reason = "`GepaOutcome::total_num_evals` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::engine::GepaOutcome::val_aggregate_scores" = { status = "divergence", reason = "`GepaOutcome::val_aggregate_scores` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::merge::MergeAttempt::ancestor" = { status = "divergence", reason = "`MergeAttempt::ancestor`, part of the same type's surface; see the entry for `MergeAttempt`" }
+"gepa::merge::MergeAttempt::candidate" = { status = "divergence", reason = "`MergeAttempt::candidate`, part of the same type's surface; see the entry for `MergeAttempt`" }
+"gepa::merge::MergeAttempt::id1" = { status = "divergence", reason = "`MergeAttempt::id1`, part of the same type's surface; see the entry for `MergeAttempt`" }
+"gepa::merge::MergeAttempt::id2" = { status = "divergence", reason = "`MergeAttempt::id2`, part of the same type's surface; see the entry for `MergeAttempt`" }
+"gepa::state::GepaState::candidates" = { status = "divergence", reason = "`GepaState::candidates` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::state::GepaState::i" = { status = "divergence", reason = "`GepaState::i` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::state::GepaState::num_full_ds_evals" = { status = "divergence", reason = "`GepaState::num_full_ds_evals` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::state::GepaState::num_metric_calls_by_discovery" = { status = "divergence", reason = "`GepaState::num_metric_calls_by_discovery` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::state::GepaState::parents" = { status = "divergence", reason = "`GepaState::parents` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+"gepa::state::GepaState::total_num_evals" = { status = "divergence", reason = "`GepaState::total_num_evals` — a field of the gepa engine's own state, which the type's entry describes — every one of them is read by a conformance test against the package" }
+
 # What the surface walk could not see until it read private modules and trait bodies.
 #
 # This crate keeps builder methods in private `building.rs`-style modules, and a trait's own
