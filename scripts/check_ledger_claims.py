@@ -51,8 +51,10 @@ CAPABILITY = re.compile(
 )
 RS_FILE = re.compile(r"\b((?:[a-z_][a-z0-9_]*/)*[a-z_][a-z0-9_]*\.rs)\b")
 IDENT = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)`")
-#: A qualified path *anywhere* in the prose, backticks or not. `LM::with_callbacks` was named eight
-#: times in plain text and had been renamed; a backticks-only scan never saw one of them.
+#: A qualified path *anywhere* in a reason or a `rust` field, backticks or not, and on **every**
+#: status rather than only on divergences. `LM::with_callbacks` was named eight times in plain text
+#: and had been renamed; `LM::with_retry` twice more, in two `mapped` entries the check skipped
+#: entirely — 258 entries name a qualified path and are not divergences.
 BARE_PATH = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+)\b")
 DEFINITION = re.compile(
     r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?"
@@ -101,10 +103,11 @@ def main() -> int:
         if not isinstance(table, dict):
             continue
         for key, entry in table.items():
-            if not isinstance(entry, dict) or entry.get("status") != "divergence":
+            if not isinstance(entry, dict):
                 continue
             reason = str(entry.get("reason", ""))
-            if SUBSTITUTION.search(reason):
+            divergence = entry.get("status") == "divergence"
+            if divergence and SUBSTITUTION.search(reason):
                 substitutions += 1
                 # A substitution points at Rust, so a bare name in one is checkable — and often is
                 # a private helper: `numbered_block` is the first in the file.
@@ -124,7 +127,7 @@ def main() -> int:
             # `LmBuilder::callbacks`, and every one of those reasons said "there is no" — which no
             # substitution-only check ever looks at. A reason may still name a Python symbol or an
             # environment variable in backticks, and those carry no `::`.
-            for ident in set(BARE_PATH.findall(reason)):
+            for ident in set(BARE_PATH.findall(reason + " " + str(entry.get("rust") or ""))):
                 parts = ident.split("::")
                 if parts[0] in OURS:
                     parts = parts[1:]          # a crate-rooted path; the crate itself is not an item
@@ -140,7 +143,7 @@ def main() -> int:
                     if part not in names:
                         missing.append((key, "qualified path", ident))
                         break
-            claim = CAPABILITY.search(reason)
+            claim = CAPABILITY.search(reason) if divergence else None
             if claim and not entry.get("rust"):
                 named_something = bool(RS_FILE.search(reason)) or any(
                     i[0].isupper() or "::" in i or "_" in i for i in IDENT.findall(reason)
