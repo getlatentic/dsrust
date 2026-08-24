@@ -432,17 +432,10 @@ def main() -> None:
                 "completion": completion,
                 "adapter": which(name),
                 "dspy": parsed(adapters[which(name)], signature, completion),
-                # The crate casts a scalar during *validation* rather than during parse. So a good
-                # `int` comes back as the text that spells it, and the two values that will not fit
-                # are accepted here and fail later with a typed message instead of at parse.
-                # Recorded as a divergence so the comparison stays honest and turns red when
-                # `parse-time-casting` resolves it, rather than being quietly skipped.
-                "diverges": name
-                in {
-                    "typed_fields",
-                    "typed_field_that_will_not_parse",
-                    "typed_field_empty",
-                },
+                # `parse-time-casting` closed 2026-08-24: the crate casts at parse as dspy does, so
+                # the three typed cases that were flagged here are compared like the rest. Nothing
+                # is flagged now, and the field stays so the next divergence has somewhere to go.
+                "diverges": False,
             }
         )
 

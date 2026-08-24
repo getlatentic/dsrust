@@ -527,7 +527,7 @@ worth as much as a golden that has never been shown to fail.
 id = "parse-time-casting"
 sprint = "conformance"
 title = "dspy casts a scalar while parsing; this crate casts it during validation, and one feature rests on that"
-state = "todo"
+state = "done"
 size = "M"
 suites = []
 plan = """
@@ -559,6 +559,38 @@ test goes red and says which flag to drop. It cannot be closed by accident or fo
 
 Note that `parse_tags` (XML) already casts at parse. The two paths disagreed with each other before
 they disagreed with dspy.
+"""
+outcome = """
+Closed 2026-08-24. **The two could both stand**, which the story had ruled out — because the thing
+that made them look exclusive was the *carrier*, not the timing.
+
+dspy raises `AdapterParseError` for a missing field **and** for an uncastable one; the golden records
+exactly that for `typed_field_that_will_not_parse`. So both refusals are a `FieldMismatch` here, the
+cast's own complaint riding in `message` and the partial fields riding in `parsed`. `parse_markers`
+calls `coerce_scalars` at the end, as the comment sitting there had said to.
+
+Nothing in the routing had to move. `validate.rs` already answered a parse failure by falling back
+to `JSONAdapter` — dspy's routing — and already carried a `FieldMismatch` partial forward when a
+caller asked for the feedback ask. A cast failure now arrives through that same door, so:
+
+  - by default a bad number switches adapters, as upstream's does;
+  - with `Predict::feedback_retry` on, it re-asks on the same adapter carrying
+    `amount must be a number, got "abc"` — and
+    `a_type_error_rides_the_feedback_retry_not_the_adapter_fallback` passed untouched, which is what
+    says the feature survived rather than being argued about.
+
+`feedback_retry` was off by default all along and its doc already declared itself as the crate's own
+ask, so the divergence the story asked to declare "at the top level" was already declared where a
+caller meets it.
+
+**The holding mechanism worked exactly as built.** Flipping the cast turned one test red —
+`the_parser_reads_what_dspys_reads_and_refuses_what_dspy_refuses` — which asserted the three cases
+the *other* way round and named the flag to drop. Dropping it turned the count assertion red in
+turn, which asks that a fixed divergence be said out loud. Recorded divergences in the parse golden:
+**3 -> 0.**
+
+And `parse_tags` (XML) had cast at parse all along, so the two paths agree with each other now as
+well as with dspy.
 """
 
 [[story]]

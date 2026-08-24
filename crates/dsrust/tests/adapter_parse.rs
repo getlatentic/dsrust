@@ -186,12 +186,16 @@ fn the_parser_reads_what_dspys_reads_and_refuses_what_dspy_refuses() {
         accepted > 0 && refused > 0,
         "the golden no longer exercises both arms: {accepted} accepted, {refused} refused"
     );
-    // Three, all of them `parse-time-casting`. The fourth was
-    // `json_unescaped_quote_inside_a_string`, which closed when `dsrust-json-repair` landed —
-    // and this count, plus the assertion above it, is what said so rather than letting a golden
-    // quietly go on recording a gap that no longer exists.
+    // **Zero.** The last three were `parse-time-casting`, closed 2026-08-24: the crate casts at
+    // parse as dspy does, so `score: int` answered `7` comes back as `7` and answered `very high`
+    // is a parse failure that reaches the JSON fallback — upstream's routing, not a validation
+    // error the caller has to interpret. Before them, `json_unescaped_quote_inside_a_string` closed
+    // when `dsrust-json-repair` landed.
+    //
+    // The count stays because it is what said so both times. A golden with no divergences left is
+    // one sentence from becoming a golden that quietly records a gap nobody re-read.
     assert_eq!(
-        diverging, 3,
+        diverging, 0,
         "the recorded divergences changed count; if one was fixed, say so"
     );
 }

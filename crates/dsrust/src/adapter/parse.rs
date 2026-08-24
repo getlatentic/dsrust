@@ -49,17 +49,27 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
             message: None,
         }));
     }
-    // **A known divergence, recorded rather than papered over.** dspy's `ChatAdapter.parse` casts
-    // every section with `parse_value(v, annotation)` and raises `AdapterParseError` when a value
-    // will not fit, and `ChatAdapter.__call__` answers *any* exception by re-asking through
-    // `JSONAdapter`. So upstream a bad number switches adapters. Here it does not: the cast happens
-    // in validation, which is what `Predict::feedback_retry` is built on — it re-asks on the same
-    // adapter carrying "amount must be a number, got \"abc\"", which upstream has no equivalent of.
+    // dspy's `ChatAdapter.parse` casts every section with `parse_value(v, annotation)` and raises
+    // `AdapterParseError` when a value will not fit its declared type — so a good `int` comes back
+    // as `7` rather than `"7"`, and `score: int` answered `very high` is a *parse* failure rather
+    // than a validation one. Which matters beyond the value's shape: `ChatAdapter.__call__` answers
+    // any exception by re-asking through `JSONAdapter`, so upstream a bad number switches adapters.
     //
-    // Calling `coerce_scalars` here makes the parse side match dspy exactly and takes the feedback
-    // retry with it, so the two cannot both stand. Filed as `parse-time-casting`; the parse golden
-    // records both typed refusals as divergences and goes red when this is resolved.
-    Ok(Value::Object(fields))
+    // The same `AdapterParseError` carries both refusals upstream — a missing field and an
+    // uncastable one — which is why both are a `FieldMismatch` here, with the cast's own complaint
+    // in `message`. The partial travels with it, so a caller who asked for the feedback ask still
+    // gets the fields that did read.
+    let mut parsed = Value::Object(fields);
+    if let Err(error) = signature.coerce_scalars(&mut parsed) {
+        return Err(anyhow::Error::new(FieldMismatch {
+            parsed,
+            adapter_name: "ChatAdapter".to_owned(),
+            lm_response: raw.to_owned(),
+            expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
+            message: Some(error.to_string()),
+        }));
+    }
+    Ok(parsed)
 }
 
 /// A section's text as the value it denotes. dspy runs every section through json-repair

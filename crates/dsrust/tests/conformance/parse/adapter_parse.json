@@ -268,7 +268,7 @@
           ]
         }
       },
-      "diverges": true
+      "diverges": false
     },
     {
       "name": "tags_unclosed",
@@ -408,7 +408,7 @@
         "message": "Failed to parse field score with value very high from the LM response. Error message: 1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='very high', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\nvery high\n\n[[ ## tags ## ]]\n[\"a\"] \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
         "message_diverges": "pydantic-error-text"
       },
-      "diverges": true
+      "diverges": false
     },
     {
       "name": "typed_field_empty",
@@ -421,7 +421,7 @@
         "message": "Failed to parse field score with value  from the LM response. Error message: 1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\n\n\n[[ ## tags ## ]]\n[\"a\"] \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
         "message_diverges": "pydantic-error-text"
       },
-      "diverges": true
+      "diverges": false
     },
     {
       "name": "xml_plain",
