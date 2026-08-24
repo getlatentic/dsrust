@@ -28,7 +28,14 @@ fn one_shot(answered: Result<api::LmResponse>) -> Vec<Result<api::LmStreamEvent>
     if !text.is_empty() {
         events.push(Ok(api::LmStreamEvent::delta(0, api::LmDelta::text(text))));
     }
-    events.push(Ok(api::LmStreamEvent::end()));
+    // The whole answer rides on `End`, as it does on a provider's own stream. Without it a caller
+    // watching the events has no way back to the response, which is what anything tapping a model
+    // — rather than merely displaying it — needs.
+    events.push(Ok(api::LmStreamEvent::End {
+        usage: answered.spend(),
+        cost: None,
+        response: Some(Box::new(answered)),
+    }));
     events
 }
 

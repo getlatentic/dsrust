@@ -280,6 +280,7 @@ dependencies = [
  "dsrust-json-repair",
  "dsrust-tpe",
  "flacenc",
+ "futures-channel",
  "futures-util",
  "image",
  "lru",

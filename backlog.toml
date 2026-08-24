@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1338
+rust_tests = 1342
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -2242,8 +2242,34 @@ this. Both were invisible while only one wire had a golden, because the ChatAdap
 the two rules coincide. Worth remembering when the next adapter is ported: a rule that is only ever
 exercised at one set of constants is not yet tested. See [[no-conformance-slips]].
 
-**Still to come:** `streamify` over a whole module and `StatusMessageProvider` with its callback —
-the program level, where a listener has to be matched to the predictor whose field it names.
+**`streamify` is done.** `adapter/stream/program.rs` runs a module, taps whatever model it reaches,
+and yields the watched field's chunks as they arrive and then the prediction. The tap is a *model*,
+not a hook in `Module` — upstream's own arrangement, its listeners seeing chunks because the LM
+publishes them — which is what lets a caller's own module, several predictors deep and written
+before any of this, be watched without changing it. `lm::context_model` scopes it for the run.
+
+Getting there needed streaming on the trait, since a tap has to work for any model.
+`ChatModel::forward_stream` is defaulted to reporting the whole answer as one delta and `LM`
+overrides it; `DynChatModel::forward_stream_dyn` is defaulted too, because adding it as *required*
+broke two hand-written implementors in this tree immediately. The lifetime that seemed to make a
+trait method impossible was incidental: `RequestBuilder` owns a cloned client, so `send()`'s future
+was already `'static` and the `'h` threaded through seven functions came out.
+
+Three things the tests caught that reasoning had not:
+- **A hang.** The run's future owns the scope, which owns the tap, which owns the sender, so keeping
+  the finished future alive leaves a channel nothing will close. Dropping it on completion is the
+  fix; the test is bounded by a timeout because that failure hangs rather than fails.
+- **A `DummyLM` yields no chunks, correctly.** Its whole reply arrives in one delta and hits the
+  cache-hit branch, exactly as upstream's does. The test needed a double that genuinely streams.
+- **A latent flake, surfaced.** `callback::tests::a_panicking_callback_does_not_break_the_run`
+  failed once in a gate run. Registration is process-wide and it asserted its recorder saw exactly
+  `["Predict"]` — a claim about the whole binary. Its lock excludes other `callback.rs` tests and
+  nothing else. The recorder now keys on `CallId`. **The race was not reproducible on demand** —
+  six runs of the old shape passed — so the fix rests on the mechanism, which
+  `a_recorder_tells_one_calls_points_from_anothers` asserts directly.
+
+**Still to come:** `StatusMessageProvider` with its callback — naming each stage as a program passes
+through it. The points it needs are the six this crate already fires.
 """
 
 [[story]]

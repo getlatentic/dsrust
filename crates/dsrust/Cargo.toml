@@ -23,6 +23,7 @@ gepa = { version = "0.1.0-alpha.1", path = "../dsrust-gepa", package = "dsrust-g
 json_repair = { version = "0.1.0-alpha.1", path = "../dsrust-json-repair", package = "dsrust-json-repair", features = ["serde"] }
 pyrng = { version = "0.1.0-alpha.1", path = "../pyrng" }
 bytes = "1"
+futures-channel = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
 futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
 lru = { version = "0.18.1", default-features = false }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }

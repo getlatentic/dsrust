@@ -14,9 +14,11 @@
 
 mod json;
 mod partial;
+mod program;
 
 pub use json::JsonFieldListener;
 pub use partial::{is_complete, keys_with_values};
+pub use program::{Streamed, streamify};
 
 use std::collections::VecDeque;
 

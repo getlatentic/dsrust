@@ -243,12 +243,34 @@ mod tests {
         guard
     }
 
+    /// Records which call each point belonged to, not merely that one happened.
+    ///
+    /// Registration is process-wide, so while these are installed *every* test in this binary that
+    /// runs a module is heard too — `install`'s lock keeps other `callback.rs` tests out and can do
+    /// nothing about the rest. Counting bare names made this depend on what else happened to be
+    /// running; keying on the call id makes each assertion about its own work.
     #[derive(Default)]
-    struct Counting(Mutex<Vec<String>>);
+    struct Counting(Mutex<Vec<(u64, String)>>);
+
+    impl Counting {
+        /// The modules seen for one call, in order.
+        fn seen(&self, call: &CallId) -> Vec<String> {
+            self.0
+                .lock()
+                .expect("not poisoned")
+                .iter()
+                .filter(|(id, _)| *id == call.id())
+                .map(|(_, module)| module.clone())
+                .collect()
+        }
+    }
 
     impl Callback for Counting {
-        fn on_module_start(&self, _call: &CallId, module: &str, _inputs: &Example) {
-            self.0.lock().expect("not poisoned").push(module.to_owned());
+        fn on_module_start(&self, call: &CallId, module: &str, _inputs: &Example) {
+            self.0
+                .lock()
+                .expect("not poisoned")
+                .push((call.id(), module.to_owned()));
         }
     }
 
@@ -277,8 +299,30 @@ mod tests {
         });
         std::panic::set_hook(hook);
 
-        assert_eq!(*counting.0.lock().expect("not poisoned"), ["Predict"]);
+        assert_eq!(counting.seen(&call), ["Predict"]);
         configure_callbacks([]);
+    }
+
+    /// Two calls, one recorder: each sees its own and not the other's.
+    ///
+    /// This is the mechanism the test above depends on, asserted directly. Registration is
+    /// process-wide, so while a recorder is installed every module run anywhere in this binary is
+    /// heard — and the assertion that used to sit above counted bare names, which made it a claim
+    /// about what else happened to be running. It failed once in a gate run for exactly that
+    /// reason. The race itself was not reproducible on demand; what is reproducible, and what the
+    /// fix rests on, is this.
+    #[test]
+    fn a_recorder_tells_one_calls_points_from_anothers() {
+        let counting = Counting::default();
+        let ours = CallId::next();
+        let theirs = CallId::next();
+
+        counting.on_module_start(&ours, "Predict", &Example::default());
+        counting.on_module_start(&theirs, "ChainOfThought", &Example::default());
+        counting.on_module_start(&ours, "Predict", &Example::default());
+
+        assert_eq!(counting.seen(&ours), ["Predict", "Predict"]);
+        assert_eq!(counting.seen(&theirs), ["ChainOfThought"]);
     }
 
     /// Nothing registered is nothing to tell, which is what every point checks before it renders
