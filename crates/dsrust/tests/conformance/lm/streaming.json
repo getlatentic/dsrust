@@ -232,5 +232,131 @@
         }
       ]
     }
+  ],
+  "json_cases": [
+    {
+      "name": "json_recorded_gpt_4o_mini",
+      "field": "answer",
+      "deltas": [
+        "{\"",
+        "answer",
+        "\":",
+        "\"To",
+        " get",
+        " to",
+        " the",
+        " other",
+        " side",
+        " of",
+        " the",
+        " frying",
+        " pan",
+        "!\"",
+        "}\n",
+        "None",
+        "None",
+        "None"
+      ],
+      "chunks": [
+        {
+          "text": "\"To",
+          "is_last": false
+        },
+        {
+          "text": " get",
+          "is_last": false
+        },
+        {
+          "text": " to",
+          "is_last": false
+        },
+        {
+          "text": " the",
+          "is_last": false
+        },
+        {
+          "text": " other",
+          "is_last": false
+        },
+        {
+          "text": " side",
+          "is_last": false
+        },
+        {
+          "text": " of",
+          "is_last": false
+        },
+        {
+          "text": " the",
+          "is_last": false
+        },
+        {
+          "text": " frying",
+          "is_last": false
+        },
+        {
+          "text": " pan",
+          "is_last": false
+        },
+        {
+          "text": "!\"",
+          "is_last": true
+        }
+      ]
+    },
+    {
+      "name": "json_a_second_field_ends_it",
+      "field": "answer",
+      "deltas": [
+        "{\"answer\":",
+        " \"Paris\"",
+        ", \"judgement\"",
+        ": \"fun",
+        "ny\"",
+        "}"
+      ],
+      "chunks": [
+        {
+          "text": "\"Paris\", \"judgement\": \"fun",
+          "is_last": true
+        }
+      ]
+    },
+    {
+      "name": "json_the_field_is_not_first",
+      "field": "judgement",
+      "deltas": [
+        "{\"answer\": \"Paris\", ",
+        "\"judgement\":",
+        " \"fun",
+        "ny\"",
+        "}"
+      ],
+      "chunks": [
+        {
+          "text": " \"fun",
+          "is_last": false
+        },
+        {
+          "text": "ny\"",
+          "is_last": true
+        }
+      ]
+    },
+    {
+      "name": "json_a_brace_inside_the_value",
+      "field": "answer",
+      "deltas": [
+        "{\"answer\":",
+        " \"a } brace\"",
+        "}"
+      ],
+      "chunks": [
+        {
+          "text": "\"a } brace\"",
+          "is_last": true
+        }
+      ]
+    }
   ]
 }

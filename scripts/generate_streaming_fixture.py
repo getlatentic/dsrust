@@ -67,9 +67,34 @@ CASES: dict[str, tuple[str, list[str]]] = {
 }
 
 
-def chunks_of(field: str, deltas: list[str]) -> list[dict]:
+#: The same, over the JSON wire. `start_identifier` is `"field":` rather than a marker, and the end
+#: is found by partial-parsing the accumulated object rather than by the next field's marker — so
+#: these pin a different rule with the same shape.
+JSON_CASES: dict[str, tuple[str, list[str]]] = {
+    # Upstream's own recorded stream from `test_stream_listener_returns_correct_chunk_json_adapter`.
+    "json_recorded_gpt_4o_mini": (
+        "answer",
+        ['{"', "answer", '":', '"To', " get", " to", " the", " other", " side", " of", " the",
+         " frying", " pan", '!"', "}\n", "None", "None", "None"],
+    ),
+    "json_a_second_field_ends_it": (
+        "answer",
+        ['{"answer":', ' "Paris"', ', "judgement"', ': "fun', 'ny"', "}"],
+    ),
+    "json_the_field_is_not_first": (
+        "judgement",
+        ['{"answer": "Paris", ', '"judgement":', ' "fun', 'ny"', "}"],
+    ),
+    "json_a_brace_inside_the_value": (
+        "answer",
+        ['{"answer":', ' "a } brace"', "}"],
+    ),
+}
+
+
+def chunks_of(field: str, deltas: list[str], adapter=None) -> list[dict]:
     """What `StreamListener` yields for one stream, `finalize` included."""
-    dspy.configure(adapter=dspy.ChatAdapter())
+    dspy.configure(adapter=adapter or dspy.ChatAdapter())
     listener = StreamListener(signature_field_name=field)
     out = []
     for text in deltas:
@@ -92,6 +117,15 @@ def main() -> None:
         "cases": [
             {"name": name, "field": field, "deltas": deltas, "chunks": chunks_of(field, deltas)}
             for name, (field, deltas) in CASES.items()
+        ],
+        "json_cases": [
+            {
+                "name": name,
+                "field": field,
+                "deltas": deltas,
+                "chunks": chunks_of(field, deltas, dspy.JSONAdapter()),
+            }
+            for name, (field, deltas) in JSON_CASES.items()
         ],
     }
     path = OUT / "streaming.json"

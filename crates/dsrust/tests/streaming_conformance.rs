@@ -11,7 +11,7 @@
 
 use std::path::Path;
 
-use dsrust::adapter::stream::FieldListener;
+use dsrust::adapter::stream::{FieldListener, JsonFieldListener};
 use serde_json::Value;
 
 fn golden() -> Value {
@@ -56,6 +56,51 @@ fn a_listeners_chunks_are_dspys_chunks() {
             })
             .collect();
 
+        assert_eq!(
+            ours, theirs,
+            "case `{name}` diverges from dspy\n  source: {}",
+            recorded["_source"]
+        );
+    }
+}
+
+/// The same, over the JSON wire, where the field ends because the *object* moved on rather than
+/// because a marker arrived.
+///
+/// The chunks carry their quotes — `"To` … `!"` — because dspy streams the field's raw JSON text.
+/// That looks like a bug until it is compared, which is the argument for comparing rather than
+/// deciding what it ought to be.
+#[test]
+fn a_json_listeners_chunks_are_dspys_chunks() {
+    let recorded = golden();
+    let cases = recorded["json_cases"].as_array().expect("json_cases");
+    assert!(!cases.is_empty(), "the golden carries no JSON cases");
+
+    for case in cases {
+        let name = case["name"].as_str().expect("a name");
+        let mut listener = JsonFieldListener::new(case["field"].as_str().expect("a field"));
+
+        let mut ours: Vec<(String, bool)> = case["deltas"]
+            .as_array()
+            .expect("deltas")
+            .iter()
+            .filter_map(|delta| listener.push(delta.as_str().expect("a delta")))
+            .map(|chunk| (chunk.text, chunk.is_last))
+            .collect();
+        if let Some(tail) = listener.finish() {
+            ours.push((tail.text, tail.is_last));
+        }
+        let theirs: Vec<(String, bool)> = case["chunks"]
+            .as_array()
+            .expect("chunks")
+            .iter()
+            .map(|chunk| {
+                (
+                    chunk["text"].as_str().expect("text").to_owned(),
+                    chunk["is_last"].as_bool().expect("is_last"),
+                )
+            })
+            .collect();
         assert_eq!(
             ours, theirs,
             "case `{name}` diverges from dspy\n  source: {}",

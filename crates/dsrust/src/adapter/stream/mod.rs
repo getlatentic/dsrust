@@ -12,6 +12,12 @@
 //! closing marker. `the_chunks_are_dspys_own_token_boundaries` holds it to a stream recorded from
 //! gpt-4o-mini in upstream's `test_stream_listener_returns_correct_chunk_chat_adapter`.
 
+mod json;
+mod partial;
+
+pub use json::JsonFieldListener;
+pub use partial::{is_complete, keys_with_values};
+
 use std::collections::VecDeque;
 
 use anyhow::Result;
@@ -22,6 +28,9 @@ use crate::lm::api::{LmDelta, LmStreamEvent};
 /// The sentinel that opens any field's section — the start of the *next* one is what closes the
 /// field being watched.
 const MARKER: &str = "[[ ##";
+
+/// The character that could be the field's marker starting — upstream's `start_indicator`.
+const INDICATOR: char = '[';
 
 /// How many deltas may sit in the buffer while they could still be forming the closing marker.
 ///
@@ -107,7 +116,14 @@ impl FieldListener {
     /// Look for the field's opening marker across deltas, answering with whatever text follows it
     /// once it has fully arrived.
     fn opening(&mut self, delta: &str) -> Option<String> {
-        if self.opening.is_empty() && !delta.contains('[') {
+        if self.opening.is_empty() {
+            // Upstream buffers the first delta that could be opening the field and answers nothing
+            // for it, testing only once a second arrives. That matters even when the whole
+            // identifier is inside this one delta: the trim below is applied to the *joined* text,
+            // so acting a delta early drops a different amount of leading space.
+            if delta.contains(INDICATOR) {
+                self.opening.push(delta.to_owned());
+            }
             return None;
         }
         self.opening.push(delta.to_owned());
@@ -163,7 +179,7 @@ impl FieldListener {
 
 /// The buffered deltas as one string. `VecDeque` has no `concat`, and joining is what every
 /// decision here is made against.
-fn held(pending: &VecDeque<String>) -> String {
+pub(super) fn held(pending: &VecDeque<String>) -> String {
     pending.iter().map(String::as_str).collect()
 }
 
@@ -177,7 +193,7 @@ fn could_close(buffered: &str) -> bool {
 /// Whether any suffix of `text` is a prefix of `identifier` — upstream's
 /// `_buffered_message_end_with_start_identifier`, the test that keeps a marker split across deltas
 /// alive without holding every `[` forever.
-fn ends_with_prefix_of(text: &str, identifier: &str) -> bool {
+pub(super) fn ends_with_prefix_of(text: &str, identifier: &str) -> bool {
     (1..=text.len()).any(|len| {
         text.is_char_boundary(text.len() - len) && identifier.starts_with(&text[text.len() - len..])
     })

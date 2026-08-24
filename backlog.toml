@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1332
+rust_tests = 1335
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -2203,11 +2203,31 @@ So a listener built on the repairer would close the field one delta early and st
 last chunk. Four other accumulated shapes agree, which is the trap — it would look right on most
 inputs. See [[no-conformance-slips]]: the regime where they diverge is the one the code lives in.
 
-The way round is not a jiter port. The listener does not need a parser; it needs one predicate —
-*has a second key's value begun* — and jiter's `trailing-strings` rule for that is simply that a key
-with no value yet does not count. A scanner over the accumulated string answers it exactly, and can
-be held to `jiter` directly by a fixture that records its answer for each prefix of a recorded
-stream. That fixture is the first thing to write.
+The way round was not a jiter port. The listener does not need a parser; it needs one predicate —
+*has a second key's value begun*. `adapter/stream/partial.rs` answers it directly, and
+`generate_partial_json_fixture.py` records jiter's answer for **every prefix** of eleven accumulated
+strings — 342 of them — which `tests/partial_json_conformance.rs` compares one by one. It matched on
+the first run, so the control matters: applying the repairer's rule fails at exactly `{"answer":`,
+the prefix measured above.
+
+jiter's rule, read off those prefixes rather than off its source: a key counts once its value has
+*begun* — a string at its opening quote, a number at its first digit, an object at its bracket — and
+a partial literal (`nul`) counts for nothing.
+
+**The JSON listener is done**, held to four more recorded streams. Two things came out of comparing
+rather than deciding: dspy streams the field's **raw JSON text**, so the chunks carry their quotes
+(`"To` … `!"`), which reads as a bug until it is compared; and a leading-space divergence exposed a
+real fault in the *ChatAdapter* listener already shipped.
+
+**That fault is the lesson.** Upstream always buffers the first delta containing the start indicator
+and tests only once a second arrives, so the trim that follows applies to the joined text. This
+crate matched within a single delta. All eight ChatAdapter cases passed anyway — in every one the
+text after the marker was whitespace, which trims to the same thing either way. The JSON stream had
+`{"answer":` then ` "Paris"`, where it does not. Both listeners now defer as upstream does and both
+goldens pass, this time for the reason they claim to. See [[no-conformance-slips]].
+
+**Still to come:** `streamify` over a whole module, `StatusMessageProvider` and its callback, and
+the XML listener — the last is small, its end identifier being a literal `</field>`.
 """
 
 [[story]]

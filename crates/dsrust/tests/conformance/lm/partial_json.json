@@ -1,0 +1,2250 @@
+{
+  "_source": "jiter, the partial parser dspy 3.3.0's JSON stream listener decides on, via generate_partial_json_fixture.py",
+  "cases": [
+    {
+      "name": "recorded_gpt_4o_mini",
+      "accumulated": "{\"answer\":\"To get to the other side of the frying pan!\"}\n",
+      "prefixes": [
+        {
+          "text": "{",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"a",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"an",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"ans",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answe",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"T",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To g",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To ge",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get t",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to t",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to th",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the o",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the ot",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the oth",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the othe",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other s",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other si",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other sid",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side o",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of t",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of th",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the f",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the fr",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the fry",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the fryi",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the fryin",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the frying",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the frying ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the frying p",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the frying pa",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the frying pan",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the frying pan!",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the frying pan!\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the frying pan!\"}",
+          "keys": [
+            "answer"
+          ],
+          "complete": true
+        },
+        {
+          "text": "{\"answer\":\"To get to the other side of the frying pan!\"}\n",
+          "keys": [
+            "answer"
+          ],
+          "complete": true
+        }
+      ]
+    },
+    {
+      "name": "second_key_begun",
+      "accumulated": "{\"answer\": \"x\", \"judgement\": \"fun",
+      "prefixes": [
+        {
+          "text": "{",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"a",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"an",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"ans",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answe",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\",",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"j",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"ju",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"jud",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judg",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judge",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgem",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgeme",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgemen",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgement",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgement\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgement\":",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgement\": ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgement\": \"",
+          "keys": [
+            "answer",
+            "judgement"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgement\": \"f",
+          "keys": [
+            "answer",
+            "judgement"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgement\": \"fu",
+          "keys": [
+            "answer",
+            "judgement"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgement\": \"fun",
+          "keys": [
+            "answer",
+            "judgement"
+          ],
+          "complete": false
+        }
+      ]
+    },
+    {
+      "name": "second_key_named_only",
+      "accumulated": "{\"answer\": \"x\", \"judgement\":",
+      "prefixes": [
+        {
+          "text": "{",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"a",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"an",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"ans",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answe",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\",",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"j",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"ju",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"jud",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judg",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judge",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgem",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgeme",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgemen",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgement",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgement\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judgement\":",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        }
+      ]
+    },
+    {
+      "name": "second_key_partially_named",
+      "accumulated": "{\"answer\": \"x\", \"judg",
+      "prefixes": [
+        {
+          "text": "{",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"a",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"an",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"ans",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answe",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\",",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"j",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"ju",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"jud",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\", \"judg",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        }
+      ]
+    },
+    {
+      "name": "trailing_comma",
+      "accumulated": "{\"answer\": \"x\",",
+      "prefixes": [
+        {
+          "text": "{",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"a",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"an",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"ans",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answe",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"x\",",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        }
+      ]
+    },
+    {
+      "name": "numeric_value",
+      "accumulated": "{\"answer\": 42, \"judgement\": 7",
+      "prefixes": [
+        {
+          "text": "{",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"a",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"an",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"ans",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answe",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 4",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42,",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"j",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"ju",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"jud",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"judg",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"judge",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"judgem",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"judgeme",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"judgemen",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"judgement",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"judgement\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"judgement\":",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"judgement\": ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": 42, \"judgement\": 7",
+          "keys": [
+            "answer",
+            "judgement"
+          ],
+          "complete": false
+        }
+      ]
+    },
+    {
+      "name": "literal_values",
+      "accumulated": "{\"answer\": true, \"judgement\": nul",
+      "prefixes": [
+        {
+          "text": "{",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"a",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"an",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"ans",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answe",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": t",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": tr",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": tru",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true,",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"j",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"ju",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"jud",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"judg",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"judge",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"judgem",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"judgeme",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"judgemen",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"judgement",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"judgement\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"judgement\":",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"judgement\": ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"judgement\": n",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"judgement\": nu",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": true, \"judgement\": nul",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        }
+      ]
+    },
+    {
+      "name": "escaped_quote_in_value",
+      "accumulated": "{\"answer\": \"he said \\\"hi\\\"\", \"judgement\": \"y",
+      "prefixes": [
+        {
+          "text": "{",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"a",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"an",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"ans",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answe",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"h",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he s",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he sa",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he sai",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"h",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\",",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"j",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"ju",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"jud",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"judg",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"judge",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"judgem",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"judgeme",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"judgemen",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"judgement",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"judgement\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"judgement\":",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"judgement\": ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"judgement\": \"",
+          "keys": [
+            "answer",
+            "judgement"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"he said \\\"hi\\\"\", \"judgement\": \"y",
+          "keys": [
+            "answer",
+            "judgement"
+          ],
+          "complete": false
+        }
+      ]
+    },
+    {
+      "name": "nested_object_value",
+      "accumulated": "{\"answer\": {\"inner\": \"x\"}, \"judgement\": \"y",
+      "prefixes": [
+        {
+          "text": "{",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"a",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"an",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"ans",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answe",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"i",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"in",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inn",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inne",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\":",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"},",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"j",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"ju",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"jud",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"judg",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"judge",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"judgem",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"judgeme",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"judgemen",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"judgement",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"judgement\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"judgement\":",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"judgement\": ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"judgement\": \"",
+          "keys": [
+            "answer",
+            "judgement"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": {\"inner\": \"x\"}, \"judgement\": \"y",
+          "keys": [
+            "answer",
+            "judgement"
+          ],
+          "complete": false
+        }
+      ]
+    },
+    {
+      "name": "brace_inside_a_string",
+      "accumulated": "{\"answer\": \"a } brace\", \"judgement\": \"y",
+      "prefixes": [
+        {
+          "text": "{",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"a",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"an",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"ans",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answe",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\"",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\":",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": ",
+          "keys": [],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a }",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } b",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } br",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } bra",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brac",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\",",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"j",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"ju",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"jud",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"judg",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"judge",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"judgem",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"judgeme",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"judgemen",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"judgement",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"judgement\"",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"judgement\":",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"judgement\": ",
+          "keys": [
+            "answer"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"judgement\": \"",
+          "keys": [
+            "answer",
+            "judgement"
+          ],
+          "complete": false
+        },
+        {
+          "text": "{\"answer\": \"a } brace\", \"judgement\": \"y",
+          "keys": [
+            "answer",
+            "judgement"
+          ],
+          "complete": false
+        }
+      ]
+    },
+    {
+      "name": "empty_object",
+      "accumulated": "{",
+      "prefixes": [
+        {
+          "text": "{",
+          "keys": [],
+          "complete": false
+        }
+      ]
+    }
+  ]
+}
