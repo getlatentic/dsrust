@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1325
+rust_tests = 1332
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -2161,6 +2161,36 @@ and the adapter already knows the marker boundaries it would key on.
 
 **What proves it.** Excused by name today. Un-excusing it is how the story starts: it arrives as a failure list, which
 is the honest specification for `streamify` and the listener.
+"""
+
+progress = """
+**The listener is done and was not absent — it was wrong.** The story said "no `StreamListener`
+yielding a field's chunks as they arrive"; `adapter/stream.rs` had one, ChatAdapter-only, and its
+chunk boundaries diverged from dspy's. That is worse than absent, because it looked finished.
+
+Measured before changing anything, by feeding it the stream upstream records from gpt-4o-mini in
+`test_stream_listener_returns_correct_chunk_chat_adapter`:
+
+    ours : ["To", " ge", "t to", " the o", "ther ", "sid", "e of", " the di", "nner p", "late!"]
+    dspy : ["To", " get", " to", " the", " other", " side", " of", " the", " dinner", " plate", "!"]
+
+It buffered a fixed number of *characters*; upstream holds whole deltas and asks per delta whether
+the buffer could still be growing into the closing marker (`_could_form_end_identifier`), releasing
+the oldest only once ten deltas are held. **The two concatenate to the same text**, which is why
+nothing caught it: every assertion in the tree was over the joined string. A caller rendering chunk
+by chunk saw words split down the middle.
+
+Ported faithfully, along with the three behaviours the old one had no notion of: `is_last_chunk`,
+`finalize` flushing a buffer the stream ended on, and the whole-reply-in-one-delta case that a cache
+hit produces. `scripts/generate_streaming_fixture.py` drives dspy's own `StreamListener` over eight
+streams and `tests/streaming_conformance.rs` holds the port to it, `(text, is_last)` for each.
+`the_old_boundaries_carried_the_same_text` keeps the reason honest by checking it: the old sequence
+concatenates to dspy's byte for byte and differs chunk for chunk.
+
+**What is left**, and the coverage excuse now says exactly this rather than overstating it:
+`streamify` over a whole module, `StatusMessageProvider` and its callback, and the JSON and XML
+listeners — the JSON one is the substantial piece, since upstream detects that field's end by
+partial-parsing the accumulated object rather than by a marker.
 """
 
 [[story]]

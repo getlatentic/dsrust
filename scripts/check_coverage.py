@@ -101,10 +101,13 @@ EXCUSED = {
     "tests/clients/test_disk_serialization.py": "Python pickling policy",
     "tests/clients/test_inspect_global_history.py": "dspy's history printing",
     "tests/clients/test_lm_local.py": "launching a locally-served model",
-    # Understates it: this crate streams tokens off the provider (`LM::forward_stream`), and has
-    # nothing at the program level — no `streamify`, no `StreamListener` yielding a field's
-    # chunks as they arrive, no `StatusMessageProvider`. See `lm-streamify`.
-    "tests/streaming/test_streaming.py": "dspy's program-level streaming, which this crate has no counterpart for",
+    # Precise about what is and is not here, because the older wording said "no `StreamListener`"
+    # and one existed — ChatAdapter-only, and with the chunk boundaries wrong, which is worse than
+    # absent because it looked done. The listener is now held to dspy's own boundaries by
+    # `tests/streaming_conformance.rs` over a golden from `generate_streaming_fixture.py`. What is
+    # still missing is the program level: `streamify` over a whole module, `StatusMessageProvider`,
+    # and the JSON and XML listeners. See `lm-streamify`.
+    "tests/streaming/test_streaming.py": "dspy's program-level streaming: streamify over a module, status messages, and the JSON/XML listeners",
     "tests/teleprompt/test_bootstrap_trace.py": "dspy's trace-collection helpers",
     "tests/teleprompt/test_utils.py": "dspy's optimizer helper functions",
     "tests/teleprompt/test_gepa_instruction_proposer.py": "dspy's proposer over multimodal inputs",

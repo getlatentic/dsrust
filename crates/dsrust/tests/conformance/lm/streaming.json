@@ -1,0 +1,236 @@
+{
+  "_source": "dspy 3.3.0 streaming/streaming_listener.py, via generate_streaming_fixture.py",
+  "cases": [
+    {
+      "name": "recorded_gpt_4o_mini",
+      "field": "answer",
+      "deltas": [
+        "[[",
+        " ##",
+        " answer",
+        " ##",
+        " ]]\n\n",
+        "To",
+        " get",
+        " to",
+        " the",
+        " other",
+        " side",
+        " of",
+        " the",
+        " dinner",
+        " plate",
+        "!\n\n[[ ##",
+        " completed",
+        " ##",
+        " ]]"
+      ],
+      "chunks": [
+        {
+          "text": "To",
+          "is_last": false
+        },
+        {
+          "text": " get",
+          "is_last": false
+        },
+        {
+          "text": " to",
+          "is_last": false
+        },
+        {
+          "text": " the",
+          "is_last": false
+        },
+        {
+          "text": " other",
+          "is_last": false
+        },
+        {
+          "text": " side",
+          "is_last": false
+        },
+        {
+          "text": " of",
+          "is_last": false
+        },
+        {
+          "text": " the",
+          "is_last": false
+        },
+        {
+          "text": " dinner",
+          "is_last": false
+        },
+        {
+          "text": " plate",
+          "is_last": false
+        },
+        {
+          "text": "!",
+          "is_last": true
+        }
+      ]
+    },
+    {
+      "name": "marker_split_across_deltas",
+      "field": "answer",
+      "deltas": [
+        "[[ ## ans",
+        "wer ## ]]\nBer",
+        "lin",
+        "\n\n[[ ## completed ## ]]"
+      ],
+      "chunks": [
+        {
+          "text": "Ber",
+          "is_last": false
+        },
+        {
+          "text": "lin",
+          "is_last": false
+        },
+        {
+          "text": "",
+          "is_last": true
+        }
+      ]
+    },
+    {
+      "name": "a_preceding_field_is_discarded",
+      "field": "answer",
+      "deltas": [
+        "[[ ## reasoning ## ]]\nbecause the sky",
+        " scatters blue",
+        "\n\n[[ ## answer ## ]]\n",
+        "Par",
+        "is",
+        "\n\n[[ ## completed ## ]]"
+      ],
+      "chunks": [
+        {
+          "text": "Par",
+          "is_last": false
+        },
+        {
+          "text": "is",
+          "is_last": false
+        },
+        {
+          "text": "",
+          "is_last": true
+        }
+      ]
+    },
+    {
+      "name": "whole_reply_in_one_delta",
+      "field": "answer",
+      "deltas": [
+        "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]"
+      ],
+      "chunks": []
+    },
+    {
+      "name": "ends_holding_a_bracket",
+      "field": "answer",
+      "deltas": [
+        "[[ ## answer ## ]]\n",
+        "Paris",
+        "["
+      ],
+      "chunks": [
+        {
+          "text": "Paris",
+          "is_last": false
+        },
+        {
+          "text": "[",
+          "is_last": true
+        }
+      ]
+    },
+    {
+      "name": "ends_holding_nothing",
+      "field": "answer",
+      "deltas": [
+        "[[ ## answer ## ]]\n",
+        "Par",
+        "is"
+      ],
+      "chunks": [
+        {
+          "text": "Par",
+          "is_last": false
+        },
+        {
+          "text": "is",
+          "is_last": false
+        }
+      ]
+    },
+    {
+      "name": "more_held_than_the_window",
+      "field": "answer",
+      "deltas": [
+        "[[ ## answer ## ]]\n",
+        "[",
+        "[",
+        "[",
+        "[",
+        "[",
+        "[",
+        "[",
+        "[",
+        "[",
+        "[",
+        "[",
+        "[",
+        "[",
+        "\n\n[[ ## completed ## ]]"
+      ],
+      "chunks": [
+        {
+          "text": "[",
+          "is_last": false
+        },
+        {
+          "text": "[",
+          "is_last": false
+        },
+        {
+          "text": "[",
+          "is_last": false
+        },
+        {
+          "text": "[",
+          "is_last": true
+        }
+      ]
+    },
+    {
+      "name": "a_bracket_that_is_prose",
+      "field": "answer",
+      "deltas": [
+        "[[ ## answer ## ]]\n",
+        "see [",
+        "note",
+        "] there",
+        "\n\n[[ ## completed ## ]]"
+      ],
+      "chunks": [
+        {
+          "text": "see [note",
+          "is_last": false
+        },
+        {
+          "text": "] there",
+          "is_last": false
+        },
+        {
+          "text": "",
+          "is_last": true
+        }
+      ]
+    }
+  ]
+}
