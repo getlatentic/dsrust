@@ -284,55 +284,55 @@
 # Adapter
 "adapters/base.py::Adapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
 "adapters/base.py::Adapter.format" = { status = "mapped", rust = "Adapter::format" }
-"adapters/base.py::Adapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/base.py::Adapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 "adapters/base.py::Adapter.format_conversation_history" = { status = "divergence", reason = "folded into adapter/history.rs, which expands a History field into its turns" }
 "adapters/base.py::Adapter.format_demos" = { status = "divergence", reason = "folded into adapter/demos.rs" }
 "adapters/base.py::Adapter.format_field_description" = { status = "mapped", rust = "field_description" }
-"adapters/base.py::Adapter.format_field_structure" = { status = "divergence", reason = "only the BAML adapter states one; see `BamlAdapter::field_structure`" }
+"adapters/base.py::Adapter.format_field_structure" = { status = "divergence", reason = "a section every adapter writes, each in its own file rather than through one overridable hook: `chat.rs`, `json.rs`, `xml.rs` and `BamlAdapter::field_structure` all emit \"All interactions will be structured in the following way…\". This said only BAML stated one until 2026-08-24, which was false of three adapters" }
 "adapters/base.py::Adapter.format_system_message" = { status = "mapped", rust = "system_message" }
-"adapters/base.py::Adapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/base.py::Adapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/base.py::Adapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
+"adapters/base.py::Adapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 "adapters/base.py::Adapter.parse" = { status = "mapped", rust = "Adapter::parse" }
 
 # ChatAdapter
 "adapters/chat_adapter.py::ChatAdapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
-"adapters/chat_adapter.py::ChatAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/chat_adapter.py::ChatAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 "adapters/chat_adapter.py::ChatAdapter.format_field_description" = { status = "mapped", rust = "field_description" }
-"adapters/chat_adapter.py::ChatAdapter.format_field_structure" = { status = "divergence", reason = "the chat adapter states no field-structure section of its own" }
-"adapters/chat_adapter.py::ChatAdapter.format_field_with_value" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/chat_adapter.py::ChatAdapter.format_field_structure" = { status = "divergence", reason = "`chat.rs` writes it — the `[[ ## field ## ]]` sections and the trailing `completed` marker — as upstream's override does. Said the chat adapter stated none until 2026-08-24; it always has, and a prompt golden would have failed the moment it did not" }
+"adapters/chat_adapter.py::ChatAdapter.format_field_with_value" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 "adapters/chat_adapter.py::ChatAdapter.format_finetune_data" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
-"adapters/chat_adapter.py::ChatAdapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/chat_adapter.py::ChatAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/chat_adapter.py::ChatAdapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
+"adapters/chat_adapter.py::ChatAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 "adapters/chat_adapter.py::ChatAdapter.parse" = { status = "mapped", rust = "ChatAdapter::parse" }
-"adapters/chat_adapter.py::ChatAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/chat_adapter.py::ChatAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 
 # JSONAdapter
 "adapters/json_adapter.py::JSONAdapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
-"adapters/json_adapter.py::JSONAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/json_adapter.py::JSONAdapter.format_field_structure" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/json_adapter.py::JSONAdapter.format_field_with_value" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/json_adapter.py::JSONAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
+"adapters/json_adapter.py::JSONAdapter.format_field_structure" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
+"adapters/json_adapter.py::JSONAdapter.format_field_with_value" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 "adapters/json_adapter.py::JSONAdapter.format_finetune_data" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
 "adapters/json_adapter.py::JSONAdapter.parse" = { status = "mapped", rust = "JsonAdapter::parse" }
-"adapters/json_adapter.py::JSONAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/json_adapter.py::JSONAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 
 # XMLAdapter
-"adapters/xml_adapter.py::XMLAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/xml_adapter.py::XMLAdapter.format_field_structure" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/xml_adapter.py::XMLAdapter.format_field_with_value" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/xml_adapter.py::XMLAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/xml_adapter.py::XMLAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
+"adapters/xml_adapter.py::XMLAdapter.format_field_structure" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
+"adapters/xml_adapter.py::XMLAdapter.format_field_with_value" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
+"adapters/xml_adapter.py::XMLAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 "adapters/xml_adapter.py::XMLAdapter.parse" = { status = "mapped", rust = "XmlAdapter::parse" }
-"adapters/xml_adapter.py::XMLAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/xml_adapter.py::XMLAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 
 # BAMLAdapter
 "adapters/baml_adapter.py::BAMLAdapter.format_field_structure" = { status = "mapped", rust = "field_structure" }
-"adapters/baml_adapter.py::BAMLAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/baml_adapter.py::BAMLAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 
 # TwoStepAdapter
 "adapters/two_step_adapter.py::TwoStepAdapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
 "adapters/two_step_adapter.py::TwoStepAdapter.format" = { status = "mapped", rust = "TwoStepAdapter::format" }
-"adapters/two_step_adapter.py::TwoStepAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/two_step_adapter.py::TwoStepAdapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/two_step_adapter.py::TwoStepAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
+"adapters/two_step_adapter.py::TwoStepAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
+"adapters/two_step_adapter.py::TwoStepAdapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
+"adapters/two_step_adapter.py::TwoStepAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into the adapter's own file, which writes the whole message" }
 "adapters/two_step_adapter.py::TwoStepAdapter.parse" = { status = "mapped", rust = "TwoStepAdapter::parse" }
 
 # Type
@@ -465,7 +465,7 @@
 "primitives/example.py::Example.toDict" = { status = "divergence", reason = "Python object protocol (mapping, iteration, copy); Rust uses the standard traits instead" }
 "primitives/example.py::Example.values" = { status = "divergence", reason = "Python object protocol (mapping, iteration, copy); Rust uses the standard traits instead" }
 "primitives/example.py::Example.with_inputs" = { status = "mapped", rust = "with_inputs" }
-"primitives/example.py::Example.without" = { status = "divergence", reason = "reproduced as `subset`, which keeps the named fields rather than dropping them" }
+"primitives/example.py::Example.without" = { status = "divergence", reason = "**no public counterpart.** `subset` keeps rather than drops, and it is private — `inputs` and `labels` are the two callers, and both are about the input/output split rather than about removing a named field. A caller wanting dspy's `without` rebuilds the example from `fields()`. This entry pointed at `subset` until 2026-08-24, which a caller cannot reach" }
 
 # Prediction
 "primitives/prediction.py::Prediction.completions" = { status = "mapped", rust = "Completions" }
