@@ -2189,8 +2189,25 @@ concatenates to dspy's byte for byte and differs chunk for chunk.
 
 **What is left**, and the coverage excuse now says exactly this rather than overstating it:
 `streamify` over a whole module, `StatusMessageProvider` and its callback, and the JSON and XML
-listeners — the JSON one is the substantial piece, since upstream detects that field's end by
-partial-parsing the accumulated object rather than by a marker.
+listeners.
+
+**The JSON listener has a measured obstacle, and a narrower way round it than it first looks.**
+Upstream detects that field's end by partial-parsing the accumulated object with
+`jiter.from_json(..., partial_mode="trailing-strings")` and asking whether a *second* key appeared
+(`len(parsed) > 1`). `dsrust-json-repair` is a reproduction of Python's `json_repair`, a different
+library with different partial semantics, and the two disagree exactly where the decision is made:
+
+    '{"answer": "x", "judgement":'   jiter -> 1 key      json_repair -> 2 keys
+
+So a listener built on the repairer would close the field one delta early and stream a different
+last chunk. Four other accumulated shapes agree, which is the trap — it would look right on most
+inputs. See [[no-conformance-slips]]: the regime where they diverge is the one the code lives in.
+
+The way round is not a jiter port. The listener does not need a parser; it needs one predicate —
+*has a second key's value begun* — and jiter's `trailing-strings` rule for that is simply that a key
+with no value yet does not count. A scanner over the accumulated string answers it exactly, and can
+be held to `jiter` directly by a fixture that records its answer for each prefix of a recorded
+stream. That fixture is the first thing to write.
 """
 
 [[story]]
