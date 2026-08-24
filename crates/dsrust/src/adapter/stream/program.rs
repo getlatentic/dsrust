@@ -18,6 +18,7 @@ use futures_channel::mpsc;
 use futures_util::{Stream, StreamExt};
 
 use super::FieldChunk;
+use super::status::{Announcing, StatusMessages};
 use crate::example::{Example, Prediction};
 use crate::lm::api;
 use crate::lm::{ChatModel, DynChatModel};
@@ -31,15 +32,24 @@ use crate::module::Module;
 pub enum Streamed {
     /// One piece of the watched field, on the model's own token boundary.
     Chunk(FieldChunk),
+    /// What the program is doing, when a [`StatusMessages`] was given words for the stage —
+    /// dspy's `StatusMessage`, which rides the same stream as the chunks.
+    Status(String),
     /// The program's answer, once it is done. Always last, and always exactly one.
     Answer(Prediction),
+}
+
+/// What the tap and the announcer publish onto the one channel a run reads.
+enum Tapped {
+    Delta(String),
+    Status(String),
 }
 
 /// The model a streamed run installs in place of the real one: it asks the real one for its events,
 /// publishes each delta, and hands back the answer the events carried.
 struct Tap {
     inner: Arc<dyn DynChatModel>,
-    deltas: Mutex<mpsc::UnboundedSender<String>>,
+    deltas: Mutex<mpsc::UnboundedSender<Tapped>>,
 }
 
 impl ChatModel for Tap {
@@ -60,7 +70,7 @@ impl ChatModel for Tap {
                         .deltas
                         .lock()
                         .expect("not poisoned")
-                        .unbounded_send(text);
+                        .unbounded_send(Tapped::Delta(text));
                 }
                 // The answer rides on `End`, both on a provider's own stream and on the one-delta
                 // form a model that cannot stream reports.
@@ -102,6 +112,7 @@ impl ChatModel for Tap {
 /// while let Some(next) = running.next().await {
 ///     match next? {
 ///         Streamed::Chunk(chunk) => print!("{}", chunk.text),
+///         Streamed::Status(saying) => println!("[{saying}]"),
 ///         Streamed::Answer(answer) => println!("\n{:?}", answer.get("answer")),
 ///     }
 /// }
@@ -112,14 +123,67 @@ pub fn streamify<'a, M: Module + ?Sized>(
     field: &str,
     inputs: Example,
 ) -> impl Stream<Item = Result<Streamed>> + 'a {
-    let (sender, deltas) = mpsc::unbounded();
-    let tap = Arc::new(Tap {
-        inner: crate::lm::global::current().unwrap_or_else(|_| Arc::new(NoModel)),
-        deltas: Mutex::new(sender),
-    });
-    let running = crate::lm::global::context_model(crate::lm::global::client(), tap)
-        .run(module.forward(inputs));
-    watched(Box::pin(running), deltas, super::FieldListener::new(field))
+    Watching::new(module, field).run(inputs)
+}
+
+/// A streamed run being set up — the optional half of dspy's `streamify`, whose extras are keyword
+/// arguments it has no Rust spelling for.
+pub struct Watching<'a, M: ?Sized> {
+    module: &'a M,
+    field: String,
+    messages: Option<Arc<dyn StatusMessages>>,
+}
+
+impl<'a, M: Module + ?Sized> Watching<'a, M> {
+    pub fn new(module: &'a M, field: &str) -> Self {
+        Self {
+            module,
+            field: field.to_owned(),
+            messages: None,
+        }
+    }
+
+    /// Say what the program is doing as it goes — dspy's
+    /// `streamify(program, status_message_provider=…)`. Without this a run yields only the field's
+    /// text and its answer, which is upstream's default too.
+    pub fn saying(mut self, messages: Arc<dyn StatusMessages>) -> Self {
+        self.messages = Some(messages);
+        self
+    }
+
+    /// Run it.
+    pub fn run(self, inputs: Example) -> impl Stream<Item = Result<Streamed>> + 'a {
+        let (sender, published) = mpsc::unbounded();
+        let tap = Arc::new(Tap {
+            inner: crate::lm::global::current().unwrap_or_else(|_| Arc::new(NoModel)),
+            deltas: Mutex::new(sender.clone()),
+        });
+        let announcing = self.messages.map(|messages| {
+            let sink = Mutex::new(sender);
+            Arc::new(Announcing {
+                messages,
+                sink: move |message: String| {
+                    let _ = sink
+                        .lock()
+                        .expect("not poisoned")
+                        .unbounded_send(Tapped::Status(message));
+                },
+            }) as Arc<dyn crate::Callback>
+        });
+        let scoped = crate::lm::global::context_model(crate::lm::global::client(), tap);
+        let asking = self.module.forward(inputs);
+        // The announcer is scoped for the run rather than registered process-wide, so it neither
+        // silences a caller's own watchers nor outlives the stream — upstream appends to the list
+        // it inherited, inside a context, for both reasons.
+        let running: std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + 'a>> =
+            match announcing {
+                Some(announcing) => {
+                    Box::pin(scoped.run(crate::callback::watched_by(announcing).run(asking)))
+                }
+                None => Box::pin(scoped.run(asking)),
+            };
+        watched(running, published, super::FieldListener::new(&self.field))
+    }
 }
 
 /// The two halves interleaved: the deltas as they are published, then the answer.
@@ -129,7 +193,7 @@ pub fn streamify<'a, M: Module + ?Sized>(
 /// correct, since [`Scope::run`](crate::lm::Scope::run) enters on each poll.
 fn watched<'a>(
     running: std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + 'a>>,
-    mut deltas: mpsc::UnboundedReceiver<String>,
+    mut published: mpsc::UnboundedReceiver<Tapped>,
     mut listener: super::FieldListener,
 ) -> impl Stream<Item = Result<Streamed>> + 'a {
     // Held in an `Option` so that finishing it *drops* it. The future owns the scope, which owns
@@ -142,8 +206,11 @@ fn watched<'a>(
         loop {
             // Whatever the model has already published comes out first, so a chunk is never held
             // back behind the rest of the run.
-            match deltas.poll_next_unpin(context) {
-                Poll::Ready(Some(text)) => {
+            match published.poll_next_unpin(context) {
+                Poll::Ready(Some(Tapped::Status(message))) => {
+                    return Poll::Ready(Some(Ok(Streamed::Status(message))));
+                }
+                Poll::Ready(Some(Tapped::Delta(text))) => {
                     if let Some(chunk) = listener.push(&text) {
                         return Poll::Ready(Some(Ok(Streamed::Chunk(chunk))));
                     }
@@ -310,5 +377,79 @@ mod tests {
         );
         let count = bounded.await.expect("the stream ended rather than hanging");
         assert!(count > 0, "the run yielded nothing at all");
+    }
+
+    /// A run that was given words says what it is doing, on the same stream as the field's text.
+    ///
+    /// Only the two tool stages have default wording upstream, so a program with no tools is
+    /// silent until a caller overrides a stage — which is what this does.
+    #[tokio::test]
+    async fn a_run_can_say_what_it_is_doing() {
+        struct Narrating;
+        impl super::super::StatusMessages for Narrating {
+            fn module_start(&self, module: &str, _inputs: &Example) -> Option<String> {
+                Some(format!("{module} started"))
+            }
+            fn lm_start(&self, _request: &api::LmRequest) -> Option<String> {
+                Some("calling the model".to_owned())
+            }
+        }
+
+        let lm = std::sync::Arc::new(Piecewise(vec![
+            "[[ ## answer ## ]]\n",
+            "Paris",
+            "\n\n[[ ## completed ## ]]",
+        ]));
+        let program = Predict::from_signature(signature());
+        let seen = crate::lm::global::context_model(reqwest::Client::new(), lm)
+            .run(async {
+                Watching::new(&program, "answer")
+                    .saying(std::sync::Arc::new(Narrating))
+                    .run(crate::input! { question: "where?" })
+                    .collect::<Vec<_>>()
+                    .await
+            })
+            .await;
+
+        let said: Vec<String> = seen
+            .iter()
+            .filter_map(|item| match item {
+                Ok(Streamed::Status(message)) => Some(message.clone()),
+                _ => None,
+            })
+            .collect();
+        assert!(
+            said.iter().any(|message| message.ends_with("started")),
+            "the module stage was announced: {said:?}"
+        );
+        assert!(
+            said.iter().any(|message| message == "calling the model"),
+            "the lm stage was announced: {said:?}"
+        );
+    }
+
+    /// And a run given no words says nothing, which is upstream's default: four of its six stages
+    /// return `None` until a caller fills them in.
+    #[tokio::test]
+    async fn a_run_given_no_words_is_silent() {
+        let lm = std::sync::Arc::new(Piecewise(vec![
+            "[[ ## answer ## ]]\n",
+            "Paris",
+            "\n\n[[ ## completed ## ]]",
+        ]));
+        let program = Predict::from_signature(signature());
+        let seen = crate::lm::global::context_model(reqwest::Client::new(), lm)
+            .run(async {
+                streamify(&program, "answer", crate::input! { question: "where?" })
+                    .collect::<Vec<_>>()
+                    .await
+            })
+            .await;
+        assert!(
+            !seen
+                .iter()
+                .any(|item| matches!(item, Ok(Streamed::Status(_)))),
+            "nothing was announced"
+        );
     }
 }

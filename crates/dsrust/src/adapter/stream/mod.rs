@@ -15,10 +15,12 @@
 mod json;
 mod partial;
 mod program;
+mod status;
 
 pub use json::JsonFieldListener;
 pub use partial::{is_complete, keys_with_values};
-pub use program::{Streamed, streamify};
+pub use program::{Streamed, Watching, streamify};
+pub use status::{DefaultStatus, StatusMessages};
 
 use std::collections::VecDeque;
 

@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1342
+rust_tests = 1345
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -2135,7 +2135,7 @@ and `schemars` are not the caller's to add.
 id = "lm-streamify"
 sprint = "api"
 title = "Streaming reaches the provider and stops there: no streamify, listener or status"
-state = "todo"
+state = "done"
 size = "L"
 suites = ["tests/streaming/test_streaming.py"]
 plan = """
@@ -2268,8 +2268,31 @@ Three things the tests caught that reasoning had not:
   six runs of the old shape passed — so the fix rests on the mechanism, which
   `a_recorder_tells_one_calls_points_from_anothers` asserts directly.
 
-**Still to come:** `StatusMessageProvider` with its callback — naming each stage as a program passes
-through it. The points it needs are the six this crate already fires.
+**`StatusMessageProvider` is done, and needed something this crate did not have.**
+`adapter/stream/status.rs` is the six stages; `Watching::saying` is dspy's
+`status_message_provider=`. Four of the six say **nothing** by default — only the two tool messages
+carry wording upstream — and `a_run_given_no_words_is_silent` asserts the silence, because a port
+that invented sentences for the other four would put text on a stream dspy leaves empty. The two
+tool skips are upstream's too: `finish` by name, and `Completed.` by value, since `on_tool_end` is
+not told which tool it was.
+
+**dsrs had no scoped callback context.** dspy's `streamify` does
+`callbacks = list(settings.callbacks)`, appends, and enters a context — appending so a narrated run
+does not silence a caller's own watchers, scoped so it does not leave its own behind. Only
+process-wide `configure_callbacks` existed here. `callback::watched_by` mirrors `lm::context`,
+entering per poll for the reason that one does.
+
+**And a short-circuit that did not know what it was short-circuiting.** Every point asks
+`watching()` before rendering anything, and that check consulted only the process-wide registry — so
+a scoped watcher was installed, never asked, and silent. The status messages came out empty with
+everything apparently wired. `a_scoped_watcher_is_seen_by_the_interest_check` pins it, the departure
+included.
+
+**What the story did not do**, and should be said rather than left implied: `streamify` watches
+**one field of one program**, where dspy takes a list of `StreamListener`s and matches each to the
+predictor whose signature names its field. One listener covers the case a caller reaches for and
+the matching is what a multi-predictor program needs; it is the next thing here, and small now that
+the tap and the listeners exist.
 """
 
 [[story]]

@@ -150,15 +150,80 @@ pub fn configure_callbacks(callbacks: impl IntoIterator<Item = Arc<dyn Callback>
 
 /// The registered callbacks, cloned out so a handler can register more without deadlocking and so
 /// nothing holds the lock across a point's own work.
+///
+/// Anything [`watched_by`] scoped comes after the process-wide ones,
+/// because upstream appends to the list it inherited rather than replacing it.
 pub(crate) fn registered() -> Vec<Arc<dyn Callback>> {
-    REGISTERED.read().expect("lock not poisoned").clone()
+    let mut all = REGISTERED.read().expect("lock not poisoned").clone();
+    all.extend(SCOPED.with(|scoped| scoped.borrow().clone()));
+    all
+}
+
+thread_local! {
+    /// Watchers added for one piece of work — dspy's
+    /// `settings.context(callbacks=[*settings.callbacks, extra])`.
+    static SCOPED: std::cell::RefCell<Vec<Arc<dyn Callback>>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Watch this piece of work with `extra`, *beside* whatever is registered process-wide, then stop.
+///
+/// dspy's `streamify` does exactly this — `callbacks = list(settings.callbacks)`, append, then
+/// `settings.context(callbacks=callbacks)` — and the reason is the same: a run that wants to be
+/// narrated should not silence a caller's own watchers, and should not leave its own behind.
+///
+/// **It scopes a future, not a block**, for the reason [`crate::lm::context`] does: entered on each
+/// poll and left when the poll returns, so two pieces of work interleaved in one task each see
+/// their own watchers.
+pub fn watched_by(extra: Arc<dyn Callback>) -> Watching {
+    Watching { extra }
+}
+
+/// A scope of extra watchers, from [`watched_by`].
+pub struct Watching {
+    extra: Arc<dyn Callback>,
+}
+
+impl Watching {
+    /// Run `work` with the extra watcher listening.
+    pub async fn run<T>(self, work: impl Future<Output = T>) -> T {
+        Watched {
+            extra: self.extra,
+            inner: Box::pin(work),
+        }
+        .await
+    }
+}
+
+struct Watched<F> {
+    extra: Arc<dyn Callback>,
+    inner: std::pin::Pin<Box<F>>,
+}
+
+impl<F: Future> Future for Watched<F> {
+    type Output = F::Output;
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        context: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<F::Output> {
+        let watched = self.get_mut();
+        SCOPED.with(|scoped| scoped.borrow_mut().push(Arc::clone(&watched.extra)));
+        let answered = watched.inner.as_mut().poll(context);
+        SCOPED.with(|scoped| {
+            scoped.borrow_mut().pop();
+        });
+        answered
+    }
 }
 
 /// Whether anything is watching this point. Every point asks this first, so a program that
 /// registered nothing pays for no rendering — the same reason [`crate::observe`] checks a span for
 /// interest.
 pub(crate) fn watching(instance: &[Arc<dyn Callback>]) -> bool {
-    !instance.is_empty() || !REGISTERED.read().expect("lock not poisoned").is_empty()
+    !instance.is_empty()
+        || !REGISTERED.read().expect("lock not poisoned").is_empty()
+        || SCOPED.with(|scoped| !scoped.borrow().is_empty())
 }
 
 /// Tell every callback about one point, with a handler that cannot end the run.
@@ -323,6 +388,33 @@ mod tests {
 
         assert_eq!(counting.seen(&ours), ["Predict", "Predict"]);
         assert_eq!(counting.seen(&theirs), ["ChainOfThought"]);
+    }
+
+    /// A scoped watcher is found by the interest check, not only by the telling.
+    ///
+    /// Every point asks [`watching`] first and does no rendering when nothing is listening. That
+    /// check consulted only the process-wide registry, so a scoped watcher was registered, never
+    /// asked, and silent — which is exactly how it failed: `streamify`'s status messages came out
+    /// empty with the callback correctly installed. A short-circuit has to know about everything
+    /// the thing it short-circuits would have told.
+    #[tokio::test]
+    async fn a_scoped_watcher_is_seen_by_the_interest_check() {
+        let _installed = install(Vec::new());
+        assert!(!watching(&[]), "nothing is registered to begin with");
+
+        let counting = Arc::new(Counting::default());
+        let call = CallId::next();
+        watched_by(counting.clone() as Arc<dyn Callback>)
+            .run(async {
+                assert!(watching(&[]), "the scoped watcher is interest enough");
+                tell(&[], |callback| {
+                    callback.on_module_start(&call, "Predict", &Example::default());
+                });
+            })
+            .await;
+
+        assert_eq!(counting.seen(&call), ["Predict"]);
+        assert!(!watching(&[]), "and it is gone once the work is done");
     }
 
     /// Nothing registered is nothing to tell, which is what every point checks before it renders
