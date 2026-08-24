@@ -303,7 +303,7 @@
 "adapters/chat_adapter.py::ChatAdapter.format_finetune_data" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
 "adapters/chat_adapter.py::ChatAdapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
 "adapters/chat_adapter.py::ChatAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/chat_adapter.py::ChatAdapter.parse" = { status = "mapped", rust = "parse" }
+"adapters/chat_adapter.py::ChatAdapter.parse" = { status = "mapped", rust = "ChatAdapter::parse" }
 "adapters/chat_adapter.py::ChatAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
 
 # JSONAdapter
@@ -329,11 +329,11 @@
 
 # TwoStepAdapter
 "adapters/two_step_adapter.py::TwoStepAdapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
-"adapters/two_step_adapter.py::TwoStepAdapter.format" = { status = "mapped", rust = "format" }
+"adapters/two_step_adapter.py::TwoStepAdapter.format" = { status = "mapped", rust = "TwoStepAdapter::format" }
 "adapters/two_step_adapter.py::TwoStepAdapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
 "adapters/two_step_adapter.py::TwoStepAdapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
 "adapters/two_step_adapter.py::TwoStepAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/two_step_adapter.py::TwoStepAdapter.parse" = { status = "mapped", rust = "parse" }
+"adapters/two_step_adapter.py::TwoStepAdapter.parse" = { status = "mapped", rust = "TwoStepAdapter::parse" }
 
 # Type
 "adapters/types/base_type.py::Type.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
@@ -346,18 +346,18 @@
 "adapters/types/base_type.py::Type.serialize_model" = { status = "mapped", rust = "serialized" }
 
 # Image
-"adapters/types/image.py::Image.format" = { status = "mapped", rust = "format" }
+"adapters/types/image.py::Image.format" = { status = "mapped", rust = "Image::format" }
 "adapters/types/image.py::Image.from_PIL" = { status = "mapped", rust = "Image::from_rgb, Image::from_rgba", reason = "deprecated upstream for removal in 3.4, but what it does is not: `Image(pil_image)` is the supported spelling and this is that branch. A PIL object is a decoded pixel buffer, so the counterpart is one — RGB or RGBA samples, encoded to PNG (what `_encode_pil_image` falls back to for an in-memory image, which never carries a format of its own). The bytes are the `image` crate's and cannot match PIL's; the pixels round-trip, which is what a provider sees" }
 "adapters/types/image.py::Image.from_file" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
 
 # Audio
-"adapters/types/audio.py::Audio.format" = { status = "mapped", rust = "format" }
+"adapters/types/audio.py::Audio.format" = { status = "mapped", rust = "Audio::format" }
 "adapters/types/audio.py::Audio.from_array" = { status = "mapped", rust = "Audio::from_samples", reason = "samples and a sampling rate as a 16-bit PCM WAV. `&[f32]` rather than a numpy array — the container is Python's, the encoding is not, and the encoding is what reaches the model. See `encode_audio` for how the bytes are pinned" }
 "adapters/types/audio.py::Audio.from_file" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
 "adapters/types/audio.py::Audio.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
 # File
-"adapters/types/file.py::File.format" = { status = "mapped", rust = "format" }
+"adapters/types/file.py::File.format" = { status = "mapped", rust = "File::format" }
 "adapters/types/file.py::File.from_bytes" = { status = "mapped", rust = "File::from_bytes", reason = "raw bytes as an opaque data URI under `application/octet-stream`, which is upstream's default when nothing names the type" }
 "adapters/types/file.py::File.from_file_id" = { status = "mapped", rust = "from_id" }
 "adapters/types/file.py::File.from_path" = { status = "mapped", rust = "File::from_path", reason = "as `Image.from_path`, keeping the basename: once the bytes are base64 the name is the only thing telling a model what the file is" }
@@ -365,15 +365,15 @@
 
 # Code
 "adapters/types/code.py::Code.description" = { status = "mapped", rust = "description" }
-"adapters/types/code.py::Code.format" = { status = "mapped", rust = "format" }
+"adapters/types/code.py::Code.format" = { status = "mapped", rust = "Code::format" }
 "adapters/types/code.py::Code.serialize_model" = { status = "divergence", reason = "reproduced as the type's `Serialize`, via the `Type` seam's `serialized`" }
 "adapters/types/code.py::Code.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
 # Citations
 "adapters/types/citation.py::Citations.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
 "adapters/types/citation.py::Citations.description" = { status = "mapped", rust = "description" }
-"adapters/types/citation.py::Citations.format" = { status = "mapped", rust = "format" }
-"adapters/types/citation.py::Citations.from_dict_list" = { status = "mapped", rust = "new" }
+"adapters/types/citation.py::Citations.format" = { status = "mapped", rust = "Citations::format" }
+"adapters/types/citation.py::Citations.from_dict_list" = { status = "mapped", rust = "Citations::new" }
 "adapters/types/citation.py::Citations.is_streamable" = { status = "mapped", rust = "is_streamable" }
 "adapters/types/citation.py::Citations.parse_lm_response" = { status = "mapped", rust = "parse_lm_response" }
 "adapters/types/citation.py::Citations.parse_stream_chunk" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
@@ -381,12 +381,12 @@
 
 # Document
 "adapters/types/document.py::Document.description" = { status = "mapped", rust = "description" }
-"adapters/types/document.py::Document.format" = { status = "mapped", rust = "format" }
+"adapters/types/document.py::Document.format" = { status = "mapped", rust = "Document::format" }
 "adapters/types/document.py::Document.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
 # Reasoning
 "adapters/types/reasoning.py::Reasoning.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
-"adapters/types/reasoning.py::Reasoning.format" = { status = "mapped", rust = "format" }
+"adapters/types/reasoning.py::Reasoning.format" = { status = "mapped", rust = "Reasoning::format" }
 "adapters/types/reasoning.py::Reasoning.is_streamable" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
 "adapters/types/reasoning.py::Reasoning.parse_lm_response" = { status = "divergence", reason = "read off the reply by predict.rs's `native_value`, which fills the field from the Thinking part" }
 "adapters/types/reasoning.py::Reasoning.parse_stream_chunk" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
@@ -401,7 +401,7 @@
 
 # ToolCalls
 "adapters/types/tool.py::ToolCalls.description" = { status = "mapped", rust = "description" }
-"adapters/types/tool.py::ToolCalls.format" = { status = "mapped", rust = "format" }
+"adapters/types/tool.py::ToolCalls.format" = { status = "mapped", rust = "ToolCalls::format" }
 "adapters/types/tool.py::ToolCalls.from_dict_list" = { status = "mapped", rust = "from_dict_list" }
 "adapters/types/tool.py::ToolCalls.serialize_model" = { status = "divergence", reason = "reproduced as the type's `Serialize`, via the `Type` seam's `serialized`" }
 "adapters/types/tool.py::ToolCalls.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
@@ -411,11 +411,11 @@
 "adapters/types/tool.py::ToolCallResults.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
 
 # Signature
-"signatures/signature.py::Signature.append" = { status = "mapped", rust = "append" }
+"signatures/signature.py::Signature.append" = { status = "mapped", rust = "Signature::append" }
 "signatures/signature.py::Signature.delete" = { status = "mapped", rust = "delete" }
 "signatures/signature.py::Signature.dump_state" = { status = "mapped", rust = "PredictorState" }
 "signatures/signature.py::Signature.equals" = { status = "mapped", rust = "Signature::equals", reason = "upstream compares the instructions and then each field's `json_schema_extra` — the side, the prefix and the description — and **not** the annotation, so two signatures typed differently still count equal. Derived `PartialEq` also compares the kind, the closed set and the constraints, which is stricter; this said `reproduced as PartialEq` until GEPA's trace matching needed the real semantics, where the stricter question pools fewer instances than dspy pools. The prefix compares resolved, since upstream stores the inferred one rather than a `None`" }
-"signatures/signature.py::Signature.insert" = { status = "mapped", rust = "insert" }
+"signatures/signature.py::Signature.insert" = { status = "mapped", rust = "Signature::insert" }
 "signatures/signature.py::Signature.load_state" = { status = "mapped", rust = "restore" }
 "signatures/signature.py::Signature.prepend" = { status = "mapped", rust = "prepend" }
 "signatures/signature.py::Signature.with_instructions" = { status = "mapped", rust = "with_instructions" }
@@ -426,10 +426,10 @@
 "predict/predict.py::Predict.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
 "predict/predict.py::Predict.dump_state" = { status = "mapped", rust = "dump_state" }
 "predict/predict.py::Predict.forward" = { status = "mapped", rust = "forward" }
-"predict/predict.py::Predict.get_config" = { status = "mapped", rust = "config" }
+"predict/predict.py::Predict.get_config" = { status = "mapped", rust = "Predict::config" }
 "predict/predict.py::Predict.load_state" = { status = "mapped", rust = "load_state" }
 "predict/predict.py::Predict.reset" = { status = "divergence", reason = "clearing a predictor's learned state; a Rust caller rebuilds it or assigns the fields `named_predictors` exposes" }
-"predict/predict.py::Predict.update_config" = { status = "mapped", rust = "config" }
+"predict/predict.py::Predict.update_config" = { status = "mapped", rust = "Predict::config" }
 
 # ChainOfThought
 "predict/chain_of_thought.py::ChainOfThought.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
@@ -457,7 +457,7 @@
 
 # Example
 "primitives/example.py::Example.copy" = { status = "divergence", reason = "reproduced as `Clone`" }
-"primitives/example.py::Example.get" = { status = "mapped", rust = "get" }
+"primitives/example.py::Example.get" = { status = "mapped", rust = "Example::get" }
 "primitives/example.py::Example.inputs" = { status = "mapped", rust = "inputs" }
 "primitives/example.py::Example.items" = { status = "mapped", rust = "fields" }
 "primitives/example.py::Example.keys" = { status = "divergence", reason = "Python object protocol (mapping, iteration, copy); Rust uses the standard traits instead" }
@@ -469,7 +469,7 @@
 
 # Prediction
 "primitives/prediction.py::Prediction.completions" = { status = "mapped", rust = "Completions" }
-"primitives/prediction.py::Prediction.from_completions" = { status = "mapped", rust = "from_candidates" }
+"primitives/prediction.py::Prediction.from_completions" = { status = "mapped", rust = "Prediction::from_candidates" }
 "primitives/prediction.py::Prediction.get_lm_usage" = { status = "mapped", rust = "usage" }
 "primitives/prediction.py::Prediction.set_lm_usage" = { status = "mapped", rust = "set_lm_usage" }
 
@@ -537,7 +537,7 @@
 "clients/cache.py::Cache.get" = { status = "divergence", reason = "`ResponseCache::replay` is the separate read, and reading counts as a use so a request asked throughout a long run is not the one evicted. `Cached::forward` is the transparent path most callers take — look up, and store the answer if there was none. This entry said \"there is no separate read\" until 2026-08-24, which contradicted the `replay` entry pointing back at this very symbol" }
 "clients/cache.py::Cache.load_memory_cache" = { status = "divergence", reason = "dspy persists its in-memory cache to disk on demand; the crate's disk cache (lm/cache/disk.rs) is written as it goes" }
 "clients/cache.py::Cache.put" = { status = "divergence", reason = "as `get`" }
-"clients/cache.py::Cache.reset_memory_cache" = { status = "mapped", rust = "clear" }
+"clients/cache.py::Cache.reset_memory_cache" = { status = "mapped", rust = "ResponseCache::clear" }
 "clients/cache.py::Cache.save_memory_cache" = { status = "divergence", reason = "as `load_memory_cache`" }
 
 # LMMessage
@@ -573,13 +573,13 @@
 "predict/rlm.py::RLM.tools" = { status = "mapped", rust = "tools", reason = "Rlm::tools" }
 
 # the REPL types
-"primitives/repl_types.py::REPLVariable.format" = { status = "mapped", rust = "format" }
+"primitives/repl_types.py::REPLVariable.format" = { status = "mapped", rust = "ReplVariable::format" }
 "primitives/repl_types.py::REPLVariable.from_value" = { status = "mapped", rust = "from_value" }
 "primitives/repl_types.py::REPLVariable.serialize_model" = { status = "divergence", reason = "reproduced by the `Type` seam: a Text-formatted value crosses as its prose, via `serialized`" }
 "primitives/repl_types.py::REPLEntry.format" = { status = "mapped", rust = "format_at" }
 "primitives/repl_types.py::REPLEntry.format_output" = { status = "mapped", rust = "format_output" }
-"primitives/repl_types.py::REPLHistory.append" = { status = "mapped", rust = "append" }
-"primitives/repl_types.py::REPLHistory.format" = { status = "mapped", rust = "format" }
+"primitives/repl_types.py::REPLHistory.append" = { status = "mapped", rust = "ReplHistory::append" }
+"primitives/repl_types.py::REPLHistory.format" = { status = "mapped", rust = "ReplHistory::format" }
 "primitives/sandbox_serializable.py::SandboxSerializable.sandbox_setup" = { status = "mapped", rust = "sandbox_setup" }
 "primitives/sandbox_serializable.py::SandboxSerializable.to_sandbox" = { status = "mapped", rust = "to_sandbox" }
 "primitives/sandbox_serializable.py::SandboxSerializable.sandbox_assignment" = { status = "mapped", rust = "sandbox_assignment" }
@@ -614,8 +614,8 @@
 "adapters/types/tool.py::Tool.desc" = { status = "mapped", rust = "description", reason = "Tool::description" }
 "adapters/types/tool.py::Tool.func" = { status = "mapped", rust = "FnTool", reason = "FnTool's closure, or an impl of the Tool trait" }
 "adapters/types/tool.py::Tool.name" = { status = "mapped", rust = "name", reason = "Tool::name" }
-"clients/base_lm.py::BaseLM.cache" = { status = "mapped", rust = "cache", reason = "LM::cache / LmBuilder::cache" }
-"clients/base_lm.py::BaseLM.callbacks" = { status = "mapped", rust = "callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. `LM::callbacks` sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
+"clients/base_lm.py::BaseLM.cache" = { status = "mapped", rust = "LM::cache", reason = "LM::cache / LmBuilder::cache" }
+"clients/base_lm.py::BaseLM.callbacks" = { status = "mapped", rust = "LM::callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. `LM::callbacks` sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
 "clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
 "clients/base_lm.py::BaseLM.model" = { status = "mapped", rust = "LM", reason = "LM::new, positional" }
 "clients/base_lm.py::BaseLM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "the wire enum LM routes on" }
@@ -625,21 +625,21 @@
 "clients/cache.py::Cache.disk_size_limit_bytes" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new takes the byte ceiling as its second argument" }
 "clients/cache.py::Cache.enable_disk_cache" = { status = "mapped", rust = "enable_disk_cache", reason = "ResponseCache::enable_disk_cache, present or absent" }
 "clients/cache.py::Cache.enable_memory_cache" = { status = "mapped", rust = "ResponseCache", reason = "ResponseCache::new, always on; a caller opts out per LM with without_cache" }
-"clients/cache.py::Cache.memory_max_entries" = { status = "mapped", rust = "new", reason = "ResponseCache::new takes the cap" }
+"clients/cache.py::Cache.memory_max_entries" = { status = "mapped", rust = "ResponseCache::new", reason = "ResponseCache::new takes the cap" }
 "clients/cache.py::Cache.restrict_pickle" = { status = "divergence", reason = "dspy guards against unpickling arbitrary types; nothing here pickles, and the disk cache is JSON" }
 "clients/cache.py::Cache.safe_types" = { status = "divergence", reason = "the allowlist for dspy's pickle guard, which has no counterpart in a JSON cache" }
-"clients/lm.py::LM.cache" = { status = "mapped", rust = "cache", reason = "LM::cache / LmBuilder::cache" }
-"clients/lm.py::LM.callbacks" = { status = "mapped", rust = "callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. `LM::callbacks` sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
+"clients/lm.py::LM.cache" = { status = "mapped", rust = "LM::cache", reason = "LM::cache / LmBuilder::cache" }
+"clients/lm.py::LM.callbacks" = { status = "mapped", rust = "LM::callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. `LM::callbacks` sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
 "clients/lm.py::LM.finetuning_model" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.launch_kwargs" = { status = "deferred", reason = "provider launch for finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
-"clients/lm.py::LM.model" = { status = "mapped", rust = "new", reason = "LM::new / LM::builder, positional" }
+"clients/lm.py::LM.model" = { status = "mapped", rust = "LM::new", reason = "LM::new / LM::builder, positional" }
 "clients/lm.py::LM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "OpenAiWire / ModelRef routing decides chat vs responses" }
 "clients/lm.py::LM.num_retries" = { status = "mapped", rust = "retry", reason = "LM::retry / LmBuilder::num_retries; three asks and two retries, as upstream's stop_after_attempt counts" }
 "clients/lm.py::LM.provider" = { status = "deferred", reason = "not a routing override, which is what this entry used to say: `provider=` takes a `dspy.clients.provider.Provider` — the finetuning lifecycle object with launch/kill/finetune/reinforce — and `self.provider.launch(self, ...)` is the only thing read off it. That class is already deferred as out of the 1.0 inference/optimization ceiling, so its constructor parameter is too. Routing here is `ModelRef::parse` off the prefix, which is what dspy's own `infer_provider`/`_provider_name` do" }
 "clients/lm.py::LM.temperature" = { status = "mapped", rust = "temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
 "clients/lm.py::LM.train_kwargs" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
-"clients/lm.py::LM.use_developer_role" = { status = "mapped", rust = "use_developer_role", reason = "LmBuilder::use_developer_role / LM::use_developer_role; applied on the Responses wire only, as upstream's is" }
+"clients/lm.py::LM.use_developer_role" = { status = "mapped", rust = "LmBuilder::use_developer_role", reason = "LmBuilder::use_developer_role / LM::use_developer_role; applied on the Responses wire only, as upstream's is" }
 "evaluate/evaluate.py::Evaluate.devset" = { status = "mapped", rust = "devset", reason = "Evaluate::devset" }
 "evaluate/evaluate.py::Evaluate.display_progress" = { status = "divergence", reason = "progress is the caller's to render; tracing spans carry the events" }
 "evaluate/evaluate.py::Evaluate.display_table" = { status = "divergence", reason = "dspy prints a pandas table; Outcome carries the rows for a caller to render" }
@@ -660,9 +660,9 @@
 "predict/chain_of_thought.py::ChainOfThought.rationale_field" = { status = "mapped", rust = "ChainOfThought::rationale", reason = "takes a whole OutField, so the description, closed set, schema and prefix are all the caller's. Only the name is fixed at `reasoning`, because upstream prepends under that name too" }
 "predict/chain_of_thought.py::ChainOfThought.rationale_field_type" = { status = "mapped", rust = "ChainOfThought::rationale", reason = "the type travels as OutField::kind, so the one constructor carries both of upstream's arguments" }
 "predict/chain_of_thought.py::ChainOfThought.signature" = { status = "mapped", rust = "ChainOfThought", reason = "ChainOfThought::new, positional" }
-"predict/code_act.py::CodeAct.max_iters" = { status = "mapped", rust = "max_iters", reason = "CodeAct::max_iters" }
-"predict/code_act.py::CodeAct.signature" = { status = "mapped", rust = "new", reason = "CodeAct::new, positional" }
-"predict/code_act.py::CodeAct.tools" = { status = "mapped", rust = "new", reason = "CodeAct::new, positional" }
+"predict/code_act.py::CodeAct.max_iters" = { status = "mapped", rust = "CodeAct::max_iters", reason = "CodeAct::max_iters" }
+"predict/code_act.py::CodeAct.signature" = { status = "mapped", rust = "CodeAct::new", reason = "CodeAct::new, positional" }
+"predict/code_act.py::CodeAct.tools" = { status = "mapped", rust = "CodeAct::new", reason = "CodeAct::new, positional" }
 "predict/multi_chain_comparison.py::MultiChainComparison.M" = { status = "mapped", rust = "attempts", reason = "MultiChainComparison::attempts' attempts" }
 "predict/multi_chain_comparison.py::MultiChainComparison.signature" = { status = "mapped", rust = "attempts", reason = "MultiChainComparison::attempts, positional" }
 "predict/multi_chain_comparison.py::MultiChainComparison.temperature" = { status = "divergence", reason = "dspy raises the temperature for the comparison ask; set it on the module's config or the LM instead" }
@@ -676,12 +676,12 @@
 "predict/parallel.py::Parallel.timeout" = { status = "mapped", rust = "timeout", reason = "Parallel::timeout" }
 "predict/predict.py::Predict.callbacks" = { status = "divergence", reason = "dspy's Module.__init__ stores a per-instance list every subclass inherits, and both of the registration paths its own documentation shows are ported: process-wide (configure_callbacks) and per model (`LM::callbacks`). A Rust Module is a trait, so there is no shared constructor to hold a list and each of the eight module structs would carry its own field — while a derived Module could not have one at all. A handler is told which module type it is watching and CallId::parent gives the call it sits under. Filed as `callbacks-per-module`" }
 "predict/predict.py::Predict.signature" = { status = "mapped", rust = "from_signature", reason = "Predict::from_signature / the predict! macro" }
-"predict/program_of_thought.py::ProgramOfThought.max_iters" = { status = "mapped", rust = "max_iters", reason = "ProgramOfThought::max_iters" }
-"predict/program_of_thought.py::ProgramOfThought.signature" = { status = "mapped", rust = "new", reason = "ProgramOfThought::new, positional" }
-"predict/react.py::ReAct.max_iters" = { status = "mapped", rust = "max_iters", reason = "ReAct::max_iters" }
+"predict/program_of_thought.py::ProgramOfThought.max_iters" = { status = "mapped", rust = "ProgramOfThought::max_iters", reason = "ProgramOfThought::max_iters" }
+"predict/program_of_thought.py::ProgramOfThought.signature" = { status = "mapped", rust = "ProgramOfThought::new", reason = "ProgramOfThought::new, positional" }
+"predict/react.py::ReAct.max_iters" = { status = "mapped", rust = "ReAct::max_iters", reason = "ReAct::max_iters" }
 "predict/react.py::ReAct.signature" = { status = "mapped", rust = "ReAct", reason = "ReAct::new, positional" }
 "predict/react.py::ReAct.tools" = { status = "mapped", rust = "ReAct", reason = "ReAct::new, positional" }
-"predict/react_v2.py::ReActV2.max_iters" = { status = "mapped", rust = "max_iters", reason = "ReActV2::max_iters" }
+"predict/react_v2.py::ReActV2.max_iters" = { status = "mapped", rust = "ReActV2::max_iters", reason = "ReActV2::max_iters" }
 "predict/react_v2.py::ReActV2.signature" = { status = "mapped", rust = "ReActV2", reason = "ReActV2::new, positional" }
 "predict/react_v2.py::ReActV2.tools" = { status = "mapped", rust = "ReActV2", reason = "ReActV2::new, positional" }
 "predict/refine.py::Refine.N" = { status = "mapped", rust = "Refine", reason = "Refine::new's n" }
@@ -689,7 +689,7 @@
 "predict/refine.py::Refine.module" = { status = "mapped", rust = "Refine", reason = "Refine::new, positional" }
 "predict/refine.py::Refine.reward_fn" = { status = "mapped", rust = "Refine", reason = "Refine::new's reward" }
 "predict/refine.py::Refine.threshold" = { status = "mapped", rust = "Refine", reason = "Refine::new's threshold" }
-"predict/rlm.py::RLM.max_iters" = { status = "mapped", rust = "max_iters", reason = "Rlm::max_iters" }
+"predict/rlm.py::RLM.max_iters" = { status = "mapped", rust = "Rlm::max_iters", reason = "Rlm::max_iters" }
 "predict/rlm.py::RLM.max_llm_calls" = { status = "mapped", rust = "max_llm_calls", reason = "Rlm::max_llm_calls" }
 "predict/rlm.py::RLM.max_output_chars" = { status = "mapped", rust = "max_output_chars", reason = "Rlm::max_output_chars" }
 "predict/rlm.py::RLM.signature" = { status = "mapped", rust = "Rlm", reason = "Rlm::new, positional" }
@@ -860,14 +860,14 @@
 "evaluate/metrics.py::answer_exact_match.pred" = { status = "divergence", rust = "answer_exact_match", reason = "spelled `prediction`, matching every other metric here and the Prediction type it takes" }
 "evaluate/metrics.py::answer_exact_match.frac" = { status = "divergence", rust = "answer_match", reason = "Rust has no default arguments, so the fraction is its own function: `answer_exact_match` is upstream's frac=1.0 call and `answer_match(example, prediction, frac)` is the general one. Splitting rather than making every caller pass 1.0" }
 "evaluate/metrics.py::answer_exact_match.trace" = { status = "divergence", reason = "dspy's metrics take `trace` and return a bool rather than a float when it is set, which is how a bootstrap tells 'good enough to keep' from 'how good'. The crate keeps the two apart at the optimizer instead: a metric is always Fn(&Example, &Prediction) -> f64 and BootstrapFewShot's `metric_threshold` decides what counts as a keeper, so no metric has to change shape depending on who called it" }
-"signatures/signature.py::Signature.append.field" = { status = "mapped", rust = "append", reason = "the field to add, as a `Side` that says which half it joins" }
+"signatures/signature.py::Signature.append.field" = { status = "mapped", rust = "Signature::append", reason = "the field to add, as a `Side` that says which half it joins" }
 "signatures/signature.py::Signature.append.name" = { status = "divergence", rust = "append", reason = "carried on the `Side` value rather than beside it: dspy takes (name, field, type_) as three loose arguments that must agree, where one typed value cannot disagree with itself" }
 "signatures/signature.py::Signature.append.type_" = { status = "divergence", rust = "append", reason = "carried on the `Side`'s field kind; see the name entry beside it" }
 "signatures/signature.py::Signature.prepend.field" = { status = "mapped", rust = "prepend", reason = "the field to add, as a `Side` that says which half it joins" }
 "signatures/signature.py::Signature.prepend.name" = { status = "divergence", rust = "prepend", reason = "carried on the `Side` value rather than beside it: dspy takes (name, field, type_) as three loose arguments that must agree, where one typed value cannot disagree with itself" }
 "signatures/signature.py::Signature.prepend.type_" = { status = "divergence", rust = "prepend", reason = "carried on the `Side`'s field kind; see the name entry beside it" }
-"signatures/signature.py::Signature.insert.field" = { status = "mapped", rust = "insert", reason = "the field to add, as a `Side`" }
-"signatures/signature.py::Signature.insert.index" = { status = "mapped", rust = "insert", reason = "the same signed index, negative counting from the end as upstream's does" }
+"signatures/signature.py::Signature.insert.field" = { status = "mapped", rust = "Signature::insert", reason = "the field to add, as a `Side`" }
+"signatures/signature.py::Signature.insert.index" = { status = "mapped", rust = "Signature::insert", reason = "the same signed index, negative counting from the end as upstream's does" }
 "signatures/signature.py::Signature.insert.name" = { status = "divergence", rust = "insert", reason = "carried on the `Side` value; see Signature.append.name" }
 "signatures/signature.py::Signature.insert.type_" = { status = "divergence", rust = "insert", reason = "carried on the `Side`'s field kind; see Signature.append.name" }
 "signatures/signature.py::Signature.delete.name" = { status = "mapped", rust = "delete", reason = "the field name to remove" }
@@ -982,8 +982,8 @@
 "adapters/two_step_adapter.py::TwoStepAdapter.format.signature" = { status = "mapped", rust = "Signature", reason = "the signature being rendered or parsed, the first argument on TwoStepAdapter as on dspy's" }
 "adapters/two_step_adapter.py::TwoStepAdapter.parse.signature" = { status = "mapped", rust = "Signature", reason = "the signature being rendered or parsed, the first argument on TwoStepAdapter as on dspy's" }
 "adapters/two_step_adapter.py::TwoStepAdapter.parse.completion" = { status = "divergence", rust = "parse", reason = "spelled `raw`: what arrives is the model's reply text, and `completion` names the API it came from rather than what it is" }
-"adapters/two_step_adapter.py::TwoStepAdapter.format.demos" = { status = "mapped", rust = "format", reason = "the few-shot examples to render ahead of the request" }
-"adapters/two_step_adapter.py::TwoStepAdapter.format.inputs" = { status = "mapped", rust = "format", reason = "the values to render, as `&[Input]` — a borrowed name-and-value pair rather than a dict, so nothing is cloned to render it" }
+"adapters/two_step_adapter.py::TwoStepAdapter.format.demos" = { status = "mapped", rust = "TwoStepAdapter::format", reason = "the few-shot examples to render ahead of the request" }
+"adapters/two_step_adapter.py::TwoStepAdapter.format.inputs" = { status = "mapped", rust = "TwoStepAdapter::format", reason = "the values to render, as `&[Input]` — a borrowed name-and-value pair rather than a dict, so nothing is cloned to render it" }
 "adapters/baml_adapter.py::BAMLAdapter.format_field_structure.signature" = { status = "mapped", rust = "Signature", reason = "the signature being rendered or parsed, the first argument on BamlAdapter as on dspy's" }
 "adapters/types/base_type.py::Type.parse_lm_response.response" = { status = "mapped", rust = "parse_lm_response", reason = "the reply a custom type reads itself out of" }
 "adapters/types/base_type.py::split_message_content_for_custom_types.messages" = { status = "mapped", rust = "split_custom_types", reason = "the messages whose text is split around the custom-type placeholders" }
@@ -1030,11 +1030,11 @@
 "primitives/example.py::Example.items.include_dspy" = { status = "divergence", rust = "items", reason = "dspy's internal keys are stored beside the user's and this flag says whether to show them; the crate keeps the input-field marks out of the map entirely, so there is nothing to filter" }
 "primitives/example.py::Example.with_inputs.keys" = { status = "mapped", rust = "with_inputs", reason = "the field names that count as inputs" }
 "primitives/prediction.py::Prediction.from_completions.list_or_dict" = { status = "divergence", rust = "from_completions", reason = "spelled `completions` and typed as one thing: dspy accepts a list of dicts or a dict of lists and normalises whichever arrived" }
-"primitives/prediction.py::Prediction.from_completions.signature" = { status = "mapped", rust = "from_candidates", reason = "the signature the completions belong to" }
+"primitives/prediction.py::Prediction.from_completions.signature" = { status = "mapped", rust = "Prediction::from_candidates", reason = "the signature the completions belong to" }
 "primitives/prediction.py::Prediction.set_lm_usage.value" = { status = "divergence", rust = "set_lm_usage", reason = "spelled `usage`, and typed `Option<LmUsage>` rather than a bare dict" }
-"primitives/repl_types.py::REPLHistory.append.code" = { status = "mapped", rust = "append", reason = "the same `code` recorded on a REPL turn" }
-"primitives/repl_types.py::REPLHistory.append.output" = { status = "mapped", rust = "append", reason = "the same `output` recorded on a REPL turn" }
-"primitives/repl_types.py::REPLHistory.append.reasoning" = { status = "mapped", rust = "append", reason = "the same `reasoning` recorded on a REPL turn" }
+"primitives/repl_types.py::REPLHistory.append.code" = { status = "mapped", rust = "ReplHistory::append", reason = "the same `code` recorded on a REPL turn" }
+"primitives/repl_types.py::REPLHistory.append.output" = { status = "mapped", rust = "ReplHistory::append", reason = "the same `output` recorded on a REPL turn" }
+"primitives/repl_types.py::REPLHistory.append.reasoning" = { status = "mapped", rust = "ReplHistory::append", reason = "the same `reasoning` recorded on a REPL turn" }
 "primitives/repl_types.py::REPLEntry.format.index" = { status = "mapped", rust = "format", reason = "which turn this is, numbered as upstream numbers them" }
 "primitives/repl_types.py::REPLEntry.format.max_output_chars" = { status = "mapped", rust = "format", reason = "how much of a turn's output is shown before it is elided" }
 "primitives/repl_types.py::REPLEntry.format_output.max_output_chars" = { status = "mapped", rust = "format", reason = "how much of a turn's output is shown before it is elided" }
