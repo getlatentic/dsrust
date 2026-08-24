@@ -38,16 +38,7 @@ fn demos_become_solved_turns_before_the_request() {
 
     // Two demos, each a user/assistant pair, then the real ask.
     let roles: Vec<&str> = turns.iter().map(|turn| turn.role.as_str()).collect();
-    assert_eq!(
-        roles,
-        [
-            "user",
-            "assistant",
-            "user",
-            "assistant",
-            "user"
-        ]
-    );
+    assert_eq!(roles, ["user", "assistant", "user", "assistant", "user"]);
 
     assert_eq!(
         turns[0].text().unwrap(),

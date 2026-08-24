@@ -85,7 +85,12 @@ fn an_adapter_defined_outside_the_crate_formats_and_parses() {
         .format(&signature(), &[], &inputs)
         .expect("renders");
     let (system, turns) = rendered.split_first().expect("a render is never empty");
-    assert!(system.text().expect("a system message").contains("<colour>...</colour>"));
+    assert!(
+        system
+            .text()
+            .expect("a system message")
+            .contains("<colour>...</colour>")
+    );
     assert_eq!(turns.len(), 1);
     assert_eq!(
         turns[0].text().unwrap(),

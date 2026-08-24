@@ -321,13 +321,13 @@ fn the_turn_prompt_tells_the_model_which_tool_names_are_legal() {
     block_on(react.forward(example! { request: "x" }.with_inputs(["request"])));
 
     assert!(
-        lm.asked()[0].system.contains(
+        lm.asked()[0].system().contains(
             "[[ ## next_tool_name ## ]]\n{next_tool_name}        \
              # note: the value you produce must exactly match (no extra characters) one of: \
              get_weather; finish"
         ),
         "got: {}",
-        lm.asked()[0].system
+        lm.asked()[0].system()
     );
 }
 
@@ -347,7 +347,7 @@ fn the_turn_prompt_numbers_the_fields_with_dspys_python_annotations() {
     block_on(react.forward(example! { request: "x" }.with_inputs(["request"])));
 
     assert!(
-        lm.asked()[0].system.starts_with(
+        lm.asked()[0].system().starts_with(
             "Your input fields are:\n\
              1. `request` (str): \n\
              2. `trajectory` (str):\n\
@@ -357,7 +357,7 @@ fn the_turn_prompt_numbers_the_fields_with_dspys_python_annotations() {
              3. `next_tool_args` (dict[str, Any]):\n"
         ),
         "got: {}",
-        lm.asked()[0].system
+        lm.asked()[0].system()
     );
 }
 
@@ -376,13 +376,13 @@ fn the_turn_prompts_argument_slot_carries_dspys_open_object_schema() {
     block_on(react.forward(example! { request: "x" }.with_inputs(["request"])));
 
     assert!(
-        lm.asked()[0].system.contains(
+        lm.asked()[0].system().contains(
             "[[ ## next_tool_args ## ]]\n\
              {next_tool_args}        # note: the value you produce must adhere to the JSON \
              schema: {\"type\": \"object\", \"additionalProperties\": true}"
         ),
         "got: {}",
-        lm.asked()[0].system
+        lm.asked()[0].system()
     );
 }
 
@@ -475,7 +475,8 @@ fn the_budget_ends_the_loop_without_a_final_warning_turn() {
     let asked = lm.asked();
     assert_eq!(asked.len(), 3, "two capped turns, then extract");
     assert_eq!(
-        asked[1].system, asked[0].system,
+        asked[1].system(),
+        asked[0].system(),
         "the final turn is asked with the same instructions as the first"
     );
     assert!(

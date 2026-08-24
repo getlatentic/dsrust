@@ -35,7 +35,13 @@ bounded() {
   local watchdog=$!
   local status=0
   wait "$job" || status=$?
-  kill "$watchdog" 2>/dev/null || true
+  # The watchdog's *group*, not the subshell alone. `set -m` gives it its own group, and its
+  # `sleep` is a child: killing only the subshell leaves that sleep to be reparented to init,
+  # still holding the fd 1 it inherited. An orphan holding this script's stdout makes a piped run
+  # (`| tee`, `| tail`, a CI wrapper) wait for EOF long after the gates have finished and passed,
+  # which reads as a hang. Two such orphans were observed; the trigger was never reproduced, so
+  # this closes the path by construction rather than on a diagnosis.
+  kill -TERM -"$watchdog" 2>/dev/null || kill "$watchdog" 2>/dev/null || true
   wait "$watchdog" 2>/dev/null || true
   set +m
   return "$status"

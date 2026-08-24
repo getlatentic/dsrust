@@ -42,6 +42,10 @@ fn install(lm: Arc<DummyLM>, recording: Arc<Recording>) -> std::sync::MutexGuard
 struct Recording {
     calls: Mutex<Vec<(String, usize)>>,
     depth: Mutex<std::collections::HashMap<u64, usize>>,
+    /// The roles of what `on_adapter_format_end` was handed. The handler recorded only that it
+    /// fired, so the payload it exists to deliver was never read — and a change to `Rendered`'s
+    /// shape passed every assertion here.
+    rendered: Mutex<Vec<Vec<String>>>,
 }
 
 impl Recording {
@@ -108,7 +112,16 @@ impl Callback for Recording {
         self.started("on_adapter_format_start", call);
     }
 
-    fn on_adapter_format_end(&self, call: &CallId, _answered: Result<&Rendered<'_>, &Error>) {
+    fn on_adapter_format_end(&self, call: &CallId, answered: Result<&Rendered<'_>, &Error>) {
+        if let Ok(rendered) = answered {
+            self.rendered.lock().expect("not poisoned").push(
+                rendered
+                    .messages
+                    .iter()
+                    .map(|message| message.role.clone())
+                    .collect(),
+            );
+        }
         self.ended("on_adapter_format_end", call);
     }
 
@@ -184,6 +197,12 @@ async fn a_predict_fires_the_sequence_dspy_fires() {
     configure_callbacks([]);
 
     assert_eq!(recording.tree(), expected("predict"));
+    // What the handler was handed, not merely that it fired: `Rendered` carries the message list
+    // `format` produced, the system prompt leading it as dspy's does.
+    assert_eq!(
+        recording.rendered.lock().expect("not poisoned").as_slice(),
+        [vec!["system".to_owned(), "user".to_owned()]],
+    );
 }
 
 /// dspy's third registration path: handlers attached to *one* predictor.

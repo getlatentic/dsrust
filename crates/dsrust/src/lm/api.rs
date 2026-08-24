@@ -33,7 +33,7 @@ pub use items::{LmItem, messages_from_items};
 pub use legacy::part_of_block;
 pub use legacy_request::sanitized as sanitized_legacy_message;
 pub use message::roles::{Assistant, Developer, System, User};
-pub use message::{LmMessage, LmToolSpec};
+pub use message::{LmMessage, LmToolSpec, after_system, system_of};
 pub use part::{Detail, DocumentSource, LEGACY_BLOCK, LmPart, LmSource, Metadata};
 pub use patch::LmRequestPatch;
 pub use request::LmRequest;

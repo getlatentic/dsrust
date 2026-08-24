@@ -94,7 +94,7 @@ async fn a_compiled_program_shows_its_demos_to_the_model() {
         .expect("the call succeeds");
 
     // Two demo pairs then the real ask: the compile reached the wire.
-    assert_eq!(lm.asked()[0].turns.len(), 5);
+    assert_eq!(lm.asked()[0].turns().len(), 5);
 }
 
 #[tokio::test]

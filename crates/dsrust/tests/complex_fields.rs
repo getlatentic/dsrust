@@ -9,8 +9,8 @@ use std::sync::Mutex;
 
 use anyhow::{Result, anyhow};
 use dsrust::JsonAdapter;
-use dsrust::lm::api::{self, Content, content_of};
-use dsrust::lm::{self, ChatModel, ChatTurn, LM, Role};
+use dsrust::lm::api::{self, LmMessage};
+use dsrust::lm::{self, ChatModel, LM};
 use dsrust::signature::{ChainOfThought, Predict, Signature, SignatureSpec, json_field_schema};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -75,10 +75,21 @@ struct Scripted {
 }
 
 #[derive(Clone)]
+/// One call as the model received it — the messages, which is what the request carries.
 struct Call {
-    system: String,
-    turns: Vec<ChatTurn>,
+    messages: Vec<LmMessage>,
     json_mode: bool,
+}
+
+impl Call {
+    fn system(&self) -> &str {
+        api::system_of(&self.messages)
+    }
+
+    /// The conversation without the system prompt, which leads a render.
+    fn turns(&self) -> &[LmMessage] {
+        api::after_system(&self.messages)
+    }
 }
 
 impl Scripted {
@@ -97,8 +108,7 @@ impl Scripted {
 impl ChatModel for Scripted {
     async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
         self.calls.lock().expect("not poisoned").push(Call {
-            system: request.system().to_owned(),
-            turns: recorded_turns(request),
+            messages: request.messages.clone(),
             json_mode: request.output_schema().is_some(),
         });
         self.replies
@@ -108,22 +118,6 @@ impl ChatModel for Scripted {
             .map(api::LmResponse::text)
             .ok_or_else(|| anyhow!("script exhausted"))
     }
-}
-
-/// The non-system messages as the turns this test asserts on, each part collapsed to its prose.
-fn recorded_turns(request: &api::LmRequest) -> Vec<ChatTurn> {
-    request
-        .messages
-        .iter()
-        .filter(|message| message.role != "system")
-        .map(|message| ChatTurn {
-            role: match message.role.as_str() {
-                "assistant" => Role::Assistant,
-                _ => Role::User,
-            },
-            content: content_of(&message.parts).unwrap_or_else(|_| Content::Text(String::new())),
-        })
-        .collect()
 }
 
 #[test]
@@ -210,7 +204,7 @@ async fn prompts_annotate_json_fields_and_a_marker_reply_deserializes() {
 
     let calls = lm.calls();
     assert_eq!(calls.len(), 1);
-    let system = &calls[0].system;
+    let system = &calls[0].system();
     assert!(system.contains("1. `recipient` (Recipient): who the gift is for\n"));
     assert!(system.contains("2. `themes` (list[str]): keywords to build on\n"));
     assert!(
@@ -231,7 +225,7 @@ async fn prompts_annotate_json_fields_and_a_marker_reply_deserializes() {
 
     // `json.dumps` spacing, because the adapter renders the value rather than receiving text
     // some other serializer already wrote.
-    let opening = calls[0].turns[0].content.text().unwrap();
+    let opening = calls[0].turns()[0].text().unwrap();
     assert!(
         opening.contains("[[ ## recipient ## ]]\n{\"name\": \"Dad\", \"age\": 61"),
         "got: {opening}"
@@ -264,12 +258,11 @@ async fn invalid_json_rides_the_feedback_retry() {
 
     let calls = lm.calls();
     assert_eq!(calls.len(), 2);
-    let retry = &calls[1].turns;
-    assert_eq!(retry[1].role, Role::Assistant);
-    assert_eq!(retry[1].content.text().unwrap(), bad);
+    let retry = &calls[1].turns();
+    assert_eq!(retry[1].role, "assistant");
+    assert_eq!(retry[1].text().unwrap(), bad);
     assert!(
         retry[2]
-            .content
             .text()
             .unwrap()
             .contains("ideas must be valid JSON")
@@ -309,18 +302,14 @@ async fn a_shape_mismatch_gets_one_deep_retry_carrying_the_serde_error() {
 
     let calls = lm.calls();
     assert_eq!(calls.len(), 2);
-    let retry = &calls[1].turns;
+    let retry = &calls[1].turns();
     assert_eq!(retry.len(), 3);
-    assert_eq!(retry[1].role, Role::Assistant);
-    assert_eq!(retry[1].content.text().unwrap(), shallow);
+    assert_eq!(retry[1].role, "assistant");
+    assert_eq!(retry[1].text().unwrap(), shallow);
     assert!(
-        retry[2]
-            .content
-            .text()
-            .unwrap()
-            .contains("missing field `why`"),
+        retry[2].text().unwrap().contains("missing field `why`"),
         "got: {:?}",
-        retry[2].content
+        retry[2].parts
     );
 }
 
@@ -369,20 +358,18 @@ async fn typed_calls_stay_bounded_at_three_provider_calls() {
     );
     assert!(
         calls[1]
-            .turns
+            .turns()
             .last()
             .expect("turns")
-            .content
             .text()
             .unwrap()
             .contains("the tip field is missing")
     );
     assert!(
         calls[2]
-            .turns
+            .turns()
             .last()
             .expect("turns")
-            .content
             .text()
             .unwrap()
             .contains("missing field `why`")
@@ -409,15 +396,9 @@ async fn chain_of_thought_deep_retry_keeps_the_full_previous_reply() {
 
     let calls = lm.calls();
     assert_eq!(calls.len(), 2);
-    let retry = &calls[1].turns;
-    assert_eq!(retry[1].content.text().unwrap(), reasoned_bad);
-    assert!(
-        retry[2]
-            .content
-            .text()
-            .unwrap()
-            .contains("missing field `why`")
-    );
+    let retry = &calls[1].turns();
+    assert_eq!(retry[1].text().unwrap(), reasoned_bad);
+    assert!(retry[2].text().unwrap().contains("missing field `why`"));
 }
 
 /// Pins down what a call macro evaluates to: the module call's future, yielding the task's

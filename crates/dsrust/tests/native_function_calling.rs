@@ -8,9 +8,11 @@
 
 use std::sync::{Arc, Mutex};
 
+use dsrust::Adapter;
 use dsrust::adapter::{ChatAdapter, Input, ToolCalls};
 use dsrust::example::Example;
 use dsrust::lm::api::{self, LmToolSpec};
+use dsrust::lm::dummy::DummyLM;
 use dsrust::lm::{Capabilities, ChatModel, DynChatModel};
 use dsrust::module::Module;
 use dsrust::predict::Predict;
@@ -357,4 +359,75 @@ fn a_tool_with_no_arguments_still_states_an_object() {
     }))
     .expect("a spec");
     assert_eq!(planned.tools, vec![expected]);
+}
+
+/// A replayed tool result reaches the model as a `tool` message, and a scripted model records it
+/// as one.
+///
+/// Both halves matter and neither is covered elsewhere. `adapter/history.rs` builds the tool turn
+/// only on the native path, which nothing tested; and `DummyLM` used to re-derive its record from
+/// the request with `match role { "assistant" => Assistant, _ => User }`, so this arrived as
+/// something the user said. A test asserting on the render alone would still pass with the
+/// recorder wrong, and one asserting on the recorder alone would pass with no tool turn rendered.
+#[tokio::test]
+async fn a_replayed_tool_result_is_a_tool_message_and_is_recorded_as_one() {
+    let mut signature = tool_signature();
+    signature.inputs.push(InField {
+        name: "history".into(),
+        kind: FieldKind::Json(JsonType {
+            annotation: "History".into(),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+
+    let history = json!({
+        "messages": [{
+            "question": "weather in Paris?",
+            "tool_calls": {
+                "tool_calls": [{ "id": "call_1", "name": "get_weather", "args": { "city": "Paris" } }],
+                "tool_call_results": {
+                    "tool_call_results": [{
+                        "call_id": "call_1",
+                        "name": "get_weather",
+                        "value": "17C and clear",
+                        "is_error": false,
+                    }],
+                },
+            },
+        }],
+    });
+
+    let adapter = ChatAdapter {
+        use_native_function_calling: true,
+        ..ChatAdapter::default()
+    };
+    let rendered = adapter
+        .format(
+            &signature,
+            &[],
+            &[
+                Input::new("question", json!("and tomorrow?")),
+                Input::new("history", history),
+            ],
+        )
+        .expect("the history renders");
+
+    let roles: Vec<String> = rendered.iter().map(|m| m.role.clone()).collect();
+    assert!(
+        roles.iter().any(|role| role == "tool"),
+        "a replayed tool result is its own message: {roles:?}"
+    );
+
+    let lm = DummyLM::new([dsrust::example! { tool_calls: "{\"tool_calls\": []}" }]);
+    lm.forward(&api::LmRequest::from_messages("dummy", rendered))
+        .await
+        .expect("the scripted model answers");
+
+    let seen = lm.asked();
+    let recorded: Vec<String> = seen[0].messages.iter().map(|m| m.role.clone()).collect();
+    assert_eq!(
+        recorded, roles,
+        "a scripted model records the roles it was sent"
+    );
 }

@@ -75,17 +75,7 @@ impl LmRequest {
     /// there is none. Read as a bare string, so a provider that carries the system prompt in its
     /// own field — Anthropic — reads the same bytes a native call would have carried.
     pub fn system(&self) -> &str {
-        self.messages
-            .iter()
-            .find(|message| message.role == "system")
-            // Only a lone text part is prose; a multi-part system message collapses to blocks the
-            // way [`content_of`] does, and reads as no system prompt, which is what the legacy path
-            // did with it.
-            .and_then(|message| match message.parts.as_slice() {
-                [only] => only.as_text(),
-                _ => None,
-            })
-            .unwrap_or("")
+        super::system_of(&self.messages)
     }
 
     /// Every message as the `{role, content}` a provider reads, the system message already first.

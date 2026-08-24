@@ -57,10 +57,6 @@ fn the_turn_signature_user_message_is_dspys_byte_for_byte() {
     let rendered = ChatAdapter::default()
         .format(agent.turn_signature(), &[], &inputs)
         .expect("formats");
-    let user = rendered
-        .last()
-        .expect("a user turn")
-        .text()
-        .expect("prose");
+    let user = rendered.last().expect("a user turn").text().expect("prose");
     assert_eq!(user, include_str!("goldens/react_v2_turn_user.txt"));
 }

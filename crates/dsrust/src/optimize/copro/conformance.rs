@@ -133,12 +133,12 @@ fn assert_calls(case: &Value, asked: &[Asked]) {
         assert_prompt(
             &format!("system of call {index}"),
             want["system"].as_str().expect("system"),
-            &got.system,
+            got.system(),
         );
         assert_prompt(
             &format!("user of call {index}"),
             want["user"].as_str().expect("user"),
-            got.last_message(),
+            &got.last_message(),
         );
     }
 }

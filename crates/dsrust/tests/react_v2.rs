@@ -132,8 +132,7 @@ async fn a_continuation_turn_omits_the_original_inputs() {
         second.last_message()
     );
     assert!(
-        second.turns.iter().any(|turn| turn
-            .content
+        second.turns().iter().any(|turn| turn
             .text()
             .unwrap_or_default()
             .contains("[[ ## question ## ]]\ncats")),

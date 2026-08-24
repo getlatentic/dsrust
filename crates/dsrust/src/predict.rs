@@ -252,7 +252,6 @@ impl<S> Predict<S> {
 mod tests {
     use super::*;
     use crate::adapter::{ChatAdapter, JsonAdapter};
-    use crate::lm::Role;
     use crate::predict::scripted::{
         Pick, RoomTask, RoomTaskInputs, RoomTaskOutputs, Scripted, room_inputs, signature,
     };
@@ -434,19 +433,18 @@ mod tests {
 
         let calls = lm.calls();
         assert!(
-            !calls[0].system.contains("hint_"),
+            !calls[0].system().contains("hint_"),
             "a module with no advice renders as though the field did not exist"
         );
         assert!(
             calls[1]
-                .system
+                .system()
                 .contains("`hint_` (str): A hint to the module from an earlier run"),
             "got: {}",
-            calls[1].system
+            calls[1].system()
         );
         assert!(
-            calls[1].turns[0]
-                .content
+            calls[1].turns()[0]
                 .text()
                 .expect("a request")
                 .contains("name a warm colour"),
@@ -465,7 +463,7 @@ mod tests {
         let calls = lm.calls();
         assert_eq!(calls.len(), 1);
         assert!(!calls[0].json_mode);
-        assert!(calls[0].system.contains("[[ ## color ## ]]"));
+        assert!(calls[0].system().contains("[[ ## color ## ]]"));
     }
 
     #[tokio::test]
@@ -481,13 +479,12 @@ mod tests {
 
         let calls = lm.calls();
         assert_eq!(calls.len(), 2);
-        let retry = &calls[1].turns;
+        let retry = &calls[1].turns();
         assert_eq!(retry.len(), 3);
-        assert_eq!(retry[1].role, Role::Assistant);
-        assert_eq!(retry[1].content.text().unwrap(), bad);
+        assert_eq!(retry[1].role, "assistant");
+        assert_eq!(retry[1].text().unwrap(), bad);
         assert!(
             retry[2]
-                .content
                 .text()
                 .unwrap()
                 .contains("color must be one of red, blue")
@@ -581,9 +578,9 @@ mod tests {
         let calls = lm.calls();
         assert_eq!(calls.len(), 2, "one ask, then the JSON fallback");
         let second: String = calls[1]
-            .turns
+            .turns()
             .iter()
-            .map(|turn| format!("{:?}", turn.content))
+            .map(|turn| format!("{:?}", turn.parts))
             .collect();
         assert!(
             !second.contains("previous reply was rejected"),
@@ -661,11 +658,15 @@ mod tests {
         let calls = lm.calls();
         assert!(
             calls[0]
-                .system
+                .system()
                 .contains("1. `room` (str): the room being painted")
         );
-        assert!(calls[0].system.contains("2. `mood` (str): the mood to set"));
-        let opening = calls[0].turns[0].content.text().unwrap();
+        assert!(
+            calls[0]
+                .system()
+                .contains("2. `mood` (str): the mood to set")
+        );
+        let opening = calls[0].turns()[0].text().unwrap();
         assert!(opening.contains("[[ ## room ## ]]\nthe study"));
         assert!(opening.contains("[[ ## mood ## ]]\ncalm focus"));
     }
@@ -683,19 +684,17 @@ mod tests {
 
         let calls = lm.calls();
         assert_eq!(calls.len(), 2);
-        let retry = &calls[1].turns;
+        let retry = &calls[1].turns();
         assert_eq!(retry.len(), 3);
         assert!(
             retry[0]
-                .content
                 .text()
                 .unwrap()
                 .contains("[[ ## mood ## ]]\ncalm focus")
         );
-        assert_eq!(retry[1].content.text().unwrap(), bad);
+        assert_eq!(retry[1].text().unwrap(), bad);
         assert!(
             retry[2]
-                .content
                 .text()
                 .unwrap()
                 .contains("color must be one of red, blue")
@@ -772,14 +771,18 @@ mod tests {
         assert_eq!(outputs.count, 3);
 
         let calls = lm.calls();
-        assert!(calls[0].system.contains("1. `age` (int): the age turned"));
-        assert!(calls[0].system.contains("2. `fan` (bool): a lifelong fan"));
+        assert!(calls[0].system().contains("1. `age` (int): the age turned"));
         assert!(
             calls[0]
-                .system
+                .system()
+                .contains("2. `fan` (bool): a lifelong fan")
+        );
+        assert!(
+            calls[0]
+                .system()
                 .contains("1. `amount` (float): amount in MON")
         );
-        let opening = calls[0].turns[0].content.text().unwrap();
+        let opening = calls[0].turns()[0].text().unwrap();
         assert!(opening.contains("[[ ## age ## ]]\n61"));
         // Python's spelling: dspy 3.2.1 hands a bare bool to `str`, so the model reads `True`.
         assert!(opening.contains("[[ ## fan ## ]]\nTrue"));
@@ -805,12 +808,11 @@ mod tests {
         assert_eq!(calls.len(), 2);
         assert!(!calls[0].json_mode);
         assert!(!calls[1].json_mode, "a type error must not switch adapters");
-        let retry = &calls[1].turns;
+        let retry = &calls[1].turns();
         assert_eq!(retry.len(), 3);
-        assert_eq!(retry[1].content.text().unwrap(), bad);
+        assert_eq!(retry[1].text().unwrap(), bad);
         assert!(
             retry[2]
-                .content
                 .text()
                 .unwrap()
                 .contains("amount must be a number, got \"abc\"")

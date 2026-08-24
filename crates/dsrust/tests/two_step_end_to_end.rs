@@ -61,11 +61,11 @@ async fn the_task_model_is_never_shown_a_wire_format() {
 
     let asked = task.asked();
     assert!(
-        !asked[0].system.contains("[[ ##"),
+        !asked[0].system().contains("[[ ##"),
         "got: {}",
-        asked[0].system
+        asked[0].system()
     );
-    assert!(asked[0].system.starts_with("You are a helpful assistant"));
+    assert!(asked[0].system().starts_with("You are a helpful assistant"));
     assert_eq!(asked[0].last_message(), "question: Where?");
 }
 
@@ -92,7 +92,7 @@ async fn the_extraction_model_is_shown_the_first_reply_as_its_text_field() {
     assert!(asked[0].last_message().contains(prose));
     assert!(
         asked[0]
-            .system
+            .system()
             .contains("extract the fields from the text verbatim")
     );
 }

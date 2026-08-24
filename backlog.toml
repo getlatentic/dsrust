@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1314
+rust_tests = 1315
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -4319,7 +4319,7 @@ Recorded 2026-08-02 while shipping `saved-lm-round-trip`.
 id = "gepa-reflective-dataset"
 sprint = "conformance"
 title = "GEPA reflects on the first turn where dspy draws a random one, and nothing pins either"
-state = "todo"
+state = "done"
 size = "M"
 suites = ""
 plan = """
@@ -4413,6 +4413,26 @@ program whose trace repeats a predictor, a `History` case beside it, and a Rust 
 records — not a projection of them, for the reason `projections-hide-divergence` gives.
 """
 
+done = """
+Found already built, recorded as `todo` — the shape this project keeps finding, a record that
+stopped being true rather than work that was not done.
+
+What is in the tree: `scripts/generate_gepa_reflective_fixture.py` drives the *real* `DspyAdapter`
+rather than the engine fixture's stub, `Adapter` carries its own `Random` and draws with
+`self.rng.choice_index(instances.len())` where it used to take the first match, and
+`reflects_on_the_instance_dspy_draws` compares against the golden at four seeds.
+
+The four seeds are the point. dspy's `rng.choice(trace_instances)` lands on the second hop at seed
+0 and the first at 1–3, so a fixture at a single seed would have agreed with a port that never
+draws, three times in four. `Feedback` is compared alongside the inputs because upstream's text
+names the hop it drew — two records can share inputs and still disagree about which step the
+feedback describes, so it is the strictest witness that the same instance was picked.
+
+Verified by running it, not by remembering it: `optimize::gepa` is 14 tests, green, and the two
+that carry this are `reflects_on_the_instance_dspy_draws` and
+`the_reflective_dataset_carries_the_captured_trace`.
+"""
+
 [[story]]
 id = "surface-private-modules"
 sprint = "api"
@@ -4480,7 +4500,7 @@ to justify a line at a time.
 id = "asked-holds-the-pair"
 sprint = "s13"
 title = "DummyLM records (system, turns) and loses the tool role doing it"
-state = "todo"
+state = "done"
 size = "M"
 suites = []
 plan = """
@@ -4511,4 +4531,54 @@ text, and `recorded_turns` deleted. Roughly 40 assertion sites across `predict.r
 message — a test that fails today if written against `Asked`, since there is no `Role::Tool` for it
 to arrive as. Every existing assertion still passes, and `recorded_turns` is gone rather than
 unused.
+"""
+
+done = """
+Six recorders held the pair, not one. `Asked` in `lm/dummy.rs`, `Call` in `predict/scripted.rs`,
+`Call` in `tests/complex_fields.rs`, and `Recorder` in `tests/compile_a_program.rs` each re-split
+the request they were handed; `Recorder` in `native_function_calling.rs` and `native_reasoning.rs`
+already kept it whole, which is what the other four should have done. Three copies of
+`recorded_turns` are gone, each carrying the same
+`match role { "assistant" => Assistant, _ => User }`.
+
+Each recorder now holds the messages, with `system()` and `turns()` as *reads* — the first is the
+same one `LmRequest::system` makes, the second is everything after the leading system message. A
+read cannot drift from the list the way a stored copy did.
+
+**The defect was real and had no test.** `adapter/history.rs`'s `native_replay` is the only thing
+that builds a `tool` turn, and nothing exercised it — which is why nobody saw the role collapse.
+`a_replayed_tool_result_is_a_tool_message_and_is_recorded_as_one` covers both halves: the render
+produces `[system, user, assistant, tool, user]`, and the scripted model records those same roles.
+Restoring the old lowering turns the fourth into `user` and fails it.
+
+**The fixture was wrong before the code was.** The first version of that test asserted no tool
+message was rendered at all, which read as a second bug. It was not: `results_match_calls` requires
+each result's `call_id` to name a call's `id`, and the fixture's call had no id — so the adapter
+correctly declined to replay results it could not attribute. A probe printing what
+`tool_calls_of` and `turns` actually returned settled it in one run.
+
+**A second hole, found the same way.** `Rendered` changed shape in `s13-3` and every test still
+passed, because `on_adapter_format_end`'s only handler took its payload as `_answered`. The
+callback that exists to deliver the render delivered it to nothing. `callback.rs` now records the
+roles it was handed and asserts `["system", "user"]`; dropping the leading message inside
+`observe::formatting` fails it.
+
+**One read, not one per holder.** `system_of` and `after_system` are the two questions all four
+recorders and `LmRequest` were each answering with their own copy. They are not complements and
+the asymmetry is deliberate: `system_of` takes the first `system` message wherever it sits, which
+is what a provider lifting the prompt into its own field wants, while `after_system` strips only a
+*leading* one, since a system message later in a conversation is part of it. Four tests pin that,
+including the case where the two disagree.
+
+**A gate that looked hung after passing.** Two orphaned `sleep 1800` — `bounded`'s watchdog CAP —
+were sitting with PPID 1 during this work, one holding the gate's own stdout pipe, so
+`run_rust_gates.sh | tail` waited for EOF long after the gates had finished and passed. `bounded`
+killed the watchdog subshell and not its `sleep` child, which reparents to init still holding the
+fd it inherited. The cleanup now kills the watchdog's process group.
+
+Said plainly: the orphans and the stuck pipe were measured, the trigger was not. Three probes —
+the normal path, an outer `timeout` mid-`bounded`, and the real script under both — each left no
+orphan. So this closes the path by construction and is not a fix resting on a diagnosis.
+
+1315 Rust tests.
 """

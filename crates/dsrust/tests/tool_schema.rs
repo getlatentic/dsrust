@@ -143,7 +143,7 @@ async fn the_schema_reaches_the_prompt_the_model_is_actually_sent() {
 
     assert!(
         lm.asked()[0]
-            .system
+            .system()
             .contains("It takes arguments {'city': {'type': 'string'}}."),
         "the schema is in the system prompt, not just the signature"
     );

@@ -1272,8 +1272,11 @@
 "dsrust::lm::builder::LmBuilder::temperature" = { status = "divergence", reason = "`LmBuilder::temperature` — a field of dspy's matching `LM…` pydantic model in `core/types.py`; the type's own entry describes what the model is for" }
 "dsrust::lm::dummy::Asked::config" = { status = "divergence", reason = "`Asked::config`, part of the same type's surface; see the entry for `Asked`" }
 "dsrust::lm::dummy::Asked::json_mode" = { status = "divergence", reason = "`Asked::json_mode`, part of the same type's surface; see the entry for `Asked`" }
-"dsrust::lm::dummy::Asked::system" = { status = "divergence", reason = "`Asked::system`, part of the same type's surface; see the entry for `Asked`" }
-"dsrust::lm::dummy::Asked::turns" = { status = "divergence", reason = "`Asked::turns`, part of the same type's surface; see the entry for `Asked`" }
+"dsrust::lm::api::system_of" = { status = "divergence", rust = "system_of", reason = "the system prompt a message list carries, or `\"\"` — dspy reads `messages[0][\"content\"]` inline wherever it needs one. One read rather than one per holder: a request, a scripted model's record and a test's recorder all ask it of the same list, and a copy of the answer is what drifts from it" }
+"dsrust::lm::api::after_system" = { status = "divergence", rust = "after_system", reason = "the conversation without its *leading* system message, so a reader counting turns counts from the first thing anyone said. Only the leading one — a system message later in the list is part of the conversation, and dropping it would renumber every turn after it" }
+"dsrust::lm::dummy::Asked::messages" = { status = "divergence", reason = "`Asked::messages`, part of the same type's surface; see the entry for `Asked`" }
+"dsrust::lm::dummy::Asked::system" = { status = "divergence", reason = "`Asked::system()`, the system prompt read off the messages — the same read `LmRequest::system` makes, not a stored half of a pair" }
+"dsrust::lm::dummy::Asked::turns" = { status = "divergence", reason = "`Asked::turns()`, the messages after the leading system one, so a test counting turns counts from the first thing anyone said" }
 "dsrust::lm::openai::OpenAiConfig::api_key" = { status = "divergence", reason = "`OpenAiConfig::api_key` — part of what the OpenAI wire needs beyond an `LmConfig` — litellm assembles this from its own registry, and the crate has none" }
 "dsrust::lm::openai::OpenAiConfig::base_url" = { status = "divergence", reason = "`OpenAiConfig::base_url` — part of what the OpenAI wire needs beyond an `LmConfig` — litellm assembles this from its own registry, and the crate has none" }
 "dsrust::lm::openai::OpenAiConfig::json_format" = { status = "divergence", reason = "`OpenAiConfig::json_format` — part of what the OpenAI wire needs beyond an `LmConfig` — litellm assembles this from its own registry, and the crate has none" }
@@ -1952,7 +1955,7 @@
 "dsrust::lm::dummy::DummyLM::asked" = { status = "mapped", rust = "asked", reason = "dspy's `DummyLM.history`: every request the model received, in order" }
 "dsrust::lm::dummy::DummyLM::call_count" = { status = "divergence", rust = "call_count", reason = "how many requests arrived — `len(history)` upstream, named because asserting a call *happened once* is most of what a scripted model is for" }
 "dsrust::lm::dummy::DummyLM::remaining" = { status = "divergence", rust = "remaining", reason = "how many scripted answers are left, so a test can say the script was exhausted rather than discover it by a later failure" }
-"dsrust::lm::dummy::Asked" = { status = "divergence", rust = "Asked", reason = "one recorded request: the turns and the sampling config. Upstream keeps raw dicts in `history`; a struct is what lets a test assert on the prompt without indexing" }
+"dsrust::lm::dummy::Asked" = { status = "divergence", rust = "Asked", reason = "one recorded request: the messages and the sampling config, as dspy's `DummyLM.forward` reads them. Upstream keeps raw dicts in `history`; a struct is what lets a test assert on the prompt without indexing" }
 "dsrust::lm::dummy::Asked::last_message" = { status = "divergence", rust = "last_message", reason = "the last thing the model was told, which is the request it is answering — the one field nearly every assertion wants" }
 "dsrust::lm::global::configure" = { status = "mapped", rust = "configure", reason = "dspy `dspy.configure(lm=…)`: make this model the process-wide default" }
 "dsrust::lm::global::configure_with_client" = { status = "divergence", rust = "configure_with_client", reason = "the same, sending provider calls on a caller's `reqwest::Client`. litellm holds a module-level session so dspy names no client; filed with `lm-shared-client`" }
@@ -2235,7 +2238,7 @@
 "dsrust::Scope" = { status = "divergence", reason = "what `context_model` returns — a future adapter rather than a block guard, because a guard held across an await would be read by whatever the runtime polled next. dspy's `with dspy.context(...)` has no such hazard" }
 "dsrust::DynOptimizer" = { status = "divergence", reason = "the object-safe form of `Optimizer`, which `BetterTogether` needs to hold other optimizers. Python needs no such split" }
 "dsrust::OutputMode" = { status = "divergence", reason = "how an adapter asks a provider to shape its reply — JSON mode, a schema, or nothing. dspy assembles the equivalent kwargs inline per adapter" }
-"dsrust::ChatTurn" = { status = "mapped", reason = "one message of a request: dspy's `{'role': ..., 'content': ...}` dict, typed" }
+"dsrust::ChatTurn" = { status = "divergence", reason = "the vocabulary the shipped adapters render into before `format` answers: `conversation` grows a demo into a user/assistant pair and `blocks::split_custom_types` splits a field into multimodal blocks, both over turns. A request carries `LmMessage`, which is dspy's own message type; this is a step on the way to one, with no upstream counterpart" }
 "dsrust::Role" = { status = "mapped", reason = "the `role` of a message, as the four values a wire accepts rather than a free string" }
 "dsrust::LmResponse" = { status = "mapped", reason = "what a provider replied, which dspy takes from litellm's `ModelResponse`" }
 "dsrust::LmItem" = { status = "mapped", reason = "one element of `lm(...)`'s varargs — dspy's `dspy.User(...)`, a bare string, or a previous reply handed back" }

@@ -261,10 +261,7 @@ fn live_inputs<'a>(asked: &Signature, inputs: &[Input<'a>]) -> Vec<Input<'a>> {
 
 /// The messages a module sends for one attempt: whatever the adapter rendered, plus the rejected
 /// reply and its error when this is a feedback retry.
-pub fn messages_for(
-    mut messages: Vec<LmMessage>,
-    feedback: Option<&Feedback>,
-) -> Vec<LmMessage> {
+pub fn messages_for(mut messages: Vec<LmMessage>, feedback: Option<&Feedback>) -> Vec<LmMessage> {
     if let Some(feedback) = feedback {
         messages.push(LmMessage::assistant([feedback.previous.clone()]));
         messages.push(LmMessage::user([format!(

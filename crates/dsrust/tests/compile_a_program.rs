@@ -9,32 +9,32 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use anyhow::Result;
-use dsrust::lm::api::{self, Content, content_of};
-use dsrust::lm::{ChatModel, ChatTurn, Role};
+use dsrust::lm::ChatModel;
+use dsrust::lm::api::{self, LmMessage};
 use dsrust::signature::{OutField, Signature};
 use dsrust::{Adapter, ChatAdapter, Example, LabeledFewShot, example};
 use serde_json::json;
 
 struct Recorder {
     replies: Mutex<VecDeque<String>>,
-    turns: Mutex<Vec<Vec<ChatTurn>>>,
+    calls: Mutex<Vec<Vec<LmMessage>>>,
 }
 
 impl Recorder {
     fn new(replies: &[&str]) -> Self {
         Self {
             replies: Mutex::new(replies.iter().map(|r| (*r).to_owned()).collect()),
-            turns: Mutex::new(Vec::new()),
+            calls: Mutex::new(Vec::new()),
         }
     }
 }
 
 impl ChatModel for Recorder {
     async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
-        self.turns
+        self.calls
             .lock()
             .expect("not poisoned")
-            .push(recorded_turns(request));
+            .push(request.messages.clone());
         self.replies
             .lock()
             .expect("not poisoned")
@@ -42,22 +42,6 @@ impl ChatModel for Recorder {
             .map(api::LmResponse::text)
             .ok_or_else(|| anyhow::anyhow!("script exhausted"))
     }
-}
-
-/// The non-system messages as the turns this test asserts on, each part collapsed to its prose.
-fn recorded_turns(request: &api::LmRequest) -> Vec<ChatTurn> {
-    request
-        .messages
-        .iter()
-        .filter(|message| message.role != "system")
-        .map(|message| ChatTurn {
-            role: match message.role.as_str() {
-                "assistant" => Role::Assistant,
-                _ => Role::User,
-            },
-            content: content_of(&message.parts).unwrap_or_else(|_| Content::Text(String::new())),
-        })
-        .collect()
 }
 
 fn signature() -> Signature {
@@ -100,26 +84,15 @@ async fn the_chosen_demos_reach_the_prompt() {
         .await
         .expect("the call succeeds");
 
-    let turns = &lm.turns.lock().expect("not poisoned")[0];
+    // The messages the model received; the system prompt leads, as dspy's `format` returns it.
+    let turns = &lm.calls.lock().expect("not poisoned")[0][1..];
     // Two demos become two user/assistant pairs, then the real ask: compiling changed what
     // the model sees, which is the entire point of an optimizer.
     assert_eq!(turns.len(), 5);
-    assert_eq!(turns[0].role, Role::User);
-    assert_eq!(turns[1].role, Role::Assistant);
-    assert!(
-        turns[1]
-            .content
-            .text()
-            .unwrap()
-            .contains("[[ ## answer ## ]]")
-    );
-    assert!(
-        turns[4]
-            .content
-            .text()
-            .unwrap()
-            .contains("capital of Spain?")
-    );
+    assert_eq!(turns[0].role, "user");
+    assert_eq!(turns[1].role, "assistant");
+    assert!(turns[1].text().unwrap().contains("[[ ## answer ## ]]"));
+    assert!(turns[4].text().unwrap().contains("capital of Spain?"));
 }
 
 #[test]

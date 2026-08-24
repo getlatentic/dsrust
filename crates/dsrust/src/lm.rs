@@ -45,8 +45,8 @@ pub use openai::{
 pub use retry::Retry;
 pub use routing::{ModelRef, Provider};
 pub use token_limit::{TokenLimitField, TokenLimitRule};
-pub use turn::{ChatTurn, OutputMode, Role};
 pub(crate) use turn::messages_of;
+pub use turn::{ChatTurn, OutputMode, Role};
 pub use usage::{UsageTracker, track as track_usage};
 
 /// What bounds a provider call unless the caller says otherwise: litellm's own default, which dspy

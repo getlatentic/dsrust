@@ -57,7 +57,9 @@ fn an_image_field_becomes_an_image_url_block() {
         ),
     ];
     let content = user_content(&signature, &inputs);
-    let blocks = content.as_array().expect("an image field renders a multimodal message");
+    let blocks = content
+        .as_array()
+        .expect("an image field renders a multimodal message");
     assert!(blocks.contains(
         &json!({ "type": "image_url", "image_url": { "url": "https://example.com/a.jpg" } })
     ));
@@ -75,7 +77,9 @@ fn an_audio_field_becomes_an_input_audio_block() {
         ),
     ];
     let content = user_content(&signature, &inputs);
-    let blocks = content.as_array().expect("an audio field renders a multimodal message");
+    let blocks = content
+        .as_array()
+        .expect("an audio field renders a multimodal message");
     assert!(blocks.contains(
         &json!({ "type": "input_audio", "input_audio": { "data": "QUJD", "format": "wav" } })
     ));
@@ -93,7 +97,9 @@ fn a_file_field_becomes_a_file_block() {
         ),
     ];
     let content = user_content(&signature, &inputs);
-    let blocks = content.as_array().expect("a file field renders a multimodal message");
+    let blocks = content
+        .as_array()
+        .expect("a file field renders a multimodal message");
     assert!(blocks.contains(
         &json!({ "type": "file", "file": { "file_id": "file-1", "filename": "a.txt" } })
     ));

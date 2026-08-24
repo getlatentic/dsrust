@@ -104,6 +104,36 @@ impl LmMessage {
     }
 }
 
+/// The system prompt a message list carries, or `""` when it has none.
+///
+/// Only a lone text part is prose; a multi-part system message collapses to blocks the way
+/// [`content_of`](super::content_of) does, and reads as no system prompt.
+///
+/// One read rather than one per holder. A request, a scripted model's record and a test's recorder
+/// all ask this of the same list, and a copy of the answer is what drifts from it.
+pub fn system_of(messages: &[LmMessage]) -> &str {
+    messages
+        .iter()
+        .find(|message| message.role == "system")
+        .and_then(|message| match message.parts.as_slice() {
+            [only] => only.as_text(),
+            _ => None,
+        })
+        .unwrap_or("")
+}
+
+/// The conversation without its leading system message — what a reader means by "the second turn"
+/// when counting from the first thing anyone said.
+///
+/// Only the *leading* one: a system message later in the list is part of the conversation, and
+/// dropping it would silently renumber everything after it.
+pub fn after_system(messages: &[LmMessage]) -> &[LmMessage] {
+    match messages.split_first() {
+        Some((first, rest)) if first.role == "system" => rest,
+        _ => messages,
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LmToolSpec {
@@ -258,5 +288,49 @@ mod tests {
                 },
             })
         );
+    }
+
+    /// The two reads answer different questions and are not each other's complement, which is the
+    /// part worth pinning: `system_of` takes the first `system` message wherever it sits — what a
+    /// provider lifting the prompt into its own field wants — while `after_system` strips only a
+    /// *leading* one, because a system message later in a conversation is part of it and dropping
+    /// it would renumber every turn after it.
+    #[test]
+    fn the_system_read_and_the_turn_read_disagree_on_a_late_system_message() {
+        let messages = vec![
+            LmMessage::user(["hello"]),
+            LmMessage::system(["be brief"]),
+            LmMessage::assistant(["hi"]),
+        ];
+        assert_eq!(system_of(&messages), "be brief");
+        assert_eq!(
+            after_system(&messages).len(),
+            3,
+            "none of it was a preamble"
+        );
+    }
+
+    #[test]
+    fn a_leading_system_message_is_the_prompt_and_not_a_turn() {
+        let messages = vec![LmMessage::system(["be brief"]), LmMessage::user(["hello"])];
+        assert_eq!(system_of(&messages), "be brief");
+        let turns = after_system(&messages);
+        assert_eq!(turns.len(), 1);
+        assert_eq!(turns[0].role, "user");
+    }
+
+    /// A multi-part system message has no prose to lift, so it reads as no system prompt rather
+    /// than as its first part — which would send half a prompt to a provider that carries one.
+    #[test]
+    fn a_multi_part_system_message_reads_as_no_prompt() {
+        let messages = vec![LmMessage::system(["be", "brief"])];
+        assert_eq!(system_of(&messages), "");
+    }
+
+    #[test]
+    fn a_list_with_no_system_message_is_all_turns() {
+        let messages = vec![LmMessage::user(["hello"])];
+        assert_eq!(system_of(&messages), "");
+        assert_eq!(after_system(&messages).len(), 1);
     }
 }

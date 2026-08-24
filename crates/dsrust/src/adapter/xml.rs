@@ -9,9 +9,9 @@ use anyhow::Result;
 use serde_json::Value;
 
 use crate::example::Example;
+use crate::lm::ChatTurn;
 use crate::lm::api::LmMessage;
 use crate::lm::messages_of;
-use crate::lm::ChatTurn;
 use crate::signature::Signature;
 
 use super::Input;

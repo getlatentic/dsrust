@@ -14,14 +14,19 @@ use serde_json::Value;
 
 use crate::adapter::python_json::format_value;
 use crate::example::Example;
-use crate::lm::api::{self, RolloutId, content_of};
-use crate::lm::{ChatModel, ChatTurn, Content, Role, Sampling};
+use crate::lm::api::{self, RolloutId};
+use crate::lm::{ChatModel, Sampling};
 
 /// What the model was asked, kept so a test can assert on the prompt it produced.
+///
+/// The messages as the request carried them. dspy's `DummyLM.forward` reads `messages` end to end
+/// — `messages[-1]["content"]`, `messages[:-1]` — and never splits the system prompt out; the
+/// split this held instead re-derived a pair the adapter had stopped producing, and mapped every
+/// role that was not `assistant` to `user` on the way, so a tool result recorded as something the
+/// user said.
 #[derive(Debug, Clone)]
 pub struct Asked {
-    pub system: String,
-    pub turns: Vec<ChatTurn>,
+    pub messages: Vec<api::LmMessage>,
     pub json_mode: bool,
     /// How the caller asked for the reply to be sampled. A scripted model answers from its
     /// script regardless; recording it is what lets a test assert that a re-ask differed.
@@ -29,11 +34,25 @@ pub struct Asked {
 }
 
 impl Asked {
+    /// The system prompt, or `""` when there is none — the same read [`LmRequest::system`]
+    /// makes, since it is the same question about the same list.
+    ///
+    /// [`LmRequest::system`]: crate::lm::api::LmRequest::system
+    pub fn system(&self) -> &str {
+        api::system_of(&self.messages)
+    }
+
+    /// The conversation without the system prompt: what a test means when it says "the second
+    /// turn" and counts from the first thing anyone said.
+    pub fn turns(&self) -> &[api::LmMessage] {
+        api::after_system(&self.messages)
+    }
+
     /// The last thing the model was told, which is the request it is answering.
-    pub fn last_message(&self) -> &str {
-        self.turns
+    pub fn last_message(&self) -> String {
+        self.messages
             .last()
-            .and_then(|turn| turn.content.text())
+            .and_then(|message| message.text())
             .unwrap_or_default()
     }
 }
@@ -141,12 +160,11 @@ impl ChatModel for DummyLM {
     ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
         let json_mode = request.output_schema().is_some();
         let asked = Asked {
-            system: request.system().to_owned(),
-            turns: recorded_turns(request),
+            messages: request.messages.clone(),
             json_mode,
             config: recorded_config(&request.config),
         };
-        let message = asked.last_message().to_owned();
+        let message = asked.last_message();
         // dspy's `DummyLM.forward` loops `for _ in range(n)` and *chooses again* each time, so a
         // queue pops a different answer per completion and a keyed model matches the same key n
         // times over. This choosing once and repeating it, which is what stood here, was right for
@@ -168,23 +186,6 @@ impl ChatModel for DummyLM {
             Ok(api::LmResponse::completions(replies))
         }
     }
-}
-
-/// The non-system messages as the turns a test asserts on, each part collapsed to the prose it
-/// carried — the inverse of what an adapter rendered into the request.
-fn recorded_turns(request: &api::LmRequest) -> Vec<ChatTurn> {
-    request
-        .messages
-        .iter()
-        .filter(|message| message.role != "system")
-        .map(|message| ChatTurn {
-            role: match message.role.as_str() {
-                "assistant" => Role::Assistant,
-                _ => Role::User,
-            },
-            content: content_of(&message.parts).unwrap_or_else(|_| Content::Text(String::new())),
-        })
-        .collect()
 }
 
 /// The four sampling fields a scripted model records for inspection, read back from the typed
@@ -293,9 +294,12 @@ mod tests {
 
         let seen = lm.asked();
         let seen = seen.last().expect("one call was recorded");
-        assert_eq!(seen.system, "Be concise.");
-        assert_eq!(seen.turns.len(), 1);
-        assert_eq!(seen.turns[0].content.text(), Some("capital of France?"));
+        assert_eq!(seen.system(), "Be concise.");
+        assert_eq!(seen.turns().len(), 1);
+        assert_eq!(
+            seen.turns()[0].text().as_deref(),
+            Some("capital of France?")
+        );
     }
 
     #[test]
@@ -331,7 +335,7 @@ mod tests {
         let lm = DummyLM::new([example! { answer: "red" }]);
         ask(&lm, "what colour is the sky?").unwrap();
         let asked = lm.asked();
-        assert_eq!(asked[0].system, "system");
+        assert_eq!(asked[0].system(), "system");
         assert_eq!(asked[0].last_message(), "what colour is the sky?");
         assert!(!asked[0].json_mode);
     }

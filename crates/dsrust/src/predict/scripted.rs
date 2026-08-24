@@ -6,8 +6,8 @@ use std::sync::Mutex;
 
 use anyhow::{Result, anyhow};
 
-use crate::lm::api::{self, content_of};
-use crate::lm::{ChatModel, ChatTurn, Content, LmUsage, Role};
+use crate::lm::api;
+use crate::lm::{ChatModel, LmUsage};
 use crate::signature::{OutField, Signature};
 
 pub(super) fn signature() -> Signature {
@@ -38,11 +38,26 @@ pub(super) struct Scripted {
     usage: Option<LmUsage>,
 }
 
+/// One call as the model received it. The messages, not a system prompt beside a set of turns:
+/// the split that stood here re-derived a pair the adapter had stopped producing, and mapped every
+/// role that was not `assistant` to `user`, so a tool result recorded as a user turn.
 #[derive(Clone)]
 pub(super) struct Call {
-    pub(super) system: String,
-    pub(super) turns: Vec<ChatTurn>,
+    pub(super) messages: Vec<api::LmMessage>,
     pub(super) json_mode: bool,
+}
+
+impl Call {
+    /// The system prompt, or `""` when there is none.
+    pub(super) fn system(&self) -> &str {
+        api::system_of(&self.messages)
+    }
+
+    /// The conversation without the system prompt, so a test counting turns counts from the first
+    /// thing anyone said.
+    pub(super) fn turns(&self) -> &[api::LmMessage] {
+        api::after_system(&self.messages)
+    }
 }
 
 impl Scripted {
@@ -69,8 +84,7 @@ impl Scripted {
 impl ChatModel for Scripted {
     async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
         self.calls.lock().expect("not poisoned").push(Call {
-            system: request.system().to_owned(),
-            turns: recorded_turns(request),
+            messages: request.messages.clone(),
             json_mode: request.output_schema().is_some(),
         });
         self.replies
@@ -80,22 +94,6 @@ impl ChatModel for Scripted {
             .map(|reply| api::LmResponse::text(reply).usage(self.usage.clone()))
             .ok_or_else(|| anyhow!("script exhausted"))
     }
-}
-
-/// The non-system messages as the turns a test asserts on, each part collapsed to its prose.
-fn recorded_turns(request: &api::LmRequest) -> Vec<ChatTurn> {
-    request
-        .messages
-        .iter()
-        .filter(|message| message.role != "system")
-        .map(|message| ChatTurn {
-            role: match message.role.as_str() {
-                "assistant" => Role::Assistant,
-                _ => Role::User,
-            },
-            content: content_of(&message.parts).unwrap_or_else(|_| Content::Text(String::new())),
-        })
-        .collect()
 }
 
 #[derive(Debug, serde::Deserialize)]
