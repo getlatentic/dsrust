@@ -51,6 +51,9 @@ CAPABILITY = re.compile(
 )
 RS_FILE = re.compile(r"\b((?:[a-z_][a-z0-9_]*/)*[a-z_][a-z0-9_]*\.rs)\b")
 IDENT = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)`")
+#: A qualified path *anywhere* in the prose, backticks or not. `LM::with_callbacks` was named eight
+#: times in plain text and had been renamed; a backticks-only scan never saw one of them.
+BARE_PATH = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+)\b")
 DEFINITION = re.compile(
     r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?"
     r"(?:fn|struct|enum|const|static|type|trait|mod|union)\s+([A-Za-z_][A-Za-z0-9_]*)",
@@ -58,7 +61,13 @@ DEFINITION = re.compile(
 )
 #: Enum variants, which a reason names as often as a type — `LmPart::Text`.
 VARIANT = re.compile(r"^\s{4}([A-Z][A-Za-z0-9_]*)\s*[({,]", re.M)
+#: Public struct fields. A reason names `Parallel::max_in_flight` as readily as a method, and a
+#: walk that collected only definitions reported three such fields missing — the third time in one
+#: pass that this checker's own gaps read as ledger errors.
+FIELD = re.compile(r"^\s+pub(?:\([^)]*\))?\s+([a-z_][a-z0-9_]*)\s*:", re.M)
 #: Names that legitimately come from outside these crates, so their absence proves nothing.
+#: The crates this repo owns, so a path rooted in one is ours to have.
+OURS = {"dsrust", "gepa", "pyrng", "tpe", "json_repair", "dsrust_gepa", "dsrust_tpe"}
 EXTERNAL = {
     "Serialize", "Deserialize", "Clone", "Debug", "Default", "Display", "PartialEq", "Eq",
     "Hash", "Iterator", "From", "Into", "Option", "Result", "Vec", "String", "Arc", "Box",
@@ -76,7 +85,7 @@ def tree() -> tuple[set[str], set[str]]:
     names, files = set(EXTERNAL), set()
     for path in (ROOT / "crates").rglob("*.rs"):
         text = path.read_text(errors="ignore")
-        names |= set(DEFINITION.findall(text)) | set(VARIANT.findall(text))
+        names |= set(DEFINITION.findall(text)) | set(VARIANT.findall(text)) | set(FIELD.findall(text))
         files.add(str(path.relative_to(ROOT)))
     return names, files
 
@@ -97,6 +106,8 @@ def main() -> int:
             reason = str(entry.get("reason", ""))
             if SUBSTITUTION.search(reason):
                 substitutions += 1
+                # A substitution points at Rust, so a bare name in one is checkable — and often is
+                # a private helper: `numbered_block` is the first in the file.
                 for named in set(RS_FILE.findall(reason)):
                     if not any(f.endswith("/" + named) or f == named for f in files):
                         missing.append((key, "file", named))
@@ -106,6 +117,29 @@ def main() -> int:
                         continue
                     if not any(part in names for part in parts):
                         missing.append((key, "identifier", ident))
+
+            # A **qualified** path is unambiguously Rust wherever it appears, so it is checked on
+            # every reason rather than only on substitutions. That is what a bare-name rule misses:
+            # `LM::with_callbacks` was named eight times, had been renamed to
+            # `LmBuilder::callbacks`, and every one of those reasons said "there is no" — which no
+            # substitution-only check ever looks at. A reason may still name a Python symbol or an
+            # environment variable in backticks, and those carry no `::`.
+            for ident in set(BARE_PATH.findall(reason)):
+                parts = ident.split("::")
+                if parts[0] in OURS:
+                    parts = parts[1:]          # a crate-rooted path; the crate itself is not an item
+                elif parts[0][:1].islower() and parts[0] not in names:
+                    continue                   # `anyhow::Error`, `reqwest::Client` — not ours to have
+                # The item, and its owning type when the path names one. Intermediate modules are
+                # not checked: `mod` may be private and re-exported, which says nothing about the
+                # item at the end.
+                wanted = [parts[-1]]
+                if len(parts) >= 2 and parts[-2][:1].isupper():
+                    wanted.append(parts[-2])
+                for part in wanted:
+                    if part not in names:
+                        missing.append((key, "qualified path", ident))
+                        break
             claim = CAPABILITY.search(reason)
             if claim and not entry.get("rust"):
                 named_something = bool(RS_FILE.search(reason)) or any(
