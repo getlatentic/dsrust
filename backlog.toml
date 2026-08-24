@@ -1831,61 +1831,63 @@ real run rather than carried over from the last green one.
 id = "pin-drift"
 sprint = "api"
 title = "Six ported modules moved on main, and one of them contradicts a guide"
-state = "todo"
+state = "done"
 size = "M"
-suites = []
+suites = ""
 plan = """
-`./scripts/check_pin_drift.py --detail` reports the public surface of every ported module, pin
-against main. Six have moved. None is to be ported now — the pin is the oracle and 3.3.0b1 is the
-only 3.3 tag — but each is what re-reading will cost when a release lands, and one is already wrong
-in a guide.
+`./scripts/check_pin_drift.py` compares the pin to main and answers what nothing else does: **is the
+thing I am about to build a moving target?** It reported the public *surface* of the 60 ported
+modules, and this story was a list of what had moved.
 
-**The sandbox lifecycle changed, and it is one refactor across three modules.** `CodeAct`,
-`ProgramOfThought` and `RLM` all moved `interpreter` out of `__init__` into `forward`, and `__init__`
-now takes an `interpreter_factory` instead. So upstream made the interpreter *per call* rather than
-per module. This crate has `with_interpreter` on the module, which is the pin's shape. Worth reading
-before the pin moves: a factory implies the sandbox is created and torn down per call, and
-`DenoInterpreter` currently holds a long-lived child process, so the change is about lifecycle rather
-than about a parameter.
+**That list was the problem.** Every drift it named was against 3.3.0b1, and the pin moved to 3.3.0
+— so the interpreter-factory refactor, `RLM.max_iterations`, `CodeExecutionError` and
+`append_instructions` are all *in* the pin now, and the prose describing them as ahead of it was
+wrong within days of being written. A story that enumerates a moving target ages exactly as badly as
+a ledger entry that does.
 
-**`RLM.max_iterations` became `max_iters`.** `docs/usage.md` says: "Each keeps the cap keyword its own
-module uses: `max_iters` for most, `max_iterations` for `RLM`. A uniform name would be one none of
-them actually have." That was true of the pin and is exactly the sentence main deletes — upstream
-converged on `max_iters`. The guide has been softened to say the split is the pin's rather than
-permanent; the rename itself waits for the pin.
-
-**The tool cannot see a body change, and one this session found matters.** `check_pin_drift.py`
-compares each ported module's public *surface* — names, and each one's parameter list. A behaviour
-change inside a function is invisible to it. Diffing five files by hand while building the MIPROv2
-and GEPA work turned up exactly that: `teleprompt/utils.py`'s `get_program_with_highest_avg_score`
-falls through to the last valid program on the pin and raises `ValueError` on main, with an identical
-signature. It is the helper `mipro-auto-minibatch` will port, and it is recorded there — but nothing
-would have surfaced it, and nothing will surface the next one.
-
-Two other main-vs-pin findings from the same sweep, both recorded where they will be read rather
-than here: `clients/openai_format.py` gained `enforce_reasoning_temperature=True` on the Responses
-wire only (noted at `lm/openai/reasoning_temperature.rs`, which always enforces, as the pin does),
-and `core/types.py`'s `User` docstring stopped showing `dspy.Image(...)` in a message part — because
-it raises, which is measured at `lm/api/items.rs`. A docstring is not surface either.
-
-So this story has a second half: whether drift detection should read bodies at all, and if not, that
-a hand diff of the files a change is built from belongs in the change rather than in a tool. The
-second is cheap and already paid off three times.
-
-**Two additions, neither breaking.** `primitives/code_interpreter.py` gains `CodeExecutionError`,
-which this crate answers today with an `anyhow::Error` carrying the sandbox's message — a typed
-counterpart is the same decision `LmFailure` already made for provider failures.
-`signatures/signature.py` gains `Signature.append_instructions`, which is a small mutator and has no
-counterpart here.
-
-**`BaseLM.__call__` and `acall` gained `*items` and `request`.** Already recorded under lm-from-call:
-`ChatModel::call` implements main's shape, not the pin's, and no upstream test reaches it.
-
-**What proves it.** Nothing, until the pin moves — that is the point of the story. What it buys is
-that the next pin bump is a list rather than a surprise, and `check_pin_drift.py` regenerates the
-list rather than this prose being trusted.
+So the fix was to make the tool report what the prose was carrying, and two gaps had to close first.
 """
+progress = """
+**A surface is not a behaviour.** A function whose signature is untouched and whose body changed was
+invisible, and one of those was found only by hand: `teleprompt/utils.py`'s
+`get_program_with_highest_avg_score` fell through to the last valid program on the pin and raised on
+main, with an identical signature. `--bodies` reports that class now — **38 functions across 16
+ported modules**, including `ChatAdapter::parse`, `JSONAdapter::parse` and `XMLAdapter::parse`, which
+are the byte-critical path.
 
+**And `PORTED_MODULES` is not the list of modules this crate's behaviour depends on.** It is the list
+of modules it *reproduces*. An optimizer imports its helpers and the helper's logic is reproduced
+just as surely — `teleprompt/utils.py` is not a ported module, so **the example this story was built
+on would still not have been surfaced** by the body check alone. The tool now walks the ported
+modules' own imports: **21 helper modules nothing was watching**, of which 2 have moved on the
+surface and 5 in a body.
+
+What that second tier found immediately, and none of it was in this story's list:
+
+  - `primitives/python_interpreter.py` — **8 changed bodies** including `execute`, `start` and
+    `_ensure_deno_process`, plus a new `invoke_tool` and a `callbacks` argument on `__init__`. This
+    is the sandbox `interpreter/deno.rs` reproduces.
+  - `teleprompt/gepa/gepa_utils.py` — `DspyAdapter` gained `batch_evaluate`, `get_adapter_state` and
+    `set_adapter_state`, and `evaluate` gained `num_threads`. That is the file the reflective-dataset
+    work read this week.
+  - `utils/mcp.py` — both `convert_mcp_tool` and `_convert_mcp_tool_result` changed body; both are
+    ported.
+  - `utils/parallelizer.py` — three bodies in the executor `Parallel` reproduces.
+
+Read alongside `utils/callback.py`'s ten new points (compile, and interpreter startup/execute/
+shutdown/tool_call) and `Teleprompter.__init_subclass__`, it is one direction rather than six
+unrelated changes: **dspy is instrumenting the optimizer and the sandbox with callbacks.** That is
+what the next pin bump costs, and it is a sentence rather than a list because the tool regenerates
+the list.
+"""
+outcome = """
+Closed 2026-08-24. The tool reports surface drift, body drift and helper-module drift, and this
+record no longer enumerates any of them — which is the story's own point turned on itself: prose
+that lists a moving target is wrong by the time it is read.
+
+Deliberately still not a gate. Main moves, and a red gate tracking someone else's branch is one
+people learn to ignore.
+"""
 [[story]]
 id = "lm-shared-client"
 sprint = "api"

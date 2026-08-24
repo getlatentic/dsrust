@@ -16,8 +16,16 @@ someone else's branch is a gate people learn to ignore. And it does not say to p
 main is ahead, the answer is to move the pin when a release lands, not to build without an oracle.
 See HANDOFF's "Check main, not only the pin".
 
+**A surface is not a behaviour, and the surface half cannot see one.** A function whose signature is
+untouched and whose body changed is invisible to it, and one of those was found by hand:
+`teleprompt/utils.py`'s `get_program_with_highest_avg_score` falls through to the last valid program
+on the pin and raises `ValueError` on main, with an identical signature. `--bodies` is what reports
+that class — every function present in both trees whose body differs — so the next one does not need
+somebody to have diffed the right file by chance.
+
     ./scripts/check_pin_drift.py            # the summary
     ./scripts/check_pin_drift.py --detail   # every name, per module
+    ./scripts/check_pin_drift.py --bodies   # every function whose body moved under a stable signature
 """
 
 from __future__ import annotations
@@ -87,6 +95,73 @@ class Unreadable(Exception):
     """One side of the comparison was not there, which is not the same as the two agreeing."""
 
 
+def tracked_at(ref: str) -> set[str]:
+    """Every path the pinned tree holds, so an import can be resolved to a real file."""
+    listed = subprocess.run(
+        ["git", "-C", str(DSPY), "ls-tree", "-r", "--name-only", ref],
+        capture_output=True,
+        text=True,
+    )
+    return set(listed.stdout.split()) if listed.returncode == 0 else set()
+
+
+def imported_by_ported(pin: str) -> list[str]:
+    """The dspy modules a ported module imports, and which nothing else here watches.
+
+    `PORTED_MODULES` is the list of modules this crate *reproduces*. It is not the list of modules
+    this crate's behaviour depends on: an optimizer imports its helpers, and the helper's logic is
+    reproduced just as surely as the optimizer's. `teleprompt/utils.py` is the case that proves it —
+    `get_program_with_highest_avg_score` changed how it answers with an identical signature, it is
+    the helper MIPROv2 reaches for, and it is not a ported module, so neither half of this tool
+    would ever have looked at it.
+    """
+    tracked = tracked_at(pin)
+    found: set[str] = set()
+    for module in PORTED_MODULES:
+        source = at(pin, module)
+        if source is None:
+            continue
+        for node in ast.walk(ast.parse(source)):
+            targets: list[str] = []
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("dspy."):
+                targets.append(node.module)
+            elif isinstance(node, ast.Import):
+                targets += [alias.name for alias in node.names if alias.name.startswith("dspy.")]
+            for target in targets:
+                path = target[len("dspy."):].replace(".", "/") + ".py"
+                if f"dspy/{path}" in tracked and path not in PORTED_MODULES:
+                    found.add(path)
+    return sorted(found)
+
+
+def bodies_of(source: str) -> dict[str, str]:
+    """Qualified function name -> a dump of its body, with the signature deliberately left out.
+
+    The signature is the surface half's job. What is wanted here is the opposite: the functions
+    whose declaration is identical, so nothing else in this repository would notice them moving.
+    """
+    found: dict[str, str] = {}
+
+    def walk(node: ast.AST, prefix: str = "") -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                found[prefix + child.name] = "\n".join(ast.dump(stmt) for stmt in child.body)
+            elif isinstance(child, ast.ClassDef):
+                walk(child, prefix + child.name + ".")
+
+    walk(ast.parse(source))
+    return found
+
+
+def body_drift(module: str, pin: str) -> list[str]:
+    """The functions this module has in both trees whose *body* differs."""
+    pinned, current = at(pin, module), at("origin/main", module)
+    if pinned is None or current is None or pinned == current:
+        return []
+    was, now = bodies_of(pinned), bodies_of(current)
+    return sorted(name for name in was.keys() & now.keys() if was[name] != now[name])
+
+
 def drift(module: str, pin: str) -> tuple[set[str], set[str]] | None:
     """What main adds and what it drops, or None where the module is unchanged.
 
@@ -107,6 +182,11 @@ def drift(module: str, pin: str) -> tuple[set[str], set[str]] | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--detail", action="store_true", help="every name, not just the count")
+    parser.add_argument(
+        "--bodies",
+        action="store_true",
+        help="functions whose body moved under an unchanged signature",
+    )
     arguments = parser.parse_args()
 
     pin = (ROOT / "scripts" / "DSPY_VERSION").read_text().strip()
@@ -144,6 +224,47 @@ def main() -> int:
                 print(f"      + {name}")
             for name in sorted(gone):
                 print(f"      - {name}")
+    # The helpers a ported module imports. Reported apart from the ported modules themselves,
+    # because they are a different claim: not "this moved under me" but "the thing I read to build
+    # this moved under me".
+    helpers = imported_by_ported(pin)
+    helper_moved = {m: d for m in helpers if (d := drift(m, pin))}
+    helper_bodies = {m: fns for m in helpers if (fns := body_drift(m, pin))}
+    if helper_moved or helper_bodies:
+        print(
+            f"\n    Of the {len(helpers)} helper module(s) a ported module imports, "
+            f"{len(helper_moved)} moved on the surface and {len(helper_bodies)} in a body:\n"
+        )
+        for module in sorted(set(helper_moved) | set(helper_bodies)):
+            added, gone = helper_moved.get(module, (set(), set()))
+            fns = helper_bodies.get(module, [])
+            print(f"  {module}  +{len(added)} -{len(gone)}  bodies {len(fns)}")
+            if arguments.detail:
+                for name in sorted(added):
+                    print(f"      + {name}")
+                for name in sorted(gone):
+                    print(f"      - {name}")
+            if arguments.bodies:
+                for name in fns:
+                    print(f"      ~ {name}")
+
+    moved_bodies = {m: fns for m in PORTED_MODULES if (fns := body_drift(m, pin))}
+    if moved_bodies:
+        total = sum(len(fns) for fns in moved_bodies.values())
+        print(
+            f"\n    {total} function(s) in {len(moved_bodies)} module(s) kept their signature and\n"
+            "    changed their body — which the list above cannot show:\n"
+        )
+        for module, fns in sorted(moved_bodies.items(), key=lambda kv: -len(kv[1])):
+            if arguments.bodies:
+                print(f"  {module}  ({len(fns)})")
+                for name in fns:
+                    print(f"      {name}")
+            else:
+                print(f"  {module}  {len(fns)}")
+        if not arguments.bodies:
+            print("\n    --bodies names them.")
+
     print(
         "\n  A name here is a moving target. Read the *pin* when porting it, and if what you want\n"
         "  only exists on main, the answer is to move the pin when a release lands — not to build\n"
