@@ -484,7 +484,7 @@ async fn live_complex_output() -> Result<()> {
 /// reflection from the derive leaves every other test passing.
 #[test]
 fn a_rust_type_reaches_baml_as_its_structure_rather_than_as_the_word_json() {
-    let system = dsrust::BamlAdapter
+    let system = dsrust::BamlAdapter::default()
         .system_message(&IdeasTask::signature())
         .expect("renders");
     let at = system.find("Output field").expect("an output type block");
@@ -529,7 +529,7 @@ fn an_undescribed_field_line_ends_at_the_colon() {
         idea: String,
     }
 
-    let system = dsrust::BamlAdapter
+    let system = dsrust::BamlAdapter::default()
         .system_message(&Bare::signature())
         .expect("renders");
     assert!(

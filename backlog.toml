@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1315
+rust_tests = 1321
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -2430,7 +2430,7 @@ caller reads. A golden of the rendered messages closes it, in the shape
 id = "api-3"
 sprint = "api"
 title = "Audit the 27 constructor parameters still unclassified"
-state = "todo"
+state = "done"
 size = "M"
 suites = []
 plan = """
@@ -2456,6 +2456,50 @@ usually a rendering decision and therefore prompt bytes.
 **What proves it.** Held by `check_api_surface.py`'s `[constructors]` table rather than by a suite — no upstream
 test asserts a Rust method exists. The gate's count is the evidence, and it fails if an entry goes
 unclassified or names an identifier that is not there.
+"""
+
+done = """
+The count in the title was wrong, and wrong in the direction that mattered: not 27 unclassified but
+**150 invisible**. The `[constructors]` table read 187/187 resolved while a caller could pass 337
+things.
+
+`_constructor_params` looked for a `def __init__` in the class body, so two whole kinds of
+constructor were unseen. A class that **inherits** one contributes nothing — `XMLAdapter(ChatAdapter)`
+defines no `__init__`, so all five of its parameters were invisible. A **pydantic model's**
+constructor *is* its field list, and an annotated assignment reads as a class attribute — `Code`,
+`History`, `LMRequest` and thirteen more. `Image` is both at once, which is what caught a bug in the
+first probe I wrote to measure this: checking `model_fields` *or* `__init__` reported three real
+parameters as stale, and the union reports none.
+
+`scripts/pinned_constructors.py` asks Python instead of `ast`. Reimplementing the MRO and pydantic's
+field collection in `ast` would be a second implementation of Python's own semantics, and the cases
+that matter are exactly the ones it would get wrong. `assert_pinned` keeps that honest: it refuses to
+answer unless the installed dspy is **byte-identical** to the submodule over every module read —
+compared as bytes, not by `__version__`, which is written at build time and says nothing about the
+file in front of you. The gate now runs under the venv's python for that reason.
+
+**Two real gaps, not just labels.** `XmlAdapter` and `BamlAdapter` were unit structs, so nothing
+their Python base accepts could be said. Worse than unsayable: `XMLAdapter(ChatAdapter)` inherits the
+`__call__` the JSON fallback lives in, so a reply the tags cannot parse is re-asked through
+`JSONAdapter` — proved by running dspy 3.3.0 and watching the fallback fire, with the surfacing error
+naming that adapter. This crate answered `None` and simply failed. Both adapters now carry exactly
+what their base gives them, defaults included (`BAMLAdapter(JSONAdapter)` inherits native function
+calling **on**, and correctly has no `use_json_adapter_fallback`, since `__call__` skips the fallback
+for anything `isinstance` says is a `JSONAdapter`). The bridge passes the flag through for both,
+where it used to drop it.
+
+**What the 150 resolved to.** 104 are the thirteen `LM*Error` classes × the eight fields they inherit
+from `DSPyError.__init__`, all on `LmFailure` — `code` landing on `kind`, since here the class *is*
+the code. The rest are field-for-field: the media types, the REPL types, `LmMessage`, `LmRequest`.
+Four divergences: `callbacks` and `native_response_types` on both adapters (the same answer their
+base classes already carry), and `Tool.has_kwargs`, which dspy sets by finding a `VAR_KEYWORD`
+parameter on the wrapped callable — a Rust function has none, and an argument the schema does not
+name is an error here, which is upstream's `has_kwargs=False` arm.
+
+**What proves it.** Three controls, all run: a `mapped` entry naming a Rust item that does not exist
+fails the gate; a parameter with no entry fails it; and `assert_pinned` fires on a tree that is not
+the pin. The third found a bug in the guard itself — it checked only the installed side, so a missing
+*pinned* file raised `FileNotFoundError` instead of saying which tree was wrong.
 """
 
 [[story]]
@@ -4581,4 +4625,38 @@ the normal path, an outer `timeout` mid-`bounded`, and the real script under bot
 orphan. So this closes the path by construction and is not a fix resting on a diagnosis.
 
 1315 Rust tests.
+"""
+
+[[story]]
+id = "bare-names-in-the-ledger"
+sprint = "api"
+title = "522 ledger entries name a bare Rust identifier, so 106 of them cannot detect their own deletion"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+Found while closing `api-3`, and found the way these things get found: the gate went red on an entry
+I had not touched. Adding a qualified `XmlAdapter::use_json_adapter_fallback` left
+`ChatAdapter::use_json_adapter_fallback` — whose entry said only `rust = "use_json_adapter_fallback"`
+— claimed by nobody, because a bare leaf name stops being unambiguous the moment a second type grows
+the same field.
+
+Measured: **522 of the ledger's `rust` values carry no `::`**, over 239 distinct names, and **106 of
+those names are claimed by more than one entry** — `compile` by 38, `forward` by 23, `LmErrorKind`
+by 14.
+
+`is_defined` checks a bare name by asking whether it is *defined anywhere in the crate*. So an entry
+mapping `MIPROv2.compile` to `compile` passes as long as some `fn compile` exists — delete
+`MIPROv2::compile` and the entry stays green on `COPRO`'s. That is the exact pressure toward the
+generic that `is_defined`'s own docstring describes and that its `Type::member` support was added to
+relieve; the support landed and the entries were never rewritten.
+
+The work is mechanical but not blind: each entry's `reason` usually already names the qualified
+path (all five fixed in `api-3` did), so the first pass is to lift the reason's own answer into
+`rust` and check it, and only the leftovers need reading. A bare name that is genuinely a free
+function — `dsrust::example!`, a module-level `fn` — stays bare and is fine.
+
+**What proves it.** The count of bare `rust` values over the four dspy-keyed tables, reported by the
+gate rather than by a one-off script, with a floor that only moves down. And a control per pass:
+delete the Rust item an entry names and watch *that* entry fail, which today it would not.
 """

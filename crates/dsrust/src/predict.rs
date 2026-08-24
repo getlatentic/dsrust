@@ -251,6 +251,7 @@ impl<S> Predict<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::adapter::xml::XmlAdapter;
     use crate::adapter::{ChatAdapter, JsonAdapter};
     use crate::predict::scripted::{
         Pick, RoomTask, RoomTaskInputs, RoomTaskOutputs, Scripted, room_inputs, signature,
@@ -542,6 +543,47 @@ mod tests {
         assert!(
             calls[1].json_mode,
             "the second ask engages structured output"
+        );
+    }
+
+    /// The XML adapter falls back too, because upstream's `XMLAdapter(ChatAdapter)` defines no
+    /// `__call__` and inherits the one the fallback lives in.
+    ///
+    /// Measured by running dspy 3.3.0 rather than read off the class line: an `XMLAdapter` handed a
+    /// reply carrying no tags re-asks through `JSONAdapter` and the failure that finally surfaces
+    /// names *that* adapter. This crate's `XmlAdapter` was a unit struct answering `None` here, so
+    /// the same reply was simply an error — and there was no way to say
+    /// `XMLAdapter(use_json_adapter_fallback=False)` either, since there was nothing to say it to.
+    #[tokio::test]
+    async fn the_xml_adapter_falls_back_through_json_as_its_base_class_does() {
+        let lm = Scripted::new(&[
+            "red because it is calm",
+            r#"{"color": "red", "why": "calm"}"#,
+        ]);
+        let value = Predict::from_signature(signature())
+            .adapter(XmlAdapter::default())
+            .call_with(&lm, "draft it")
+            .await
+            .expect("the fallback answers");
+        assert_eq!(value["color"], "red");
+        assert_eq!(lm.calls().len(), 2, "one tag ask, then the JSON fallback");
+        assert!(
+            lm.calls()[1].json_mode,
+            "the second ask engages structured output"
+        );
+    }
+
+    /// And it can be turned off, which is the other half of the constructor argument existing.
+    #[tokio::test]
+    async fn the_xml_fallback_can_be_turned_off() {
+        let lm = Scripted::new(&["red because it is calm", r#"{"color": "red"}"#]);
+        let predict =
+            Predict::from_signature(signature()).adapter(XmlAdapter::without_json_fallback());
+        assert!(predict.call_with(&lm, "draft it").await.is_err());
+        assert_eq!(
+            lm.calls().len(),
+            1,
+            "no second ask when the fallback is off"
         );
     }
 

@@ -105,7 +105,9 @@ done || true
 # justified as an intended divergence, or tracked as a todo — and a `mapped` claim must resolve to
 # a real definition. It reads only the pinned submodule and the tree, so it needs no build.
 echo "==> API surface"
-python3 "$ROOT/scripts/check_api_surface.py"
+# The venv's python, not the system one: the constructor table is read by introspecting the
+# installed dspy, which `pinned_constructors` first proves byte-identical to the submodule.
+"$VENV/bin/python" "$ROOT/scripts/check_api_surface.py"
 # The same question the other way round: what this crate invented, which the walk above cannot see.
 python3 "$ROOT/scripts/check_rust_surface.py"
 # And the reasons themselves, which nothing checked until a substitution claim was wrong twice —

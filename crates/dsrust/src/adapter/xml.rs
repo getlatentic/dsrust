@@ -47,8 +47,46 @@ const STYLE: Style = Style {
 };
 
 /// Tag-wrapped fields rather than marker sections.
-#[derive(Default)]
-pub struct XmlAdapter;
+///
+/// Carries the same settings [`ChatAdapter`](super::ChatAdapter) does, because upstream's `XMLAdapter(ChatAdapter)`
+/// defines no `__init__` and inherits its base's — so `XMLAdapter(use_native_function_calling=True)`
+/// is a thing a caller can say, and every one of these was unsayable here while this was a unit
+/// struct. `use_json_adapter_fallback` is not decoration: `ChatAdapter.__call__` is where the
+/// fallback lives and XMLAdapter inherits it, so a reply this cannot parse is re-asked through the
+/// JSON adapter, measured by running dspy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct XmlAdapter {
+    /// Re-ask through [`JsonAdapter`](super::JsonAdapter) when a reply does not speak the tag format. On by default,
+    /// as the base class has it.
+    pub use_json_adapter_fallback: bool,
+    /// dspy `use_native_function_calling`, off by default — the base class's default, not
+    /// `JSONAdapter`'s.
+    pub use_native_function_calling: bool,
+    /// dspy `parallel_tool_calls`: `None` leaves the provider option unset, which is not the same
+    /// as `Some(false)`.
+    pub parallel_tool_calls: Option<bool>,
+}
+
+impl Default for XmlAdapter {
+    fn default() -> Self {
+        Self {
+            use_json_adapter_fallback: true,
+            use_native_function_calling: false,
+            parallel_tool_calls: None,
+        }
+    }
+}
+
+impl XmlAdapter {
+    /// dspy `XMLAdapter(use_json_adapter_fallback=False)`: report a tag-format failure rather
+    /// than re-asking through JSON.
+    pub fn without_json_fallback() -> Self {
+        Self {
+            use_json_adapter_fallback: false,
+            ..Self::default()
+        }
+    }
+}
 
 impl super::Adapter for XmlAdapter {
     /// dspy's class name, not this crate's type name: it is what a callback watcher
@@ -85,7 +123,13 @@ impl super::Adapter for XmlAdapter {
         demos: &[Example],
         inputs: &[Input<'_>],
     ) -> Result<Vec<LmMessage>> {
-        let (asked, mut turns) = conversation(signature, demos, inputs, STYLE, false);
+        let (asked, mut turns) = conversation(
+            signature,
+            demos,
+            inputs,
+            STYLE,
+            self.use_native_function_calling,
+        );
         turns.push(ChatTurn::user(user_message(
             &asked,
             &live_inputs(&asked, inputs),
@@ -98,6 +142,24 @@ impl super::Adapter for XmlAdapter {
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
         super::parse::parse_tags(signature, raw)
+    }
+
+    fn native_function_calling(&self) -> super::NativeFunctionCalling {
+        super::NativeFunctionCalling {
+            enabled: self.use_native_function_calling,
+            parallel: self.parallel_tool_calls,
+        }
+    }
+
+    /// dspy `_make_json_adapter_fallback`, reached through the `__call__` this inherits: a reply
+    /// the tags cannot read is re-asked through the JSON adapter, carrying these same settings.
+    fn json_fallback(&self) -> Option<Box<dyn super::Adapter>> {
+        self.use_json_adapter_fallback.then(|| {
+            Box::new(super::JsonAdapter {
+                use_native_function_calling: self.use_native_function_calling,
+                parallel_tool_calls: self.parallel_tool_calls,
+            }) as Box<dyn super::Adapter>
+        })
     }
 }
 
@@ -157,7 +219,9 @@ mod tests {
     /// The bytes `dspy.adapters.xml_adapter.XMLAdapter().format` writes for this signature.
     #[test]
     fn the_system_message_states_every_field_as_a_tag_pair() {
-        let system = XmlAdapter.system_message(&signature()).expect("renders");
+        let system = XmlAdapter::default()
+            .system_message(&signature())
+            .expect("renders");
         assert!(system.starts_with(
             "Your input fields are:\n1. `room` (str): the room\n\
              Your output fields are:\n1. `color` (str): the color\n2. `why` (str):\n"
@@ -170,7 +234,7 @@ mod tests {
 
     #[test]
     fn the_request_wraps_each_input_then_names_the_tags_to_answer_in() {
-        let rendered = XmlAdapter
+        let rendered = XmlAdapter::default()
             .format(&signature(), &[], &[Input::new("room", json!("the study"))])
             .expect("renders");
         let turns = &rendered[1..];
@@ -186,7 +250,9 @@ mod tests {
     fn a_typed_output_keeps_its_note_inside_the_tags() {
         let mut signature = signature();
         signature.outputs[0].kind = FieldKind::Int;
-        let system = XmlAdapter.system_message(&signature).expect("renders");
+        let system = XmlAdapter::default()
+            .system_message(&signature)
+            .expect("renders");
         assert!(
             system.contains(
                 "<color>\n{color}        # note: the value you produce must be a single int \
@@ -200,7 +266,7 @@ mod tests {
     fn a_demo_reads_as_a_solved_exchange_in_tags() {
         // No closing marker: an XML reply ends where its last tag closes.
         let demo = crate::example! { room: "the den", color: "green", why: "It rests." };
-        let rendered = XmlAdapter
+        let rendered = XmlAdapter::default()
             .format(&signature(), &[demo], &[Input::new("room", json!("study"))])
             .expect("renders");
         let turns = &rendered[1..];

@@ -381,8 +381,8 @@ mod adapter_names {
         let ours: Vec<(&str, &str)> = vec![
             ("chat", ChatAdapter::default().name()),
             ("json", JsonAdapter::default().name()),
-            ("xml", XmlAdapter.name()),
-            ("baml", BamlAdapter.name()),
+            ("xml", XmlAdapter::default().name()),
+            ("baml", BamlAdapter::default().name()),
         ];
         for (wire, name) in &ours {
             assert_eq!(

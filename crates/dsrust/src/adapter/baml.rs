@@ -36,8 +36,41 @@ const STYLE: Style = Style {
 };
 
 /// The JSON adapter, stating a structured output's type as a compact notation.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct BamlAdapter;
+///
+/// Carries [`JsonAdapter`]'s settings, because upstream's `BAMLAdapter(JSONAdapter)` defines no
+/// `__init__` and inherits its base's — including the default that sets native function calling
+/// **on**, which is `JSONAdapter`'s and not the base `Adapter`'s. No `use_json_adapter_fallback`:
+/// `ChatAdapter.__call__` skips the fallback for anything that `isinstance` says is a
+/// `JSONAdapter`, and this is one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BamlAdapter {
+    /// dspy `use_native_function_calling`, **on** by default — inherited from `JSONAdapter`, which
+    /// says so in its own constructor.
+    pub use_native_function_calling: bool,
+    /// dspy `parallel_tool_calls`: `None` leaves the provider option unset, which is not the same
+    /// as `Some(false)`.
+    pub parallel_tool_calls: Option<bool>,
+}
+
+impl Default for BamlAdapter {
+    fn default() -> Self {
+        Self {
+            use_native_function_calling: true,
+            parallel_tool_calls: None,
+        }
+    }
+}
+
+impl BamlAdapter {
+    /// The JSON adapter this one is built on, carrying these same settings — what upstream reaches
+    /// by inheriting it.
+    fn base(&self) -> JsonAdapter {
+        JsonAdapter {
+            use_native_function_calling: self.use_native_function_calling,
+            parallel_tool_calls: self.parallel_tool_calls,
+        }
+    }
+}
 
 impl BamlAdapter {
     /// dspy `format_field_structure`: how an interaction is laid out, with each output's type
@@ -105,11 +138,15 @@ impl Adapter for BamlAdapter {
     /// A reply is one JSON object, read exactly as the adapter this one is built on reads it.
     /// Upstream inherits the method outright, errors and error name included.
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
-        JsonAdapter::default().parse(signature, raw)
+        self.base().parse(signature, raw)
     }
 
     fn output_mode<'a>(&self, schema: &'a Value) -> OutputMode<'a> {
-        JsonAdapter::default().output_mode(schema)
+        self.base().output_mode(schema)
+    }
+
+    fn native_function_calling(&self) -> super::NativeFunctionCalling {
+        self.base().native_function_calling()
     }
 }
 
@@ -218,7 +255,9 @@ mod tests {
         let mut signature = signature();
         signature.outputs[0].kind = patient_kind();
         assert_eq!(
-            BamlAdapter.field_structure(&signature).expect("renders"),
+            BamlAdapter::default()
+                .field_structure(&signature)
+                .expect("renders"),
             "All interactions will be structured in the following way, with the appropriate \
              values filled in.\n\n\
              [[ ## patient ## ]]\n\
@@ -240,7 +279,9 @@ mod tests {
     /// which is where the numbered field lists and the objective come from.
     #[test]
     fn the_system_message_carries_the_structure_between_the_field_lists_and_the_objective() {
-        let system = BamlAdapter.system_message(&signature()).expect("renders");
+        let system = BamlAdapter::default()
+            .system_message(&signature())
+            .expect("renders");
         // The trailing space on every line but a block's last is upstream's: it strips the
         // block, not the lines.
         assert!(
@@ -279,9 +320,10 @@ mod tests {
         // The refusal reaches every caller, not just the one that asks for the structure
         // alone: a prompt built around a type the notation could not write would describe
         // something the model is then asked to produce.
-        assert!(BamlAdapter.field_structure(&signature).is_err());
-        assert!(BamlAdapter.system_message(&signature).is_err());
-        let asked = BamlAdapter.format(&signature, &[], &[Input::new("question", json!("x"))]);
+        assert!(BamlAdapter::default().field_structure(&signature).is_err());
+        assert!(BamlAdapter::default().system_message(&signature).is_err());
+        let asked =
+            BamlAdapter::default().format(&signature, &[], &[Input::new("question", json!("x"))]);
         assert!(
             format!(
                 "{:#}",
@@ -305,7 +347,7 @@ mod tests {
             Input::record("patient", patient()),
             Input::new("question", json!("What is the diagnosis?")),
         ];
-        let rendered = BamlAdapter
+        let rendered = BamlAdapter::default()
             .format(&signature(), &[], &inputs)
             .expect("renders");
         let turns = &rendered[1..];
@@ -327,7 +369,7 @@ mod tests {
         let mut signature = signature();
         signature.inputs[0].kind = FieldKind::Json(JsonType::plain("dict[str, str]"));
         let inputs = vec![Input::new("patient", patient())];
-        let rendered = BamlAdapter
+        let rendered = BamlAdapter::default()
             .format(&signature, &[], &inputs)
             .expect("renders");
         let turns = &rendered[1..];
@@ -350,7 +392,7 @@ mod tests {
                        \"image_url\": {\"url\": \"https://example.com/a.jpg\"}}]\
                        <<CUSTOM-TYPE-END-IDENTIFIER>>"],
         });
-        let rendered = BamlAdapter
+        let rendered = BamlAdapter::default()
             .format(&signature(), &[], &[Input::new("patient", embedded)])
             .expect("renders");
         let wire = crate::lm::api::LmRequest::new("", rendered).wire_messages();
@@ -378,7 +420,7 @@ mod tests {
             question: "Who?",
             answer: "Jane Doe",
         };
-        let rendered = BamlAdapter
+        let rendered = BamlAdapter::default()
             .format(
                 &signature(),
                 &[demo],
@@ -405,12 +447,18 @@ mod tests {
         let signature = signature();
         let raw = r#"{"answer": "a fever"}"#;
         assert_eq!(
-            BamlAdapter.parse(&signature, raw).expect("parses"),
+            BamlAdapter::default()
+                .parse(&signature, raw)
+                .expect("parses"),
             JsonAdapter::default()
                 .parse(&signature, raw)
                 .expect("parses")
         );
-        assert!(BamlAdapter.parse(&signature, r#"{"other": 1}"#).is_err());
+        assert!(
+            BamlAdapter::default()
+                .parse(&signature, r#"{"other": 1}"#)
+                .is_err()
+        );
     }
 
     /// The provider is asked for structured output, as it is for the adapter this is built on:
@@ -419,9 +467,9 @@ mod tests {
     fn the_provider_is_still_asked_for_structured_output() {
         let schema = json!({ "type": "object" });
         assert!(matches!(
-            BamlAdapter.output_mode(&schema),
+            BamlAdapter::default().output_mode(&schema),
             OutputMode::Json { .. }
         ));
-        assert!(BamlAdapter.json_fallback().is_none());
+        assert!(BamlAdapter::default().json_fallback().is_none());
     }
 }

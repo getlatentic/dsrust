@@ -357,8 +357,17 @@ fn configured_adapter(adapter: &str, native: bool) -> PyResult<Box<dyn Adapter>>
             use_native_function_calling: native,
             parallel_tool_calls: None,
         })),
-        "xml" => Ok(Box::new(XmlAdapter)),
-        "baml" => Ok(Box::new(BamlAdapter)),
+        // Both carry the flag now, because both inherit a constructor that takes it — an
+        // `XMLAdapter(use_native_function_calling=True)` on the Python side used to cross as one
+        // that could not be told.
+        "xml" => Ok(Box::new(XmlAdapter {
+            use_native_function_calling: native,
+            ..XmlAdapter::default()
+        })),
+        "baml" => Ok(Box::new(BamlAdapter {
+            use_native_function_calling: native,
+            parallel_tool_calls: None,
+        })),
         // Rendering a two-step exchange never reaches the extraction model — Python holds the
         // models on this side of the bridge and runs that second ask itself. This stands in for
         // one, and says so loudly rather than quietly answering if that ever stops being true.
@@ -562,8 +571,8 @@ fn predict_forward(
     // already defaults to `ChatAdapter`, so only the others need setting.
     let predict = match adapter {
         "json" => predict.adapter(JsonAdapter::default()),
-        "xml" => predict.adapter(XmlAdapter),
-        "baml" => predict.adapter(BamlAdapter),
+        "xml" => predict.adapter(XmlAdapter::default()),
+        "baml" => predict.adapter(BamlAdapter::default()),
         _ => predict,
     };
     // One candidate goes through the full `forward` — parse, coercion, the feedback retry, any
@@ -769,7 +778,7 @@ fn baml_field_structure(
     outputs: Vec<PyOutField>,
 ) -> PyResult<String> {
     let signature = build_signature(instructions, inputs, outputs)?;
-    BamlAdapter
+    BamlAdapter::default()
         .field_structure(&signature)
         .map_err(|error| PyValueError::new_err(format!("{error:#}")))
 }

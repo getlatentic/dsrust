@@ -1,8 +1,13 @@
 """Enumerate the public API surface dspy *defines* in the modules this crate ports.
 
-Read from the pinned `third_party/dspy` submodule with `ast`, so the surface is deterministic and
-needs no import of dspy or its dependencies. "Public" follows dspy's own `__all__` where a module
-declares one, and otherwise every top-level class/function whose name does not start with `_`.
+Read from the pinned `third_party/dspy` submodule with `ast`, so the surface is deterministic — and
+so `surface_of_source` can read a module out of a git object, which is how `check_pin_drift`
+compares the pin against main. "Public" follows dspy's own `__all__` where a module declares one,
+and otherwise every top-level class/function whose name does not start with `_`.
+
+**Constructors are the one thing `ast` cannot answer**, so `full_surface` asks Python instead: a
+class can inherit `__init__` or *be* a pydantic model, and reading the class body sees neither.
+That import is confined to `full_surface`; the source-only walk keeps working without it.
 For a public class, its public methods count too — `Predict` missing `forward` is exactly the kind
 of API gap this measures — plus `__call__`, the invocation entry point.
 
@@ -17,6 +22,8 @@ import ast
 import json
 import pathlib
 import sys
+
+import pinned_constructors
 
 ROOT = pathlib.Path(__file__).parent.parent
 DSPY = ROOT / "third_party" / "dspy" / "dspy"
@@ -249,12 +256,30 @@ def surface_of_source(source: str, where: str = "<pinned>") -> dict:
 
 
 def full_surface() -> dict:
+    """The pinned tree's surface, with constructors answered by Python rather than by `ast`.
+
+    Everything else is read from the source, which is what lets the same walk run over a git
+    object. Constructors are the exception: a class can inherit `__init__` or *be* a pydantic
+    model, and `_constructor_params` sees neither — 150 parameters a caller can pass were
+    invisible to the gate, `XMLAdapter(use_native_function_calling=…)` among them. See
+    `pinned_constructors`, which refuses to answer unless the installed dspy is byte-identical to
+    the submodule over these same modules.
+    """
     out = {}
     for rel in PORTED_MODULES:
         path = DSPY / rel
         if not path.exists():
             raise SystemExit(f"ported module missing from the pinned submodule: {rel}")
         out[rel] = surface_of(path)
+    pinned_constructors.assert_pinned(PORTED_MODULES, DSPY)
+    for rel, api in out.items():
+        api["constructors"] = {
+            name: params
+            for name, params in pinned_constructors.constructors_of(
+                rel, list(api["classes"]), _public
+            ).items()
+            if name in api["classes"]
+        }
     return out
 
 
