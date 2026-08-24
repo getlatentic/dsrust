@@ -237,5 +237,12 @@
       ],
       "rendered": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer1 ## ]]\nanswer1 \n\nExpected to find output fields in the LM response: [answer1, answer2] \n\nActual output fields parsed from the LM response: [answer1] \n\n"
     }
-  ]
+  ],
+  "two_step_extraction_failure": {
+    "adapter_name": "TwoStepAdapter",
+    "lm_response": "[[ ## reply ## ]]\na reply that never answers the question",
+    "message": "Failed to parse response from the original completion: LM response cannot be serialized to a JSON object.\n\nAdapter JSONAdapter failed to parse the LM response. \n\nLM Response: [[ ## unrelated ## ]]\nnothing \n\nExpected to find output fields in the LM response: [answer] \n\n\n\nAdapter TwoStepAdapter failed to parse the LM response. \n\nLM Response: [[ ## reply ## ]]\na reply that never answers the question \n\nExpected to find output fields in the LM response: [answer] \n\n",
+    "message_names_the_reply": true,
+    "lm_response_is_the_first_reply": true
+  }
 }

@@ -3,8 +3,18 @@
 
 use std::sync::Arc;
 
+use dsrust::adapter::parse::FieldMismatch;
 use dsrust::signature::{InField, OutField, Signature};
 use dsrust::{DummyLM, Predict, TwoStepAdapter, example};
+use serde_json::Value;
+
+/// What dspy's own error types render, captured by running the pinned dspy.
+fn golden() -> Value {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/conformance/lm/exceptions.json");
+    serde_json::from_str(&std::fs::read_to_string(&path).expect("the golden is committed"))
+        .expect("the golden parses")
+}
 
 fn signature() -> Signature {
     let mut signature = Signature::single_input(
@@ -97,10 +107,28 @@ async fn the_extraction_model_is_shown_the_first_reply_as_its_text_field() {
     );
 }
 
+/// A failed extraction reports what went wrong, against the error dspy raises for the same run.
+///
+/// The golden is captured by *running* `TwoStepAdapter` (`scripts/generate_exceptions_fixture.py`),
+/// not by constructing an `AdapterParseError`, because the two things it pins are the adapter's
+/// decisions and not the exception's: the message carries `f"…: {e}"` — the failure, not the reply
+/// — and `lm_response` carries the **first** completion rather than the extraction's. This port had
+/// the reply written where upstream writes the error, so the sentence a caller reads first named
+/// the text and never said what was wrong with it.
 #[tokio::test]
-async fn a_failed_extraction_names_the_prose_it_was_reading() {
-    // dspy points the caller at the first model's reply rather than the extraction's, because
-    // an extraction that found nothing usually means the prose never said it.
+async fn a_failed_extraction_reports_the_failure_as_dspy_does() {
+    let recorded = golden();
+    let dspy = &recorded["two_step_extraction_failure"];
+    let prefix = "Failed to parse response from the original completion: ";
+    assert!(
+        dspy["message"]
+            .as_str()
+            .expect("a message")
+            .starts_with(prefix),
+        "the golden's own prefix moved; dspy said: {}",
+        dspy["message"]
+    );
+
     let prose = "a reply that never answers the question";
     let task = DummyLM::new([example! { reply: prose }]).fallback(example! { reply: prose });
     let extractor = Arc::new(DummyLM::new([]).fallback(example! { unrelated: "nothing" }));
@@ -110,10 +138,42 @@ async fn a_failed_extraction_names_the_prose_it_was_reading() {
         .call_with(&task, "Where?")
         .await
         .expect_err("the extraction produced no `answer`");
-    let shown = format!("{error:#}");
-    assert!(
-        shown.contains("Failed to parse response from the original completion"),
-        "got: {shown}"
+    let reported = error
+        .downcast_ref::<FieldMismatch>()
+        .expect("the two-step failure is dspy's AdapterParseError");
+
+    assert_eq!(
+        reported.adapter_name,
+        dspy["adapter_name"].as_str().expect("an adapter name"),
+        "upstream names the two-step adapter, not the extraction's"
     );
-    assert!(shown.contains(prose), "got: {shown}");
+    let message = reported.message.as_deref().expect("a message");
+    assert!(message.starts_with(prefix), "got: {message}");
+
+    // The half that was wrong: what follows the prefix is the *failure*. dspy's names the adapter
+    // that failed last — the JSON one its `ChatAdapter.__call__` fell back to — and so must this,
+    // which it cannot do unless the extraction falls back at all.
+    assert!(
+        dspy["message"]
+            .as_str()
+            .expect("a message")
+            .contains("Adapter JSONAdapter"),
+        "the golden no longer shows a fallback; dspy said: {}",
+        dspy["message"]
+    );
+    assert!(
+        message.contains("Adapter JSONAdapter"),
+        "the extraction did not fall back to JSON as upstream's does: {message}"
+    );
+
+    // And `lm_response` is the first reply, which is the one a caller can act on.
+    assert!(
+        dspy["lm_response_is_the_first_reply"].as_bool() == Some(true),
+        "the golden stopped carrying the first reply"
+    );
+    assert!(
+        reported.lm_response.contains(prose),
+        "got: {}",
+        reported.lm_response
+    );
 }

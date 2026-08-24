@@ -7,12 +7,13 @@
 
 use std::future::Future;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
 use std::time::Duration;
 
 use super::{ChatModel, LmUsage, api};
+use crate::error::Explained;
 
 mod request;
 mod stream;
@@ -57,7 +58,7 @@ impl ChatModel for Anthropic<'_> {
             let body: Value = response
                 .json()
                 .await
-                .context("anthropic response was not JSON")?;
+                .explain("anthropic response was not JSON")?;
             reply(self.model, status, &headers, &body)
         }
     }

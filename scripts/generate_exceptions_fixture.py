@@ -131,6 +131,33 @@ def parse_errors() -> list[dict]:
     ]
 
 
+def two_step_extraction_failure() -> dict:
+    """What `TwoStepAdapter` raises when the extraction reply does not carry the fields.
+
+    Constructed by *running* the adapter rather than by building an `AdapterParseError` by hand,
+    because the two halves this pins are decisions the adapter makes and not the exception's: the
+    message is `f"…: {e}"` — the failure, not the reply — and `lm_response` is the **first**
+    completion, not the extraction's. This port had the reply written where upstream writes the
+    error, so the sentence named the text and never said what was wrong with it.
+    """
+    signature = dspy.make_signature("question->answer")
+    prose = "a reply that never answers the question"
+    task = dspy.utils.DummyLM([{"reply": prose}] * 4)
+    extractor = dspy.utils.DummyLM([{"unrelated": "nothing"}] * 4)
+    adapter = dspy.TwoStepAdapter(extraction_model=extractor)
+    try:
+        adapter(task, {}, signature, [], {"question": "Where?"})
+    except AdapterParseError as error:
+        return {
+            "adapter_name": error.adapter_name,
+            "lm_response": error.lm_response,
+            "message": error.message,
+            "message_names_the_reply": prose in (error.message or ""),
+            "lm_response_is_the_first_reply": prose in error.lm_response,
+        }
+    raise SystemExit("expected the extraction to fail; dspy parsed it")
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     fixture = {
@@ -139,6 +166,7 @@ def main() -> None:
         "statuses": by_status(),
         "rendered": rendered(),
         "parse_errors": parse_errors(),
+        "two_step_extraction_failure": two_step_extraction_failure(),
     }
     path = OUT / "exceptions.json"
     path.write_text(json.dumps(fixture, indent=2, ensure_ascii=False) + "\n")

@@ -5,10 +5,11 @@
 //! *realpath* of the file opened (denoland/deno#9607), so every path is resolved first or a read
 //! through a symlink — including `DENO_DIR` — is denied.
 
+use crate::error::Explained;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 
 /// The sandbox itself: dspy's own `runner.js`, vendored so this crate runs the file upstream runs
 /// rather than a reimplementation of it. MIT, Copyright (c) 2023 Stanford Future Data Systems.
@@ -56,11 +57,11 @@ fn deno_dir() -> Option<PathBuf> {
 /// the path could hand deno an empty runner to execute.
 pub fn runner_path() -> Result<PathBuf> {
     let directory = std::env::temp_dir().join(format!("dsrust-sandbox-{}", std::process::id()));
-    std::fs::create_dir_all(&directory).context("making a place for the sandbox runner")?;
+    std::fs::create_dir_all(&directory).explain("making a place for the sandbox runner")?;
     let path = directory.join("runner.js");
     let current = std::fs::read_to_string(&path).unwrap_or_default();
     if current != RUNNER {
-        std::fs::write(&path, RUNNER).context("writing the sandbox runner")?;
+        std::fs::write(&path, RUNNER).explain("writing the sandbox runner")?;
     }
     Ok(path)
 }

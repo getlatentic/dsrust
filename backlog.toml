@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1321
+rust_tests = 1325
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -2085,7 +2085,7 @@ be deleted, the story is done.
 id = "api-6"
 sprint = "api"
 title = "A caller needs serde_json the moment they build anything, and nothing says so"
-state = "todo"
+state = "done"
 size = "S"
 suites = []
 plan = """
@@ -2107,6 +2107,28 @@ in its manifest, which is the only way this stays fixed.
 
 **What proves it.** `check_external_consumer.sh` is the proof, and only if it builds a runtime-built signature with no
 `serde_json` in that crate's manifest. Nothing upstream can test a Rust re-export.
+"""
+
+done = """
+`pub use serde_json;` at the crate root, documented rather than hidden. The re-export already
+existed under `__macro_support`, which says of itself "not a public API — hidden from docs and
+exempt from semver": the derive could reach it and a caller could not.
+
+The story said to check the `$crate` claim before relying on it, since the tokio one looked equally
+obvious and was wrong. It holds, and for the reason given: a `macro_rules!` macro refers to its own
+crate as `$crate`, bound where the macro is *defined* and never consulting the caller's extern
+prelude — so `dsrust::serde_json::json!` expands correctly in a crate that has no `serde_json` line
+at all.
+
+**Proved outside the workspace, because inside it proves nothing.** The doctest passes either way —
+the workspace has `serde_json`, which is the exact blindness `check_external_consumer.sh` exists
+for. That crate now builds a runtime-shaped `Signature` with a `JsonType::reflected` schema written
+as `json!`, and reads a `Value` back off an `example!`, with `dsrust` and `tokio` as its only
+dependencies. Removing the re-export fails it with `unresolved import `dsrust::serde_json``,
+confirmed both ways.
+
+README's install section now says the two lines are the whole list, and why: `serde`, `serde_json`
+and `schemars` are not the caller's to add.
 """
 
 [[story]]
@@ -2400,7 +2422,7 @@ drive. So the upstream suite cannot prove this one and `tests/lm_retry.rs` is wh
 id = "api-4"
 sprint = "api"
 title = "An error's cause should be in its message, not only in its chain"
-state = "todo"
+state = "done"
 size = "S"
 suites = ["tests/adapters/test_json_adapter.py"]
 plan = """
@@ -2424,6 +2446,51 @@ complaint and never learns a second was tried, which is less useful than either 
 **What proves it.** Upstream's adapter suites exercise the failures whose wording is wrong; none asserts the text a
 caller reads. A golden of the rendered messages closes it, in the shape
 `tests/exceptions_conformance.rs` already uses.
+"""
+
+done = """
+Two shapes were filed. One was real, one had been fixed months ago and the record never said so,
+and chasing the second found a third that nobody had filed at all.
+
+**The cause in the message.** `crate::error::Explained` is `.context` that keeps the cause:
+`{context}: {source:#}`, where `{:#}` is anyhow's own walk of the chain — the same fold
+`LmFailure::from_transport` does by hand for a `reqwest::Error` whose Display names the url and
+stops. The original error stays in the chain, so `downcast_ref` still finds it and a caller can
+branch on a type rather than on prose. Applied at all ten sites that categorised over a cause: the
+four "X response was not JSON", the three sandbox ones, the extraction ask, and
+`predict/derived.rs`'s "validated reply did not fit the requested type" — the one the outside
+project reported. Its unit test asserts the old `.context` behaviour beside the new one, so the
+difference is the assertion rather than a claim in a comment.
+
+**The second shape was already gone.** Filed as: the reported error is the chat adapter's while the
+JSON fallback had fired and failed last. Probed rather than assumed — with the fallback on, the
+surfacing error is `LM response cannot be serialized to a JSON object`, which is the JSON
+adapter's. `git log -S` found why: commit `5a2cb35` (2 Aug) deleted the ad-hoc
+`"reply has no [[ ## field ## ]] sections"`, and marker failures have rendered dspy's
+`AdapterParseError` since. Third stale record found this way; the count is worth noticing.
+
+**The third thing, found while writing the golden.** dspy's `TwoStepAdapter` message is
+`f"Failed to parse response from the original completion: {e}"` — the *exception* — and carries the
+first completion separately as `lm_response`. This crate wrote the raw reply where upstream writes
+the error, so the sentence named the text and never said what was wrong with it. Fixed by raising
+dspy's own `AdapterParseError` shape: `FieldMismatch` with `adapter_name = "TwoStepAdapter"`,
+`lm_response = raw`, and the failure in the message.
+
+**And that exposed a behavioural gap.** dspy's extraction is a whole `ChatAdapter()(…)` call, so it
+carries that adapter's `__call__` — a reply the markers cannot read is re-asked through the JSON
+adapter *against the extraction model*. This crate called `parse` directly and skipped the recovery
+entirely: an extractor answering in JSON succeeds upstream and failed here. It is the same
+mechanism `api-3` found missing on `XmlAdapter`, in a third place. Without it the golden could not
+have been matched at all, since dspy's message names `JSONAdapter`.
+
+**What proves it.** `scripts/generate_exceptions_fixture.py` now *runs* `TwoStepAdapter` against a
+failing extraction and records what it raised, rather than constructing an `AdapterParseError` by
+hand — the two things pinned are the adapter's decisions, not the exception's.
+`a_failed_extraction_reports_the_failure_as_dspy_does` holds the port to it and asserts the golden's
+own shape first, so a golden that stopped showing a fallback fails loudly instead of quietly
+agreeing. Two controls, both run and both distinct: putting the raw reply back in the message fails
+with the message naming the reply, and removing the extraction fallback fails with it naming
+`ChatAdapter` where dspy names `JSONAdapter`.
 """
 
 [[story]]

@@ -9,9 +9,10 @@
 use std::future::Future;
 use std::time::Duration;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 
 use super::refusal;
+use crate::error::Explained;
 use serde_json::Value;
 
 use super::request::request;
@@ -49,7 +50,7 @@ impl ChatModel for Chat<'_> {
             let body: Value = response
                 .json()
                 .await
-                .context("ollama response was not JSON")?;
+                .explain("ollama response was not JSON")?;
             if !status.is_success() {
                 if let Some(too_long) =
                     crate::lm::ContextWindowExceeded::detected(self.model, &body)

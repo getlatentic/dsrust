@@ -13,8 +13,30 @@ extern crate self as dsrust;
 /// own, and `LM::forward_stream`, whose returned stream has to borrow one that outlives the call.
 pub use reqwest;
 
+/// `serde_json`, because this crate's surface is made of its types and a caller has to be able to
+/// *build* one.
+///
+/// Reading an answer needs nothing — the methods on [`Value`](serde_json::Value) are inherent. But
+/// a runtime-shaped signature, a tool's argument schema, or an [`Input`] is a `Value` a caller
+/// constructs, and constructing one means `json!`. Without this that is a `cargo add serde_json`
+/// the README never mentions, discovered as a compile error — the same shape as the `serde` and
+/// `serde_json` the derive needed, which an outside project reported.
+///
+/// `json!` resolves through here because a `macro_rules!` macro refers to its own crate as
+/// `$crate`, which is bound at definition and does not consult the caller's extern prelude:
+///
+/// ```
+/// use dsrust::serde_json::json;
+/// let schema = json!({ "type": "string" });
+/// assert_eq!(schema["type"], "string");
+/// ```
+///
+/// [`Input`]: crate::adapter::Input
+pub use serde_json;
+
 pub mod adapter;
 pub mod callback;
+mod error;
 pub mod evaluate;
 pub mod example;
 pub mod interpreter;

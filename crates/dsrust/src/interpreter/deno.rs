@@ -18,12 +18,13 @@ mod rpc;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use serde_json::{Map, Value, json};
 
 pub use command::Permissions;
 
 use super::{CodeInterpreter, Executed, InterpreterFailure, OutputField};
+use crate::error::Explained;
 use crate::react::Tool;
 use rpc::Rpc;
 
@@ -198,8 +199,8 @@ impl DenoInterpreter {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .context(
-                "deno is not installed. The sandbox is Deno and Pyodide, as dspy's is: \
+            .explain(
+                "deno could not be started. The sandbox is Deno and Pyodide, as dspy's is: \
                  `curl -fsSL https://deno.land/install.sh | sh`, or `brew install deno`",
             )?;
         let writer = child.stdin.take().expect("stdin was piped");

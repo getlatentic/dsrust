@@ -5,10 +5,11 @@
 
 use std::future::Future;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
 use super::token_limit::TokenLimitRule;
+use crate::error::Explained;
 use std::time::Duration;
 
 use super::{ChatModel, LmUsage, api, env_nonempty};
@@ -261,7 +262,7 @@ impl ChatModel for Endpoint<'_> {
             let body: Value = response
                 .json()
                 .await
-                .with_context(|| format!("{} response was not JSON", self.label))?;
+                .explain_with(|| format!("{} response was not JSON", self.label))?;
             match self.wire {
                 OpenAiWire::Chat => {
                     response::reply(self.label, self.model, status, &headers, &body)

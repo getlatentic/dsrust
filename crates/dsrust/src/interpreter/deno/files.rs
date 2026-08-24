@@ -8,9 +8,10 @@
 //! Syncing is the other direction, and it is a notification rather than a request: upstream writes
 //! it and does not wait, so nothing here reads for a reply that never comes.
 
+use crate::error::Explained;
 use std::path::{Path, PathBuf};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Result, bail};
 use serde_json::json;
 
 /// The name sandboxed code opens, for a host path.
@@ -46,7 +47,7 @@ pub(super) fn to_mount(read: &[PathBuf], write: &[PathBuf]) -> Result<Vec<(Strin
                 .append(true)
                 .create(true)
                 .open(path)
-                .with_context(|| format!("creating {} to mount it", path.display()))?;
+                .explain_with(|| format!("creating {} to mount it", path.display()))?;
         }
         mounted.push((host_path(path), virtual_path(path)));
     }

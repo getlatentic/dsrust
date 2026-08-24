@@ -37,8 +37,9 @@ EOF
 # caller would otherwise owe `schemars`. It never reaches a provider, so there is no network in it.
 cat > "$WORK/src/main.rs" <<'EOF'
 use dsrust::lm::{LM, configure};
-use dsrust::signature::SignatureSpec;
-use dsrust::{ChainOfThought, Predict, Signature, call};
+use dsrust::serde_json::json;
+use dsrust::signature::{FieldKind, InField, JsonType, OutField, Signature, SignatureSpec};
+use dsrust::{ChainOfThought, Predict, call};
 
 #[derive(Signature)]
 /// Answer the question.
@@ -75,6 +76,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     assert_eq!(QA::signature().instructions, "Answer the question.");
     println!("{}", Steps::signature().outputs.len());
+
+    // A signature shaped at runtime, which is the case that made this crate's `serde_json`
+    // re-export necessary: the surface takes `Value`, and *building* one means `json!`. Written
+    // through `dsrust::serde_json` and with no `serde_json` line in this crate's manifest, so it
+    // fails to compile the moment that re-export goes away.
+    let schema = json!({ "type": "array", "items": { "type": "string" } });
+    let runtime = Signature {
+        instructions: "List the steps.".into(),
+        inputs: vec![InField {
+            name: "topic".into(),
+            ..Default::default()
+        }],
+        outputs: vec![OutField {
+            name: "steps".into(),
+            kind: FieldKind::Json(JsonType::reflected("list[str]", schema.clone())),
+            ..Default::default()
+        }],
+    };
+    let _ = dsrust::predict::Predict::from_signature(runtime.clone());
+    assert_eq!(runtime.outputs.len(), 1);
+
+    // And reading a `Value` back off a prediction, the other half of the same surface.
+    let example = dsrust::example! { topic: "bread", steps: json!(["mix", "bake"]) };
+    assert_eq!(example.get("steps").and_then(|v| v.as_array()).map(Vec::len), Some(2));
     Ok(())
 }
 EOF

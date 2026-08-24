@@ -4,12 +4,13 @@
 //! nothing about what they mean. A derived task knows both, so it answers with its own outputs
 //! and `result.answer` keeps meaning the field rather than a lookup that might miss.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
 use super::{Dynamic, Feedback, Predict, Validated};
 use crate::adapter::Input;
+use crate::error::Explained;
 use crate::example::Example;
 use crate::lm::DynChatModel;
 use crate::module::Ask;
@@ -92,7 +93,7 @@ pub(crate) async fn typed_pairs<S: SignatureSpec, P>(
 }
 
 pub(crate) fn typed<T: DeserializeOwned>(value: Value) -> Result<T> {
-    serde_json::from_value(value).context("validated reply did not fit the requested type")
+    serde_json::from_value(value).explain("validated reply did not fit the requested type")
 }
 
 /// A derived task answers with its own outputs, so `result.answer` keeps meaning the field.
