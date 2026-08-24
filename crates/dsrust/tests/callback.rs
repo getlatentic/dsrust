@@ -186,6 +186,48 @@ async fn a_predict_fires_the_sequence_dspy_fires() {
     assert_eq!(recording.tree(), expected("predict"));
 }
 
+/// dspy's third registration path: handlers attached to *one* predictor.
+///
+/// `dspy.Module.__init__` stores a `callbacks` list every subclass inherits, so
+/// `dspy.Predict("q -> a", callbacks=[cb])` watches that predictor and no other. A Rust `Module` is
+/// a trait with no shared constructor, so the list is a defaulted trait method a module overrides
+/// — and what this asserts is the part that could not be had otherwise: two predictors of the *same
+/// signature*, one watched, and only its points recorded. Filtering by the module's kind or by
+/// `CallId::parent` cannot tell those two apart.
+#[tokio::test]
+async fn only_the_predictor_a_caller_watched_is_recorded() {
+    let watched = Arc::new(Recording::default());
+    let lm = Arc::new(DummyLM::new([
+        example! { answer: "first" },
+        example! { answer: "second" },
+    ]));
+    // Nothing process-wide: the only handler in play is the one attached to a single predictor.
+    let _serial = install(lm, Arc::new(Recording::default()));
+    configure_callbacks([]);
+
+    let seen = dsrust::predict::Predict::from_signature(signature())
+        .callbacks([watched.clone() as Arc<dyn dsrust::Callback>]);
+    let unseen = dsrust::predict::Predict::from_signature(signature());
+
+    seen.forward(asked())
+        .await
+        .expect("the scripted answer parses");
+    unseen
+        .forward(asked())
+        .await
+        .expect("the scripted answer parses");
+
+    let recorded = watched.tree();
+    let modules = recorded
+        .lines()
+        .filter(|line| line.trim() == "on_module_start")
+        .count();
+    assert_eq!(
+        modules, 1,
+        "two predictors ran and one carried the handler:\n{recorded}"
+    );
+}
+
 /// A composed module and the predictor inside it, which is what makes the nesting observable.
 ///
 /// Upstream asserts this sequence by hand for `n=3`, where parsing runs once per output. The crate's

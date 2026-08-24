@@ -223,7 +223,7 @@ impl Module for ReAct {
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
-            let span = crate::observe::module_shown("ReAct", &inputs);
+            let span = crate::observe::module_shown("ReAct", &inputs, self.callbacks());
             let mut discarded = Vec::new();
             crate::observe::watching(span, self.run(inputs, &mut discarded)).await
         })

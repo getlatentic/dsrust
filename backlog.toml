@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1313
+rust_tests = 1314
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -1260,7 +1260,7 @@ exists to catch.
 id = "callbacks-per-module"
 sprint = "api"
 title = "A module cannot carry its own callbacks, because a Rust Module is a trait with no shared constructor"
-state = "todo"
+state = "done"
 size = "M"
 plan = """
 `BaseCallback`'s own docstring shows two ways to register, and `callback-trait` shipped both:
@@ -1284,6 +1284,33 @@ files of near-duplicate state, so it wants a reason beyond symmetry.
 
 **What proves it.** `dspy.Predict("q -> a", callbacks=[cb])` has a spelling here, and a test with two
 predictors where only one is watched records only that one's points.
+
+---
+
+**Closed 2026-08-24, and the reason it was waiting for arrived from `pin-drift`.** The story asked
+for "a reason beyond symmetry" before spending eight files of near-duplicate state. The drift sweep
+supplied one: main adds **ten new callback points** — compile, and interpreter startup / execute /
+shutdown / tool_call — plus `callbacks` on `PythonInterpreter.__init__` and
+`Teleprompter.__init_subclass__`. Upstream is widening the thing this was a gap in, so the gap grows
+rather than staying still.
+
+Built smaller than the story sketched. `Module::callbacks(&self) -> &[Arc<dyn Callback>]` is a
+**defaulted** trait method, so a module that wants the third path overrides it and one that does not
+writes nothing and pays nothing — no field on eight structs, and a derived module needs no invented
+field name. `Watch` already carried an `instance` list and `tell` already unioned it with the
+process-wide ones in upstream's order; the only thing missing was that the module path never filled
+it. `Predict` holds the field and `Predict::callbacks` sets it.
+
+The test is the one the story asked for: two predictors of the **same signature**, one carrying the
+handler, and only its points recorded. That is the case neither existing filter can reach — kind is
+identical and `CallId::parent` is identical. Confirmed red with the override removed: 0 recorded
+where 1 is expected.
+
+**And it found a hole in a gate.** `Predict::callbacks` is a new public method on a public type, and
+`check_rust_surface.py` reported zero unclassified because `rust_surface.py` descends into `pub mod`
+and stops at `mod` — `predict/building.rs` is private. 208 public methods live that way. Filed as
+`surface-private-modules`; the surface checker now says so beside its own baseline rather than
+letting the zero read as completeness.
 """
 
 [[story]]
@@ -4326,4 +4353,45 @@ The gap is the missing knob, not a wrong answer; it belongs with `api-3`'s const
 **What proves it.** A generator driving the real `DspyAdapter.make_reflective_dataset` over a
 program whose trace repeats a predictor, a `History` case beside it, and a Rust test comparing whole
 records — not a projection of them, for the reason `projections-hide-divergence` gives.
+"""
+
+[[story]]
+id = "surface-private-modules"
+sprint = "api"
+title = "The surface gate reads pub mod only, and 208 public methods are written elsewhere"
+state = "todo"
+size = "M"
+suites = ""
+plan = """
+`check_rust_surface.py` reached zero unclassified on 2026-08-24 over **830 items**, and the number is
+a floor on a subset. `rust_surface.py`'s walk descends into `pub mod` and stops at `mod` — but a
+`pub fn` in an `impl` block on a **public type** is public API wherever the file happens to sit, and
+this crate keeps builder methods in private `building.rs`-style modules by convention.
+
+Measured: **208 `pub fn` on public types, across 50 private modules.** A quarter as many again as
+the surface the gate counts.
+
+  19  MIPROv2                optimize/mipro/building.rs
+  14  GEPA                   optimize/gepa/mod.rs
+  11  LmFailure              lm/error/failure.rs
+  11  LmRequest              lm/api/request.rs
+  10  Predict                predict/building.rs
+  10  BootstrapRandomSearch  optimize/random_search.rs
+
+Found while adding `Predict::callbacks`: a new public method on a public type, and the gate reported
+zero unclassified because it never saw it. That is the same failure the fourth table exists to
+prevent, one level down — `LM::with_capabilities` survived because nothing walked Rust-to-dspy, and
+this survives because the walk stops at a `mod` keyword.
+
+**The trait half too.** `OWNER` records a `pub trait`'s name and its methods, but only where the
+trait is declared at column zero in a walked module; `Module::callbacks` — added the same day — does
+not appear either.
+
+**What it costs.** Closing it adds roughly 208 entries to classify, which is the same shape as the
+tranche that took the count from 284 to zero. Worth doing in one pass rather than piecemeal, and
+worth doing *before* the zero is quoted anywhere as a completeness claim.
+
+**What proves it.** The walk reaches an inherent `impl` on a public type regardless of the module's
+visibility, the count rises by roughly 208, and every one of them is classified — with the baseline
+back at zero over the whole surface rather than over part of it.
 """

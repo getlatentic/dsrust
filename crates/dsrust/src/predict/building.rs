@@ -20,6 +20,7 @@ impl<S> Predict<S> {
     /// what a call answers with follows from the type.
     pub(crate) fn into_task<T>(self) -> Predict<T> {
         Predict {
+            callbacks: Vec::new(),
             spec: PhantomData,
             signature: self.signature,
             adapter: self.adapter,
@@ -43,6 +44,20 @@ impl<S> Predict<S> {
     }
 
     /// Ask this model rather than the configured one. dspy's `set_lm`.
+    /// Watch *this* predictor — dspy's `dspy.Predict("q -> a", callbacks=[cb])`.
+    ///
+    /// The handlers here are told about this module's points on top of the process-wide ones, in
+    /// upstream's order: configured first, then the instance's. Without it a handler can filter by
+    /// the module's kind and by `CallId::parent`, but two predictors of the same signature look
+    /// alike.
+    pub fn callbacks(
+        mut self,
+        callbacks: impl IntoIterator<Item = std::sync::Arc<dyn crate::callback::Callback>>,
+    ) -> Self {
+        self.callbacks = callbacks.into_iter().collect();
+        self
+    }
+
     pub fn set_lm(mut self, lm: std::sync::Arc<dyn DynChatModel>) -> Self {
         self.lm = Some(lm);
         self
@@ -94,6 +109,7 @@ impl Predict<Dynamic> {
     /// spelling to reach for; this is what it expands to.
     pub fn from_signature(signature: Signature) -> Self {
         Self {
+            callbacks: Vec::new(),
             spec: PhantomData,
             lm: None,
             config: Sampling::default(),

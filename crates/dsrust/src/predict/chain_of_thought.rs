@@ -138,7 +138,7 @@ impl Module for ChainOfThought {
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
-            let span = crate::observe::module_shown("ChainOfThought", &inputs);
+            let span = crate::observe::module_shown("ChainOfThought", &inputs, self.callbacks());
             crate::observe::watching(span, self.predict.forward(inputs)).await
         })
     }

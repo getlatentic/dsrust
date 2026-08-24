@@ -383,7 +383,7 @@ impl Module for Rlm {
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
-            let span = crate::observe::module_shown("RLM", &inputs);
+            let span = crate::observe::module_shown("RLM", &inputs, self.callbacks());
             let mut discarded = Vec::new();
             crate::observe::watching(span, self.run(inputs, &mut discarded)).await
         })

@@ -53,6 +53,12 @@ LEDGER = pathlib.Path(__file__).parent / "api_ledger.toml"
 #: At zero under that rule: **526 keyed by their own path, 291 by a name that identifies exactly one
 #: item, 13 by a qualified `Owner::method`, and none by a bare ambiguous word.** Turning the rule on
 #: reopened 104 entries that had read as classified an hour earlier.
+#:
+#: **And the zero is over an incomplete surface.** `rust_surface.py` descends only into `pub mod`,
+#: but a `pub fn` on a *public type* is public API wherever it is written — and 208 of them live in
+#: private modules, which is a quarter as many again as the 830 counted here. `MIPROv2` has 19
+#: builder methods that way, `GEPA` 14, `Predict` 10. Filed as `surface-private-modules`; until it
+#: lands, this gate is a floor on a subset rather than on the whole.
 BASELINE = 0
 
 

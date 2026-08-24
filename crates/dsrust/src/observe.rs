@@ -52,9 +52,10 @@ pub const TARGET: &str = "dsrust::observe";
 pub struct Watch {
     span: Span,
     call: CallId,
-    /// The callbacks the instance at this point carries, beyond the process-wide ones. Empty at
-    /// every point but the model call, which is the one upstream lets a caller attach to an object
-    /// — `dspy.LM("gpt-4o-mini", callbacks=[…])`.
+    /// The callbacks the instance at this point carries, beyond the process-wide ones. Filled at
+    /// the model call and at a module that overrides [`Module::callbacks`](crate::Module::callbacks)
+    /// — upstream's two object-level registration paths, `dspy.LM("gpt-4o-mini", callbacks=[…])`
+    /// and `dspy.Predict("q -> a", callbacks=[…])`.
     instance: Vec<std::sync::Arc<dyn Callback>>,
 }
 
@@ -92,10 +93,16 @@ impl Watch {
 
 /// Open a point: a span with the standard fields, and the call id it is known by.
 fn opening(span: Span) -> Watch {
+    opening_with(Vec::new(), span)
+}
+
+/// The same, for a point whose instance carries callbacks of its own — the model call, and any
+/// module that overrides [`Module::callbacks`](crate::Module::callbacks).
+fn opening_with(instance: Vec<std::sync::Arc<dyn Callback>>, span: Span) -> Watch {
     Watch {
         span,
         call: CallId::next(),
-        instance: Vec::new(),
+        instance,
     }
 }
 
@@ -107,15 +114,22 @@ fn opening(span: Span) -> Watch {
 /// Inputs are taken by reference and rendered here rather than at the span's creation, so a
 /// `forward` records its inputs and then moves them on: this call followed by a body that consumes
 /// `inputs` is two statements and borrows nothing across them.
-pub fn module_shown(kind: &'static str, inputs: &Example) -> Watch {
-    let watch = opening(tracing::info_span!(
-        target: TARGET,
-        "module",
-        module = kind,
-        inputs = field::Empty,
-        outputs = field::Empty,
-        error = field::Empty,
-    ));
+pub fn module_shown(
+    kind: &'static str,
+    inputs: &Example,
+    instance: &[std::sync::Arc<dyn Callback>],
+) -> Watch {
+    let watch = opening_with(
+        instance.to_vec(),
+        tracing::info_span!(
+            target: TARGET,
+            "module",
+            module = kind,
+            inputs = field::Empty,
+            outputs = field::Empty,
+            error = field::Empty,
+        ),
+    );
     watch.shown(|| as_json(inputs));
     if callback::watching(&watch.instance) {
         callback::tell(&watch.instance, |callback| {

@@ -118,6 +118,11 @@ pub struct Predict<S = Dynamic> {
     /// round after the first a model that will not answer from a cache. Neither can reach a
     /// process-wide default to do it.
     lm: Option<std::sync::Arc<dyn DynChatModel>>,
+    /// dspy's third registration path: the handlers *this* predictor's points are told about,
+    /// beyond the process-wide ones. Empty unless a caller sets it with
+    /// [`callbacks`](Predict::callbacks), which is what makes two predictors of the same signature
+    /// distinguishable to a handler.
+    callbacks: Vec<std::sync::Arc<dyn crate::callback::Callback>>,
     /// How this module asks for its reply to be sampled.
     ///
     /// The other half of the same seam: `BestOfN` and a bootstrap round after the first vary
@@ -821,6 +826,7 @@ mod tests {
         ] {
             let lm = Scripted::new(&[reply]);
             let predict = Predict {
+                callbacks: Vec::new(),
                 spec: PhantomData,
                 lm: None,
                 config: Sampling::default(),
@@ -902,12 +908,16 @@ impl<S: Send + Sync> Predict<S> {
 }
 
 impl<S: Send + Sync> Module for Predict<S> {
+    fn callbacks(&self) -> &[std::sync::Arc<dyn crate::callback::Callback>] {
+        &self.callbacks
+    }
+
     fn forward<'a>(
         &'a self,
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
-            let span = crate::observe::module_shown("Predict", &inputs);
+            let span = crate::observe::module_shown("Predict", &inputs, self.callbacks());
             crate::observe::watching(
                 span,
                 self.forward_with_steering(inputs, &Steering::default()),

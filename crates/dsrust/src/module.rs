@@ -112,6 +112,22 @@ pub trait Module: Send + Sync {
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>>;
 
+    /// The callbacks this module carries, beyond the process-wide ones — dspy's third registration
+    /// path, `dspy.Predict("q -> a", callbacks=[cb])`.
+    ///
+    /// Defaulted to none, and that default is the whole reason it is a trait method rather than a
+    /// field: upstream stores the list on `Module.__init__` so every subclass inherits one, where a
+    /// Rust trait has no shared constructor. A module that wants the third path holds its own field
+    /// and overrides this; one that does not pays nothing and writes nothing.
+    ///
+    /// What a handler could already do without it is filter by *kind* — `on_module_start` is given
+    /// the module's type — and by position, through `CallId::parent`. What it could not do is tell
+    /// two `Predict`s of the same signature apart, which is exactly what upstream's per-instance
+    /// list is for.
+    fn callbacks(&self) -> &[std::sync::Arc<dyn crate::callback::Callback>] {
+        &[]
+    }
+
     /// Every predictor this program contains, named. dspy's `named_predictors`, and the seam
     /// an optimizer works through: it reads the demos and instructions here and writes back
     /// improved ones. A leaf module returns itself; a composed one returns its children.
