@@ -18,14 +18,14 @@ use crate::lm::streaming::{Framed, Framing, StreamState};
 
 /// The streaming form: the request with `stream` set true, ollama's line-delimited JSON read back as
 /// the typed vocabulary. Each line is a reply chunk; the last carries `done` and the counts.
-pub(crate) fn stream<'h>(
-    http: &'h reqwest::Client,
+pub(crate) fn stream(
+    http: &reqwest::Client,
     model: &str,
     host: &str,
     api_key: Option<&str>,
     timeout: Duration,
     call: &api::LmRequest,
-) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + use<'h> {
+) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + use<> {
     let mut body = request(model, call);
     body["stream"] = json!(true);
     let connect = super::authorized(

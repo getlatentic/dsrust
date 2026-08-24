@@ -94,15 +94,15 @@ fn frame(frame: &str, state: &mut StreamState) -> Framed {
 
 /// The typed events of one streaming call. The owned url, key, model and body are lifted out of
 /// the endpoint before the stream is built, so it borrows only the client.
-pub(super) fn events<'h>(
-    http: &'h reqwest::Client,
+pub(super) fn events(
+    http: &reqwest::Client,
     url: String,
     key: Option<String>,
     label: String,
     model: String,
     body: Value,
     timeout: Duration,
-) -> impl Stream<Item = Result<LmStreamEvent>> + Send + 'h {
+) -> impl Stream<Item = Result<LmStreamEvent>> + Send + 'static {
     let mut request = http.post(url).timeout(timeout).json(&body);
     if let Some(key) = key {
         request = request.bearer_auth(key);

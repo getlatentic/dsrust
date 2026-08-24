@@ -78,14 +78,14 @@ impl ChatModel for Generate<'_> {
 
 /// The streaming form: the same body with `stream` set, ollama's line-delimited JSON read back.
 /// Each line carries a piece of `response`; the last carries `done` and the counts.
-pub(crate) fn stream<'h>(
-    http: &'h reqwest::Client,
+pub(crate) fn stream(
+    http: &reqwest::Client,
     model: &str,
     host: &str,
     api_key: Option<&str>,
     timeout: Duration,
     call: &api::LmRequest,
-) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + use<'h> {
+) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + use<> {
     let mut body = request(model, call);
     body["stream"] = json!(true);
     let connect = authorized(

@@ -167,12 +167,13 @@ impl<'a> Endpoint<'a> {
     /// read back as typed [`LmStreamEvent`](api::LmStreamEvent)s. Its owned inputs are lifted out
     /// of the endpoint here, so — `use<'h>` — it captures only the client and outlives this
     /// temporary endpoint the way a returned stream must.
-    pub(crate) fn stream<'h>(
+    pub(crate) fn stream(
         &self,
-        http: &'h reqwest::Client,
+        http: &reqwest::Client,
         call: &api::LmRequest,
-    ) -> std::pin::Pin<Box<dyn futures_util::Stream<Item = Result<api::LmStreamEvent>> + Send + 'h>>
-    {
+    ) -> std::pin::Pin<
+        Box<dyn futures_util::Stream<Item = Result<api::LmStreamEvent>> + Send + 'static>,
+    > {
         // The body is built first because building it can refuse the call — an OpenAI reasoning
         // model asked to reason at a chosen temperature. A refusal arrives as the stream's first
         // and only item, which is where a streaming caller reads a failure from anyway.

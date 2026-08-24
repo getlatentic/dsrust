@@ -268,15 +268,15 @@ pub(super) fn streaming_body(
 /// The typed events of one streaming Responses call. Text and reasoning arrive as deltas for live
 /// display; `response.completed` carries the whole reply, parsed by [`responses_to_lm_response`] and
 /// handed back as the authoritative answer — so a streamed reply equals a non-streamed one exactly.
-pub(super) fn stream<'h>(
-    http: &'h reqwest::Client,
+pub(super) fn stream(
+    http: &reqwest::Client,
     url: String,
     key: Option<String>,
     label: String,
     model: String,
     body: Value,
     timeout: Duration,
-) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + 'h {
+) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + 'static {
     let mut request = http.post(url).timeout(timeout).json(&body);
     if let Some(key) = key {
         request = request.bearer_auth(key);

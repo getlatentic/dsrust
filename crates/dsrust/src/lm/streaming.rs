@@ -73,18 +73,18 @@ pub(super) struct Framing {
     pub frame: fn(&str, &mut StreamState) -> Framed,
 }
 
-type Connect<'h> = Pin<Box<dyn Future<Output = reqwest::Result<reqwest::Response>> + Send + 'h>>;
-type Bytes_<'h> = Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send + 'h>>;
+type Connect = Pin<Box<dyn Future<Output = reqwest::Result<reqwest::Response>> + Send + 'static>>;
+type Bytes_ = Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send + 'static>>;
 
 /// Where the stream is: waiting on the response, reading its body, or finished.
-enum Phase<'h> {
-    Connecting(Connect<'h>),
-    Reading(Bytes_<'h>),
+enum Phase {
+    Connecting(Connect),
+    Reading(Bytes_),
     Ended,
 }
 
-struct Live<'h> {
-    phase: Phase<'h>,
+struct Live {
+    phase: Phase,
     label: String,
     model: String,
     framing: Framing,
@@ -99,12 +99,12 @@ struct Live<'h> {
 ///
 /// `connect` is the request future rather than a live response, so the connection is part of the
 /// stream — the first poll opens it — and the whole thing borrows only what the future does.
-pub(super) fn events<'h>(
-    connect: impl Future<Output = reqwest::Result<reqwest::Response>> + Send + 'h,
+pub(super) fn events(
+    connect: impl Future<Output = reqwest::Result<reqwest::Response>> + Send + 'static,
     label: String,
     model: String,
     framing: Framing,
-) -> impl Stream<Item = Result<LmStreamEvent>> + Send + 'h {
+) -> impl Stream<Item = Result<LmStreamEvent>> + Send + 'static {
     let live = Live {
         phase: Phase::Connecting(Box::pin(connect)),
         label,
@@ -181,7 +181,7 @@ fn next_frame(buffer: &mut Vec<u8>, separator: &[u8]) -> Option<String> {
     Some(frame)
 }
 
-impl Live<'_> {
+impl Live {
     /// End the stream with the usage it reported, and the whole reply if a frame carried one.
     fn close(&mut self) {
         self.pending.push_back(Ok(LmStreamEvent::End {

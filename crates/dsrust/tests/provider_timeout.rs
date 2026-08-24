@@ -225,7 +225,7 @@ async fn the_bound_reaches_the_streaming_routes() {
 
         let request = asking();
         let http = reqwest::Client::new();
-        let mut events = lm.forward_stream(&http, &request);
+        let mut events = lm.forward_stream_on(&http, &request);
         let first = events.next().await.expect("an event");
         assert!(first.is_err(), "{route} streamed past its bound: {first:?}");
         stub.done();

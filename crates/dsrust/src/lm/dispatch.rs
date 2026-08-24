@@ -32,6 +32,20 @@ impl ChatModel for LM {
         self.answer(&self.with_defaults(request)).await
     }
 
+    /// The provider's own stream, rather than the default's one-delta stand-in.
+    ///
+    /// On the configured client, as [`forward`](ChatModel::forward) is — dspy's do not name one
+    /// either. The defaults are applied here too, so a streamed call asks exactly what the same
+    /// call would ask unstreamed.
+    fn forward_stream<'a>(
+        &'a self,
+        request: &'a api::LmRequest,
+    ) -> impl futures_util::Stream<Item = Result<api::LmStreamEvent>> + Send + 'a {
+        // Everything the provider stream needs is built here and owned by it: `RequestBuilder`
+        // carries its own clone of the client, so nothing below borrows either of these.
+        self.forward_stream_on(&global::client(), &self.with_defaults(request))
+    }
+
     /// The watchers this model carries, told about its calls beside the process-wide ones — dspy's
     /// `LM(model, callbacks=[…])`. See [`LM::callbacks`].
     fn callbacks(&self) -> &[std::sync::Arc<dyn crate::Callback>] {
@@ -98,11 +112,11 @@ impl LM {
     ///
     /// The boxed stream is the same factory the non-streaming dispatch is: the arms return
     /// different stream types, and a `dyn Stream` is what makes them one return type.
-    pub fn forward_stream<'a>(
-        &'a self,
-        http: &'a reqwest::Client,
-        request: &'a api::LmRequest,
-    ) -> std::pin::Pin<Box<dyn Stream<Item = Result<api::LmStreamEvent>> + Send + 'a>> {
+    pub fn forward_stream_on(
+        &self,
+        http: &reqwest::Client,
+        request: &api::LmRequest,
+    ) -> std::pin::Pin<Box<dyn Stream<Item = Result<api::LmStreamEvent>> + Send + 'static>> {
         match self.model.provider {
             // `Endpoint::stream` already boxes — it picks the chat or Responses wire, whose stream
             // types differ — so these arms hand its stream straight back rather than box it again.

@@ -7,11 +7,31 @@
 //! is what lets a test install a scripted model the way dspy installs a `DummyLM`.
 
 use anyhow::Result;
+use futures_util::{Stream, StreamExt};
 
 use super::{Capabilities, api};
 
 /// The object-safe form of [`ChatModel`], so a model can be stored behind a pointer.
 ///
+
+/// The events a model that cannot stream reports: the answer, whole, as one delta.
+///
+/// What upstream's scripted models give a listener, and what the defaults below hand back so that
+/// *every* model has a streaming form — a listener watching a double is how dspy tests its own.
+fn one_shot(answered: Result<api::LmResponse>) -> Vec<Result<api::LmStreamEvent>> {
+    let answered = match answered {
+        Ok(answered) => answered,
+        Err(error) => return vec![Err(error)],
+    };
+    let mut events = vec![Ok(api::LmStreamEvent::Start { model: None })];
+    let text = answered.first_text();
+    if !text.is_empty() {
+        events.push(Ok(api::LmStreamEvent::delta(0, api::LmDelta::text(text))));
+    }
+    events.push(Ok(api::LmStreamEvent::end()));
+    events
+}
+
 /// `ChatModel` returns `impl Future`, which is ergonomic to implement and impossible to make
 /// into a trait object. Every `ChatModel` gets this for free through the blanket impl below,
 /// and the global configuration stores this form — which is what lets a test install a
@@ -23,6 +43,22 @@ pub trait DynChatModel: Send + Sync {
         &'a self,
         request: &'a api::LmRequest,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<api::LmResponse>> + Send + 'a>>;
+
+    /// The object-safe form of [`ChatModel::forward_stream`] — the events of one call behind a
+    /// pointer, which is what lets a listener watch a model it only holds as `dyn`.
+    ///
+    /// Defaulted, so adding it broke no one: a model written against this trait directly — a test
+    /// double, usually — keeps compiling and reports its answer whole. Everything implementing
+    /// [`ChatModel`] gets the real form through the blanket impl below.
+    fn forward_stream_dyn<'a>(
+        &'a self,
+        request: &'a api::LmRequest,
+    ) -> std::pin::Pin<Box<dyn Stream<Item = Result<api::LmStreamEvent>> + Send + 'a>> {
+        Box::pin(
+            futures_util::stream::once(self.forward_dyn(request))
+                .flat_map(|answered| futures_util::stream::iter(one_shot(answered))),
+        )
+    }
 
     /// The object-safe form of [`ChatModel::capabilities`].
     fn capabilities_dyn(&self)
@@ -58,6 +94,13 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
         })
     }
 
+    fn forward_stream_dyn<'a>(
+        &'a self,
+        request: &'a api::LmRequest,
+    ) -> std::pin::Pin<Box<dyn Stream<Item = Result<api::LmStreamEvent>> + Send + 'a>> {
+        Box::pin(self.forward_stream(request))
+    }
+
     fn capabilities_dyn(
         &self,
     ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + '_>> {
@@ -87,6 +130,23 @@ pub trait ChatModel {
         &'a self,
         request: &'a api::LmRequest,
     ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a;
+
+    /// The same call, as the events arrive — dspy's `stream=True`.
+    ///
+    /// Defaulted to asking [`forward`](Self::forward) and reporting its whole answer as one delta,
+    /// which is what a model that cannot stream gives you and what upstream's own scripted models
+    /// give a listener. A provider that can stream overrides it; [`LM`](crate::LM) does.
+    ///
+    /// It exists on the trait rather than only on `LM` because everything built above streaming
+    /// needs *any* model to have a streaming form — a listener watching a scripted double is how
+    /// upstream tests its own, and a double with no streaming form could not be watched at all.
+    fn forward_stream<'a>(
+        &'a self,
+        request: &'a api::LmRequest,
+    ) -> impl Stream<Item = Result<api::LmStreamEvent>> + Send + 'a {
+        futures_util::stream::once(self.forward(request))
+            .flat_map(|answered| futures_util::stream::iter(one_shot(answered)))
+    }
 
     /// dspy `BaseLM.__call__`: ask this model directly, with no signature and no adapter.
     ///
@@ -189,5 +249,71 @@ pub trait ChatModel {
     /// `false` keeps the reasoning field rendered as prose instead of asking for it natively.
     fn native_reasoning_usable(&self) -> bool {
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::lm::dummy::DummyLM;
+    use futures_util::StreamExt;
+
+    /// A model that cannot stream still has a streaming form, and reports its answer whole.
+    ///
+    /// This is the point of defaulting it rather than requiring it: everything built above
+    /// streaming needs *any* model to be watchable, and upstream tests its own listeners against
+    /// scripted doubles for exactly that reason. A double with no streaming form could not be
+    /// watched at all.
+    #[tokio::test]
+    async fn a_model_that_cannot_stream_reports_its_answer_whole() {
+        let lm = DummyLM::new([crate::example! { answer: "Paris" }]);
+        let request = api::LmRequest::new("dummy", vec![api::LmMessage::user(["where?"])]);
+        let events: Vec<api::LmStreamEvent> = lm
+            .forward_stream(&request)
+            .map(|event| event.expect("an event"))
+            .collect()
+            .await;
+
+        assert!(matches!(
+            events.first(),
+            Some(api::LmStreamEvent::Start { .. })
+        ));
+        assert!(matches!(
+            events.last(),
+            Some(api::LmStreamEvent::End { .. })
+        ));
+        let streamed: String = events
+            .iter()
+            .filter_map(|event| match event {
+                api::LmStreamEvent::Delta {
+                    delta: api::LmDelta::TextDelta { text },
+                    ..
+                } => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert!(streamed.contains("Paris"), "got: {streamed}");
+    }
+
+    /// And it is reachable behind a pointer, which is how a listener holds it.
+    #[tokio::test]
+    async fn the_dyn_form_streams_the_same_thing() {
+        let lm: std::sync::Arc<dyn DynChatModel> =
+            std::sync::Arc::new(DummyLM::new([crate::example! { answer: "Berlin" }]));
+        let request = api::LmRequest::new("dummy", vec![api::LmMessage::user(["where?"])]);
+        let streamed: String = lm
+            .forward_stream_dyn(&request)
+            .filter_map(|event| {
+                std::future::ready(match event {
+                    Ok(api::LmStreamEvent::Delta {
+                        delta: api::LmDelta::TextDelta { text },
+                        ..
+                    }) => Some(text),
+                    _ => None,
+                })
+            })
+            .collect()
+            .await;
+        assert!(streamed.contains("Berlin"), "got: {streamed}");
     }
 }

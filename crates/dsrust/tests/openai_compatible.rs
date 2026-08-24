@@ -268,7 +268,7 @@ async fn forward_stream_reads_sse_into_typed_events() {
 
     let http = reqwest::Client::new();
     let events: Vec<LmStreamEvent> = lm
-        .forward_stream(&http, &request)
+        .forward_stream_on(&http, &request)
         .map(|event| event.expect("a valid event"))
         .collect()
         .await;
