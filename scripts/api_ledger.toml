@@ -1071,6 +1071,118 @@
 
 [rust_only]
 
+# The bare-name tail: what a Python object model gives for free and Rust has to spell.
+#
+# These were all *accounted for by name* until the surface check stopped treating a bare `new` as
+# evidence — 35 types have one. `__init__`, `__len__`, `__iter__`, `__contains__` and `__call__`
+# need no ledger entry upstream because they are the object protocol; here each is a method with a
+# name, and the name alone identifies nothing. Keyed rather than qualified so the evidence is the
+# item itself.
+"dsrust::adapter::Input::new" = { status = "mapped", reason = "see `dsrust::adapter::Input` — the (name, value) pair an adapter renders" }
+"dsrust::adapter::stream::FieldListener::new" = { status = "mapped", reason = "see `dsrust::adapter::stream::FieldListener`" }
+"dsrust::adapter::stream::FieldListener::push" = { status = "mapped", reason = "one stream event into the listener, which is how a field's text accumulates" }
+"dsrust::adapter::types::audio::Audio::new" = { status = "mapped", reason = "`Audio`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::adapter::types::citation::Citation::format" = { status = "mapped", reason = "`Citation`: the type's `format`, which is what the value renders as in a prompt" }
+"dsrust::adapter::types::citation::Citation::new" = { status = "mapped", reason = "`Citation`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::adapter::types::citation::Citations::is_empty" = { status = "mapped", reason = "`Citations`: Python's truthiness on the container; paired with `len` because Rust convention asks for it" }
+"dsrust::adapter::types::citation::Citations::iter" = { status = "mapped", reason = "`Citations`: Python's `__iter__`" }
+"dsrust::adapter::types::citation::Citations::len" = { status = "mapped", reason = "`Citations`: Python's `__len__`" }
+"dsrust::adapter::types::citation::Citations::new" = { status = "mapped", reason = "`Citations`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::adapter::types::code::Code::new" = { status = "mapped", reason = "`Code`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::adapter::types::document::Document::context" = { status = "mapped", reason = "dspy `Document.context`: the surrounding text a citation is drawn from" }
+"dsrust::adapter::types::document::Document::new" = { status = "mapped", reason = "`Document`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::adapter::types::history::History::new" = { status = "mapped", reason = "`History`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::adapter::types::history::History::push" = { status = "mapped", reason = "`History`: Python's `.append` on the underlying list" }
+"dsrust::adapter::types::reasoning::Reasoning::format" = { status = "mapped", reason = "`Reasoning`: the type's `format`, which is what the value renders as in a prompt" }
+"dsrust::adapter::types::reasoning::Reasoning::new" = { status = "mapped", reason = "`Reasoning`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::adapter::types::tool::ToolCall::format" = { status = "mapped", reason = "`ToolCall`: the type's `format`, which is what the value renders as in a prompt" }
+"dsrust::adapter::types::tool::ToolCall::new" = { status = "mapped", reason = "`ToolCall`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::adapter::types::tool::ToolCalls::format" = { status = "mapped", reason = "`ToolCalls`: the type's `format`, which is what the value renders as in a prompt" }
+"dsrust::adapter::types::tool::ToolCalls::new" = { status = "mapped", reason = "`ToolCalls`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::context" = { status = "mapped", reason = "see `dsrust::lm::global::Scope` — dspy.context(lm=...), re-exported at the crate root" }
+"dsrust::evaluate::Evaluate::new" = { status = "mapped", reason = "`Evaluate`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::evaluate::Evaluate::run" = { status = "mapped", reason = "the evaluation itself — dspy reaches it through `Evaluate.__call__`" }
+"dsrust::example::Example::get" = { status = "mapped", reason = "`Example`: Python's `.get`/`__getitem__` on the container" }
+"dsrust::example::Example::is_empty" = { status = "mapped", reason = "`Example`: Python's truthiness on the container; paired with `len` because Rust convention asks for it" }
+"dsrust::example::Example::len" = { status = "mapped", reason = "`Example`: Python's `__len__`" }
+"dsrust::example::Example::new" = { status = "mapped", reason = "`Example`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::example::Prediction::from_candidates" = { status = "mapped", reason = "`Prediction`: dspy's `Prediction.from_completions`: one candidate set rebuilt as a prediction" }
+"dsrust::example::Prediction::get" = { status = "mapped", reason = "`Prediction`: Python's `.get`/`__getitem__` on the container" }
+"dsrust::example::Prediction::new" = { status = "mapped", reason = "`Prediction`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::example::completions::Completions::contains" = { status = "mapped", reason = "`Completions`: Python's `in`" }
+"dsrust::example::completions::Completions::from_candidates" = { status = "mapped", reason = "`Completions`: dspy's `Prediction.from_completions`: one candidate set rebuilt as a prediction" }
+"dsrust::example::completions::Completions::get" = { status = "mapped", reason = "`Completions`: Python's `.get`/`__getitem__` on the container" }
+"dsrust::example::completions::Completions::is_empty" = { status = "mapped", reason = "`Completions`: Python's truthiness on the container; paired with `len` because Rust convention asks for it" }
+"dsrust::example::completions::Completions::len" = { status = "mapped", reason = "`Completions`: Python's `__len__`" }
+"dsrust::example::completions::Completions::new" = { status = "mapped", reason = "`Completions`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::interpreter::deno::DenoInterpreter::new" = { status = "mapped", reason = "`DenoInterpreter`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::interpreter::lease::Lease::get" = { status = "mapped", reason = "the interpreter the lease holds, borrowed for a call" }
+"dsrust::interpreter::repl::ReplEntry::new" = { status = "mapped", reason = "`ReplEntry`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::interpreter::repl::ReplHistory::append" = { status = "mapped", reason = "`ReplHistory`: Python's `.append`" }
+"dsrust::interpreter::repl::ReplHistory::is_empty" = { status = "mapped", reason = "`ReplHistory`: Python's truthiness on the container; paired with `len` because Rust convention asks for it" }
+"dsrust::interpreter::repl::ReplHistory::len" = { status = "mapped", reason = "`ReplHistory`: Python's `__len__`" }
+"dsrust::interpreter::repl::ReplHistory::new" = { status = "mapped", reason = "`ReplHistory`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::interpreter::repl::ReplVariable::new" = { status = "mapped", reason = "`ReplVariable`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::lm::LM::cache" = { status = "mapped", reason = "dspy `LM(cache=...)`: whether this model's replies are cached" }
+"dsrust::lm::LM::callbacks" = { status = "mapped", reason = "dspy `LM(callbacks=[...])`: handlers for this model only, beside the process-wide ones" }
+"dsrust::lm::LM::new" = { status = "mapped", reason = "`LM`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::lm::LM::timeout" = { status = "mapped", reason = "dspy `LM(timeout=...)`, which litellm carries upstream" }
+"dsrust::lm::LM::use_developer_role" = { status = "mapped", reason = "dspy `LM(use_developer_role=...)`: send the system turn as `developer` for the models that want it" }
+"dsrust::lm::builder::LM::config" = { status = "mapped", reason = "dspy `lm.copy(**kwargs)`: this model again with these settings replacing its own. The one post-construction setter, rather than one per field" }
+"dsrust::lm::builder::LmBuilder::cache" = { status = "mapped", reason = "the builder's half of `LM(cache=...)`" }
+"dsrust::lm::builder::LmBuilder::callbacks" = { status = "mapped", reason = "the builder's half of `LM(callbacks=[...])`" }
+"dsrust::lm::builder::LmBuilder::config" = { status = "mapped", reason = "the builder's half of `lm.copy(**kwargs)`" }
+"dsrust::lm::builder::LmBuilder::timeout" = { status = "mapped", reason = "the builder's half of `LM(timeout=...)`" }
+"dsrust::lm::builder::LmBuilder::use_developer_role" = { status = "mapped", reason = "the builder's half of `LM(use_developer_role=...)`" }
+"dsrust::lm::cache::Cached::clear" = { status = "mapped", reason = "`Cached`: Python's `.clear`, emptying the store" }
+"dsrust::lm::cache::Cached::is_empty" = { status = "mapped", reason = "`Cached`: Python's truthiness on the container; paired with `len` because Rust convention asks for it" }
+"dsrust::lm::cache::Cached::len" = { status = "mapped", reason = "`Cached`: Python's `__len__`" }
+"dsrust::lm::cache::Cached::new" = { status = "mapped", reason = "`Cached`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::lm::cache::ResponseCache::clear" = { status = "mapped", reason = "`ResponseCache`: Python's `.clear`, emptying the store" }
+"dsrust::lm::cache::ResponseCache::is_empty" = { status = "mapped", reason = "`ResponseCache`: Python's truthiness on the container; paired with `len` because Rust convention asks for it" }
+"dsrust::lm::cache::ResponseCache::len" = { status = "mapped", reason = "`ResponseCache`: Python's `__len__`" }
+"dsrust::lm::cache::ResponseCache::new" = { status = "mapped", reason = "`ResponseCache`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::lm::cache::disk::DiskCache::clear" = { status = "mapped", reason = "`DiskCache`: Python's `.clear`, emptying the store" }
+"dsrust::lm::cache::disk::DiskCache::get" = { status = "mapped", reason = "the disk half of `Cache.get`" }
+"dsrust::lm::cache::disk::DiskCache::is_empty" = { status = "mapped", reason = "`DiskCache`: Python's truthiness on the container; paired with `len` because Rust convention asks for it" }
+"dsrust::lm::cache::disk::DiskCache::len" = { status = "mapped", reason = "`DiskCache`: Python's `__len__`" }
+"dsrust::lm::cache::disk::DiskCache::new" = { status = "mapped", reason = "`DiskCache`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::lm::context" = { status = "mapped", reason = "see `dsrust::lm::global::Scope` — re-exported from `lm`" }
+"dsrust::lm::dummy::DummyLM::new" = { status = "mapped", reason = "`DummyLM`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::lm::global::Scope::run" = { status = "mapped", reason = "run a future inside the scope. It enters on each poll and leaves when the poll returns, which is what a `with` block cannot express across an await" }
+"dsrust::lm::global::context" = { status = "mapped", reason = "dspy's `dspy.context(lm=...)`: the scoped default. Returns a `Scope`, which scopes a *future* rather than a block — see that entry for why" }
+"dsrust::lm::usage::UsageTracker::add" = { status = "mapped", reason = "dspy `UsageTracker.add_usage`: fold one call's usage into the running total for its model" }
+"dsrust::lm::usage::UsageTracker::is_empty" = { status = "mapped", reason = "whether anything has been tracked; paired with the totals" }
+"dsrust::predict::code_act::CodeAct::max_iters" = { status = "mapped", reason = "`CodeAct`: dspy's `max_iters`, the loop's ceiling" }
+"dsrust::predict::code_act::CodeAct::new" = { status = "mapped", reason = "`CodeAct`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::predict::code_act::CodeAct::set_lm" = { status = "mapped", reason = "`CodeAct`: dspy's `set_lm`: the model this module asks, overriding the configured one" }
+"dsrust::predict::program_of_thought::ProgramOfThought::max_iters" = { status = "mapped", reason = "`ProgramOfThought`: dspy's `max_iters`, the loop's ceiling" }
+"dsrust::predict::program_of_thought::ProgramOfThought::new" = { status = "mapped", reason = "`ProgramOfThought`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::predict::program_of_thought::ProgramOfThought::set_lm" = { status = "mapped", reason = "`ProgramOfThought`: dspy's `set_lm`: the model this module asks, overriding the configured one" }
+"dsrust::predict::refine::Refine::new" = { status = "mapped", reason = "`Refine`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::predict::refine::Refine::run" = { status = "mapped", reason = "one refine attempt; dspy reaches it through `__call__`" }
+"dsrust::predict::rlm::Rlm::max_iters" = { status = "mapped", reason = "`Rlm`: dspy's `max_iters`, the loop's ceiling" }
+"dsrust::predict::rlm::Rlm::new" = { status = "mapped", reason = "`Rlm`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::predict::rlm::Rlm::set_lm" = { status = "mapped", reason = "`Rlm`: dspy's `set_lm`: the model this module asks, overriding the configured one" }
+"dsrust::react::ReAct::max_iters" = { status = "mapped", reason = "`ReAct`: dspy's `max_iters`, the loop's ceiling" }
+"dsrust::react::ReAct::new" = { status = "mapped", reason = "`ReAct`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"dsrust::react::ReAct::set_lm" = { status = "mapped", reason = "`ReAct`: dspy's `set_lm`: the model this module asks, overriding the configured one" }
+"dsrust::signature::OutField::annotation" = { status = "mapped", reason = "the Python type prompts print for this field — `get_annotation_name` read off the stored kind, the output half of the pair" }
+"dsrust::signature::Signature::append" = { status = "mapped", reason = "dspy `Signature.append`: a field added to the end" }
+"dsrust::signature::Signature::insert" = { status = "mapped", reason = "dspy `Signature.insert`: a field added at an index" }
+"dsrust::signature::parse" = { status = "mapped", reason = "dspy's string-signature parser: a `question -> answer` string into fields" }
+"gepa::batch::BatchSampler::new" = { status = "mapped", reason = "`BatchSampler`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"gepa::candidate::Candidate::get" = { status = "mapped", reason = "`Candidate`: Python's `.get`/`__getitem__` on the container" }
+"gepa::candidate::Candidate::insert" = { status = "mapped", reason = "`Candidate`: assignment into the underlying dict — `d[k] = v`" }
+"gepa::candidate::Candidate::new" = { status = "mapped", reason = "`Candidate`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"gepa::pareto::ParetoFront::seeded" = { status = "mapped", reason = "`ParetoFront`: the seeded constructor, upstream's `Random(seed)` / initialisation" }
+"gepa::pyset::PyIntSet::new" = { status = "mapped", reason = "`PyIntSet`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"gepa::state::GepaState::new" = { status = "mapped", reason = "`GepaState`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"pyrng::cpython::Random::seeded" = { status = "mapped", reason = "`Random`: the seeded constructor, upstream's `Random(seed)` / initialisation" }
+"pyrng::mt19937::Mt19937::state_word" = { status = "mapped", reason = "`Mt19937`: one word of the raw generator state, for holding a seeding against numpy's `get_state()` directly" }
+"pyrng::numpy::RandomState::new" = { status = "mapped", reason = "`RandomState`: the constructor. Python's `__init__` needs no entry of its own upstream; Rust spells it, and `new` names thirty-five different constructors in this crate — so the ledger has to say which" }
+"pyrng::numpy::RandomState::state_word" = { status = "mapped", reason = "`RandomState`: one word of the raw generator state, for holding a seeding against numpy's `get_state()` directly" }
+
 # The rest of `dsrust`'s invented surface, and it has three recurring causes.
 #
 # **No object identity.** dspy's trace holds the predictor itself and its types stay live across a
