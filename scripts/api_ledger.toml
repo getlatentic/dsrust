@@ -283,7 +283,7 @@
 
 # Adapter
 "adapters/base.py::Adapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
-"adapters/base.py::Adapter.format" = { status = "mapped", rust = "format" }
+"adapters/base.py::Adapter.format" = { status = "mapped", rust = "Adapter::format" }
 "adapters/base.py::Adapter.format_assistant_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
 "adapters/base.py::Adapter.format_conversation_history" = { status = "divergence", reason = "folded into adapter/history.rs, which expands a History field into its turns" }
 "adapters/base.py::Adapter.format_demos" = { status = "divergence", reason = "folded into adapter/demos.rs" }
@@ -292,7 +292,7 @@
 "adapters/base.py::Adapter.format_system_message" = { status = "mapped", rust = "system_message" }
 "adapters/base.py::Adapter.format_task_description" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
 "adapters/base.py::Adapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/base.py::Adapter.parse" = { status = "mapped", rust = "parse" }
+"adapters/base.py::Adapter.parse" = { status = "mapped", rust = "Adapter::parse" }
 
 # ChatAdapter
 "adapters/chat_adapter.py::ChatAdapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
@@ -312,7 +312,7 @@
 "adapters/json_adapter.py::JSONAdapter.format_field_structure" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
 "adapters/json_adapter.py::JSONAdapter.format_field_with_value" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
 "adapters/json_adapter.py::JSONAdapter.format_finetune_data" = { status = "deferred", reason = "finetuning is out of the 1.0 ceiling" }
-"adapters/json_adapter.py::JSONAdapter.parse" = { status = "mapped", rust = "parse" }
+"adapters/json_adapter.py::JSONAdapter.parse" = { status = "mapped", rust = "JsonAdapter::parse" }
 "adapters/json_adapter.py::JSONAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
 
 # XMLAdapter
@@ -320,7 +320,7 @@
 "adapters/xml_adapter.py::XMLAdapter.format_field_structure" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
 "adapters/xml_adapter.py::XMLAdapter.format_field_with_value" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
 "adapters/xml_adapter.py::XMLAdapter.format_user_message_content" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
-"adapters/xml_adapter.py::XMLAdapter.parse" = { status = "mapped", rust = "parse" }
+"adapters/xml_adapter.py::XMLAdapter.parse" = { status = "mapped", rust = "XmlAdapter::parse" }
 "adapters/xml_adapter.py::XMLAdapter.user_message_output_requirements" = { status = "divergence", reason = "internal render step; folded into adapter/prompt.rs, which writes the whole message" }
 
 # BAMLAdapter
@@ -339,7 +339,7 @@
 "adapters/types/base_type.py::Type.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
 "adapters/types/base_type.py::Type.description" = { status = "mapped", rust = "description" }
 "adapters/types/base_type.py::Type.extract_custom_type_from_annotation" = { status = "divergence", reason = "Python annotation walking; a Rust field states its type directly" }
-"adapters/types/base_type.py::Type.format" = { status = "mapped", rust = "format" }
+"adapters/types/base_type.py::Type.format" = { status = "mapped", rust = "Type::format" }
 "adapters/types/base_type.py::Type.is_streamable" = { status = "mapped", rust = "is_streamable" }
 "adapters/types/base_type.py::Type.parse_lm_response" = { status = "mapped", rust = "parse_lm_response" }
 "adapters/types/base_type.py::Type.parse_stream_chunk" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
@@ -484,7 +484,7 @@
 "primitives/module.py::Module.map_named_predictors" = { status = "divergence", reason = "`named_predictors` hands back `&mut` references, so a caller maps over them directly" }
 "primitives/module.py::Module.named_predictors" = { status = "mapped", rust = "named_predictors" }
 "primitives/module.py::Module.predictors" = { status = "mapped", rust = "named_predictors" }
-"primitives/module.py::Module.set_lm" = { status = "mapped", rust = "set_lm" }
+"primitives/module.py::Module.set_lm" = { status = "mapped", rust = "Predict::set_lm", reason = "every module carries its own — `ChainOfThought`, `CodeAct`, `ProgramOfThought`, `ReAct`, `ReActV2`, `Rlm` and `Predict` each have one, where dspy inherits a single `Module.set_lm`. `Module` here is a trait and declares no such method: a default body would need a field every implementor happens to have" }
 
 # Teleprompter
 "teleprompt/teleprompt.py::Teleprompter.compile" = { status = "mapped", rust = "compile" }
@@ -673,7 +673,7 @@
 "predict/parallel.py::Parallel.provide_traceback" = { status = "mapped", rust = "provide_traceback", reason = "Parallel::provide_traceback" }
 "predict/parallel.py::Parallel.return_failed_examples" = { status = "mapped", rust = "return_failed_examples", reason = "Parallel::return_failed_examples" }
 "predict/parallel.py::Parallel.straggler_limit" = { status = "mapped", rust = "straggler_limit", reason = "Parallel::straggler_limit" }
-"predict/parallel.py::Parallel.timeout" = { status = "mapped", rust = "timeout", reason = "Parallel::timeout" }
+"predict/parallel.py::Parallel.timeout" = { status = "mapped", rust = "Parallel::timeout", reason = "Parallel::timeout" }
 "predict/predict.py::Predict.callbacks" = { status = "divergence", reason = "dspy's Module.__init__ stores a per-instance list every subclass inherits, and both of the registration paths its own documentation shows are ported: process-wide (configure_callbacks) and per model (`LM::callbacks`). A Rust Module is a trait, so there is no shared constructor to hold a list and each of the eight module structs would carry its own field — while a derived Module could not have one at all. A handler is told which module type it is watching and CallId::parent gives the call it sits under. Filed as `callbacks-per-module`" }
 "predict/predict.py::Predict.signature" = { status = "mapped", rust = "from_signature", reason = "Predict::from_signature / the predict! macro" }
 "predict/program_of_thought.py::ProgramOfThought.max_iters" = { status = "mapped", rust = "ProgramOfThought::max_iters", reason = "ProgramOfThought::max_iters" }
@@ -885,7 +885,7 @@
 "primitives/module.py::Module.batch.straggler_limit" = { status = "mapped", rust = "Parallel", reason = "Parallel::straggler_limit, a public field under dspy's own name" }
 "primitives/module.py::Module.batch.examples" = { status = "mapped", rust = "Parallel", reason = "what `Parallel::run` is handed; dspy's batch takes them as its first argument" }
 "primitives/module.py::Module.batch.num_threads" = { status = "divergence", rust = "Parallel", reason = "Parallel::max_in_flight: nothing here is a thread — the branches are futures on whatever runtime the caller brought, and the number bounds how many are in flight" }
-"primitives/module.py::Module.set_lm.lm" = { status = "mapped", rust = "set_lm", reason = "the model this module asks, as an Arc<dyn DynChatModel>" }
+"primitives/module.py::Module.set_lm.lm" = { status = "mapped", rust = "Predict::set_lm", reason = "the model this module asks, as an Arc<dyn DynChatModel>" }
 "core/types.py::User.parts" = { status = "mapped", rust = "User", reason = "the `User!` macro takes parts positionally as dspy's *parts does, so a string and an image sit in one turn — which an array could not hold" }
 "core/types.py::User.name" = { status = "mapped", rust = "LmMessage", reason = "LmMessage::name, a builder rather than a constructor argument: Rust has no keyword arguments, and a builder keeps the macro's positional parts unambiguous" }
 "core/types.py::User.metadata" = { status = "mapped", rust = "LmMessage", reason = "LmMessage::metadata; see the name entry beside it" }
@@ -970,8 +970,8 @@
 "adapters/base.py::Adapter.format_field_description.signature" = { status = "mapped", rust = "Signature", reason = "the signature being rendered or parsed, the first argument on the trait as on dspy's" }
 "adapters/base.py::Adapter.format_system_message.signature" = { status = "mapped", rust = "Signature", reason = "the signature being rendered or parsed, the first argument on the trait as on dspy's" }
 "adapters/base.py::Adapter.parse.completion" = { status = "divergence", rust = "parse", reason = "spelled `raw`: what arrives is the model's reply text, and `completion` names the API it came from rather than what it is" }
-"adapters/base.py::Adapter.format.demos" = { status = "mapped", rust = "format", reason = "the few-shot examples to render ahead of the request" }
-"adapters/base.py::Adapter.format.inputs" = { status = "mapped", rust = "format", reason = "the values to render, as `&[Input]` — a borrowed name-and-value pair rather than a dict, so nothing is cloned to render it" }
+"adapters/base.py::Adapter.format.demos" = { status = "mapped", rust = "Adapter::format", reason = "the few-shot examples to render ahead of the request" }
+"adapters/base.py::Adapter.format.inputs" = { status = "mapped", rust = "Adapter::format", reason = "the values to render, as `&[Input]` — a borrowed name-and-value pair rather than a dict, so nothing is cloned to render it" }
 "adapters/chat_adapter.py::ChatAdapter.parse.signature" = { status = "mapped", rust = "Signature", reason = "the signature being rendered or parsed, the first argument on ChatAdapter as on dspy's" }
 "adapters/chat_adapter.py::ChatAdapter.format_field_description.signature" = { status = "mapped", rust = "Signature", reason = "the signature being rendered or parsed, the first argument on ChatAdapter as on dspy's" }
 "adapters/chat_adapter.py::ChatAdapter.parse.completion" = { status = "divergence", rust = "parse", reason = "spelled `raw`: what arrives is the model's reply text, and `completion` names the API it came from rather than what it is" }
@@ -1035,9 +1035,9 @@
 "primitives/repl_types.py::REPLHistory.append.code" = { status = "mapped", rust = "ReplHistory::append", reason = "the same `code` recorded on a REPL turn" }
 "primitives/repl_types.py::REPLHistory.append.output" = { status = "mapped", rust = "ReplHistory::append", reason = "the same `output` recorded on a REPL turn" }
 "primitives/repl_types.py::REPLHistory.append.reasoning" = { status = "mapped", rust = "ReplHistory::append", reason = "the same `reasoning` recorded on a REPL turn" }
-"primitives/repl_types.py::REPLEntry.format.index" = { status = "mapped", rust = "format", reason = "which turn this is, numbered as upstream numbers them" }
-"primitives/repl_types.py::REPLEntry.format.max_output_chars" = { status = "mapped", rust = "format", reason = "how much of a turn's output is shown before it is elided" }
-"primitives/repl_types.py::REPLEntry.format_output.max_output_chars" = { status = "mapped", rust = "format", reason = "how much of a turn's output is shown before it is elided" }
+"primitives/repl_types.py::REPLEntry.format.index" = { status = "mapped", rust = "ReplEntry::format_at", reason = "which turn this is, numbered as upstream numbers them" }
+"primitives/repl_types.py::REPLEntry.format.max_output_chars" = { status = "mapped", rust = "ReplEntry::format_at", reason = "how much of a turn's output is shown before it is elided" }
+"primitives/repl_types.py::REPLEntry.format_output.max_output_chars" = { status = "mapped", rust = "ReplEntry::format_output", reason = "how much of a turn's output is shown before it is elided" }
 "primitives/repl_types.py::REPLEntry.format_output.output" = { status = "mapped", rust = "format_output", reason = "the output text to elide and render" }
 "primitives/repl_types.py::REPLVariable.from_value.name" = { status = "mapped", rust = "from_value", reason = "the same `name`; a REPL variable is its name, its value, the field it came from and how much of it to preview" }
 "primitives/repl_types.py::REPLVariable.from_value.value" = { status = "mapped", rust = "from_value", reason = "the same `value`; a REPL variable is its name, its value, the field it came from and how much of it to preview" }
