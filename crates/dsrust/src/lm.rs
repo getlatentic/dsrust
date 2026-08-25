@@ -47,7 +47,7 @@ pub use routing::{ModelRef, Provider};
 pub use token_limit::{TokenLimitField, TokenLimitRule};
 pub(crate) use turn::messages_of;
 pub use turn::{ChatTurn, OutputMode, Role};
-pub use usage::{UsageTracker, track as track_usage};
+pub use usage::{Tracking, UsageTracker, track as track_usage};
 
 /// What bounds a provider call unless the caller says otherwise: litellm's own default, which dspy
 /// never overrides, so a program that answers upstream answers here.

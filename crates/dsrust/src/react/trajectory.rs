@@ -10,6 +10,33 @@ use crate::adapter::python_json::format_value;
 
 /// One turn of the loop, kept so the next turn can read what already happened.
 #[derive(Debug, Clone, PartialEq)]
+/// Reading a finished run: the loop stops when the model chooses [`FINISH`](crate::react::FINISH), so that
+/// is the last step and its observation is the answer the extraction was built from.
+///
+/// ```
+/// use dsrust::react::Step;
+///
+/// fn last_tool(trajectory: &[Step]) -> Option<&str> {
+///     trajectory.last().map(|step| step.tool.as_str())
+/// }
+///
+/// let trajectory = vec![
+///     Step {
+///         thought: "Look it up.".to_owned(),
+///         tool: "search".to_owned(),
+///         args: serde_json::json!({ "q": "capital of France" }),
+///         // Kept as the value the tool returned, not its text — a count stays a number.
+///         observation: serde_json::json!(1),
+///     },
+///     Step {
+///         thought: "Enough.".to_owned(),
+///         tool: dsrust::react::FINISH.to_owned(),
+///         args: serde_json::json!({}),
+///         observation: serde_json::Value::Null,
+///     },
+/// ];
+/// assert_eq!(last_tool(&trajectory), Some(dsrust::react::FINISH));
+/// ```
 pub struct Step {
     pub thought: String,
     pub tool: String,

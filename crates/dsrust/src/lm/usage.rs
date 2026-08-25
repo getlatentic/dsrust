@@ -74,11 +74,16 @@ fn scope() -> &'static Mutex<()> {
 
 /// Count what every call costs until this is dropped. dspy's `with dspy.track_usage() as t:`.
 ///
+/// Reached as `lm::track_usage` from outside, which is the name dspy uses:
+///
 /// ```
+/// use dsrust::lm::{Tracking, track_usage};
+///
 /// # async fn wrapper(program: dsrust::Predict) -> anyhow::Result<()> {
-/// let counting = dsrust::lm::usage::track();
+/// let counting: Tracking = track_usage();
 /// program.call("a question").await?;
-/// println!("{:?} tokens", counting.tracker().total().total());
+/// println!("{:?} tokens", counting.total().total());
+/// // Dropping it stops the counting, so the scope is the block rather than a call to end it.
 /// # Ok(()) }
 /// ```
 pub fn track() -> Tracking {

@@ -4,6 +4,23 @@ use serde_json::Value;
 
 use super::part::Metadata;
 
+/// The three request settings whose Python type is a union, each an enum here so the wire cannot be
+/// given a shape the provider rejects:
+///
+/// ```
+/// use dsrust::lm::api::{Logprobs, RolloutId, ToolChoiceMode};
+///
+/// // `logprobs: bool | int` — on, or the top n per token.
+/// assert_eq!(serde_json::to_value(Logprobs::Enabled(true)).unwrap(), serde_json::json!(true));
+/// assert_eq!(serde_json::to_value(Logprobs::Top(5)).unwrap(), serde_json::json!(5));
+///
+/// // `rollout_id: int | str` — a counter or a name, and upstream accepts either.
+/// assert_eq!(serde_json::to_value(RolloutId::Number(7)).unwrap(), serde_json::json!(7));
+/// assert_eq!(serde_json::to_value(RolloutId::Text("a".into())).unwrap(), serde_json::json!("a"));
+///
+/// // `tool_choice` defaults to letting the model decide.
+/// assert_eq!(ToolChoiceMode::default(), ToolChoiceMode::Auto);
+/// ```
 /// `bool | int`: enable logprobs, or ask for the top `n` per token.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(untagged)]

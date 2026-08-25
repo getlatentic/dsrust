@@ -30,6 +30,21 @@ const STRATEGY_SEPARATOR: &str = " -> ";
 /// this — and not `Attempt`, which BootstrapRandomSearch already uses for its own scored try.
 ///
 /// dspy keeps a `deepcopy` of the program itself; here it is the program's compiled state, which
+/// One step of the strategy string, with the program as it stood after it.
+///
+/// ```no_run
+/// # use dsrust::optimize::StepResult;
+/// # fn read(steps: Vec<StepResult>) {
+/// // `-p -w -p` is three steps; a step whose score is `None` was not evaluated, which is what
+/// // upstream's `train_kwargs`-driven runs leave behind when a stage only rewrites.
+/// for step in &steps {
+///     match step.score {
+///         Some(score) => println!("{} -> {score:.1}%", step.strategy),
+///         None => println!("{} -> (not scored)", step.strategy),
+///     }
+/// }
+/// # }
+/// ```
 /// is what a copy would have carried and what [`Module::load_state`] puts back.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StepResult {

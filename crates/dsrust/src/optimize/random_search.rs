@@ -16,6 +16,21 @@ use super::{BootstrapFewShot, LabeledFewShot};
 use crate::example::{Example, Prediction};
 use crate::module::{Module, ProgramState};
 
+/// Reading a traced run: every attempt is kept with the program state that produced it, so a caller
+/// can go back to one the search did not keep.
+///
+/// ```no_run
+/// # use dsrust::optimize::Attempt;
+/// # fn read(attempts: Vec<Attempt>) {
+/// // The seeds are dspy's: -3 is the zero-shot program, -2 the labeled-only one, and 0 upward are
+/// // the randomly sampled sets — so a negative seed is a baseline rather than a search result.
+/// let searched: Vec<&Attempt> = attempts.iter().filter(|a| a.seed >= 0).collect();
+/// let best = attempts.iter().max_by(|a, b| a.score.total_cmp(&b.score));
+/// if let Some(best) = best {
+///     println!("seed {} scored {:.1}% of {} attempts", best.seed, best.score, searched.len());
+/// }
+/// # }
+/// ```
 /// One attempt and what it scored, in the order dspy records them.
 #[derive(Debug, Clone)]
 pub struct Attempt {
