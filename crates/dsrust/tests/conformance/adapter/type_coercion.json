@@ -1,0 +1,342 @@
+{
+  "source": "generated from dspy==3.3.0b1 via scripts/generate_type_coercion_fixture.py",
+  "dspy_version": "3.3.0b1",
+  "note": "What each custom type's `validate_input` accepts, and dspy's own words when it does not. `refusal` is null where pydantic refused structurally rather than dspy refusing by name — those messages describe Python's type system and are not portable.",
+  "types": {
+    "Audio": [
+      {
+        "input": "data:audio/wav;base64,AA==",
+        "accepted": true
+      },
+      {
+        "input": "data:audio/x-wav;base64,AA==",
+        "accepted": true
+      },
+      {
+        "input": {
+          "data": "AA==",
+          "audio_format": "wav"
+        },
+        "accepted": true
+      },
+      {
+        "input": {
+          "data": "AA=="
+        },
+        "accepted": false,
+        "refusal": "Unsupported type for encode_audio: <class 'dict'>"
+      },
+      {
+        "input": "not a data uri",
+        "accepted": false,
+        "refusal": "String audio inputs must be data URIs. Load local files with Audio.from_path() and remote resources with Audio.from_url()."
+      },
+      {
+        "input": "data:audio/",
+        "accepted": false,
+        "refusal": "Malformed audio data URI"
+      },
+      {
+        "input": 42,
+        "accepted": false,
+        "refusal": "Unsupported type for encode_audio: <class 'int'>"
+      }
+    ],
+    "File": [
+      {
+        "input": {
+          "file_id": "f1"
+        },
+        "accepted": true
+      },
+      {
+        "input": {
+          "filename": "a.pdf"
+        },
+        "accepted": true
+      },
+      {
+        "input": {
+          "file_data": "data:application/pdf;base64,AA=="
+        },
+        "accepted": true
+      },
+      {
+        "input": {
+          "file_id": "f1",
+          "filename": "a.pdf"
+        },
+        "accepted": true
+      },
+      {
+        "input": {},
+        "accepted": false,
+        "refusal": "Value of `dspy.File` must contain at least one of: file_data, file_id, or filename"
+      },
+      {
+        "input": {
+          "unrelated": 1
+        },
+        "accepted": false,
+        "refusal": "Value of `dspy.File` must contain at least one of: file_data, file_id, or filename"
+      }
+    ],
+    "Code": [
+      {
+        "input": "print(1)",
+        "accepted": true
+      },
+      {
+        "input": "```python\nprint(1)\n```",
+        "accepted": true
+      },
+      {
+        "input": "```\nprint(1)\n```",
+        "accepted": true
+      },
+      {
+        "input": {
+          "code": "print(1)"
+        },
+        "accepted": true
+      },
+      {
+        "input": {},
+        "accepted": false,
+        "refusal": "`code` field is required for `dspy.Code`"
+      },
+      {
+        "input": {
+          "code": 5
+        },
+        "accepted": false,
+        "refusal": "`code` field must be a string, but received type: <class 'int'>"
+      },
+      {
+        "input": 5,
+        "accepted": false,
+        "refusal": "Received invalid value for `dspy.Code`: 5"
+      }
+    ],
+    "Citations": [
+      {
+        "input": [
+          {
+            "cited_text": "x",
+            "document_index": 0,
+            "document_title": "t",
+            "start_char_index": 0,
+            "end_char_index": 1
+          }
+        ],
+        "accepted": true
+      },
+      {
+        "input": {
+          "citations": [
+            {
+              "cited_text": "x",
+              "document_index": 0,
+              "document_title": "t",
+              "start_char_index": 0,
+              "end_char_index": 1
+            }
+          ]
+        },
+        "accepted": true
+      },
+      {
+        "input": [],
+        "accepted": true
+      },
+      {
+        "input": {
+          "citations": []
+        },
+        "accepted": true
+      },
+      {
+        "input": "not a citation",
+        "accepted": false,
+        "refusal": "Received invalid value for `Citations`: not a citation"
+      },
+      {
+        "input": 5,
+        "accepted": false,
+        "refusal": "Received invalid value for `Citations`: 5"
+      }
+    ],
+    "Document": [
+      {
+        "input": "some text",
+        "accepted": true
+      },
+      {
+        "input": {
+          "data": "some text"
+        },
+        "accepted": true
+      },
+      {
+        "input": {
+          "data": "x",
+          "title": "t"
+        },
+        "accepted": true
+      },
+      {
+        "input": 5,
+        "accepted": false,
+        "refusal": "Received invalid value for `Document`: 5"
+      }
+    ],
+    "Reasoning": [
+      {
+        "input": "thinking out loud",
+        "accepted": true
+      },
+      {
+        "input": {
+          "content": "thinking"
+        },
+        "accepted": true
+      },
+      {
+        "input": {
+          "reasoning": "x"
+        },
+        "accepted": false,
+        "refusal": "`content` field is required for `dspy.Reasoning`"
+      },
+      {
+        "input": {
+          "content": 5
+        },
+        "accepted": false,
+        "refusal": "`content` field must be a string, but received type: <class 'int'>"
+      },
+      {
+        "input": {},
+        "accepted": false,
+        "refusal": "`content` field is required for `dspy.Reasoning`"
+      },
+      {
+        "input": 5,
+        "accepted": false,
+        "refusal": "Received invalid value for `dspy.Reasoning`: 5"
+      }
+    ],
+    "ToolCalls": [
+      {
+        "input": {
+          "tool_calls": [
+            {
+              "name": "f",
+              "args": {}
+            }
+          ]
+        },
+        "accepted": true
+      },
+      {
+        "input": [
+          {
+            "name": "f",
+            "args": {}
+          }
+        ],
+        "accepted": true
+      },
+      {
+        "input": {
+          "name": "f",
+          "args": {}
+        },
+        "accepted": true
+      },
+      {
+        "input": [
+          {
+            "name": "f",
+            "arguments": {
+              "a": 1
+            }
+          }
+        ],
+        "accepted": true
+      },
+      {
+        "input": [
+          {
+            "function": {
+              "name": "f",
+              "arguments": "{\"a\": 1}"
+            }
+          }
+        ],
+        "accepted": true
+      },
+      {
+        "input": {
+          "tool_calls": []
+        },
+        "accepted": true
+      },
+      {
+        "input": "not a tool call",
+        "accepted": false,
+        "refusal": "Received invalid value for `dspy.ToolCalls`: not a tool call"
+      },
+      {
+        "input": 5,
+        "accepted": false,
+        "refusal": "Received invalid value for `dspy.ToolCalls`: 5"
+      }
+    ],
+    "ToolCallResults": [
+      {
+        "input": {
+          "tool_call_results": [
+            {
+              "name": "f",
+              "value": 1
+            }
+          ]
+        },
+        "accepted": true
+      },
+      {
+        "input": [
+          {
+            "name": "f",
+            "value": 1
+          }
+        ],
+        "accepted": true
+      },
+      {
+        "input": {
+          "name": "f",
+          "value": 1
+        },
+        "accepted": true
+      },
+      {
+        "input": [],
+        "accepted": true
+      },
+      {
+        "input": {
+          "unrelated": 1
+        },
+        "accepted": false,
+        "refusal": "Received invalid value for `dspy.ToolCallResults`: {'unrelated': 1}"
+      },
+      {
+        "input": 5,
+        "accepted": false,
+        "refusal": "Received invalid value for `dspy.ToolCallResults`: 5"
+      }
+    ]
+  }
+}

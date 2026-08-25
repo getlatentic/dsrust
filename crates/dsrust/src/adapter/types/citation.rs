@@ -191,8 +191,12 @@ impl<'de> Deserialize<'de> for Citations {
     /// `citations`, or a single citation mapping — anything else is refused.
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = Value::deserialize(deserializer)?;
-        let invalid =
-            || de::Error::custom(format!("Received invalid value for `Citations`: {value}"));
+        let invalid = || {
+            de::Error::custom(format!(
+                "Received invalid value for `Citations`: {}",
+                super::refusal::python_str(&value)
+            ))
+        };
         let citations = match &value {
             Value::Array(items) if items.iter().all(has_cited_text) => items.clone(),
             Value::Object(fields) => match fields.get("citations") {

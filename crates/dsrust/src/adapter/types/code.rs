@@ -92,14 +92,16 @@ impl<'de> Deserialize<'de> for Code {
             serde_json::Value::Object(mut map) => match map.remove("code") {
                 Some(serde_json::Value::String(code)) => Ok(Self::new(filter_code(&code))),
                 Some(other) => Err(de::Error::custom(format!(
-                    "`code` field must be a string, but received type: {other}"
+                    "`code` field must be a string, but received type: {}",
+                    super::refusal::python_type(&other)
                 ))),
                 None => Err(de::Error::custom(
                     "`code` field is required for `dspy.Code`",
                 )),
             },
             other => Err(de::Error::custom(format!(
-                "Received invalid value for `dspy.Code`: {other}"
+                "Received invalid value for `dspy.Code`: {}",
+                super::refusal::python_str(&other)
             ))),
         }
     }

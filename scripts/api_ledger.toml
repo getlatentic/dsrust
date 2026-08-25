@@ -516,20 +516,20 @@
 "adapters/types/audio.py::Audio.format" = { status = "mapped", rust = "Audio::format" }
 "adapters/types/audio.py::Audio.from_array" = { status = "mapped", rust = "Audio::from_samples", reason = "samples and a sampling rate as a 16-bit PCM WAV. `&[f32]` rather than a numpy array — the container is Python's, the encoding is not, and the encoding is what reaches the model. See `encode_audio` for how the bytes are pinned" }
 "adapters/types/audio.py::Audio.from_file" = { status = "divergence", reason = "Python-side ingestion of a file, URL or in-memory object; a Rust caller supplies the already-encoded value" }
-"adapters/types/audio.py::Audio.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+"adapters/types/audio.py::Audio.validate_input" = { status = "divergence", reason = "`Audio`'s own `Deserialize`, which reads dspy's `encode_audio`: a `data:audio/` URI, or a map carrying both `data` and `audio_format`. A derive read only the map, and the data URI upstream accepts came back as `invalid type: string`. Held by tests/type_coercion_conformance.rs" }
 
 # File
 "adapters/types/file.py::File.format" = { status = "mapped", rust = "File::format" }
 "adapters/types/file.py::File.from_bytes" = { status = "mapped", rust = "File::from_bytes", reason = "raw bytes as an opaque data URI under `application/octet-stream`, which is upstream's default when nothing names the type" }
 "adapters/types/file.py::File.from_file_id" = { status = "mapped", rust = "File::from_id" }
 "adapters/types/file.py::File.from_path" = { status = "mapped", rust = "File::from_path", reason = "as `Image.from_path`, keeping the basename: once the bytes are base64 the name is the only thing telling a model what the file is" }
-"adapters/types/file.py::File.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+"adapters/types/file.py::File.validate_input" = { status = "divergence", reason = "`File`'s own `Deserialize`: a map with at least one of `file_data`, `file_id` or `filename`, refusing in dspy's words when it has none" }
 
 # Code
 "adapters/types/code.py::Code.description" = { status = "mapped", rust = "Code::description" }
 "adapters/types/code.py::Code.format" = { status = "mapped", rust = "Code::format" }
 "adapters/types/code.py::Code.serialize_model" = { status = "divergence", reason = "reproduced as the type's `Serialize`, via the `Type` seam's `serialized`" }
-"adapters/types/code.py::Code.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+"adapters/types/code.py::Code.validate_input" = { status = "divergence", reason = "`Code`'s own `Deserialize`: a bare string is the code with a markdown fence stripped, and a map must carry a string `code`" }
 
 # Citations
 "adapters/types/citation.py::Citations.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
@@ -539,12 +539,12 @@
 "adapters/types/citation.py::Citations.is_streamable" = { status = "mapped", rust = "Citations::is_streamable" }
 "adapters/types/citation.py::Citations.parse_lm_response" = { status = "mapped", rust = "Citations::parse_lm_response" }
 "adapters/types/citation.py::Citations.parse_stream_chunk" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
-"adapters/types/citation.py::Citations.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+"adapters/types/citation.py::Citations.validate_input" = { status = "divergence", reason = "`Citations`' own `Deserialize`: a bare list of citations, or a map under a `citations` key" }
 
 # Document
 "adapters/types/document.py::Document.description" = { status = "mapped", rust = "Document::description" }
 "adapters/types/document.py::Document.format" = { status = "mapped", rust = "Document::format" }
-"adapters/types/document.py::Document.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+"adapters/types/document.py::Document.validate_input" = { status = "divergence", reason = "`Document`'s own `Deserialize`: a bare string is the document's `data`, and a map is taken as it stands" }
 
 # Reasoning
 "adapters/types/reasoning.py::Reasoning.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
@@ -552,7 +552,7 @@
 "adapters/types/reasoning.py::Reasoning.is_streamable" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
 "adapters/types/reasoning.py::Reasoning.parse_lm_response" = { status = "divergence", reason = "read off the reply by predict.rs's `native_value`, which fills the field from the Thinking part" }
 "adapters/types/reasoning.py::Reasoning.parse_stream_chunk" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
-"adapters/types/reasoning.py::Reasoning.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+"adapters/types/reasoning.py::Reasoning.validate_input" = { status = "divergence", reason = "`Reasoning`'s own `Deserialize`: a bare string is the `content`, and a map must carry a string one" }
 
 # Tool
 "adapters/types/tool.py::Tool.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
@@ -566,11 +566,11 @@
 "adapters/types/tool.py::ToolCalls.format" = { status = "mapped", rust = "ToolCalls::format" }
 "adapters/types/tool.py::ToolCalls.from_dict_list" = { status = "mapped", rust = "ToolCalls::from_dict_list" }
 "adapters/types/tool.py::ToolCalls.serialize_model" = { status = "divergence", reason = "reproduced as the type's `Serialize`, via the `Type` seam's `serialized`" }
-"adapters/types/tool.py::ToolCalls.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+"adapters/types/tool.py::ToolCalls.validate_input" = { status = "divergence", reason = "`ToolCalls`' own `Deserialize`: a list of calls, a map under a `tool_calls` key, or a lone `{name, args}` — and the provider spellings `arguments` and `function` beside dspy's own" }
 
 # ToolCallResults
 "adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values" = { status = "mapped", rust = "ToolCallResults::from_tool_calls_and_values" }
-"adapters/types/tool.py::ToolCallResults.validate_input" = { status = "divergence", reason = "reproduced as the type's `Deserialize`, which is where Rust validates an incoming value" }
+"adapters/types/tool.py::ToolCallResults.validate_input" = { status = "divergence", reason = "`ToolCallResults`' own `Deserialize`: a bare list is the results, a map under `tool_call_results` is the whole value, and a lone `{name, value}` is one result. A derive read only the second, so a provider returning the list shape — the one `ToolCalls` itself accepts — was refused. Held by tests/type_coercion_conformance.rs" }
 
 # Signature
 "signatures/signature.py::Signature.append" = { status = "mapped", rust = "Signature::append" }
@@ -1370,15 +1370,15 @@
 "streaming/streaming_listener.py::StreamListener.receive.chunk" = { status = "mapped", rust = "FieldListener::push", reason = "one delta of the model's stream" }
 "streaming/streaming_listener.py::find_predictor_for_stream_listeners.program" = { status = "mapped", rust = "Watching::all", reason = "the program whose predictors are searched" }
 "streaming/streaming_listener.py::find_predictor_for_stream_listeners.stream_listeners" = { status = "mapped", rust = "Watching::all", reason = "the fields to find a predictor for" }
-"streaming/messages.py::StatusMessageProvider.tool_start_status_message.instance" = { status = "mapped", rust = "StatusMessages::tool_start", reason = "what the stage is told about — this crate hands the same thing under Rust's own names" }
-"streaming/messages.py::StatusMessageProvider.tool_start_status_message.inputs" = { status = "mapped", rust = "StatusMessages::tool_start", reason = "what the stage is told about — this crate hands the same thing under Rust's own names" }
-"streaming/messages.py::StatusMessageProvider.tool_end_status_message.outputs" = { status = "mapped", rust = "StatusMessages::tool_end", reason = "what the stage is told about — this crate hands the same thing under Rust's own names" }
-"streaming/messages.py::StatusMessageProvider.module_start_status_message.instance" = { status = "mapped", rust = "StatusMessages::module_start", reason = "what the stage is told about — this crate hands the same thing under Rust's own names" }
-"streaming/messages.py::StatusMessageProvider.module_start_status_message.inputs" = { status = "mapped", rust = "StatusMessages::module_start", reason = "what the stage is told about — this crate hands the same thing under Rust's own names" }
-"streaming/messages.py::StatusMessageProvider.module_end_status_message.outputs" = { status = "mapped", rust = "StatusMessages::module_end", reason = "what the stage is told about — this crate hands the same thing under Rust's own names" }
-"streaming/messages.py::StatusMessageProvider.lm_start_status_message.instance" = { status = "mapped", rust = "StatusMessages::lm_start", reason = "what the stage is told about — this crate hands the same thing under Rust's own names" }
-"streaming/messages.py::StatusMessageProvider.lm_start_status_message.inputs" = { status = "mapped", rust = "StatusMessages::lm_start", reason = "what the stage is told about — this crate hands the same thing under Rust's own names" }
-"streaming/messages.py::StatusMessageProvider.lm_end_status_message.outputs" = { status = "mapped", rust = "StatusMessages::lm_end", reason = "what the stage is told about — this crate hands the same thing under Rust's own names" }
+"streaming/messages.py::StatusMessageProvider.tool_start_status_message.instance" = { status = "mapped", rust = "StatusMessages::tool_start", reason = "the tool's name, as `StatusMessages::tool_start` takes it: dspy hands the live `Tool` and its handlers read `.name` off it" }
+"streaming/messages.py::StatusMessageProvider.tool_start_status_message.inputs" = { status = "mapped", rust = "StatusMessages::tool_start", reason = "`args: &Value`, the arguments the tool was called with — dspy's kwargs dict under a type" }
+"streaming/messages.py::StatusMessageProvider.tool_end_status_message.outputs" = { status = "mapped", rust = "StatusMessages::tool_end", reason = "`outputs: &Value`, what the tool returned. Only the Ok arm reaches here, as upstream's handler is called only on one" }
+"streaming/messages.py::StatusMessageProvider.module_start_status_message.instance" = { status = "mapped", rust = "StatusMessages::module_start", reason = "the module's name, as `StatusMessages::module_start` takes it: dspy hands the live `Module` and its handlers read the class name off it" }
+"streaming/messages.py::StatusMessageProvider.module_start_status_message.inputs" = { status = "mapped", rust = "StatusMessages::module_start", reason = "`inputs: &Example`, the fields the module was called with" }
+"streaming/messages.py::StatusMessageProvider.module_end_status_message.outputs" = { status = "mapped", rust = "StatusMessages::module_end", reason = "`answered: &Prediction`, what the module returned" }
+"streaming/messages.py::StatusMessageProvider.lm_start_status_message.instance" = { status = "divergence", reason = "no counterpart, and none is needed: `StatusMessages::lm_start` is handed the `LmRequest`, which carries the model name dspy's handlers read off the live `LM`. The same shape as `Callback::on_lm_start`, and unlike the tool and module stages, which do take a name" }
+"streaming/messages.py::StatusMessageProvider.lm_start_status_message.inputs" = { status = "mapped", rust = "StatusMessages::lm_start", reason = "`request: &api::LmRequest`, the typed request rather than dspy's call kwargs" }
+"streaming/messages.py::StatusMessageProvider.lm_end_status_message.outputs" = { status = "mapped", rust = "StatusMessages::lm_end", reason = "`answered: &api::LmResponse`, the reply the model gave" }
 "signatures/signature.py::Signature.equals.other" = { status = "mapped", rust = "Signature::equals", reason = "the signature being compared against. Upstream also accepts a non-Signature and answers `False`; a typed `&Signature` makes that unrepresentable rather than answered" }
 "adapters/types/file.py::File.from_bytes.file_bytes" = { status = "mapped", rust = "File::from_bytes", reason = "`impl AsRef<[u8]>`, so a slice, a `Vec` or an array all work" }
 "adapters/types/file.py::File.from_bytes.filename" = { status = "mapped", rust = "File::filename", reason = "the builder this type already had, as with `from_path`: `File::from_bytes(b)?.filename(\"report.pdf\")`" }

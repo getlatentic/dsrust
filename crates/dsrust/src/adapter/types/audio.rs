@@ -9,10 +9,52 @@ use super::base::{Formatted, Type, serialized};
 ///
 /// dspy also builds one from a URL, a file, or a numpy array — each read and base64-encoded. Those
 /// are Python-side sources; here the value is the already-encoded `data` and its `audio_format`.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Audio {
     pub data: String,
     pub audio_format: String,
+}
+
+/// The map form, which is what upstream hands to pydantic once `encode_audio` has agreed to it.
+#[derive(Deserialize)]
+struct Encoded {
+    data: String,
+    audio_format: String,
+}
+
+impl<'de> Deserialize<'de> for Audio {
+    /// dspy `encode_audio`, which `validate_input` runs before pydantic sees the value.
+    ///
+    /// A `mode="before"` validator runs on every construction, parsing a reply included, so the
+    /// shapes it takes are part of the wire contract rather than a Python-side convenience. A
+    /// derive read only the map, and a data URI — the one string form upstream accepts — came back
+    /// as `invalid type: string, expected struct Audio`.
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error as _;
+        let value = serde_json::Value::deserialize(deserializer)?;
+        match &value {
+            serde_json::Value::String(source) => {
+                Self::parse(source).map_err(|error| D::Error::custom(format!("{error}")))
+            }
+            // Presence of both keys is what upstream tests, leaving the field types to pydantic —
+            // so a map carrying only one of them is not a malformed `Audio` but an unsupported
+            // value, and says so.
+            serde_json::Value::Object(fields)
+                if fields.contains_key("data") && fields.contains_key("audio_format") =>
+            {
+                let encoded =
+                    Encoded::deserialize(&value).map_err(|error| D::Error::custom(error))?;
+                Ok(Self {
+                    data: encoded.data,
+                    audio_format: encoded.audio_format,
+                })
+            }
+            other => Err(D::Error::custom(format!(
+                "Unsupported type for encode_audio: {}",
+                super::refusal::python_type(other)
+            ))),
+        }
+    }
 }
 
 impl Audio {

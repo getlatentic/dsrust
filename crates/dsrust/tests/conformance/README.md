@@ -22,13 +22,26 @@ read as a rendered prompt, and one that is not fails on a missing `inputs` array
 
 ## `observe/` — which callback handlers a program fires, and under what
 
-`observe/callbacks.json` is the handler sequence four dspy programs produced under a recording
+`observe/callbacks.json` is the handler sequence five dspy programs produced under a recording
 `BaseCallback`, with the nesting depth of the call each handler belongs to. The payloads do not
 cross — upstream hands a handler Python objects — so what is held here is *when* each point fires
 and what encloses it, which is the half a trait of defaulted methods gets wrong by counting.
 `tests/callback.rs` reads it; `scripts/generate_callback_fixture.py` writes it. The
 `chain_of_thought_n3` case is the one sequence upstream asserts by hand, in
-`tests/callback/test_callback.py`.
+`tests/callback/test_callback.py`. `evaluate_abandoned` is the run that gives up past `max_errors`:
+upstream raises out of `Evaluate.__call__` and its decorator still fires the end handler, which is
+the half a port gets wrong by returning from inside its own open point.
+
+## `adapter/type_coercion.json` — which shapes each custom type reads
+
+Every custom type carries a `mode="before"` validator, so the shapes it accepts are part of the
+wire contract rather than a Python-side convenience: pydantic runs it when a reply is parsed, not
+only when a caller constructs one. This records, per type, which inputs upstream takes and its own
+words when it refuses — a `refusal` is null where pydantic refused structurally instead, since
+those messages describe Python's type system and have no counterpart worth matching.
+`tests/type_coercion_conformance.rs` reads it; `scripts/generate_type_coercion_fixture.py` writes
+it. It found `Audio` refusing the data URI upstream accepts and `ToolCallResults` refusing a bare
+list, both of which a ledger entry had called reproduced.
 
 ## `lm_api/` — dspy 3.3's normalized LM types
 

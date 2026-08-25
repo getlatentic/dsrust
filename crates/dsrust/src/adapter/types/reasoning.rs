@@ -125,14 +125,16 @@ impl<'de> Deserialize<'de> for Reasoning {
             serde_json::Value::Object(mut map) => match map.remove("content") {
                 Some(serde_json::Value::String(content)) => Ok(Self { content }),
                 Some(other) => Err(de::Error::custom(format!(
-                    "`content` field must be a string, but received type: {other}"
+                    "`content` field must be a string, but received type: {}",
+                    super::refusal::python_type(&other)
                 ))),
                 None => Err(de::Error::custom(
-                    "`content` field is required for `Reasoning`",
+                    "`content` field is required for `dspy.Reasoning`",
                 )),
             },
             other => Err(de::Error::custom(format!(
-                "Received invalid value for `Reasoning`: {other}"
+                "Received invalid value for `dspy.Reasoning`: {}",
+                super::refusal::python_str(&other)
             ))),
         }
     }
