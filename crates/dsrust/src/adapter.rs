@@ -188,6 +188,16 @@ pub trait Adapter: Send + Sync {
 /// What an adapter says about letting the provider call tools itself.
 ///
 /// dspy spells these as two attributes on the base `Adapter`. `parallel` is `None` where upstream
+/// ```
+/// use dsrust::NativeFunctionCalling;
+///
+/// // `parallel` is `None` where upstream leaves the provider's own default alone — which is not
+/// // the same as `Some(false)`, and a request that says `parallel_tool_calls: false` is a
+/// // different request from one that says nothing.
+/// let untouched = NativeFunctionCalling { enabled: true, parallel: None };
+/// let forbidden = NativeFunctionCalling { enabled: true, parallel: Some(false) };
+/// assert_ne!(untouched, forbidden);
+/// ```
 /// leaves the provider option unset, which is not the same as asking for `false`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct NativeFunctionCalling {

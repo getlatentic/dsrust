@@ -67,6 +67,16 @@ where
     }
 }
 
+/// It is a [`Module`] like any other, so an ensemble drops into a program where one predictor was:
+///
+/// ```no_run
+/// # use dsrust::{Ensembled, Module};
+/// # fn read<R>(ensembled: Ensembled<R>) where Ensembled<R>: Module {
+/// // `size` draws a subset per call rather than running every program, which is what makes an
+/// // ensemble affordable — dspy's `Ensemble(size=n)`, and the draw advances a seeded stream.
+/// let _: &dyn Module = &ensembled;
+/// # }
+/// ```
 /// dspy's `EnsembledProgram`: what [`Ensemble::compile`] hands back.
 pub struct Ensembled<R> {
     programs: Vec<Box<dyn Module>>,

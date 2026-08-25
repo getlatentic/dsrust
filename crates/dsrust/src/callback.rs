@@ -185,6 +185,27 @@ thread_local! {
 /// **It scopes a future, not a block**, for the reason [`crate::lm::context`] does: entered on each
 /// poll and left when the poll returns, so two pieces of work interleaved in one task each see
 /// their own watchers.
+/// ```
+/// use dsrust::callback::{CallId, Callback, watched_by};
+/// use std::sync::{Arc, Mutex};
+///
+/// #[derive(Default)]
+/// struct Counting(Mutex<usize>);
+///
+/// impl Callback for Counting {
+///     fn on_module_start(&self, _call: &CallId, _module: &str, _inputs: &dsrust::Example) {
+///         *self.0.lock().expect("not poisoned") += 1;
+///     }
+/// }
+///
+/// # async fn wrapper(program: dsrust::Predict) -> anyhow::Result<()> {
+/// let counting = Arc::new(Counting::default());
+/// // Additive and scoped: a caller's own process-wide watchers still hear this run, and this
+/// // watcher hears nothing outside it.
+/// watched_by(counting.clone()).run(program.call("a question")).await?;
+/// println!("{} module calls", counting.0.lock().expect("not poisoned"));
+/// # Ok(()) }
+/// ```
 pub fn watched_by(extra: Arc<dyn Callback>) -> Watching {
     Watching { extra }
 }

@@ -57,6 +57,18 @@ pub fn handing_back(interpreter: Arc<dyn CodeInterpreter>) -> InterpreterFactory
 ///
 /// Named for what it is: a borrow with a rule attached. `Drop` does the shutting down, so an early
 /// `?` releases the process exactly as a clean return does — which is the whole of upstream's
+/// ```
+/// use dsrust::interpreter::{DenoInterpreter, Lease};
+/// use std::sync::Arc;
+///
+/// // A caller's own interpreter survives the pass — dspy's `if interpreter is not None: yield;
+/// // return`, with no `finally`, because the caller is still holding it.
+/// let mine: Arc<dyn dsrust::interpreter::CodeInterpreter> = Arc::new(DenoInterpreter::new());
+/// let borrowed = Lease::borrowed(Arc::clone(&mine));
+/// drop(borrowed);
+/// // `mine` is still usable here: dropping a borrowed lease shuts nothing down.
+/// assert_eq!(Arc::strong_count(&mine), 1);
+/// ```
 /// `try/finally` and the half a hand-written call at the end of `forward` would miss.
 pub struct Lease {
     interpreter: Arc<dyn CodeInterpreter>,

@@ -143,6 +143,22 @@ pub fn context(lm: LM) -> Scope {
 }
 
 /// As [`context`], sending the scope's provider calls on `http` rather than a client of its own.
+///
+/// Worth reaching for when the process already has a client whose pool, proxy or timeouts are
+/// configured — `context` builds one per scope, and a program that opens many scopes would build
+/// many:
+///
+/// ```
+/// # async fn wrapper(program: dsrust::Predict) -> anyhow::Result<()> {
+/// let shared = reqwest::Client::builder()
+///     .timeout(std::time::Duration::from_secs(60))
+///     .build()?;
+/// let lm = dsrust::LM::builder("openai/gpt-4o-mini").build()?;
+/// dsrust::lm::context_with_client(shared, lm)
+///     .run(program.call("a question"))
+///     .await?;
+/// # Ok(()) }
+/// ```
 pub fn context_with_client(http: reqwest::Client, lm: LM) -> Scope {
     context_model(http, Arc::new(lm))
 }
