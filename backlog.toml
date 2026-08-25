@@ -4993,7 +4993,7 @@ because a citation is prose and prose has false positives.
 id = "cited-but-unlisted-gate"
 sprint = "api"
 title = "The check that found nine unlisted modules is ten lines and runs nowhere"
-state = "todo"
+state = "done"
 size = "S"
 suites = []
 plan = """
@@ -5016,4 +5016,63 @@ and for the same reason. A count with a floor would let the next real one hide b
 **What proves it.** The gate reporting zero unexcused citations at the point it lands, and failing
 when a module is removed from `PORTED_MODULES` while the source still cites it — the state this
 crate was in for `clients/openai_format.py`, which a control can reproduce exactly.
+"""
+
+done = """
+`scripts/check_cited_modules.py`, in the gate beside its siblings. It has an excuse table rather
+than a threshold, for the reason the story gave: a citation is prose, and `download` and `set` are
+ordinary English that happen to name dspy functions.
+
+**It found six more the moment it ran**, on top of the nine the manual audit had already turned up:
+`propose/grounded_proposer.py` and `propose/dataset_summary_generator.py` — MIPROv2's proposer and
+its descriptor, the second with a golden named after it — plus `propose/utils.py`,
+`teleprompt/utils.py`, `utils/parallelizer.py`, and `utils/usage_tracker.py`.
+
+**That last one is the whole argument for the gate.** `check_coverage.py`'s docstring holds the
+usage tracker up as the lesson — "not in PORTED_MODULES at all despite the crate implementing it.
+Two live bugs were sitting behind that miss" — and `tests/utils/test_usage_tracker.py` was duly
+added to the manifest. The module was never added to the list. The lesson was written down, the
+test half was fixed, and the half the lesson was about stayed open for months. A gate would have
+said so on the next run.
+
+The six are `PENDING` with the story that will list them, which is a holding pen and not an excuse:
+each entry says the module is ported and its symbols are classified nowhere. Nothing *new* can join
+them silently.
+
+**What proves it.** Removing `clients/openai_format.py` from `PORTED_MODULES` — the exact state the
+crate was in this morning — fails the gate with 35 named citations. Restored, it passes.
+"""
+
+[[story]]
+id = "unlisted-2"
+sprint = "api"
+title = "Six more ported modules on no list, one of them the lesson a docstring already records"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+Found by `check_cited_modules.py` on its first run, after the nine that `ported-in-effect-unlisted`
+closed by hand. Each is implemented here and has zero ledger entries, so an API-level divergence in
+any of them — a renamed method, a parameter with no counterpart — is invisible.
+
+- `propose/grounded_proposer.py` — `optimize/mipro/grounded.rs`. The largest, and the one whose
+  prompts are already golden-tested, so the behaviour is held and only the surface is not.
+- `propose/dataset_summary_generator.py` — `optimize/mipro/dataset_summary.rs`, with
+  `dataset_summary.json` and `dataset_descriptor_with_prior_observations.json` beside it.
+- `propose/utils.py` — `strip_prefix` and `create_example_string`, both reproduced in
+  `optimize/mipro/` by functions that cite them by name.
+- `teleprompt/utils.py` — `eval_candidate_program` and `create_n_fewshot_demo_sets`. The metric
+  threshold this one passes through is already tested here, and was found by mutation.
+- `utils/parallelizer.py` — `ParallelExecutor`, which is `predict/parallel.rs`.
+- `utils/usage_tracker.py` — `lm/usage.rs`. **Read `check_coverage.py`'s docstring before starting
+  this one.** It holds this exact module up as the lesson that a ported module can be on no list,
+  its test file was added when that was found, and the module itself never was.
+
+**What proves it.** Each in `PORTED_MODULES` with every symbol, method, constructor parameter and
+method parameter classified, and removed from `check_cited_modules.py`'s `PENDING` — which is what
+turns the holding pen back into a gate that has nothing pending.
+
+Watch the bare-name floor as with the last nine: a type or free function that is the only definition
+of its name may stay bare; anything else is written as a pair, and `rust_members` resolves both
+`Type::member` and `module::name`.
 """

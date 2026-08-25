@@ -113,6 +113,11 @@ python3 "$ROOT/scripts/check_rust_surface.py"
 # And the reasons themselves, which nothing checked until a substitution claim was wrong twice —
 # `callbacks` and both `log_dir` entries each pointed at tracing spans that were not there.
 python3 "$ROOT/scripts/check_ledger_claims.py"
+
+# A module this crate explains itself in terms of belongs on the ported list, or its symbols are
+# held to nothing. `clients/openai_format.py` sat that way while the OpenAI body was byte-verified
+# against it; the usage tracker sat that way after its own tests were added.
+"$VENV/bin/python" "$ROOT/scripts/check_cited_modules.py"
 # The same question from the module's own side: `__all__` names things the AST walk cannot see,
 # because an alias is a binding rather than a definition. It found `LMPart` and `ToolCall`.
 python3 "$ROOT/scripts/check_pinned_all.py"
