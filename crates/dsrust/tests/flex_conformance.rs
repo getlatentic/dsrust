@@ -403,3 +403,76 @@ fn it_strips_the_fences_dspy_strips() {
         );
     }
 }
+
+/// An optimizer reaches a `Flex` nested in a program, and writes a proposal back through it.
+///
+/// This is the walk `named_predictors` cannot do: a `Flex` has no predictors to hand out, so an
+/// optimizer that only knew that walk would see a program with nothing to optimize. The composed
+/// module below recurses exactly as it must for predictors, and the test would pass on a bare `Flex`
+/// without proving anything — which is why the subject is a program with a `Flex` *inside* it.
+#[test]
+fn an_optimizer_reaches_a_flex_nested_in_a_program() {
+    use dsrust::module::{Module, NamedFlex};
+    use dsrust::predict::flex::proposal::{flex_components, rebind_flex_code};
+    use dsrust::{Example, Prediction};
+    use std::collections::BTreeMap;
+
+    struct Program {
+        flexed: Flex,
+    }
+
+    impl Module for Program {
+        fn forward<'a>(
+            &'a self,
+            _inputs: Example,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = anyhow::Result<Prediction>> + Send + 'a>,
+        > {
+            Box::pin(async { unreachable!("this test never runs the program") })
+        }
+
+        fn named_flexes(&mut self) -> Vec<NamedFlex<'_>> {
+            self.flexed
+                .named_flexes()
+                .into_iter()
+                .map(|mut inner| {
+                    inner.name = "flexed".to_owned();
+                    inner
+                })
+                .collect()
+        }
+    }
+
+    let signature: Signature = "question -> answer".parse().expect("parses");
+    let mut program = Program {
+        flexed: Flex::new(signature),
+    };
+
+    let components = flex_components(&mut program);
+    assert_eq!(
+        components.keys().collect::<Vec<_>>(),
+        ["flexed"],
+        "the walk did not reach the Flex under its parent's name"
+    );
+    assert!(
+        components["flexed"].contains("class StringSignatureModule"),
+        "the component is not the module's source: {}",
+        components["flexed"]
+    );
+
+    let proposed = "class Rewritten(dspy.Module):\n\
+                    \x20   def forward(self, **inputs):\n\
+                    \x20       return dspy.Prediction(answer='better')";
+    let candidate = BTreeMap::from([
+        ("flexed".to_owned(), proposed.to_owned()),
+        // A component the program has no Flex for — an optimizer's candidate carries every
+        // component and only some of them are code.
+        ("some_predictor".to_owned(), "not source".to_owned()),
+    ]);
+    rebind_flex_code(&mut program, &candidate).expect("the proposal binds");
+    assert_eq!(program.flexed.module_src(), proposed);
+
+    // Source naming no class is refused here rather than at the next forward.
+    let broken = BTreeMap::from([("flexed".to_owned(), "x = 1".to_owned())]);
+    assert!(rebind_flex_code(&mut program, &broken).is_err());
+}

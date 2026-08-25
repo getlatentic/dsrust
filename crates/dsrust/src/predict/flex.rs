@@ -20,7 +20,7 @@ use anyhow::{Result, bail};
 
 use crate::example::{Example, Prediction};
 use crate::interpreter::{DenoInterpreter, InterpreterFactory, factory};
-use crate::module::{FlexState, Module, ProgramState, SubmoduleState};
+use crate::module::{FlexState, Module, NamedFlex, ProgramState, SubmoduleState};
 use crate::react::Tool;
 use crate::signature::Signature;
 
@@ -271,6 +271,17 @@ fn python_repr(value: &str) -> String {
 }
 
 impl Module for Flex {
+    /// dspy's `enumerate_flex_submodules` reaching a leaf: a `Flex` is the one it was looking for.
+    ///
+    /// Named `self` as every bare module here names itself; a `Flex` inside a program is renamed by
+    /// the parent that recurses into it, which is what `named_predictors` does one method over.
+    fn named_flexes(&mut self) -> Vec<NamedFlex<'_>> {
+        vec![NamedFlex {
+            name: "self".to_owned(),
+            flex: self,
+        }]
+    }
+
     /// dspy's `Flex.dump_state`: the source, and the model it was pinned to.
     ///
     /// A `Flex`'s update unit is its `module_src`, not a signature and some demos — which is why

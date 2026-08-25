@@ -23,10 +23,10 @@
 # says nothing about what it takes, and that is where a port loses things without going red.
 
 [symbols]
-"teleprompt/gepa/gepa_flex_utils.py::enumerate_flex_submodules" = { status = "todo", reason = "the `Flex` submodules of a program, keyed by parameter path — what tells GEPA which components are source rather than instructions. Needs a walk that reaches a `Flex`, and `Module::named_predictors` deliberately does not: a Flex has no predictors to hand out, which is the whole reason it needs its own enumeration" }
+"teleprompt/gepa/gepa_flex_utils.py::enumerate_flex_submodules" = { status = "mapped", rust = "Module::named_flexes", reason = "the `Flex` submodules of a program, keyed by the path an optimizer names the component by. A second walk beside `named_predictors` rather than a wider one, because the two answer different questions: a predictor's component is its instruction and a Flex's is its source, and GEPA rewrites them with different proposers. Upstream reaches both through `named_parameters` and asks `isinstance`; a Rust walk says which by returning from a different method" }
 "teleprompt/gepa/gepa_flex_utils.py::flex_task_context" = { status = "todo", reason = "the task description and available context shown to the code proposer — a `Flex`'s signature rendered, and the tools in scope by name. Both halves exist (`Flex::signature_string`, `Flex::with_tools`); what is missing is the rendering the prompt expects" }
 "teleprompt/gepa/gepa_flex_utils.py::propose_code" = { status = "mapped", rust = "proposal::propose_code", reason = "ask for a revised module per code component, keeping the current source when the proposer cannot answer. Upstream keeps it on any failure that is not an `LMError` — a proposal that fails to arrive should cost a generation, not the run" }
-"teleprompt/gepa/gepa_flex_utils.py::rebind_flex_code" = { status = "todo", reason = "apply a proposed source to the program's Flexes. `Flex::bind` is the per-module half and is done; this is the walk over a candidate keyed by parameter path" }
+"teleprompt/gepa/gepa_flex_utils.py::rebind_flex_code" = { status = "mapped", rust = "proposal::rebind_flex_code", reason = "apply a proposed source to each `Flex` the candidate names, ignoring the components it has no Flex for — a candidate carries every component and only some are code. Source naming no class is refused here rather than at the next forward" }
 "teleprompt/gepa/gepa_flex_utils.py::code_reflective_records" = { status = "todo", reason = "the reflective dataset for a code component: whole-program inputs, outputs and feedback rather than one predictor's. `ReflectiveDataset` is the per-predictor shape here and this is the other one" }
 "teleprompt/gepa/gepa_flex_utils.py::evaluate_with_trace" = { status = "todo", reason = "scoring that captures the execution trace, so a metric declaring a `program_trace` parameter can score against it. `MetricContext::trace` already carries a trace to a metric; what is missing is the Flex-aware scoring path that fills it" }
 # teleprompt/gepa/gepa_flex_utils.py — GEPA optimizing a `Flex`, whose component is source.
@@ -1180,6 +1180,9 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "LmFailure::issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+"teleprompt/gepa/gepa_flex_utils.py::enumerate_flex_submodules.root" = { status = "mapped", rust = "Module::named_flexes", reason = "the program to walk, which is `self` on a trait method" }
+"teleprompt/gepa/gepa_flex_utils.py::rebind_flex_code.program" = { status = "mapped", rust = "proposal::rebind_flex_code", reason = "the program whose Flexes are rebound" }
+"teleprompt/gepa/gepa_flex_utils.py::rebind_flex_code.candidate" = { status = "mapped", rust = "proposal::rebind_flex_code", reason = "component to proposed text, of which the code components are the ones that land" }
 "teleprompt/gepa/gepa_flex_utils.py::propose_code.code_keys" = { status = "mapped", rust = "proposal::propose_code", reason = "which components are source rather than instructions, by parameter path" }
 "teleprompt/gepa/gepa_flex_utils.py::propose_code.candidate" = { status = "mapped", rust = "proposal::propose_code", reason = "the candidate being revised: component to its current text, which for a code component is the module source" }
 "teleprompt/gepa/gepa_flex_utils.py::propose_code.reflective_dataset" = { status = "mapped", rust = "proposal::propose_code", reason = "the failing records per component, rendered into the prompt by `format_failures`" }
@@ -1679,6 +1682,9 @@
 # subsample, the running means, when a full evaluation is due — which nothing outside
 # `optimize/mipro/` calls and no caller of this crate would. `Auto` survives, re-exported beside
 # `MIPROv2`, because a preset *is* a caller's to choose. Thirteen items off the public surface.
+"dsrust::module::NamedFlex" = { status = "mapped", rust = "NamedFlex", reason = "one `Flex` within a program, under the name an optimizer keys its component by — the counterpart of `NamedPredictor` for the other kind of optimizable component. It carries the module rather than a field, because a Flex's whole state is its source and `Flex::bind` is what an optimizer writes back through" }
+"dsrust::module::NamedFlex::name" = { status = "mapped", rust = "NamedFlex::name", reason = "the component path, which the parent that recursed sets" }
+"dsrust::predict::flex::proposal::flex_components" = { status = "mapped", rust = "proposal::flex_components", reason = "the source each `Flex` in a program currently holds — the read half of `rebind_flex_code`, and what seeds a candidate: an optimizer starts from what the program already says" }
 "dsrust::optimize::Trial" = { status = "mapped", rust = "Trial", reason = "one entry of dspy's `trial_logs`, as the optuna study records it — the parameters a trial proposed and what it scored. Exported 2026-08-24: `MIPROv2::compile_traced` answers with `Vec<Trial>` and this was `pub` inside a private module, so a caller could hold the value and not name the type. Found by diffing the surface walk against rustdoc's own JSON, which lists an item by where it is *defined*" }
 "dsrust::optimize::Trial::params" = { status = "mapped", reason = "`Trial::params` — the parameter values this trial proposed, as optuna records them" }
 

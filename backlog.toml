@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1366
+rust_tests = 1367
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -3585,10 +3585,20 @@ person reaches for the same shortcut.
 item's old home, and then a *public* function linking a *private* item — which is an API
 inconsistency rather than a broken link, and is why `code_proposal` is public now.
 
-**Left:** four functions, each a `todo` row the gate prints. The structural one is
-`enumerate_flex_submodules` — it needs a walk that reaches a `Flex`, and `Module::named_predictors`
-deliberately cannot provide one, because a Flex has no predictors to hand out. Same shape as the
-state-map defect: the traversal model assumes predictors and a Flex is not one.
+**The structural one is closed, as a model change rather than a special case.**
+`Module::named_flexes` is a *second* walk beside `named_predictors`, not a wider one — a predictor's
+optimizable component is its instruction and a `Flex`'s is its source, and GEPA rewrites them with
+different proposers. Upstream reaches both through `named_parameters` and asks `isinstance` which it
+got; a Rust walk answers by returning from a different method. `rebind_flex_code` and
+`flex_components` are the write and read halves.
+
+The test is a `Flex` **nested inside a program**, deliberately: a bare one would pass while proving
+nothing, since the point is that the walk recurses where `named_predictors` cannot. The control
+stops the `Flex` reporting itself and the walk comes back empty.
+
+**Left:** `flex_task_context` — the rendering the code proposer's prompt expects — and
+`evaluate_with_trace`, the Flex-aware scoring that fills `MetricContext::trace` so a metric declaring
+a `program_trace` parameter can read it. Both are `todo` rows the API gate prints every run.
 """
 
 [[story]]

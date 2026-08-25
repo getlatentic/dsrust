@@ -29,6 +29,16 @@ pub use trust::Trust;
 
 /// One predictor inside a program: its signature and its demos, borrowed for inspection or
 /// mutation. An optimizer's whole job is reading these and writing back better ones.
+/// One `Flex` within a program, under the name an optimizer keys its component by.
+///
+/// The counterpart of [`NamedPredictor`] for the other kind of optimizable component. It carries
+/// the module itself rather than a field, because a `Flex`'s whole state is its source and
+/// `Flex::bind` is what an optimizer writes back through.
+pub struct NamedFlex<'a> {
+    pub name: String,
+    pub flex: &'a mut crate::predict::flex::Flex,
+}
+
 pub struct NamedPredictor<'a> {
     pub name: String,
     pub signature: &'a mut Signature,
@@ -129,6 +139,22 @@ pub trait Module: Send + Sync {
     /// list is for.
     fn callbacks(&self) -> &[std::sync::Arc<dyn crate::callback::Callback>] {
         &[]
+    }
+
+    /// Every `Flex` this program contains, named — dspy's `enumerate_flex_submodules`.
+    ///
+    /// A second walk rather than a wider `named_predictors`, because the two answer different
+    /// questions and an optimizer treats their answers differently. A predictor's optimizable
+    /// component is its instruction; a [`Flex`](crate::predict::flex::Flex)'s is its *source*, and
+    /// GEPA rewrites the two with different proposers. Upstream reaches both through
+    /// `named_parameters` and asks `isinstance` which it has; a Rust walk says which by returning
+    /// from a different method.
+    ///
+    /// Defaulted to none, and a composed module must recurse into its children exactly as it does
+    /// for `named_predictors` — a `Flex` nested inside a module that does not is invisible to an
+    /// optimizer, which is the same cost that walk already carries.
+    fn named_flexes(&mut self) -> Vec<NamedFlex<'_>> {
+        Vec::new()
     }
 
     /// Every predictor this program contains, named. dspy's `named_predictors`, and the seam

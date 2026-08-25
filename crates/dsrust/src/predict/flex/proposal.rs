@@ -8,6 +8,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use anyhow::Result;
 use serde_json::{Map, Value};
 
 use crate::example::Example;
@@ -224,4 +225,34 @@ pub async fn propose_code(
         );
     }
     proposed
+}
+
+/// dspy `rebind_flex_code`: apply a proposed source to each `Flex` the candidate names.
+///
+/// A candidate keyed by a path the program has no `Flex` for is ignored, as upstream ignores it —
+/// a candidate carries every component and only some of them are code. Source that does not name a
+/// class is refused here rather than at the next forward, which is where upstream's `_bind_code`
+/// refuses it too.
+pub fn rebind_flex_code(
+    program: &mut (impl Module + ?Sized),
+    candidate: &BTreeMap<String, String>,
+) -> Result<()> {
+    for named in program.named_flexes() {
+        if let Some(source) = candidate.get(&named.name) {
+            named.flex.bind(source.clone())?;
+        }
+    }
+    Ok(())
+}
+
+/// dspy `enumerate_flex_submodules`: the source each `Flex` in the program currently holds.
+///
+/// The read half of [`rebind_flex_code`], and what seeds a candidate: an optimizer starts from what
+/// the program already says and proposes a replacement.
+pub fn flex_components(program: &mut (impl Module + ?Sized)) -> BTreeMap<String, String> {
+    program
+        .named_flexes()
+        .into_iter()
+        .map(|named| (named.name, named.flex.module_src().to_owned()))
+        .collect()
 }
