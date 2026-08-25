@@ -101,13 +101,14 @@ EXCUSED = {
     "tests/clients/test_disk_serialization.py": "Python pickling policy",
     "tests/clients/test_inspect_global_history.py": "dspy's history printing",
     "tests/clients/test_lm_local.py": "launching a locally-served model",
-    # Precise about what is and is not here, because the older wording said "no `StreamListener`"
-    # and one existed — ChatAdapter-only, and with the chunk boundaries wrong, which is worse than
-    # absent because it looked done. The listener is now held to dspy's own boundaries by
-    # `tests/streaming_conformance.rs` over a golden from `generate_streaming_fixture.py`. What is
-    # still missing is the program level: `streamify` over a whole module, `StatusMessageProvider`,
-    # and the JSON and XML listeners. See `lm-streamify`.
-    "tests/streaming/test_streaming.py": "dspy's program-level streaming: streamify over a module, status messages, and the JSON/XML listeners",
+    # Excused for a reason that is *not* "unported": streamify, the three listeners and the status
+    # provider all landed with `lm-streamify`. It is excused because running it would prove
+    # nothing about them. The bridge carries rendering and parsing and no streaming crossing, so
+    # this file would drive dspy's own Python `StreamListener` over a Rust-rendered prompt and
+    # never reach this crate's. `tests/streaming_conformance.rs` and
+    # `tests/partial_json_conformance.rs` are the direct oracle instead: dspy's own listener driven
+    # over sixteen recorded streams, and `jiter`'s answer for 342 accumulated prefixes.
+    "tests/streaming/test_streaming.py": "dspy's async streaming plumbing around a Python program; it would exercise upstream's own listener rather than this crate's, which the streaming goldens compare directly",
     "tests/teleprompt/test_bootstrap_trace.py": "dspy's trace-collection helpers",
     "tests/teleprompt/test_utils.py": "dspy's optimizer helper functions",
     "tests/teleprompt/test_gepa_instruction_proposer.py": "dspy's proposer over multimodal inputs",

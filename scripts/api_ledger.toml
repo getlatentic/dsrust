@@ -1867,6 +1867,12 @@
 "dsrust::adapter::stream::StatusMessages::lm_end" = { status = "mapped", rust = "StatusMessages::lm_end", reason = "dspy `lm_end_status_message`; silent by default, as upstream's is" }
 "dsrust::adapter::stream::StatusMessages" = { status = "mapped", rust = "StatusMessages", reason = "dspy `StatusMessageProvider`: what to say as a program passes through each stage. Every method defaulted, and four of the six say *nothing* by default — upstream's own shape, not an omission; only the two tool messages carry wording" }
 "dsrust::adapter::stream::DefaultStatus" = { status = "divergence", rust = "DefaultStatus", reason = "the stock wording as a value. Python instantiates the base class; Rust needs a type to implement the trait on" }
+"dsrust::adapter::stream::StreamedField" = { status = "mapped", rust = "StreamedField", reason = "dspy `StreamResponse`: one piece of a watched field, and which field of which predictor it belongs to. The naming is what tells two predictors streaming at once apart, which is why upstream carries it" }
+"dsrust::adapter::stream::StreamedField::predictor" = { status = "mapped", rust = "StreamedField::predictor", reason = "dspy `StreamResponse.predict_name`, as `named_predictors` names it" }
+"dsrust::adapter::stream::StreamedField::field" = { status = "mapped", rust = "StreamedField::field", reason = "dspy `StreamResponse.signature_field_name`" }
+"dsrust::adapter::stream::StreamedField::text" = { status = "mapped", rust = "StreamedField::text", reason = "dspy `StreamResponse.chunk`" }
+"dsrust::adapter::stream::StreamedField::is_last" = { status = "mapped", rust = "StreamedField::is_last", reason = "dspy `StreamResponse.is_last_chunk`" }
+"dsrust::adapter::stream::Watching::all" = { status = "mapped", rust = "Watching::all", reason = "dspy `streamify(program, stream_listeners=[…])`: watch several fields, each matched to the predictor that answers it by `find_predictor_for_stream_listeners`" }
 "dsrust::adapter::stream::Watching" = { status = "divergence", rust = "Watching", reason = "the optional half of `streamify`, whose extras are keyword arguments Rust has no spelling for. `streamify(module, field, inputs)` stays the common case; `Watching::saying` is dspy's `status_message_provider=`" }
 "dsrust::adapter::stream::Watching::new" = { status = "divergence", rust = "Watching::new", reason = "the module and the field to watch" }
 "dsrust::adapter::stream::Watching::saying" = { status = "mapped", rust = "Watching::saying", reason = "dspy `streamify(program, status_message_provider=…)`" }

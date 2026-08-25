@@ -299,6 +299,12 @@ mod tests {
 
     /// Registration is process-wide, as dspy's is, so a test that registers has to keep every other
     /// such test out meanwhile — the same reason `lm::global::install_for_test` exists.
+    ///
+    /// The lock is not enough on its own and cannot be: it excludes the other tests *in this
+    /// module* and nothing about the dozens elsewhere in this binary that run a module and fire
+    /// these same points. Two things close that gap — [`Counting::seen`] keys on the call, and the
+    /// tests that can use [`watched_by`] do, since a scoped watcher lives in a thread-local and is
+    /// therefore invisible to work on any other thread.
     fn install(callbacks: Vec<Arc<dyn Callback>>) -> std::sync::MutexGuard<'static, ()> {
         static SERIAL: Mutex<()> = Mutex::new(());
         let guard = SERIAL
@@ -349,23 +355,36 @@ mod tests {
 
     /// A handler that panics is not allowed to end the run, and the ones after it still hear about
     /// the point — upstream's `try/except` around each handler, in the shape Rust has for it.
-    #[test]
-    fn a_panicking_callback_does_not_break_the_run() {
+    ///
+    /// Scoped rather than registered process-wide, which is what makes it deterministic: a scoped
+    /// watcher lives in a thread-local, so no other test in this binary can be heard by this
+    /// recorder however they interleave. Registering these globally is what made an earlier
+    /// version of this test fail once in a gate run.
+    #[tokio::test]
+    async fn a_panicking_callback_does_not_break_the_run() {
         let counting = Arc::new(Counting::default());
-        let _installed = install(vec![Arc::new(Panicking), counting.clone()]);
+        let call = CallId::next();
 
         // The default hook prints the panic and its backtrace, which is noise for a panic the test
         // is asserting gets caught.
         let hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(|_| {}));
-        let call = CallId::next();
-        tell(&[], |callback| {
-            callback.on_module_start(&call, "Predict", &Example::default());
-        });
+        watched_by(Arc::new(Panicking) as Arc<dyn Callback>)
+            .run(
+                watched_by(counting.clone() as Arc<dyn Callback>).run(async {
+                    tell(&[], |callback| {
+                        callback.on_module_start(&call, "Predict", &Example::default());
+                    });
+                }),
+            )
+            .await;
         std::panic::set_hook(hook);
 
-        assert_eq!(counting.seen(&call), ["Predict"]);
-        configure_callbacks([]);
+        assert_eq!(
+            counting.seen(&call),
+            ["Predict"],
+            "the watcher after the panicking one still heard the point"
+        );
     }
 
     /// Two calls, one recorder: each sees its own and not the other's.

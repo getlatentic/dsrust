@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1345
+rust_tests = 1348
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -2137,7 +2137,7 @@ sprint = "api"
 title = "Streaming reaches the provider and stops there: no streamify, listener or status"
 state = "done"
 size = "L"
-suites = ["tests/streaming/test_streaming.py"]
+suites = []
 plan = """
 `LM::forward_stream` reads tokens off the provider, which is the transport half and the half that
 was easy. dspy's user-facing streaming is a layer above it and none of it exists here:
@@ -2159,8 +2159,23 @@ streams, and `forward_stream` already returns one. What is missing is everything
 Build the listener before the status provider. A field's chunks are what a caller actually wants,
 and the adapter already knows the marker boundaries it would key on.
 
-**What proves it.** Excused by name today. Un-excusing it is how the story starts: it arrives as a failure list, which
-is the honest specification for `streamify` and the listener.
+**What proves it — and why it is not what this story first said.** The plan named
+`tests/streaming/test_streaming.py`: un-excuse it, take the failure list as the specification. That
+was the wrong proof, and the gate is what made me check it rather than assume it. The bridge
+exposes rendering and parsing and **no streaming crossing at all**, so running that suite would
+drive *dspy's own Python `StreamListener`* over a Rust-rendered prompt and never touch this crate's
+listener. It would have gone green while proving nothing about the thing being built — the exact
+"Python answering for Rust" hole this port has hit before.
+
+What replaced it is stricter, not weaker: `generate_streaming_fixture.py` drives dspy's
+`StreamListener.receive` directly over sixteen recorded streams across three wires, and
+`generate_partial_json_fixture.py` records `jiter`'s answer for every prefix of eleven accumulated
+strings — 342 of them. The Rust listeners are compared chunk for chunk and prefix for prefix. That
+is a direct oracle on the code in question, where the suite would have been an indirect one on
+Python's.
+
+The suite stays excused, and `check_coverage.py` now says this rather than pointing at a story as
+though it were pending work.
 """
 
 progress = """

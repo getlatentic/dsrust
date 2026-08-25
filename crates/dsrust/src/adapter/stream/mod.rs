@@ -19,7 +19,7 @@ mod status;
 
 pub use json::JsonFieldListener;
 pub use partial::{is_complete, keys_with_values};
-pub use program::{Streamed, Watching, streamify};
+pub use program::{Streamed, StreamedField, Watching, streamify};
 pub use status::{DefaultStatus, StatusMessages};
 
 use std::collections::VecDeque;
