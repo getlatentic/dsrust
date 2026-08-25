@@ -340,6 +340,21 @@
 # The classification is the load-bearing part — a recorded decision per method.
 
 [methods]
+# `__call__` on every mapped class. Skipped wholesale until 2026-08-25 on the reading that
+# invoking a module is `forward` here — true of `Predict` and `Module`, and of nothing else. It
+# also took their parameters out of `parameter_keys`, which demands them only from a *mapped*
+# method, so `Evaluate(callback_metadata=...)` had nowhere to be missing from.
+"adapters/base.py::Adapter.__call__" = { status = "divergence", reason = "upstream formats, calls the LM, and parses in one method. Here the caller owns the LM call: `Adapter::format` answers with the messages to send and `Adapter::parse` reads the reply, which is what lets a `Predict` retry or fall back between the two" }
+"adapters/chat_adapter.py::ChatAdapter.__call__" = { status = "divergence", reason = "the override that catches a failure from `super().__call__` and retries through a `JSONAdapter`. Split as `Adapter::json_fallback`, which names the adapter to fall back to rather than performing the call" }
+"adapters/json_adapter.py::JSONAdapter.__call__" = { status = "divergence", reason = "the override that asks for structured output first and falls back; see the base entry for why the call itself is the caller's, and `Adapter::output_mode` for the request it shapes" }
+"adapters/types/tool.py::Tool.__call__" = { status = "mapped", rust = "Tool::call", reason = "run the tool on its arguments" }
+"clients/base_lm.py::BaseLM.__call__" = { status = "mapped", rust = "ChatModel::forward", reason = "ask the model, which is the one entry point every provider implements" }
+"evaluate/evaluate.py::Evaluate.__call__" = { status = "mapped", rust = "Evaluate::run", reason = "score the program over the devset" }
+"predict/parallel.py::Parallel.__call__" = { status = "mapped", rust = "Parallel::run", reason = "run the calls, honouring the cap and the error budget" }
+"predict/predict.py::Predict.__call__" = { status = "mapped", rust = "Predict::forward", reason = "upstream's `__call__` is `Module.__call__`, which forwards; here it is the same one method" }
+"primitives/module.py::Module.__call__" = { status = "mapped", rust = "Module::forward", reason = "invoking a program is `forward`, and `Ask::ask` is the typed sugar over it" }
+"primitives/python_interpreter.py::PythonInterpreter.__call__" = { status = "mapped", rust = "CodeInterpreter::execute", reason = "run the code with the variables bound" }
+"teleprompt/gepa/gepa_utils.py::PredictorFeedbackFn.__call__" = { status = "divergence", reason = "upstream's `Protocol` exists to give a callable a checked shape. A Rust metric is a closure with that signature already, so `MetricContext` carries the arguments and there is no protocol method to implement" }
 "propose/grounded_proposer.py::GenerateModuleInstruction.forward" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "ask the model for one new instruction" }
 "propose/grounded_proposer.py::GroundedProposer.propose_instruction_for_predictor" = { status = "mapped", rust = "GroundedProposer::propose", reason = "one predictor's next instruction" }
 "propose/grounded_proposer.py::GroundedProposer.propose_instructions_for_program" = { status = "mapped", rust = "GroundedProposer::propose", reason = "every predictor's, which is the call MIPROv2 makes" }
@@ -1116,6 +1131,30 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "LmFailure::issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+# Parameters of the `__call__`s above, demanded for the first time on 2026-08-25.
+"adapters/types/tool.py::Tool.__call__.kwargs" = { status = "mapped", rust = "Tool::call", reason = "the arguments, which arrive as one `Value` rather than as Python keywords" }
+"clients/base_lm.py::BaseLM.__call__.request" = { status = "mapped", rust = "ChatModel::forward", reason = "the typed request, which is the only thing `forward` takes" }
+"clients/base_lm.py::BaseLM.__call__.items" = { status = "mapped", rust = "LmRequest::from_items", reason = "the direct-call items upstream normalises with `LMRequest.from_call`; a caller builds the request with the same constructor and hands it over" }
+"clients/base_lm.py::BaseLM.__call__.prompt" = { status = "divergence", reason = "upstream's legacy path, which answers `list[str | dict]` instead of an `LMResponse`. This crate is typed-only — a prompt is a `User` message on an `LmRequest`" }
+"clients/base_lm.py::BaseLM.__call__.messages" = { status = "divergence", reason = "the other half of that legacy path; see the `prompt` entry beside it" }
+"clients/base_lm.py::BaseLM.__call__.kwargs" = { status = "divergence", reason = "Python's `*args`/`**kwargs`. A Rust call takes the typed inputs the signature names — per-call configuration is `LmRequest`'s own fields" }
+"evaluate/evaluate.py::Evaluate.__call__.program" = { status = "mapped", rust = "Evaluate::new", reason = "the program to score, taken when the evaluation is built rather than when it is run" }
+"evaluate/evaluate.py::Evaluate.__call__.devset" = { status = "mapped", rust = "Evaluate::devset", reason = "the same field upstream's constructor takes; `__call__` re-offers it per call and a Rust caller builds another `Evaluate`" }
+"evaluate/evaluate.py::Evaluate.__call__.metric" = { status = "mapped", rust = "Evaluate::metric", reason = "as `devset`: a constructor field here, re-offered per call upstream" }
+"evaluate/evaluate.py::Evaluate.__call__.num_threads" = { status = "mapped", rust = "Evaluate::num_threads", reason = "as `devset`: a constructor field here, re-offered per call upstream" }
+"evaluate/evaluate.py::Evaluate.__call__.display_progress" = { status = "divergence", reason = "progress is the caller's to render; the constructor entry of the same name says the same" }
+"evaluate/evaluate.py::Evaluate.__call__.display_table" = { status = "divergence", reason = "dspy prints a pandas table; `Evaluation::results` carries the rows for a caller to render" }
+"evaluate/evaluate.py::Evaluate.__call__.save_as_csv" = { status = "divergence", reason = "serialising the outcome is the caller's; `Evaluation::results` is public" }
+"evaluate/evaluate.py::Evaluate.__call__.save_as_json" = { status = "divergence", reason = "serialising the outcome is the caller's; `Evaluation::results` is public" }
+"evaluate/evaluate.py::Evaluate.__call__.callback_metadata" = { status = "mapped", rust = "Evaluate::pass", reason = "which pass of a search the scoring is, for a watcher to read. Upstream fills a free dict with `eval_full` or `eval_minibatch`; `Pass` is the closed set of what it puts there, and MIPROv2 derives it from the comparison `eval_candidate_program` makes" }
+"predict/parallel.py::Parallel.__call__.args" = { status = "divergence", reason = "Python's `*args`/`**kwargs`. A Rust call takes the typed inputs the signature names: `Parallel::run` takes the pairs to run" }
+"predict/parallel.py::Parallel.__call__.kwargs" = { status = "divergence", reason = "Python's `*args`/`**kwargs`. A Rust call takes the typed inputs the signature names: `Parallel::run` takes the pairs to run" }
+"predict/predict.py::Predict.__call__.args" = { status = "divergence", reason = "Python's `*args`/`**kwargs`. A Rust call takes the typed inputs the signature names: `Predict::forward` takes an `Example`" }
+"predict/predict.py::Predict.__call__.kwargs" = { status = "divergence", reason = "Python's `*args`/`**kwargs`. A Rust call takes the typed inputs the signature names: `Predict::forward` takes an `Example`" }
+"primitives/module.py::Module.__call__.args" = { status = "divergence", reason = "Python's `*args`/`**kwargs`. A Rust call takes the typed inputs the signature names: `Module::forward` takes an `Example`" }
+"primitives/module.py::Module.__call__.kwargs" = { status = "divergence", reason = "Python's `*args`/`**kwargs`. A Rust call takes the typed inputs the signature names: `Module::forward` takes an `Example`" }
+"primitives/python_interpreter.py::PythonInterpreter.__call__.code" = { status = "mapped", rust = "CodeInterpreter::execute", reason = "the code to run" }
+"primitives/python_interpreter.py::PythonInterpreter.__call__.variables" = { status = "mapped", rust = "CodeInterpreter::execute", reason = "the variables bound before it runs" }
 "dsp/utils/dpr.py::DPR_normalize.text" = { status = "mapped", rust = "dpr::normalize", reason = "the text it tokenizes, which is the only thing it takes" }
 "dsp/utils/dpr.py::has_answer.text" = { status = "mapped", rust = "dpr::has_answer", reason = "the passage searched, tokenized inside the call as upstream tokenizes it inside its own" }
 "dsp/utils/dpr.py::has_answer.tokenized_answers" = { status = "mapped", rust = "dpr::has_answer", reason = "the answers, already tokenized — a caller normalises each before asking, which is what the name says and what `_passage_match` does" }
@@ -1555,6 +1594,8 @@
 
 [rust_only]
 
+"dsrust::evaluate::Pass" = { status = "divergence", reason = "which pass of a search a scoring is, which upstream carries as `callback_metadata` — a free dict that `Evaluate.__call__` hands to a handler. Two of the three payloads dspy ever puts there reach a watcher here, so a closed set names them: `eval_full` and `eval_minibatch`. GEPA's `disable_logging` has no producer, because GEPA scores through its own path rather than through `Evaluate`" }
+"dsrust::Pass" = { status = "divergence", reason = "the root re-export of `evaluate::Pass`; a host implementing `Callback` reads it off `on_evaluate_start` and reaches everything from the root" }
 "dsrust::optimize::Trial" = { status = "mapped", rust = "Trial", reason = "one entry of dspy's `trial_logs`, as the optuna study records it — the parameters a trial proposed and what it scored. Exported 2026-08-24: `MIPROv2::compile_traced` answers with `Vec<Trial>` and this was `pub` inside a private module, so a caller could hold the value and not name the type. Found by diffing the surface walk against rustdoc's own JSON, which lists an item by where it is *defined*" }
 "dsrust::optimize::Trial::params" = { status = "mapped", reason = "`Trial::params` — the parameter values this trial proposed, as optuna records them" }
 

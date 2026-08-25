@@ -102,14 +102,18 @@ def top_level_keys(surface: dict) -> set[str]:
 def method_keys(surface: dict, ledger: dict) -> set[str]:
     """Every public method of a mapped class, as the `module::Class.method` key the ledger uses.
 
-    `__call__` is skipped: invoking a module is `forward` here, which is already classified.
+    `__call__` counts. It was skipped on the reading that invoking a module is `forward` here,
+    which is true of `Predict` and `Module` and of nothing else: `Evaluate.__call__` takes nine
+    arguments, `Adapter.__call__` five, `BaseLM.__call__` five. Skipping the method also took its
+    parameters out of `parameter_keys`, which only demands them from a *mapped* method — so 43
+    parameters of eleven mapped classes were invisible, `Evaluate(callback_metadata=…)` among them.
     """
     keys = set()
     for module, api in surface.items():
         for cls, methods in api["classes"].items():
             if ledger.get(f"{module}::{cls}", {}).get("status") != "mapped":
                 continue
-            keys.update(f"{module}::{cls}.{m}" for m in methods if m != "__call__")
+            keys.update(f"{module}::{cls}.{m}" for m in methods)
     return keys
 
 

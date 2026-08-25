@@ -38,6 +38,7 @@ use serde_json::Value;
 
 use crate::adapter::Input;
 use crate::callback::{self, CallId, Callback, Ends, Rendered, Under};
+use crate::evaluate::Pass;
 use crate::example::Example;
 
 /// The target every span here carries, so `RUST_LOG=dsrust::observe=info` is the whole of what a
@@ -314,19 +315,26 @@ fn adapter_point(point: &'static str, adapter: &'static str) -> Watch {
 /// Upstream decorates `Evaluate.__call__`, and this wraps [`Evaluate::run`](crate::Evaluate::run) —
 /// the same method under a different name. The outermost point of an optimizer's search, so a reader
 /// filtering to `evaluate` sees one line per scoring pass rather than one per row.
-pub fn evaluating(rows: usize, threads: usize) -> Watch {
+///
+/// `pass` is dspy's `callback_metadata`, and it is what separates the passes from each other: a
+/// search alternates whole-valset scoring with subsamples, and the two mean different things.
+pub fn evaluating(rows: usize, threads: usize, pass: Option<Pass>) -> Watch {
     let watch = opening(tracing::info_span!(
         target: TARGET,
         "evaluate",
         rows = rows,
         threads = threads,
+        pass = pass.map(|pass| match pass {
+            Pass::Full => "full",
+            Pass::Minibatch => "minibatch",
+        }),
         inputs = field::Empty,
         outputs = field::Empty,
         error = field::Empty,
     ));
     if callback::watching(&watch.instance) {
         callback::tell(&watch.instance, |callback| {
-            callback.on_evaluate_start(&watch.call, rows, threads)
+            callback.on_evaluate_start(&watch.call, rows, threads, pass)
         });
     }
     watch

@@ -35,7 +35,7 @@ use anyhow::Error;
 use serde_json::Value;
 
 use crate::adapter::Input;
-use crate::evaluate::Evaluation;
+use crate::evaluate::{Evaluation, Pass};
 use crate::example::{Example, Prediction};
 use crate::lm::api;
 use crate::signature::Signature;
@@ -125,8 +125,11 @@ pub trait Callback: Send + Sync {
     }
 
     /// A run over a devset began.
-    fn on_evaluate_start(&self, call: &CallId, rows: usize, threads: usize) {
-        let _ = (call, rows, threads);
+    ///
+    /// `pass` is dspy's `callback_metadata`: which pass of a search this is, and `None` for a
+    /// caller scoring directly.
+    fn on_evaluate_start(&self, call: &CallId, rows: usize, threads: usize, pass: Option<Pass>) {
+        let _ = (call, rows, threads, pass);
     }
 
     /// A run over a devset finished.

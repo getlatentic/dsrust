@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1352
+rust_tests = 1353
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -5106,7 +5106,9 @@ sprint = "api"
 title = "A metric deferred for needing a retriever, which it does not"
 state = "done"
 size = "S"
-suites = ["evaluate/test_metrics.py"]
+# Empty on purpose: upstream has no test for this metric. `tests/evaluate/test_metrics.py` runs and
+# covers its nine siblings, and naming it here would claim a coverage it does not give.
+suites = []
 plan = """
 `evaluate/metrics.py::answer_passage_match` was the one `deferred` row in the ledger that was not
 finetuning, and its reason read "scores a retrieved passage ... retrieval is out of the 1.0
@@ -5158,4 +5160,63 @@ from outside the module at all, and only from `evaluate/metrics.py`. The bare-na
 move; `metrics::answer_passage_match` is written qualified rather than bare.
 
 Fifteen `deferred` rows remain and all fifteen are finetuning or RL.
+"""
+
+[[story]]
+id = "call-parameters"
+sprint = "api"
+title = "The gate skipped __call__, and 43 parameters had nowhere to be missing from"
+state = "done"
+size = "M"
+# Empty on purpose: `tests/teleprompt/test_utils.py` is where the audit started and is excused, not
+# run — all four of its tests drive upstream's Python against a `Mock`. It is what pointed at the
+# gap, not what holds it.
+suites = []
+plan = """
+`method_keys` skipped `__call__` on the reading that "invoking a module is `forward` here, which is
+already classified". True of `Predict` and `Module`, and of nothing else — `Evaluate.__call__`
+takes nine arguments, `Adapter.__call__` five, `BaseLM.__call__` five.
+
+The second half is what made it cost something. `parameter_keys` demands a method's parameters only
+when the *method* is mapped, so skipping `__call__` also took its parameters out of the count: 43
+of them, across eleven mapped classes, with nowhere to be missing from.
+
+Found by auditing `check_coverage.py`'s excuses the way the `deferred` rows were audited — looking
+for an excuse whose module is in `PORTED_MODULES`. `tests/teleprompt/test_utils.py` is excused as
+"dspy's optimizer helper functions" while `teleprompt/utils.py` is ported and classified. The
+excuse is right that running it would prove nothing — all four tests drive upstream's Python
+against a `Mock` and assert on call kwargs — but two of the behaviours it pins are checkable, and
+one was not held.
+
+**The gap.** `Evaluate.__call__` is `@with_callbacks`, so a handler reads `callback_metadata` off
+the call. MIPROv2 fills it with `{"metric_key": "eval_full"}` or `{"metric_key": "eval_minibatch"}`,
+GEPA with `eval_full` or `{"disable_logging": True}`. This crate makes the same distinction —
+`search.rs` scores `mode.valset` at 40 and 131 and a subsample at 70 — and told nobody:
+`on_evaluate_start` carried `rows` and `threads`, and a subsample the size of the valset is
+indistinguishable from a full pass by a row count.
+
+**What proves it.** A watcher over the 140-row minibatch compile that already runs, asserting it
+saw both. Controlled by reporting every pass as full, and by not setting one at all.
+"""
+done = """
+`__call__` counts now. Eleven methods and 23 parameters classified, the ledger 431 -> 454, and
+`callback_metadata` sat as an explicit `todo` naming the gap until the fix landed — recorded before
+it was closed rather than after.
+
+`Pass` carries it: two variants, because two of dspy's three payloads have a producer here. GEPA's
+`disable_logging` does not, since GEPA scores through its own path rather than through `Evaluate`,
+and a closed set says that where a map would offer keys to guess at. MIPROv2 derives which pass it
+is from the comparison `eval_candidate_program` makes, `batch_size >= len(trainset)`.
+
+Both controls bite, and the second prints the state this fixed: `[None, None, None, None, None,
+None, None]`.
+
+**`Callback::on_evaluate_start` gained a parameter**, so an implementor that overrode it must
+update; one in-tree did. A defaulted method was not available the way it was for
+`forward_stream_dyn` — a parameter cannot be defaulted — and a second start hook would have been
+worse than a breaking change at 0.1.0-alpha.2.
+
+The Rust-surface gate caught `Pass` as unclassified public surface on the first full run, which is
+the pair of gates working as intended: the API gate asks whether every dspy symbol has an answer,
+and would have taken a new Rust type in silence.
 """

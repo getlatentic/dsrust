@@ -9,7 +9,7 @@ use anyhow::{Result, bail};
 
 use super::minibatch::{self, Averages};
 use super::{MIPROv2, RunMode, Slot, Trial, apply, search_space};
-use crate::evaluate::{Evaluate, percent};
+use crate::evaluate::{Evaluate, Pass, percent};
 use crate::example::{Example, Prediction};
 use crate::module::Module;
 
@@ -37,7 +37,7 @@ where
         let space: Vec<Slot> = named.iter().map(|(_, slot)| *slot).collect();
         let baseline = vec![0usize; space.len()];
         // The default program's own pass is always a full one, so it takes no draw.
-        let default_score = self.score(student, &mode.valset).await;
+        let default_score = self.score(student, &mode.valset, mode).await;
 
         let mut sampler = tpe::TpeSampler::new(
             self.seed as u32,
@@ -67,7 +67,7 @@ where
             let params = sampler.ask();
             apply(student, candidates, demo_sets, &space, &params);
             let batch = self.batch(mode, rng);
-            let score = self.score(student, &batch).await;
+            let score = self.score(student, &batch, mode).await;
             sampler.tell(params.clone(), score);
             trials.push(Trial {
                 params: params.clone(),
@@ -128,7 +128,7 @@ where
         let params = params.to_vec();
         averages.mark_evaluated(&params);
         apply(student, candidates, demo_sets, &space, &params);
-        let score = self.score(student, &mode.valset).await;
+        let score = self.score(student, &mode.valset, mode).await;
         Some((params, score))
     }
 
@@ -144,7 +144,19 @@ where
 
     /// dspy Evaluate's headline for one candidate: the metric's mean over the examples, as a
     /// percentage.
-    async fn score<S: Module + ?Sized>(&self, student: &S, examples: &[Example]) -> f64 {
+    ///
+    /// Which pass this is comes from the same comparison upstream makes — `eval_candidate_program`
+    /// reads `batch_size >= len(trainset)` — and reaches a watcher as dspy's `callback_metadata`.
+    async fn score<S: Module + ?Sized>(
+        &self,
+        student: &S,
+        examples: &[Example],
+        mode: &RunMode,
+    ) -> f64 {
+        let pass = match examples.len() >= mode.valset.len() {
+            true => Pass::Full,
+            false => Pass::Minibatch,
+        };
         let evaluation = self
             .scoring
             .apply(Evaluate::new(
@@ -152,6 +164,7 @@ where
                 |inputs| student.forward(inputs),
                 |example: &Example, prediction: &Prediction| (self.metric)(example, prediction),
             ))
+            .pass(pass)
             .run()
             .await;
         percent(evaluation.score)

@@ -57,6 +57,23 @@ impl Evaluation {
     }
 }
 
+/// dspy's `callback_metadata` on `Evaluate.__call__`: which pass of a search this scoring is.
+///
+/// Upstream hands handlers a free dict and puts one of three things in it — `{"metric_key":
+/// "eval_full"}` from MIPROv2's whole-valset pass, `{"metric_key": "eval_minibatch"}` from its
+/// subsample, and `{"disable_logging": True}` from GEPA's reflection minibatch. Two of the three
+/// reach a handler here, because GEPA scores through its own path rather than through [`Evaluate`];
+/// a closed set says which two, where a map would hand a reader keys to guess at.
+///
+/// Absent for a caller scoring a program directly, which is upstream's `callback_metadata=None`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pass {
+    /// dspy's `eval_full`: every row of the valset.
+    Full,
+    /// dspy's `eval_minibatch`: one subsample of it, whose score moves no winner.
+    Minibatch,
+}
+
 /// Score a program over a devset.
 ///
 /// `program` receives each example's declared inputs and returns a [`Prediction`]. `metric`
@@ -75,6 +92,9 @@ pub struct Evaluate<P, M> {
     /// How many rows may fail before the run gives up — dspy's `Evaluate(max_errors=…)`, whose
     /// default comes from `dspy.settings.max_errors = 10`. See [`max_errors`](Self::max_errors).
     pub max_errors: usize,
+    /// Which pass of a search this is, for a watcher to read — dspy's `callback_metadata`. `None`
+    /// for a caller scoring directly. See [`pass`](Self::pass).
+    pub pass: Option<Pass>,
 }
 
 impl<P, M, F> Evaluate<P, M>
@@ -91,7 +111,18 @@ where
             failure_score: 0.0,
             num_threads: None,
             max_errors: DEFAULT_MAX_ERRORS,
+            pass: None,
         }
+    }
+
+    /// Say which pass of a search this is — dspy's `Evaluate(callback_metadata=…)`.
+    ///
+    /// Only a watcher reads it; nothing about the scoring changes. It is what lets a handler tell
+    /// MIPROv2's whole-valset pass from its subsample, which upstream announces and a run here
+    /// makes either way.
+    pub fn pass(mut self, pass: Pass) -> Self {
+        self.pass = Some(pass);
+        self
     }
 
     /// Run this many rows at once — dspy's `Evaluate(num_threads=…)`.
@@ -124,7 +155,7 @@ where
     /// `devset[i]`, and dspy's own results are aligned the same way.
     pub async fn run(&self) -> Evaluation {
         let threads = self.num_threads.unwrap_or(1);
-        let watch = crate::observe::evaluating(self.devset.len(), threads);
+        let watch = crate::observe::evaluating(self.devset.len(), threads, self.pass);
         let scoring = futures_util::stream::iter(self.devset.clone())
             .map(|example| self.score_row(example))
             .buffered(threads);

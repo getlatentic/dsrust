@@ -63,7 +63,7 @@ pub use adapter::{
 };
 pub use callback::{CallId, Callback, Rendered, configure_callbacks};
 pub use dsrust_derive::Module;
-pub use evaluate::{Evaluate, Evaluation, Scored, exact_match};
+pub use evaluate::{Evaluate, Evaluation, Pass, Scored, exact_match};
 pub use example::{Completions, Example, Prediction};
 pub use lm::Capabilities;
 pub use module::{Ask, Forward, Module, NamedPredictor, PredictorState, ProgramState, TraceStep};

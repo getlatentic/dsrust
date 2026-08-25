@@ -17,7 +17,7 @@ use dsrust::{BootstrapFewShot, COPRO, DynOptimizer, GEPA, LabeledFewShot, MIPROv
 use dsrust::{Feedback, GepaOutcome};
 
 // Evaluation.
-use dsrust::{Evaluate, Evaluation, Scored, exact_match};
+use dsrust::{Evaluate, Evaluation, Pass, Scored, exact_match};
 
 // Provider config and keyless testing.
 use dsrust::{Capabilities, DummyLM, configure_model};

@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Error;
 use dsrust::callback::Rendered;
-use dsrust::evaluate::Evaluation;
+use dsrust::evaluate::{Evaluation, Pass};
 use dsrust::lm::{api, global};
 use dsrust::signature::Signature;
 use dsrust::{
@@ -141,7 +141,7 @@ impl Callback for Recording {
         self.ended("on_tool_end", call);
     }
 
-    fn on_evaluate_start(&self, call: &CallId, _rows: usize, _threads: usize) {
+    fn on_evaluate_start(&self, call: &CallId, _rows: usize, _threads: usize, _pass: Option<Pass>) {
         self.started("on_evaluate_start", call);
     }
 
