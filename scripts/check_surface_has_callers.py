@@ -42,19 +42,56 @@ LEDGER = ROOT / "scripts" / "api_ledger.toml"
 #: nothing outside `optimize/mipro/` calls and no caller of this crate would. Thirteen items left the
 #: public surface and three of them were counted here. That is the shape of a reduction — find a
 #: module whose reach is one directory, not an item at a time.
-FLOOR = 80
+FLOOR = 62
+
+
+def doc_examples() -> str:
+    """Every fenced block inside a doc comment, which is a compiled caller like any other.
+
+    A `/// ```…``` ` example is a doctest: it is built and run, it uses the item the way a caller
+    would, and it is the demonstration a reader actually meets first. Missing them made this gate
+    overcount by five — `Streamed`, `LmItem`, `track_usage`, `ReflectiveDataset` and
+    `asks_with_a_prediction` each have one.
+    """
+    blocks: list[str] = []
+    for path in (ROOT / "crates").rglob("*.rs"):
+        inside = False
+        for line in path.read_text().splitlines():
+            stripped = line.strip()
+            if not stripped.startswith("///"):
+                continue
+            body = stripped.removeprefix("///").strip()
+            if body.startswith("```"):
+                inside = not inside
+                continue
+            if inside:
+                blocks.append(body)
+    return "\n".join(blocks)
 
 
 def exercised_text() -> str:
-    """Everywhere a caller of this crate would show up: its tests, its examples, its prose."""
+    """Everywhere a caller of this crate would show up: its tests, its examples, its prose.
+
+    "Its examples" includes the ones in doc comments, not only `examples/` — see [`doc_examples`].
+    """
     places = [
         *(ROOT / "crates" / "dsrust" / "tests").rglob("*.rs"),
         *(ROOT / "crates").glob("*/examples/*.rs"),
+        # What the derive *emits* is a caller in every crate that uses the macro, and the only place
+        # it appears here is inside a `quote!`. `signature::json_field_reflection` is named nowhere
+        # else in this repo, and making it `pub(crate)` would compile clean here and break every
+        # user of `#[derive(Signature)]` with a JSON field.
+        *(ROOT / "crates" / "dsrust-derive" / "src").rglob("*.rs"),
+        # The PyO3 bridge is this crate's most exercised consumer — it drives upstream's own test
+        # suite against the Rust API from outside. It was missing here, and two items were made
+        # `pub(crate)` on the strength of that omission before the workspace build caught it.
+        *(ROOT / "crates" / "dsrs-bridge" / "src").rglob("*.rs"),
         ROOT / "README.md",
         ROOT / "docs" / "usage.md",
         ROOT / "HANDOFF.md",
     ]
-    return "\n".join(path.read_text() for path in places if path.exists())
+    written = "\n".join(path.read_text() for path in places if path.exists())
+    return written + "\n" + doc_examples()
 
 
 def undemonstrated() -> list[str]:

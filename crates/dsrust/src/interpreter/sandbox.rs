@@ -11,7 +11,7 @@ use serde_json::{Map, Value, json};
 use super::repl::ReplVariable;
 
 /// dspy's default cap on the description a sandbox value contributes.
-pub const PREVIEW_MAX_CHARS: usize = 500;
+pub(crate) const PREVIEW_MAX_CHARS: usize = 500;
 
 /// A value that enters the sandbox as code that rebuilds it.
 ///

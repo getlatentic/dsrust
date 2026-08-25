@@ -15,7 +15,7 @@ use crate::adapter::types::base::{Formatted, Type};
 pub const MAX_OUTPUT_CHARS: usize = 10_000;
 
 /// dspy's default cap on how much of a variable's value is previewed.
-pub const PREVIEW_CHARS: usize = 1_000;
+pub(crate) const PREVIEW_CHARS: usize = 1_000;
 
 /// dspy `REPLVariable`: what the model is told about one value it can reach from its code.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]

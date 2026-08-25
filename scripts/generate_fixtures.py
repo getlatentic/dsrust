@@ -16,6 +16,8 @@ widen together.
 
 from __future__ import annotations
 
+import ast
+import inspect
 import json
 import pathlib
 import sys
@@ -369,9 +371,40 @@ def render(signature: type[dspy.Signature], demos: list, values: dict) -> tuple[
     return messages[0]["content"], turns
 
 
+def confirm_by_a_second_path() -> None:
+    """The code proposer's instructions, derived twice, from paths that share nothing.
+
+    The Rust literal for this signature is *generated from the fixture rather than typed* — 2,900
+    characters nobody should transcribe — so the test comparing them cannot fail today. It catches
+    drift when the pin moves, which is worth having, and it is not verification.
+
+    This is the verification: read the same docstring out of the pinned **source text** with `ast`,
+    clean it, and require it to equal what dspy's runtime produced. One path goes through class
+    construction, the metaclass and the signature machinery; the other reads a file. They agree only
+    if the fixture is what upstream's source says, which is the claim the Rust literal rests on.
+    """
+    from dspy.teleprompt.gepa.gepa_flex_utils import CodeProposalSignature
+
+    source = (
+        pathlib.Path(dspy.__file__).parent / "teleprompt" / "gepa" / "gepa_flex_utils.py"
+    ).read_text()
+    declared = next(
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, ast.ClassDef) and node.name == "CodeProposalSignature"
+    )
+    from_source = inspect.cleandoc(ast.get_docstring(declared, clean=False) or "")
+    if from_source != CodeProposalSignature.instructions:
+        raise SystemExit(
+            "the code proposer's instructions differ between dspy's runtime and its source text; "
+            "one of the two paths is not reading what it claims to"
+        )
+
+
 def main() -> None:
     if dspy.__version__ != PINNED:
         raise SystemExit(f"expected dspy {PINNED}, found {dspy.__version__}")
+    confirm_by_a_second_path()
     OUT.mkdir(parents=True, exist_ok=True)
     for case in CASES:
         demos = case.get("demos", [])

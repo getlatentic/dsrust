@@ -5531,3 +5531,43 @@ item at a time.
 a `DEFAULT_OPENAI_BASE_URL` is a constant a caller reads and this repo never needs to. The ratchet
 stops growth and records the number; each reduction lowers the floor.
 """
+
+[[story]]
+id = "callers-the-gate-could-not-see"
+sprint = "api"
+title = "Three kinds of caller the surface gate was blind to, and one it cost"
+state = "done"
+size = "M"
+suites = []
+plan = """
+`check_surface_has_callers.py` counted 80 public dsrust inventions with nothing exercising them, and
+that number was quoted as a fact about the crate. Most of it was the gate measuring the wrong thing.
+"""
+done = """
+**80 -> 62, and only two of the difference is the crate.** The rest was three caller locations the
+gate could not see:
+
+- **Doc-comment examples.** A `///` fenced block is a doctest — compiled, run, and the demonstration
+  a reader meets first. Overcounted by two. (A first crude grep with a 40-line window claimed five;
+  the proper extractor found two, which is why the crude one was not trusted.)
+- **What the derive emits.** `signature::json_field_reflection` appears nowhere in this repo except
+  inside a `quote!`, and is called from every crate using `#[derive(Signature)]`. Five items were in
+  that state. De-publishing one would have compiled clean here and broken users — which is why the
+  derive's output was checked *before* touching anything.
+- **The PyO3 bridge.** `dsrs-bridge` drives upstream's own suite against this API from outside and is
+  the most exercised consumer there is. It was missing, and two `pub(crate)` changes were made on the
+  strength of that omission: `close_object_schemas` and `extractor_signature`, both reverted when the
+  workspace build refused them.
+
+**The crate's actual surplus was two items** — the preview-length constants, now `pub(crate)`.
+
+Also fixed while in there: four ledger rows written `" ={` rather than `" = {`. A deletion pattern
+requiring the space matched none of them, so removing one and re-adding it produced a duplicate key
+and an unparseable ledger. The spacing is normalised so the next pattern-based edit does not step in
+the same hole, and the duplicate check now groups by table — the first version reported two false
+positives that were legal same-key-different-table rows.
+
+**The lesson is about the instrument, not the surface.** A number this gate reports is a claim about
+what it can see, and it could not see the three places a caller most often lives. Quoting 80 as the
+crate's undemonstrated surface was quoting the tool's blind spots back as a property of the code.
+"""
