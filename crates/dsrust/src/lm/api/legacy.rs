@@ -5,7 +5,8 @@
 
 use serde_json::Value;
 
-use super::part::{DocumentSource, LmPart, LmSource, Metadata};
+use super::part::{LmPart, Metadata};
+use super::source::{DocumentSource, LmSource};
 
 /// One block as the part it describes, or carried whole when it describes nothing known.
 pub fn part_of_block(block: &Value) -> LmPart {

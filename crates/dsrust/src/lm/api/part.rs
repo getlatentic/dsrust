@@ -1,6 +1,6 @@
 //! The eleven content parts of dspy 3.3's `LMPart`, discriminated on `type`.
 
-use std::path::PathBuf;
+use super::source::{DocumentSource, LmSource};
 
 use serde_json::{Map, Value};
 
@@ -10,90 +10,6 @@ pub type Metadata = Map<String, Value>;
 /// back byte for byte instead of being guessed at.
 pub const LEGACY_BLOCK: &str = "legacy_content_block";
 
-/// Upstream spells this as four nullable fields plus a `validate_one_source` validator, because
-/// Python cannot say "exactly one" in a type. Rust can, so that state is unrepresentable rather
-/// than rejected at run time.
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(try_from = "SourceFields", into = "SourceFields")]
-pub enum LmSource {
-    Data(String),
-    Url(String),
-    FileId(String),
-    Path(PathBuf),
-}
-
-#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
-struct SourceFields {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    data: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    url: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    file_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    path: Option<PathBuf>,
-}
-
-impl TryFrom<SourceFields> for LmSource {
-    type Error = String;
-
-    fn try_from(fields: SourceFields) -> Result<Self, Self::Error> {
-        let named: Vec<Self> = [
-            fields.data.map(Self::Data),
-            fields.url.map(Self::Url),
-            fields.file_id.map(Self::FileId),
-            fields.path.map(Self::Path),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
-        let [only] = <[Self; 1]>::try_from(named).map_err(|named| {
-            format!(
-                "expected exactly one of data, url, file_id, or path, got {}",
-                named.len()
-            )
-        })?;
-        match only.is_empty() {
-            true => Err("a source must not be empty".to_owned()),
-            false => Ok(only),
-        }
-    }
-}
-
-impl From<LmSource> for SourceFields {
-    fn from(source: LmSource) -> Self {
-        match source {
-            LmSource::Data(data) => Self {
-                data: Some(data),
-                ..Self::default()
-            },
-            LmSource::Url(url) => Self {
-                url: Some(url),
-                ..Self::default()
-            },
-            LmSource::FileId(file_id) => Self {
-                file_id: Some(file_id),
-                ..Self::default()
-            },
-            LmSource::Path(path) => Self {
-                path: Some(path),
-                ..Self::default()
-            },
-        }
-    }
-}
-
-impl LmSource {
-    fn is_empty(&self) -> bool {
-        match self {
-            Self::Data(value) | Self::Url(value) | Self::FileId(value) => value.is_empty(),
-            Self::Path(path) => path.as_os_str().is_empty(),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "snake_case")]
 /// How much of an image a provider is asked to look at — OpenAI's `detail`, and `Auto` is what it
 /// does when nobody says.
 ///
@@ -103,6 +19,8 @@ impl LmSource {
 /// assert_eq!(serde_json::to_value(Detail::Low).unwrap(), serde_json::json!("low"));
 /// assert_eq!(serde_json::to_value(Detail::Auto).unwrap(), serde_json::json!("auto"));
 /// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Detail {
     Low,
     High,
@@ -221,80 +139,6 @@ pub enum LmPart {
 
 /// Upstream's `validate_source`: `source` and a media source are mutually exclusive, but a
 /// payload carrying `source` still spells the four media keys as nulls, so their presence is not
-/// what decides — only a non-null one is.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(try_from = "DocumentFields", into = "DocumentFields")]
-pub enum DocumentSource {
-    Source(Metadata),
-    Media(LmSource),
-}
-
-#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
-struct DocumentFields {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    data: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    url: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    file_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    path: Option<PathBuf>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    source: Option<Metadata>,
-}
-
-impl TryFrom<DocumentFields> for DocumentSource {
-    type Error = String;
-
-    fn try_from(fields: DocumentFields) -> Result<Self, Self::Error> {
-        let media = SourceFields {
-            data: fields.data,
-            url: fields.url,
-            file_id: fields.file_id,
-            path: fields.path,
-        };
-        let has_media = LmSource::try_from(media.clone()).is_ok();
-        match fields.source {
-            Some(_) if has_media => {
-                Err("a document takes either source or one media source, not both".to_owned())
-            }
-            Some(source) if source.is_empty() => {
-                Err("a document's source must not be empty".to_owned())
-            }
-            Some(source) => Ok(Self::Source(source)),
-            None => LmSource::try_from(media).map(Self::Media),
-        }
-    }
-}
-
-impl From<DocumentSource> for DocumentFields {
-    fn from(source: DocumentSource) -> Self {
-        match source {
-            DocumentSource::Source(source) => Self {
-                source: Some(source),
-                ..Self::default()
-            },
-            DocumentSource::Media(media) => {
-                let media = SourceFields::from(media);
-                Self {
-                    data: media.data,
-                    url: media.url,
-                    file_id: media.file_id,
-                    path: media.path,
-                    source: None,
-                }
-            }
-        }
-    }
-}
-
-/// A bare string is text, which is the coercion dspy's variadic role constructors do.
-impl<T: Into<String>> From<T> for LmPart {
-    fn from(text: T) -> Self {
-        Self::text(text)
-    }
-}
-
 impl LmPart {
     pub fn text(text: impl Into<String>) -> Self {
         Self::Text {
@@ -553,5 +397,12 @@ mod tests {
         assert_eq!(part.as_text(), None);
         assert_eq!(part.legacy_block(), Some(&block));
         assert_eq!(LmPart::text("real prose").as_text(), Some("real prose"));
+    }
+}
+
+/// A bare string is text, which is the coercion dspy's variadic role constructors do.
+impl<T: Into<String>> From<T> for LmPart {
+    fn from(text: T) -> Self {
+        Self::text(text)
     }
 }

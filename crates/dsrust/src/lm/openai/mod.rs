@@ -86,6 +86,22 @@ pub enum OpenAiWire {
 }
 
 /// Which OpenAI-shaped service [`Provider::OpenAiCompatible`](super::Provider::OpenAiCompatible)
+/// ```
+/// use dsrust::lm::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, OpenAiConfig};
+///
+/// // The default points at OpenAI and reads the variable the OpenAI SDKs themselves read, so a
+/// // shell already set up for one of them needs nothing further.
+/// let openai = OpenAiConfig::default();
+/// assert_eq!(openai.base_url, DEFAULT_OPENAI_BASE_URL);
+/// assert_eq!(openai.key_var, DEFAULT_OPENAI_KEY_VAR);
+///
+/// // A local vLLM or LM Studio is the same shape at another address.
+/// let local = OpenAiConfig {
+///     base_url: "http://localhost:8000/v1".to_owned(),
+///     ..OpenAiConfig::default()
+/// };
+/// assert_ne!(local.base_url, DEFAULT_OPENAI_BASE_URL);
+/// ```
 /// talks to.
 #[derive(Debug, Clone)]
 pub struct OpenAiConfig {

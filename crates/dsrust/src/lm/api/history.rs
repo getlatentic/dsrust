@@ -5,6 +5,22 @@ use super::request::LmRequest;
 use super::response::LmResponse;
 
 /// `extra="allow"` upstream, so anything a caller attaches survives rather than being dropped —
+/// ```
+/// use dsrust::lm::api::LmHistoryEntry;
+///
+/// // `extra="allow"` upstream, so a field a caller attached survives a round trip rather than
+/// // being dropped — which is what makes a history written by one tool readable by another.
+/// let written = serde_json::json!({
+///     "request": { "model": "openai/gpt-4o-mini", "messages": [] },
+///     "response": { "outputs": [] },
+///     "timestamp": "2026-01-01T00:00:00Z",
+///     "uuid": "abc",
+///     "model": "openai/gpt-4o-mini",
+///     "a_field_this_crate_does_not_model": 1,
+/// });
+/// let entry: LmHistoryEntry = serde_json::from_value(written.clone()).expect("unknowns allowed");
+/// assert_eq!(entry.uuid, "abc");
+/// ```
 /// deliberately the opposite of the request and response it holds, which both forbid unknowns.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LmHistoryEntry {
