@@ -67,6 +67,19 @@ pub trait StatusMessages: Send + Sync {
 }
 
 /// The stock wording, for a caller who wants the tool messages and nothing else.
+///
+/// Every method on [`StatusMessages`] is defaulted, and four of the six answer `None` — so the stock
+/// set is deliberately quiet: a run narrates its tool calls and says nothing about each module
+/// starting, which is what dspy's own default does.
+///
+/// ```
+/// use dsrust::adapter::stream::{DefaultStatus, StatusMessages};
+///
+/// let stock = DefaultStatus;
+/// assert!(stock.tool_start("search", &serde_json::json!({})).is_some());
+/// // Silent by default; override the method to say something here.
+/// assert!(stock.module_start("Predict", &dsrust::Example::default()).is_none());
+/// ```
 pub struct DefaultStatus;
 
 impl StatusMessages for DefaultStatus {}

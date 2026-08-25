@@ -92,6 +92,15 @@ impl Wire {
 }
 
 /// One piece of a field's text, as the model produced it.
+///
+/// ```
+/// use dsrust::adapter::stream::FieldChunk;
+///
+/// // `is_last` is the field's *closing marker* having been seen, not the stream ending — a
+/// // signature with two output fields sends a last chunk for each.
+/// let closing = FieldChunk { text: "Paris".to_owned(), is_last: true };
+/// assert!(closing.is_last);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldChunk {
     pub text: String,

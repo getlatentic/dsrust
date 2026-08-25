@@ -271,6 +271,22 @@ fn live_inputs<'a>(asked: &Signature, inputs: &[Input<'a>]) -> Vec<Input<'a>> {
 
 /// The messages a module sends for one attempt: whatever the adapter rendered, plus the rejected
 /// reply and its error when this is a feedback retry.
+///
+/// ```
+/// use dsrust::adapter::messages_for;
+/// use dsrust::lm::api::{LmMessage, LmPart};
+///
+/// let rendered = vec![LmMessage::user(vec![LmPart::text("Answer in JSON.")])];
+///
+/// // No feedback: the attempt is exactly what the adapter rendered.
+/// assert_eq!(messages_for(rendered.clone(), None).len(), 1);
+///
+/// // A retry appends the rejected reply *and* the error, so the model is shown what it said and
+/// // why it was refused rather than being asked the same question again.
+/// # fn with(feedback: &dsrust::adapter::Feedback, rendered: Vec<LmMessage>) {
+/// assert!(messages_for(rendered.clone(), Some(feedback)).len() > rendered.len());
+/// # }
+/// ```
 pub fn messages_for(mut messages: Vec<LmMessage>, feedback: Option<&Feedback>) -> Vec<LmMessage> {
     if let Some(feedback) = feedback {
         messages.push(LmMessage::assistant([feedback.previous.clone()]));

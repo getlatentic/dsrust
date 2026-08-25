@@ -58,6 +58,19 @@ pub fn python_type_name(value: &Value) -> &'static str {
 /// through. Two things separate it from `json_dumps`: an item per line at two spaces a level,
 /// and `ensure_ascii` left at its default — so every character outside printable ASCII is escaped,
 /// which changes both the text and the length reported beside it.
+///
+/// ```
+/// use dsrust::adapter::python_json::json_dumps_indented;
+///
+/// // Two spaces a level, an item per line.
+/// let shown = json_dumps_indented(&serde_json::json!({ "a": [1, 2] }));
+/// assert_eq!(shown, "{\n  \"a\": [\n    1,\n    2\n  ]\n}");
+///
+/// // `ensure_ascii` at its Python default, so a non-ASCII character is escaped rather than
+/// // written — which changes the text *and* the length reported beside it.
+/// let accented = json_dumps_indented(&serde_json::json!("café"));
+/// assert_eq!(accented, "\"caf\\u00e9\"");
+/// ```
 pub fn json_dumps_indented(value: &Value) -> String {
     indented(value, 0)
 }
