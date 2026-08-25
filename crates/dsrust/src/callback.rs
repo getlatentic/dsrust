@@ -281,6 +281,18 @@ pub(crate) fn tell(instance: &[Arc<dyn Callback>], each: impl Fn(&dyn Callback))
 /// Implemented for the two things an asynchronous point answers with, so
 /// [`observe::watching`](crate::observe::watching) is one function over both rather than a `describe`
 /// argument and an `ended` argument that every call site has to get right together.
+///
+/// ```
+/// use dsrust::callback::Ends;
+///
+/// // Implemented for the two things an asynchronous watched point answers with, so `watching` is
+/// // one function over both rather than taking a `describe` argument and an `ended` argument that
+/// // every call site has to keep in step.
+/// fn describes<T: Ends>(answered: &T) -> String {
+///     answered.describe()
+/// }
+/// # fn used<T: Ends>(a: &T) { let _ = describes(a); }
+/// ```
 pub trait Ends {
     /// What the span records — one line, not the whole value.
     fn describe(&self) -> String;

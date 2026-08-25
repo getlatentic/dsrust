@@ -23,6 +23,19 @@ use crate::signature::Signature;
 const TOOL_ANNOTATIONS: [&str; 2] = ["list[Tool]", "Tool"];
 
 /// What native function calling changes about a request.
+///
+/// Both halves matter and the second is the one that surprises: when the provider is going to call
+/// tools itself, the *rendered signature* loses both the tool input and the `ToolCalls` output. The
+/// model is not asked to write a tool call in prose when it is about to be handed the mechanism for
+/// making one, and a signature still declaring those fields would ask for both.
+///
+/// ```no_run
+/// # use dsrust::adapter::native_tools::NativeTools;
+/// # fn read(native: NativeTools, original: &dsrust::Signature) {
+/// assert!(native.signature.inputs.len() < original.inputs.len());
+/// assert!(native.tools.len() > 0, "the list the request carries, in the field's own order");
+/// # }
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct NativeTools {
     /// The tool list the request carries, in the order the field's value states them.

@@ -42,7 +42,7 @@ LEDGER = ROOT / "scripts" / "api_ledger.toml"
 #: nothing outside `optimize/mipro/` calls and no caller of this crate would. Thirteen items left the
 #: public surface and three of them were counted here. That is the shape of a reduction — find a
 #: module whose reach is one directory, not an item at a time.
-FLOOR = 8
+FLOOR = 0
 
 
 def doc_examples() -> str:

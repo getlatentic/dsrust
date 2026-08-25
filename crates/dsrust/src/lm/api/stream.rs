@@ -9,6 +9,20 @@ use super::response::LmResponse;
 
 /// Upstream keeps a synchronous and an asynchronous class that differ only in how they iterate.
 /// One type over an iterator covers both here, since an async source becomes an iterator of
+/// ```
+/// use dsrust::lm::api::{LmDelta, LmRequest, LmStream, LmStreamEvent};
+///
+/// let request = LmRequest::new("openai/gpt-4o-mini", vec![]);
+/// let events = vec![LmStreamEvent::Delta {
+///     output_index: 0,
+///     part_index: 0,
+///     delta: LmDelta::TextDelta { text: "Par".to_owned() },
+/// }];
+/// // One type over an iterator covers dspy's synchronous and asynchronous classes both, since an
+/// // async source becomes an iterator of events before it reaches here.
+/// let stream = LmStream::new(request, events.into_iter());
+/// assert_eq!(stream.request.model, "openai/gpt-4o-mini");
+/// ```
 /// events before it reaches this.
 pub struct LmStream<E> {
     pub request: LmRequest,

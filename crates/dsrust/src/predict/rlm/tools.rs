@@ -126,6 +126,16 @@ impl<A: Fn(&str) -> Result<String> + Send + Sync> Tool for LlmQueryBatched<A> {
 /// on it. Hand the pair to [`Rlm::tools`](super::Rlm::tools) and they reach the sandbox
 /// through [`define_tools`](crate::interpreter::CodeInterpreter::define_tools) with the caller's
 /// own tools.
+///
+/// ```
+/// use dsrust::predict::rlm::llm_query_tools;
+///
+/// // A *pair* sharing one budget: the sandbox gets both a single-query tool and a batch one, and
+/// // spending the budget on either leaves less for the other — which is what stops model-authored
+/// // code looping a sub-LLM.
+/// let pair = llm_query_tools(4, |question: &str| Ok(format!("answered {question}")));
+/// assert_eq!(pair.len(), 2);
+/// ```
 pub fn llm_query_tools<A>(max_llm_calls: usize, ask: A) -> Vec<Arc<dyn Tool>>
 where
     A: Fn(&str) -> Result<String> + Send + Sync + 'static,

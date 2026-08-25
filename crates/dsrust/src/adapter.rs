@@ -207,6 +207,26 @@ pub struct NativeFunctionCalling {
 
 /// The second ask an adapter cannot make for itself: what to ask, how to render it, and which
 /// model to ask.
+///
+/// `TwoStepAdapter` asks a reasoning model in prose and then asks a *second, smaller* model to pull
+/// the fields out of that prose. The extraction is a different signature (`text` in, the original
+/// outputs out), rendered by a different adapter (dspy uses `ChatAdapter` for it), on a different
+/// model — three choices the first adapter has no way to make, which is why they arrive together.
+///
+/// ```
+/// use dsrust::{Adapter, DummyLM, Extraction, TwoStepAdapter};
+/// use std::sync::Arc;
+///
+/// let signature: dsrust::Signature = "question -> answer".parse().expect("parses");
+/// // The extractor is a *second, smaller* model, so it is named when the adapter is built.
+/// let two_step = TwoStepAdapter::new(Arc::new(DummyLM::new([])) as Arc<_>);
+/// let asked: Extraction<'_> = two_step
+///     .extraction(&signature)
+///     .expect("a two-step adapter always has a second ask");
+/// // `text` in, the original outputs out — the reasoning model's prose is the extraction's input.
+/// assert_eq!(asked.signature.inputs.len(), 1);
+/// assert_eq!(asked.signature.outputs.len(), signature.outputs.len());
+/// ```
 pub struct Extraction<'a> {
     /// dspy's `_create_extractor_signature`: `text` in, the original outputs out.
     pub signature: Signature,

@@ -110,6 +110,36 @@ fn described(desc: &str, setup: &str) -> String {
 ///
 /// Text crosses as itself. Bytes that are not UTF-8 cross base64'd, with the two lines upstream
 /// prepends to decode them — so a parquet blob needs nothing from the caller but `to_sandbox`.
+///
+/// Implementing it is four methods, and each answers a question the model or the sandbox asks:
+///
+/// ```
+/// use dsrust::interpreter::SandboxSerializable;
+/// use dsrust::interpreter::sandbox::injection;
+///
+/// struct Notes(String);
+///
+/// impl SandboxSerializable for Notes {
+///     fn to_sandbox(&self) -> Vec<u8> {
+///         self.0.clone().into_bytes()
+///     }
+///     fn sandbox_assignment(&self, var_name: &str, data_expr: &str) -> String {
+///         format!("{var_name} = {data_expr}")
+///     }
+///     fn rlm_preview(&self, _max_chars: usize) -> String {
+///         format!("{} characters of notes", self.0.len())
+///     }
+///     fn type_name(&self) -> &str {
+///         "str"
+///     }
+/// }
+///
+/// let (code, variables) = injection(&Notes("hello".to_owned()), "notes");
+/// // The bytes travel *beside* the code rather than inside it, so a value carrying quotes or
+/// // newlines cannot break the program it is injected into.
+/// assert!(code.contains("notes"));
+/// assert!(variables.contains_key("_raw_notes"));
+/// ```
 pub fn injection(value: &dyn SandboxSerializable, name: &str) -> (String, Map<String, Value>) {
     let raw = format!("_raw_{name}");
     let payload = value.to_sandbox();

@@ -38,8 +38,11 @@ use serde_json::Value;
 
 use crate::adapter::Input;
 use crate::callback::{self, CallId, Callback, Ends, Rendered, Under};
-use crate::evaluate::Pass;
 use crate::example::Example;
+
+mod evaluating;
+
+pub use evaluating::{evaluated_within, evaluating, scored};
 
 /// The target every span here carries, so `RUST_LOG=dsrust::observe=info` is the whole of what a
 /// caller needs to watch a run — and so a subscriber can select these without matching on names.
@@ -151,6 +154,19 @@ pub fn module_shown(
 }
 
 /// dspy `on_lm_start`: one call to a model, inside whichever module made it.
+///
+/// What a module implemented outside this crate calls to put its own model call in the same tree —
+/// the span nests under whatever [`module_shown`] opened, so a handler reading `CallId::parent`
+/// sees the real shape rather than a flat list.
+///
+/// ```no_run
+/// # use dsrust::lm::api::LmRequest;
+/// # async fn wrapper(request: LmRequest) {
+/// let watching = dsrust::observe::lm_shown(&request, &[]);
+/// // ... the call happens ...
+/// drop(watching);
+/// # }
+/// ```
 pub fn lm_shown(
     request: &crate::lm::api::LmRequest,
     instance: &[std::sync::Arc<dyn Callback>],
@@ -318,76 +334,6 @@ fn adapter_point(point: &'static str, adapter: &'static str) -> Watch {
         outputs = field::Empty,
         error = field::Empty,
     ))
-}
-
-/// dspy `on_evaluate_start`: one whole run over a devset, with every module call it made inside it.
-///
-/// Upstream decorates `Evaluate.__call__`, and this wraps [`Evaluate::run`](crate::Evaluate::run) —
-/// the same method under a different name. The outermost point of an optimizer's search, so a reader
-/// filtering to `evaluate` sees one line per scoring pass rather than one per row.
-///
-/// `pass` is dspy's `callback_metadata`, and it is what separates the passes from each other: a
-/// search alternates whole-valset scoring with subsamples, and the two mean different things.
-///
-/// The devset is handed over whole rather than counted, because upstream's is: `with_callbacks`
-/// gives a handler the `inputs` dict of `Evaluate.__call__`, `devset` among its keys. A count is
-/// what the span records and what a handler can take for itself.
-pub fn evaluating(devset: &[Example], threads: usize, pass: Option<Pass>) -> Watch {
-    let watch = opening(tracing::info_span!(
-        target: TARGET,
-        "evaluate",
-        rows = devset.len(),
-        threads = threads,
-        pass = pass.map(|pass| match pass {
-            Pass::Full => "full",
-            Pass::Minibatch => "minibatch",
-        }),
-        inputs = field::Empty,
-        outputs = field::Empty,
-        error = field::Empty,
-    ));
-    if callback::watching(&watch.instance) {
-        callback::tell(&watch.instance, |callback| {
-            callback.on_evaluate_start(&watch.call, devset, threads, pass)
-        });
-    }
-    watch
-}
-
-/// Run an evaluation's rows inside the open point, so every module call they make is a child of it.
-///
-/// Both halves, as [`watching`] does: instrumented on the future rather than entered across an
-/// await, which would attribute whatever the runtime polled next to this evaluation, and run under
-/// the call id, which is what makes each row's `on_module_start` name this evaluation as its parent.
-/// Wrapping only the span left the callbacks reporting every row as an outermost call.
-pub async fn evaluated_within<T>(watch: &Watch, rows: impl Future<Output = T>) -> T {
-    Under::new(watch.call, rows)
-        .instrument(watch.span.clone())
-        .await
-}
-
-/// dspy `on_evaluate_end`: what an evaluation found.
-///
-/// Its own function rather than [`watching`] because a run has no error arm: a failing row scores
-/// `failure_score` and the run carries on, which is dspy's choice too.
-pub fn scored(watch: &Watch, evaluation: &crate::evaluate::Evaluation) {
-    if !watch.span.is_disabled() {
-        watch.span.record(
-            "outputs",
-            format!(
-                "{{\"score\":{},\"rows\":{},\"failed\":{}}}",
-                evaluation.score,
-                evaluation.results.len(),
-                evaluation.failure_count(),
-            )
-            .as_str(),
-        );
-    }
-    if callback::watching(&watch.instance) {
-        callback::tell(&watch.instance, |callback| {
-            callback.on_evaluate_end(&watch.call, evaluation)
-        });
-    }
 }
 
 /// An [`Example`]'s fields as a JSON object, which is the shape dspy's `inputs` dict has.
