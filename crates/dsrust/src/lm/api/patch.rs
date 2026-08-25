@@ -7,6 +7,27 @@ use super::part::{LmPart, Metadata};
 /// A whole [`LmRequest`](super::request::LmRequest) is what a model receives; a patch is the
 /// composable piece a field's own type adds to one — extra parts, a native tool, config, or
 /// fields it wants kept out of the adapter's ordinary rendering.
+///
+/// Composable is the point: several fields each contribute one, and [`merge`](Self::merge) folds
+/// them so no field has to know what the others asked for.
+///
+/// ```
+/// use dsrust::lm::api::{LmPart, LmRequestPatch};
+///
+/// // One field wants an image in the user turn; another wants its own key kept out of the
+/// // rendered prompt because it has already put the value on the request itself.
+/// let carries_an_image = LmRequestPatch {
+///     user_parts: vec![LmPart::text("(an image)")],
+///     ..Default::default()
+/// };
+/// let renders_itself = LmRequestPatch {
+///     delete_input_fields: vec!["photo".to_owned()],
+///     ..Default::default()
+/// };
+/// let both = carries_an_image.merge(renders_itself);
+/// assert_eq!(both.user_parts.len(), 1);
+/// assert_eq!(both.delete_input_fields, ["photo"]);
+/// ```
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LmRequestPatch {
     pub messages: Vec<LmMessage>,

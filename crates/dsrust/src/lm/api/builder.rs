@@ -14,6 +14,26 @@ use crate::lm::LmUsage;
 /// Where a tool call's arguments accumulate while they are still arriving in fragments.
 const ARGS_BUFFER: &str = "args_buffer";
 
+/// dspy's `LMOutputBuilder`: the accumulator that folds a stream's deltas into a finished response.
+///
+/// Deltas carry their own indices rather than arriving in order, so the builder holds them by index
+/// and [`to_response`](Self::to_response) refuses to finish while the outputs are not contiguous
+/// from zero — a gap means a stream is still in flight, not that an output is empty.
+///
+/// ```
+/// use dsrust::lm::api::{LmDelta, LmOutputBuilder, LmStreamEvent};
+///
+/// let mut folding = LmOutputBuilder::new();
+/// folding
+///     .apply(LmStreamEvent::Delta {
+///         output_index: 1,
+///         part_index: 0,
+///         delta: LmDelta::TextDelta { text: "second".to_owned() },
+///     })
+///     .expect("a delta applies");
+/// // Output 0 never arrived, so finishing here would invent an empty one in its place.
+/// assert!(folding.to_response(None, None).is_err());
+/// ```
 #[derive(Debug, Default)]
 pub struct LmOutputBuilder {
     model: Option<String>,

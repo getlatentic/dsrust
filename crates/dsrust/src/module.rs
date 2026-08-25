@@ -303,6 +303,21 @@ pub trait Module: Send + Sync {
 
 /// Rename every step `record` added, which is how a composed module claims its children's calls
 /// as its own predictor.
+///
+/// The `from` mark is taken *before* the child runs, so only what that child added is renamed and a
+/// step recorded earlier keeps its own name. An optimizer walks the trace by predictor name, so a
+/// composed module that skips this has its children attributed to whatever ran before them:
+///
+/// ```
+/// use dsrust::module::{TraceStep, relabel};
+///
+/// # fn example(mut trace: Vec<TraceStep>) {
+/// let mark = trace.len();
+/// // ... a child module runs and records its own steps ...
+/// relabel(&mut trace, mark, "summarise");
+/// assert!(trace[mark..].iter().all(|step| step.predictor == "summarise"));
+/// # }
+/// ```
 pub fn relabel(trace: &mut [TraceStep], from: usize, name: &str) {
     for step in &mut trace[from..] {
         step.predictor = name.to_owned();
