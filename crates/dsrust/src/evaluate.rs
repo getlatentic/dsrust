@@ -10,6 +10,7 @@
 
 use std::future::Future;
 
+use anyhow::{Result, bail};
 use futures_util::StreamExt;
 
 use crate::example::{Example, Prediction};
@@ -149,11 +150,18 @@ where
         self
     }
 
-    /// Score every example, and report the rows in devset order however many ran at once.
-    ///
     /// Order is `buffered` rather than `buffer_unordered`: a caller reads `results[i]` against
     /// `devset[i]`, and dspy's own results are aligned the same way.
-    pub async fn run(&self) -> Evaluation {
+    /// Score every example, and report the rows in devset order however many ran at once.
+    ///
+    /// `Err` when the failures reach [`max_errors`](Self::max_errors), which is upstream's
+    /// behaviour and not a nicety: `ParallelExecutor` cancels at `error_count >= max_errors` and
+    /// the exception propagates out of `Evaluate.__call__`. Returning what was scored instead
+    /// hands back a number that reads as a result — the shape of a number that gets believed.
+    ///
+    /// The boundary is `>=`, so `max_errors` of 3 tolerates two failing rows and gives up on the
+    /// third. A tolerated failure still scores `failure_score` and still appears in the results.
+    pub async fn run(&self) -> Result<Evaluation> {
         let threads = self.num_threads.unwrap_or(1);
         let watch = crate::observe::evaluating(&self.devset, threads, self.pass);
         let scoring = futures_util::stream::iter(self.devset.clone())
@@ -162,6 +170,9 @@ where
         // dspy stops the run at `max_errors`, so the rows after the cap are never asked. `take_while`
         // is that: it ends the stream on the row that reaches the cap, and `buffered` stops pulling.
         // The failed rows up to and including it are kept, which is what makes the report readable.
+        // Upstream cancels at `error_count >= max_errors`, so a cap of three tolerates two failing
+        // rows and gives up on the third — `< cap`, not `<= cap`. Measured against dspy in
+        // `tests/conformance/evaluate/max_errors.json` rather than read off the comparison.
         let failures = std::sync::atomic::AtomicUsize::new(0);
         let cap = self.max_errors;
         let bounded = scoring.take_while(move |row| {
@@ -169,19 +180,38 @@ where
                 true => failures.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1,
                 false => failures.load(std::sync::atomic::Ordering::Relaxed),
             };
-            std::future::ready(seen <= cap)
+            std::future::ready(seen < cap)
         });
         let results: Vec<Scored> =
             crate::observe::evaluated_within(&watch, bounded.collect()).await;
-        let score = match results.is_empty() {
+        let evaluated = self.finish(results);
+        // Both arms close the point, because upstream's decorator does: a run that gives up reaches
+        // `on_evaluate_end` with the exception rather than leaving the handler's start unanswered.
+        crate::observe::scored(&watch, evaluated.as_ref());
+        evaluated
+    }
+
+    /// The devset's score, or the run that abandoned it.
+    ///
+    /// Short of the devset means the cap stopped the stream, since every row that runs is scored —
+    /// a failing one takes `failure_score`.
+    fn finish(&self, results: Vec<Scored>) -> Result<Evaluation> {
+        if results.len() < self.devset.len() {
+            // dspy's own words, so a caller who has read its traceback recognises this one.
+            bail!("Execution cancelled due to errors or interruption.");
+        }
+        // dspy's headline number is `round(100 * ncorrect / ntotal, 2)`, so the aggregate a caller
+        // reads is a *percentage* — `50.0`, never `0.5`. Scaling at each call site instead left
+        // `Evaluation::score` a hundred times smaller than the field it is mapped to, and every
+        // optimizer converting it back by hand through two identical functions.
+        let mean = match results.is_empty() {
             true => 0.0,
             false => results.iter().map(|row| row.score).sum::<f64>() / results.len() as f64,
         };
-        let evaluation = Evaluation { results, score };
-        // No error arm: a run scores every row and a failing one scores `failure_score`, which is
-        // dspy's choice too. So the span records what it found and never an exception.
-        crate::observe::scored(&watch, &evaluation);
-        evaluation
+        Ok(Evaluation {
+            score: percent(mean),
+            results,
+        })
     }
 
     /// One example, run and scored.
@@ -214,15 +244,13 @@ where
     }
 }
 
-/// A metric for the common case: every label field must match the prediction exactly.
-/// dspy `Evaluate.score`: the metric's mean as a percentage, rounded to two places.
-///
-/// Not the 0..1 mean [`Evaluation::score`] carries — upstream reports a percentage, and it reaches
 /// A mean as the percentage dspy reports — `round(mean * 100, 2)`, and the rounding matters.
 ///
-/// Python rounds half to *even*, so a score landing exactly on a half goes to the nearest even
-/// hundredth rather than always up. A comparison against a number dspy printed will drift on those
-/// without it.
+/// The number [`Evaluation::score`] already carries, here for a caller folding [`Scored`] rows into
+/// an aggregate of their own. Python rounds half to *even*, so a score landing exactly on a half
+/// goes to the nearest even hundredth rather than always up, and a comparison against a number dspy
+/// printed will drift on those without it. This one reaches a model in COPRO's attempts block, so
+/// the rounding is part of the prompt bytes.
 ///
 /// ```
 /// use dsrust::evaluate::percent;
@@ -232,11 +260,23 @@ where
 /// assert_eq!(percent(0.00125), 0.12);
 /// assert_eq!(percent(0.00375), 0.38);
 /// ```
-/// a model in COPRO's attempts block, so the rounding is part of the bytes.
 pub fn percent(mean: f64) -> f64 {
     (10_000.0 * mean).round_ties_even() / 100.0
 }
 
+/// A metric for the common case: every label field must match the prediction exactly.
+///
+/// dspy's `answer_exact_match` over all of them at once — one wrong field scores the row zero, and
+/// an example with nothing labelled scores zero rather than vacuously matching.
+///
+/// ```
+/// use dsrust::{Prediction, example, evaluate::exact_match};
+///
+/// let row = example! { question: "capital?", answer: "Paris" }.with_inputs(["question"]);
+/// let answered = |answer| Prediction::new(example! { answer: answer }, "raw");
+/// assert_eq!(exact_match(&row, &answered("Paris")), 1.0);
+/// assert_eq!(exact_match(&row, &answered("Lyon")), 0.0);
+/// ```
 pub fn exact_match(example: &Example, prediction: &Prediction) -> f64 {
     // An undeclared example cannot be scored; the runner reports that as a row failure, so
     // reaching here with one means scoring nothing rather than everything.
@@ -314,7 +354,8 @@ mod tests {
         Evaluate::new(devset, program, |_: &Example, _: &Prediction| 1.0)
             .num_threads(4)
             .run()
-            .await;
+            .await
+            .expect("the run stays inside its error budget");
 
         assert!(
             peak.load(Ordering::SeqCst) > 1,
@@ -352,7 +393,8 @@ mod tests {
         )
         .num_threads(6)
         .run()
-        .await;
+        .await
+        .expect("the run stays inside its error budget");
 
         let asked: Vec<_> = evaluation
             .results
@@ -388,10 +430,11 @@ mod tests {
         .run()
         .await;
 
+        // dspy raises rather than reporting what it managed to score, and says so in these words.
+        let refused = evaluation.expect_err("a run past its budget is not a score");
         assert_eq!(
-            evaluation.failure_count(),
-            3,
-            "the failures up to the cap are kept"
+            refused.to_string(),
+            "Execution cancelled due to errors or interruption."
         );
         assert!(
             asked.load(Ordering::SeqCst) < 100,
@@ -422,7 +465,8 @@ mod tests {
         let evaluation = Evaluate::new(devset, answering("wrong"), exact_match)
             .max_errors(1)
             .run()
-            .await;
+            .await
+            .expect("the run stays inside its error budget");
         assert_eq!(evaluation.results.len(), 40, "every row ran");
         assert_eq!(evaluation.score, 0.0);
         assert_eq!(evaluation.failure_count(), 0);
@@ -440,8 +484,11 @@ mod tests {
                 "raw",
             )))
         };
-        let evaluation = Evaluate::new(devset(), program, exact_match).run().await;
-        assert_eq!(evaluation.score, 1.0);
+        let evaluation = Evaluate::new(devset(), program, exact_match)
+            .run()
+            .await
+            .expect("the run stays inside its error budget");
+        assert_eq!(evaluation.score, 100.0);
         assert_eq!(evaluation.failure_count(), 0);
     }
 
@@ -449,8 +496,9 @@ mod tests {
     async fn a_half_right_program_scores_one_half() {
         let evaluation = Evaluate::new(devset(), answering("Paris"), exact_match)
             .run()
-            .await;
-        assert_eq!(evaluation.score, 0.5);
+            .await
+            .expect("the run stays inside its error budget");
+        assert_eq!(evaluation.score, 50.0);
         assert_eq!(evaluation.results.len(), 2);
     }
 
@@ -469,10 +517,13 @@ mod tests {
                 )),
             })
         };
-        let evaluation = Evaluate::new(devset(), program, exact_match).run().await;
+        let evaluation = Evaluate::new(devset(), program, exact_match)
+            .run()
+            .await
+            .expect("the run stays inside its error budget");
 
         // One row errored, the other still scored: an outage must not discard the evidence.
-        assert_eq!(evaluation.score, 0.5);
+        assert_eq!(evaluation.score, 50.0);
         assert_eq!(evaluation.failure_count(), 1);
         assert!(
             evaluation
@@ -499,15 +550,19 @@ mod tests {
                 "raw",
             )))
         };
-        let evaluation = Evaluate::new(devset(), program, exact_match).run().await;
-        assert_eq!(evaluation.score, 0.5);
+        let evaluation = Evaluate::new(devset(), program, exact_match)
+            .run()
+            .await
+            .expect("the run stays inside its error budget");
+        assert_eq!(evaluation.score, 50.0);
     }
 
     #[tokio::test]
     async fn an_empty_devset_scores_zero_rather_than_dividing_by_nothing() {
         let evaluation = Evaluate::new(Vec::new(), answering("Paris"), exact_match)
             .run()
-            .await;
+            .await
+            .expect("the run stays inside its error budget");
         assert_eq!(evaluation.score, 0.0);
         assert!(evaluation.results.is_empty());
     }

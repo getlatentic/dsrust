@@ -501,11 +501,12 @@ fn an_evaluation_is_one_span_with_every_row_inside_it() {
         )
         .run()
         .await
+        .expect("the run stays inside its error budget")
     });
 
     // The model answers Paris to both, and only the first row's label agrees — so the aggregate
     // is a half, which is what makes the recorded score a real number rather than a constant.
-    assert_eq!(evaluation.score, 0.5);
+    assert_eq!(evaluation.score, 50.0);
 
     let evaluate = recorded.one("evaluate");
     assert_eq!(
@@ -514,7 +515,7 @@ fn an_evaluation_is_one_span_with_every_row_inside_it() {
     );
     let outputs = evaluate.outputs.expect("what the run found");
     assert!(outputs.contains("\"rows\":2"), "{outputs}");
-    assert!(outputs.contains("\"score\":0.5"), "{outputs}");
+    assert!(outputs.contains("\"score\":50"), "{outputs}");
 
     let modules = recorded.named("module");
     assert_eq!(modules.len(), 2, "one per row");

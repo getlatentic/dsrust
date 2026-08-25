@@ -30,13 +30,6 @@ pub(super) struct Evaluated {
     pub program: Vec<String>,
 }
 
-/// dspy Evaluate's headline number: `round(100 * mean, 2)`. The mean arrives on 0..1 from
-/// [`crate::evaluate::Evaluate`]; COPRO scales and rounds it the way upstream does before the
-/// value is compared or written into a prompt, so a score reads `50.0`, never `0.5`.
-pub(super) fn dspy_score(mean: f64) -> f64 {
-    (10_000.0 * mean).round_ties_even() / 100.0
-}
-
 /// A score as Python prints it: `serde_json`'s float form already keeps the trailing `.0` an
 /// integral score carries and agrees with Python's `repr` across the 0..100 range a score lives in.
 fn score_text(score: f64) -> String {

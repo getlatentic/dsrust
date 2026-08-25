@@ -21,6 +21,7 @@ import pathlib
 import sys
 
 import dspy
+from dspy.utils.exceptions import LMError
 from dspy.utils.callback import ACTIVE_CALL_ID, BaseCallback
 from dspy.utils.dummies import DummyLM
 
@@ -101,6 +102,10 @@ def recorded(build, run, lm):
     dspy.configure(lm=lm, callbacks=[callback], adapter=dspy.ChatAdapter())
     try:
         run(build())
+    except Exception:
+        # A case that gives up is recorded for the sequence it fired on the way out, which is the
+        # only way to see the end handler's exception arm.
+        pass
     finally:
         dspy.configure(callbacks=[])
     return callback.calls
@@ -139,6 +144,26 @@ def an_evaluation():
     )
 
 
+def an_abandoned_evaluation():
+    """Past `max_errors`, `Evaluate.__call__` raises — so its end handler fires with the exception.
+
+    The row fails at the model call, which is the failure both ports can produce: this crate's metric
+    returns `f64` and cannot raise, so a metric failure would compare a Python-only shape. A model
+    error also keeps the case off the JSON fallback, whose format point upstream fires twice — see
+    `_make_json_adapter_fallback` in the ledger.
+    """
+    return dspy.Evaluate(
+        devset=[
+            dspy.Example(question="Unanswered?", answer="test output").with_inputs("question")
+        ],
+        metric=lambda example, prediction, trace=None: 1.0,
+        num_threads=1,
+        max_errors=1,
+        display_progress=False,
+        provide_traceback=False,
+    )
+
+
 CASES = [
     {
         "name": "predict",
@@ -173,13 +198,33 @@ CASES = [
         "run": lambda program: program(dspy.Predict("question -> answer")),
         "answers": {"How are you?": {"answer": "test output"}},
     },
+    {
+        "name": "evaluate_abandoned",
+        "note": "past max_errors the run raises, and the end handler still fires — with the exception",
+        "build": an_abandoned_evaluation,
+        "run": lambda program: program(dspy.Predict("question -> answer")),
+        "answers": {},
+        "lm_fails": True,
+    },
 ]
+
+
+class FailingLM(DummyLM):
+    """A model call that errors, which is how the abandoned case fails its one row.
+
+    `forward` rather than `__call__`, so the failure happens inside the callback-decorated call and
+    the LM point fires with it; and `LMError` rather than any exception, because `ChatAdapter` falls
+    back to the JSON adapter on everything else.
+    """
+
+    def forward(self, *args, **kwargs):
+        raise LMError("no answer")
 
 
 def main():
     cases = []
     for case in CASES:
-        lm = DummyLM(case["answers"])
+        lm = FailingLM({}) if case.get("lm_fails") else DummyLM(case["answers"])
         cases.append(
             {
                 "name": case["name"],

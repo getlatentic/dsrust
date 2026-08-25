@@ -14,7 +14,7 @@ use std::collections::BTreeMap;
 
 use anyhow::{Result, bail};
 
-use crate::evaluate::{Evaluate, percent};
+use crate::evaluate::Evaluate;
 use crate::example::{Example, Prediction};
 use crate::module::{Module, ProgramState};
 
@@ -30,7 +30,7 @@ const STRATEGY_SEPARATOR: &str = " -> ";
 /// this — and not `Attempt`, which BootstrapRandomSearch already uses for its own scored try.
 ///
 /// dspy keeps a `deepcopy` of the program itself; here it is the program's compiled state, which
-/// One step of the strategy string, with the program as it stood after it.
+/// is what a copy would have carried and what [`Module::load_state`] puts back.
 ///
 /// ```no_run
 /// # use dsrust::optimize::StepResult;
@@ -45,7 +45,6 @@ const STRATEGY_SEPARATOR: &str = " -> ";
 /// }
 /// # }
 /// ```
-/// is what a copy would have carried and what [`Module::load_state`] puts back.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StepResult {
     /// The metric's mean over the validation set as a percentage — dspy's `Evaluate.score` — or
@@ -129,7 +128,7 @@ where
         // dspy scores the program as it arrived first, so "no optimization" is a candidate too.
         candidates.push(
             self.candidate(student, String::new(), valset.as_deref())
-                .await,
+                .await?,
         );
 
         for (index, step) in steps.iter().enumerate() {
@@ -142,7 +141,7 @@ where
                 break;
             }
             let reached = steps[..=index].join(STRATEGY_SEPARATOR);
-            candidates.push(self.candidate(student, reached, valset.as_deref()).await);
+            candidates.push(self.candidate(student, reached, valset.as_deref()).await?);
         }
 
         // dspy sorts by score, and a tie keeps the one found earlier.
@@ -173,19 +172,19 @@ where
         student: &mut dyn Module,
         strategy: String,
         valset: Option<&[Example]>,
-    ) -> StepResult {
+    ) -> Result<StepResult> {
         let score = match valset {
             None => None,
-            Some(valset) => Some(self.score(student, valset).await),
+            Some(valset) => Some(self.score(student, valset).await?),
         };
-        StepResult {
+        Ok(StepResult {
             score,
             strategy,
             state: student.dump_state(),
-        }
+        })
     }
 
-    async fn score(&self, student: &dyn Module, valset: &[Example]) -> f64 {
+    async fn score(&self, student: &dyn Module, valset: &[Example]) -> Result<f64> {
         let evaluation = self
             .scoring
             .apply(Evaluate::new(
@@ -195,7 +194,7 @@ where
             ))
             .run()
             .await;
-        percent(evaluation.score)
+        Ok(evaluation?.score)
     }
 
     /// dspy `_prepare_strategy`: the steps, each of which must name an optimizer it holds.
@@ -264,11 +263,12 @@ mod tests {
         let rows = trainset();
         let capitals = together
             .score(&Solver::new(Answers::Correctly), &rows)
-            .await;
+            .await
+            .expect("scores inside the budget");
         // Correctly solves the two capital rows of six, and the score is dspy's percentage.
         assert!((capitals - 33.33).abs() < 1e-9, "got {capitals}");
         let none = together.score(&Solver::new(Answers::Wrongly), &rows).await;
-        assert_eq!(none, 0.0);
+        assert_eq!(none.expect("scores inside the budget"), 0.0);
     }
     use crate::evaluate::exact_match;
     use crate::optimize::scripted::{Answers, Solver, trainset};

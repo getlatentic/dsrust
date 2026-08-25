@@ -61,7 +61,7 @@ fn reply(answer: &str) -> String {
 }
 
 #[tokio::test]
-async fn a_module_that_answers_correctly_scores_one() {
+async fn a_module_that_answers_correctly_scores_a_hundred() {
     let lm = Scripted::new(&[&reply("Paris"), &reply("Berlin")]);
     let predict = dsrust::predict::Predict::from_signature(signature());
 
@@ -87,9 +87,11 @@ async fn a_module_that_answers_correctly_scores_one() {
         exact_match,
     )
     .run()
-    .await;
+    .await
+    .expect("the run stays inside its error budget");
 
-    assert_eq!(evaluation.score, 1.0);
+    // The percentage upstream reports, not the 0..1 mean the rows carry.
+    assert_eq!(evaluation.score, 100.0);
     assert_eq!(evaluation.failure_count(), 0);
 }
 
@@ -119,9 +121,10 @@ async fn a_wrong_answer_scores_zero_and_keeps_the_reply_for_inspection() {
         exact_match,
     )
     .run()
-    .await;
+    .await
+    .expect("the run stays inside its error budget");
 
-    assert_eq!(evaluation.score, 0.5);
+    assert_eq!(evaluation.score, 50.0);
     // The failing row keeps what the model said, which is the first thing to look at.
     let wrong = &evaluation.results[0];
     assert_eq!(wrong.score, 0.0);

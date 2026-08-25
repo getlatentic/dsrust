@@ -27,7 +27,7 @@ mod signatures;
 #[cfg(test)]
 mod conformance;
 
-use candidates::{Evaluated, Evaluations, Proposal, best_program, dspy_score, stripped};
+use candidates::{Evaluated, Evaluations, Proposal, best_program, stripped};
 
 /// dspy `COPRO`: an instruction optimizer driven by a metric.
 ///
@@ -122,7 +122,7 @@ where
                 for candidate in pool {
                     let outcome = self
                         .try_candidate(student, predictor, candidate, trainset, &mut current)
-                        .await;
+                        .await?;
                     evaluated[predictor].record(outcome);
                 }
                 let best = evaluated[predictor].best().instruction.clone();
@@ -156,18 +156,18 @@ where
         candidate: &Proposal,
         trainset: &[Example],
         current: &mut [String],
-    ) -> Evaluated {
+    ) -> Result<Evaluated> {
         let instruction = stripped(&candidate.instruction);
         let prefix = stripped(&candidate.prefix);
         set_instruction(student, predictor, &instruction);
         current[predictor] = instruction.clone();
-        let score = self.score(student, trainset).await;
-        Evaluated {
+        let score = self.score(student, trainset).await?;
+        Ok(Evaluated {
             instruction,
             prefix,
             score,
             program: current.to_vec(),
-        }
+        })
     }
 
     /// The seed round: for each predictor, ask for `breadth - 1` fresh instructions and add its
@@ -229,7 +229,7 @@ where
 
     /// dspy Evaluate's headline: the metric's mean over the trainset, scaled to a percentage and
     /// rounded, which is the number COPRO compares and writes into its next prompt.
-    async fn score<S: Module + ?Sized>(&self, student: &S, trainset: &[Example]) -> f64 {
+    async fn score<S: Module + ?Sized>(&self, student: &S, trainset: &[Example]) -> Result<f64> {
         let evaluation = self
             .scoring
             .apply(Evaluate::new(
@@ -239,7 +239,7 @@ where
             ))
             .run()
             .await;
-        dspy_score(evaluation.score)
+        Ok(evaluation?.score)
     }
 }
 

@@ -77,6 +77,8 @@ pub fn serialized<T: Type + ?Sized>(value: &T) -> String {
     }
 }
 
+/// The [`Value`] a caller puts in a field for `value` to render — [`serialized`] as a JSON string.
+///
 /// ```
 /// use dsrust::adapter::types::base::to_field_value;
 /// use dsrust::Image;
@@ -86,7 +88,6 @@ pub fn serialized<T: Type + ?Sized>(value: &T) -> String {
 /// let image = Image::new("https://example.invalid/a.png").expect("a url");
 /// assert!(to_field_value(&image).is_string());
 /// ```
-/// The [`Value`] a caller puts in a field for `value` to render — [`serialized`] as a JSON string.
 pub fn to_field_value<T: Type + ?Sized>(value: &T) -> Value {
     Value::String(serialized(value))
 }

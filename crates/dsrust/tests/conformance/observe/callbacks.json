@@ -226,6 +226,44 @@
           "depth": 0
         }
       ]
+    },
+    {
+      "name": "evaluate_abandoned",
+      "note": "past max_errors the run raises, and the end handler still fires — with the exception",
+      "handlers": [
+        {
+          "handler": "on_evaluate_start",
+          "depth": 0
+        },
+        {
+          "handler": "on_module_start",
+          "depth": 1
+        },
+        {
+          "handler": "on_adapter_format_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_format_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_lm_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_lm_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_module_end",
+          "depth": 1
+        },
+        {
+          "handler": "on_evaluate_end",
+          "depth": 0
+        }
+      ]
     }
   ]
 }

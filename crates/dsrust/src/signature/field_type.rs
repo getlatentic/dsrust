@@ -504,10 +504,11 @@ mod tests {
     }
 }
 
-/// dspy's `SIMPLE_TYPES`, as the sandbox's generated `SUBMIT` signature spells them.
-///
-/// Only these six can be written into a Python `def`. Anything else — an enum, a declared struct —
 /// The Python name dspy prints for a kind, or `None` where the kind has no single one.
+///
+/// dspy's `SIMPLE_TYPES`, as the sandbox's generated `SUBMIT` signature spells them: only these six
+/// can be written into a Python `def`. Anything else — an enum, a declared struct — goes over
+/// unannotated, which is what upstream does with a type it cannot spell.
 ///
 /// ```
 /// use dsrust::signature::{FieldKind, python_name};
@@ -519,7 +520,6 @@ mod tests {
 /// // An enum prints the type that named its members, so there is no fixed word for it here.
 /// assert_eq!(python_name(&FieldKind::Enum("Status".to_owned())), None);
 /// ```
-/// goes over unannotated, which is what upstream does with a type it cannot spell.
 pub fn python_name(kind: &FieldKind) -> Option<&'static str> {
     Some(match kind {
         FieldKind::Str | FieldKind::Reasoning => "str",

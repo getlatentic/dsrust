@@ -8,8 +8,10 @@ use crate::signature::TypeDescription;
 
 use super::base::{Formatted, Type, serialized};
 
-/// The content types a [`Document`] may carry. dspy spells it `Literal["text/plain",
 /// What a document says it is, under the name the wire uses rather than the variant's.
+///
+/// The content types a [`Document`] may carry. dspy spells it `Literal["text/plain",
+/// "application/pdf"]`, so a value outside the pair is refused rather than passed on.
 ///
 /// ```
 /// use dsrust::MediaType;
@@ -18,7 +20,6 @@ use super::base::{Formatted, Type, serialized};
 /// // Plain text is the default, which is what a document with no media type declared becomes.
 /// assert_eq!(MediaType::default(), MediaType::PlainText);
 /// ```
-/// "application/pdf"]`, so a value outside the pair is refused rather than passed on.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, schemars::JsonSchema,
 )]

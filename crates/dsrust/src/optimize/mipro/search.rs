@@ -9,7 +9,7 @@ use anyhow::{Result, bail};
 
 use super::minibatch::{self, Averages};
 use super::{MIPROv2, RunMode, Slot, Trial, apply, search_space};
-use crate::evaluate::{Evaluate, Pass, percent};
+use crate::evaluate::{Evaluate, Pass};
 use crate::example::{Example, Prediction};
 use crate::module::Module;
 
@@ -37,7 +37,7 @@ where
         let space: Vec<Slot> = named.iter().map(|(_, slot)| *slot).collect();
         let baseline = vec![0usize; space.len()];
         // The default program's own pass is always a full one, so it takes no draw.
-        let default_score = self.score(student, &mode.valset, mode).await;
+        let default_score = self.score(student, &mode.valset, mode).await?;
 
         let mut sampler = tpe::TpeSampler::new(
             self.seed as u32,
@@ -67,7 +67,7 @@ where
             let params = sampler.ask();
             apply(student, candidates, demo_sets, &space, &params);
             let batch = self.batch(mode, rng);
-            let score = self.score(student, &batch, mode).await;
+            let score = self.score(student, &batch, mode).await?;
             sampler.tell(params.clone(), score);
             trials.push(Trial {
                 params: params.clone(),
@@ -87,7 +87,7 @@ where
             }
             let Some((params, score)) = self
                 .evaluate_fully(student, candidates, demo_sets, &space, &mut averages, mode)
-                .await
+                .await?
             else {
                 continue;
             };
@@ -123,13 +123,15 @@ where
         space: &[Slot],
         averages: &mut Averages,
         mode: &RunMode,
-    ) -> Option<(Vec<usize>, f64)> {
-        let (params, _mean) = averages.highest_average()?;
+    ) -> Result<Option<(Vec<usize>, f64)>> {
+        let Some((params, _mean)) = averages.highest_average() else {
+            return Ok(None);
+        };
         let params = params.to_vec();
         averages.mark_evaluated(&params);
         apply(student, candidates, demo_sets, &space, &params);
-        let score = self.score(student, &mode.valset, mode).await;
-        Some((params, score))
+        let score = self.score(student, &mode.valset, mode).await?;
+        Ok(Some((params, score)))
     }
 
     /// What one trial scores on — the whole valset, or a fresh subsample of it.
@@ -152,7 +154,7 @@ where
         student: &S,
         examples: &[Example],
         mode: &RunMode,
-    ) -> f64 {
+    ) -> Result<f64> {
         let pass = match examples.len() >= mode.valset.len() {
             true => Pass::Full,
             false => Pass::Minibatch,
@@ -167,6 +169,6 @@ where
             .pass(pass)
             .run()
             .await;
-        percent(evaluation.score)
+        Ok(evaluation?.score)
     }
 }

@@ -4,6 +4,8 @@ use serde_json::Value;
 
 use super::part::Metadata;
 
+/// `bool | int`: enable logprobs, or ask for the top `n` per token.
+///
 /// The three request settings whose Python type is a union, each an enum here so the wire cannot be
 /// given a shape the provider rejects:
 ///
@@ -21,7 +23,6 @@ use super::part::Metadata;
 /// // `tool_choice` defaults to letting the model decide.
 /// assert_eq!(ToolChoiceMode::default(), ToolChoiceMode::Auto);
 /// ```
-/// `bool | int`: enable logprobs, or ask for the top `n` per token.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(untagged)]
 pub enum Logprobs {

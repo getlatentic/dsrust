@@ -16,6 +16,8 @@ use super::{BootstrapFewShot, LabeledFewShot};
 use crate::example::{Example, Prediction};
 use crate::module::{Module, ProgramState};
 
+/// One attempt and what it scored, in the order dspy records them.
+///
 /// Reading a traced run: every attempt is kept with the program state that produced it, so a caller
 /// can go back to one the search did not keep.
 ///
@@ -31,7 +33,6 @@ use crate::module::{Module, ProgramState};
 /// }
 /// # }
 /// ```
-/// One attempt and what it scored, in the order dspy records them.
 #[derive(Debug, Clone)]
 pub struct Attempt {
     /// dspy's `seed`: `-3` zero-shot, `-2` labels only, `-1` an unshuffled bootstrap, then the
@@ -115,6 +116,9 @@ where
     }
 
     /// Stop as soon as an attempt scores at least this. dspy compares with `>=`.
+    ///
+    /// On the same scale upstream's bar is: the percentage `Evaluation::score` carries, so `90.0`
+    /// and not `0.9`.
     pub fn stop_at_score(mut self, score: f64) -> Self {
         self.stop_at_score = Some(score);
         self
@@ -246,7 +250,7 @@ where
                     &self.metric,
                 ))
                 .run()
-                .await
+                .await?
                 .score;
             attempts.push(Attempt {
                 seed,
@@ -379,8 +383,9 @@ mod tests {
 
     /// `stop_at_score` reads `scored >= bar`: a met bar ends the search after that attempt, an
     /// unmet bar never does. The valset is the two capital rows `Correctly` actually solves, so
-    /// the score is 1.0 and the metric-call count says how many attempts ran — the one observer
-    /// that catches the comparison mutants in both directions.
+    /// the score is 100.0 — upstream compares this bar against `EvaluationResult.score`, which is a
+    /// percentage — and the metric-call count says how many attempts ran, the one observer that
+    /// catches the comparison mutants in both directions.
     #[tokio::test]
     async fn stop_at_score_stops_exactly_when_the_bar_is_met() {
         use std::sync::atomic::{AtomicUsize, Ordering};
@@ -395,7 +400,7 @@ mod tests {
         let mut student = Solver::new(Answers::Correctly);
         BootstrapRandomSearch::new(&metric)
             .restrict([-3, -2])
-            .stop_at_score(0.5)
+            .stop_at_score(50.0)
             .compile(&mut student, &rows, capitals)
             .await
             .expect("compiles");
@@ -409,7 +414,7 @@ mod tests {
         let mut student = Solver::new(Answers::Correctly);
         BootstrapRandomSearch::new(&metric)
             .restrict([-3, -2])
-            .stop_at_score(2.0)
+            .stop_at_score(200.0)
             .compile(&mut student, &rows, capitals)
             .await
             .expect("compiles");

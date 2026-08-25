@@ -139,12 +139,13 @@ pub trait Callback: Send + Sync {
         let _ = (call, devset, threads, pass);
     }
 
-    /// A run over a devset finished.
+    /// A run over a devset finished, with its score or why it gave up.
     ///
-    /// No error arm, unlike the other five: a failing row scores `failure_score` and the run carries
-    /// on, so an evaluation always produces one. That is dspy's choice too.
-    fn on_evaluate_end(&self, call: &CallId, evaluation: &Evaluation) {
-        let _ = (call, evaluation);
+    /// The error is never a single row's: a failing row scores `failure_score` and the run carries
+    /// on. It is the run abandoning the devset once `max_errors` rows have failed, which upstream
+    /// raises out of `Evaluate.__call__` and reports here with `outputs=None`.
+    fn on_evaluate_end(&self, call: &CallId, evaluated: Result<&Evaluation, &Error>) {
+        let _ = (call, evaluated);
     }
 }
 

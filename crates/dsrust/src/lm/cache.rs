@@ -133,6 +133,8 @@ static SHARED: OnceLock<ResponseCache> = OnceLock::new();
 ///
 /// The *whole* request goes in, as upstream's whole kwargs dict does. Hashing a chosen subset is
 /// the dangerous kind of wrong — two calls differing only in a missed field share an entry, and the
+/// second is answered with the first's reply.
+///
 /// ```
 /// use dsrust::lm::cache::key_of;
 ///
@@ -150,7 +152,6 @@ static SHARED: OnceLock<ResponseCache> = OnceLock::new();
 /// let reordered = serde_json::json!({ "temperature": 0.0, "messages": [], "model": "m" });
 /// assert_eq!(key_of(&asked), key_of(&reordered));
 /// ```
-/// second is answered with the first's reply.
 pub fn key_of(request: &serde_json::Value) -> String {
     use sha2::Digest;
     let digest = sha2::Sha256::digest(canonical(request).as_bytes());

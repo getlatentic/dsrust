@@ -47,6 +47,8 @@ pub struct PredictorState {
     pub lm: Option<Value>,
 }
 
+/// dspy `Signature.dump_state`: the objective, and each field's prompt-facing description.
+///
 /// What an optimizer changed, as a saved program records it — which is what a caller diffs to see
 /// what a compile actually did:
 ///
@@ -69,7 +71,6 @@ pub struct PredictorState {
 /// assert_ne!(before.instructions, after.instructions);
 /// assert_eq!(before.fields, after.fields, "the optimizer rewrote the objective, not the fields");
 /// ```
-/// dspy `Signature.dump_state`: the objective, and each field's prompt-facing description.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SignatureState {
     pub instructions: String,

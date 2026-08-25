@@ -11,6 +11,8 @@ use super::base::{Formatted, Type, serialized};
 /// dspy's `Citations.Citation`: one quoted span and where it came from.
 ///
 /// A provider that supports citations — Anthropic's through litellm — returns these beside the
+/// answer, each naming the document it quoted and the character range within it.
+///
 /// ```
 /// use dsrust::Citation;
 ///
@@ -27,7 +29,6 @@ use super::base::{Formatted, Type, serialized};
 /// };
 /// assert_eq!(cited.document_index, 0);
 /// ```
-/// answer, each naming the document it quoted and the character range within it.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, schemars::JsonSchema)]
 pub struct Citation {
     /// dspy's `type`, which only ever carries `char_location` today. Spelled `kind` because

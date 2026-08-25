@@ -86,6 +86,8 @@ pub enum OpenAiWire {
 }
 
 /// Which OpenAI-shaped service [`Provider::OpenAiCompatible`](super::Provider::OpenAiCompatible)
+/// talks to.
+///
 /// ```
 /// use dsrust::lm::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR, OpenAiConfig};
 ///
@@ -102,7 +104,6 @@ pub enum OpenAiWire {
 /// };
 /// assert_ne!(local.base_url, DEFAULT_OPENAI_BASE_URL);
 /// ```
-/// talks to.
 #[derive(Debug, Clone)]
 pub struct OpenAiConfig {
     pub base_url: String,

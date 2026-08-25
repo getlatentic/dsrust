@@ -61,10 +61,10 @@ async fn main() -> anyhow::Result<()> {
     // 3. Score it over the trainset, which is what an optimizer optimizes against.
     let before = Evaluate::new(trainset(), |inputs| program.forward(inputs), exact_match)
         .run()
-        .await;
+        .await?;
     println!(
         "before compiling {:.0}% of {} examples",
-        before.score * 100.0,
+        before.score,
         trainset().len()
     );
 

@@ -71,26 +71,30 @@ pub async fn evaluated_within<T>(watch: &Watch, rows: impl Future<Output = T>) -
         .await
 }
 
-/// dspy `on_evaluate_end`: what an evaluation found.
+/// dspy `on_evaluate_end`: what an evaluation found, or why it gave up.
 ///
-/// Its own function rather than [`watching`](super::watching) because a run has no error arm: a failing row scores
-/// `failure_score` and the run carries on, which is dspy's choice too.
-pub fn scored(watch: &Watch, evaluation: &crate::evaluate::Evaluation) {
-    if !watch.span.is_disabled() {
-        watch.span.record(
-            "outputs",
-            format!(
-                "{{\"score\":{},\"rows\":{},\"failed\":{}}}",
-                evaluation.score,
-                evaluation.results.len(),
-                evaluation.failure_count(),
-            )
-            .as_str(),
-        );
-    }
+/// Its own function rather than [`watching`](super::watching) because the rows stream *inside* the
+/// point rather than resolving as one future the wrapper can await.
+///
+/// The error arm is upstream's too, and is not a row's failure: a failing row scores
+/// `failure_score` and the run carries on. It is the whole run giving up once `max_errors` rows
+/// have failed, which upstream raises from `Evaluate.__call__` — so its decorator fires this
+/// handler with `outputs=None` and the exception set.
+pub fn scored(watch: &Watch, evaluated: Result<&crate::evaluate::Evaluation, &anyhow::Error>) {
+    watch.finished(evaluated, describe);
     if callback::watching(&watch.instance) {
         callback::tell(&watch.instance, |callback| {
-            callback.on_evaluate_end(&watch.call, evaluation)
+            callback.on_evaluate_end(&watch.call, evaluated)
         });
     }
+}
+
+/// What the span records for a run that finished.
+fn describe(evaluation: &crate::evaluate::Evaluation) -> String {
+    format!(
+        "{{\"score\":{},\"rows\":{},\"failed\":{}}}",
+        evaluation.score,
+        evaluation.results.len(),
+        evaluation.failure_count(),
+    )
 }

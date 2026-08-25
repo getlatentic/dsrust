@@ -4,7 +4,11 @@ use super::part::Metadata;
 use super::request::LmRequest;
 use super::response::LmResponse;
 
+/// dspy `LMHistoryEntry`: one call kept for inspection after the fact, readable as a dictionary.
+///
 /// `extra="allow"` upstream, so anything a caller attaches survives rather than being dropped —
+/// deliberately the opposite of the request and response it holds, which both forbid unknowns.
+///
 /// ```
 /// use dsrust::lm::api::LmHistoryEntry;
 ///
@@ -21,7 +25,6 @@ use super::response::LmResponse;
 /// let entry: LmHistoryEntry = serde_json::from_value(written.clone()).expect("unknowns allowed");
 /// assert_eq!(entry.uuid, "abc");
 /// ```
-/// deliberately the opposite of the request and response it holds, which both forbid unknowns.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct LmHistoryEntry {
     pub request: LmRequest,

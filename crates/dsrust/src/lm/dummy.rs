@@ -23,8 +23,7 @@ use crate::lm::{ChatModel, Sampling};
 /// — `messages[-1]["content"]`, `messages[:-1]` — and never splits the system prompt out; the
 /// split this held instead re-derived a pair the adapter had stopped producing, and mapped every
 /// role that was not `assistant` to `user` on the way, so a tool result recorded as something the
-/// What the model was asked, recorded so a test can assert on the prompt rather than only the
-/// answer — which is the half that catches a rendering change.
+/// user said.
 ///
 /// ```
 /// use dsrust::DummyLM;
@@ -40,7 +39,6 @@ use crate::lm::{ChatModel, Sampling};
 /// }
 /// # Ok(()) }
 /// ```
-/// user said.
 #[derive(Debug, Clone)]
 pub struct Asked {
     pub messages: Vec<api::LmMessage>,

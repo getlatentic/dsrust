@@ -8,7 +8,9 @@ use super::request::LmRequest;
 use super::response::LmResponse;
 
 /// Upstream keeps a synchronous and an asynchronous class that differ only in how they iterate.
-/// One type over an iterator covers both here, since an async source becomes an iterator of
+/// One type over an iterator covers both here, since an async source becomes an iterator of events
+/// before it reaches this.
+///
 /// ```
 /// use dsrust::lm::api::{LmDelta, LmRequest, LmStream, LmStreamEvent};
 ///
@@ -23,7 +25,6 @@ use super::response::LmResponse;
 /// let stream = LmStream::new(request, events.into_iter());
 /// assert_eq!(stream.request.model, "openai/gpt-4o-mini");
 /// ```
-/// events before it reaches this.
 pub struct LmStream<E> {
     pub request: LmRequest,
     events: E,

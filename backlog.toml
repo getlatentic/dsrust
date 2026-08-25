@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1428
+rust_tests = 1431
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -3476,7 +3476,7 @@ test that asserts it to go red. It stays green today.
 id = "dspy-flex"
 sprint = "api"
 title = "dspy 3.3.0 shipped a whole feature this port does not have"
-state = "next"
+state = "done"
 size = "L"
 suites = []
 plan = """

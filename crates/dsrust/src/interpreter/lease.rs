@@ -57,6 +57,8 @@ pub fn handing_back(interpreter: Arc<dyn CodeInterpreter>) -> InterpreterFactory
 ///
 /// Named for what it is: a borrow with a rule attached. `Drop` does the shutting down, so an early
 /// `?` releases the process exactly as a clean return does — which is the whole of upstream's
+/// `try/finally` and the half a hand-written call at the end of `forward` would miss.
+///
 /// ```
 /// use dsrust::interpreter::{DenoInterpreter, Lease};
 /// use std::sync::Arc;
@@ -69,7 +71,6 @@ pub fn handing_back(interpreter: Arc<dyn CodeInterpreter>) -> InterpreterFactory
 /// // `mine` is still usable here: dropping a borrowed lease shuts nothing down.
 /// assert_eq!(Arc::strong_count(&mine), 1);
 /// ```
-/// `try/finally` and the half a hand-written call at the end of `forward` would miss.
 pub struct Lease {
     interpreter: Arc<dyn CodeInterpreter>,
     owned: bool,

@@ -321,6 +321,8 @@ fn written(value: Option<&Value>) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// dspy `ToolCallResults.ToolCallResult`: what one call returned.
+///
 /// ```
 /// use dsrust::ToolCallResult;
 ///
@@ -334,7 +336,6 @@ fn written(value: Option<&Value>) -> Option<String> {
 /// };
 /// assert!(!returned.is_error, "a failure is a result too, flagged rather than raised");
 /// ```
-/// dspy `ToolCallResults.ToolCallResult`: what one call returned.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct ToolCallResult {
     /// The id of the call this answers, so a provider can pair them up.

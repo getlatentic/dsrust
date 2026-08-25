@@ -67,6 +67,8 @@ where
     }
 }
 
+/// dspy's `EnsembledProgram`: what [`Ensemble::compile`] hands back.
+///
 /// It is a [`Module`] like any other, so an ensemble drops into a program where one predictor was:
 ///
 /// ```no_run
@@ -77,7 +79,6 @@ where
 /// let _: &dyn Module = &ensembled;
 /// # }
 /// ```
-/// dspy's `EnsembledProgram`: what [`Ensemble::compile`] hands back.
 pub struct Ensembled<R> {
     programs: Vec<Box<dyn Module>>,
     reduce: Option<R>,

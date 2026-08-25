@@ -151,7 +151,7 @@ impl Callback for Recording {
         self.started("on_evaluate_start", call);
     }
 
-    fn on_evaluate_end(&self, call: &CallId, _evaluation: &Evaluation) {
+    fn on_evaluate_end(&self, call: &CallId, _evaluated: Result<&Evaluation, &Error>) {
         self.ended("on_evaluate_end", call);
     }
 }
@@ -349,10 +349,45 @@ async fn an_evaluation_encloses_the_calls_it_made() {
         |_example: &Example, _prediction: &Prediction| 1.0,
     )
     .run()
-    .await;
+    .await
+    .expect("no row fails, so the evaluation runs to completion");
     configure_callbacks([]);
 
     assert_eq!(recording.tree(), expected("evaluate"));
+}
+
+/// Past `max_errors` the run abandons the devset — and the point still closes.
+///
+/// The sequence is the fixture's, because upstream's decorator fires the end handler on the way out
+/// with the exception rather than leaving the start unanswered. The crate returned from inside the
+/// open point instead, so a handler that had been told an evaluation began was never told it ended.
+#[tokio::test]
+async fn an_abandoned_evaluation_still_closes_its_point() {
+    let recording = Arc::new(Recording::default());
+    // No scripted answer, so the model call itself errors — the one failure both ports produce the
+    // same way. A parse failure would take each side down its JSON-fallback path instead.
+    let lm = Arc::new(DummyLM::new([]));
+    let _serial = install(lm, recording.clone());
+
+    let devset = vec![
+        example! { question: "How are you?", answer: "test output" }.with_inputs(["question"]),
+    ];
+    let predict = dsrust::predict::Predict::from_signature(signature());
+    let gave_up = Evaluate::new(
+        devset,
+        |inputs: Example| predict.forward(inputs),
+        |_example: &Example, _prediction: &Prediction| 1.0,
+    )
+    .max_errors(1)
+    .run()
+    .await;
+    configure_callbacks([]);
+
+    assert_eq!(
+        gave_up.unwrap_err().to_string(),
+        "Execution cancelled due to errors or interruption."
+    );
+    assert_eq!(recording.tree(), expected("evaluate_abandoned"));
 }
 
 /// A tool call is watched, which no fixture case reaches: dspy's own tool point fires from

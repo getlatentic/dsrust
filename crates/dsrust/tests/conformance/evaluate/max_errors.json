@@ -1,0 +1,51 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_evaluate_errors_fixture.py",
+  "dspy_version": "3.3.0",
+  "cases": [
+    {
+      "max_errors": 3,
+      "failing": 2,
+      "rows": 6,
+      "raised": false,
+      "results": 6,
+      "score": 66.67
+    },
+    {
+      "max_errors": 3,
+      "failing": 3,
+      "rows": 6,
+      "raised": true,
+      "message": "Execution cancelled due to errors or interruption."
+    },
+    {
+      "max_errors": 1,
+      "failing": 1,
+      "rows": 6,
+      "raised": true,
+      "message": "Execution cancelled due to errors or interruption."
+    },
+    {
+      "max_errors": 2,
+      "failing": 1,
+      "rows": 6,
+      "raised": false,
+      "results": 6,
+      "score": 83.33
+    },
+    {
+      "max_errors": 2,
+      "failing": 2,
+      "rows": 6,
+      "raised": true,
+      "message": "Execution cancelled due to errors or interruption."
+    },
+    {
+      "max_errors": 10,
+      "failing": 0,
+      "rows": 6,
+      "raised": false,
+      "results": 6,
+      "score": 100.0
+    }
+  ]
+}
