@@ -180,6 +180,11 @@ def report(label: str, defined: set[str], entries: dict) -> None:
 #: happens to have one. `Parallel.forward` was mapped to `forward` and passed on forty other types'
 #: `forward`; renaming `Parallel::run` today fails that entry by name.
 #:
+#: 229 -> 235 when the last five unlisted modules joined: `MetricContext`, `DummyLM`,
+#: `CodeInterpreter`, `mcp_tool`, `mcp_tool_args` — each the only definition of its name — and one
+#: repeat. The two that were *not* unique are written `metric::Feedback` and, for the gepa adapter,
+#: `GEPA::compile`: a bare `Adapter` is two types here and neither is a caller's to build.
+#:
 #: 217 -> 229 when `clients/openai_format.py` joined: twelve free functions, each checked to be
 #: the *only* definition of its name in the crate, which is what makes a bare name specific. The
 #: two that were not — `request` with eight definitions and `usage` with six — are written
@@ -190,7 +195,7 @@ def report(label: str, defined: set[str], entries: dict) -> None:
 #: (`StreamedField`, `StatusMessages`, `Announcing`, `Watching`, `FieldListener`,
 #: `JsonFieldListener`) and one free function (`streamify`). Each was checked against
 #: `rust_members` before this moved — raise it only after doing the same.
-BARE_FLOOR = 229
+BARE_FLOOR = 235
 
 
 def report_bare(tables: dict) -> int:

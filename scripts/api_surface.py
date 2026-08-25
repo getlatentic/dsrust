@@ -108,6 +108,13 @@ PORTED_MODULES = [
     # ambient configuration — dspy.settings/configure/context are re-exports of this class's
     # methods, so the surface a user touches daily is defined here.
     "dsp/utils/settings.py",
+    # Ported in effect and, until an audit of this list, on none: each is cited by name through the
+    # source that implements it. See the `ported-in-effect-unlisted` story for how they were found.
+    "teleprompt/gepa/gepa_utils.py",
+    "utils/dummies.py",
+    "primitives/python_interpreter.py",
+    "utils/saving.py",
+    "utils/mcp.py",
     # streaming. Listed because this crate ports all three and cited them by name while doing it,
     # which is the tell: a module the source explains itself in terms of is ported in effect, and
     # leaving it off this list means none of its symbols is held to the ledger.

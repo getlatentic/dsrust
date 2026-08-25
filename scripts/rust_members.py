@@ -56,6 +56,9 @@ def _leading_name(text: str) -> str | None:
 #: A free function at module scope, which no `impl` block owns.
 FREE_FN = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn (\w+)")
 
+#: A type a file declares, for the same reason: `metric::Feedback` names one of the two.
+DECLARED = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait|type)\s+(\w+)", re.M)
+
 
 def _module_of(path: pathlib.Path) -> str:
     """The module a file defines: its stem, or its directory for a `mod.rs`."""
@@ -74,9 +77,13 @@ def _read_all() -> tuple[dict[str, set[str]], dict[str, set[str]]]:
             # checker can verify. Without it a free function can only be named bare, and eight
             # files define a `request` — an entry naming one of them would pass on any of the other
             # seven, which is the whole failure the qualified names exist to stop.
-            free = {m.group(1) for m in (FREE_FN.match(line) for line in source.splitlines()) if m}
-            if free:
-                owned.setdefault(_module_of(path), set()).update(free)
+            # Module-scope functions *and* the types a file declares, both under the module's own
+            # name. A bare `Feedback` is two types in this crate; `metric::Feedback` is one, and a
+            # module path is the only thing that separates them.
+            named = {m.group(1) for m in (FREE_FN.match(line) for line in source.splitlines()) if m}
+            named |= set(DECLARED.findall(source))
+            if named:
+                owned.setdefault(_module_of(path), set()).update(named)
     return owned, traits
 
 

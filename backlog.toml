@@ -4914,7 +4914,7 @@ gate with the reason.
 id = "ported-in-effect-unlisted"
 sprint = "api"
 title = "Six modules this crate ports are on no list, so none of their symbols is held to the ledger"
-state = "todo"
+state = "done"
 size = "M"
 suites = []
 plan = """
@@ -4952,4 +4952,68 @@ against `rust_members` before the floor moves.
 **And the check itself should become a gate**, or this recurs. The script above is ten lines; the
 argument against running it is that a citation is prose and prose has false positives — so it wants
 an excuse table of its own, exactly as `check_coverage.py` has, rather than a threshold.
+"""
+
+done = """
+All nine are in `PORTED_MODULES` and every symbol, method, constructor parameter and method
+parameter they declare has a ledger entry — which the API-surface gate now enforces on every run.
+
+**The pair check earned its place immediately.** Writing the GEPA entries I reached for
+`Adapter::student`, `Adapter::proposer`, `Adapter::instructed` — all plausible, none real. That
+adapter has *no* public members: it is built inside `compile` from what the caller gave `GEPA`,
+where upstream's `DspyAdapter` is a public object you construct yourself. Nine entries would have
+pointed at nothing. They name `GEPA`'s own surface instead, which is what a caller touches.
+
+**Two names could not be qualified the usual way.** `Feedback` is two types here and `Adapter` is
+two, and both live in files called `adapter.rs`, so a module path does not separate them.
+`rust_members` records the types a file declares under its module name now, which makes
+`metric::Feedback` exactly one; for the adapter the answer was not a better path but a different
+target, since neither `Adapter` is a caller's to build.
+
+**And the zero floor caught a claim of mine that was false, not merely vague.** I wrote that the
+gepa port "writes through `tracing`". It does not — there is no `tracing::` call in
+`optimize/gepa/` or in `dsrust-gepa`. The true reason is better: upstream's `LoggerAdapter` bridges
+*two libraries*, wrapping a `logging.Logger` so the `gepa` package can call `.log(str)`; this crate
+reproduces gepa itself, and its `GepaAdapter` declares no logging method for anything to adapt to.
+A sentence that sounded right, written minutes after reading the surrounding code, wrong on a
+detail nobody would have rechecked.
+
+**The bare-name floor moved 210 -> 235 across the three passes**, every increment checked first:
+a type or free function that is the *only* definition of its name may stay bare, and the four that
+were not — `request` with eight definitions, `usage` with six, `Feedback` and `Adapter` with two
+each — are written as pairs the checker resolves.
+
+**What is left is the check itself.** The tell that found these nine — a name the Rust source
+explains itself in terms of whose only home is an unlisted module — is ten lines and is not a gate.
+Filed as `cited-but-unlisted-gate`; it wants an excuse table of its own, as `check_coverage.py` has,
+because a citation is prose and prose has false positives.
+"""
+
+[[story]]
+id = "cited-but-unlisted-gate"
+sprint = "api"
+title = "The check that found nine unlisted modules is ten lines and runs nowhere"
+state = "todo"
+size = "S"
+suites = []
+plan = """
+`check_coverage.py` guarantees every upstream *test file* is running or excused. Nothing makes that
+guarantee for *source* modules, and the cost is on the record twice: its own docstring
+("the usage tracker was not in PORTED_MODULES at all despite the crate implementing it. Two live
+bugs were sitting behind that miss") and the nine modules `ported-in-effect-unlisted` found, one of
+which was the module the OpenAI bytes are verified against.
+
+The tell, which found all nine:
+
+    for each backtick-quoted name in crates/dsrust/src/**/*.rs:
+        if dspy defines it, and none of its defining modules is in PORTED_MODULES: report
+
+**It wants an excuse table, not a threshold.** A citation is prose: this crate names upstream
+constantly to explain what it is *not* doing, so `DummyVectorizer` will be cited beside a reason it
+is out of scope and must be excusable by name — exactly the shape `check_coverage.py` already has,
+and for the same reason. A count with a floor would let the next real one hide behind a number.
+
+**What proves it.** The gate reporting zero unexcused citations at the point it lands, and failing
+when a module is removed from `PORTED_MODULES` while the source still cites it — the state this
+crate was in for `clients/openai_format.py`, which a control can reproduce exactly.
 """
