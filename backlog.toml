@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1353
+rust_tests = 1355
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -5219,4 +5219,70 @@ worse than a breaking change at 0.1.0-alpha.2.
 The Rust-surface gate caught `Pass` as unclassified public surface on the first full run, which is
 the pair of gates working as intended: the API gate asks whether every dspy symbol has an answer,
 and would have taken a new Rust type in silence.
+"""
+
+[[story]]
+id = "spans-by-running"
+sprint = "api"
+title = "Three ledger entries disagreed about what an optimizer emits, and none had been run"
+state = "done"
+size = "S"
+# Empty on purpose: no upstream test asks what this crate emits. The claim is held by running each
+# optimizer under a subscriber, which is the only thing that can settle it.
+suites = []
+plan = """
+The remaining unaudited declaration was the divergence reasons — 1211 of them, and the gate over
+them checks only that a *substitution* names something real. Narrowing to the ones asserting an
+absence (134) and then to those naming something the crate defines (48) left a short reading list,
+and three entries on it contradicted each other:
+
+- `teleprompt/utils.py::save_file_to_log_dir` — "this crate emits `tracing` spans instead ... the
+  `log_dir` entries say the same"
+- `GEPA.log_dir` — "**no span is emitted by this optimizer** — the only tracing points in the tree
+  are in `evaluate.rs`"
+- `MIPROv2.log_dir` — "**this optimizer emits no span** — see `GEPA.log_dir`"
+
+The first says spans are the record; the other two say there are none. They cannot all be right,
+and `GEPA.log_dir` had already been corrected once for this exact shape — the correction landed on
+a different false claim.
+
+**Settle it by running each optimizer under a subscriber**, which is what `tests/observe.rs`'s own
+docstring says about this family of claim: a span nobody collects is indistinguishable from no span,
+so nothing there reads the source.
+"""
+done = """
+All three were wrong, and the measurement is not close:
+
+| run | module | lm | adapter | evaluate |
+|---|---|---|---|---|
+| MIPROv2, two trials | 442 | 442 | 884 | 4 |
+| GEPA | 20 | 21 | 40 | 0 |
+
+MIPROv2 opens 1772 spans while its entry said it opened none. GEPA opens 81. What is true, and what
+the three entries say now, is narrower: **neither optimizer opens a span of its own**; a run emits
+the student's, plus one `evaluate` span per scoring pass for MIPROv2 — and none for GEPA, which
+scores through its own adapter rather than through `Evaluate`. That last part was the one half of
+the `GEPA.log_dir` reason that held up.
+
+Held by two tests rather than by better prose, over the compile harnesses that already existed, and
+`observe::spans_opened_by` is the shared recorder. Both controls bite: three trials instead of two
+moves the count to 6 and fails, and a recorder that collects nothing fails both — which is the
+control that matters, since GEPA's assertion is that a span is *absent* and would otherwise pass on
+an empty map.
+
+The shape worth remembering: a claim about what a run emits cannot be read off the source, because
+the points are in one file and what reaches them depends on what the run calls. Both wrong readings
+came from tracing call chains by eye.
+
+**And the first version of the tests was order-dependent**, which the suite caught and running them
+alone never would: green on their own, red under `cargo test`, and not the same one red each time.
+`tracing` caches a callsite's interest *process-wide*, so a callsite first reached while no
+subscriber exists caches as never-interested and a thread-local subscriber installed afterwards sees
+nothing through it. One run recorded `module`, `lm` and `adapter` and no `evaluate` — three quarters
+of the truth, which is the more dangerous shape than nothing at all.
+
+Rebuilding the interest cache does not fix it: a test on another thread re-poisons it mid-run. The
+fix is one **global** subscriber installed once for the binary, forwarding to whichever thread is
+recording, so interest is never cached cold. `--test-threads=1` passing while the parallel run
+failed is what named the cause.
 """

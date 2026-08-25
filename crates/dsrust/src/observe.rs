@@ -430,3 +430,71 @@ mod tests {
         });
     }
 }
+
+/// How many spans of each name a piece of work opened.
+///
+/// A span nobody collects is indistinguishable from no span, which is how the ledger came to say
+/// two optimizers emitted none while a single MIPROv2 run opened 1772. Reading the source cannot
+/// settle that — the points are here, and what reaches them depends on what the run calls — so a
+/// claim about what an optimizer emits is held by running it.
+///
+/// The subscriber is **global and installed once**, not scoped to the calling thread, because
+/// `tracing` caches each callsite's interest process-wide: a callsite first reached while no
+/// subscriber exists caches as never-interested, and a thread-local subscriber installed afterwards
+/// sees nothing through it. Both tests using this were green alone and red in the suite, and the
+/// suite's order is what decided which. Rebuilding the cache is not enough either — a test on
+/// another thread re-poisons it mid-run. One subscriber that always exists ends the race, and the
+/// counts land on whichever thread is recording.
+#[cfg(test)]
+pub(crate) fn spans_opened_by<T>(
+    work: impl Future<Output = T>,
+) -> std::collections::BTreeMap<String, usize> {
+    use std::cell::RefCell;
+    use std::collections::BTreeMap;
+    use std::sync::OnceLock;
+    use tracing_subscriber::layer::{Context, Layer, SubscriberExt};
+
+    thread_local! {
+        static RECORDING: RefCell<Option<BTreeMap<String, usize>>> = const { RefCell::new(None) };
+    }
+
+    struct ToWhicheverThreadIsRecording;
+
+    impl<S: tracing::Subscriber> Layer<S> for ToWhicheverThreadIsRecording {
+        fn on_new_span(
+            &self,
+            attributes: &tracing::span::Attributes<'_>,
+            _id: &tracing::Id,
+            _context: Context<'_, S>,
+        ) {
+            RECORDING.with_borrow_mut(|recording| {
+                if let Some(counts) = recording.as_mut() {
+                    *counts
+                        .entry(attributes.metadata().name().to_owned())
+                        .or_default() += 1;
+                }
+            });
+        }
+    }
+
+    static INSTALLED: OnceLock<Result<(), String>> = OnceLock::new();
+    INSTALLED
+        .get_or_init(|| {
+            tracing::subscriber::set_global_default(
+                tracing_subscriber::registry().with(ToWhicheverThreadIsRecording),
+            )
+            .map_err(|error| error.to_string())
+        })
+        .as_ref()
+        .expect("nothing else in this crate installs a global subscriber");
+
+    RECORDING.with_borrow_mut(|recording| *recording = Some(BTreeMap::new()));
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("a runtime")
+        .block_on(work);
+    RECORDING
+        .with_borrow_mut(|recording| recording.take())
+        .unwrap_or_default()
+}

@@ -190,3 +190,50 @@ async fn a_search_tells_a_watcher_which_pass_each_scoring_is() {
         "no scoring announced itself as a full pass: {seen:?}"
     );
 }
+
+/// What a MIPROv2 run puts on the wire for a subscriber — held by running one.
+///
+/// The ledger said this optimizer emitted no span, on both `MIPROv2.log_dir` and the `GEPA.log_dir`
+/// it cites. It emits the student's — a `module`, an `lm` and two `adapter` spans per example
+/// scored — and one `evaluate` span per scoring pass, which is the one belonging to the *search*
+/// rather than to the program under it. A reason that says otherwise is checkable now.
+#[test]
+fn a_search_opens_a_span_for_every_pass_and_every_call_beneath_it() {
+    let opened = crate::observe::spans_opened_by(async {
+        let fixture = super::fixture();
+        let (table, profiles) = dataset(&fixture);
+        let trainset: Vec<Example> = table
+            .iter()
+            .map(|(question, answer)| {
+                example! { question: question.clone(), answer: answer.clone() }
+                    .with_inputs(["question"])
+            })
+            .collect();
+        let model = coach(&table, &profiles, &[]);
+        let mut student = Predict::parse("question -> answer")
+            .expect("parses")
+            .set_lm(model.clone());
+        MIPROv2::new(exact_match, model.clone() as Arc<Coach>)
+            .seed(0)
+            .minibatch_size(10)
+            .minibatch_full_eval_steps(2)
+            .max_bootstrapped_demos(0)
+            .max_labeled_demos(0)
+            .data_aware_proposer(false)
+            .num_candidates(2)
+            .num_trials(2)
+            .minibatch(true)
+            .compile_traced(&mut student, &trainset, Some(trainset.as_slice()))
+            .await
+            .expect("compiles");
+    });
+
+    // One per scoring pass: the baseline, the two trials, and the full evaluation between them.
+    assert_eq!(opened.get("evaluate"), Some(&4), "{opened:?}");
+    for beneath in ["module", "lm", "adapter"] {
+        assert!(
+            opened.get(beneath).is_some_and(|&count| count > 0),
+            "a search ran the student and opened no {beneath} span: {opened:?}"
+        );
+    }
+}
