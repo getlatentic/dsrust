@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1350
+rust_tests = 1352
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -5098,4 +5098,64 @@ See [[verification-traps]].
 The bare-name floor moves 235 -> 307: fourteen distinct names, each checked to be the crate's only
 definition of itself, and more entries than names because a parameter names the function carrying
 it, as everywhere else here.
+"""
+
+[[story]]
+id = "passage-match"
+sprint = "api"
+title = "A metric deferred for needing a retriever, which it does not"
+state = "done"
+size = "S"
+suites = ["evaluate/test_metrics.py"]
+plan = """
+`evaluate/metrics.py::answer_passage_match` was the one `deferred` row in the ledger that was not
+finetuning, and its reason read "scores a retrieved passage ... retrieval is out of the 1.0
+ceiling". Reading it settles that differently: the metric retrieves nothing. It takes the passages
+the caller already has in `pred.context` and asks whether any of them holds the answer. What was
+actually missing is `dsp/utils/dpr.py`, and the part of it this needs is a tokenizer — one regex
+and a subsequence search, with no retriever anywhere in it.
+
+Every one of that module's nine siblings is mapped. A closeable divergence is a defect, so close it.
+
+- `dpr::normalize` for `DPR_normalize`: NFD, then upstream's ordered
+  `([\\p{L}\\p{N}\\p{M}]+)|([^\\p{Z}\\p{C}])` as a left-to-right walk, lowercasing per token.
+  Those are Unicode's one-letter groups, and a general category's abbreviation opens with its
+  group's letter, so the classification asks upstream's question rather than enumerating thirty
+  variants a thirty-first would date. `unicode-general-category` is already a dependency.
+- `dpr::has_answer` for `has_answer`, remembering that upstream's `[] == text[i:i]` makes an empty
+  answer match anything — which is not a curiosity, it is what `the` against `theatre` scores,
+  because the shared `normalize_text` strips the article before the tokenizer ever sees it.
+- `metrics::answer_passage_match` reading `context` as `answers_of` already reads `answer`.
+
+**What proves it.** A golden recorded by running the pinned dspy, over inputs picked where a
+hand-written scanner drifts rather than where it agrees: Greek's final sigma (`ΟΔΥΣΣΕΥΣ` ends `ς`,
+a lone `Σ` does not), `İ` becoming two codepoints, a CJK run being one token so `北京市` is *not*
+in `北京市中心`, a zero-width joiner and a private-use character leaving no token, an unassigned
+codepoint leaving none either, and five codepoints assigned in Unicode 16 — which is where two sets
+of tables would part company, the Rust crate shipping 16.0 and upstream's `regex` its own.
+
+Upstream has no test for this metric (`tests/examples/test_baleen.py` calls it, and needs a live
+retriever), so the golden is the coverage rather than a second opinion on it. Which is the reason
+to pick the inputs for the edges and to confirm each one bites.
+"""
+done = """
+Ported, and green with the four controls run rather than assumed: lowercasing per character instead
+of per token fails on the sigma, skipping only `\\p{Z}` fails on a tab, treating unassigned
+codepoints as printable fails on `x\\u0378y`, and dropping the empty-answer branch fails on `the`
+against `theatre`. Each was reverted after.
+
+Two things the reading turned up that the reason had not:
+
+- Rust's `str::to_lowercase` applies the final-sigma rule and `char::to_lowercase` does not, so
+  lowercasing the *token* is what agrees with Python and lowercasing the characters is what does
+  not. The opposite of the shape a port usually needs.
+- The five Unicode 16 codepoints agree, so the two table sets are pinned together by a test now
+  instead of by the observation that both happen to say 16 today.
+
+`dsp/utils/dpr.py` joins `PORTED_MODULES` with all eight of its symbols classified — two mapped and
+six divergences, each checked for callers first: only `DPR_normalize` and `has_answer` are reached
+from outside the module at all, and only from `evaluate/metrics.py`. The bare-name floor does not
+move; `metrics::answer_passage_match` is written qualified rather than bare.
+
+Fifteen `deferred` rows remain and all fifteen are finetuning or RL.
 """

@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use serde_json::Value;
 use unicode_normalization::UnicodeNormalization;
 
+use crate::evaluate::dpr;
 use crate::example::{Example, Prediction};
 
 /// The answers dspy treats as labels rather than prose: a HotPotQA answer of `yes` never partly
@@ -216,6 +217,42 @@ fn answered(prediction: &Prediction) -> String {
 /// which the same arithmetic reads as `1.0`.
 pub fn answer_exact_match(example: &Example, prediction: &Prediction) -> f64 {
     answer_match(example, prediction, 1.0)
+}
+
+/// The `context` field as the passages it stands for.
+///
+/// Upstream iterates whatever it finds there, so a `context` that is one string is a passage per
+/// *character* rather than a single passage — `answer="y"` against `context="xyz"` scores 1. That
+/// is a caller's mistake either way, and reproducing it costs a line.
+fn passages_of(prediction: &Prediction) -> Vec<String> {
+    match prediction.get("context") {
+        Some(Value::Array(passages)) => passages
+            .iter()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect(),
+        Some(Value::String(passage)) => passage.chars().map(String::from).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// dspy `answer_passage_match`: whether any passage in the prediction's `context` holds an answer.
+///
+/// Both sides go through [`normalize_text`] first, as every metric here does, and the answers go
+/// on through [`dpr::normalize`] — because containment is asked of tokens rather than characters,
+/// so `北京市` is not in `北京市中心` at all.
+///
+/// An `answer` that is neither a string nor a list scores zero where upstream raises, which is the
+/// reading [`answer_match`] already takes of the same field.
+pub fn answer_passage_match(example: &Example, prediction: &Prediction) -> f64 {
+    let answers: Vec<Vec<String>> = answers_of(example)
+        .iter()
+        .map(|answer| dpr::normalize(&normalize_text(answer)))
+        .collect();
+    let matched = passages_of(prediction)
+        .iter()
+        .any(|passage| dpr::has_answer(&answers, &normalize_text(passage)));
+    f64::from(u8::from(matched))
 }
 
 /// The same with dspy's `frac`: below 1.0 it asks for a token F1 of at least `frac` instead of an

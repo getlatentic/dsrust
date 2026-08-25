@@ -221,6 +221,273 @@
       "precision_score": 1.0
     }
   ],
+  "dpr_normalize": [
+    {
+      "text": "The Eiffel Tower is in Paris.",
+      "tokens": [
+        "the",
+        "eiffel",
+        "tower",
+        "is",
+        "in",
+        "paris",
+        "."
+      ]
+    },
+    {
+      "text": "Paris, France",
+      "tokens": [
+        "paris",
+        ",",
+        "france"
+      ]
+    },
+    {
+      "text": "a-b_c",
+      "tokens": [
+        "a",
+        "-",
+        "b",
+        "_",
+        "c"
+      ]
+    },
+    {
+      "text": "10 items, 20 boxes",
+      "tokens": [
+        "10",
+        "items",
+        ",",
+        "20",
+        "boxes"
+      ]
+    },
+    {
+      "text": "  spaced\tout\n",
+      "tokens": [
+        "spaced",
+        "out"
+      ]
+    },
+    {
+      "text": "",
+      "tokens": []
+    },
+    {
+      "text": "café",
+      "tokens": [
+        "café"
+      ]
+    },
+    {
+      "text": "café",
+      "tokens": [
+        "café"
+      ]
+    },
+    {
+      "text": "ÅNGSTRÖM",
+      "tokens": [
+        "ångström"
+      ]
+    },
+    {
+      "text": "ΟΔΥΣΣΕΥΣ",
+      "tokens": [
+        "οδυσσευς"
+      ]
+    },
+    {
+      "text": "Σ",
+      "tokens": [
+        "σ"
+      ]
+    },
+    {
+      "text": "İstanbul",
+      "tokens": [
+        "i̇stanbul"
+      ]
+    },
+    {
+      "text": "ǅungla",
+      "tokens": [
+        "ǆungla"
+      ]
+    },
+    {
+      "text": "北京市",
+      "tokens": [
+        "北京市"
+      ]
+    },
+    {
+      "text": "🎉!",
+      "tokens": [
+        "🎉",
+        "!"
+      ]
+    },
+    {
+      "text": "a‍b",
+      "tokens": [
+        "a",
+        "b"
+      ]
+    },
+    {
+      "text": "x͸y",
+      "tokens": [
+        "x",
+        "y"
+      ]
+    },
+    {
+      "text": "private",
+      "tokens": [
+        "private"
+      ]
+    },
+    {
+      "text": "𐵀 𐗀 𞗐 𖵀 𜰀",
+      "tokens": [
+        "𐵀",
+        "𐗀",
+        "𞗐",
+        "𖵀",
+        "𜰀"
+      ]
+    }
+  ],
+  "passage_match": [
+    {
+      "answer": "Eiffel Tower",
+      "context": [
+        "The Eiffel Tower is in Paris.",
+        "..."
+      ],
+      "score": 1.0
+    },
+    {
+      "answer": "Eiffel Tower",
+      "context": [
+        "The Louvre is in Paris."
+      ],
+      "score": 0.0
+    },
+    {
+      "answer": "paris",
+      "context": [
+        "The Eiffel Tower is in Paris."
+      ],
+      "score": 1.0
+    },
+    {
+      "answer": "Paris",
+      "context": [
+        "paris"
+      ],
+      "score": 1.0
+    },
+    {
+      "answer": [
+        "Louvre",
+        "Eiffel Tower"
+      ],
+      "context": [
+        "The Eiffel Tower is in Paris."
+      ],
+      "score": 1.0
+    },
+    {
+      "answer": [
+        "Louvre"
+      ],
+      "context": [
+        "The Eiffel Tower is in Paris."
+      ],
+      "score": 0.0
+    },
+    {
+      "answer": "the",
+      "context": [
+        "theatre"
+      ],
+      "score": 1.0
+    },
+    {
+      "answer": "the",
+      "context": [
+        "the cat"
+      ],
+      "score": 1.0
+    },
+    {
+      "answer": "北京",
+      "context": [
+        "北京市中心"
+      ],
+      "score": 0.0
+    },
+    {
+      "answer": "北京市",
+      "context": [
+        "北京市中心"
+      ],
+      "score": 0.0
+    },
+    {
+      "answer": "cafe",
+      "context": [
+        "a café in paris"
+      ],
+      "score": 0.0
+    },
+    {
+      "answer": "a b c",
+      "context": [
+        "a b"
+      ],
+      "score": 0.0
+    },
+    {
+      "answer": "",
+      "context": [
+        "anything"
+      ],
+      "score": 1.0
+    },
+    {
+      "answer": "",
+      "context": [
+        ""
+      ],
+      "score": 1.0
+    },
+    {
+      "answer": "Paris",
+      "context": [],
+      "score": 0.0
+    },
+    {
+      "answer": "Paris",
+      "context": [
+        "",
+        "Paris"
+      ],
+      "score": 1.0
+    },
+    {
+      "answer": "y",
+      "context": "xyz",
+      "score": 1.0
+    },
+    {
+      "answer": "xyz",
+      "context": "xyz",
+      "score": 0.0
+    }
+  ],
   "sets": [
     {
       "prediction": "The Eiffel Tower",

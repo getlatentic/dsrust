@@ -201,6 +201,57 @@ def report(label: str, defined: set[str], entries: dict) -> None:
 #: (`StreamedField`, `StatusMessages`, `Announcing`, `Watching`, `FieldListener`,
 #: `JsonFieldListener`) and one free function (`streamify`). Each was checked against
 #: `rust_members` before this moved — raise it only after doing the same.
+#: The scope decisions a `deferred` row is allowed to stand on, and what each one excludes.
+#:
+#: A deferral is load-bearing in a way a divergence is not: it is the sentence someone quotes when
+#: asked why the port stops where it stops, and nothing re-derives it. One stood for months reading
+#: "scores a retrieved passage ... retrieval is out of the 1.0 ceiling", on
+#: `evaluate/metrics.py::answer_passage_match`. The metric retrieves nothing — it scores passages
+#: the caller already holds — and what was really missing was a tokenizer, ported in an afternoon
+#: once anyone read it.
+#:
+#: So a reason is no longer free prose. Every deferred row names one of these, and the membership
+#: of each is printed: **an exclusion with one member is the shape that was wrong**, because a
+#: scope boundary that happens to fall around a single symbol usually is not a boundary.
+SCOPE_EXCLUSIONS = {
+    "finetuning": (
+        "training a model rather than calling one — the provider abstraction, the job types, and "
+        "every entry point into them. `check_coverage.py` excuses `test_finetune.py`, "
+        "`test_bootstrap_finetune.py` and `test_grpo.py` on the same decision"
+    ),
+}
+
+
+def report_deferred(tables: dict) -> list[str]:
+    """Group the deferrals by the exclusion they name, and say how many each holds."""
+    groups: dict[str, list[str]] = {}
+    unclaimed = []
+    for entry_table in tables.values():
+        for key, entry in entry_table.items():
+            if entry.get("status") != "deferred":
+                continue
+            named = [name for name in SCOPE_EXCLUSIONS if name in (entry.get("reason") or "")]
+            if named:
+                groups.setdefault(named[0], []).append(key)
+            else:
+                unclaimed.append(key)
+
+    print(f"deferred entries: {sum(len(v) for v in groups.values()) + len(unclaimed)}")
+    for name, keys in sorted(groups.items()):
+        print(f"  {name}: {len(keys)}")
+        if len(keys) == 1:
+            print(f"      · {keys[0]} — the only one. Read it before trusting the boundary.")
+    if not unclaimed:
+        return []
+    return [
+        f"{len(unclaimed)} deferred entr(ies) naming no declared scope exclusion:",
+        *(f"    ~ {key}" for key in sorted(unclaimed)),
+        "  Name one of SCOPE_EXCLUSIONS in the reason, or declare a new one saying what it "
+        "excludes and what else it excludes — a boundary around a single symbol is the shape "
+        "that was wrong last time.",
+    ]
+
+
 BARE_FLOOR = 307
 
 
@@ -284,6 +335,15 @@ def main() -> None:
             f"resolved against any type that has one, so it cannot detect its own item's deletion "
             f"— write `Type::member` where the name is a member. Lower BARE_FLOOR when it drops."
         )
+
+    failures += report_deferred(
+        {
+            "symbols": ledger,
+            "methods": methods,
+            "constructors": constructors,
+            "parameters": parameters,
+        }
+    )
 
     todos = sorted(k for k in defined if ledger.get(k, {}).get("status") == "todo")
     todos += sorted(k for k in defined_methods if methods.get(k, {}).get("status") == "todo")

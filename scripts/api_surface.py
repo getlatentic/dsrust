@@ -105,6 +105,9 @@ PORTED_MODULES = [
     "evaluate/metrics.py",
     # core
     "core/types.py",
+    # The tokenizer `answer_passage_match` compares a passage and an answer through. Listed with
+    # that metric, which was deferred for needing it and is not any more.
+    "dsp/utils/dpr.py",
     # ambient configuration — dspy.settings/configure/context are re-exports of this class's
     # methods, so the surface a user touches daily is defined here.
     "dsp/utils/settings.py",

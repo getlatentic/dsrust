@@ -8,9 +8,12 @@
 //! punctuation the ASCII set does *not* strip, articles against word boundaries, the HotPotQA
 //! labels, repeated tokens, and both sides empty.
 
+use dsrust::evaluate::dpr;
 use dsrust::evaluate::metrics::{
-    em, em_score, f1, f1_score, hotpot_f1, hotpot_f1_score, normalize_text, precision_score,
+    answer_passage_match, em, em_score, f1, f1_score, hotpot_f1, hotpot_f1_score, normalize_text,
+    precision_score,
 };
+use dsrust::example::{Example, Prediction};
 use serde_json::Value;
 
 fn golden() -> Value {
@@ -94,5 +97,50 @@ fn it_scores_the_answer_sets_dspy_scores() {
                 named(key)
             );
         }
+    }
+}
+
+/// dspy's tokenizer, token for token, where a hand-written scanner would drift from its regex.
+///
+/// A run of letters, numbers and marks is one token and everything else printable is a token on
+/// its own, so `北京市` is a single token and `a-b_c` is five. Separators and every "other" fall
+/// out — a zero-width joiner, a private-use character and an unassigned codepoint leave no token
+/// behind. Case is decided per token, which is why Greek keeps `ς` at a word's end but not alone.
+#[test]
+fn it_tokenises_the_passage_dspy_tokenises() {
+    for case in golden()["dpr_normalize"].as_array().expect("cases") {
+        let input = text(case, "text");
+        let expected: Vec<String> = case["tokens"]
+            .as_array()
+            .expect("tokens")
+            .iter()
+            .map(|token| token.as_str().expect("a token").to_owned())
+            .collect();
+        assert_eq!(dpr::normalize(&input), expected, "DPR_normalize({input:?})");
+    }
+}
+
+/// `answer_passage_match` over the passages, against what upstream scored.
+///
+/// Containment is asked of tokens, so two of these separate it from a substring search in opposite
+/// directions: `北京市` is *not* in `北京市中心` because the run is one token, and `the` *is* in
+/// `theatre` because the shared `normalize_text` strips the article first and an empty answer
+/// matches anything.
+#[test]
+fn it_matches_the_passages_dspy_matches() {
+    for case in golden()["passage_match"].as_array().expect("cases") {
+        let example = Example::new([("answer", case["answer"].clone())]);
+        let prediction = Prediction::new(
+            Example::new([("context", case["context"].clone())]),
+            String::new(),
+        );
+        let scored = case["score"].as_f64().expect("a score");
+        assert_eq!(
+            answer_passage_match(&example, &prediction),
+            scored,
+            "answer_passage_match({:?}, {:?})",
+            case["answer"],
+            case["context"]
+        );
     }
 }

@@ -14,6 +14,7 @@ use futures_util::StreamExt;
 
 use crate::example::{Example, Prediction};
 
+pub mod dpr;
 pub mod metrics;
 
 /// dspy `settings.max_errors`: how many rows may fail before a run gives up.

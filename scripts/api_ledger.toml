@@ -23,6 +23,17 @@
 # says nothing about what it takes, and that is where a port loses things without going red.
 
 [symbols]
+# dsp/utils/dpr.py — the tokenizer `answer_passage_match` compares a passage and an answer through.
+# Only `DPR_normalize` and `has_answer` are reached from outside this module, and only from
+# `evaluate/metrics.py`; the rest is the machinery upstream builds them out of.
+"dsp/utils/dpr.py::DPR_normalize" = { status = "mapped", rust = "dpr::normalize", reason = "the text as lowercased tokens, which is what containment is asked of" }
+"dsp/utils/dpr.py::has_answer" = { status = "mapped", rust = "dpr::has_answer", reason = "whether a tokenized answer appears as a run of the text's tokens" }
+"dsp/utils/dpr.py::DPR_tokenize" = { status = "divergence", reason = "upstream tokenizes into a `Tokens` object which `DPR_normalize` immediately asks for `words(uncased=True)`. The one walk in `dpr::normalize` yields those words, so there is no intermediate to hand back" }
+"dsp/utils/dpr.py::Tokens" = { status = "divergence", reason = "that object: each token's text, its text with the whitespace that follows, and its span. `words` is the only accessor anything calls, and the spans and the annotator slots behind it have no reader in dspy" }
+"dsp/utils/dpr.py::Tokenizer" = { status = "divergence", reason = "upstream's base class, whose `tokenize` raises `NotImplementedError` and whose `shutdown` does nothing. It has one subclass and one caller, so there is no variation for a Rust seam to hold" }
+"dsp/utils/dpr.py::SimpleTokenizer" = { status = "divergence", reason = "that subclass. Its regex `([\\p{L}\\p{N}\\p{M}]+)|([^\\p{Z}\\p{C}])` is what `dpr::normalize`'s walk reproduces, character class for character class, and its `annotators` argument is warned about and discarded" }
+"dsp/utils/dpr.py::locate_answers" = { status = "divergence", reason = "each occurrence of an answer as character offsets rather than a yes or no. Nothing in dspy calls it" }
+"dsp/utils/dpr.py::strip_accents" = { status = "divergence", reason = "an NFD pass that drops combining marks, copied from qa-hard-em. Nothing in dspy calls it, and the metric's own `normalize_text` decomposes without dropping — `café` normalises to `café`, accent kept" }
 "propose/dataset_summary_generator.py::DatasetDescriptor" = { status = "mapped", rust = "dataset_descriptor", reason = "the meta-signature asking a model for observations about a dataset" }
 "propose/dataset_summary_generator.py::DatasetDescriptorWithPriorObservations" = { status = "mapped", rust = "dataset_descriptor_with_prior_observations", reason = "the same, shown what has already been observed" }
 "propose/dataset_summary_generator.py::ObservationSummarizer" = { status = "mapped", rust = "observation_summarizer", reason = "condensing those observations into two or three sentences" }
@@ -280,7 +291,7 @@
 "evaluate/metrics.py::EM" = { status = "mapped", rust = "em" }
 "evaluate/metrics.py::F1" = { status = "mapped", rust = "f1" }
 "evaluate/metrics.py::HotPotF1" = { status = "mapped", rust = "hotpot_f1" }
-"evaluate/metrics.py::answer_passage_match" = { status = "deferred", reason = "scores a retrieved passage through dsp.utils' DPR_normalize/has_answer; retrieval is out of the 1.0 ceiling" }
+"evaluate/metrics.py::answer_passage_match" = { status = "mapped", rust = "metrics::answer_passage_match", reason = "whether a passage in the prediction's `context` holds the answer. Deferred until `dsp/utils/dpr.py` was ported, on the reading that a passage implies a retriever — it does not: the metric scores passages the caller already has" }
 "evaluate/metrics.py::em_score" = { status = "mapped", rust = "em_score" }
 "evaluate/metrics.py::f1_score" = { status = "mapped", rust = "f1_score" }
 "evaluate/metrics.py::hotpot_f1_score" = { status = "mapped", rust = "hotpot_f1_score" }
@@ -1105,6 +1116,12 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "LmFailure::issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+"dsp/utils/dpr.py::DPR_normalize.text" = { status = "mapped", rust = "dpr::normalize", reason = "the text it tokenizes, which is the only thing it takes" }
+"dsp/utils/dpr.py::has_answer.text" = { status = "mapped", rust = "dpr::has_answer", reason = "the passage searched, tokenized inside the call as upstream tokenizes it inside its own" }
+"dsp/utils/dpr.py::has_answer.tokenized_answers" = { status = "mapped", rust = "dpr::has_answer", reason = "the answers, already tokenized — a caller normalises each before asking, which is what the name says and what `_passage_match` does" }
+"evaluate/metrics.py::answer_passage_match.example" = { status = "mapped", rust = "metrics::answer_passage_match", reason = "the example holding `answer`" }
+"evaluate/metrics.py::answer_passage_match.pred" = { status = "mapped", rust = "metrics::answer_passage_match", reason = "the prediction holding `context`" }
+"evaluate/metrics.py::answer_passage_match.trace" = { status = "divergence", reason = "upstream's unused third argument, documented as `Unused; reserved for compatibility`. The sibling metrics drop it here for the same reason" }
 "propose/grounded_proposer.py::GenerateModuleInstruction.forward.data_summary" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "the `data_summary` of that, carried where this crate carries it" }
 "propose/grounded_proposer.py::GenerateModuleInstruction.forward.demo_candidates" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "the `demo_candidates` of that, carried where this crate carries it" }
 "propose/grounded_proposer.py::GenerateModuleInstruction.forward.demo_set_i" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "the `demo_set_i` of that, carried where this crate carries it" }

@@ -37,15 +37,18 @@ RUST = ROOT / "crates" / "dsrust" / "src"
 #: in the sentence explaining that it has no counterpart here — the second is the more interesting,
 #: because citing something is exactly how a divergence gets written down.
 EXCUSED: dict[str, str] = {
-    "set": "`magicattr.set`; the word appears in prose about setting anything",
-    "delete": "`magicattr.delete`; likewise",
-    "lookup": "`magicattr.lookup`; likewise",
-    "download": "`utils.download`; the word appears in prose about fetching a model or a file",
-    "load": "`saving.load` is classified; the bare word also appears in prose about loading anything",
-    "DummyVectorizer": "cited in the sentence saying embeddings are out of scope",
-    "dummy_rm": "cited in the sentence saying retrieval is out of scope",
-    "BootstrapFinetune": "cited where finetuning is deferred past 1.0",
-    "bootstrap_trace_data": "cited where the finetuning data helpers are deferred",
+    # Read from the citation, not from what the name suggests. Six of these were first written from
+    # a mental model of what the crate was probably saying, and six were wrong: `set` is the Python
+    # *type* rather than `magicattr.set`, `delete` and `load` are intra-doc links to this crate's
+    # own methods, `lookup` is a tool name inside a test assertion. A reason nobody checked is the
+    # thing this whole gate exists to stop, so these were checked.
+    "set": "`optimize/earned.rs` on `_input_keys` being a Python `set` — the built-in type, not `magicattr.set`",
+    "delete": "an intra-doc link to `Signature::delete` in `signature.rs`; the dspy function of that name is `magicattr.delete`",
+    "lookup": "a tool named `lookup` inside a ReAct prompt assertion in `react/v2.rs`",
+    "load": "an intra-doc link to `Module::load` in `module.rs`. `saving.load` is separately classified",
+    "download": "`adapters/types/image.py`'s refused mapping key, quoted in `image.rs` where 3.3.0's rule is reproduced — not `utils.download`",
+    "BootstrapFinetune": "named in `better_together.rs` as the upstream default this crate does not have, because finetuning is out of 1.0 scope",
+    "bootstrap_trace_data": "named in `optimize/gepa/metric.rs` describing how upstream calls a metric while scoring, beside `Evaluate` — it is the calling convention being explained, not the helper being ported",
 }
 
 #: Modules known to be ported and not yet listed, each with the story that will list them.
@@ -74,22 +77,31 @@ def defined_by() -> dict[str, set[str]]:
     return homes
 
 
-def citations() -> collections.Counter[tuple[str, tuple[str, ...]]]:
-    """Backtick-quoted names in the Rust source whose every home is unlisted."""
+def citations() -> tuple[collections.Counter[tuple[str, tuple[str, ...]]], set[str]]:
+    """Backtick-quoted names whose every home is unlisted, and which excuses were used.
+
+    The second half matters as much as the first. An excuse for a name nothing cites any more is a
+    declaration that stopped being true — the same shape as a `[rust_only]` entry naming an item
+    the crate no longer exposes, which its own gate reports. Two were already dead when this check
+    was written: `DummyVectorizer` and `dummy_rm`, excused for citations that were never there.
+    """
     homes = defined_by()
     found: collections.Counter[tuple[str, tuple[str, ...]]] = collections.Counter()
+    used: set[str] = set()
     for path in RUST.rglob("*.rs"):
         for name in re.findall(r"`(\w+)`", path.read_text()):
             if name in EXCUSED:
+                used.add(name)
                 continue
             where = homes.get(name)
             if where and not any(home in PORTED_MODULES for home in where):
                 found[(name, tuple(sorted(where)))] += 1
-    return found
+    return found, used
 
 
 def main() -> int:
-    found = citations()
+    found, used = citations()
+    dead = sorted(set(EXCUSED) - used)
     unexcused = [
         (name, homes, count)
         for (name, homes), count in found.items()
@@ -101,6 +113,13 @@ def main() -> int:
     print(f"  waiting on a story : {len(waiting)} module(s)")
     for home in sorted(waiting):
         print(f"      · {home} — {PENDING[home]}")
+
+    if dead:
+        print(f"\nCited-module gate FAILED: {len(dead)} excuse(s) for a name nothing cites:")
+        for name in dead:
+            print(f"    {name} — {EXCUSED[name]}")
+        print("\n  The citation went away. Drop the excuse rather than leaving it to be trusted.")
+        return 1
 
     if unexcused:
         print(f"\nCited-module gate FAILED: {len(unexcused)} name(s) with no answer:")
