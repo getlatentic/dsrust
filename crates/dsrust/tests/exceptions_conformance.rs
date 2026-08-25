@@ -142,6 +142,7 @@ fn a_parse_failure_renders_as_dspy_renders_it() {
                 .map(|name| name.as_str().expect("a name").to_owned())
                 .collect(),
             message: (label == "with a message").then(|| "Failed to parse".to_owned()),
+            reports_parsed: true,
         };
         assert_eq!(mismatch.to_string(), expected, "{label}");
     }

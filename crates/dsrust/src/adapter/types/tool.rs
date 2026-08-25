@@ -93,12 +93,12 @@ fn validated(data: &Value) -> Result<ToolCalls> {
             _ if is_tool_call_dict(fields) => Ok(ToolCalls::new(vec![normalized_call(data)?])),
             _ => Err(anyhow!(
                 "Received invalid value for `dspy.ToolCalls`: {}",
-                super::refusal::python_str(&data)
+                crate::python::text(&data)
             )),
         },
         _ => Err(anyhow!(
             "Received invalid value for `dspy.ToolCalls`: {}",
-            super::refusal::python_str(&data)
+            crate::python::text(&data)
         )),
     }
 }

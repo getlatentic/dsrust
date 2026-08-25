@@ -93,7 +93,7 @@ impl<'de> Deserialize<'de> for Code {
                 Some(serde_json::Value::String(code)) => Ok(Self::new(filter_code(&code))),
                 Some(other) => Err(de::Error::custom(format!(
                     "`code` field must be a string, but received type: {}",
-                    super::refusal::python_type(&other)
+                    crate::python::type_of(&other)
                 ))),
                 None => Err(de::Error::custom(
                     "`code` field is required for `dspy.Code`",
@@ -101,7 +101,7 @@ impl<'de> Deserialize<'de> for Code {
             },
             other => Err(de::Error::custom(format!(
                 "Received invalid value for `dspy.Code`: {}",
-                super::refusal::python_str(&other)
+                crate::python::text(&other)
             ))),
         }
     }

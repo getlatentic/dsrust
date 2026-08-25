@@ -4,6 +4,123 @@
   "note": "What each adapter's parse returns for a reply, and which it refuses. The refusals matter as much as the successes: a reply the crate accepts where dspy raises reaches the caller as a wrong value rather than an error.",
   "cases": [
     {
+      "name": "literal_member",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\nred",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_quoted",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\n\"red\"",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_single_quoted",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\n'red'",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_annotation_spelled",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\nLiteral[red]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_str_spelled",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\nstr[red]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_annotation_and_quotes",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\nLiteral[\"red\"]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_surrounded_by_space",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\n  red  ",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_not_a_member",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\ngreen",
+      "adapter": "chat",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse field colour with value green from the LM response. Error message: 'green' is not one of ('red', 'blue')\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## colour ## ]]\ngreen \n\nExpected to find output fields in the LM response: [colour] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_wrong_case",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\nRED",
+      "adapter": "chat",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse field colour with value RED from the LM response. Error message: 'RED' is not one of ('red', 'blue')\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## colour ## ]]\nRED \n\nExpected to find output fields in the LM response: [colour] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
       "name": "plain",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]",

@@ -489,7 +489,7 @@ mod tests {
             retry[2]
                 .text()
                 .unwrap()
-                .contains("color must be one of red, blue")
+                .contains("'green' is not one of ('red', 'blue')")
         );
     }
 
@@ -740,7 +740,7 @@ mod tests {
             retry[2]
                 .text()
                 .unwrap()
-                .contains("color must be one of red, blue")
+                .contains("'green' is not one of ('red', 'blue')")
         );
     }
 

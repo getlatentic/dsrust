@@ -51,7 +51,7 @@ impl<'de> Deserialize<'de> for Audio {
             }
             other => Err(D::Error::custom(format!(
                 "Unsupported type for encode_audio: {}",
-                super::refusal::python_type(other)
+                crate::python::type_of(other)
             ))),
         }
     }

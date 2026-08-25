@@ -8,7 +8,6 @@ use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::super::refusal;
 use super::ToolCall;
 
 /// dspy `ToolCallResults.ToolCallResult`: what one call returned.
@@ -68,7 +67,7 @@ impl<'de> Deserialize<'de> for ToolCallResults {
         let Some(results) = results else {
             return Err(D::Error::custom(format!(
                 "Received invalid value for `dspy.ToolCallResults`: {}",
-                refusal::python_str(&data)
+                crate::python::text(&data)
             )));
         };
         Ok(Self {

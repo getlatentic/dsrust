@@ -6,7 +6,8 @@
 //! `null`, `True` rather than `true`. Matching it keeps the prompt bytes identical.
 //!
 //! One home rather than one per caller: there were two copies before this, one handling containers
-//! and one only scalars, and the third caller is what made that worth fixing.
+//! and one only scalars, and the third caller is what made that worth fixing. A fourth appeared in
+//! `adapter/types/` on 2026-08-26, quoting strings a way Python does not, and came back here.
 
 use serde_json::Value;
 
@@ -78,6 +79,33 @@ pub(crate) fn quoted(text: &str) -> String {
     out
 }
 
+/// Python's `str` of a JSON value — what an f-string interpolating the value itself prints.
+///
+/// The whole difference from [`repr`] is the bare string: `str("x")` is `x` where `repr("x")` is
+/// `'x'`. A container prints its elements with `repr` either way, so everything else defers.
+pub(crate) fn text(value: &Value) -> String {
+    match value {
+        Value::String(text) => text.clone(),
+        other => repr(other),
+    }
+}
+
+/// Python's `type(value)` as an f-string prints it — `<class 'int'>`.
+///
+/// A JSON number is an `int` only when it has no fractional part on the wire, which is the same
+/// distinction `serde_json::Number` draws and the one Python's parser draws reading the same bytes.
+pub(crate) fn type_of(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "<class 'NoneType'>",
+        Value::Bool(_) => "<class 'bool'>",
+        Value::Number(number) if number.is_f64() => "<class 'float'>",
+        Value::Number(_) => "<class 'int'>",
+        Value::String(_) => "<class 'str'>",
+        Value::Array(_) => "<class 'list'>",
+        Value::Object(_) => "<class 'dict'>",
+    }
+}
+
 /// Python's `repr` of a tuple, whose one-element form carries a trailing comma.
 pub(crate) fn tuple(values: &[Value]) -> String {
     let members: Vec<String> = values.iter().map(repr).collect();
@@ -138,5 +166,21 @@ mod tests {
     fn a_single_element_tuple_keeps_its_comma() {
         assert_eq!(tuple(&[json!("yes")]), "('yes',)");
         assert_eq!(tuple(&[json!("yes"), json!(1)]), "('yes', 1)");
+    }
+
+    /// `str` differs from `repr` on exactly one type, and a container is not it.
+    #[test]
+    fn a_string_prints_bare_alone_and_quoted_inside_a_container() {
+        assert_eq!(text(&json!("not a citation")), "not a citation");
+        assert_eq!(text(&json!(["not a citation"])), "['not a citation']");
+        assert_eq!(text(&json!({"unrelated": 1})), "{'unrelated': 1}");
+    }
+
+    #[test]
+    fn a_number_is_an_int_only_without_a_fractional_part() {
+        assert_eq!(type_of(&json!(5)), "<class 'int'>");
+        assert_eq!(type_of(&json!(5.5)), "<class 'float'>");
+        assert_eq!(type_of(&json!("x")), "<class 'str'>");
+        assert_eq!(type_of(&json!({})), "<class 'dict'>");
     }
 }

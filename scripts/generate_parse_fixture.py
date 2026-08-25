@@ -34,6 +34,8 @@ from typing import Any
 import pathlib
 import sys
 
+from typing import Literal
+
 import dspy
 
 from pins import require
@@ -57,6 +59,19 @@ class Typed(dspy.Signature):
     answer: str = dspy.OutputField()
     score: int = dspy.OutputField()
     tags: list[str] = dspy.OutputField()
+
+
+class Chosen(dspy.Signature):
+    """Pick from a closed set.
+
+    `parse_value`'s `Literal` branch, which is reached before every generic one and is the only
+    place upstream refuses a value for *not being a member*. It also unwraps what a model tends to
+    wrap a member in — surrounding quotes, and a `Literal[...]` or `str[...]` spelling of the
+    annotation — so those arrive as the bare member rather than as a refusal.
+    """
+
+    question: str = dspy.InputField()
+    colour: Literal["red", "blue"] = dspy.OutputField()
 
 
 class Underscored(dspy.Signature):
@@ -224,6 +239,17 @@ JSON_CASES = [
 
 #: (name, signature, completion). Each is a branch of `parse`, not a plausible reply.
 CASES = [
+    # `parse_value`'s Literal branch: a member as it stands, the three wrappings upstream unwraps,
+    # and the two refusals. Case matters — a member is matched exactly, never folded.
+    ("literal_member", Chosen, "[[ ## colour ## ]]\nred"),
+    ("literal_quoted", Chosen, '[[ ## colour ## ]]\n"red"'),
+    ("literal_single_quoted", Chosen, "[[ ## colour ## ]]\n'red'"),
+    ("literal_annotation_spelled", Chosen, "[[ ## colour ## ]]\nLiteral[red]"),
+    ("literal_str_spelled", Chosen, "[[ ## colour ## ]]\nstr[red]"),
+    ("literal_annotation_and_quotes", Chosen, '[[ ## colour ## ]]\nLiteral["red"]'),
+    ("literal_surrounded_by_space", Chosen, "[[ ## colour ## ]]\n  red  "),
+    ("literal_not_a_member", Chosen, "[[ ## colour ## ]]\ngreen"),
+    ("literal_wrong_case", Chosen, "[[ ## colour ## ]]\nRED"),
     ("plain", QA, "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]"),
     ("no_completed_marker", QA, "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis"),
     # Content on the same line as the marker: dspy keeps it rather than reading an empty field.

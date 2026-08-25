@@ -194,7 +194,7 @@ impl<'de> Deserialize<'de> for Citations {
         let invalid = || {
             de::Error::custom(format!(
                 "Received invalid value for `Citations`: {}",
-                super::refusal::python_str(&value)
+                crate::python::text(&value)
             ))
         };
         let citations = match &value {

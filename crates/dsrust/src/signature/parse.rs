@@ -12,7 +12,7 @@
 
 use anyhow::{Result, anyhow};
 
-use super::{FieldKind, InField, OutField, Signature};
+use super::{FieldKind, InField, LiteralValue, OutField, Signature};
 use crate::signature::field_type::JsonType;
 
 /// dspy `Signature("question -> answer")`, and the typed form
@@ -33,17 +33,19 @@ pub fn parse(signature: &str) -> Result<Signature> {
         instructions: default_instructions(&inputs, &outputs),
         inputs: inputs
             .iter()
-            .map(|(name, kind)| InField {
-                name: name.clone(),
-                kind: kind.clone(),
+            .map(|declared| InField {
+                name: declared.name.clone(),
+                kind: declared.kind.clone(),
+                values: declared.values.clone(),
                 ..Default::default()
             })
             .collect(),
         outputs: outputs
             .iter()
-            .map(|(name, kind)| OutField {
-                name: name.clone(),
-                kind: kind.clone(),
+            .map(|declared| OutField {
+                name: declared.name.clone(),
+                kind: declared.kind.clone(),
+                values: declared.values.clone(),
                 ..Default::default()
             })
             .collect(),
@@ -51,11 +53,11 @@ pub fn parse(signature: &str) -> Result<Signature> {
 }
 
 /// dspy's `_default_instructions`, which stands in for a docstring nobody wrote.
-fn default_instructions(inputs: &[(String, FieldKind)], outputs: &[(String, FieldKind)]) -> String {
-    let quoted = |fields: &[(String, FieldKind)]| {
+fn default_instructions(inputs: &[Declared], outputs: &[Declared]) -> String {
+    let quoted = |fields: &[Declared]| {
         fields
             .iter()
-            .map(|(name, _)| format!("`{name}`"))
+            .map(|declared| format!("`{}`", declared.name))
             .collect::<Vec<_>>()
             .join(", ")
     };
@@ -68,14 +70,11 @@ fn default_instructions(inputs: &[(String, FieldKind)], outputs: &[(String, Fiel
 
 /// dspy sorts the names it found on both sides, so the message does not depend on which side
 /// was walked first.
-fn refuse_duplicates(
-    inputs: &[(String, FieldKind)],
-    outputs: &[(String, FieldKind)],
-) -> Result<()> {
+fn refuse_duplicates(inputs: &[Declared], outputs: &[Declared]) -> Result<()> {
     let mut shared: Vec<&str> = inputs
         .iter()
-        .filter(|(name, _)| outputs.iter().any(|(other, _)| other == name))
-        .map(|(name, _)| name.as_str())
+        .filter(|input| outputs.iter().any(|output| output.name == input.name))
+        .map(|input| input.name.as_str())
         .collect();
     shared.sort_unstable();
     shared.dedup();
@@ -89,7 +88,7 @@ fn refuse_duplicates(
 }
 
 /// One side of the arrow: `name`, or `name: annotation`, separated by commas.
-fn declarations(side: &str) -> Result<Vec<(String, FieldKind)>> {
+fn declarations(side: &str) -> Result<Vec<Declared>> {
     split_top_level(side, ',')
         .into_iter()
         .filter(|part| !part.trim().is_empty())
@@ -97,7 +96,15 @@ fn declarations(side: &str) -> Result<Vec<(String, FieldKind)>> {
         .collect()
 }
 
-fn declaration(part: &str) -> Result<(String, FieldKind)> {
+/// One field as the string form declares it.
+struct Declared {
+    name: String,
+    kind: FieldKind,
+    /// The members, when the annotation is a `Literal`. Nothing else closes a field's set.
+    values: Option<Vec<LiteralValue>>,
+}
+
+fn declaration(part: &str) -> Result<Declared> {
     let (name, annotation) = match part.split_once(':') {
         // An unannotated field is a string, which upstream notes it would rather be explicit
         // about and cannot be without breaking programs that leave the type off.
@@ -107,19 +114,71 @@ fn declaration(part: &str) -> Result<(String, FieldKind)> {
     if name.is_empty() {
         return Err(anyhow!("Invalid signature format: a field has no name."));
     }
-    Ok((name.to_owned(), kind_of(annotation)))
+    let (kind, values) = kind_of(annotation);
+    Ok(Declared {
+        name: name.to_owned(),
+        kind,
+        values,
+    })
 }
 
 /// The scalar kinds name themselves; everything else travels as the annotation dspy would print.
-fn kind_of(annotation: Option<&str>) -> FieldKind {
+fn kind_of(annotation: Option<&str>) -> (FieldKind, Option<Vec<LiteralValue>>) {
     match annotation {
-        None | Some("str") => FieldKind::Str,
-        Some("int") => FieldKind::Int,
-        Some("float") => FieldKind::Float,
-        Some("bool") => FieldKind::Bool,
-        Some(other) => FieldKind::Json(JsonType {
-            annotation: canonical(other),
-            ..Default::default()
+        None | Some("str") => (FieldKind::Str, None),
+        Some("int") => (FieldKind::Int, None),
+        Some("float") => (FieldKind::Float, None),
+        Some("bool") => (FieldKind::Bool, None),
+        Some(other) => match literal_members(other) {
+            Some(values) => (FieldKind::Str, Some(values)),
+            None => (
+                FieldKind::Json(JsonType {
+                    annotation: canonical(other),
+                    ..Default::default()
+                }),
+                None,
+            ),
+        },
+    }
+}
+
+/// The members of a `Literal[...]`, under either spelling upstream resolves — `Literal[…]` and
+/// `typing.Literal[…]` both come back as `typing.Literal[…]` from dspy's own string form.
+///
+/// Falling through to [`kind_of`]'s opaque-annotation arm instead cost more than a type name: a
+/// field with no `values` renders no allowed-values note, so the model was never told what it may
+/// answer, and nothing rejected a reply outside the set.
+fn literal_members(annotation: &str) -> Option<Vec<LiteralValue>> {
+    let inner = annotation
+        .trim()
+        .strip_prefix("typing.")
+        .unwrap_or(annotation.trim())
+        .strip_prefix("Literal[")?
+        .strip_suffix(']')?;
+    split_top_level(inner, ',')
+        .into_iter()
+        .map(|member| literal_member(member.trim()))
+        .collect::<Option<Vec<_>>>()
+        .filter(|members| !members.is_empty())
+}
+
+/// One member, as Python spells it inside the annotation.
+fn literal_member(member: &str) -> Option<LiteralValue> {
+    if member.len() > 1
+        && let Some(quote) = member.chars().next().filter(|c| *c == '\'' || *c == '"')
+        && member.ends_with(quote)
+    {
+        return Some(LiteralValue::Str(member[1..member.len() - 1].to_owned()));
+    }
+    match member {
+        "True" => Some(LiteralValue::Bool(true)),
+        "False" => Some(LiteralValue::Bool(false)),
+        "" => None,
+        // An enum member reaches the annotation as `Colour.RED`, which is neither quoted nor a
+        // number — upstream prints it bare and asks the model for it bare.
+        other => Some(match other.parse::<i64>() {
+            Ok(number) => LiteralValue::Int(number),
+            Err(_) => LiteralValue::Bare(other.to_owned()),
         }),
     }
 }

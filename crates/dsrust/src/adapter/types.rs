@@ -13,7 +13,6 @@ pub mod file;
 pub mod history;
 pub mod image;
 pub mod reasoning;
-mod refusal;
 pub mod tool;
 
 pub use audio::{Audio, Container};

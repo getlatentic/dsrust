@@ -58,9 +58,10 @@ impl<S> Predict<S> {
         // sentence named the text and never said what was wrong with it.
         let mut value = parsed.map_err(|error| {
             anyhow::Error::new(FieldMismatch {
-                // Upstream passes no `parsed_result`, which is the arm that omits the trailing
-                // line rather than printing an empty `[]`.
+                // Upstream passes no `parsed_result`, and there is no partial to hand a retry
+                // either — the extraction never produced fields.
                 parsed: Value::Null,
+                reports_parsed: false,
                 adapter_name: "TwoStepAdapter".to_owned(),
                 lm_response: raw.clone(),
                 expected_fields: self

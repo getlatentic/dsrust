@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow};
 use serde_json::{Map, Value, json};
 
+mod coerce;
 mod equality;
 mod field_type;
 mod parse;
@@ -8,8 +9,8 @@ mod prefix;
 mod reflect;
 mod side;
 
+pub(crate) use coerce::{coerce_literal, coerce_value};
 use field_type::annotation_of;
-pub(crate) use field_type::coerce_value;
 pub(crate) use field_type::wire_forms;
 pub use field_type::{FieldKind, JsonType, LiteralValue, TypeDescription, python_name};
 pub use parse::parse;
@@ -329,11 +330,11 @@ impl Signature {
     /// structured field is left for the caller's own typing to judge rather than guessed at.
     pub(crate) fn coerce_scalars(&self, value: &mut Value) -> Result<()> {
         for field in &self.outputs {
-            if matches!(field.kind, FieldKind::Json(_)) {
+            if matches!(field.kind, FieldKind::Json(_)) && field.values.is_none() {
                 continue;
             }
             if let Some(entry) = value.get_mut(&field.name) {
-                coerce_value(&field.kind, &field.name, entry)?;
+                coerce_field(field, entry)?;
             }
         }
         Ok(())
@@ -342,16 +343,16 @@ impl Signature {
     pub(crate) fn coerce(&self, value: &mut Value) -> Result<()> {
         for field in &self.outputs {
             if let Some(entry) = value.get_mut(&field.name) {
-                coerce_value(&field.kind, &field.name, entry)?;
+                coerce_field(field, entry)?;
             }
         }
         Ok(())
     }
 
-    /// Every declared field must come back, and closed sets must hold. The error doubles as
-    /// retry feedback the model reads, so it states the requirement. Typed fields arrive
-    /// here already coerced, so only presence is left to check. Task-specific checks
-    /// (ranges, scrubbing) stay with the task's own parser.
+    /// Every declared field must come back. The error doubles as retry feedback the model reads,
+    /// so it states the requirement. Typed fields and closed sets arrive here already decided by
+    /// the cast, so only presence is left to check. Task-specific checks (ranges, scrubbing) stay
+    /// with the task's own parser.
     pub(crate) fn ensure(&self, value: &Value) -> Result<()> {
         for field in &self.outputs {
             let missing = || anyhow!("the {} field is missing and is required", field.name);
@@ -359,22 +360,46 @@ impl Signature {
                 value.get(&field.name).ok_or_else(missing)?;
                 continue;
             }
-            let got = value
+            // Presence only. A closed set is decided during the cast, where upstream decides it —
+            // every caller here coerces first, so a second check could not fire and would answer
+            // in different words if it did.
+            value
                 .get(&field.name)
                 .and_then(Value::as_str)
                 .ok_or_else(missing)?;
-            if let Some(values) = &field.values
-                && !values.iter().any(|value| value.wire_form() == got)
-            {
-                return Err(anyhow!(
-                    "{} must be one of {}; got {got:?}",
-                    field.name,
-                    wire_forms(values, ", ")
-                ));
-            }
         }
         Ok(())
     }
+}
+
+/// One field's value, coerced the way upstream's `parse_value` would.
+///
+/// A closed set is decided first and alone, because upstream's `Literal` branch returns before
+/// every generic one: a member is compared as it stands, so a non-string member never reaches the
+/// `str` coercion that would stringify it.
+///
+/// The sentence a failure carries is upstream's, from the `except` around its own `parse_value`
+/// call — it names the field and shows the value that would not fit, which is what a caller reads
+/// and, on a retry, what the model reads.
+fn coerce_field(field: &OutField, value: &mut Value) -> Result<()> {
+    let shown = crate::python::text(value);
+    let coerced = match (&field.kind, &field.values) {
+        // An enum is decided before a closed set, as upstream decides it: `parse_value` tests
+        // `EnumMeta` ahead of `Literal`, and `find_enum_member` accepts a member's *name* as well
+        // as its value. The description carries only the values — dspy's own note lists those —
+        // so a reply naming the member is one this crate cannot tell from a wrong answer, and
+        // refusing it would refuse what upstream accepts.
+        (FieldKind::Enum(_), _) => coerce_value(&field.kind, &field.name, value),
+        (_, Some(values)) => coerce_literal(values, value),
+        (_, None) => coerce_value(&field.kind, &field.name, value),
+    };
+    coerced.map_err(|error| {
+        anyhow!(
+            "Failed to parse field {} with value {shown} from the LM response. \
+             Error message: {error}",
+            field.name
+        )
+    })
 }
 
 #[cfg(test)]
@@ -496,17 +521,57 @@ mod tests {
     }
 
     #[test]
-    fn ensure_rejects_missing_fields_and_out_of_set_values() {
+    fn ensure_rejects_missing_fields() {
         let sig = signature();
         assert!(
             sig.ensure(&json!({ "color": "red", "why": "calm" }))
                 .is_ok()
         );
         assert!(sig.ensure(&json!({ "color": "red" })).is_err());
-        assert!(
-            sig.ensure(&json!({ "color": "green", "why": "x" }))
-                .is_err()
+    }
+
+    /// An enum's members are decided before its closed set, because upstream decides them there.
+    ///
+    /// `find_enum_member` takes a member's *name* as well as its value, and the description this
+    /// crate is handed carries only the values — dspy's own note lists `1; 2; 3` for an
+    /// auto-valued enum while its parser still accepts `IN_PROGRESS`. Routing an enum through the
+    /// closed-set check refused exactly that, and upstream's own
+    /// `test_auto_valued_enum_inputs_and_outputs` is what caught it.
+    #[test]
+    fn an_enum_member_is_taken_by_name_where_a_closed_set_would_refuse_it() {
+        let sig = Signature::single_input(
+            "Advance the status.",
+            vec![OutField {
+                name: "next_status".to_owned(),
+                kind: FieldKind::Enum("Status".to_owned()),
+                values: Some(vec![
+                    LiteralValue::Int(1),
+                    LiteralValue::Int(2),
+                    LiteralValue::Int(3),
+                ]),
+                ..OutField::default()
+            }],
         );
+        let mut value = json!({ "next_status": "IN_PROGRESS" });
+        sig.coerce(&mut value).expect("a name is a member too");
+        assert_eq!(value["next_status"], json!("IN_PROGRESS"));
+    }
+
+    /// A member outside the set is refused by the *cast*, where upstream refuses it — inside
+    /// `parse`, so the JSON fallback answers it. Refusing it a second time in `ensure` could not
+    /// fire, since every caller coerces first, and said so in words dspy never writes.
+    #[test]
+    fn an_out_of_set_value_is_refused_by_the_cast_in_dspys_words() {
+        let sig = signature();
+        let mut value = json!({ "color": "green", "why": "x" });
+        let error = sig.coerce(&mut value).expect_err("green is not a member");
+        assert!(
+            error
+                .to_string()
+                .contains("'green' is not one of ('red', 'blue')"),
+            "got: {error}"
+        );
+        assert!(sig.ensure(&json!({ "color": "green", "why": "x" })).is_ok());
     }
 
     #[test]
@@ -603,7 +668,22 @@ mod tests {
                 value[key] = bad.clone();
             }
             let error = sig.coerce(&mut value).expect_err("rejects").to_string();
-            assert_eq!(error, message);
+            // Upstream's sentence around the cast's own complaint, measured from its
+            // `AdapterParseError`: it names the field and shows the value that would not fit.
+            let (field, shown) = patch
+                .as_object()
+                .expect("object")
+                .iter()
+                .next()
+                .expect("one");
+            assert_eq!(
+                error,
+                format!(
+                    "Failed to parse field {field} with value {} from the LM response. \
+                     Error message: {message}",
+                    crate::python::text(shown)
+                )
+            );
         }
     }
 
@@ -702,7 +782,10 @@ mod tests {
         let mut value = json!({ "ideas": "three great ideas" });
         let error = sig.coerce(&mut value).expect_err("rejects").to_string();
         assert!(
-            error.starts_with("ideas must be valid JSON: "),
+            error.starts_with(
+                "Failed to parse field ideas with value three great ideas from the LM response. \
+                 Error message: ideas must be valid JSON: "
+            ),
             "got: {error}"
         );
     }

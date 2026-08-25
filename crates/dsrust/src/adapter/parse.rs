@@ -47,6 +47,7 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
             lm_response: raw.to_owned(),
             expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
             message: None,
+            reports_parsed: true,
         }));
     }
     // dspy's `ChatAdapter.parse` casts every section with `parse_value(v, annotation)` and raises
@@ -67,6 +68,8 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
             lm_response: raw.to_owned(),
             expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
             message: Some(error.to_string()),
+            // Upstream raises inside its cast loop, before `parsed_result` exists.
+            reports_parsed: false,
         }));
     }
     Ok(parsed)
@@ -216,6 +219,13 @@ pub struct FieldMismatch {
     pub expected_fields: Vec<String>,
     /// dspy's optional `message`, written above the rest and separated by a blank line.
     pub message: Option<String>,
+    /// Whether upstream would have had a `parsed_result` to report at all.
+    ///
+    /// False for a cast failure: upstream raises inside its cast loop, before the result is
+    /// assembled, so its message stops at the expected-fields line. This crate has the partial in
+    /// hand either way and still hands it to a feedback retry, which is why the two are separate
+    /// — reporting the partial *and* omitting the line are different questions.
+    pub reports_parsed: bool,
 }
 
 impl FieldMismatch {
@@ -242,7 +252,7 @@ impl std::fmt::Display for FieldMismatch {
         // Upstream's guard is `if parsed_result is not None`, so an empty parse still ends with
         // `[]` — it looks like a bug and it is on the wire. `Value::Null` is the `None` that omits
         // it, which upstream reaches only from the field-cast branch this crate casts elsewhere.
-        if let Some(parsed) = self.parsed.as_object() {
+        if let Some(parsed) = self.parsed.as_object().filter(|_| self.reports_parsed) {
             let names: Vec<&str> = parsed.keys().map(String::as_str).collect();
             write!(
                 out,
@@ -286,6 +296,7 @@ pub(super) fn declared_fields(
             lm_response: raw.to_owned(),
             expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
             message: None,
+            reports_parsed: true,
         })),
     }
 }
@@ -319,6 +330,7 @@ pub(super) fn parse_json<'a>(signature: &Signature, raw: &'a str) -> Result<(Val
         lm_response: named.to_owned(),
         expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
         message: Some("LM response cannot be serialized to a JSON object.".to_owned()),
+        reports_parsed: true,
     }))
 }
 

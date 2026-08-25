@@ -99,11 +99,11 @@
 "adapters/xml_adapter.py::XMLAdapter" = { status = "mapped", rust = "XmlAdapter" }
 "adapters/baml_adapter.py::BAMLAdapter" = { status = "mapped", rust = "BamlAdapter" }
 "adapters/two_step_adapter.py::TwoStepAdapter" = { status = "mapped", rust = "TwoStepAdapter" }
-"adapters/utils.py::find_enum_member" = { status = "divergence", reason = "internal parse helper; enum matching folded into adapter/parse.rs" }
+"adapters/utils.py::find_enum_member" = { status = "divergence", reason = "upstream matches a member by its *value* and then by its *name*, and this crate is handed only the values — `describe` in the bridge sends what dspy's own note lists, `1; 2; 3` for an auto-valued enum, while its parser still accepts `IN_PROGRESS`. So an enum field passes its value through in `signature/coerce.rs` rather than being checked against a set it cannot fully see; refusing on the values alone refuses what upstream accepts, which is what upstream's own `test_auto_valued_enum_inputs_and_outputs` catches. Nothing in `adapter/parse.rs` ever matched an enum, which this said" }
 "adapters/utils.py::format_field_value" = { status = "mapped", rust = "format_field_value", reason = "public under dspy's own name in adapter/python_json.rs — the bridge renders demo values through it, so it stopped being internal. The 'folded into prompt.rs' era is over" }
 "adapters/utils.py::get_annotation_name" = { status = "mapped", rust = "python_type_name", reason = "named for what it does — Python's spelling of a type — rather than upstream's name; `FieldKind::annotation` carries the stored form and this prints the live one" }
 "adapters/utils.py::get_field_description_string" = { status = "divergence", reason = "reproduced as numbered_block in adapter/prompt.rs" }
-"adapters/utils.py::parse_value" = { status = "divergence", reason = "internal parse helper; folded into adapter/parse.rs" }
+"adapters/utils.py::parse_value" = { status = "divergence", reason = "`signature/coerce.rs`, reached from `Signature::coerce_scalars` on the way out of `adapter/parse.rs` — so a value that will not fit its declared type is a *parse* failure as upstream's is, and the JSON fallback answers it. Its branch order is upstream's: enum, then closed set, then the kind's own cast. Held case by case against dspy in tests/conformance/parse/adapter_parse.json" }
 "adapters/utils.py::serialize_for_json" = { status = "divergence", reason = "internal; folded into adapter/python_json.rs" }
 "adapters/utils.py::translate_field_type" = { status = "divergence", reason = "internal; folded into signature/field_type.rs" }
 
@@ -1744,6 +1744,7 @@
 "dsrust::adapter::parse::FieldMismatch::expected_fields" = { status = "divergence", reason = "`FieldMismatch::expected_fields`, part of the same type's surface; see the entry for `FieldMismatch`" }
 "dsrust::adapter::parse::FieldMismatch::lm_response" = { status = "divergence", reason = "`FieldMismatch::lm_response`, part of the same type's surface; see the entry for `FieldMismatch`" }
 "dsrust::adapter::parse::FieldMismatch::message" = { status = "divergence", reason = "`FieldMismatch::message`, part of the same type's surface; see the entry for `FieldMismatch`" }
+"dsrust::adapter::parse::FieldMismatch::reports_parsed" = { status = "divergence", rust = "FieldMismatch::reports_parsed", reason = "whether upstream would have had a `parsed_result` to report — false where it raises inside its cast loop, before the result is assembled, so the message stops at the expected-fields line. Its own field rather than `parsed` being empty, because this crate still hands that partial to a feedback retry: reporting the partial and printing the line are different questions, and one field answering both dropped the retry's previous output the moment a cast started failing there" }
 "dsrust::adapter::parse::FieldMismatch::parsed" = { status = "divergence", reason = "`FieldMismatch::parsed`, part of the same type's surface; see the entry for `FieldMismatch`" }
 "dsrust::adapter::types::audio::Audio::audio_format" = { status = "divergence", reason = "`Audio::audio_format`, part of the same type's surface; see the entry for `Audio`" }
 "dsrust::adapter::types::audio::Audio::data" = { status = "divergence", reason = "`Audio::data`, part of the same type's surface; see the entry for `Audio`" }
