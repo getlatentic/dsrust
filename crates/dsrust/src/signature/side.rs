@@ -10,6 +10,24 @@ use super::{FieldKind, InField, OutField};
 ///
 /// dspy reads that off the field's own `__dspy_field_type`, because a Python `InputField` and an
 /// `OutputField` are the same class with a marker. Rust has two types, so the side is the type —
+/// Which side a field is added to, when a signature grows one.
+///
+/// dspy takes `(name, field, type_)` as three loose arguments that have to agree — an `InputField`
+/// passed with an output's name is a runtime error there. Here the side *is* the type, so
+/// [`Signature::append`](crate::Signature::append) cannot be given a mismatched trio:
+///
+/// ```
+/// use dsrust::signature::{InField, Side};
+///
+/// let signature: dsrust::Signature = "question -> answer".parse().expect("parses");
+/// let grown = signature.append(Side::Input(InField {
+///     name: "context".to_owned(),
+///     desc: "Passages to answer from.".to_owned(),
+///     ..Default::default()
+/// }));
+/// assert_eq!(grown.inputs.len(), 2, "appended last among its own side");
+/// assert_eq!(grown.outputs.len(), 1, "the other side is untouched");
+/// ```
 /// this is what lets one `insert` take either without a runtime look-up.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Side {

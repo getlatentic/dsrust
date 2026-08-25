@@ -94,6 +94,15 @@ impl LmSource {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
+/// How much of an image a provider is asked to look at — OpenAI's `detail`, and `Auto` is what it
+/// does when nobody says.
+///
+/// ```
+/// use dsrust::lm::api::Detail;
+///
+/// assert_eq!(serde_json::to_value(Detail::Low).unwrap(), serde_json::json!("low"));
+/// assert_eq!(serde_json::to_value(Detail::Auto).unwrap(), serde_json::json!("auto"));
+/// ```
 pub enum Detail {
     Low,
     High,

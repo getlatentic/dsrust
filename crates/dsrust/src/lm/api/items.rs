@@ -166,6 +166,30 @@ macro_rules! Developer {
 /// condition here (`any Part`) is exactly upstream's `not all(message or reply)`, so this arm is
 /// reached by the same inputs. It used to flatten the message to its text and call itself
 /// unreachable, which silently turned two turns into one.
+/// ```
+/// use dsrust::lm::api::{LmItem, LmMessage, LmPart, messages_from_items};
+///
+/// // Bare parts become one turn — `lm("Describe this.", image)` is a single multimodal message.
+/// let one = messages_from_items([LmPart::text("Describe this."), LmPart::text("(an image)")])
+///     .expect("bare parts are one turn");
+/// assert_eq!(one.len(), 1);
+///
+/// // Turns stay separate.
+/// let two = messages_from_items([
+///     LmMessage::user(vec![LmPart::text("a")]),
+///     LmMessage::user(vec![LmPart::text("b")]),
+/// ])
+/// .expect("two turns");
+/// assert_eq!(two.len(), 2);
+///
+/// // A turn *beside* a bare part is the one shape upstream refuses, and so does this — flattening
+/// // it would silently turn two turns into one.
+/// let mixed: Vec<LmItem> = vec![
+///     LmMessage::user(vec![LmPart::text("a")]).into(),
+///     LmPart::text("b").into(),
+/// ];
+/// assert!(messages_from_items(mixed).is_err());
+/// ```
 pub fn messages_from_items(
     items: impl IntoIterator<Item = impl Into<LmItem>>,
 ) -> Result<Vec<LmMessage>> {

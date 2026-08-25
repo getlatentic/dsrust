@@ -10,6 +10,17 @@ use serde_json::Value;
 
 use super::api::{Content, LmMessage, LmPart, part_of_block};
 
+/// ```
+/// use dsrust::lm::Role;
+///
+/// // The name each travels under on the wire, which is what dspy's message dicts hold.
+/// assert_eq!(Role::User.as_str(), "user");
+/// assert_eq!(Role::Assistant.as_str(), "assistant");
+///
+/// // `Tool` is the third, and it carries what a call returned rather than prose — dspy sends
+/// // these as their own messages once a provider has called tools natively.
+/// assert_eq!(Role::Tool.as_str(), "tool");
+/// ```
 /// One side of the conversation; every provider speaks the user/assistant pair.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {

@@ -11,6 +11,22 @@ use super::base::{Formatted, Type, serialized};
 /// dspy's `Citations.Citation`: one quoted span and where it came from.
 ///
 /// A provider that supports citations — Anthropic's through litellm — returns these beside the
+/// ```
+/// use dsrust::Citation;
+///
+/// // `document_index` points into the documents the request carried, so a citation is resolved
+/// // against what was sent rather than carrying the source itself.
+/// let cited = Citation {
+///     kind: "char_location".to_owned(),
+///     cited_text: "Paris is the capital.".to_owned(),
+///     document_index: 0,
+///     document_title: Some("France".to_owned()),
+///     start_char_index: 0,
+///     end_char_index: 21,
+///     supported_text: None,
+/// };
+/// assert_eq!(cited.document_index, 0);
+/// ```
 /// answer, each naming the document it quoted and the character range within it.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, schemars::JsonSchema)]
 pub struct Citation {

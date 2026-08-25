@@ -23,6 +23,23 @@ use crate::lm::{ChatModel, Sampling};
 /// — `messages[-1]["content"]`, `messages[:-1]` — and never splits the system prompt out; the
 /// split this held instead re-derived a pair the adapter had stopped producing, and mapped every
 /// role that was not `assistant` to `user` on the way, so a tool result recorded as something the
+/// What the model was asked, recorded so a test can assert on the prompt rather than only the
+/// answer — which is the half that catches a rendering change.
+///
+/// ```
+/// use dsrust::DummyLM;
+/// use dsrust::lm::dummy::Asked;
+///
+/// # async fn wrapper() -> anyhow::Result<()> {
+/// let lm = std::sync::Arc::new(DummyLM::new([dsrust::example! { answer: "Paris" }]));
+/// // ... after a program has run under it ...
+/// let asked: Vec<Asked> = lm.asked();
+/// if let Some(first) = asked.first() {
+///     // The system message leads, as every adapter here renders it.
+///     assert_eq!(first.messages[0].role, "system");
+/// }
+/// # Ok(()) }
+/// ```
 /// user said.
 #[derive(Debug, Clone)]
 pub struct Asked {

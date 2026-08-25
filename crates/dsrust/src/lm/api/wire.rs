@@ -40,6 +40,41 @@ impl<S: Into<String>> From<S> for Content {
     }
 }
 
+/// Turning parts into what a provider reads, and back.
+///
+/// Three functions with one difference between them, and the difference decides bytes:
+/// [`content_of`] collapses a lone text part to a bare string, [`blocks_content`] never does, and
+/// [`part_of_block`](super::part_of_block) is the return trip. A block this crate does not model rides along whole under
+/// [`LEGACY_BLOCK`](super::LEGACY_BLOCK), which is what lets an unmodelled provider type survive a
+/// round trip byte for byte instead of being guessed at.
+///
+/// ```
+/// use dsrust::lm::api::{Content, LmPart, blocks_content, content_of, part_of_block};
+///
+/// // One text part collapses: wrapping an ordinary prompt in a list would change every call.
+/// let one = [LmPart::text("hello")];
+/// assert_eq!(content_of(&one).unwrap(), Content::Text("hello".to_owned()));
+///
+/// // The same part as blocks does not collapse — a marker-split message renders as a list
+/// // however few blocks it ends up with.
+/// let Content::Blocks(blocks) = blocks_content(&one).unwrap() else {
+///     panic!("blocks_content never collapses")
+/// };
+/// assert_eq!(blocks.len(), 1);
+///
+/// // And the return trip reads a block back as the part it describes.
+/// assert_eq!(part_of_block(&blocks[0]), LmPart::text("hello"));
+/// ```
+///
+/// A block with no shape this crate knows is carried rather than dropped:
+///
+/// ```
+/// use dsrust::lm::api::{LmPart, blocks_of, part_of_block};
+///
+/// let unknown = serde_json::json!({ "type": "a_provider_thing", "payload": [1, 2] });
+/// let carried = part_of_block(&unknown);
+/// assert_eq!(blocks_of(&carried).unwrap(), vec![unknown], "it survives the round trip whole");
+/// ```
 /// A message's parts as its `content` field.
 ///
 /// The bare string is not an optimisation: wrapping a text-only prompt in a one-element list

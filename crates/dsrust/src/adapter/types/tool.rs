@@ -321,6 +321,19 @@ fn written(value: Option<&Value>) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// ```
+/// use dsrust::ToolCallResult;
+///
+/// // `call_id` is what pairs a result with the call it answers; a provider that does not issue
+/// // ids leaves it empty, and the pairing falls back to order.
+/// let returned = ToolCallResult {
+///     call_id: Some("call_1".to_owned()),
+///     name: "search".to_owned(),
+///     value: serde_json::json!({ "hits": 3 }),
+///     is_error: false,
+/// };
+/// assert!(!returned.is_error, "a failure is a result too, flagged rather than raised");
+/// ```
 /// dspy `ToolCallResults.ToolCallResult`: what one call returned.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct ToolCallResult {
