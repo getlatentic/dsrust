@@ -19,6 +19,10 @@ import pathlib
 import re
 import sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).parent))
+
+from api_surface import PORTED_MODULES  # noqa: E402
+
 ROOT = pathlib.Path(__file__).parent.parent
 RUNNER = ROOT / "scripts" / "run_upstream_tests.sh"
 MANIFEST = ROOT / "scripts" / "upstream_tests.txt"
@@ -30,16 +34,22 @@ EXCUSED = {
     # New in dspy 3.3.0, and each decided rather than overlooked.
     #
     # `dspy.Flex` is a whole feature this port does not have — its own class, its own GEPA
-    # extension, its own interpreter binding — and its docstring calls itself experimental and
-    # says it "may change or be removed in a future release without warning". Porting an API
-    # upstream reserves the right to delete is not a 1.0 obligation; filed as `dspy-flex` so the
-    # decision is written down rather than implied by six excused files.
-    "tests/flex/test_flex_binding.py": "dspy.Flex, new and experimental in 3.3.0 (`dspy-flex`)",
-    "tests/flex/test_flex_gepa.py": "dspy.Flex, new and experimental in 3.3.0 (`dspy-flex`)",
-    "tests/flex/test_flex_gepa_seed.py": "dspy.Flex, new and experimental in 3.3.0 (`dspy-flex`)",
-    "tests/flex/test_flex_interpreter.py": "dspy.Flex, new and experimental in 3.3.0 (`dspy-flex`)",
-    "tests/flex/test_flex_output_types.py": "dspy.Flex, new and experimental in 3.3.0 (`dspy-flex`)",
-    "tests/flex/test_tools.py": "dspy.Flex, new and experimental in 3.3.0 (`dspy-flex`)",
+    # extension, its own interpreter binding: 1092 lines of source and 2570 of tests.
+    #
+    # This used to read "its docstring calls itself experimental ... porting an API upstream
+    # reserves the right to delete is not a 1.0 obligation". The quote is real — `@experimental`
+    # writes that sentence — but the standard is not this crate's. Six things in the pin carry
+    # that decorator and five are ported and fully classified: `Citation`, `Document`, `Rlm`,
+    # `ReActV2`, and `GEPA`, which alone holds forty ledger entries. Experimental has never been
+    # the line here, so it cannot be the line for this one.
+    #
+    # The real reason is size, which is a schedule and not a boundary. Tracked as `dspy-flex`.
+    "tests/flex/test_flex_binding.py": "dspy.Flex: 1092 lines of source and a host/guest bridge, not ported yet (`dspy-flex`)",
+    "tests/flex/test_flex_gepa.py": "dspy.Flex: 1092 lines of source and a host/guest bridge, not ported yet (`dspy-flex`)",
+    "tests/flex/test_flex_gepa_seed.py": "dspy.Flex: 1092 lines of source and a host/guest bridge, not ported yet (`dspy-flex`)",
+    "tests/flex/test_flex_interpreter.py": "dspy.Flex: 1092 lines of source and a host/guest bridge, not ported yet (`dspy-flex`)",
+    "tests/flex/test_flex_output_types.py": "dspy.Flex: 1092 lines of source and a host/guest bridge, not ported yet (`dspy-flex`)",
+    "tests/flex/test_tools.py": "dspy.Flex: 1092 lines of source and a host/guest bridge, not ported yet (`dspy-flex`)",
     # Live, by its own docstring: "provider behavior that cannot be verified with the mocked unit
     # tests". The crate's own live tests carry `#[ignore]` for the same reason.
     "tests/clients/test_lm_direct_live.py": "talks to a live provider",
@@ -213,6 +223,34 @@ def miscounts() -> list[str]:
     return found
 
 
+def experimental_is_not_a_line() -> list[str]:
+    """No excuse may rest on `@experimental` while the crate ports things carrying it.
+
+    `dspy.Flex`'s six files were excused because its docstring says the API "may change or be
+    removed in a future release without warning". The sentence is real — `@experimental` writes it.
+    The standard is not this crate's: six modules in the pin carry that decorator and five are
+    ported and classified, `GEPA` among them with forty ledger entries. An excuse naming a boundary
+    the crate does not hold is the shape `SCOPE_EXCLUSIONS` gates for `deferred` ledger rows, and
+    this is that shape one table over.
+    """
+    marked = {
+        str(path.relative_to(ROOT / "third_party" / "dspy" / "dspy"))
+        for path in (ROOT / "third_party" / "dspy" / "dspy").rglob("*.py")
+        if "@experimental" in path.read_text()
+    }
+    ported = sorted(marked & set(PORTED_MODULES))
+    resting = sorted(p for p, reason in EXCUSED.items() if "experimental" in reason.lower())
+    if not ported or not resting:
+        return []
+    return [
+        f"{len(resting)} excuse(s) resting on `@experimental` while {len(ported)} module(s) "
+        f"carrying it are ported:",
+        *(f"      ~ {path}" for path in resting),
+        f"      ported anyway: {', '.join(ported)}",
+        "  Experimental is not this crate's boundary. Give the real reason.",
+    ]
+
+
 def running() -> set[str]:
     block = re.search(r"SUITES=\((.*?)\n\)", RUNNER.read_text(), re.S)
     if block is None:
@@ -229,6 +267,7 @@ def main() -> None:
     run = running()
     unexcused = [f for f in manifest if f not in run and f not in EXCUSED]
     miscounted = miscounts()
+    resting = experimental_is_not_a_line()
     stale = [f for f in EXCUSED if f not in manifest]
     both = [f for f in EXCUSED if f in run]
 
@@ -247,6 +286,7 @@ def main() -> None:
     if miscounted:
         failures.append(f"{len(miscounted)} excuse(s) counting a file wrong:")
         failures += [f"      # {line}" for line in sorted(miscounted)]
+    failures += resting
 
     if failures:
         print("\nUpstream-coverage check FAILED:", file=sys.stderr)
