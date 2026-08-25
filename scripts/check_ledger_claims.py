@@ -112,10 +112,28 @@ def tree() -> tuple[set[str], set[str], dict[str, set[str]]]:
     return names, files, by_file
 
 
-def upstream_names() -> set[str]:
-    """Every `def`/`class` name in the pinned dspy, so citing a Python name is not an error."""
+def package_names() -> tuple[set[str], list[str]]:
+    """Every `def`/`class` name in the pinned Python packages, and the ones that could not be read.
+
+    dspy is vendored, so it is always there. `gepa` is a dependency in the venv, and a reason may
+    cite it as readily — eight do. Missing it does not fail the run, because this gate is also run
+    where the venv is not built; it is *reported*, since the alternative is a check that quietly
+    knows less than its summary line claims.
+    """
     found: set[str] = set()
-    pinned = ROOT / "third_party" / "dspy" / "dspy"
+    unread: list[str] = []
+    for pinned in (ROOT / "third_party" / "dspy" / "dspy", *sorted((ROOT / ".venv" / "lib").glob("*/site-packages/gepa"))):
+        found |= names_in(pinned) if pinned.is_dir() else set()
+        if not pinned.is_dir():
+            unread.append(str(pinned.relative_to(ROOT)))
+    if not any((ROOT / ".venv" / "lib").glob("*/site-packages/gepa")):
+        unread.append(".venv/…/site-packages/gepa")
+    return found, unread
+
+
+def names_in(pinned: pathlib.Path) -> set[str]:
+    """Every `def`/`class` name under one package directory."""
+    found: set[str] = set()
     if not pinned.is_dir():
         return found
     for path in pinned.rglob("*.py"):
@@ -126,11 +144,12 @@ def upstream_names() -> set[str]:
 def main() -> int:
     ledger = tomllib.loads(LEDGER.read_text())
     names, files, by_file = tree()
-    theirs = upstream_names()
+    theirs, unread = package_names()
 
     missing: list[tuple[str, str, str]] = []
     unverified: list[tuple[str, str]] = []
     substitutions = 0
+    checked = 0
     for table in ledger.values():
         if not isinstance(table, dict):
             continue
@@ -144,9 +163,11 @@ def main() -> int:
                 # A substitution points at Rust, so a bare name in one is checkable — and often is
                 # a private helper: `numbered_block` is the first in the file.
                 for named in set(RS_FILE.findall(reason)):
+                    checked += 1
                     if not any(f.endswith("/" + named) or f == named for f in files):
                         missing.append((key, "file", named))
                 for ident in set(IDENT.findall(reason)):
+                    checked += 1
                     parts = ident.split("::")
                     if not (parts[0][0].isupper() or len(parts) > 1):
                         continue
@@ -160,6 +181,7 @@ def main() -> int:
             # substitution-only check ever looks at. A reason may still name a Python symbol or an
             # environment variable in backticks, and those carry no `::`.
             for path_named, item in set(RS_PATH.findall(reason + " " + str(entry.get("rust") or ""))):
+                checked += 1
                 # Every file the suffix names, not the first — two files here are called `demos.rs`,
                 # and picking one of them reported a reason wrong that named the other.
                 owners = [f for f in files if f.endswith("/" + path_named) or f == path_named]
@@ -168,9 +190,11 @@ def main() -> int:
                 elif not any(item in by_file[f] for f in owners):
                     missing.append((key, "item in file", f"{path_named}::{item}"))
             for named in set(WITH_NAME.findall(reason + " " + str(entry.get("rust") or ""))):
+                checked += 1
                 if named not in names and named not in theirs:
                     missing.append((key, "with_ name", named))
             for ident in set(BARE_PATH.findall(reason + " " + str(entry.get("rust") or ""))):
+                checked += 1
                 parts = ident.split("::")
                 if parts[0] in OURS:
                     parts = parts[1:]          # a crate-rooted path; the crate itself is not an item
@@ -194,7 +218,12 @@ def main() -> int:
                 if not named_something:
                     unverified.append((key, claim.group(0)))
 
-    print(f"ledger claims: {substitutions} substitutions checked against the tree")
+    for missed in unread:
+        print(f"  note: {missed} was not read, so a name cited from it is not checked")
+    print(
+        f"ledger claims: {checked} reference(s) resolved against the tree, "
+        f"{substitutions} of them in a row phrased as a substitution"
+    )
     if missing:
         print(f"\nLedger-claims gate FAILED: {len(missing)} reference(s) that do not exist:")
         for key, kind, named in missing:
@@ -209,7 +238,7 @@ def main() -> int:
         return 1
     if len(unverified) < UNVERIFIED:
         print(f"\n{UNVERIFIED - len(unverified)} below the floor — lower UNVERIFIED to {len(unverified)}")
-    print("\nLedger-claims gate: OK (every substitution points at something that exists)")
+    print("\nLedger-claims gate: OK (every name a reason points at exists, and a `file.rs::item` is in that file)")
     return 0
 
 

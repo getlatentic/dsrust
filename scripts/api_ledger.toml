@@ -444,7 +444,7 @@
 "utils/callback.py::BaseCallback.on_evaluate_end" = { status = "mapped", rust = "Callback::on_evaluate_end" }
 
 # Adapter
-"adapters/base.py::Adapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"adapters/base.py::Adapter.acall" = { status = "divergence", reason = "the sync/async pair is a pair of methods that *call the model*, and this trait has neither: `Adapter::format` answers with the messages to send and `Adapter::parse` reads the reply, both synchronous, with the call itself the caller's. See the `__call__` entry beside this one" }
 "adapters/base.py::Adapter.format" = { status = "mapped", rust = "Adapter::format" }
 "adapters/base.py::Adapter.format_assistant_message_content" = { status = "divergence", reason = "`adapter/demos.rs::demo_turns` writes the demo turns for every adapter, taking each one's answer renderer as the `Style::answer` field. A struct of functions rather than a method to override, so the seam is there but it is not this one" }
 "adapters/base.py::Adapter.format_conversation_history" = { status = "divergence", reason = "folded into adapter/history.rs, which expands a History field into its turns" }
@@ -457,7 +457,7 @@
 "adapters/base.py::Adapter.parse" = { status = "mapped", rust = "Adapter::parse" }
 
 # ChatAdapter
-"adapters/chat_adapter.py::ChatAdapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"adapters/chat_adapter.py::ChatAdapter.acall" = { status = "divergence", reason = "the sync/async pair is a pair of methods that *call the model*, and this trait has neither: `Adapter::format` answers with the messages to send and `Adapter::parse` reads the reply, both synchronous, with the call itself the caller's. See the `__call__` entry beside this one" }
 "adapters/chat_adapter.py::ChatAdapter.format_assistant_message_content" = { status = "divergence", reason = "`adapter/demos.rs::demo_turns` with `Style::answer` set to the chat renderer, which is where a demo's assistant turn is written" }
 "adapters/chat_adapter.py::ChatAdapter.format_field_description" = { status = "mapped", rust = "field_description" }
 "adapters/chat_adapter.py::ChatAdapter.format_field_structure" = { status = "divergence", reason = "`chat.rs` writes it — the `[[ ## field ## ]]` sections and the trailing `completed` marker — as upstream's override does. Said the chat adapter stated none until 2026-08-24; it always has, and a prompt golden would have failed the moment it did not" }
@@ -469,7 +469,7 @@
 "adapters/chat_adapter.py::ChatAdapter.user_message_output_requirements" = { status = "divergence", reason = "`chat.rs::output_requirements`, the format reminder appended to the user message" }
 
 # JSONAdapter
-"adapters/json_adapter.py::JSONAdapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"adapters/json_adapter.py::JSONAdapter.acall" = { status = "divergence", reason = "the sync/async pair is a pair of methods that *call the model*, and this trait has neither: `Adapter::format` answers with the messages to send and `Adapter::parse` reads the reply, both synchronous, with the call itself the caller's. See the `__call__` entry beside this one" }
 "adapters/json_adapter.py::JSONAdapter.format_assistant_message_content" = { status = "divergence", reason = "`adapter/demos.rs::demo_turns` with the JSON answer renderer as its `Style::answer`" }
 "adapters/json_adapter.py::JSONAdapter.format_field_structure" = { status = "divergence", reason = "`json.rs::json_system` writes it — the section header, the input block, and the JSON object the outputs must fill — inline in the system message rather than through an overridable hook" }
 "adapters/json_adapter.py::JSONAdapter.format_field_with_value" = { status = "divergence", reason = "`prompt.rs::section` for an input; an output is a JSON object key, which `json_system` builds directly" }
@@ -490,7 +490,7 @@
 "adapters/baml_adapter.py::BAMLAdapter.format_user_message_content" = { status = "divergence", reason = "`baml.rs::user_message` writes it, beside the schema block `BamlAdapter::field_structure` renders" }
 
 # TwoStepAdapter
-"adapters/two_step_adapter.py::TwoStepAdapter.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"adapters/two_step_adapter.py::TwoStepAdapter.acall" = { status = "divergence", reason = "the sync/async pair is a pair of methods that *call the model*, and this trait has neither: `Adapter::format` answers with the messages to send and `Adapter::parse` reads the reply, both synchronous, with the call itself the caller's. See the `__call__` entry beside this one" }
 "adapters/two_step_adapter.py::TwoStepAdapter.format" = { status = "mapped", rust = "TwoStepAdapter::format" }
 "adapters/two_step_adapter.py::TwoStepAdapter.format_assistant_message_content" = { status = "divergence", reason = "`two_step.rs::demo_answer`, the prose answer a demo shows for the first ask" }
 "adapters/two_step_adapter.py::TwoStepAdapter.format_task_description" = { status = "divergence", reason = "`two_step.rs::task_description`, its own rather than the shared one — upstream overrides this method here, and the first ask asks for prose instead of fields" }
@@ -555,7 +555,7 @@
 "adapters/types/reasoning.py::Reasoning.validate_input" = { status = "divergence", reason = "`Reasoning`'s own `Deserialize`: a bare string is the `content`, and a map must carry a string one" }
 
 # Tool
-"adapters/types/tool.py::Tool.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
+"adapters/types/tool.py::Tool.acall" = { status = "divergence", reason = "`Tool::call` is synchronous, and deliberately: a tool here is a Rust closure rather than a network call, so there is no await to be the async half of a pair. Upstream needs both because a Python tool may be a coroutine" }
 "adapters/types/tool.py::Tool.format" = { status = "mapped", rust = "format_tool" }
 "adapters/types/tool.py::Tool.format_as_litellm_function_call" = { status = "mapped", rust = "spec" }
 "adapters/types/tool.py::Tool.from_langchain" = { status = "divergence", reason = "LangChain interop, a Python-ecosystem constructor" }
