@@ -229,15 +229,22 @@
 "clients/openai.py::OpenAIProvider" = { status = "deferred", reason = "OpenAI finetuning provider; out of the 1.0 ceiling" }
 "clients/openai.py::TrainingJobOpenAI" = { status = "deferred", reason = "OpenAI finetuning job; out of the 1.0 ceiling" }
 
-# Ahead of the pin on main — see HANDOFF's "Check main, not only the pin".
-# `utils/callback_context.py` is a new module on main: ACTIVE_CALL_ID moved out of callback.py, plus
+# `utils/callback_context.py` holds `ACTIVE_CALL_ID`, moved out of callback.py, plus
 # `_bind_active_call_id`, which carries the parent call id across a *thread* boundary for a
-# synchronous callable.
+# synchronous callable. This said the module was "ahead of the pin on main" until 2026-08-25; the
+# pin moved to 3.3.0 and it is in the tree, with `tests/callback/test_callback.py` carrying the
+# ninth test that exercises it.
 #
-# Nothing to port *here*, and the reason is a measurement rather than a preference: this crate crosses
-# no thread boundary. Its only `spawn` is the deno child process (src/interpreter/deno.rs), and its
-# concurrency is `buffered`/`buffer_unordered`, which poll on one task — so a `tracing` span's parent
-# already reaches every point, and an instrumented future keeps it across an await (src/evaluate.rs).
+# Nothing to port, for two reasons. It has no public surface: one module-level `ContextVar` and one
+# underscore-prefixed function. And the defect it fixes is answered here by construction —
+# `callback::context::Under` sets the enclosing call **per poll** rather than once, which is what
+# holds when a runtime moves a future between threads *and* when several rows interleave inside one
+# task, as `Evaluate`'s `buffered` makes them. Upstream needs the binding because a pooled thread
+# would otherwise read whatever the last call left on it.
+#
+# The narrower claim is worth keeping honest: this crate spawns nothing itself — its one `.spawn()`
+# is the deno child process in src/interpreter/deno.rs — so nothing here hands work to a thread that
+# could lose the linkage.
 #
 # The narrower claim, because the broad one would be wrong: a *caller* who puts a module behind
 # `tokio::spawn` — an ordinary thing for a server — does lose the linkage, and has to write

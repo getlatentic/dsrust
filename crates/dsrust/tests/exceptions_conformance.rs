@@ -1,10 +1,11 @@
 //! The crate's error types against dspy's, rendered string for rendered string.
 //!
-//! `tests/utils/test_exceptions.py` is excused from the bridge because most of it asserts
-//! `isinstance` against a fourteen-class Python tree. That excuse covered more than it should
-//! have: nine of its ten tests assert on a code, a retryability, a metadata field, or an exact
-//! rendered string — all of which a Rust type has too. Two of those strings were wrong here and
-//! nothing noticed, because nothing compared them to dspy.
+//! `tests/utils/test_exceptions.py` is excused from the bridge, and the excuse used to say most of
+//! it asserted `isinstance` against a fourteen-class Python tree. It does not: three `isinstance`
+//! assertions in two tests, naming three classes between them. Nine of its ten tests assert on a
+//! code, a retryability, a metadata field, or an exact rendered string — all of which a Rust type
+//! has too — and the tenth asserts the classes are bound on the `dspy` namespace. Two of those
+//! strings were wrong here and nothing noticed, because nothing compared them to dspy.
 //!
 //! `scripts/generate_exceptions_fixture.py` captures them by running the pinned dspy.
 

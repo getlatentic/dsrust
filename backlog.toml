@@ -5286,3 +5286,53 @@ fix is one **global** subscriber installed once for the binary, forwarding to wh
 recording, so interest is never cached cold. `--test-threads=1` passing while the parallel run
 failed is what named the cause.
 """
+
+[[story]]
+id = "counts-in-excuses"
+sprint = "api"
+title = "An excuse counted eight tests in a file that has nine"
+state = "done"
+size = "S"
+suites = []
+plan = """
+Continuing the reason audit past what the absence-narrowing reached. A different mechanical tell:
+**numeric claims**. Prose cannot be checked, but a number sometimes can, and 649 of them sit in the
+ledger across 229 distinct (count, noun) pairs.
+
+Most survive. "Thirteen classes" appears 91 times and is exactly right — thirteen exception classes
+carry nine entries each, the family that flattens into `LmFailure`. "Twelve defaulted methods" on
+the `Callback` trait is twelve.
+
+Two did not:
+
+- `tests/callback/test_callback.py`'s excuse says "six of these eight tests". The file has **nine**.
+  The ninth arrived upstream with `_bind_active_call_id` — a fix for carrying the parent call id
+  across a thread boundary — and the excuse read as settled for as long as nobody counted.
+- `tests/utils/test_exceptions.py`'s comment, copied verbatim into
+  `exceptions_conformance.rs`'s docstring, calls the tenth test an `isinstance` against a
+  "fourteen-class Python tree". The file has three `isinstance` assertions naming three classes
+  between them, in two tests that are already covered; the tenth is a namespace check.
+"""
+done = """
+Both corrected, and the countable half is a gate: `check_coverage.miscounts` parses a stated test
+count out of an excuse and compares it to the file, in words or digits. It reports the live one, and
+both controls bite — a count edited to twelve, and a count attached to a file with a different total.
+
+Two things the reading turned up that the counting could not.
+
+**The ninth test's subject is already answered here, and better than the excuse knew.**
+`_bind_active_call_id` exists because a pooled thread reads whatever the last call left on it.
+`callback::context::Under` sets the enclosing call **per poll** rather than once, which holds across
+a runtime moving a future between threads *and* across rows interleaving in one task. The docstring
+had already read that upstream fix — while calling it "main's `utils/callback_context.py`". It is in
+the pin; the module is in the tree with no public surface (one `ContextVar`, one underscore-prefixed
+function), and the ledger comment saying otherwise is corrected.
+
+**The callback excuse understated its own coverage.** It named two portable tests. Four are:
+the `ChainOfThought(n=3)` handler sequence and its async twin, the tool handlers, and the call-id
+parent chain — all four held by `tests/callback.rs` against sequences recorded from this same dspy.
+
+And a limitation written down rather than assumed: `miscounts` reads the reason string, not the
+comment above it. What a file's tests are *about* is not gateable; that half stays a reading, which
+is how the fourteen-class sentence survived being copied into a second file.
+"""
