@@ -38,6 +38,24 @@ CASES = [
 ]
 
 
+def named_with_descriptions():
+    """A signature whose fields carry descriptions, and one that carries dspy's own placeholder.
+
+    `render_signature_spec` prints a description unless it starts with `${`, which is what dspy fills
+    in for a field nobody described — so a signature with no descriptions and one with placeholder
+    descriptions render the same, and only a real one shows the branch.
+    """
+
+    class Described(dspy.Signature):
+        """Answer carefully."""
+
+        question: str = dspy.InputField(desc="The question asked.")
+        context: str = dspy.InputField()
+        answer: str = dspy.OutputField(desc="A short answer.")
+
+    return Described
+
+
 def named_signature():
     """A declared subclass, whose own name is what `_class_name` builds from.
 
@@ -140,6 +158,34 @@ def main() -> None:
         "x\ty\tz",
     ]
 
+    # What the code proposer is *shown*: the signature spelled out, and the tools in scope. Both are
+    # rendering with edges — a description that is dspy's own `${placeholder}` is skipped, a tool's
+    # blurb is the first line of its docstring, and each has an empty form the prompt branches on.
+    def a_tool(name, doc):
+        def fn(text: str) -> str:
+            return text
+        fn.__name__ = name
+        fn.__doc__ = doc
+        return fn
+
+    context_cases = []
+    for label, signature, tools in [
+        ("bare", dspy.Signature("question -> answer"), None),
+        ("described", named_with_descriptions(), None),
+        ("one tool", dspy.Signature("question -> answer"), [a_tool("shout", "Shout it.\nSecond line ignored.")]),
+        ("tool with no docstring", dspy.Signature("question -> answer"), [a_tool("quiet", None)]),
+        ("two tools", dspy.Signature("question -> answer"),
+         [a_tool("shout", "Shout it."), a_tool("whisper", "  Whisper it.  ")]),
+    ]:
+        flex = dspy.Flex(signature, tools=tools) if tools else dspy.Flex(signature)
+        ctx = flex._flex_ctx
+        context_cases.append({
+            "label": label,
+            "signature_spec": ctx.render_signature_spec(),
+            "context_blurb": ctx.render_context_blurb(sandboxed=True),
+            "context_blurb_unsandboxed": ctx.render_context_blurb(),
+        })
+
     fixture = {
         "source": f"generated from dspy=={PINNED} via scripts/generate_flex_fixture.py",
         "dspy_version": PINNED,
@@ -152,6 +198,7 @@ def main() -> None:
             {"label": label, "records": records, "rendered": _format_failures(records)}
             for label, records in failure_cases
         ],
+        "task_context": context_cases,
         "strip_code_fences": [
             {"raw": raw, "stripped": _strip_code_fences(raw)} for raw in fence_cases
         ],

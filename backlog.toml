@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1367
+rust_tests = 1368
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -3596,9 +3596,29 @@ The test is a `Flex` **nested inside a program**, deliberately: a bare one would
 nothing, since the point is that the walk recurses where `named_predictors` cannot. The control
 stops the `Flex` reporting itself and the walk comes back empty.
 
-**Left:** `flex_task_context` — the rendering the code proposer's prompt expects — and
-`evaluate_with_trace`, the Flex-aware scoring that fills `MetricContext::trace` so a metric declaring
-a `program_trace` parameter can read it. Both are `todo` rows the API gate prints every run.
+**`flex_task_context` is closed**, and it rests on two renderings with edges a reading would have
+missed. A field description is skipped when it is dspy's own `${field}` placeholder — and a signature
+parsed here carries an empty string instead, so *both* spellings of "nobody said" have to be skipped
+or `${context}` reaches the prompt. A tool's blurb is the **first line** of its description,
+stripped, so a second line never reaches the model and a tool with nothing to say keeps its trailing
+space. Both controls bite.
+
+**The file-size gate forced a split that was overdue**, and it landed on two real seams.
+`flex.rs` is what a `Flex` *is* and `rendering.rs` is what it *says* — three of those renderings go to
+different readers and are not interchangeable. `bridge.rs` is the *crossing* and `built.rs` is *what
+is being asked for*: a new predictor kind lands in one, a change to how the sandbox is driven in the
+other. `bridge.rs` was at 399 of 400 and was split before the next line forced it.
+
+Moving `Built` across that seam wanted five `pub(super)` fields, which would have leaked the struct
+through the boundary just drawn; `Built::new` keeps it one call wide.
+
+Three gates caught something in that one split: the size check forced it, the compiler caught the
+field leak, and the API surface caught four ledger rows still naming `flex::class_name_of` and
+`bridge::fields_of` after the move.
+
+**Left:** `code_reflective_records` and `evaluate_with_trace` — the reflective dataset for a *code*
+component, which is whole-program I/O rather than one predictor's, and the scoring that captures a
+trace for a metric declaring `program_trace`. Both are `todo` rows the API gate prints every run.
 """
 
 [[story]]

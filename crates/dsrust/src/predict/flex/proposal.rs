@@ -256,3 +256,19 @@ pub fn flex_components(program: &mut (impl Module + ?Sized)) -> BTreeMap<String,
         .map(|named| (named.name, named.flex.module_src().to_owned()))
         .collect()
 }
+
+/// dspy `flex_task_context`: what each `Flex` in a program shows the code proposer.
+///
+/// The two maps [`propose_code`] takes, keyed by the same component path
+/// [`flex_components`] keys — the signature spelled out, and the tools in scope.
+pub fn flex_task_context(
+    program: &mut (impl Module + ?Sized),
+) -> (BTreeMap<String, String>, BTreeMap<String, String>) {
+    let mut described = BTreeMap::new();
+    let mut contexts = BTreeMap::new();
+    for named in program.named_flexes() {
+        described.insert(named.name.clone(), named.flex.signature_spec());
+        contexts.insert(named.name, named.flex.context_blurb(true));
+    }
+    (described, contexts)
+}

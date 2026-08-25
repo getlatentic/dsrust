@@ -476,3 +476,79 @@ fn an_optimizer_reaches_a_flex_nested_in_a_program() {
     let broken = BTreeMap::from([("flexed".to_owned(), "x = 1".to_owned())]);
     assert!(rebind_flex_code(&mut program, &broken).is_err());
 }
+
+/// What the code proposer is shown about the module it is rewriting.
+///
+/// Two renderings with edges the golden settles: a description is skipped when it is dspy's own
+/// `${field}` placeholder — which a signature parsed here spells as an empty string instead, so both
+/// forms of "nobody said" have to be skipped — and a tool's blurb is the *first line* of its
+/// description, stripped, so a tool with nothing to say keeps its trailing space.
+#[test]
+fn it_shows_the_proposer_what_dspy_shows() {
+    use std::sync::Arc;
+
+    fn flex_for(label: &str) -> Flex {
+        let signature: Signature = "question -> answer".parse().expect("parses");
+        match label {
+            "described" => {
+                let mut described: Signature = "question: str, context: str -> answer: str"
+                    .parse()
+                    .expect("parses");
+                described.instructions = "Answer carefully.".to_owned();
+                described.inputs[0].desc = "The question asked.".to_owned();
+                described.outputs[0].desc = "A short answer.".to_owned();
+                Flex::new(described).named("Described")
+            }
+            "one tool" => Flex::new(signature)
+                .with_tools(vec![Arc::new(FnTool::new(
+                    "shout",
+                    "Shout it.\nSecond line ignored.",
+                    json!({}),
+                    |_: &Value| Ok(String::new()),
+                ))])
+                .expect("a valid tool name"),
+            "tool with no docstring" => Flex::new(signature)
+                .with_tools(vec![Arc::new(FnTool::new(
+                    "quiet",
+                    "",
+                    json!({}),
+                    |_: &Value| Ok(String::new()),
+                ))])
+                .expect("a valid tool name"),
+            "two tools" => Flex::new(signature)
+                .with_tools(vec![
+                    Arc::new(FnTool::new("shout", "Shout it.", json!({}), |_: &Value| {
+                        Ok(String::new())
+                    })),
+                    Arc::new(FnTool::new(
+                        "whisper",
+                        "  Whisper it.  ",
+                        json!({}),
+                        |_: &Value| Ok(String::new()),
+                    )),
+                ])
+                .expect("a valid tool name"),
+            _ => Flex::new(signature),
+        }
+    }
+
+    for case in golden()["task_context"].as_array().expect("cases") {
+        let label = case["label"].as_str().expect("label");
+        let flex = flex_for(label);
+        assert_eq!(
+            flex.signature_spec(),
+            case["signature_spec"].as_str().expect("spec"),
+            "render_signature_spec for {label}"
+        );
+        assert_eq!(
+            flex.context_blurb(true),
+            case["context_blurb"].as_str().expect("blurb"),
+            "render_context_blurb(sandboxed=True) for {label}"
+        );
+        assert_eq!(
+            flex.context_blurb(false),
+            case["context_blurb_unsandboxed"].as_str().expect("blurb"),
+            "render_context_blurb() for {label}"
+        );
+    }
+}

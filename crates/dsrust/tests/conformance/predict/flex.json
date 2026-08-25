@@ -152,6 +152,38 @@
       "rendered": "=== Example 0 ===\nInputs:\nNone\nGenerated Outputs:\nNone\nFeedback:\nonly feedback"
     }
   ],
+  "task_context": [
+    {
+      "label": "bare",
+      "signature_spec": "Signature: StringSignature\nObjective (docstring): Given the fields `question`, produce the fields `answer`.\nInput fields:\n  - question: str\nOutput fields:\n  - answer: str\n",
+      "context_blurb": "This module runs in a sandbox: only the tools listed above may be passed to dspy.ReAct/dspy.RLM (their functions live on the host). A function you define inside the module can be called directly in forward, but cannot be handed to those predictors.",
+      "context_blurb_unsandboxed": "(no extra context)"
+    },
+    {
+      "label": "described",
+      "signature_spec": "Signature: Described\nObjective (docstring): Answer carefully.\nInput fields:\n  - question: str  -- The question asked.\n  - context: str\nOutput fields:\n  - answer: str  -- A short answer.\n",
+      "context_blurb": "This module runs in a sandbox: only the tools listed above may be passed to dspy.ReAct/dspy.RLM (their functions live on the host). A function you define inside the module can be called directly in forward, but cannot be handed to those predictors.",
+      "context_blurb_unsandboxed": "(no extra context)"
+    },
+    {
+      "label": "one tool",
+      "signature_spec": "Signature: StringSignature\nObjective (docstring): Given the fields `question`, produce the fields `answer`.\nInput fields:\n  - question: str\nOutput fields:\n  - answer: str\n",
+      "context_blurb": "Available tools (in scope by name):\n  - shout: Shout it.\n\nThis module runs in a sandbox: only the tools listed above may be passed to dspy.ReAct/dspy.RLM (their functions live on the host). A function you define inside the module can be called directly in forward, but cannot be handed to those predictors.",
+      "context_blurb_unsandboxed": "Available tools (in scope by name):\n  - shout: Shout it."
+    },
+    {
+      "label": "tool with no docstring",
+      "signature_spec": "Signature: StringSignature\nObjective (docstring): Given the fields `question`, produce the fields `answer`.\nInput fields:\n  - question: str\nOutput fields:\n  - answer: str\n",
+      "context_blurb": "Available tools (in scope by name):\n  - quiet: \n\nThis module runs in a sandbox: only the tools listed above may be passed to dspy.ReAct/dspy.RLM (their functions live on the host). A function you define inside the module can be called directly in forward, but cannot be handed to those predictors.",
+      "context_blurb_unsandboxed": "Available tools (in scope by name):\n  - quiet: "
+    },
+    {
+      "label": "two tools",
+      "signature_spec": "Signature: StringSignature\nObjective (docstring): Given the fields `question`, produce the fields `answer`.\nInput fields:\n  - question: str\nOutput fields:\n  - answer: str\n",
+      "context_blurb": "Available tools (in scope by name):\n  - shout: Shout it.\n  - whisper: Whisper it.\n\nThis module runs in a sandbox: only the tools listed above may be passed to dspy.ReAct/dspy.RLM (their functions live on the host). A function you define inside the module can be called directly in forward, but cannot be handed to those predictors.",
+      "context_blurb_unsandboxed": "Available tools (in scope by name):\n  - shout: Shout it.\n  - whisper: Whisper it."
+    }
+  ],
   "strip_code_fences": [
     {
       "raw": "plain source",
