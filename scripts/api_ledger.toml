@@ -173,7 +173,7 @@
 "clients/lm.py::litellm_responses_completion" = { status = "divergence", reason = "litellm Responses-API wire call; native provider stack" }
 "clients/lm.py::alitellm_responses_completion" = { status = "divergence", reason = "async litellm Responses-API wire call; native provider stack" }
 "clients/cache.py::Cache" = { status = "mapped", rust = "Cached" }
-"clients/cache.py::request_cache" = { status = "divergence", reason = "internal cache-key decorator" }
+"clients/cache.py::request_cache" = { status = "divergence", reason = "dspy's internal cache-key decorator. The key is taken by `LmRequest::cache_key` here, over the whole request rather than over a chosen subset of kwargs — a decorator has nothing to wrap when the request is already a value" }
 "clients/provider.py::Provider" = { status = "deferred", reason = "finetuning provider abstraction; out of the 1.0 inference/optimization ceiling" }
 "clients/provider.py::TrainingJob" = { status = "deferred", reason = "finetuning; out of the 1.0 ceiling" }
 "clients/provider.py::ReinforceJob" = { status = "deferred", reason = "RL finetuning; out of the 1.0 ceiling" }
@@ -515,7 +515,7 @@
 "clients/base_lm.py::BaseLM.supports_function_calling" = { status = "mapped", rust = "ChatModel::capabilities" }
 "clients/base_lm.py::BaseLM.supports_reasoning" = { status = "mapped", rust = "ChatModel::capabilities" }
 "clients/base_lm.py::BaseLM.supports_response_schema" = { status = "mapped", rust = "ChatModel::capabilities" }
-"clients/base_lm.py::BaseLM.update_history" = { status = "divergence", reason = "dspy's global call log; the crate returns each response to its caller" }
+"clients/base_lm.py::BaseLM.update_history" = { status = "divergence", reason = "dspy appends every call to `lm.history` and to a process-wide log. `LmHistoryEntry` ports the *shape* of one entry, and nothing in this crate builds or accumulates them: each response goes back to its caller from `ChatModel::forward`, and what a caller keeps is theirs. A global log that nothing prunes is a leak a library should not choose for its callers" }
 
 # LM
 "clients/lm.py::LM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
@@ -776,8 +776,8 @@
 "clients/cache.py::Cache.enable_disk_cache" = { status = "mapped", rust = "ResponseCache::enable_disk_cache", reason = "ResponseCache::enable_disk_cache, present or absent" }
 "clients/cache.py::Cache.enable_memory_cache" = { status = "mapped", rust = "ResponseCache", reason = "ResponseCache::new, always on; a caller opts out per LM with without_cache" }
 "clients/cache.py::Cache.memory_max_entries" = { status = "mapped", rust = "ResponseCache::new", reason = "ResponseCache::new takes the cap" }
-"clients/cache.py::Cache.restrict_pickle" = { status = "divergence", reason = "dspy guards against unpickling arbitrary types; nothing here pickles, and the disk cache is JSON" }
-"clients/cache.py::Cache.safe_types" = { status = "divergence", reason = "the allowlist for dspy's pickle guard, which has no counterpart in a JSON cache" }
+"clients/cache.py::Cache.restrict_pickle" = { status = "divergence", reason = "dspy guards against unpickling arbitrary types. `DiskCache` writes and reads JSON — `serde_json::to_vec` and `from_slice` — so there is no pickle to restrict, and an entry that does not parse is discarded rather than trusted" }
+"clients/cache.py::Cache.safe_types" = { status = "divergence", reason = "the allowlist for dspy's pickle guard. `DiskCache` is JSON, so the types a value may take are whatever `LmResponse` declares, and an unknown key is refused by its own `deny_unknown_fields` rather than by a list kept beside it" }
 "clients/lm.py::LM.cache" = { status = "mapped", rust = "LM::cache", reason = "LM::cache / LmBuilder::cache" }
 "clients/lm.py::LM.callbacks" = { status = "mapped", rust = "LM::callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. `LM::callbacks` sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
 "clients/lm.py::LM.finetuning_model" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }

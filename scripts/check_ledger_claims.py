@@ -32,10 +32,16 @@ import tomllib
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 LEDGER = ROOT / "scripts" / "api_ledger.toml"
 
-#: Reasons asserting a capability while naming nothing checkable. Lower it as they gain a name.
-#: The four left describe *dspy's* behaviour or an absence here — "nothing pickles" names nothing
-#: because there is nothing to name — so this is a floor rather than a target of zero.
-UNVERIFIED = 4
+#: Capability claims that name nothing a checker can look at — "this crate caches", with no
+#: identifier, file or path to go and read.
+#:
+#: **Zero, and it can stay zero.** The four that were here were all groundable: each asserted
+#: something true about this crate and simply did not say where to look. Naming
+#: `LmRequest::cache_key`, `LmHistoryEntry` and `DiskCache` turned three of them into claims the
+#: qualified-path check verifies on every run, and the fourth into one that names the method a
+#: response is returned from. A new entry that cannot name anything is either vague or wrong;
+#: raise this only with a note saying which.
+UNVERIFIED = 0
 
 #: A reason that points at something: "reproduced as X", "handled by Y".
 SUBSTITUTION = re.compile(
