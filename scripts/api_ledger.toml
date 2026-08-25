@@ -366,8 +366,8 @@
 "predict/flex/flex.py::Flex.reset" = { status = "divergence", reason = "clears the LM and keeps `module_src`. This crate's `Flex` holds no LM of its own — a caller scopes one, as every other module here is driven" }
 "predict/flex/flex.py::Flex.set_lm" = { status = "divergence", reason = "as `reset`: the model is scoped by the caller rather than stored on the module" }
 "predict/flex/flex.py::Flex.get_lm" = { status = "divergence", reason = "as `set_lm`; there is no stored model to read back" }
-"predict/flex/flex.py::Flex.dump_state" = { status = "todo", reason = "`{module_src, lm}`, which is what a saved Flex is. Waiting on the bridge, because a state that cannot be loaded and run is not worth writing" }
-"predict/flex/flex.py::Flex.load_state" = { status = "todo", reason = "binds the saved `module_src` and restores the LM; the same wait as `dump_state`" }
+"predict/flex/flex.py::Flex.dump_state" = { status = "mapped", rust = "Flex::dump_state", reason = "`{module_src, lm}`, which is what a saved Flex is. It does not fit a predictor state and it was never meant to: running dspy over a program holding one `Predict` and one `Flex` writes both shapes into one map, so `ProgramState` holds a `SubmoduleState` and `a_state_map_reads_both_shapes_dspy_writes` reads dspy's own output back" }
+"predict/flex/flex.py::Flex.load_state" = { status = "mapped", rust = "Flex::load_state_with", reason = "binds the saved `module_src`, keeping the current one when the state carries none, as upstream does. The LM half is the divergence `set_lm` records: a model is scoped by the caller here rather than stored on the module" }
 # `__call__` on every mapped class. Skipped wholesale until 2026-08-25 on the reading that
 # invoking a module is `forward` here — true of `Predict` and `Module`, and of nothing else. It
 # also took their parameters out of `parameter_keys`, which demands them only from a *mapped*
@@ -744,11 +744,11 @@
 [constructors]
 "predict/flex/bridge.py::BridgeRuntime.flex" = { status = "divergence", reason = "upstream's runtime holds the `Flex` back-reference to read its signature and tools. `bridge::run` is a function taking what it needs, so there is nothing to hold and no cycle to keep" }
 "predict/flex/bridge.py::BridgeRuntime.factory" = { status = "mapped", rust = "Flex::interpreter_factory", reason = "what builds the sandbox, kept on the `Flex` and passed in per run" }
-"predict/flex/bridge.py::BridgeRuntime.max_predictor_calls" = { status = "todo", reason = "the per-forward cap; see `Flex.max_predictor_calls`, which is the same gap seen from the caller's side" }
+"predict/flex/bridge.py::BridgeRuntime.max_predictor_calls" = { status = "mapped", rust = "bridge::run", reason = "the per-forward cap, taken by the run and counted beside the table that hands out handles" }
 "predict/flex/flex.py::Flex.signature" = { status = "mapped", rust = "Flex::new", reason = "the signature the baseline is built over" }
 "predict/flex/flex.py::Flex.tools" = { status = "mapped", rust = "Flex::with_tools", reason = "the tools the generated code may call by name, which also makes the baseline an `RLM`. Upstream's two refusals are reproduced: a name that is not an identifier, and one in the sandbox's own `_dspy` namespace" }
 "predict/flex/flex.py::Flex.interpreter_factory" = { status = "mapped", rust = "Flex::interpreter_factory", reason = "what builds the sandbox each forward runs in — the same `InterpreterFactory` seam `ProgramOfThought` takes, so a caller who cannot run Deno supplies their own" }
-"predict/flex/flex.py::Flex.max_predictor_calls" = { status = "todo", reason = "upstream caps bridged predictor calls per forward at 100, so optimizer-authored code cannot loop the model. `bridge::run` counts nothing yet — the cap belongs beside the `Built` table that hands out handles" }
+"predict/flex/flex.py::Flex.max_predictor_calls" = { status = "mapped", rust = "Flex::max_predictor_calls", reason = "how many predictor calls one forward may make, defaulting to upstream's 100 and `None` for no cap. Counted on the call rather than the construction, as upstream counts it: building a hundred predictors costs nothing and calling one a hundred times costs money. `a_budget_stops_the_sandbox_looping_the_model` binds source that loops five times against a budget of two" }
 "propose/dataset_summary_generator.py::DatasetDescriptor.examples" = { status = "mapped", rust = "dataset_descriptor", reason = "the `examples` of that, carried where this crate carries it" }
 "propose/dataset_summary_generator.py::DatasetDescriptor.observations" = { status = "mapped", rust = "dataset_descriptor", reason = "the `observations` of that, carried where this crate carries it" }
 "propose/dataset_summary_generator.py::DatasetDescriptorWithPriorObservations.examples" = { status = "mapped", rust = "dataset_descriptor_with_prior_observations", reason = "the `examples` of that, carried where this crate carries it" }
@@ -1166,6 +1166,9 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "LmFailure::issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+"predict/flex/flex.py::Flex.dump_state.json_mode" = { status = "divergence", reason = "upstream's flag for whether the state must be JSON-serialisable, which its pickle path can decline. `ProgramState` is JSON by construction — a serde type with no second representation — so there is no other mode to ask about" }
+"predict/flex/flex.py::Flex.load_state.state" = { status = "mapped", rust = "Flex::load_state_with", reason = "the saved state to bind from" }
+"predict/flex/flex.py::Flex.load_state.allow_unsafe_lm_state" = { status = "divergence", reason = "upstream's opt-in to reconstructing a custom LM class from the file. This crate has `Trust` for that on `Module::load_state_trusted`, and a `Flex` stores no model to reconstruct — see the `set_lm` entry" }
 "predict/flex/bridge.py::BridgeRuntime.bind.module_src" = { status = "mapped", rust = "Flex::bind", reason = "the source to run next" }
 "predict/flex/bridge.py::BridgeRuntime.forward.inputs" = { status = "mapped", rust = "bridge::run", reason = "the inputs the driver binds before calling the generated forward" }
 "predict/flex/flex.py::Flex.forward.args" = { status = "divergence", reason = "upstream refuses positional inputs outright — `dspy.Flex accepts keyword inputs only`. A Rust `forward` takes one `Example`, so there is no positional form to refuse" }
@@ -1644,6 +1647,11 @@
 "dsrust::predict::flex::Flex::class_name" = { status = "mapped", rust = "Flex::class_name", reason = "dspy's `_class_name`. Public where upstream's is private, because the generated source is public and a caller reading it needs the name it will carry" }
 "dsrust::predict::flex::Flex::bind" = { status = "mapped", rust = "Flex::bind", reason = "dspy's `_bind_code`: replace the source, which is what an optimizer does instead of rewriting instructions. Public for the same reason `module_src` is — it is the update unit" }
 "dsrust::predict::flex::Flex::named" = { status = "divergence", reason = "the signature's own class name, which dspy reads off `signature_cls.__name__` and a Rust `Signature` does not carry. The default is `StringSignature`, which is what `dspy.Signature(\"a -> b\")` builds and therefore what the generated class is named after" }
+"dsrust::module::SubmoduleState" = { status = "divergence", reason = "what one submodule of a program saved. dspy's state map is untyped, so it holds whatever each `dump_state` returned and needs no such name; a typed map needs one, because a `Predict` saves a signature and demos and a `Flex` saves source. Untagged, since dspy writes no discriminator" }
+"dsrust::module::FlexState" = { status = "mapped", rust = "FlexState", reason = "dspy `Flex.dump_state`: the source an optimizer rewrote and the model it was pinned to. `deny_unknown_fields` is load-bearing — both fields are optional, so without it a predictor entry that lost its signature reads as a sourceless `Flex` instead of failing" }
+"dsrust::module::FlexState::module_src" = { status = "mapped", rust = "FlexState::module_src", reason = "the source, which is a Flex's whole update unit" }
+"dsrust::module::FlexState::lm" = { status = "mapped", rust = "FlexState::lm", reason = "the model it was pinned to, as it states itself. Always absent here: a model is scoped by the caller rather than stored on the module, which the `set_lm` entry records" }
+"dsrust::module::ProgramState::state" = { status = "divergence", reason = "one submodule's saved state whatever shape it took, beside `get`, which answers only for predictors. dspy indexes the dict and lets the caller find out what is in it; two accessors say which question is being asked" }
 "dsrust::optimize::Trial" = { status = "mapped", rust = "Trial", reason = "one entry of dspy's `trial_logs`, as the optuna study records it — the parameters a trial proposed and what it scored. Exported 2026-08-24: `MIPROv2::compile_traced` answers with `Vec<Trial>` and this was `pub` inside a private module, so a caller could hold the value and not name the type. Found by diffing the surface walk against rustdoc's own JSON, which lists an item by where it is *defined*" }
 "dsrust::optimize::Trial::params" = { status = "mapped", reason = "`Trial::params` — the parameter values this trial proposed, as optuna records them" }
 
@@ -1871,7 +1879,7 @@
 "dsrust::module::PredictorState::traces" = { status = "divergence", reason = "`PredictorState::traces`, part of the same type's surface; see the entry for `PredictorState`" }
 "dsrust::module::PredictorState::train" = { status = "divergence", reason = "`PredictorState::train`, part of the same type's surface; see the entry for `PredictorState`" }
 "dsrust::module::ProgramState::metadata" = { status = "divergence", reason = "`ProgramState::metadata`, part of the same type's surface; see the entry for `ProgramState`" }
-"dsrust::module::ProgramState::predictors" = { status = "divergence", reason = "`ProgramState::predictors`, part of the same type's surface; see the entry for `ProgramState`" }
+"dsrust::module::ProgramState::submodules" = { status = "mapped", rust = "ProgramState::submodules", reason = "each submodule's saved state under its own name — dspy writes them at the top level of the file. Named `predictors` until 2026-08-25, which stopped being true when `dspy.Flex` landed: a Flex saves `{module_src, lm}` and is not a predictor, and running dspy over a program holding one of each writes both shapes into this one map" }
 "dsrust::module::SignatureState::fields" = { status = "divergence", reason = "`SignatureState::fields`, part of the same type's surface; see the entry for `SignatureState`" }
 "dsrust::module::SignatureState::instructions" = { status = "divergence", reason = "`SignatureState::instructions`, part of the same type's surface; see the entry for `SignatureState`" }
 "dsrust::module::TraceStep::inputs" = { status = "divergence", reason = "`TraceStep::inputs`, part of the same type's surface; see the entry for `TraceStep`" }

@@ -92,6 +92,20 @@ def main() -> None:
             }
         )
 
+    # A program holding one of each, so the state map carries both shapes at once. This is what a
+    # map typed to predictor states cannot read back, and it is not a hypothetical: `dump_state`
+    # writes them side by side.
+    class Mixed(dspy.Module):
+        def __init__(self):
+            super().__init__()
+            self.plain = dspy.Predict("question -> answer")
+            self.flexed = dspy.Flex(dspy.Signature("question -> answer"))
+
+        def forward(self, **kwargs):
+            return self.plain(**kwargs)
+
+    mixed_state = Mixed().dump_state()
+
     fixture = {
         "source": f"generated from dspy=={PINNED} via scripts/generate_flex_fixture.py",
         "dspy_version": PINNED,
@@ -99,6 +113,7 @@ def main() -> None:
             pathlib.Path(dspy.__file__).parent / "predict" / "flex" / "_sandbox_shim.py"
         ).read_text(),
         "cases": cases,
+        "mixed_state": mixed_state,
     }
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / "flex.json"

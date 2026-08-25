@@ -173,12 +173,10 @@ async fn a_flex_runs_its_baseline_through_the_sandbox() {
     use std::sync::Arc;
 
     let lm = Arc::new(DummyLM::new([example! { answer: "Paris" }]));
-    global::configure_model(reqwest::Client::new(), lm);
-
     let signature: Signature = "question -> answer".parse().expect("parses");
     let flex = Flex::new(signature);
-    let answered = flex
-        .forward(example! { question: "What is the capital of France?" })
+    let answered = global::context_model(reqwest::Client::new(), lm)
+        .run(flex.forward(example! { question: "What is the capital of France?" }))
         .await
         .expect("the sandbox ran and the predictor reached the host");
 
@@ -186,5 +184,177 @@ async fn a_flex_runs_its_baseline_through_the_sandbox() {
         answered.get("answer").and_then(Value::as_str),
         Some("Paris"),
         "the generated forward's prediction did not come back: {answered:?}"
+    );
+}
+
+/// The predictor-call budget stops optimizer-authored code from looping the model.
+///
+/// The source a `Flex` runs is written by a model and runs unattended, so a loop around a predictor
+/// is one bad proposal away. Upstream caps it at 100 per forward; this binds source that calls one
+/// five times against a budget of two and asks for the refusal by its wording.
+///
+///     cargo test --test flex_conformance -- --ignored --nocapture
+#[tokio::test]
+#[ignore = "needs deno and, on the first run, a Pyodide download"]
+async fn a_budget_stops_the_sandbox_looping_the_model() {
+    use dsrust::lm::global;
+    use dsrust::{DummyLM, Module, example};
+    use std::sync::Arc;
+
+    let answers: Vec<_> = (0..6).map(|_| example! { answer: "Paris" }).collect();
+    let lm = Arc::new(DummyLM::new(answers));
+
+    let signature: Signature = "question -> answer".parse().expect("parses");
+    let mut flex = Flex::new(signature).max_predictor_calls(Some(2));
+    flex.bind(
+        "class Looping(dspy.Module):\n\
+         \x20   def __init__(self):\n\
+         \x20       super().__init__()\n\
+         \x20       self.predict = dspy.Predict('question: str -> answer: str')\n\
+         \n\
+         \x20   def forward(self, **inputs):\n\
+         \x20       for _ in range(5):\n\
+         \x20           result = self.predict(**inputs)\n\
+         \x20       return dspy.Prediction(answer=result.answer)",
+    )
+    .expect("the source names a class with a forward");
+
+    let refused = global::context_model(reqwest::Client::new(), lm)
+        .run(flex.forward(example! { question: "What is the capital of France?" }))
+        .await
+        .expect_err("five calls against a budget of two must be refused");
+    let said = format!("{refused:#}");
+    assert!(
+        said.contains("predictor-call budget (2)"),
+        "the refusal did not name the budget: {said}"
+    );
+}
+
+/// The generated code names a tool and the host resolves it to the one the `Flex` was given.
+///
+/// A callable cannot cross the JSON boundary, so `tools=[shout]` reaches the host as
+/// `[{"__dspy_tool__": "shout"}]` and the name is looked up. Both halves are worth holding: a name
+/// that resolves builds a predictor holding the real tool, and a name that does not is the
+/// generated code inventing one, which is refused rather than quietly dropped.
+///
+///     cargo test --test flex_conformance -- --ignored --nocapture
+#[tokio::test]
+#[ignore = "needs deno and, on the first run, a Pyodide download"]
+async fn a_tool_the_generated_code_names_is_the_one_the_flex_holds() {
+    use dsrust::lm::global;
+    use dsrust::{DummyLM, Module, example};
+    use std::sync::Arc;
+
+    let answers: Vec<_> = (0..4).map(|_| example! { answer: "Paris" }).collect();
+    let lm = Arc::new(DummyLM::new(answers));
+
+    let signature: Signature = "question -> answer".parse().expect("parses");
+    let shout = FnTool::new("shout", "Shout it.", json!({}), |_: &Value| {
+        Ok("SHOUTED".to_owned())
+    });
+    let mut flex = Flex::new(signature)
+        .with_tools(vec![Arc::new(shout)])
+        .expect("a valid tool name");
+
+    // A name the Flex was never given: the refusal names it rather than building a toolless ReAct.
+    flex.bind(
+        "class Inventing(dspy.Module):\n\
+         \x20   def __init__(self):\n\
+         \x20       super().__init__()\n\
+         \x20       self.agent = dspy.ReAct('question: str -> answer: str', tools=[whisper])\n\
+         \n\
+         \x20   def forward(self, **inputs):\n\
+         \x20       return dspy.Prediction(answer='unused')",
+    )
+    .expect("the source names a class with a forward");
+    let refused = global::context_model(reqwest::Client::new(), lm)
+        .run(flex.forward(example! { question: "anything" }))
+        .await
+        .expect_err("a tool this Flex was not given must be refused");
+    let said = format!("{refused:#}");
+    assert!(
+        said.contains("whisper"),
+        "the refusal did not name the invented tool: {said}"
+    );
+}
+
+/// A program's state map holds whatever each submodule saved, and the shapes differ.
+///
+/// Running dspy over a program holding one `Predict` and one `Flex` writes `{traces, train, demos,
+/// signature, lm}` under one key and `{module_src, lm}` under the other. A map typed to predictor
+/// states cannot read that file back, which is why `ProgramState` holds a `SubmoduleState` — and
+/// the golden is dspy's own output rather than a shape agreed with itself.
+#[test]
+fn a_state_map_reads_both_shapes_dspy_writes() {
+    use dsrust::module::{ProgramState, SubmoduleState};
+
+    let recorded = golden();
+    let written = recorded["mixed_state"].clone();
+    let state: ProgramState =
+        serde_json::from_value(written.clone()).expect("dspy's own state map parses");
+
+    assert!(
+        matches!(state.state("plain"), Some(SubmoduleState::Predictor(_))),
+        "the predictor entry did not read as one: {:?}",
+        state.state("plain")
+    );
+    let Some(SubmoduleState::Flex(flexed)) = state.state("flexed") else {
+        panic!(
+            "the Flex entry did not read as one: {:?}",
+            state.state("flexed")
+        );
+    };
+    assert_eq!(
+        flexed.module_src.as_deref(),
+        written["flexed"]["module_src"].as_str(),
+        "the saved source did not survive the read"
+    );
+    // `get` answers only for predictors, so a Flex entry is not mistaken for one.
+    assert!(state.get("flexed").is_none(), "a Flex read as a predictor");
+}
+
+/// What a `Flex` saves, and that binding it back restores the source an optimizer left.
+#[test]
+fn a_flex_saves_the_source_and_loads_it_again() {
+    use dsrust::module::Module;
+
+    let signature: Signature = "question -> answer".parse().expect("parses");
+    let mut flex = Flex::new(signature);
+    let baseline = flex.module_src().to_owned();
+
+    let optimized = "class Rewritten(dspy.Module):\n\
+                     \x20   def forward(self, **inputs):\n\
+                     \x20       return dspy.Prediction(answer='x')";
+    flex.bind(optimized).expect("valid source");
+    let saved = flex.dump_state();
+
+    let signature: Signature = "question -> answer".parse().expect("parses");
+    let mut restored = Flex::new(signature);
+    assert_eq!(
+        restored.module_src(),
+        baseline,
+        "a fresh Flex holds its baseline"
+    );
+    restored.load_state(&saved).expect("the saved state loads");
+    assert_eq!(
+        restored.module_src(),
+        optimized,
+        "loading did not restore the source the optimizer left"
+    );
+}
+/// A predictor entry that lost its signature is refused, not read as a Flex.
+///
+/// Both of `FlexState`'s fields are optional, so an untagged read matches *any* object unless the
+/// unknown ones are denied — and this exact input read as `FlexState { module_src: None }` before
+/// they were. A corrupt saved program loading quietly as a sourceless `Flex` is worse than one that
+/// fails to load.
+#[test]
+fn a_malformed_predictor_is_not_read_as_a_flex() {
+    use dsrust::module::ProgramState;
+
+    let broken = json!({ "plain": { "traces": [], "demos": [], "lm": null } });
+    assert!(
+        serde_json::from_value::<ProgramState>(broken).is_err(),
+        "a predictor entry with no signature was accepted"
     );
 }

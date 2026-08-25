@@ -83,29 +83,69 @@ impl Default for Metadata {
     }
 }
 
-/// A whole saved program: each predictor under its own name, and the metadata beside them.
+/// What one submodule of a program saved.
 ///
-/// dspy writes the predictors at the top level rather than under a key, which is why they are
-/// flattened here — the file is a map of predictor names with `metadata` among them.
+/// Not every submodule is a predictor. dspy's state map holds whatever each one's `dump_state`
+/// returned, and a `dspy.Flex` returns `{module_src, lm}` — no signature, no demos. Running a
+/// program holding one of each writes both shapes side by side under a single map, so a map typed
+/// to predictor states cannot read its own file back.
+///
+/// Untagged, because dspy writes no discriminator: the shapes are told apart by what they carry, and
+/// a `signature` is what makes a predictor one.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(untagged)]
+pub enum SubmoduleState {
+    Predictor(PredictorState),
+    Flex(FlexState),
+}
+
+/// dspy `Flex.dump_state`: the source an optimizer rewrote, and the model it was pinned to.
+///
+/// A `Flex`'s update unit is its source rather than a signature and some demos, so this is the whole
+/// of what it saves.
+/// `deny_unknown_fields` is what makes the untagged read honest. Both fields are optional, so
+/// without it *any* object matches — and a predictor entry that lost its signature would read as a
+/// `Flex` holding no source rather than failing, which is a corrupt saved program loading quietly.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FlexState {
+    pub module_src: Option<String>,
+    #[serde(default)]
+    pub lm: Option<Value>,
+}
+
+/// A whole saved program: each submodule under its own name, and the metadata beside them.
+///
+/// dspy writes them at the top level rather than under a key, which is why they are flattened here
+/// — the file is a map of submodule names with `metadata` among them.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ProgramState {
     #[serde(flatten)]
-    pub predictors: BTreeMap<String, PredictorState>,
+    pub submodules: BTreeMap<String, SubmoduleState>,
     #[serde(default)]
     pub metadata: Metadata,
 }
 
 impl ProgramState {
-    /// The state for these named predictors, with the metadata dspy expects.
-    pub fn new(predictors: BTreeMap<String, PredictorState>) -> Self {
+    /// The state for these named submodules, with the metadata dspy expects.
+    pub fn new(submodules: BTreeMap<String, SubmoduleState>) -> Self {
         Self {
-            predictors,
+            submodules,
             metadata: Metadata::default(),
         }
     }
 
+    /// One submodule's state, whatever shape it saved in.
+    pub fn state(&self, name: &str) -> Option<&SubmoduleState> {
+        self.submodules.get(name)
+    }
+
+    /// One predictor's state, or nothing when that name saved something else.
     pub fn get(&self, name: &str) -> Option<&PredictorState> {
-        self.predictors.get(name)
+        match self.submodules.get(name) {
+            Some(SubmoduleState::Predictor(predictor)) => Some(predictor),
+            _ => None,
+        }
     }
 }
 
@@ -283,7 +323,7 @@ mod tests {
     fn a_program_writes_its_predictors_beside_the_metadata() {
         let state = ProgramState::new(BTreeMap::from([(
             "predict".to_owned(),
-            PredictorState::of(&signature(), &[], None),
+            SubmoduleState::Predictor(PredictorState::of(&signature(), &[], None)),
         )]));
         let written = serde_json::to_value(&state).expect("serializes");
         assert!(written["predict"]["signature"]["instructions"].is_string());

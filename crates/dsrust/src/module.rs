@@ -21,7 +21,10 @@ mod state;
 mod trust;
 
 use state::demo_from_fields;
-pub use state::{DSPY_VERSION, FieldState, Metadata, PredictorState, ProgramState, SignatureState};
+pub use state::{
+    DSPY_VERSION, FieldState, FlexState, Metadata, PredictorState, ProgramState, SignatureState,
+    SubmoduleState,
+};
 pub use trust::Trust;
 
 /// One predictor inside a program: its signature and its demos, borrowed for inspection or
@@ -161,7 +164,7 @@ pub trait Module: Send + Sync {
                         .as_ref()
                         .and_then(|model| model.dump_state_dyn());
                     let state = PredictorState::of(predictor.signature, predictor.demos, lm);
-                    (predictor.name, state)
+                    (predictor.name, SubmoduleState::Predictor(state))
                 })
                 .collect(),
         )

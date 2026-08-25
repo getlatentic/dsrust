@@ -75,5 +75,30 @@
       "class_name": "StringSignatureModule",
       "baseline_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.rlm = dspy.RLM(dspy.Signature('question: str -> answer: str', 'Given the fields `question`, produce the fields `answer`.'), tools=[shout])\n\n    def forward(self, **inputs):\n        result = self.rlm(**inputs)\n        return dspy.Prediction(answer=result.answer)"
     }
-  ]
+  ],
+  "mixed_state": {
+    "plain": {
+      "traces": [],
+      "train": [],
+      "demos": [],
+      "signature": {
+        "instructions": "Given the fields `question`, produce the fields `answer`.",
+        "fields": [
+          {
+            "prefix": "Question:",
+            "description": "${question}"
+          },
+          {
+            "prefix": "Answer:",
+            "description": "${answer}"
+          }
+        ]
+      },
+      "lm": null
+    },
+    "flexed": {
+      "module_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> answer: str', 'Given the fields `question`, produce the fields `answer`.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer)",
+      "lm": null
+    }
+  }
 }

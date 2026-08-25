@@ -19,7 +19,7 @@ use anyhow::{Result, bail};
 
 use crate::example::{Example, Prediction};
 use crate::interpreter::{DenoInterpreter, InterpreterFactory, factory};
-use crate::module::Module;
+use crate::module::{FlexState, Module, ProgramState, SubmoduleState};
 use crate::react::Tool;
 use crate::signature::Signature;
 
@@ -47,7 +47,13 @@ pub struct Flex {
     /// dspy's `interpreter_factory`: one sandbox per forward, shut down after — the same seam
     /// `ProgramOfThought` takes, so a caller who cannot run Deno supplies their own.
     interpreter_factory: InterpreterFactory,
+    /// dspy's `max_predictor_calls`: how many predictor calls one forward may make, `None` for no
+    /// cap. See [`max_predictor_calls`](Self::max_predictor_calls).
+    max_predictor_calls: Option<usize>,
 }
+
+/// dspy's `max_predictor_calls=100`: the default budget for one forward.
+const DEFAULT_PREDICTOR_CALLS: usize = 100;
 
 impl Flex {
     /// A `Flex` over this signature, holding the baseline source until an optimizer replaces it.
@@ -58,6 +64,7 @@ impl Flex {
             tools: Vec::new(),
             module_src: String::new(),
             interpreter_factory: factory(DenoInterpreter::new),
+            max_predictor_calls: Some(DEFAULT_PREDICTOR_CALLS),
         };
         flex.module_src = flex.baseline_src();
         flex
@@ -69,6 +76,16 @@ impl Flex {
     /// standard-library subset it is allowed to use.
     pub fn interpreter_factory(mut self, interpreter_factory: InterpreterFactory) -> Self {
         self.interpreter_factory = interpreter_factory;
+        self
+    }
+
+    /// dspy's `max_predictor_calls`: how many predictor calls one forward may make.
+    ///
+    /// The source a `Flex` runs is written by a model and runs unattended, so a loop around a
+    /// predictor is one bad proposal away from spending a budget. `None` removes the cap, which is
+    /// upstream's own escape hatch and means what it says.
+    pub fn max_predictor_calls(mut self, max_predictor_calls: Option<usize>) -> Self {
+        self.max_predictor_calls = max_predictor_calls;
         self
     }
 
@@ -253,6 +270,42 @@ fn python_repr(value: &str) -> String {
 }
 
 impl Module for Flex {
+    /// dspy's `Flex.dump_state`: the source, and the model it was pinned to.
+    ///
+    /// A `Flex`'s update unit is its `module_src`, not a signature and some demos — which is why
+    /// the state map holds a [`SubmoduleState`] rather than a predictor state. Keyed `self` as every
+    /// bare module here is; a `Flex` inside a program is keyed by its attribute, as upstream keys it.
+    fn dump_state(&mut self) -> ProgramState {
+        ProgramState::new(
+            [(
+                "self".to_owned(),
+                SubmoduleState::Flex(FlexState {
+                    module_src: Some(self.module_src.clone()),
+                    lm: None,
+                }),
+            )]
+            .into(),
+        )
+    }
+
+    /// dspy's `Flex.load_state`: bind the saved source.
+    ///
+    /// Upstream keeps the current source when the state carries none, and so does this — a state
+    /// written before anything optimized it has nothing to say about the module's shape.
+    fn load_state_with(
+        &mut self,
+        state: &ProgramState,
+        _trust: crate::module::Trust,
+    ) -> Result<()> {
+        let Some(SubmoduleState::Flex(saved)) = state.state("self") else {
+            bail!("the saved state has no dspy.Flex entry for \"self\"");
+        };
+        if let Some(module_src) = &saved.module_src {
+            self.bind(module_src.clone())?;
+        }
+        Ok(())
+    }
+
     /// dspy's `Flex.forward`: run the bound source in a fresh sandbox and read its prediction back.
     ///
     /// The predictors the generated code builds are this crate's and run here, which is what makes
@@ -264,10 +317,9 @@ impl Module for Flex {
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
-            let interpreter = (self.interpreter_factory)()?;
             let class_name = class_name_of(&self.module_src)?;
             let answered = bridge::run(
-                interpreter,
+                self.interpreter_factory.clone(),
                 SANDBOX_SHIM,
                 &self.module_src,
                 &class_name,
@@ -276,6 +328,7 @@ impl Module for Flex {
                     .fields()
                     .map(|(name, value)| (name.to_owned(), value.clone()))
                     .collect(),
+                self.max_predictor_calls,
             )
             .await?;
             bridge::prediction_of(&answered, &self.signature)

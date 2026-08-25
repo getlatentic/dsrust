@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1361
+rust_tests = 1364
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -3531,11 +3531,36 @@ The first run failed with `__dspy_construct__() got an unexpected keyword argume
 `Tool::args` is dspy's argument *map*, and an empty one made the sandbox write a `def` taking
 nothing. The wire named the gap exactly, which is the only reason it was not a hunt through the shim.
 
-**Still open, and printed by the gate every run:** `max_predictor_calls` — upstream caps bridged
-calls at 100 so optimizer-authored code cannot loop the model, and nothing counts yet — plus
-`dump_state`/`load_state`, and the kinds past `Predict` and `ChainOfThought`. `RLM` and the
-code-executing ones need a nested interpreter of their own; the bridge refuses them by name rather
-than silently.
+**Closed since:** the budget, all seven bridgeable kinds, and the saved state.
+
+`max_predictor_calls` counts on the *call* rather than the construction, as upstream counts it —
+building a hundred predictors is free and calling one a hundred times is not. Source that loops five
+times against a budget of two is refused by name; raising the budget stops the refusal.
+
+All seven kinds bridge now. The code-executing three take the `Flex`'s own interpreter factory, so
+the inner sandbox is the backend chosen for the Flex. Tools cross as `{"__dspy_tool__": name}`
+markers and resolve by name against what the `Flex` was given; a name it was not given is refused
+*naming it*, rather than building a toolless agent.
+
+**`dump_state`/`load_state` was not a wait — it was a defect.** This entry used to say they were
+"waiting on the bridge". Running dspy over a program holding one `Predict` and one `Flex` writes two
+shapes into one map: `{traces, train, demos, signature, lm}` under one key and `{module_src, lm}`
+under the other. `ProgramState` was `BTreeMap<String, PredictorState>` and could not read its own
+file back once a Flex was in it. It holds a `SubmoduleState` now, and the test reads dspy's own
+output rather than a shape agreed with itself.
+
+That change carried a trap worth recording. Both `FlexState` fields are optional, so the untagged
+read matched **any** object: a predictor entry that had lost its signature deserialised as
+`FlexState { module_src: None }` instead of failing, which is a corrupt saved program loading
+quietly. `deny_unknown_fields` is what makes the discrimination honest, the probe that found it is a
+test, and the control confirms it goes red without it.
+
+Three sandbox tests raced on the process-wide model. Fixed by scoping per test rather than locking —
+narrower than the race, and the per-poll scope reaches across the bridge thread because the predictor
+runs on the asynchronous side.
+
+**Left:** the GEPA integration, which is what a `Flex` is *for* — `teleprompt/gepa/gepa_flex_utils.py`
+is where an optimizer recognises one by type and rewrites its source instead of tuning instructions.
 """
 
 [[story]]

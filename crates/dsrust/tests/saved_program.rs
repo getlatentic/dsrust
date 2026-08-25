@@ -172,6 +172,6 @@ fn a_saved_file_reads_back_into_the_state_it_was_written_from() {
     program.save(&path).expect("saves");
     let read: ProgramState =
         serde_json::from_str(&std::fs::read_to_string(&path).expect("readable")).expect("parses");
-    let expected: BTreeMap<String, _> = program.dump_state().predictors;
-    assert_eq!(read.predictors, expected);
+    let expected: BTreeMap<String, _> = program.dump_state().submodules;
+    assert_eq!(read.submodules, expected);
 }
