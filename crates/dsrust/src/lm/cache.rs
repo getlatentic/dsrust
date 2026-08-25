@@ -133,6 +133,23 @@ static SHARED: OnceLock<ResponseCache> = OnceLock::new();
 ///
 /// The *whole* request goes in, as upstream's whole kwargs dict does. Hashing a chosen subset is
 /// the dangerous kind of wrong — two calls differing only in a missed field share an entry, and the
+/// ```
+/// use dsrust::lm::cache::key_of;
+///
+/// let asked = serde_json::json!({ "model": "m", "messages": [], "temperature": 0.0 });
+/// let with_a_tool = serde_json::json!({
+///     "model": "m", "messages": [], "temperature": 0.0, "tools": [{ "name": "search" }],
+/// });
+/// // A field this crate does not name still changes the key. Hashing a chosen subset is what
+/// // made adding a tool replay an answer from before the tool existed — a wrong answer, not a
+/// // wasted call.
+/// assert_ne!(key_of(&asked), key_of(&with_a_tool));
+///
+/// // And key order does not, because the request is canonicalised first — this crate builds
+/// // `serde_json` with `preserve_order`, so two equal requests would otherwise split entries.
+/// let reordered = serde_json::json!({ "temperature": 0.0, "messages": [], "model": "m" });
+/// assert_eq!(key_of(&asked), key_of(&reordered));
+/// ```
 /// second is answered with the first's reply.
 pub fn key_of(request: &serde_json::Value) -> String {
     use sha2::Digest;

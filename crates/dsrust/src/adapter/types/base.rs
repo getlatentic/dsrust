@@ -77,6 +77,15 @@ pub fn serialized<T: Type + ?Sized>(value: &T) -> String {
     }
 }
 
+/// ```
+/// use dsrust::adapter::types::base::to_field_value;
+/// use dsrust::Image;
+///
+/// // A custom type reaches a field as its *serialized* form — a JSON string, not a nested object.
+/// // dspy does the same, and an adapter reads the string back out when it renders.
+/// let image = Image::new("https://example.invalid/a.png").expect("a url");
+/// assert!(to_field_value(&image).is_string());
+/// ```
 /// The [`Value`] a caller puts in a field for `value` to render — [`serialized`] as a JSON string.
 pub fn to_field_value<T: Type + ?Sized>(value: &T) -> Value {
     Value::String(serialized(value))

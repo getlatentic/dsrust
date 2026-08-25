@@ -218,6 +218,20 @@ where
 /// dspy `Evaluate.score`: the metric's mean as a percentage, rounded to two places.
 ///
 /// Not the 0..1 mean [`Evaluation::score`] carries — upstream reports a percentage, and it reaches
+/// A mean as the percentage dspy reports — `round(mean * 100, 2)`, and the rounding matters.
+///
+/// Python rounds half to *even*, so a score landing exactly on a half goes to the nearest even
+/// hundredth rather than always up. A comparison against a number dspy printed will drift on those
+/// without it.
+///
+/// ```
+/// use dsrust::evaluate::percent;
+///
+/// assert_eq!(percent(2.0 / 3.0), 66.67);
+/// // Half-to-even: `.125` of a percent goes down to `.12`, where half-up would give `.13`.
+/// assert_eq!(percent(0.00125), 0.12);
+/// assert_eq!(percent(0.00375), 0.38);
+/// ```
 /// a model in COPRO's attempts block, so the rounding is part of the bytes.
 pub fn percent(mean: f64) -> f64 {
     (10_000.0 * mean).round_ties_even() / 100.0
