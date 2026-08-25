@@ -56,6 +56,11 @@ CAPABILITY = re.compile(
     re.I,
 )
 RS_FILE = re.compile(r"\b((?:[a-z_][a-z0-9_]*/)*[a-z_][a-z0-9_]*\.rs)\b")
+#: `chat.rs::chat_user` — a file and an item *in* it. No other rule sees this spelling: `BARE_PATH`
+#: matches from the `rs`, finds no such crate, and skips the whole path as foreign. So a reason
+#: naming a renamed private helper this way went unchecked, which is how 21 of them were written.
+#: The file must exist and must be where the item is defined, which is the claim being made.
+RS_PATH = re.compile(r"\b((?:[a-z_][a-z0-9_]*/)*[a-z_][a-z0-9_]*\.rs)::([A-Za-z_][A-Za-z0-9_]*)\b")
 IDENT = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)`")
 #: A qualified path *anywhere* in a reason or a `rust` field, backticks or not, and on **every**
 #: status rather than only on divergences. `LM::with_callbacks` was named eight times in plain text
@@ -89,19 +94,22 @@ EXTERNAL = {
 }
 
 
-def tree() -> tuple[set[str], set[str]]:
-    """Every name defined anywhere in the crates, and every `.rs` path.
+def tree() -> tuple[set[str], set[str], dict[str, set[str]]]:
+    """Every name defined anywhere in the crates, every `.rs` path, and each file's own names.
 
     Definitions are collected regardless of visibility: a reason may legitimately point at a private
     helper, and `numbered_block` — the first substitution in the file — is one. A `pub`-only walk
     reported it missing, which is how this function came to be written the way it is.
     """
-    names, files = set(EXTERNAL), set()
+    names, files, by_file = set(EXTERNAL), set(), {}
     for path in (ROOT / "crates").rglob("*.rs"):
         text = path.read_text(errors="ignore")
-        names |= set(DEFINITION.findall(text)) | set(VARIANT.findall(text)) | set(FIELD.findall(text))
-        files.add(str(path.relative_to(ROOT)))
-    return names, files
+        own = set(DEFINITION.findall(text)) | set(VARIANT.findall(text)) | set(FIELD.findall(text))
+        names |= own
+        rel = str(path.relative_to(ROOT))
+        files.add(rel)
+        by_file[rel] = own
+    return names, files, by_file
 
 
 def upstream_names() -> set[str]:
@@ -117,7 +125,7 @@ def upstream_names() -> set[str]:
 
 def main() -> int:
     ledger = tomllib.loads(LEDGER.read_text())
-    names, files = tree()
+    names, files, by_file = tree()
     theirs = upstream_names()
 
     missing: list[tuple[str, str, str]] = []
@@ -151,6 +159,14 @@ def main() -> int:
             # `LmBuilder::callbacks`, and every one of those reasons said "there is no" — which no
             # substitution-only check ever looks at. A reason may still name a Python symbol or an
             # environment variable in backticks, and those carry no `::`.
+            for path_named, item in set(RS_PATH.findall(reason + " " + str(entry.get("rust") or ""))):
+                # Every file the suffix names, not the first — two files here are called `demos.rs`,
+                # and picking one of them reported a reason wrong that named the other.
+                owners = [f for f in files if f.endswith("/" + path_named) or f == path_named]
+                if not owners:
+                    missing.append((key, "file", path_named))
+                elif not any(item in by_file[f] for f in owners):
+                    missing.append((key, "item in file", f"{path_named}::{item}"))
             for named in set(WITH_NAME.findall(reason + " " + str(entry.get("rust") or ""))):
                 if named not in names and named not in theirs:
                     missing.append((key, "with_ name", named))
