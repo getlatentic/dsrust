@@ -38,6 +38,13 @@ fn output(name: &str, desc: &str) -> OutField {
     }
 }
 
+/// dspy's `PRIMITIVES_CATALOG`: what the code proposer is told it may write.
+///
+/// Vendored rather than rewritten, for the shim's reason — the code it describes is Python and runs
+/// in the sandbox, so this is the text upstream sends and not a translation of it. Held to the pin
+/// by `the_vendored_catalog_is_upstreams_own`.
+pub const PRIMITIVES_CATALOG: &str = include_str!("primitives_catalog.txt");
+
 /// dspy `CodeProposalSignature`: what GEPA asks a model when the component is *source*.
 ///
 /// A `Flex`'s optimizable component is a whole `dspy.Module` subclass rather than an instruction, so

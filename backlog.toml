@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1368
+rust_tests = 1374
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -3616,9 +3616,41 @@ Three gates caught something in that one split: the size check forced it, the co
 field leak, and the API surface caught four ledger rows still naming `flex::class_name_of` and
 `bridge::fields_of` after the move.
 
-**Left:** `code_reflective_records` and `evaluate_with_trace` — the reflective dataset for a *code*
-component, which is whole-program I/O rather than one predictor's, and the scoring that captures a
-trace for a metric declaring `program_trace`. Both are `todo` rows the API gate prints every run.
+**Nothing is left.** `code_reflective_records`, `evaluate_with_trace`, and the loop that ties them
+together are in, and the API gate prints no `todo` rows for `gepa_flex_utils.py` at all.
+
+**Writing the end-to-end test found three defects, each hiding the next.** The seed candidate was
+built from `named_predictors()` alone, so a code component never entered the search and a program
+made *only* of a `Flex` reached the engine with nothing to round-robin over and **divided by zero**.
+`propose_new_texts` looked every component up in `named_predictors`, so a Flex fell out of the map
+and nothing proposed for it. And `set_instructions` wrote instructions only, so a better module could
+be proposed, scored and accepted while the program kept the one it started with. A program with no
+components is refused by name now rather than panicking.
+
+The test had to be written so the program answers from *its own current source*; the first version
+returned a constant, so the proposal scored as the seed did and GEPA rightly rejected it — it would
+have passed on a search that accepted nothing.
+
+**A control that did not bite deleted code.** A filter kept code components out of the predicate
+path; the control showed it inert, because a Flex has no signature and drops out of the `filter_map`
+already. The filter was never the fix — the branch was.
+
+**Three shortcuts of mine, found by asking rather than by a gate.** `python_repr` escaped only
+backslashes and quotes where Python's escapes control characters, so a signature with a **multi-line
+docstring** generated a literal newline inside a single-quoted string — unterminated, unparseable.
+`is_identifier` refused `x` plus a combining acute, which Python accepts, so a tool name dspy allows
+could not be registered. And the derive stripped one leading space per doc-comment line where dspy
+runs `inspect.cleandoc`, which parts company three ways of nine — a uniformly indented comment, a
+flush first line, and a tab — each a different string in front of the model.
+
+All three were written by *describing* what Python does instead of running it. The pattern held: the
+helpers built from measured output were right, the ones built from a description were about half
+wrong, and a golden only caught it where a case sat on the edge.
+
+**And a doc comment that named a test which did not exist** — `PRIMITIVES_CATALOG` claimed to be held
+to the pin by `the_vendored_catalog_is_upstreams_own`. Writing it exposed a second problem: the
+golden key had been added by a one-off script and the next run of the real generator silently dropped
+it. A golden written outside its generator does not survive regeneration.
 """
 
 [[story]]

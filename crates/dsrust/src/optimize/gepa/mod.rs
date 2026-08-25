@@ -12,8 +12,10 @@
 //! `Predict` it never fires, so `use_merge` on by default costs nothing there.
 
 mod adapter;
+mod binding;
 mod metric;
 mod proposer;
+mod reflecting;
 
 #[cfg(test)]
 mod conformance;
@@ -32,7 +34,8 @@ pub use gepa::Reflective;
 pub use metric::{Feedback, MetricContext};
 pub use proposer::{InstructionProposer, ReflectiveDataset};
 
-use adapter::{Adapter, set_instructions};
+use adapter::Adapter;
+use binding::set_instructions;
 
 use super::Optimizer;
 use crate::example::{Example, Prediction};
@@ -249,7 +252,15 @@ where
             self.max_metric_calls > 0,
             "GEPA needs a metric-call budget; set it with max_metric_calls"
         );
-        let seed_candidate: Candidate = student
+        // Every optimizable component, of both kinds. A predictor contributes its instruction and a
+        // `Flex` contributes its *source* — upstream keys code components by the submodule's
+        // parameter path, in the same candidate map, and the proposer decides which is which.
+        //
+        // Built from predictors alone until 2026-08-25, so a `Flex` never entered the search: the
+        // component was absent from the candidate, `propose_new_texts` could not find it either, and
+        // a program made only of a Flex reached the engine with nothing to round-robin over and
+        // divided by zero.
+        let mut seed_candidate: Candidate = student
             .named_predictors()
             .into_iter()
             .map(|predictor| {
@@ -259,6 +270,16 @@ where
                 )
             })
             .collect();
+        seed_candidate.extend(
+            student
+                .named_flexes()
+                .into_iter()
+                .map(|named| (named.name, named.flex.module_src().to_owned())),
+        );
+        anyhow::ensure!(
+            !seed_candidate.is_empty(),
+            "GEPA has nothing to optimize: the program declares no predictors and no dspy.Flex"
+        );
 
         let engine = GepaEngine {
             adapter: Adapter::new(

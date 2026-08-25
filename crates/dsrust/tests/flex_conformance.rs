@@ -552,3 +552,273 @@ fn it_shows_the_proposer_what_dspy_shows() {
         );
     }
 }
+
+/// A metric scoring a program that holds a `Flex` reads the run from `program_trace`, not `trace`.
+///
+/// Upstream is explicit that `trace` stays `None` here, "preserving the eval-mode semantics of
+/// non-Flex GEPA scoring" — so a metric written against `trace` behaves the same whether or not a
+/// Flex appears, and one that wants the run asks for `program_trace`. Two claims, and the second is
+/// the one a port drops: it is easy to fill both and pass any test that only checks the run arrived.
+#[test]
+fn a_flex_program_scores_through_program_trace_and_leaves_trace_empty() {
+    use dsrust::module::{Module, NamedFlex};
+    use dsrust::optimize::{Feedback, MetricContext};
+    use dsrust::{Example, Prediction};
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Default)]
+    struct Seen {
+        trace: Vec<bool>,
+        program_trace: Vec<bool>,
+    }
+
+    struct Holder {
+        flexed: Option<Flex>,
+        inner: dsrust::predict::Predict,
+    }
+
+    impl Module for Holder {
+        fn forward<'a>(
+            &'a self,
+            inputs: Example,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = anyhow::Result<Prediction>> + Send + 'a>,
+        > {
+            self.inner.forward(inputs)
+        }
+
+        fn named_predictors(&mut self) -> Vec<dsrust::NamedPredictor<'_>> {
+            self.inner.named_predictors()
+        }
+
+        fn named_flexes(&mut self) -> Vec<NamedFlex<'_>> {
+            self.flexed
+                .iter_mut()
+                .flat_map(Module::named_flexes)
+                .collect()
+        }
+    }
+
+    fn scored_with(holding_a_flex: bool) -> Seen {
+        let seen = Arc::new(Mutex::new(Seen::default()));
+        let recorded = seen.clone();
+        let signature: Signature = "question -> answer".parse().expect("parses");
+        let mut program = Holder {
+            flexed: holding_a_flex.then(|| Flex::new(signature.clone())),
+            inner: dsrust::predict::Predict::from_signature(signature.clone()),
+        };
+        let metric = move |_: &Example, _: &Prediction, context: &MetricContext<'_>| {
+            let mut at = recorded.lock().expect("not poisoned");
+            at.trace.push(context.trace.is_some());
+            at.program_trace.push(context.program_trace.is_some());
+            Feedback::score_only(1.0)
+        };
+        let lm = Arc::new(dsrust::DummyLM::new([
+            dsrust::example! { answer: "Paris" },
+            dsrust::example! { answer: "Paris" },
+        ]));
+        dsrust::lm::global::configure_model(reqwest::Client::new(), lm);
+        let trainset = vec![dsrust::example! { question: "Where?" }.with_inputs(["question"])];
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime")
+            .block_on(async {
+                let _ = dsrust::GEPA::new(metric, Arc::new(dsrust::DummyLM::new([])) as Arc<_>)
+                    .max_metric_calls(2)
+                    .compile(&mut program, &trainset, &trainset)
+                    .await;
+            });
+        Arc::try_unwrap(seen)
+            .map(|held| held.into_inner().expect("not poisoned"))
+            .ok()
+            .expect("one holder left")
+    }
+
+    let with_flex = scored_with(true);
+    assert!(
+        with_flex.program_trace.iter().any(|filled| *filled),
+        "a Flex program scored with no program_trace"
+    );
+    assert!(
+        with_flex.trace.iter().all(|filled| !filled),
+        "trace was filled for a Flex program, which upstream keeps empty so eval-mode semantics hold"
+    );
+
+    let without = scored_with(false);
+    assert!(
+        without.program_trace.iter().all(|filled| !filled),
+        "program_trace was filled for a program with no Flex"
+    );
+}
+
+/// GEPA optimizes a `Flex` by rewriting its *source*, which is the thing a Flex exists for.
+///
+/// Every other flex test here exercises one piece. This is the loop: GEPA finds the Flex through
+/// `named_flexes`, builds its reflective records from whole-program I/O, sends them to the code
+/// proposer with the primitives catalog, and binds the module the model answers with. The reflection
+/// model is scripted, so what is under test is the wiring rather than any model's judgement.
+///
+/// Before this, `propose_new_texts` looked every component up in `named_predictors` and a Flex
+/// silently fell out of the map — the search ran and optimized nothing.
+#[tokio::test]
+async fn gepa_rewrites_a_flexs_source() {
+    use dsrust::lm::{ChatModel, DynChatModel, api};
+    use dsrust::module::{Module, NamedFlex};
+    use dsrust::optimize::{Feedback, MetricContext};
+    use dsrust::{Example, Prediction};
+    use std::sync::{Arc, Mutex};
+
+    const REWRITTEN: &str = "class Better(dspy.Module):\n\
+                             \x20   def forward(self, **inputs):\n\
+                             \x20       return dspy.Prediction(answer='better')";
+
+    /// A reflection model that answers every proposal with the same fenced source, and records the
+    /// prompts it was sent so the test can assert the proposer was reached at all.
+    struct Coder(Arc<Mutex<Vec<String>>>);
+
+    impl ChatModel for Coder {
+        async fn forward(&self, request: &api::LmRequest) -> anyhow::Result<api::LmResponse> {
+            self.0
+                .lock()
+                .expect("not poisoned")
+                .push(request.system().to_owned());
+            Ok(api::LmResponse::text(format!(
+                "[[ ## revised_source ## ]]\n```python\n{REWRITTEN}\n```\n\n[[ ## completed ## ]]"
+            )))
+        }
+    }
+
+    struct Program {
+        flexed: Flex,
+    }
+
+    impl Module for Program {
+        fn forward<'a>(
+            &'a self,
+            _inputs: Example,
+        ) -> std::pin::Pin<
+            Box<dyn std::future::Future<Output = anyhow::Result<Prediction>> + Send + 'a>,
+        > {
+            // The program answers from its *own current source*, so a proposal that is never bound
+            // scores exactly as the seed does and GEPA rightly rejects it. Without this the test
+            // passes on a search that accepted nothing.
+            let answer = match self.flexed.module_src().contains("Better") {
+                true => "better",
+                false => "worse",
+            };
+            Box::pin(async move {
+                Ok(Prediction::new(
+                    dsrust::example! { answer: answer },
+                    String::new(),
+                ))
+            })
+        }
+
+        fn named_flexes(&mut self) -> Vec<NamedFlex<'_>> {
+            self.flexed
+                .named_flexes()
+                .into_iter()
+                .map(|mut inner| {
+                    inner.name = "flexed".to_owned();
+                    inner
+                })
+                .collect()
+        }
+    }
+
+    let prompts = Arc::new(Mutex::new(Vec::new()));
+    let signature: Signature = "question -> answer".parse().expect("parses");
+    let mut program = Program {
+        flexed: Flex::new(signature),
+    };
+    let trainset = vec![dsrust::example! { question: "Where?" }.with_inputs(["question"])];
+
+    dsrust::GEPA::new(
+        |_: &Example, prediction: &Prediction, _: &MetricContext<'_>| match prediction
+            .get("answer")
+            .and_then(Value::as_str)
+        {
+            Some("better") => Feedback::new(1.0, "right"),
+            _ => Feedback::new(0.0, "wrong answer"),
+        },
+        Arc::new(Coder(prompts.clone())) as Arc<dyn DynChatModel>,
+    )
+    .max_metric_calls(6)
+    .reflection_minibatch_size(1)
+    .compile(&mut program, &trainset, &trainset)
+    .await
+    .expect("compiles");
+
+    let sent = prompts.lock().expect("not poisoned");
+    assert!(
+        sent.iter()
+            .any(|prompt| prompt.contains("Revise the full source code")),
+        "the code proposer was never reached: {sent:?}"
+    );
+    assert_eq!(
+        program.flexed.module_src(),
+        REWRITTEN,
+        "GEPA accepted a source and did not bind it"
+    );
+}
+
+/// A tool name is refused exactly where Python refuses one, over the cases that were measured.
+///
+/// Upstream rejects a tool whose name is not a Python identifier, because the generated code
+/// references it by name. Python's rule is `XID_Start`/`XID_Continue` — derived properties with no
+/// table in this crate — so the implementation is an approximation and this is what says how good
+/// it is. `x` plus a combining acute is the case that found the first gap: an identifier to Python,
+/// refused here, so a tool dspy accepts could not be registered.
+#[test]
+fn it_refuses_the_tool_names_python_refuses() {
+    use serde_json::json;
+    use std::sync::Arc;
+
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/conformance/predict/identifiers.json");
+    let recorded: Value =
+        serde_json::from_str(&std::fs::read_to_string(&path).expect("committed")).expect("parses");
+
+    for (name, python) in recorded["python"].as_object().expect("cases") {
+        let signature: Signature = "question -> answer".parse().expect("parses");
+        let tool = FnTool::new(name.clone(), "a tool", json!({}), |_: &Value| {
+            Ok(String::new())
+        });
+        let accepted = Flex::new(signature)
+            .with_tools(vec![Arc::new(tool)])
+            .is_ok();
+        // A name in the sandbox's own `_dspy` namespace is refused for a second reason, which these
+        // cases do not reach — none of them starts with an underscore followed by `dspy`.
+        assert_eq!(
+            accepted,
+            python.as_bool().expect("a verdict"),
+            "tool name {name:?}: dspy would {}",
+            match python.as_bool() == Some(true) {
+                true => "accept it",
+                false => "refuse it",
+            }
+        );
+    }
+}
+
+/// The primitives catalog is upstream's file, not a rewrite of it.
+///
+/// It is what the code proposer is told it may write, and the code it describes is Python running in
+/// the sandbox — so it is vendored for the shim's reason: there is nothing to translate, and drift
+/// from the pin would mean the model is told a different set of rules than dspy tells it.
+///
+/// This test is here because a doc comment claimed it before it existed.
+#[test]
+fn the_vendored_catalog_is_upstreams_own() {
+    use dsrust::predict::flex::proposal::PRIMITIVES_CATALOG;
+
+    let recorded = golden();
+    let upstream = recorded["primitives_catalog"]
+        .as_str()
+        .expect("the catalog");
+    assert_eq!(
+        PRIMITIVES_CATALOG, upstream,
+        "the vendored primitives_doc.py has drifted from the pinned dspy"
+    );
+}

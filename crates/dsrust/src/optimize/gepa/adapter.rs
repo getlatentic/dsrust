@@ -7,6 +7,10 @@ use futures_util::StreamExt;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+use super::binding::set_instructions;
+use super::reflecting::{
+    Captured, code_reflective_records, reflective_records, rendered_inputs, rendered_map,
+};
 use gepa::{
     Candidate, EvalBatch, GepaAdapter, Reflective, ReflectiveSample, extract_new_instruction,
     render_prompt,
@@ -25,26 +29,6 @@ const REFLECTION_MODEL: &str = "gepa-reflection";
 
 /// dspy `build_program`: set each named predictor's instruction from the candidate. Shared by the
 /// adapter's evaluation and by the optimizer applying the winning candidate.
-pub(super) fn set_instructions<S: Module + ?Sized>(student: &mut S, candidate: &Candidate) {
-    for predictor in student.named_predictors() {
-        if let Some(instruction) = candidate.get(&predictor.name) {
-            predictor.signature.instructions = instruction.clone();
-        }
-    }
-}
-
-/// One example's captured run, kept from a `capture_traces=true` evaluation so [`Adapter::propose_new_texts`]
-/// can build the reflective dataset — dspy's `eval_batch.trajectories`.
-///
-/// The example and its prediction travel with the trace because the feedback text is *not* computed
-/// here: dspy calls the metric again at reflection time, once per record, with the predictor it
-/// drew. So what scoring keeps is the run, not a sentence about it.
-struct Captured {
-    example: Example,
-    prediction: Prediction,
-    trace: Vec<TraceStep>,
-}
-
 /// dspy's `DspyAdapter`, over one student program mutated in place per candidate. Generic over the
 /// student type so no `dyn` coercion is needed; the engine drives it sequentially, so borrowing the
 /// student for each evaluation is sound.
@@ -56,6 +40,11 @@ pub(super) struct Adapter<'a, S: Module + ?Sized, M> {
     valset: &'a [Example],
     failure_score: f64,
     captured: Vec<Captured>,
+    /// Whether the student holds a `Flex`, which decides how a metric is called while scoring.
+    ///
+    /// Read once when the adapter is built rather than per example: the walk is cheap but it takes
+    /// `&mut`, and scoring holds the student immutably.
+    has_flexes: bool,
     /// dspy `num_threads`: how many examples one evaluation runs at once. One at a time by default,
     /// which is upstream's `num_threads=None`.
     num_threads: usize,
@@ -81,6 +70,7 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
         proposer: Option<Arc<dyn super::InstructionProposer>>,
         seed: u64,
     ) -> Self {
+        let has_flexes = !student.named_flexes().is_empty();
         Self {
             student,
             metric,
@@ -89,6 +79,7 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
             valset,
             failure_score,
             captured: Vec::new(),
+            has_flexes,
             num_threads,
             proposer,
             rng: Random::seeded(seed),
@@ -152,17 +143,25 @@ where
                 example: example.clone(),
                 prediction: Prediction::new(Example::default(), String::new()),
                 trace: Vec::new(),
+                scored: Feedback::score_only(self.failure_score),
             });
             return (self.failure_score, captured);
         };
         // dspy's scoring call is the ordinary metric call — `Evaluate` and `bootstrap_trace_data`
-        // pass no predictor, and a trace only while capturing.
-        let scoring = MetricContext::scoring(capture_traces.then_some(trace.as_slice()));
+        // pass no predictor, and a trace only while capturing. A program holding a `Flex` scores
+        // through `evaluate_with_trace` instead, which hands the run over as `program_trace` and
+        // leaves `trace` empty, so a metric written for ordinary scoring reads the same thing in
+        // both regimes.
+        let scoring = match self.has_flexes {
+            true => MetricContext::scoring_a_program(&trace),
+            false => MetricContext::scoring(capture_traces.then_some(trace.as_slice())),
+        };
         let feedback = (self.metric)(example, &prediction, &scoring);
         let captured = capture_traces.then(|| Captured {
             example: example.clone(),
             prediction: prediction.clone(),
             trace,
+            scored: feedback.clone(),
         });
         (feedback.score, captured)
     }
@@ -203,6 +202,8 @@ where
                 trace: Some(&captured.trace),
                 predictor: Some(predictor),
                 predictor_step: Some(step),
+                // Reflection is not scoring: upstream fills `program_trace` only at scoring time.
+                program_trace: None,
             };
             let feedback =
                 (self.metric)(&captured.example, &captured.prediction, &reflecting).text();
@@ -216,6 +217,37 @@ where
             ]);
         }
         samples
+    }
+
+    /// Ask the code proposer for a new module source for each `Flex` component.
+    ///
+    /// Its reflective records are the same for every code component — whole-program I/O is not
+    /// per-component — so they are built once and shown to each.
+    async fn propose_code_for(&mut self, code: &[String], candidate: &Candidate) -> Candidate {
+        let records = code_reflective_records(&self.captured);
+        if records.is_empty() {
+            return Candidate::new();
+        }
+        let failures: BTreeMap<String, Vec<serde_json::Map<String, serde_json::Value>>> = code
+            .iter()
+            .map(|name| (name.clone(), reflective_records(&records)))
+            .collect();
+        let current: BTreeMap<String, String> = candidate
+            .iter()
+            .map(|(name, text)| (name.clone(), text.clone()))
+            .collect();
+        let (described, contexts) = crate::predict::flex::proposal::flex_task_context(self.student);
+        let proposed = crate::predict::flex::proposal::propose_code(
+            code,
+            &current,
+            &failures,
+            &described,
+            &contexts,
+            crate::predict::flex::proposal::PRIMITIVES_CATALOG,
+            self.reflection.clone(),
+        )
+        .await;
+        proposed.into_iter().collect()
     }
 
     /// Call the reflection model with the rendered prompt and return its raw completion, from which
@@ -278,6 +310,20 @@ where
             .into_iter()
             .map(|predictor| (predictor.name.clone(), predictor.signature.clone()))
             .collect();
+        // A `Flex`'s component is source, not an instruction, and the two are proposed differently:
+        // a predictor reflects on one drawn step and is asked for an instruction, a Flex reflects on
+        // whole-program I/O and is asked for a whole module.
+        //
+        // A code component drops out of the map below on its own — it has no signature, because it
+        // is not a predictor — so what was missing was never a filter but the *branch*: nothing
+        // proposed for the components that fell out. A control confirmed the filter was inert.
+        let code: Vec<String> = self
+            .student
+            .named_flexes()
+            .into_iter()
+            .map(|named| named.name)
+            .filter(|name| components.contains(name))
+            .collect();
         let datasets: BTreeMap<String, super::ReflectiveDataset> = components
             .iter()
             .filter_map(|name| {
@@ -303,60 +349,11 @@ where
                 new_texts.insert(name.clone(), extract_new_instruction(&raw));
             }
         }
+        if !code.is_empty() {
+            new_texts.extend(self.propose_code_for(&code, candidate).await);
+        }
         new_texts
     }
-}
-
-/// A predictor's *inputs* as a GEPA reflective map.
-///
-/// dspy lifts a `History` input out of the field map into a fenced `Context` block and drops the
-/// original key, so the conversation reaches the reflection model as one numbered listing rather
-/// than as a JSON blob in a field. Upstream decides by `isinstance(input_val, History)`; this
-/// decides by the signature's annotation, which is the same question asked of the declaration
-/// rather than of the value — and the only one available once a value is an untyped `Value`.
-///
-/// Each message is `str(message)` on a Python dict: single-quoted, `None`/`True` spellings, which
-/// is what [`crate::python::repr`] already renders for the prompts that show Python source.
-fn rendered_inputs(inputs: &Example, signature: &crate::signature::Signature) -> Reflective {
-    let history = crate::adapter::history::field_name(signature);
-    let mut entries: Vec<(String, Reflective)> = Vec::new();
-    if let Some(value) = history.and_then(|name| inputs.get(name)) {
-        entries.push(("Context".to_owned(), Reflective::Text(context_block(value))));
-    }
-    for (name, rendered) in inputs.rendered() {
-        if Some(name.as_str()) == history {
-            continue;
-        }
-        entries.push((name, Reflective::Text(rendered)));
-    }
-    Reflective::Map(entries)
-}
-
-/// dspy's `Context` value: a ```` ```json ```` fence around one `  {i}: {message}` line per
-/// exchange. The fence says json and the contents are Python dict reprs; that is upstream's, not a
-/// transcription slip.
-fn context_block(history: &serde_json::Value) -> String {
-    let mut block = String::from("```json\n");
-    let messages = history
-        .get("messages")
-        .and_then(serde_json::Value::as_array);
-    for (index, message) in messages.into_iter().flatten().enumerate() {
-        block.push_str(&format!("  {index}: {}\n", crate::python::repr(message)));
-    }
-    block.push_str("```");
-    block
-}
-
-/// An example's fields as a GEPA reflective map: field name → its rendered value, in declaration
-/// order (dspy's `{k: str(v) for k, v in inputs.items()}`).
-fn rendered_map(example: &Example) -> Reflective {
-    Reflective::Map(
-        example
-            .rendered()
-            .into_iter()
-            .map(|(name, value)| (name, Reflective::Text(value)))
-            .collect(),
-    )
 }
 
 #[cfg(test)]
@@ -395,6 +392,7 @@ mod tests {
                 outputs: example! { answer: "Paris" },
                 signature: qa_signature("Answer."),
             }],
+            scored: Feedback::score_only(1.0),
         }];
 
         let dataset = adapter.reflective_dataset("self", &qa_signature("Answer."));
@@ -590,6 +588,7 @@ mod tests {
                     signature: qa_signature(instruction),
                 },
             ],
+            scored: Feedback::score_only(1.0),
         }
     }
 
@@ -624,6 +623,7 @@ mod tests {
                 outputs: example! { answer: answer },
                 signature: signature.clone(),
             }],
+            scored: Feedback::score_only(1.0),
         }];
 
         let dataset = adapter.reflective_dataset("step", &signature);
@@ -671,6 +671,7 @@ mod tests {
                         signature: signature.clone(),
                     },
                 ],
+                scored: Feedback::score_only(1.0),
             }];
 
             // Upstream walks `components_to_update` in order off one generator, so the order the

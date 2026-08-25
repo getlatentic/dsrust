@@ -35,6 +35,12 @@ CASES = [
     ("non-scalar", "question: str -> tags: list[str]", None),
     ("int and bool", "n: int, flag: bool -> doubled: int", None),
     ("instructions with a quote", "question -> answer", "Say \"hello\" first."),
+    # `repr` escapes control characters, and the generated source is Python that has to parse: a
+    # literal newline inside a single-quoted string is an unterminated string, not a long one.
+    ("multi-line instructions", "question -> answer", "Answer the question.\n\nBe brief."),
+    ("instructions with a tab", "question -> answer", "Answer.\tBriefly."),
+    ("instructions with a backslash", "question -> answer", "Escape \\n literally."),
+    ("instructions with an apostrophe and a newline", "question -> answer", "Don't.\nEver."),
 ]
 
 
@@ -81,7 +87,10 @@ def main() -> None:
             {
                 "label": label,
                 "signature": signature,
-                "instructions": instructions,
+                # What dspy *stored*, not what was passed: `Signature` runs a docstring through
+                # `inspect.cleandoc`, which expands tabs — so a tab never reaches `repr` and a
+                # comparison against the raw string would be testing two different inputs.
+                "instructions": built.instructions,
                 "rendered_signature": flex._flex_ctx.render_signature_string(),
                 "class_name": flex._class_name(),
                 "baseline_src": flex._baseline_src(),
@@ -189,6 +198,12 @@ def main() -> None:
     fixture = {
         "source": f"generated from dspy=={PINNED} via scripts/generate_flex_fixture.py",
         "dspy_version": PINNED,
+        # Both vendored files, so a pin bump fails a test rather than going unnoticed. Written here
+        # rather than by hand: this key was once added by a one-off script and the next run of *this*
+        # generator dropped it, which left a doc comment naming a test that could not pass.
+        "primitives_catalog": (
+            pathlib.Path(dspy.__file__).parent / "predict" / "flex" / "primitives_doc.py"
+        ).read_text().split('"""', 2)[1].removeprefix("\\\n"),
         "shim": (
             pathlib.Path(dspy.__file__).parent / "predict" / "flex" / "_sandbox_shim.py"
         ).read_text(),

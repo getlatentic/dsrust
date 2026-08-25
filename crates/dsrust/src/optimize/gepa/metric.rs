@@ -5,6 +5,7 @@
 /// acceptance and the Pareto front (summed over a minibatch, averaged over the valset); the feedback
 /// is the text GEPA reflects on. `None` feedback becomes `This trajectory got a score of {score}.`,
 /// dspy's fallback in `feedback_fn_creator`.
+#[derive(Clone)]
 pub struct Feedback {
     pub score: f64,
     pub feedback: Option<String>,
@@ -28,13 +29,21 @@ impl Feedback {
     }
 
     /// The feedback text GEPA reflects on, defaulting to dspy's score sentence.
+    ///
+    /// Empty text counts as absent, because upstream's `feedback or "This trajectory got a score
+    /// of …"` is falsy on `""` as well as on `None`. A metric that answers with a score and no
+    /// words gets the sentence either way it spells "no words", and the model is never handed a
+    /// blank field.
     pub(super) fn text(&self) -> String {
-        self.feedback.clone().unwrap_or_else(|| {
-            format!(
-                "This trajectory got a score of {}.",
-                python_float(self.score)
-            )
-        })
+        self.feedback
+            .clone()
+            .filter(|text| !text.is_empty())
+            .unwrap_or_else(|| {
+                format!(
+                    "This trajectory got a score of {}.",
+                    python_float(self.score)
+                )
+            })
     }
 }
 
@@ -58,6 +67,14 @@ pub struct MetricContext<'a> {
     pub predictor: Option<&'a str>,
     /// dspy's `pred_trace`: the step GEPA drew for `predictor`, and `None` exactly when it is.
     pub predictor_step: Option<&'a crate::module::TraceStep>,
+    /// dspy's `program_trace`: the whole run, handed to a metric at *scoring* time.
+    ///
+    /// Distinct from [`trace`](Self::trace), and upstream is explicit about why: when a `Flex` is in
+    /// the program, scoring captures the run so a metric can score against what the program *did* —
+    /// penalise model calls, reward deterministic code — while `trace` stays `None` to keep the
+    /// eval-mode semantics non-Flex scoring has. A metric reading `trace` therefore cannot tell the
+    /// two regimes apart, which is the property that note is protecting.
+    pub program_trace: Option<&'a [crate::module::TraceStep]>,
 }
 
 impl MetricContext<'_> {
@@ -67,6 +84,22 @@ impl MetricContext<'_> {
             trace,
             predictor: None,
             predictor_step: None,
+            program_trace: None,
+        }
+    }
+
+    /// dspy `evaluate_with_trace`'s scoring call: the run reaches the metric as `program_trace`,
+    /// and `trace` stays `None`.
+    ///
+    /// What a program holding a `Flex` scores through. The trace is captured either way; the
+    /// difference is which argument a metric reads it from, and upstream keeps `trace` empty here so
+    /// that a metric written for ordinary GEPA scoring behaves the same when a Flex appears.
+    pub(super) fn scoring_a_program(trace: &[crate::module::TraceStep]) -> MetricContext<'_> {
+        MetricContext {
+            trace: None,
+            predictor: None,
+            predictor_step: None,
+            program_trace: Some(trace),
         }
     }
 }
@@ -97,6 +130,25 @@ mod tests {
     /// Python's `str(float)`, which is what the fallback feedback sentence carries: integral
     /// values keep `.0`, non-integral print shortest-round-trip, and the non-finite spellings are
     /// Python's — `inf` matches Rust's Display by luck, `nan` does not and was `NaN` until this.
+    /// Empty feedback is absent feedback, because upstream's `or` is falsy on `""`.
+    ///
+    /// A metric answering with a score and no words can spell that two ways, and a port that only
+    /// handled `None` would hand the reflection model a blank field for the other one. This reaches
+    /// the per-predictor path too, not only a `Flex`'s.
+    #[test]
+    fn a_metric_with_no_words_gets_the_sentence_either_way_it_says_so() {
+        assert_eq!(
+            Feedback::score_only(0.5).text(),
+            "This trajectory got a score of 0.5."
+        );
+        assert_eq!(
+            Feedback::new(0.5, "").text(),
+            "This trajectory got a score of 0.5.",
+            "empty feedback is absent feedback"
+        );
+        assert_eq!(Feedback::new(0.5, "real").text(), "real");
+    }
+
     #[test]
     fn scores_print_the_way_python_str_prints_them() {
         assert_eq!(python_float(1.0), "1.0");

@@ -1,0 +1,38 @@
+{
+  "conventional": {
+    "raw": " Answer the question.\n Be brief.",
+    "cleandoc": "Answer the question.\nBe brief."
+  },
+  "uniformly indented": {
+    "raw": "     Answer the question.\n     Be brief.",
+    "cleandoc": "Answer the question.\nBe brief."
+  },
+  "first line flush": {
+    "raw": "Answer.\n     Be brief.",
+    "cleandoc": "Answer.\nBe brief."
+  },
+  "ragged": {
+    "raw": " Answer.\n   Deeper.\n Back.",
+    "cleandoc": "Answer.\n  Deeper.\nBack."
+  },
+  "with a tab": {
+    "raw": " Answer.\tBriefly.",
+    "cleandoc": "Answer.        Briefly."
+  },
+  "leading blank line": {
+    "raw": "\n Answer.",
+    "cleandoc": "Answer."
+  },
+  "trailing blank line": {
+    "raw": " Answer.\n",
+    "cleandoc": "Answer."
+  },
+  "blank line inside": {
+    "raw": " Answer.\n\n Be brief.",
+    "cleandoc": "Answer.\n\nBe brief."
+  },
+  "single line": {
+    "raw": " Answer.",
+    "cleandoc": "Answer."
+  }
+}

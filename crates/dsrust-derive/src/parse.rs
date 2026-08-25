@@ -126,7 +126,63 @@ fn doc_text(attrs: &[Attribute]) -> String {
         .filter(|attr| attr.path().is_ident("doc"))
         .filter_map(doc_line)
         .collect();
-    lines.join("\n").trim().to_owned()
+    cleandoc(&lines.join("\n"))
+}
+
+/// Python's `inspect.cleandoc`, which is what dspy runs a signature's docstring through.
+///
+/// A doc comment here plays the part a docstring plays there, so it is normalised the same way:
+/// tabs expanded, the indentation common to every line *after the first* removed, and blank lines
+/// trimmed off both ends. This used to strip one leading space per line and trim, which agrees for
+/// the conventional `/// text` and parts company three ways — a uniformly indented comment kept its
+/// indent, a comment whose first line is flush kept the rest's, and a tab survived. Instructions
+/// render into the prompt, so each of those is a different string in front of the model.
+fn cleandoc(doc: &str) -> String {
+    let expanded: Vec<String> = doc.split('\n').map(expand_tabs).collect();
+    let margin = expanded
+        .iter()
+        .skip(1)
+        .filter(|line| !line.trim_start_matches(' ').is_empty())
+        .map(|line| line.len() - line.trim_start_matches(' ').len())
+        .min();
+    let mut lines: Vec<String> = expanded
+        .iter()
+        .enumerate()
+        .map(|(at, line)| match (at, margin) {
+            (0, _) => line.trim_start_matches(' ').to_owned(),
+            (_, Some(margin)) => line.chars().skip(margin).collect(),
+            (_, None) => line.clone(),
+        })
+        .collect();
+    while lines.last().is_some_and(String::is_empty) {
+        lines.pop();
+    }
+    while lines.first().is_some_and(String::is_empty) {
+        lines.remove(0);
+    }
+    lines.join("\n")
+}
+
+/// Python's `str.expandtabs()`: a tab advances to the next multiple of **eight**, its default.
+///
+/// Eight, not the four `_strip_code_fences` asks for — `cleandoc` calls `expandtabs()` bare.
+fn expand_tabs(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut column = 0;
+    for character in line.chars() {
+        match character {
+            '\t' => {
+                let advance = 8 - (column % 8);
+                out.extend(std::iter::repeat_n(' ', advance));
+                column += advance;
+            }
+            other => {
+                out.push(other);
+                column += 1;
+            }
+        }
+    }
+    out
 }
 
 fn doc_line(attr: &Attribute) -> Option<String> {
@@ -139,8 +195,9 @@ fn doc_line(attr: &Attribute) -> Option<String> {
     else {
         return None;
     };
-    let line = lit.value();
-    Some(line.strip_prefix(' ').unwrap_or(&line).to_owned())
+    // Raw: `cleandoc` removes the common margin, which for the conventional `/// text` is the one
+    // space this used to strip per line. Pre-stripping would hide a deeper uniform indent from it.
+    Some(lit.value())
 }
 
 enum Direction {
@@ -414,5 +471,40 @@ mod tests {
             model.inputs[0].values,
             Some(vec!["terse".to_owned(), "florid".to_owned()])
         );
+    }
+}
+
+#[cfg(test)]
+mod cleandoc_tests {
+    use super::cleandoc;
+
+    /// dspy runs a signature's docstring through `inspect.cleandoc`, and a doc comment here plays
+    /// the same part — so it is normalised the same way.
+    ///
+    /// The expected values were recorded by running Python (see
+    /// `crates/dsrust/tests/conformance/predict/cleandoc.json`), not reasoned out. Three of these
+    /// nine disagree with a per-line one-space strip, which is what this did before: a uniformly
+    /// indented comment, one whose first line is flush against a deeper rest, and one with a tab.
+    #[test]
+    fn it_cleans_the_docstring_python_cleans() {
+        for (raw, expected) in [
+            (
+                " Answer the question.\n Be brief.",
+                "Answer the question.\nBe brief.",
+            ),
+            (
+                "     Answer the question.\n     Be brief.",
+                "Answer the question.\nBe brief.",
+            ),
+            ("Answer.\n     Be brief.", "Answer.\nBe brief."),
+            (" Answer.\n   Deeper.\n Back.", "Answer.\n  Deeper.\nBack."),
+            (" Answer.\tBriefly.", "Answer.        Briefly."),
+            ("\n Answer.", "Answer."),
+            (" Answer.\n", "Answer."),
+            (" Answer.\n\n Be brief.", "Answer.\n\nBe brief."),
+            (" Answer.", "Answer."),
+        ] {
+            assert_eq!(cleandoc(raw), expected, "cleandoc({raw:?})");
+        }
     }
 }

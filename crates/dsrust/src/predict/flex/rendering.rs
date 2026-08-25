@@ -203,21 +203,50 @@ pub fn class_name_of(module_src: &str) -> Result<String> {
     }
 }
 
-/// Python's `str.isidentifier`, over the ASCII a generated name can use.
+/// Python's `str.isidentifier`, which is what upstream refuses a tool name by.
+///
+/// Python's rule is `XID_Start` then `XID_Continue`, and those are derived properties this crate has
+/// no table for — `unicode-general-category` gives categories, not `XID_*`. So this is an
+/// approximation, and the approximation is *stated* rather than assumed: alphabetic or `_` to start,
+/// then alphanumeric, `_`, or a combining mark.
+///
+/// The mark is there because it was measured. `x` followed by a combining acute is an identifier to
+/// Python and was not here, since `char::is_alphanumeric` excludes `Mn` — so a tool name dspy accepts
+/// was refused. `it_refuses_the_tool_names_python_refuses` holds all twenty cases that were checked;
+/// a twenty-first that parts company would be a real one to find rather than a hypothetical.
 pub(super) fn is_identifier(name: &str) -> bool {
+    fn continues(character: char) -> bool {
+        let category = unicode_general_category::get_general_category(character);
+        character.is_alphanumeric() || character == '_' || category.abbreviation().starts_with('M')
+    }
     let mut chars = name.chars();
     chars
         .next()
         .is_some_and(|first| first.is_alphabetic() || first == '_')
-        && chars.all(|c| c.is_alphanumeric() || c == '_')
+        && chars.all(continues)
 }
 
 /// Python's `repr` of a string, which is what the generated source embeds.
 ///
-/// Single quotes unless the value holds one and no double quote — the rule `quoted_member` follows
-/// for a literal annotation, and Python's own.
+/// Single quotes unless the value holds one and no double quote, and **control characters escape**
+/// — `\n`, `\t`, `\r` by name and anything else unprintable as `\xNN`. That second half was
+/// missing at first, and the generated source is Python that has to parse: a literal newline inside
+/// a single-quoted string is an unterminated string, not a long one. A signature with a multi-line
+/// docstring produced code the sandbox could not run.
 fn python_repr(value: &str) -> String {
-    let escaped = value.replace('\\', "\\\\");
+    let escaped: String = value
+        .chars()
+        .map(|character| match character {
+            '\\' => "\\\\".to_owned(),
+            '\n' => "\\n".to_owned(),
+            '\t' => "\\t".to_owned(),
+            '\r' => "\\r".to_owned(),
+            other if (other as u32) < 0x20 || other as u32 == 0x7f => {
+                format!("\\x{:02x}", other as u32)
+            }
+            other => other.to_string(),
+        })
+        .collect();
     match (escaped.contains('\''), escaped.contains('"')) {
         (true, false) => format!("\"{escaped}\""),
         (true, true) => format!("'{}'", escaped.replace('\'', "\\'")),
