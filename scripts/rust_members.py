@@ -53,13 +53,30 @@ def _leading_name(text: str) -> str | None:
     return found.group(1) if found else None
 
 
+#: A free function at module scope, which no `impl` block owns.
+FREE_FN = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn (\w+)")
+
+
+def _module_of(path: pathlib.Path) -> str:
+    """The module a file defines: its stem, or its directory for a `mod.rs`."""
+    return path.parent.name if path.name == "mod.rs" else path.stem
+
+
 @functools.cache
 def _read_all() -> tuple[dict[str, set[str]], dict[str, set[str]]]:
     owned: dict[str, set[str]] = {}
     traits: dict[str, set[str]] = {}
     for tree in RUST_TREES:
         for path in (ROOT / tree).rglob("*.rs"):
-            _read(path.read_text(), owned, traits)
+            source = path.read_text()
+            _read(source, owned, traits)
+            # Module-scope functions under the module's own name, so `openai::request` is a pair a
+            # checker can verify. Without it a free function can only be named bare, and eight
+            # files define a `request` — an entry naming one of them would pass on any of the other
+            # seven, which is the whole failure the qualified names exist to stop.
+            free = {m.group(1) for m in (FREE_FN.match(line) for line in source.splitlines()) if m}
+            if free:
+                owned.setdefault(_module_of(path), set()).update(free)
     return owned, traits
 
 

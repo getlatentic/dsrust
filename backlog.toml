@@ -4909,3 +4909,47 @@ and a type (`Predict`) *are* the specific answer; the 210 are one or the other. 
 stops is a *member* name written bare. Regressing one entry raises the count to 211 and fails the
 gate with the reason.
 """
+
+[[story]]
+id = "ported-in-effect-unlisted"
+sprint = "api"
+title = "Six modules this crate ports are on no list, so none of their symbols is held to the ledger"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+Found by auditing the coverage excuses and noticing a second declaration nobody checks.
+`check_coverage.py` guarantees every upstream *test file* is running or excused; nothing makes that
+guarantee for *source* modules. Its own docstring records the cost: the usage tracker "was not in
+PORTED_MODULES at all despite the crate implementing it. Two live bugs were sitting behind that
+miss."
+
+**The tell is cheap and worth reusing.** This crate cites upstream by name constantly, so a name the
+Rust source explains itself in terms of, whose only home is a module on no list, is ported in effect
+and unclassified:
+
+    for each backtick-quoted name in crates/dsrust/src/**/*.rs:
+        if dspy defines it, and none of its defining modules is in PORTED_MODULES: report
+
+Nine came up. The three `streaming/` ones are done. Six are left, in the order their citation count
+suggests:
+
+- `clients/openai_format.py` — **26 citations**, the canonical 3.3 wire module: `to_openai_chat_request`,
+  `common_config_kwargs`, `responses_config_kwargs`, `completion_to_lm_response`,
+  `responses_to_lm_response`, `binary_to_openai`. The OpenAI body is byte-verified against this file
+  and none of its symbols has a ledger entry. Highest value of the six.
+- `teleprompt/gepa/gepa_utils.py` — `DspyAdapter`, which the reflective-dataset golden drives.
+- `utils/dummies.py` — `DummyLM`, ported as `DummyLM`.
+- `primitives/python_interpreter.py` — `PythonInterpreter`, ported as the Deno sandbox.
+- `utils/saving.py` — `load`, and this crate reads and writes saved programs.
+- `utils/mcp.py` — `convert_mcp_tool`, ported in `react/mcp.rs`.
+
+**What proves it.** Each module in `PORTED_MODULES` with every symbol it declares classified, which
+is what the API-surface gate then enforces on every run. Watch the bare-name floor while doing it:
+a type or a free function may stay bare, a member may not, and each addition should be checked
+against `rust_members` before the floor moves.
+
+**And the check itself should become a gate**, or this recurs. The script above is ten lines; the
+argument against running it is that a citation is prose and prose has false positives — so it wants
+an excuse table of its own, exactly as `check_coverage.py` has, rather than a threshold.
+"""

@@ -180,11 +180,17 @@ def report(label: str, defined: set[str], entries: dict) -> None:
 #: happens to have one. `Parallel.forward` was mapped to `forward` and passed on forty other types'
 #: `forward`; renaming `Parallel::run` today fails that entry by name.
 #:
+#: 217 -> 229 when `clients/openai_format.py` joined: twelve free functions, each checked to be
+#: the *only* definition of its name in the crate, which is what makes a bare name specific. The
+#: two that were not — `request` with eight definitions and `usage` with six — are written
+#: `openai::request` and `response::usage` instead, which `rust_members` resolves now that it
+#: records module-scope functions under their module's name.
+#:
 #: 210 -> 217 when the three streaming modules joined the ported list: six type names
 #: (`StreamedField`, `StatusMessages`, `Announcing`, `Watching`, `FieldListener`,
 #: `JsonFieldListener`) and one free function (`streamify`). Each was checked against
 #: `rust_members` before this moved — raise it only after doing the same.
-BARE_FLOOR = 217
+BARE_FLOOR = 229
 
 
 def report_bare(tables: dict) -> int:

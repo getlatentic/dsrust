@@ -97,6 +97,9 @@ PORTED_MODULES = [
     "clients/cache.py",
     "clients/provider.py",
     "clients/openai.py",
+    # The canonical 3.3 wire. The OpenAI body this crate sends is byte-verified against this
+    # module, and it was cited twenty-six times across the source while being on no list.
+    "clients/openai_format.py",
     # evaluate
     "evaluate/evaluate.py",
     "evaluate/metrics.py",
