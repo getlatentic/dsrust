@@ -48,7 +48,7 @@ pub fn configure_model(http: reqwest::Client, lm: Arc<dyn DynChatModel>) {
 /// [`GLOBAL`] is one static for the whole test binary and cargo runs tests on parallel threads,
 /// so two tests that each configure it race: the later install wins, and the earlier test's
 /// module then reads a script written for another test. That surfaces as a scripted answer
-/// appearing in the wrong assertion, or as "no answer left" — intermittently, and nowhere near
+/// appearing in the wrong assertion, or as `No more responses` — intermittently, and nowhere near
 /// the test that caused it.
 ///
 /// Hold the returned guard for as long as the test uses the model, which means binding it:

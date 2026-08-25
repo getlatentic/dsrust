@@ -28,13 +28,32 @@ use serde_json::Value;
 /// take turns.
 static SERIAL: Mutex<()> = Mutex::new(());
 
-fn install(lm: Arc<DummyLM>, recording: Arc<Recording>) -> std::sync::MutexGuard<'static, ()> {
+fn install(
+    lm: Arc<dyn dsrust::lm::DynChatModel>,
+    recording: Arc<Recording>,
+) -> std::sync::MutexGuard<'static, ()> {
     let guard = SERIAL
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     global::configure_model(reqwest::Client::new(), lm);
     configure_callbacks([recording as Arc<dyn Callback>]);
     guard
+}
+
+/// A model whose call fails, which is how the abandoned evaluation loses its one row.
+///
+/// Not an exhausted [`DummyLM`]: upstream's answers `No more responses` rather than refusing, so a
+/// script that runs dry is a parse failure and a retry, not the single clean model error this case
+/// is about.
+struct FailingLM;
+
+impl dsrust::lm::ChatModel for FailingLM {
+    fn forward<'a>(
+        &'a self,
+        _request: &'a api::LmRequest,
+    ) -> impl std::future::Future<Output = anyhow::Result<api::LmResponse>> + Send + 'a {
+        std::future::ready(Err(anyhow::anyhow!("no answer")))
+    }
 }
 
 /// Every handler, recording its name and how deep the call it belongs to was.
@@ -364,9 +383,9 @@ async fn an_evaluation_encloses_the_calls_it_made() {
 #[tokio::test]
 async fn an_abandoned_evaluation_still_closes_its_point() {
     let recording = Arc::new(Recording::default());
-    // No scripted answer, so the model call itself errors — the one failure both ports produce the
-    // same way. A parse failure would take each side down its JSON-fallback path instead.
-    let lm = Arc::new(DummyLM::new([]));
+    // The model call itself errors, which is the one failure both ports produce the same way. A
+    // parse failure would take each side down its JSON-fallback path instead.
+    let lm = Arc::new(FailingLM);
     let _serial = install(lm, recording.clone());
 
     let devset = vec![

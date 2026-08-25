@@ -9,7 +9,7 @@
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::Mutex;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use serde_json::Value;
 
 use crate::adapter::python_json::format_value;
@@ -82,11 +82,18 @@ impl Asked {
 pub struct DummyLM {
     answers: Mutex<VecDeque<Example>>,
     keyed: BTreeMap<String, Example>,
+    /// Which of dspy's two modes this is. Upstream reads `isinstance(self.answers, dict)` and
+    /// answers an unscripted request differently on each side of it, so an empty script has to
+    /// remember which door it came through.
+    keyed_mode: bool,
     asked: Mutex<Vec<Asked>>,
-    /// Returned when the script runs dry and nothing is keyed. `None` errors instead, which
-    /// is usually what a test wants: a call it did not plan for should be loud.
+    /// Answered with instead of upstream's "No more responses" when the script runs dry. Rust-only,
+    /// and additive: a test that plans every call never reaches either.
     fallback: Option<Example>,
 }
+
+/// dspy's answer to a request its script does not cover.
+const NO_MORE: &str = "No more responses";
 
 impl DummyLM {
     /// Answer with each example in turn. dspy's mode 1.
@@ -94,6 +101,7 @@ impl DummyLM {
         Self {
             answers: Mutex::new(answers.into_iter().collect()),
             keyed: BTreeMap::new(),
+            keyed_mode: false,
             asked: Mutex::new(Vec::new()),
             fallback: None,
         }
@@ -108,12 +116,13 @@ impl DummyLM {
                 .into_iter()
                 .map(|(key, example)| (key.into(), example))
                 .collect(),
+            keyed_mode: true,
             asked: Mutex::new(Vec::new()),
             fallback: None,
         }
     }
 
-    /// Answer with this when nothing else matches, instead of erroring.
+    /// Answer with this when nothing else matches, in place of upstream's "No more responses".
     pub fn fallback(mut self, answer: Example) -> Self {
         self.fallback = Some(answer);
         self
@@ -132,31 +141,42 @@ impl DummyLM {
         self.answers.lock().expect("not poisoned").len()
     }
 
-    /// The next answer: a keyed match first, then the queue, then the fallback.
-    fn choose(&self, request: &str) -> Result<Example> {
+    /// The next answer: a keyed match first, then the queue, then the fallback, then dspy's own
+    /// words for a request it cannot answer.
+    fn choose(&self, request: &str) -> Chosen {
         for (key, answer) in &self.keyed {
             if request.contains(key.as_str()) {
-                return Ok(answer.clone());
+                return Chosen::Answer(answer.clone());
             }
         }
         if let Some(answer) = self.answers.lock().expect("not poisoned").pop_front() {
-            return Ok(answer);
+            return Chosen::Answer(answer);
         }
-        self.fallback
-            .clone()
-            .ok_or_else(|| anyhow!("DummyLM has no answer left for this request: {request:.120}"))
+        if let Some(answer) = self.fallback.clone() {
+            return Chosen::Answer(answer);
+        }
+        // The asymmetry is upstream's, and it is observable: the keyed miss returns the bare
+        // words, so the reply does not parse and the caller retries through the JSON adapter,
+        // while the exhausted queue returns a rendered `answer` field that parses cleanly.
+        match self.keyed_mode {
+            true => Chosen::Unscripted,
+            false => Chosen::Answer(crate::example! { answer: NO_MORE }),
+        }
     }
 }
 
 /// Render field values the way the chat adapter would, so a scripted answer parses through
 /// the same path a real reply does.
 fn as_marker_reply(answer: &Example) -> String {
-    let mut blocks: Vec<String> = answer
+    // No trailing `[[ ## completed ## ]]`, because dspy's `_format_answer_fields` writes none —
+    // measured: `DummyLM([{"answer": "x"}])` answers `[[ ## answer ## ]]\nx`. The marker is
+    // something the *adapter* asks a real model for, and a scripted reply carrying one anyway made
+    // every test that reads `Prediction::raw` compare against a string upstream never produces.
+    answer
         .fields()
         .map(|(name, value)| format!("[[ ## {name} ## ]]\n{}", format_value(value)))
-        .collect();
-    blocks.push("[[ ## completed ## ]]".to_owned());
-    blocks.join("\n\n")
+        .collect::<Vec<String>>()
+        .join("\n\n")
 }
 
 /// In JSON mode a provider returns an object, not marker blocks.
@@ -190,10 +210,12 @@ impl ChatModel for DummyLM {
         async move {
             let mut replies = Vec::with_capacity(completions);
             for _ in 0..completions {
-                let answer = self.choose(&message)?;
-                replies.push(match json_mode {
-                    true => as_json_reply(&answer),
-                    false => as_marker_reply(&answer),
+                replies.push(match self.choose(&message) {
+                    Chosen::Unscripted => NO_MORE.to_owned(),
+                    Chosen::Answer(answer) => match json_mode {
+                        true => as_json_reply(&answer),
+                        false => as_marker_reply(&answer),
+                    },
                 });
             }
             // No usage: a scripted answer had no cost, and reporting zero would let a test
@@ -201,6 +223,13 @@ impl ChatModel for DummyLM {
             Ok(api::LmResponse::completions(replies))
         }
     }
+}
+
+/// What the script had for one request.
+enum Chosen {
+    Answer(Example),
+    /// dspy's keyed miss: the bare words, never run through the field renderer.
+    Unscripted,
 }
 
 /// The four sampling fields a scripted model records for inspection, read back from the typed
@@ -258,10 +287,7 @@ mod tests {
     #[test]
     fn answers_come_back_in_order_as_marker_blocks() {
         let lm = DummyLM::new([example! { answer: "red" }, example! { answer: "blue" }]);
-        assert_eq!(
-            ask(&lm, "what colour?").unwrap(),
-            "[[ ## answer ## ]]\nred\n\n[[ ## completed ## ]]"
-        );
+        assert_eq!(ask(&lm, "what colour?").unwrap(), "[[ ## answer ## ]]\nred");
         assert!(ask(&lm, "again?").unwrap().contains("blue"));
         assert_eq!(lm.call_count(), 2);
     }
@@ -302,10 +328,7 @@ mod tests {
 
         let answered =
             futures_lite_block_on(lm.forward(&typed)).expect("the dummy answers a typed request");
-        assert_eq!(
-            answered.first_text(),
-            "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]"
-        );
+        assert_eq!(answered.first_text(), "[[ ## answer ## ]]\nParis");
 
         let seen = lm.asked();
         let seen = seen.last().expect("one call was recorded");
@@ -317,12 +340,28 @@ mod tests {
         );
     }
 
+    /// An unplanned call is answered, not refused — and the two modes answer differently.
+    ///
+    /// Measured from the pinned dspy: `DummyLM([])` asked anything gives
+    /// `[[ ## answer ## ]]\nNo more responses`, and `DummyLM({})` gives the bare
+    /// `No more responses`. Upstream renders the exhausted queue's fallback through
+    /// `_format_answer_fields` and returns the keyed miss as it stands, so only one of the two
+    /// parses. This refused both, on a ledger reason that said upstream raises.
     #[test]
-    fn an_unplanned_call_is_loud_rather_than_silent() {
-        let lm = DummyLM::new([example! { answer: "only one" }]);
-        ask(&lm, "first").unwrap();
-        let error = ask(&lm, "second").expect_err("the script is exhausted");
-        assert!(error.to_string().contains("no answer left"));
+    fn an_unplanned_call_is_answered_the_way_dspy_answers_it() {
+        let queued = DummyLM::new([example! { answer: "only one" }]);
+        assert!(ask(&queued, "first").unwrap().contains("only one"));
+        assert_eq!(
+            ask(&queued, "second").expect("the queue answers past its script"),
+            "[[ ## answer ## ]]\nNo more responses"
+        );
+
+        let keyed = DummyLM::keyed([("Tokyo", example! { answer: "a" })]);
+        assert_eq!(
+            ask(&keyed, "somewhere else").expect("a keyed miss answers too"),
+            "No more responses",
+            "the bare words, so the reply does not parse — which is what upstream's caller sees"
+        );
     }
 
     #[test]
