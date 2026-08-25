@@ -53,14 +53,14 @@ EXCUSED: dict[str, str] = {
 #: A holding pen, not an excuse: every name here is a module whose symbols nobody has classified,
 #: and the entry says so. It exists because listing a module means classifying everything it
 #: declares, which is a day's work per module and not a reason to leave the check unbuilt.
-PENDING: dict[str, str] = {
-    "propose/grounded_proposer.py": "MIPROv2's proposer — `optimize/mipro/grounded.rs` (#unlisted-2)",
-    "propose/dataset_summary_generator.py": "the dataset descriptor — `optimize/mipro/dataset_summary.rs`, which has its own golden (#unlisted-2)",
-    "utils/usage_tracker.py": "usage tracking — `lm/usage.rs`; its *tests* were added when this gap was first found and the module never was (#unlisted-2)",
-    "utils/parallelizer.py": "`ParallelExecutor` — `predict/parallel.rs` (#unlisted-2)",
-    "teleprompt/utils.py": "the optimizer helpers MIPROv2 uses — minibatch evaluation and demo-set building, both ported (#unlisted-2)",
-    "propose/utils.py": "`strip_prefix` and `create_example_string`, both ported into `optimize/mipro/` and both cited by the functions that reproduce them (#unlisted-2)",
-}
+PENDING: dict[str, str] = {}
+"""Modules known to be ported and not yet listed, each with the story that would list them.
+
+Empty, and worth keeping so it can be filled again rather than argued about. It held six between
+the gate landing and `unlisted-2` closing them: listing a module means classifying everything it
+declares, which is real work and not a reason to leave the check unbuilt in the meantime.
+"""
+
 
 
 def defined_by() -> dict[str, set[str]]:

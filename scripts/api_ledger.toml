@@ -23,6 +23,44 @@
 # says nothing about what it takes, and that is where a port loses things without going red.
 
 [symbols]
+"propose/dataset_summary_generator.py::DatasetDescriptor" = { status = "mapped", rust = "dataset_descriptor", reason = "the meta-signature asking a model for observations about a dataset" }
+"propose/dataset_summary_generator.py::DatasetDescriptorWithPriorObservations" = { status = "mapped", rust = "dataset_descriptor_with_prior_observations", reason = "the same, shown what has already been observed" }
+"propose/dataset_summary_generator.py::ObservationSummarizer" = { status = "mapped", rust = "observation_summarizer", reason = "condensing those observations into two or three sentences" }
+"propose/dataset_summary_generator.py::create_dataset_summary" = { status = "mapped", rust = "create_dataset_summary", reason = "the loop over batches, capped where upstream caps it" }
+"propose/dataset_summary_generator.py::order_input_keys_in_string" = { status = "mapped", rust = "examples_repr", reason = "the examples rendered for that prompt, keys in upstream's order" }
+"propose/grounded_proposer.py::DescribeModule" = { status = "mapped", rust = "describe_module", reason = "the same for one module of it" }
+"propose/grounded_proposer.py::DescribeProgram" = { status = "mapped", rust = "signatures::describe_program", reason = "the meta-signature asking a model what a program does" }
+"propose/grounded_proposer.py::GenerateModuleInstruction" = { status = "mapped", rust = "GenerateModuleInstruction", reason = "the meta-signature it sends, whose rendered prompt is golden-tested" }
+"propose/grounded_proposer.py::GroundedProposer" = { status = "mapped", rust = "GroundedProposer", reason = "the proposer MIPROv2 asks for new instructions" }
+"propose/grounded_proposer.py::generate_instruction_class" = { status = "mapped", rust = "GenerateModuleInstruction::new", reason = "upstream builds the signature class per call from four flags; a Rust value takes them as arguments" }
+"propose/utils.py::create_example_string" = { status = "mapped", rust = "example_string", reason = "one demo as `prefix value` per signature field, newline-joined" }
+"propose/utils.py::create_instruction_set_history_string" = { status = "divergence", reason = "only reachable with `use_instruct_history`, which **MIPROv2 passes as `False`** — the proposer class defaults it on and its one caller turns it off, so the path never runs. This crate reproduces MIPROv2's call, so the field exists on the signature and nothing fills it" }
+"propose/utils.py::create_predictor_level_history_string" = { status = "divergence", reason = "only reachable with `use_instruct_history`, which **MIPROv2 passes as `False`** — the proposer class defaults it on and its one caller turns it off, so the path never runs. This crate reproduces MIPROv2's call, so the field exists on the signature and nothing fills it" }
+"propose/utils.py::get_dspy_source_code" = { status = "divergence", reason = "upstream reads a module's Python source with `inspect` to show the proposer what the program looks like. Rust has no runtime source; `module_code` renders the signature instead, which is what the prompt needs" }
+"propose/utils.py::get_program_instruction_set_string" = { status = "divergence", reason = "only reachable with `use_instruct_history`, which **MIPROv2 passes as `False`** — the proposer class defaults it on and its one caller turns it off, so the path never runs. This crate reproduces MIPROv2's call, so the field exists on the signature and nothing fills it" }
+"propose/utils.py::parse_list_of_instructions" = { status = "divergence", reason = "upstream reads a model's reply as a Python list literal, falling back to a regex. This crate's proposer asks for one instruction per call and reads the field, so there is no list to parse out of prose" }
+"propose/utils.py::strip_prefix" = { status = "mapped", rust = "strip_prefix", reason = "drop a leading label of up to five words ending in a colon" }
+"teleprompt/utils.py::calculate_last_n_proposed_quality" = { status = "mapped", rust = "Averages", reason = "how the recent proposals have been scoring, which decides whether a full evaluation is due" }
+"teleprompt/utils.py::create_minibatch" = { status = "mapped", rust = "minibatch::subsample", reason = "a random sample of the trainset for one trial" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the candidate demo sets, one per seed, with the metric threshold passed through" }
+"teleprompt/utils.py::eval_candidate_program" = { status = "mapped", rust = "MIPROv2::score", reason = "a candidate scored over a batch" }
+"teleprompt/utils.py::eval_candidate_program_with_pruning" = { status = "divergence", reason = "upstream's variant that drops a candidate mid-evaluation once it cannot win. MIPROv2 does not call it — `eval_candidate_program` is what the trial loop uses — so this crate reproduces the one that runs" }
+"teleprompt/utils.py::get_program_with_highest_avg_score" = { status = "mapped", rust = "best_program", reason = "the best candidate across the rounds; the pin falls through to the last valid program where main raises, and the pin is what this reproduces" }
+"teleprompt/utils.py::get_prompt_model" = { status = "divergence", reason = "upstream resolves which model proposes from the ambient settings. This crate scopes it — `lm::context_model` around step one — so the answer is where the scope is rather than a lookup" }
+"teleprompt/utils.py::get_signature" = { status = "mapped", rust = "NamedPredictor::signature", reason = "a predictor's signature, which the walk hands out directly" }
+"teleprompt/utils.py::get_task_model_history_for_full_example" = { status = "divergence", reason = "reads the task model's call history to show a proposer a worked example. Nothing here accumulates a history; see the `update_history` entry" }
+"teleprompt/utils.py::get_token_usage" = { status = "divergence", reason = "upstream reads token counts off the ambient LM. `UsageTracker` holds them here and a caller reads it directly" }
+"teleprompt/utils.py::log_token_usage" = { status = "divergence", reason = "upstream's optimizers write a run to a log directory and print it. This crate emits `tracing` spans instead, which a caller's own subscriber renders or ignores — the `log_dir` entries say the same for the flag that names the directory" }
+"teleprompt/utils.py::new_getfile" = { status = "divergence", reason = "upstream patches `inspect.getfile` so a class defined in a notebook can be located. There is no runtime source lookup in Rust to patch" }
+"teleprompt/utils.py::old_getfile" = { status = "divergence", reason = "the original it patches over; see the entry beside it" }
+"teleprompt/utils.py::print_full_program" = { status = "divergence", reason = "upstream's optimizers write a run to a log directory and print it. This crate emits `tracing` spans instead, which a caller's own subscriber renders or ignores — the `log_dir` entries say the same for the flag that names the directory" }
+"teleprompt/utils.py::save_candidate_program" = { status = "divergence", reason = "upstream's optimizers write a run to a log directory and print it. This crate emits `tracing` spans instead, which a caller's own subscriber renders or ignores — the `log_dir` entries say the same for the flag that names the directory" }
+"teleprompt/utils.py::save_file_to_log_dir" = { status = "divergence", reason = "upstream's optimizers write a run to a log directory and print it. This crate emits `tracing` spans instead, which a caller's own subscriber renders or ignores — the `log_dir` entries say the same for the flag that names the directory" }
+"teleprompt/utils.py::set_signature" = { status = "mapped", rust = "NamedPredictor::signature", reason = "and writing it back — the same `&mut` the walk already gives" }
+"teleprompt/utils.py::setup_logging" = { status = "divergence", reason = "upstream's optimizers write a run to a log directory and print it. This crate emits `tracing` spans instead, which a caller's own subscriber renders or ignores — the `log_dir` entries say the same for the flag that names the directory" }
+"utils/parallelizer.py::ParallelExecutor" = { status = "mapped", rust = "Parallel", reason = "running many calls at once with a cap and an error budget" }
+"utils/usage_tracker.py::UsageTracker" = { status = "mapped", rust = "UsageTracker", reason = "what the calls under a scope cost, summed" }
+"utils/usage_tracker.py::track_usage" = { status = "mapped", rust = "usage::track", reason = "the scope those totals are gathered in" }
 "primitives/code_interpreter.py::CodeExecutionError" = { status = "divergence", reason = "new in 3.3.0: a typed error for a sandbox that refused the code. This crate answers with an `anyhow::Error` carrying the sandbox's own message, which is what a caller reads either way — a typed counterpart is the decision `LmFailure` already made for provider failures and is worth the same treatment. Filed as `interpreter-per-call`, which touches the same three modules" }
 
 # --- adapters ---
@@ -291,6 +329,12 @@
 # The classification is the load-bearing part — a recorded decision per method.
 
 [methods]
+"propose/grounded_proposer.py::GenerateModuleInstruction.forward" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "ask the model for one new instruction" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instruction_for_predictor" = { status = "mapped", rust = "GroundedProposer::propose", reason = "one predictor's next instruction" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instructions_for_program" = { status = "mapped", rust = "GroundedProposer::propose", reason = "every predictor's, which is the call MIPROv2 makes" }
+"utils/parallelizer.py::ParallelExecutor.execute" = { status = "mapped", rust = "Parallel::run", reason = "run them, honouring the cap and the error budget" }
+"utils/usage_tracker.py::UsageTracker.add_usage" = { status = "mapped", rust = "UsageTracker::add", reason = "record what one call cost" }
+"utils/usage_tracker.py::UsageTracker.get_total_tokens" = { status = "mapped", rust = "UsageTracker::total", reason = "the totals so far" }
 "teleprompt/gepa/gepa_utils.py::DspyAdapter.propose_new_texts" = { status = "mapped", rust = "InstructionProposer::propose", reason = "the new instructions a round proposes, which a caller can replace" }
 "teleprompt/gepa/gepa_utils.py::DspyAdapter.stripped_lm_call" = { status = "divergence", reason = "upstream's helper for calling the reflection model with the ambient settings taken off. `lm::context_model` scopes a model here, so a call under it is already stripped of what surrounds it" }
 "utils/dummies.py::DummyLM.aforward" = { status = "divergence", reason = "upstream's async twin of `forward`, needed because a Python model may be either. Every model here is async, so there is one method" }
@@ -644,6 +688,50 @@
 "primitives/repl_types.py::REPLHistory.serialize_model" = { status = "divergence", reason = "as `REPLVariable.serialize_model`" }
 
 [constructors]
+"propose/dataset_summary_generator.py::DatasetDescriptor.examples" = { status = "mapped", rust = "dataset_descriptor", reason = "the `examples` of that, carried where this crate carries it" }
+"propose/dataset_summary_generator.py::DatasetDescriptor.observations" = { status = "mapped", rust = "dataset_descriptor", reason = "the `observations` of that, carried where this crate carries it" }
+"propose/dataset_summary_generator.py::DatasetDescriptorWithPriorObservations.examples" = { status = "mapped", rust = "dataset_descriptor_with_prior_observations", reason = "the `examples` of that, carried where this crate carries it" }
+"propose/dataset_summary_generator.py::DatasetDescriptorWithPriorObservations.observations" = { status = "mapped", rust = "dataset_descriptor_with_prior_observations", reason = "the `observations` of that, carried where this crate carries it" }
+"propose/dataset_summary_generator.py::DatasetDescriptorWithPriorObservations.prior_observations" = { status = "mapped", rust = "dataset_descriptor_with_prior_observations", reason = "the `prior_observations` of that, carried where this crate carries it" }
+"propose/dataset_summary_generator.py::ObservationSummarizer.observations" = { status = "mapped", rust = "observation_summarizer", reason = "the `observations` of that, carried where this crate carries it" }
+"propose/dataset_summary_generator.py::ObservationSummarizer.summary" = { status = "mapped", rust = "observation_summarizer", reason = "the `summary` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::DescribeModule.module" = { status = "mapped", rust = "describe_module", reason = "the `module` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::DescribeModule.module_description" = { status = "mapped", rust = "describe_module", reason = "the `module_description` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::DescribeModule.program_code" = { status = "mapped", rust = "describe_module", reason = "the `program_code` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::DescribeModule.program_description" = { status = "mapped", rust = "describe_module", reason = "the `program_description` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::DescribeModule.program_example" = { status = "mapped", rust = "describe_module", reason = "the `program_example` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::DescribeProgram.program_code" = { status = "mapped", rust = "signatures::describe_program", reason = "the `program_code` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::DescribeProgram.program_description" = { status = "mapped", rust = "signatures::describe_program", reason = "the `program_description` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::DescribeProgram.program_example" = { status = "mapped", rust = "signatures::describe_program", reason = "the `program_example` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.program_aware" = { status = "mapped", rust = "GenerateModuleInstruction", reason = "the `program_aware` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.program_code_string" = { status = "mapped", rust = "GenerateModuleInstruction", reason = "the `program_code_string` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.use_dataset_summary" = { status = "mapped", rust = "GenerateModuleInstruction", reason = "the `use_dataset_summary` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.use_instruct_history" = { status = "mapped", rust = "GenerateModuleInstruction", reason = "the `use_instruct_history` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.use_task_demos" = { status = "mapped", rust = "GenerateModuleInstruction", reason = "the `use_task_demos` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.use_tip" = { status = "mapped", rust = "GenerateModuleInstruction", reason = "the `use_tip` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.verbose" = { status = "mapped", rust = "GenerateModuleInstruction", reason = "the `verbose` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.init_temperature" = { status = "mapped", rust = "GroundedProposer", reason = "the `init_temperature` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.num_demos_in_context" = { status = "mapped", rust = "GroundedProposer", reason = "the `num_demos_in_context` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.program" = { status = "mapped", rust = "GroundedProposer", reason = "the `program` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.program_aware" = { status = "mapped", rust = "GroundedProposer", reason = "the `program_aware` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.prompt_model" = { status = "mapped", rust = "GroundedProposer", reason = "the `prompt_model` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.rng" = { status = "mapped", rust = "GroundedProposer", reason = "the `rng` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.set_history_randomly" = { status = "mapped", rust = "GroundedProposer", reason = "the `set_history_randomly` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.set_tip_randomly" = { status = "mapped", rust = "GroundedProposer", reason = "the `set_tip_randomly` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.trainset" = { status = "mapped", rust = "GroundedProposer", reason = "the `trainset` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.use_dataset_summary" = { status = "mapped", rust = "GroundedProposer", reason = "the `use_dataset_summary` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.use_instruct_history" = { status = "mapped", rust = "GroundedProposer", reason = "the `use_instruct_history` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.use_task_demos" = { status = "mapped", rust = "GroundedProposer", reason = "the `use_task_demos` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.use_tip" = { status = "mapped", rust = "GroundedProposer", reason = "the `use_tip` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.verbose" = { status = "mapped", rust = "GroundedProposer", reason = "the `verbose` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.view_data_batch_size" = { status = "mapped", rust = "GroundedProposer", reason = "the `view_data_batch_size` of that, carried where this crate carries it" }
+"utils/parallelizer.py::ParallelExecutor.compare_results" = { status = "mapped", rust = "Parallel", reason = "the `compare_results` of that, carried where this crate carries it" }
+"utils/parallelizer.py::ParallelExecutor.disable_progress_bar" = { status = "mapped", rust = "Parallel", reason = "the `disable_progress_bar` of that, carried where this crate carries it" }
+"utils/parallelizer.py::ParallelExecutor.max_errors" = { status = "mapped", rust = "Parallel", reason = "the `max_errors` of that, carried where this crate carries it" }
+"utils/parallelizer.py::ParallelExecutor.num_threads" = { status = "mapped", rust = "Parallel", reason = "the `num_threads` of that, carried where this crate carries it" }
+"utils/parallelizer.py::ParallelExecutor.provide_traceback" = { status = "mapped", rust = "Parallel", reason = "the `provide_traceback` of that, carried where this crate carries it" }
+"utils/parallelizer.py::ParallelExecutor.straggler_limit" = { status = "mapped", rust = "Parallel", reason = "the `straggler_limit` of that, carried where this crate carries it" }
+"utils/parallelizer.py::ParallelExecutor.timeout" = { status = "mapped", rust = "Parallel", reason = "the `timeout` of that, carried where this crate carries it" }
 "primitives/python_interpreter.py::PythonInterpreter.deno_command" = { status = "divergence", reason = "upstream lets a caller replace the whole `deno` argv. This crate builds it — `command::argv` — so a caller choosing their own would be choosing the protocol too" }
 "primitives/python_interpreter.py::PythonInterpreter.enable_env_vars" = { status = "mapped", rust = "Permissions::env", reason = "the environment variables it may see" }
 "primitives/python_interpreter.py::PythonInterpreter.enable_network_access" = { status = "mapped", rust = "Permissions::network", reason = "the hosts it may reach" }
@@ -1017,6 +1105,79 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "LmFailure::issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+"propose/grounded_proposer.py::GenerateModuleInstruction.forward.data_summary" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "the `data_summary` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.forward.demo_candidates" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "the `demo_candidates` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.forward.demo_set_i" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "the `demo_set_i` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.forward.num_demos_in_context" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "the `num_demos_in_context` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.forward.pred_i" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "the `pred_i` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.forward.previous_instructions" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "the `previous_instructions` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.forward.program" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "the `program` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GenerateModuleInstruction.forward.tip" = { status = "mapped", rust = "GenerateModuleInstruction::forward", reason = "the `tip` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instruction_for_predictor.demo_candidates" = { status = "mapped", rust = "GroundedProposer::propose", reason = "the `demo_candidates` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instruction_for_predictor.demo_set_i" = { status = "mapped", rust = "GroundedProposer::propose", reason = "the `demo_set_i` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instruction_for_predictor.pred_i" = { status = "mapped", rust = "GroundedProposer::propose", reason = "the `pred_i` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instruction_for_predictor.predictor" = { status = "mapped", rust = "GroundedProposer::propose", reason = "the `predictor` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instruction_for_predictor.program" = { status = "mapped", rust = "GroundedProposer::propose", reason = "the `program` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instruction_for_predictor.tip" = { status = "mapped", rust = "GroundedProposer::propose", reason = "the `tip` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instruction_for_predictor.trial_logs" = { status = "mapped", rust = "GroundedProposer::propose", reason = "the `trial_logs` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instructions_for_program.N" = { status = "mapped", rust = "GroundedProposer::propose", reason = "the `N` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instructions_for_program.demo_candidates" = { status = "mapped", rust = "GroundedProposer::propose", reason = "the `demo_candidates` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instructions_for_program.program" = { status = "mapped", rust = "GroundedProposer::propose", reason = "the `program` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instructions_for_program.trainset" = { status = "mapped", rust = "GroundedProposer::propose", reason = "the `trainset` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::GroundedProposer.propose_instructions_for_program.trial_logs" = { status = "mapped", rust = "GroundedProposer::propose", reason = "the `trial_logs` of that, carried where this crate carries it" }
+"utils/parallelizer.py::ParallelExecutor.execute.data" = { status = "mapped", rust = "Parallel::run", reason = "the `data` of that, carried where this crate carries it" }
+"utils/parallelizer.py::ParallelExecutor.execute.function" = { status = "mapped", rust = "Parallel::run", reason = "the `function` of that, carried where this crate carries it" }
+"utils/usage_tracker.py::UsageTracker.add_usage.lm" = { status = "mapped", rust = "UsageTracker::add", reason = "the `lm` of that, carried where this crate carries it" }
+"utils/usage_tracker.py::UsageTracker.add_usage.usage_entry" = { status = "mapped", rust = "UsageTracker::add", reason = "the `usage_entry` of that, carried where this crate carries it" }
+"propose/dataset_summary_generator.py::create_dataset_summary.log_file" = { status = "mapped", rust = "create_dataset_summary", reason = "the `log_file` of that, carried where this crate carries it" }
+"propose/dataset_summary_generator.py::create_dataset_summary.prompt_model" = { status = "mapped", rust = "create_dataset_summary", reason = "the `prompt_model` of that, carried where this crate carries it" }
+"propose/dataset_summary_generator.py::create_dataset_summary.trainset" = { status = "mapped", rust = "create_dataset_summary", reason = "the `trainset` of that, carried where this crate carries it" }
+"propose/dataset_summary_generator.py::create_dataset_summary.verbose" = { status = "mapped", rust = "create_dataset_summary", reason = "the `verbose` of that, carried where this crate carries it" }
+"propose/dataset_summary_generator.py::create_dataset_summary.view_data_batch_size" = { status = "mapped", rust = "create_dataset_summary", reason = "the `view_data_batch_size` of that, carried where this crate carries it" }
+"propose/dataset_summary_generator.py::order_input_keys_in_string.unordered_repr" = { status = "mapped", rust = "examples_repr", reason = "the `unordered_repr` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::generate_instruction_class.program_aware" = { status = "mapped", rust = "GenerateModuleInstruction::new", reason = "the `program_aware` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::generate_instruction_class.use_dataset_summary" = { status = "mapped", rust = "GenerateModuleInstruction::new", reason = "the `use_dataset_summary` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::generate_instruction_class.use_instruct_history" = { status = "mapped", rust = "GenerateModuleInstruction::new", reason = "the `use_instruct_history` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::generate_instruction_class.use_task_demos" = { status = "mapped", rust = "GenerateModuleInstruction::new", reason = "the `use_task_demos` of that, carried where this crate carries it" }
+"propose/grounded_proposer.py::generate_instruction_class.use_tip" = { status = "mapped", rust = "GenerateModuleInstruction::new", reason = "the `use_tip` of that, carried where this crate carries it" }
+"propose/utils.py::create_example_string.example" = { status = "mapped", rust = "example_string", reason = "the `example` of that, carried where this crate carries it" }
+"propose/utils.py::create_example_string.fields" = { status = "mapped", rust = "example_string", reason = "the `fields` of that, carried where this crate carries it" }
+"propose/utils.py::strip_prefix.text" = { status = "mapped", rust = "strip_prefix", reason = "the `text` of that, carried where this crate carries it" }
+"teleprompt/utils.py::calculate_last_n_proposed_quality.base_program" = { status = "mapped", rust = "Averages", reason = "the `base_program` of that, carried where this crate carries it" }
+"teleprompt/utils.py::calculate_last_n_proposed_quality.devset" = { status = "mapped", rust = "Averages", reason = "the `devset` of that, carried where this crate carries it" }
+"teleprompt/utils.py::calculate_last_n_proposed_quality.evaluate" = { status = "mapped", rust = "Averages", reason = "the `evaluate` of that, carried where this crate carries it" }
+"teleprompt/utils.py::calculate_last_n_proposed_quality.n" = { status = "mapped", rust = "Averages", reason = "the `n` of that, carried where this crate carries it" }
+"teleprompt/utils.py::calculate_last_n_proposed_quality.trainset" = { status = "mapped", rust = "Averages", reason = "the `trainset` of that, carried where this crate carries it" }
+"teleprompt/utils.py::calculate_last_n_proposed_quality.trial_logs" = { status = "mapped", rust = "Averages", reason = "the `trial_logs` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_minibatch.batch_size" = { status = "mapped", rust = "minibatch::subsample", reason = "the `batch_size` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_minibatch.rng" = { status = "mapped", rust = "minibatch::subsample", reason = "the `rng` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_minibatch.trainset" = { status = "mapped", rust = "minibatch::subsample", reason = "the `trainset` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.include_non_bootstrapped" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `include_non_bootstrapped` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.labeled_sample" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `labeled_sample` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.max_bootstrapped_demos" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `max_bootstrapped_demos` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.max_errors" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `max_errors` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.max_labeled_demos" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `max_labeled_demos` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.max_rounds" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `max_rounds` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.metric" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `metric` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.metric_threshold" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `metric_threshold` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.min_num_samples" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `min_num_samples` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.num_candidate_sets" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `num_candidate_sets` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.rng" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `rng` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.seed" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `seed` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.student" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `student` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.teacher" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `teacher` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.teacher_settings" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `teacher_settings` of that, carried where this crate carries it" }
+"teleprompt/utils.py::create_n_fewshot_demo_sets.trainset" = { status = "mapped", rust = "demos::create_demo_sets", reason = "the `trainset` of that, carried where this crate carries it" }
+"teleprompt/utils.py::eval_candidate_program.batch_size" = { status = "mapped", rust = "MIPROv2::score", reason = "the `batch_size` of that, carried where this crate carries it" }
+"teleprompt/utils.py::eval_candidate_program.candidate_program" = { status = "mapped", rust = "MIPROv2::score", reason = "the `candidate_program` of that, carried where this crate carries it" }
+"teleprompt/utils.py::eval_candidate_program.evaluate" = { status = "mapped", rust = "MIPROv2::score", reason = "the `evaluate` of that, carried where this crate carries it" }
+"teleprompt/utils.py::eval_candidate_program.rng" = { status = "mapped", rust = "MIPROv2::score", reason = "the `rng` of that, carried where this crate carries it" }
+"teleprompt/utils.py::eval_candidate_program.trainset" = { status = "mapped", rust = "MIPROv2::score", reason = "the `trainset` of that, carried where this crate carries it" }
+"teleprompt/utils.py::get_program_with_highest_avg_score.fully_evaled_param_combos" = { status = "mapped", rust = "best_program", reason = "the `fully_evaled_param_combos` of that, carried where this crate carries it" }
+"teleprompt/utils.py::get_program_with_highest_avg_score.param_score_dict" = { status = "mapped", rust = "best_program", reason = "the `param_score_dict` of that, carried where this crate carries it" }
+"teleprompt/utils.py::get_signature.predictor" = { status = "mapped", rust = "NamedPredictor::signature", reason = "the `predictor` of that, carried where this crate carries it" }
+"teleprompt/utils.py::set_signature.predictor" = { status = "mapped", rust = "NamedPredictor::signature", reason = "the `predictor` of that, carried where this crate carries it" }
+"teleprompt/utils.py::set_signature.updated_signature" = { status = "mapped", rust = "NamedPredictor::signature", reason = "the `updated_signature` of that, carried where this crate carries it" }
 "utils/mcp.py::convert_mcp_tool.session" = { status = "divergence", reason = "the MCP session upstream calls through. This crate's tool holds the transport a caller gives it, so the session is not a second argument" }
 "utils/mcp.py::convert_mcp_tool.tool" = { status = "mapped", rust = "mcp_tool", reason = "the MCP tool being converted" }
 "utils/saving.py::load.allow_pickle" = { status = "divergence", reason = "upstream's opt-in to unpickling a saved program. Nothing here pickles — a saved program is JSON — so there is nothing to opt in to. `Trust` is the nearby idea and is about a *model* block, not a pickle" }

@@ -180,6 +180,12 @@ def report(label: str, defined: set[str], entries: dict) -> None:
 #: happens to have one. `Parallel.forward` was mapped to `forward` and passed on forty other types'
 #: `forward`; renaming `Parallel::run` today fails that entry by name.
 #:
+#: 235 -> 307 when the six `check_cited_modules.py` found joined — MIPROv2's proposer and
+#: descriptor, `propose/utils.py`, `teleprompt/utils.py`, the parallel executor and the usage
+#: tracker. Fourteen distinct names across them, each checked to be the crate's *only* definition
+#: of itself; the count is larger than the names because a parameter names the function that
+#: carries it, as it does everywhere else here.
+#:
 #: 229 -> 235 when the last five unlisted modules joined: `MetricContext`, `DummyLM`,
 #: `CodeInterpreter`, `mcp_tool`, `mcp_tool_args` — each the only definition of its name — and one
 #: repeat. The two that were *not* unique are written `metric::Feedback` and, for the gepa adapter,
@@ -195,7 +201,7 @@ def report(label: str, defined: set[str], entries: dict) -> None:
 #: (`StreamedField`, `StatusMessages`, `Announcing`, `Watching`, `FieldListener`,
 #: `JsonFieldListener`) and one free function (`streamify`). Each was checked against
 #: `rust_members` before this moved — raise it only after doing the same.
-BARE_FLOOR = 235
+BARE_FLOOR = 307
 
 
 def report_bare(tables: dict) -> int:

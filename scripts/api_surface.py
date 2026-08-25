@@ -108,6 +108,15 @@ PORTED_MODULES = [
     # ambient configuration — dspy.settings/configure/context are re-exports of this class's
     # methods, so the surface a user touches daily is defined here.
     "dsp/utils/settings.py",
+    # Found by `check_cited_modules.py` on its first run — see `unlisted-2`. The usage tracker is
+    # the one `check_coverage.py`'s docstring holds up as the lesson, whose *tests* were added when
+    # that was found and whose module never was.
+    "propose/grounded_proposer.py",
+    "propose/dataset_summary_generator.py",
+    "propose/utils.py",
+    "teleprompt/utils.py",
+    "utils/parallelizer.py",
+    "utils/usage_tracker.py",
     # Ported in effect and, until an audit of this list, on none: each is cited by name through the
     # source that implements it. See the `ported-in-effect-unlisted` story for how they were found.
     "teleprompt/gepa/gepa_utils.py",

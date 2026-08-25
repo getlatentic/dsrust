@@ -5047,7 +5047,7 @@ crate was in this morning — fails the gate with 35 named citations. Restored, 
 id = "unlisted-2"
 sprint = "api"
 title = "Six more ported modules on no list, one of them the lesson a docstring already records"
-state = "todo"
+state = "done"
 size = "M"
 suites = []
 plan = """
@@ -5075,4 +5075,27 @@ turns the holding pen back into a gate that has nothing pending.
 Watch the bare-name floor as with the last nine: a type or free function that is the only definition
 of its name may stay bare; anything else is written as a pair, and `rust_members` resolves both
 `Type::member` and `module::name`.
+"""
+
+done = """
+All six are in `PORTED_MODULES` with every symbol, method, constructor parameter and method
+parameter classified — 161 entries — and `check_cited_modules.py`'s holding pen is **empty**: every
+module this crate explains itself in terms of is on the list.
+
+**One classification was nearly a false gap.** dsrs's proposer is never shown past attempts, and
+upstream's `GroundedProposer` defaults `use_instruct_history=True` — which reads as a divergence
+until you look at the caller. **MIPROv2 passes `False`**, and MIPROv2 is what this crate
+reproduces, so the field exists on the signature and nothing fills it. Three of `propose/utils.py`'s
+functions live only on that path and are classified with that reason rather than as gaps.
+
+**And one process failure, worth the record.** Re-routing entries between ledger tables I wrote a
+bulk script, it printed "re-routed 1263" where ~99 was expected, and I let it write: it had
+misclassified every `rust_only` row and left a file that would not parse. `git checkout` restored
+it. The redo was better than the original — a loop that asks the *gate* what is missing, touches
+only those keys, and converges in three passes — but the number was the tell and I went past it.
+See [[verification-traps]].
+
+The bare-name floor moves 235 -> 307: fourteen distinct names, each checked to be the crate's only
+definition of itself, and more entries than names because a parameter names the function carrying
+it, as everywhere else here.
 """
