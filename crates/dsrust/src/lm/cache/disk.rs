@@ -211,6 +211,84 @@ mod tests {
         assert_eq!(found.usage.expect("usage survived").input_tokens, Some(3));
     }
 
+    /// A reply carrying more than prose survives the round trip — a tool call, its arguments, and
+    /// the provider's own data beside them.
+    ///
+    /// Upstream keeps a whole file of these and this crate's coverage excuse calls that file
+    /// "Python pickling policy", which is true of eighteen of its nineteen tests and not of the
+    /// idea behind them: a cache that round-trips a string can still lose a structured reply. It
+    /// matters more here than upstream, because [`DiskCache::get`] treats an entry it cannot parse
+    /// as a **miss** — so a lossy write would not fail, it would silently re-ask the provider for
+    /// ever.
+    #[test]
+    fn a_reply_carrying_parts_survives_the_round_trip() {
+        use crate::lm::api::{LmOutput, LmPart, Metadata};
+
+        let mut args = Metadata::new();
+        args.insert("city".to_owned(), serde_json::json!("Paris"));
+        let mut provider_data = Metadata::new();
+        provider_data.insert("index".to_owned(), serde_json::json!(2));
+
+        let rich = LmResponse {
+            outputs: vec![LmOutput {
+                parts: vec![
+                    LmPart::text("here is why"),
+                    LmPart::ToolCall {
+                        id: Some("call_1".to_owned()),
+                        name: "get_weather".to_owned(),
+                        args,
+                        provider_data: provider_data.clone(),
+                        metadata: Metadata::new(),
+                    },
+                ],
+                finish_reason: Some("tool_calls".to_owned()),
+                provider_data,
+                ..LmOutput::default()
+            }],
+            ..LmResponse::default()
+        };
+
+        let scratch = Scratch::new("rich-roundtrip");
+        let cache = DiskCache::new(&scratch.0, DEFAULT_SIZE_LIMIT);
+        cache.put("abcdef", &rich);
+
+        let found = cache
+            .get("abcdef")
+            .expect("a reply with parts is readable, not a miss");
+        assert_eq!(found, rich, "every part came back as it went in");
+    }
+
+    /// And `provider_output` deliberately does not, which its own doc says and nothing checked.
+    ///
+    /// It is `#[serde(skip)]` because dspy excludes it from `model_dump`. The consequence is worth
+    /// having asserted rather than described: a caller reading it gets the provider's raw choice on
+    /// a cache *miss* and nothing on a *hit*. That is upstream's shape — its `model_dump` drops it
+    /// too — but a comment saying so is not a check, and removing the `skip` would change what a
+    /// warm run hands back with every test still green.
+    #[test]
+    fn the_providers_raw_choice_is_not_kept_on_disk() {
+        use crate::lm::api::LmOutput;
+
+        let with_raw = LmResponse {
+            outputs: vec![LmOutput {
+                provider_output: Some(serde_json::json!({ "index": 0 })),
+                ..LmOutput::text("hello")
+            }],
+            ..LmResponse::default()
+        };
+
+        let scratch = Scratch::new("raw-choice");
+        let cache = DiskCache::new(&scratch.0, DEFAULT_SIZE_LIMIT);
+        cache.put("abcdef", &with_raw);
+
+        let found = cache.get("abcdef").expect("the entry is there");
+        assert_eq!(found.first_text(), "hello", "the reply itself survives");
+        assert!(
+            found.outputs[0].provider_output.is_none(),
+            "the raw choice is runtime-only, as upstream's `model_dump` has it"
+        );
+    }
+
     #[test]
     fn a_key_that_was_never_written_is_a_miss() {
         let scratch = Scratch::new("miss");

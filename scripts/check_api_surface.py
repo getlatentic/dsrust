@@ -179,7 +179,12 @@ def report(label: str, defined: set[str], entries: dict) -> None:
 #: other kind: a member name written bare, which `is_defined` then resolves against any type that
 #: happens to have one. `Parallel.forward` was mapped to `forward` and passed on forty other types'
 #: `forward`; renaming `Parallel::run` today fails that entry by name.
-BARE_FLOOR = 210
+#:
+#: 210 -> 217 when the three streaming modules joined the ported list: six type names
+#: (`StreamedField`, `StatusMessages`, `Announcing`, `Watching`, `FieldListener`,
+#: `JsonFieldListener`) and one free function (`streamify`). Each was checked against
+#: `rust_members` before this moved — raise it only after doing the same.
+BARE_FLOOR = 217
 
 
 def report_bare(tables: dict) -> int:
