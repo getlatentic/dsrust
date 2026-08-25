@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1355
+rust_tests = 1361
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -3476,25 +3476,66 @@ test that asserts it to go red. It stays green today.
 id = "dspy-flex"
 sprint = "api"
 title = "dspy 3.3.0 shipped a whole feature this port does not have"
-state = "todo"
+state = "next"
 size = "L"
-suites = ""
+suites = []
 plan = """
-`dspy.Flex` arrived in 3.3.0 with six test files of its own — a binding layer, a GEPA extension, an
-interpreter binding, output types, and tools. None runs here; all six are excused by name in
-`check_coverage.py` so the gap is a decision on the record rather than six files nobody noticed.
+`dspy.Flex` is the one module whose state is not a prompt but a **string of Python source**: GEPA
+rewrites that source into decomposed predictors plus plain Python, and it runs in a sandboxed
+interpreter while the predictors it builds bridge back to the host for the real model calls.
+1092 lines of source, 2570 of tests.
 
-**Why it is excused rather than scheduled.** Its own docstring: "Experimental: This class may change
-or be removed in a future release without warning (introduced in v3.3.0)." Porting an API upstream
-reserves the right to delete costs the same as porting a stable one and earns a conformance claim
-that expires. The rest of this port pins to what upstream promises.
+It was excused for being marked `@experimental`. That reason does not hold — five of the six
+modules carrying that decorator are ported and classified, `GEPA` among them — and
+`experimental_is_not_a_line` gates it now. The real obstacle is one boundary:
+`CodeInterpreter::execute` and `Tool::call` are synchronous the whole way down, `Module::forward`
+is async, and the guest asks the host to run a predictor *during* a sync execute.
 
-**What would change that.** Flex surviving a release without breaking, or a caller wanting it. Both
-are reasons to reopen; neither is true today.
+**What makes it tractable at all:** the guest is Python in both ports, so upstream's
+`_sandbox_shim.py` is vendored verbatim rather than rewritten; and the sandbox already has a
+guest-to-host RPC loop — `tool_call` in `interpreter/deno.rs` — which is exactly dspy's
+`interp.tools` contract under another name. The bridge is two more host tools on that loop,
+`__dspy_construct__` and `__dspy_call__`.
+"""
+done = """
+**The deterministic half is in, byte-tested.** `predict/flex.rs`: the signature rendered back to
+`in: T -> out: T2`, the baseline module built around it, the class name read out of bound source,
+and upstream's shim vendored. `tests/flex_conformance.rs` holds all of it to a golden recorded by
+running dspy, and all three controls bite — one space fewer in the generated body, one character of
+shim drift, and a check that the comparison loop iterates over seven cases rather than none.
 
-**What to read first.** `dspy/flex/` and the GEPA extension in the 3.3.0 release commit
-(`feat(dspy.Flex) + GEPA extension`, #10047) — the GEPA half matters most here, because this crate
-reproduces gepa as its own byte-compliant crate and an extension to it is an extension to that.
+Two things the golden settled that a transcription would have got wrong: every signature built from
+a string is called `StringSignature`, so the generated class is `StringSignatureModule` whatever the
+fields are; and upstream's branch for a signature with no instructions is **unreachable**, because
+dspy writes default instructions for one.
+
+**The bridge landed too, and it runs.** `predict/flex/bridge.rs`: a `Flex` executes its baseline
+Python in a real Pyodide sandbox, the generated code builds a `dspy.Predict` that crosses back as
+`__dspy_construct__`, calling it crosses back as `__dspy_call__` and reaches a model here, and the
+prediction comes home as JSON. `a_flex_runs_its_baseline_through_the_sandbox` drives the whole
+crossing, ignored by default as the other deno tests are.
+
+The boundary is what made this the deferred piece: `CodeInterpreter::execute` and `Tool::call` are
+synchronous the whole way down and `Module::forward` is not. The interpreter runs on **its own
+thread** and the two host tools post their questions to the asynchronous side over futures channels
+— a `std::thread` rather than `spawn_blocking`, because this crate takes tokio for `time` alone and
+stays runtime-neutral. The question channel closing when the thread drops its tools is what ends the
+loop, so a thread that panicked ends it exactly as one that returned does. This crate now spawns a
+thread, which moves the fact recorded in the `callback_context` ledger comment.
+
+Both controls bite, and the decisive one is that changing what the *model* answers changes what
+emerges from the sandbox: `Lyon` arrives as `{"answer": "Lyon"}`, so the value really travels guest
+to host to model and back rather than the test agreeing with itself.
+
+The first run failed with `__dspy_construct__() got an unexpected keyword argument 'kind'`.
+`Tool::args` is dspy's argument *map*, and an empty one made the sandbox write a `def` taking
+nothing. The wire named the gap exactly, which is the only reason it was not a hunt through the shim.
+
+**Still open, and printed by the gate every run:** `max_predictor_calls` — upstream caps bridged
+calls at 100 so optimizer-authored code cannot loop the model, and nothing counts yet — plus
+`dump_state`/`load_state`, and the kinds past `Predict` and `ChainOfThought`. `RLM` and the
+code-executing ones need a nested interpreter of their own; the bridge refuses them by name rather
+than silently.
 """
 
 [[story]]

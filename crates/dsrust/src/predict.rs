@@ -72,6 +72,7 @@ mod chain_of_thought;
 pub mod code_act;
 mod completions;
 mod derived;
+pub mod flex;
 mod hint;
 mod multi_chain_comparison;
 mod native;

@@ -23,6 +23,15 @@
 # says nothing about what it takes, and that is where a port loses things without going red.
 
 [symbols]
+# predict/flex/{ctx,bridge}.py — the signature the baseline renders from, and the host side of the
+# sandbox conversation.
+"predict/flex/ctx.py::FlexContext" = { status = "divergence", reason = "upstream's holder for the signature and the tools the generated code may name. A `Flex` carries both itself here, so there is no second value to keep them in — `Flex::signature_string` and `Flex::with_tools` are what it is reached for" }
+"predict/flex/ctx.py::render_annotation" = { status = "mapped", rust = "InField::annotation", reason = "a field's Python annotation as the generated signature string spells it. Already on the field here, because every adapter renders it too — `OutField::annotation` is the same method on the other side" }
+"predict/flex/bridge.py::parse_module_class_name" = { status = "mapped", rust = "flex::class_name_of", reason = "the class the sandbox instantiates, preferring the one that defines `forward`. Upstream reads it with `ast`; a scan answers the same question over source whose shape is fixed, and this crate carries no Python parser" }
+"predict/flex/bridge.py::prediction_to_fields" = { status = "mapped", rust = "bridge::fields_of", reason = "a prediction's output fields as the sandbox reads them back, narrowed to what the signature declared" }
+"predict/flex/bridge.py::BridgeRuntime" = { status = "mapped", rust = "bridge::run", reason = "the host side of one forward: a fresh interpreter, the shim, the bound source, and the two callables that build and run predictors while the guest runs. The predictors live for the length of the call and never on the `Flex`, as upstream holds them on its `_Invocation`" }
+# predict/flex/flex.py — a module whose state is a string of Python source an optimizer rewrites.
+"predict/flex/flex.py::Flex" = { status = "mapped", rust = "flex::Flex", reason = "the module whose implementation is optimizable code. The deterministic half is here — the signature rendered back to `in: T -> out: T2`, the baseline source built around it, and upstream's own `_sandbox_shim.py` vendored byte for byte, all held by `tests/flex_conformance.rs`. `Flex::forward` is the todo beside it" }
 # dsp/utils/dpr.py — the tokenizer `answer_passage_match` compares a passage and an answer through.
 # Only `DPR_normalize` and `has_answer` are reached from outside this module, and only from
 # `evaluate/metrics.py`; the rest is the machinery upstream builds them out of.
@@ -347,6 +356,18 @@
 # The classification is the load-bearing part — a recorded decision per method.
 
 [methods]
+"predict/flex/bridge.py::BridgeRuntime.bind" = { status = "mapped", rust = "Flex::bind", reason = "record new source; it runs at the next forward. On the `Flex` here, because there is no second object holding the run" }
+"predict/flex/bridge.py::BridgeRuntime.forward" = { status = "mapped", rust = "bridge::run", reason = "one forward: a fresh interpreter, the shim, the source, the driver, and the conversation in between" }
+# predict/flex/flex.py — the deterministic half is mapped; the sandbox bridge is the todo.
+"predict/flex/flex.py::Flex.module_src" = { status = "mapped", rust = "Flex::module_src", reason = "the source the sandbox runs, which is a Flex's whole optimizable state" }
+"predict/flex/flex.py::Flex.signature" = { status = "mapped", rust = "Flex::signature", reason = "the signature the baseline is built over" }
+"predict/flex/flex.py::Flex.forward" = { status = "mapped", rust = "Flex::forward", reason = "runs the bound source in a fresh sandbox and answers the guest while it does. The boundary it crosses: `CodeInterpreter::execute` and `Tool::call` are synchronous and a predictor is not, so the interpreter runs on its own thread and the two host tools post their questions to the asynchronous side over futures channels — a `std::thread` rather than `spawn_blocking`, because this crate takes tokio for `time` alone. `a_flex_runs_its_baseline_through_the_sandbox` drives the whole crossing against a real Pyodide sandbox" }
+"predict/flex/flex.py::Flex.named_predictors" = { status = "divergence", reason = "upstream answers with an empty list, because a Flex's update unit is its `module_src` and not a predictor an optimizer walks to. Nothing here holds a predictor to hand back either" }
+"predict/flex/flex.py::Flex.reset" = { status = "divergence", reason = "clears the LM and keeps `module_src`. This crate's `Flex` holds no LM of its own — a caller scopes one, as every other module here is driven" }
+"predict/flex/flex.py::Flex.set_lm" = { status = "divergence", reason = "as `reset`: the model is scoped by the caller rather than stored on the module" }
+"predict/flex/flex.py::Flex.get_lm" = { status = "divergence", reason = "as `set_lm`; there is no stored model to read back" }
+"predict/flex/flex.py::Flex.dump_state" = { status = "todo", reason = "`{module_src, lm}`, which is what a saved Flex is. Waiting on the bridge, because a state that cannot be loaded and run is not worth writing" }
+"predict/flex/flex.py::Flex.load_state" = { status = "todo", reason = "binds the saved `module_src` and restores the LM; the same wait as `dump_state`" }
 # `__call__` on every mapped class. Skipped wholesale until 2026-08-25 on the reading that
 # invoking a module is `forward` here — true of `Predict` and `Module`, and of nothing else. It
 # also took their parameters out of `parameter_keys`, which demands them only from a *mapped*
@@ -721,6 +742,13 @@
 "primitives/repl_types.py::REPLHistory.serialize_model" = { status = "divergence", reason = "as `REPLVariable.serialize_model`" }
 
 [constructors]
+"predict/flex/bridge.py::BridgeRuntime.flex" = { status = "divergence", reason = "upstream's runtime holds the `Flex` back-reference to read its signature and tools. `bridge::run` is a function taking what it needs, so there is nothing to hold and no cycle to keep" }
+"predict/flex/bridge.py::BridgeRuntime.factory" = { status = "mapped", rust = "Flex::interpreter_factory", reason = "what builds the sandbox, kept on the `Flex` and passed in per run" }
+"predict/flex/bridge.py::BridgeRuntime.max_predictor_calls" = { status = "todo", reason = "the per-forward cap; see `Flex.max_predictor_calls`, which is the same gap seen from the caller's side" }
+"predict/flex/flex.py::Flex.signature" = { status = "mapped", rust = "Flex::new", reason = "the signature the baseline is built over" }
+"predict/flex/flex.py::Flex.tools" = { status = "mapped", rust = "Flex::with_tools", reason = "the tools the generated code may call by name, which also makes the baseline an `RLM`. Upstream's two refusals are reproduced: a name that is not an identifier, and one in the sandbox's own `_dspy` namespace" }
+"predict/flex/flex.py::Flex.interpreter_factory" = { status = "mapped", rust = "Flex::interpreter_factory", reason = "what builds the sandbox each forward runs in — the same `InterpreterFactory` seam `ProgramOfThought` takes, so a caller who cannot run Deno supplies their own" }
+"predict/flex/flex.py::Flex.max_predictor_calls" = { status = "todo", reason = "upstream caps bridged predictor calls per forward at 100, so optimizer-authored code cannot loop the model. `bridge::run` counts nothing yet — the cap belongs beside the `Built` table that hands out handles" }
 "propose/dataset_summary_generator.py::DatasetDescriptor.examples" = { status = "mapped", rust = "dataset_descriptor", reason = "the `examples` of that, carried where this crate carries it" }
 "propose/dataset_summary_generator.py::DatasetDescriptor.observations" = { status = "mapped", rust = "dataset_descriptor", reason = "the `observations` of that, carried where this crate carries it" }
 "propose/dataset_summary_generator.py::DatasetDescriptorWithPriorObservations.examples" = { status = "mapped", rust = "dataset_descriptor_with_prior_observations", reason = "the `examples` of that, carried where this crate carries it" }
@@ -1138,6 +1166,14 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "LmFailure::issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+"predict/flex/bridge.py::BridgeRuntime.bind.module_src" = { status = "mapped", rust = "Flex::bind", reason = "the source to run next" }
+"predict/flex/bridge.py::BridgeRuntime.forward.inputs" = { status = "mapped", rust = "bridge::run", reason = "the inputs the driver binds before calling the generated forward" }
+"predict/flex/flex.py::Flex.forward.args" = { status = "divergence", reason = "upstream refuses positional inputs outright — `dspy.Flex accepts keyword inputs only`. A Rust `forward` takes one `Example`, so there is no positional form to refuse" }
+"predict/flex/flex.py::Flex.forward.kwargs" = { status = "mapped", rust = "Flex::forward", reason = "the inputs, which travel into the sandbox as the driver's `__dspy_flex_inputs` and reach the generated `forward(**inputs)`" }
+"predict/flex/bridge.py::parse_module_class_name.module_src" = { status = "mapped", rust = "flex::class_name_of", reason = "the source to read the class out of" }
+"predict/flex/bridge.py::prediction_to_fields.pred" = { status = "mapped", rust = "bridge::fields_of", reason = "the prediction whose fields cross back" }
+"predict/flex/ctx.py::render_annotation.annotation" = { status = "mapped", rust = "InField::annotation", reason = "the annotation to render, which a field here holds rather than being handed" }
+"predict/flex/ctx.py::render_annotation.custom_types" = { status = "divergence", reason = "upstream passes the signature's custom types so a name renders as itself rather than as its module path. A `FieldKind` already carries the name dspy would print — `Enum(name)` prints the type, `Json(ty)` the Python spelling — so there is no second table to consult" }
 # Parameters of the `__call__`s above, demanded for the first time on 2026-08-25.
 "adapters/types/tool.py::Tool.__call__.kwargs" = { status = "mapped", rust = "Tool::call", reason = "the arguments, which arrive as one `Value` rather than as Python keywords" }
 "clients/base_lm.py::BaseLM.__call__.request" = { status = "mapped", rust = "ChatModel::forward", reason = "the typed request, which is the only thing `forward` takes" }
@@ -1603,6 +1639,11 @@
 
 "dsrust::evaluate::Pass" = { status = "divergence", reason = "which pass of a search a scoring is, which upstream carries as `callback_metadata` — a free dict that `Evaluate.__call__` hands to a handler. Two of the three payloads dspy ever puts there reach a watcher here, so a closed set names them: `eval_full` and `eval_minibatch`. GEPA's `disable_logging` has no producer, because GEPA scores through its own path rather than through `Evaluate`" }
 "dsrust::Pass" = { status = "divergence", reason = "the root re-export of `evaluate::Pass`; a host implementing `Callback` reads it off `on_evaluate_start` and reaches everything from the root" }
+"dsrust::predict::flex::SANDBOX_SHIM" = { status = "mapped", rust = "flex::SANDBOX_SHIM", reason = "upstream's `_sandbox_shim.py`, vendored. `SHIM_SETUP` reads the file at import; a Rust crate embeds it, so the constant is the file. Public because the source it defines is what optimizer-authored code is allowed to say, and a caller writing their own proposer needs to read it" }
+"dsrust::predict::flex::Flex::signature_string" = { status = "mapped", rust = "Flex::signature_string", reason = "dspy's `FlexContext.render_signature_string`, on the `Flex` because that is where the signature lives here" }
+"dsrust::predict::flex::Flex::class_name" = { status = "mapped", rust = "Flex::class_name", reason = "dspy's `_class_name`. Public where upstream's is private, because the generated source is public and a caller reading it needs the name it will carry" }
+"dsrust::predict::flex::Flex::bind" = { status = "mapped", rust = "Flex::bind", reason = "dspy's `_bind_code`: replace the source, which is what an optimizer does instead of rewriting instructions. Public for the same reason `module_src` is — it is the update unit" }
+"dsrust::predict::flex::Flex::named" = { status = "divergence", reason = "the signature's own class name, which dspy reads off `signature_cls.__name__` and a Rust `Signature` does not carry. The default is `StringSignature`, which is what `dspy.Signature(\"a -> b\")` builds and therefore what the generated class is named after" }
 "dsrust::optimize::Trial" = { status = "mapped", rust = "Trial", reason = "one entry of dspy's `trial_logs`, as the optuna study records it — the parameters a trial proposed and what it scored. Exported 2026-08-24: `MIPROv2::compile_traced` answers with `Vec<Trial>` and this was `pub` inside a private module, so a caller could hold the value and not name the type. Found by diffing the surface walk against rustdoc's own JSON, which lists an item by where it is *defined*" }
 "dsrust::optimize::Trial::params" = { status = "mapped", reason = "`Trial::params` — the parameter values this trial proposed, as optuna records them" }
 

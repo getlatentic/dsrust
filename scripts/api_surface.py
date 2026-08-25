@@ -67,6 +67,11 @@ PORTED_MODULES = [
     "predict/program_of_thought.py",
     "predict/code_act.py",
     "predict/rlm.py",
+    # dspy.Flex. The deterministic half is ported — the signature rendering, the baseline source,
+    # the vendored guest shim — and the sandbox bridge is the todo row beside it.
+    "predict/flex/flex.py",
+    "predict/flex/ctx.py",
+    "predict/flex/bridge.py",
     "predict/multi_chain_comparison.py",
     "predict/aggregation.py",
     # primitives
