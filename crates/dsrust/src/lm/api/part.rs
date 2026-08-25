@@ -8,6 +8,18 @@ pub type Metadata = Map<String, Value>;
 
 /// Where a provider-shaped block this crate does not model rides along verbatim, so it renders
 /// back byte for byte instead of being guessed at.
+///
+/// ```
+/// use dsrust::lm::api::{LEGACY_BLOCK, LmPart, part_of_block};
+///
+/// // A block with a shape this crate has no variant for is carried under this key rather than
+/// // being flattened to text or dropped.
+/// let unknown = serde_json::json!({ "type": "a_provider_thing", "payload": [1, 2] });
+/// let carried = part_of_block(&unknown);
+/// assert_eq!(carried.legacy_block(), Some(&unknown));
+/// // It rides in the part's metadata under this key, which is how it survives to be written back.
+/// assert_eq!(carried.metadata()[LEGACY_BLOCK], unknown);
+/// ```
 pub const LEGACY_BLOCK: &str = "legacy_content_block";
 
 /// How much of an image a provider is asked to look at — OpenAI's `detail`, and `Auto` is what it

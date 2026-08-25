@@ -12,6 +12,14 @@ use crate::adapter::python_json::{json_dumps_indented, python_type_name};
 use crate::adapter::types::base::{Formatted, Type};
 
 /// dspy's default cap on how much of an output reaches a prompt.
+///
+/// A cap rather than a truncation the caller applies: sandboxed code can print a megabyte, and the
+/// next turn of the loop puts that output in front of a model. Named so a caller writing their own
+/// interpreter can cut at the same place upstream cuts.
+///
+/// ```
+/// assert_eq!(dsrust::interpreter::repl::MAX_OUTPUT_CHARS, 10_000);
+/// ```
 pub const MAX_OUTPUT_CHARS: usize = 10_000;
 
 /// dspy's default cap on how much of a variable's value is previewed.

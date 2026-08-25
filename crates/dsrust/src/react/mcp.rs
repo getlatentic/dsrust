@@ -18,6 +18,22 @@ use super::tool::FnTool;
 /// [`Tool`](super::Tool) declares — each property under its name, every `$ref` resolved inline
 /// against the schema's `$defs`. `required` does not appear here; which arguments are optional rides
 /// on each property, matching dspy's `Tool.args`.
+///
+/// ```
+/// use dsrust::mcp_tool_args;
+///
+/// // A `$ref` is resolved inline, because a model reading the args map cannot follow one.
+/// let schema = serde_json::json!({
+///     "properties": { "where": { "$ref": "#/$defs/Place" } },
+///     "$defs": { "Place": { "type": "string", "description": "A city." } },
+///     "required": ["where"],
+/// });
+/// let args = mcp_tool_args(&schema);
+/// assert_eq!(args["where"]["type"], "string");
+/// // `required` does not appear: which arguments are optional rides on each property, as
+/// // `Tool.args` does upstream.
+/// assert!(args.get("required").is_none());
+/// ```
 pub fn mcp_tool_args(input_schema: &Value) -> Value {
     let Some(properties) = input_schema.get("properties").and_then(Value::as_object) else {
         return json!({});
@@ -62,6 +78,22 @@ fn resolve_refs(value: &Value, defs: &Value) -> Value {
 /// wire — as the observation a tool hands back. A lone text block is its bare string; several are
 /// their list; content with no text is returned as it stands. An error result is an `Err` carrying
 /// the same message dspy raises.
+///
+/// ```
+/// use dsrust::mcp_tool_result;
+///
+/// // One text block is its bare string, not a one-element list — a model reads the observation,
+/// // and a list of one would be noise.
+/// let one = serde_json::json!({ "content": [{ "type": "text", "text": "Paris" }] });
+/// assert_eq!(mcp_tool_result(&one).unwrap(), "Paris");
+///
+/// // An error result is an `Err` carrying what dspy raises, rather than an observation the model
+/// // would read as an answer.
+/// let failed = serde_json::json!({
+///     "content": [{ "type": "text", "text": "no such place" }], "isError": true,
+/// });
+/// assert!(mcp_tool_result(&failed).is_err());
+/// ```
 pub fn mcp_tool_result(result: &Value) -> Result<String> {
     let content = result["content"]
         .as_array()
