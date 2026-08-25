@@ -318,11 +318,15 @@ fn adapter_point(point: &'static str, adapter: &'static str) -> Watch {
 ///
 /// `pass` is dspy's `callback_metadata`, and it is what separates the passes from each other: a
 /// search alternates whole-valset scoring with subsamples, and the two mean different things.
-pub fn evaluating(rows: usize, threads: usize, pass: Option<Pass>) -> Watch {
+///
+/// The devset is handed over whole rather than counted, because upstream's is: `with_callbacks`
+/// gives a handler the `inputs` dict of `Evaluate.__call__`, `devset` among its keys. A count is
+/// what the span records and what a handler can take for itself.
+pub fn evaluating(devset: &[Example], threads: usize, pass: Option<Pass>) -> Watch {
     let watch = opening(tracing::info_span!(
         target: TARGET,
         "evaluate",
-        rows = rows,
+        rows = devset.len(),
         threads = threads,
         pass = pass.map(|pass| match pass {
             Pass::Full => "full",
@@ -334,7 +338,7 @@ pub fn evaluating(rows: usize, threads: usize, pass: Option<Pass>) -> Watch {
     ));
     if callback::watching(&watch.instance) {
         callback::tell(&watch.instance, |callback| {
-            callback.on_evaluate_start(&watch.call, rows, threads, pass)
+            callback.on_evaluate_start(&watch.call, devset, threads, pass)
         });
     }
     watch

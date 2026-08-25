@@ -155,7 +155,7 @@ where
     /// `devset[i]`, and dspy's own results are aligned the same way.
     pub async fn run(&self) -> Evaluation {
         let threads = self.num_threads.unwrap_or(1);
-        let watch = crate::observe::evaluating(self.devset.len(), threads, self.pass);
+        let watch = crate::observe::evaluating(&self.devset, threads, self.pass);
         let scoring = futures_util::stream::iter(self.devset.clone())
             .map(|example| self.score_row(example))
             .buffered(threads);

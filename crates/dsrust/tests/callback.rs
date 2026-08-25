@@ -141,7 +141,13 @@ impl Callback for Recording {
         self.ended("on_tool_end", call);
     }
 
-    fn on_evaluate_start(&self, call: &CallId, _rows: usize, _threads: usize, _pass: Option<Pass>) {
+    fn on_evaluate_start(
+        &self,
+        call: &CallId,
+        _devset: &[Example],
+        _threads: usize,
+        _pass: Option<Pass>,
+    ) {
         self.started("on_evaluate_start", call);
     }
 

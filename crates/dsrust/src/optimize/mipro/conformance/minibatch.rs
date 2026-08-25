@@ -130,7 +130,13 @@ async fn runs_the_minibatch_trials_dspy_runs() {
 struct Passes(Mutex<Vec<Option<Pass>>>);
 
 impl Callback for Passes {
-    fn on_evaluate_start(&self, _call: &CallId, _rows: usize, _threads: usize, pass: Option<Pass>) {
+    fn on_evaluate_start(
+        &self,
+        _call: &CallId,
+        _devset: &[Example],
+        _threads: usize,
+        pass: Option<Pass>,
+    ) {
         self.0.lock().expect("not poisoned").push(pass);
     }
 }

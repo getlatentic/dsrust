@@ -126,10 +126,17 @@ pub trait Callback: Send + Sync {
 
     /// A run over a devset began.
     ///
-    /// `pass` is dspy's `callback_metadata`: which pass of a search this is, and `None` for a
-    /// caller scoring directly.
-    fn on_evaluate_start(&self, call: &CallId, rows: usize, threads: usize, pass: Option<Pass>) {
-        let _ = (call, rows, threads, pass);
+    /// The rows are handed over whole, as upstream's `inputs["devset"]` is — a handler that only
+    /// wants the count takes it. `pass` is dspy's `callback_metadata`: which pass of a search this
+    /// is, and `None` for a caller scoring directly.
+    fn on_evaluate_start(
+        &self,
+        call: &CallId,
+        devset: &[Example],
+        threads: usize,
+        pass: Option<Pass>,
+    ) {
+        let _ = (call, devset, threads, pass);
     }
 
     /// A run over a devset finished.
