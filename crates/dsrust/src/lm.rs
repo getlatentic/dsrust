@@ -61,6 +61,11 @@ pub const DEFAULT_PROVIDER_TIMEOUT: Duration = Duration::from_secs(6000);
 
 /// The stock ollama port on the local machine, shared with the server's config so `LM::new`
 /// and the server resolve the same host when OLLAMA_HOST is unset.
+/// ```
+/// // What `LmBuilder::ollama_host` starts from, so a caller can compare against it rather than
+/// // repeating the literal.
+/// assert_eq!(dsrust::lm::DEFAULT_OLLAMA_HOST, "http://localhost:11434");
+/// ```
 pub const DEFAULT_OLLAMA_HOST: &str = "http://localhost:11434";
 
 /// One configured language model: a model reference plus the credentials and hosts its

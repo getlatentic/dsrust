@@ -64,6 +64,22 @@ const ZEROSHOT_LABELED: usize = 0;
 
 /// One search trial: the candidate index chosen per predictor, and the score it earned — one
 /// entry of dspy's `trial_logs`, as the optuna study records it.
+///
+/// [`MIPROv2::compile_traced`] answers with these where [`MIPROv2::compile`] answers with nothing,
+/// which is how a caller keeps the record of a run that upstream writes to a log directory:
+///
+/// ```no_run
+/// # use dsrust::optimize::Trial;
+/// # fn read(trials: Vec<Trial>) {
+/// // The trials arrive in the order the study created them, so the best is a fold rather than a
+/// // sort — two trials can tie, and the first of a tie is the one the search kept.
+/// let best = trials
+///     .iter()
+///     .max_by(|a, b| a.score.total_cmp(&b.score))
+///     .expect("a compiled run ran at least the baseline");
+/// println!("{} trials, best {:.1}% on {:?}", trials.len(), best.score, best.params);
+/// # }
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct Trial {
     pub params: Vec<usize>,

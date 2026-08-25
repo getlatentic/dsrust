@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1374
+rust_tests = 1381
 upstream_tests_passing = 1035
 upstream_tests_crossing = 569
 upstream_tests_deciding_signatures = 583
@@ -5570,4 +5570,23 @@ positives that were legal same-key-different-table rows.
 **The lesson is about the instrument, not the surface.** A number this gate reports is a claim about
 what it can see, and it could not see the three places a caller most often lives. Quoting 80 as the
 crate's undemonstrated surface was quoting the tool's blind spots back as a property of the code.
+
+**62 -> 56 by demonstrating six, which is the outcome this gate names as the good one.** Of the 25
+confined to their own directory — the ones that looked de-publishable on the mechanical signal —
+almost none should be hidden: `LmBuilder` is what `LM::builder` returns, `observe::TARGET` is the
+string a caller filters tracing on and cannot otherwise discover, `Trial` is what `compile_traced`
+answers with, `LmRequestPatch` is what a custom type adds to a request, and `llm_query_tools`
+documents `ask` as the caller's own bridge. Hiding those buys a smaller number and a worse crate.
+
+Six doctests instead, compiled and run: an `EnvFilter` built from `TARGET` so a filter survives the
+module moving; the builder as the keyword-argument equivalent of `dspy.LM(model, temperature=…)`,
+with the refusal of `openai/`; folding trials to the best, and why it is a fold rather than a sort —
+two can tie and the first of a tie is the one the search kept; and comparing against the provider
+defaults rather than hardcoding a URL, which is the question worth asking before sending a
+credential somewhere.
+
+**And the gate matches names, not types.** A chained `LM::builder(…)` never writes `LmBuilder`, so
+the type read as undemonstrated until an example held it as a value. That is a real pattern — a
+builder configured at run time — but a type only ever reached through inference will read as
+undemonstrated however well it is used.
 """

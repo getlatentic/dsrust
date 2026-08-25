@@ -23,6 +23,20 @@ pub(super) use tools::{apply_tool_choice, provider_extras, tool_json, unreadable
 mod stream;
 
 /// OpenAI's own endpoint, and the value every other service replaces.
+///
+/// Named so a caller can tell "pointed somewhere else" from "left alone" without hardcoding the
+/// URL — which is the question worth asking before sending a key anywhere:
+///
+/// ```
+/// use dsrust::lm::{DEFAULT_OPENAI_BASE_URL, DEFAULT_OPENAI_KEY_VAR};
+///
+/// let base = std::env::var("OPENAI_BASE_URL")
+///     .unwrap_or_else(|_| DEFAULT_OPENAI_BASE_URL.to_owned());
+/// if base != DEFAULT_OPENAI_BASE_URL {
+///     // A local vLLM or LM Studio, not OpenAI — worth knowing before reading a credential.
+///     assert_ne!(DEFAULT_OPENAI_KEY_VAR, "");
+/// }
+/// ```
 pub const DEFAULT_OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
 
 /// The credential variable the OpenAI SDKs themselves read, so a shell already set up for one

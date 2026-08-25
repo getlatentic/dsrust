@@ -44,6 +44,42 @@ impl LM {
 ///
 /// `build` is fallible for one reason: the model id is parsed, and `openai/` with nothing after it
 /// is not a model. That check happens once, here, rather than at the first call.
+///
+/// This is what `dspy.LM(model, temperature=…, max_tokens=…)` spells with keywords — Python takes
+/// them in any order and Rust needs a name per field, which is the whole reason the type exists:
+///
+/// ```
+/// use std::time::Duration;
+///
+/// let lm = dsrust::LM::builder("openai/gpt-4o-mini")
+///     .temperature(0.0)
+///     .max_tokens(256)
+///     .timeout(Duration::from_secs(30))
+///     .num_retries(3)
+///     .build()
+///     .expect("a model id with a provider and a name");
+/// assert_eq!(lm.model.id, "gpt-4o-mini");
+/// ```
+///
+/// Held as a value when the configuration is decided at run time, which is the case a chain cannot
+/// express:
+///
+/// ```
+/// use dsrust::lm::LmBuilder;
+///
+/// let mut building: LmBuilder = dsrust::LM::builder("openai/gpt-4o-mini");
+/// if std::env::var("DSRUST_OFFLINE").is_ok() {
+///     building = building.api_base("http://localhost:11434");
+/// }
+/// let lm = building.build().expect("a model id with a provider and a name");
+/// assert_eq!(lm.model.id, "gpt-4o-mini");
+/// ```
+///
+/// A model id the parse cannot read is refused here rather than at the first call:
+///
+/// ```
+/// assert!(dsrust::LM::builder("openai/").build().is_err());
+/// ```
 pub struct LmBuilder {
     pub(super) model: String,
     pub(super) config: api::LmConfig,

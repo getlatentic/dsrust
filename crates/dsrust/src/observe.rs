@@ -43,6 +43,16 @@ use crate::example::Example;
 
 /// The target every span here carries, so `RUST_LOG=dsrust::observe=info` is the whole of what a
 /// caller needs to watch a run — and so a subscriber can select these without matching on names.
+///
+/// Naming it rather than writing the string is what keeps a filter working when the module moves:
+///
+/// ```
+/// use tracing_subscriber::filter::EnvFilter;
+///
+/// // Only this crate's run events, at info, and nothing else in the process.
+/// let only_dsrust = EnvFilter::new(format!("{}=info", dsrust::observe::TARGET));
+/// assert_eq!(only_dsrust.to_string(), "dsrust::observe=info");
+/// ```
 pub const TARGET: &str = "dsrust::observe";
 
 /// One point, open: the span it entered and the call it identifies.
