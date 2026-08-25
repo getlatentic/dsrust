@@ -44,7 +44,7 @@ mod building;
 mod dataset_summary;
 mod demos;
 mod grounded;
-pub mod minibatch;
+pub(crate) mod minibatch;
 mod proposer;
 mod search;
 mod signatures;

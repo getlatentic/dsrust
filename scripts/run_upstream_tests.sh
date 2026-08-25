@@ -118,6 +118,11 @@ python3 "$ROOT/scripts/check_ledger_claims.py"
 # held to nothing. `clients/openai_format.py` sat that way while the OpenAI body was byte-verified
 # against it; the usage tracker sat that way after its own tests were added.
 "$VENV/bin/python" "$ROOT/scripts/check_cited_modules.py"
+# Whether a public item is *classified* and whether anything *uses* it are different questions, and
+# only the first was asked. 148 of the workspace's 344 public types are named nowhere outside the
+# module declaring them; this ratchets the dsrust-invented ones so the surface cannot grow without
+# something showing the growth works.
+"$VENV/bin/python" "$ROOT/scripts/check_surface_has_callers.py"
 # The same question from the module's own side: `__all__` names things the AST walk cannot see,
 # because an alias is a binding rather than a definition. It found `LMPart` and `ToolCall`.
 python3 "$ROOT/scripts/check_pinned_all.py"

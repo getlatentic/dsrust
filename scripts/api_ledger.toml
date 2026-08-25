@@ -1675,6 +1675,10 @@
 "dsrust::predict::flex::proposal::format_failures" = { status = "mapped", rust = "proposal::format_failures", reason = "dspy's `_format_failures`: a batch of failures as the code proposer's prompt shows them. Public where upstream's is underscored, because the string it produces is what a caller writing their own proposer has to match — and it goes through Python's `repr`, not JSON" }
 "dsrust::predict::flex::proposal::strip_code_fences" = { status = "mapped", rust = "proposal::strip_code_fences", reason = "dspy's `_strip_code_fences`: the source out of a fenced reply, tabs expanded to the next multiple of four within their line. Public for the same reason as `format_failures`" }
 "dsrust::predict::flex::proposal::code_proposal" = { status = "mapped", rust = "proposal::code_proposal", reason = "dspy's `CodeProposalSignature`: what GEPA asks a model when the component is source. Public beside `format_failures` and `strip_code_fences` and for their reason — a caller writing their own code proposer needs the prompt dspy sends rather than a description of it" }
+# `optimize::minibatch` became `pub(crate)` on 2026-08-25: MIPROv2's schedule arithmetic — the
+# subsample, the running means, when a full evaluation is due — which nothing outside
+# `optimize/mipro/` calls and no caller of this crate would. `Auto` survives, re-exported beside
+# `MIPROv2`, because a preset *is* a caller's to choose. Thirteen items off the public surface.
 "dsrust::optimize::Trial" = { status = "mapped", rust = "Trial", reason = "one entry of dspy's `trial_logs`, as the optuna study records it — the parameters a trial proposed and what it scored. Exported 2026-08-24: `MIPROv2::compile_traced` answers with `Vec<Trial>` and this was `pub` inside a private module, so a caller could hold the value and not name the type. Found by diffing the surface walk against rustdoc's own JSON, which lists an item by where it is *defined*" }
 "dsrust::optimize::Trial::params" = { status = "mapped", reason = "`Trial::params` — the parameter values this trial proposed, as optuna records them" }
 
@@ -2211,19 +2215,6 @@
 "dsrust::optimize::MIPROv2::new" = { status = "divergence", reason = "`MIPROv2::new` — the constructor; Python's `__init__` needs no entry of its own" }
 "dsrust::optimize::MIPROv2::seed" = { status = "divergence", reason = "`MIPROv2`'s `seed`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
 "dsrust::optimize::Optimizer::compile" = { status = "divergence", reason = "`Optimizer::compile` — the call itself, which Python reaches through `__call__`" }
-"dsrust::optimize::minibatch::Auto" = { status = "divergence", reason = "`minibatch::Auto` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
-"dsrust::optimize::minibatch::Auto::candidates" = { status = "divergence", reason = "`Auto::candidates` — MIPROv2's `auto` presets — the trial and candidate counts each level sets" }
-"dsrust::optimize::minibatch::Auto::instruction_candidates" = { status = "divergence", reason = "`Auto::instruction_candidates` — MIPROv2's `auto` presets — the trial and candidate counts each level sets" }
-"dsrust::optimize::minibatch::Auto::val_size" = { status = "divergence", reason = "`Auto::val_size` — MIPROv2's `auto` presets — the trial and candidate counts each level sets" }
-"dsrust::optimize::minibatch::Averages" = { status = "divergence", reason = "`minibatch::Averages` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
-"dsrust::optimize::minibatch::Averages::highest_average" = { status = "divergence", reason = "`Averages::highest_average` — the running per-candidate averages a minibatch search keeps" }
-"dsrust::optimize::minibatch::Averages::mark_evaluated" = { status = "divergence", reason = "`Averages::mark_evaluated` — the running per-candidate averages a minibatch search keeps" }
-"dsrust::optimize::minibatch::Averages::record" = { status = "divergence", reason = "`Averages::record` — the running per-candidate averages a minibatch search keeps" }
-"dsrust::optimize::minibatch::MIN_MINIBATCH_SIZE" = { status = "divergence", reason = "`minibatch::MIN_MINIBATCH_SIZE` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
-"dsrust::optimize::minibatch::adjusted_trials" = { status = "divergence", reason = "`minibatch::adjusted_trials` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
-"dsrust::optimize::minibatch::batch" = { status = "divergence", reason = "`minibatch::batch` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
-"dsrust::optimize::minibatch::full_evaluation_due" = { status = "divergence", reason = "`minibatch::full_evaluation_due` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
-"dsrust::optimize::minibatch::subsample" = { status = "divergence", reason = "`minibatch::subsample` — MIPROv2's minibatch schedule — when a full evaluation is due and how a subsample is drawn" }
 "dsrust::predict::Answered::failure" = { status = "divergence", reason = "`Answered::failure`, part of the same type's surface" }
 "dsrust::predict::Answered::into_results" = { status = "divergence", reason = "`Answered::into_results`, part of the same type's surface" }
 "dsrust::predict::BestOfN::fail_count" = { status = "divergence", reason = "`BestOfN`'s `fail_count`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }

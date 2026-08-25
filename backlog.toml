@@ -5430,3 +5430,42 @@ And a limitation written down rather than assumed: `miscounts` reads the reason 
 comment above it. What a file's tests are *about* is not gateable; that half stays a reading, which
 is how the fourteen-class sentence survived being copied into a second file.
 """
+
+[[story]]
+id = "surface-has-callers"
+sprint = "api"
+title = "Nearly half the public types are named nowhere outside their own module"
+state = "done"
+size = "M"
+suites = []
+plan = """
+`check_rust_surface.py` asks whether every public item is *classified*. Nothing asked whether any of
+them is *used*, and those are different questions: an item can carry a paragraph explaining why a
+caller needs it and have no caller at all.
+
+Measured: of the workspace's 344 public types and free functions, **148 are named nowhere** outside
+the module that declares them — no test, no example, no line of documentation. That is 43%.
+"""
+done = """
+`check_surface_has_callers.py` ratchets the number, wired into `run_upstream_tests.sh` and
+controlled: a public type nothing calls raises the count and fails.
+
+**The count was wrong twice before it was right**, which is worth recording because both errors were
+mine and both flattered the crate in one direction and damned it in the other. Narrowing 148 to
+items with no dspy symbol behind them gave 107 — but 24 of those belong to `gepa`, `tpe` and
+`pyrng`, byte-compliant reproductions of *Python packages* whose surface mirrors those libraries.
+Having no dspy symbol is their expected state. Scoped to `dsrust`, the honest figure is 83.
+
+**A reduction, not a re-count.** `optimize::minibatch` was `pub mod`: MIPROv2's schedule arithmetic
+— the subsample, the running means, when a full evaluation is due — which nothing outside
+`optimize/mipro/` calls and no caller of this crate would. `pub(crate)` took **thirteen items off
+the public surface**; `Auto` survives, re-exported beside `MIPROv2`, because a preset is a caller's
+to choose. `public_api` stayed green and the floor moved 83 -> 80.
+
+The shape worth repeating: find a module whose real reach is one directory, rather than arguing an
+item at a time.
+
+**What it does not do:** cull the remaining 80. Some are honestly public and merely undemonstrated —
+a `DEFAULT_OPENAI_BASE_URL` is a constant a caller reads and this repo never needs to. The ratchet
+stops growth and records the number; each reduction lowers the floor.
+"""
