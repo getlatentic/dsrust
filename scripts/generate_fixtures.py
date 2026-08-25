@@ -31,6 +31,7 @@ from dspy.propose.grounded_proposer import (
     DescribeProgram,
     generate_instruction_class,
 )
+from dspy.teleprompt.gepa.gepa_flex_utils import CodeProposalSignature
 from dspy.propose.dataset_summary_generator import (
     DatasetDescriptor,
     DatasetDescriptorWithPriorObservations,
@@ -264,6 +265,20 @@ CASES = [
             "previous_instructions": "Instruction #1: Answer the question.",
             "basic_instruction": "Answer the question.",
             "tip": "Keep the instruction clear and concise.",
+        },
+    },
+    {
+        # GEPA's code proposer, which is what makes a `dspy.Flex` optimizable: five inputs, and an
+        # instruction long enough that a transcription would drift on a line break alone. This is
+        # the prompt that asks a model for a whole `dspy.Module` subclass instead of an instruction.
+        "name": "code_proposal",
+        "dspy_signature": CodeProposalSignature,
+        "values": {
+            "task_description": "StringSignature: question -> answer",
+            "available_context": "(no extra context)",
+            "primitives_catalog": "dspy.Predict(signature)",
+            "current_source": "class M(dspy.Module):\n    def forward(self, **inputs):\n        return dspy.Prediction(answer='x')",
+            "failures": "Example 1: answered 'x', expected 'Paris'.",
         },
     },
     {

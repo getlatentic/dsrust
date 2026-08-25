@@ -106,6 +106,40 @@ def main() -> None:
 
     mixed_state = Mixed().dump_state()
 
+    # The two string helpers the code proposer stands on. Both are small and both are exactly the
+    # shape a transcription rounds off: `repr()` of a dict is Python's, not JSON's, and the fence
+    # stripper drops the opening line whatever it says while only dropping a closing fence.
+    from dspy.predict.flex.ctx import _strip_code_fences
+    from dspy.teleprompt.gepa.gepa_flex_utils import _format_failures
+
+    failure_cases = [
+        ("none", []),
+        ("one", [{"Inputs": {"question": "Where?"}, "Generated Outputs": {"answer": "x"}, "Feedback": "wrong"}]),
+        ("two", [
+            {"Inputs": {"a": 1}, "Generated Outputs": {"b": "it's"}, "Feedback": "no"},
+            {"Inputs": {}, "Generated Outputs": None, "Feedback": None},
+        ]),
+        ("missing keys", [{"Feedback": "only feedback"}]),
+    ]
+    fence_cases = [
+        "plain source",
+        "```python\nclass M:\n    pass\n```",
+        "```\nclass M:\n    pass\n```",
+        "```python\nclass M:\n    pass",
+        "  \n```py\n\tclass M:\n\t\tpass\n```\n  ",
+        "```",
+        "",
+        "no fence but\ta tab",
+        # A tab must advance to the next multiple of four *within its line*, not add four. Every
+        # case above happens to sit at a column already divisible by four, so all of them agree
+        # with a plain `replace("\\t", "    ")` — these do not, which is the point of them.
+        "a\tb",
+        "ab\tc",
+        "abc\td",
+        "abcd\te",
+        "x\ty\tz",
+    ]
+
     fixture = {
         "source": f"generated from dspy=={PINNED} via scripts/generate_flex_fixture.py",
         "dspy_version": PINNED,
@@ -114,6 +148,13 @@ def main() -> None:
         ).read_text(),
         "cases": cases,
         "mixed_state": mixed_state,
+        "format_failures": [
+            {"label": label, "records": records, "rendered": _format_failures(records)}
+            for label, records in failure_cases
+        ],
+        "strip_code_fences": [
+            {"raw": raw, "stripped": _strip_code_fences(raw)} for raw in fence_cases
+        ],
     }
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / "flex.json"

@@ -358,3 +358,48 @@ fn a_malformed_predictor_is_not_read_as_a_flex() {
         "a predictor entry with no signature was accepted"
     );
 }
+
+/// How a batch of failures reaches the code proposer's prompt, character for character.
+///
+/// The values go through Python's `repr`, not JSON: `{'question': 'Where?'}` with single quotes and
+/// CPython's quote-switching for an apostrophe. Rendering them as JSON would put a different string
+/// in front of the model, which is a defect this crate has had once before.
+#[test]
+fn it_renders_the_failures_dspy_renders() {
+    use dsrust::predict::flex::proposal::format_failures;
+    use serde_json::Map;
+
+    for case in golden()["format_failures"].as_array().expect("cases") {
+        let records: Vec<Map<String, Value>> = case["records"]
+            .as_array()
+            .expect("records")
+            .iter()
+            .map(|record| record.as_object().expect("an object").clone())
+            .collect();
+        assert_eq!(
+            format_failures(&records),
+            case["rendered"].as_str().expect("rendered"),
+            "_format_failures for {}",
+            case["label"]
+        );
+    }
+}
+
+/// The source read back out of a fenced reply.
+///
+/// Three edges the golden settles: the opening line goes whatever it says, a reply that is nothing
+/// but a fence ends up empty rather than keeping its three characters, and tabs advance to the next
+/// multiple of four *within their line* — not four spaces each, which is what a `replace` would do.
+#[test]
+fn it_strips_the_fences_dspy_strips() {
+    use dsrust::predict::flex::proposal::strip_code_fences;
+
+    for case in golden()["strip_code_fences"].as_array().expect("cases") {
+        let raw = case["raw"].as_str().expect("raw");
+        assert_eq!(
+            strip_code_fences(raw),
+            case["stripped"].as_str().expect("stripped"),
+            "_strip_code_fences({raw:?})"
+        );
+    }
+}

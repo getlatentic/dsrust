@@ -128,6 +128,7 @@ PORTED_MODULES = [
     # Ported in effect and, until an audit of this list, on none: each is cited by name through the
     # source that implements it. See the `ported-in-effect-unlisted` story for how they were found.
     "teleprompt/gepa/gepa_utils.py",
+    "teleprompt/gepa/gepa_flex_utils.py",
     "utils/dummies.py",
     "primitives/python_interpreter.py",
     "utils/saving.py",

@@ -100,5 +100,110 @@
       "module_src": "class StringSignatureModule(dspy.Module):\n    def __init__(self):\n        super().__init__()\n        self.predict = dspy.Predict(dspy.Signature('question: str -> answer: str', 'Given the fields `question`, produce the fields `answer`.'))\n\n    def forward(self, **inputs):\n        result = self.predict(**inputs)\n        return dspy.Prediction(answer=result.answer)",
       "lm": null
     }
-  }
+  },
+  "format_failures": [
+    {
+      "label": "none",
+      "records": [],
+      "rendered": "(no failing examples available)"
+    },
+    {
+      "label": "one",
+      "records": [
+        {
+          "Inputs": {
+            "question": "Where?"
+          },
+          "Generated Outputs": {
+            "answer": "x"
+          },
+          "Feedback": "wrong"
+        }
+      ],
+      "rendered": "=== Example 0 ===\nInputs:\n{'question': 'Where?'}\nGenerated Outputs:\n{'answer': 'x'}\nFeedback:\nwrong"
+    },
+    {
+      "label": "two",
+      "records": [
+        {
+          "Inputs": {
+            "a": 1
+          },
+          "Generated Outputs": {
+            "b": "it's"
+          },
+          "Feedback": "no"
+        },
+        {
+          "Inputs": {},
+          "Generated Outputs": null,
+          "Feedback": null
+        }
+      ],
+      "rendered": "=== Example 0 ===\nInputs:\n{'a': 1}\nGenerated Outputs:\n{'b': \"it's\"}\nFeedback:\nno\n\n=== Example 1 ===\nInputs:\n{}\nGenerated Outputs:\nNone\nFeedback:\nNone"
+    },
+    {
+      "label": "missing keys",
+      "records": [
+        {
+          "Feedback": "only feedback"
+        }
+      ],
+      "rendered": "=== Example 0 ===\nInputs:\nNone\nGenerated Outputs:\nNone\nFeedback:\nonly feedback"
+    }
+  ],
+  "strip_code_fences": [
+    {
+      "raw": "plain source",
+      "stripped": "plain source"
+    },
+    {
+      "raw": "```python\nclass M:\n    pass\n```",
+      "stripped": "class M:\n    pass"
+    },
+    {
+      "raw": "```\nclass M:\n    pass\n```",
+      "stripped": "class M:\n    pass"
+    },
+    {
+      "raw": "```python\nclass M:\n    pass",
+      "stripped": "class M:\n    pass"
+    },
+    {
+      "raw": "  \n```py\n\tclass M:\n\t\tpass\n```\n  ",
+      "stripped": "class M:\n        pass"
+    },
+    {
+      "raw": "```",
+      "stripped": ""
+    },
+    {
+      "raw": "",
+      "stripped": ""
+    },
+    {
+      "raw": "no fence but\ta tab",
+      "stripped": "no fence but    a tab"
+    },
+    {
+      "raw": "a\tb",
+      "stripped": "a   b"
+    },
+    {
+      "raw": "ab\tc",
+      "stripped": "ab  c"
+    },
+    {
+      "raw": "abc\td",
+      "stripped": "abc d"
+    },
+    {
+      "raw": "abcd\te",
+      "stripped": "abcd    e"
+    },
+    {
+      "raw": "x\ty\tz",
+      "stripped": "x   y   z"
+    }
+  ]
 }

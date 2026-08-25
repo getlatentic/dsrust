@@ -23,6 +23,14 @@
 # says nothing about what it takes, and that is where a port loses things without going red.
 
 [symbols]
+"teleprompt/gepa/gepa_flex_utils.py::enumerate_flex_submodules" = { status = "todo", reason = "the `Flex` submodules of a program, keyed by parameter path — what tells GEPA which components are source rather than instructions. Needs a walk that reaches a `Flex`, and `Module::named_predictors` deliberately does not: a Flex has no predictors to hand out, which is the whole reason it needs its own enumeration" }
+"teleprompt/gepa/gepa_flex_utils.py::flex_task_context" = { status = "todo", reason = "the task description and available context shown to the code proposer — a `Flex`'s signature rendered, and the tools in scope by name. Both halves exist (`Flex::signature_string`, `Flex::with_tools`); what is missing is the rendering the prompt expects" }
+"teleprompt/gepa/gepa_flex_utils.py::propose_code" = { status = "mapped", rust = "proposal::propose_code", reason = "ask for a revised module per code component, keeping the current source when the proposer cannot answer. Upstream keeps it on any failure that is not an `LMError` — a proposal that fails to arrive should cost a generation, not the run" }
+"teleprompt/gepa/gepa_flex_utils.py::rebind_flex_code" = { status = "todo", reason = "apply a proposed source to the program's Flexes. `Flex::bind` is the per-module half and is done; this is the walk over a candidate keyed by parameter path" }
+"teleprompt/gepa/gepa_flex_utils.py::code_reflective_records" = { status = "todo", reason = "the reflective dataset for a code component: whole-program inputs, outputs and feedback rather than one predictor's. `ReflectiveDataset` is the per-predictor shape here and this is the other one" }
+"teleprompt/gepa/gepa_flex_utils.py::evaluate_with_trace" = { status = "todo", reason = "scoring that captures the execution trace, so a metric declaring a `program_trace` parameter can score against it. `MetricContext::trace` already carries a trace to a metric; what is missing is the Flex-aware scoring path that fills it" }
+# teleprompt/gepa/gepa_flex_utils.py — GEPA optimizing a `Flex`, whose component is source.
+"teleprompt/gepa/gepa_flex_utils.py::CodeProposalSignature" = { status = "mapped", rust = "proposal::code_proposal", reason = "what GEPA asks a model when the component is a whole `dspy.Module` subclass rather than an instruction. Held to `tests/conformance/code_proposal.json`; generated from that fixture rather than typed, which its own doc comment says makes it a drift catcher rather than an independent derivation" }
 # predict/flex/{ctx,bridge}.py — the signature the baseline renders from, and the host side of the
 # sandbox conversation.
 "predict/flex/ctx.py::FlexContext" = { status = "divergence", reason = "upstream's holder for the signature and the tools the generated code may name. A `Flex` carries both itself here, so there is no second value to keep them in — `Flex::signature_string` and `Flex::with_tools` are what it is reached for" }
@@ -742,6 +750,12 @@
 "primitives/repl_types.py::REPLHistory.serialize_model" = { status = "divergence", reason = "as `REPLVariable.serialize_model`" }
 
 [constructors]
+"teleprompt/gepa/gepa_flex_utils.py::CodeProposalSignature.task_description" = { status = "mapped", rust = "proposal::code_proposal", reason = "the submodule's signature: name, objective, input and output fields" }
+"teleprompt/gepa/gepa_flex_utils.py::CodeProposalSignature.available_context" = { status = "mapped", rust = "proposal::code_proposal", reason = "the tools in scope by name, and the style notes" }
+"teleprompt/gepa/gepa_flex_utils.py::CodeProposalSignature.primitives_catalog" = { status = "mapped", rust = "proposal::code_proposal", reason = "the primitives the revised code may use" }
+"teleprompt/gepa/gepa_flex_utils.py::CodeProposalSignature.current_source" = { status = "mapped", rust = "proposal::code_proposal", reason = "the module's current source, which is what is being revised" }
+"teleprompt/gepa/gepa_flex_utils.py::CodeProposalSignature.failures" = { status = "mapped", rust = "proposal::code_proposal", reason = "the failing examples and their feedback" }
+"teleprompt/gepa/gepa_flex_utils.py::CodeProposalSignature.revised_source" = { status = "mapped", rust = "proposal::code_proposal", reason = "the replacement class the model answers with" }
 "predict/flex/bridge.py::BridgeRuntime.flex" = { status = "divergence", reason = "upstream's runtime holds the `Flex` back-reference to read its signature and tools. `bridge::run` is a function taking what it needs, so there is nothing to hold and no cycle to keep" }
 "predict/flex/bridge.py::BridgeRuntime.factory" = { status = "mapped", rust = "Flex::interpreter_factory", reason = "what builds the sandbox, kept on the `Flex` and passed in per run" }
 "predict/flex/bridge.py::BridgeRuntime.max_predictor_calls" = { status = "mapped", rust = "bridge::run", reason = "the per-forward cap, taken by the run and counted beside the table that hands out handles" }
@@ -1166,6 +1180,12 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "LmFailure::issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+"teleprompt/gepa/gepa_flex_utils.py::propose_code.code_keys" = { status = "mapped", rust = "proposal::propose_code", reason = "which components are source rather than instructions, by parameter path" }
+"teleprompt/gepa/gepa_flex_utils.py::propose_code.candidate" = { status = "mapped", rust = "proposal::propose_code", reason = "the candidate being revised: component to its current text, which for a code component is the module source" }
+"teleprompt/gepa/gepa_flex_utils.py::propose_code.reflective_dataset" = { status = "mapped", rust = "proposal::propose_code", reason = "the failing records per component, rendered into the prompt by `format_failures`" }
+"teleprompt/gepa/gepa_flex_utils.py::propose_code.task_descriptions" = { status = "mapped", rust = "proposal::propose_code", reason = "what each component's module is for, defaulting to the component key as upstream defaults it" }
+"teleprompt/gepa/gepa_flex_utils.py::propose_code.context_blurbs" = { status = "mapped", rust = "proposal::propose_code", reason = "the tools in scope by name, defaulting to `(no extra context)` — a string the prompt's own instructions branch on, so the default is not cosmetic" }
+"teleprompt/gepa/gepa_flex_utils.py::propose_code.reflection_lm" = { status = "mapped", rust = "proposal::propose_code", reason = "the model that proposes, scoped for the call as upstream scopes it with `dspy.context(lm=…)`" }
 "predict/flex/flex.py::Flex.dump_state.json_mode" = { status = "divergence", reason = "upstream's flag for whether the state must be JSON-serialisable, which its pickle path can decline. `ProgramState` is JSON by construction — a serde type with no second representation — so there is no other mode to ask about" }
 "predict/flex/flex.py::Flex.load_state.state" = { status = "mapped", rust = "Flex::load_state_with", reason = "the saved state to bind from" }
 "predict/flex/flex.py::Flex.load_state.allow_unsafe_lm_state" = { status = "divergence", reason = "upstream's opt-in to reconstructing a custom LM class from the file. This crate has `Trust` for that on `Module::load_state_trusted`, and a `Flex` stores no model to reconstruct — see the `set_lm` entry" }
@@ -1652,6 +1672,9 @@
 "dsrust::module::FlexState::module_src" = { status = "mapped", rust = "FlexState::module_src", reason = "the source, which is a Flex's whole update unit" }
 "dsrust::module::FlexState::lm" = { status = "mapped", rust = "FlexState::lm", reason = "the model it was pinned to, as it states itself. Always absent here: a model is scoped by the caller rather than stored on the module, which the `set_lm` entry records" }
 "dsrust::module::ProgramState::state" = { status = "divergence", reason = "one submodule's saved state whatever shape it took, beside `get`, which answers only for predictors. dspy indexes the dict and lets the caller find out what is in it; two accessors say which question is being asked" }
+"dsrust::predict::flex::proposal::format_failures" = { status = "mapped", rust = "proposal::format_failures", reason = "dspy's `_format_failures`: a batch of failures as the code proposer's prompt shows them. Public where upstream's is underscored, because the string it produces is what a caller writing their own proposer has to match — and it goes through Python's `repr`, not JSON" }
+"dsrust::predict::flex::proposal::strip_code_fences" = { status = "mapped", rust = "proposal::strip_code_fences", reason = "dspy's `_strip_code_fences`: the source out of a fenced reply, tabs expanded to the next multiple of four within their line. Public for the same reason as `format_failures`" }
+"dsrust::predict::flex::proposal::code_proposal" = { status = "mapped", rust = "proposal::code_proposal", reason = "dspy's `CodeProposalSignature`: what GEPA asks a model when the component is source. Public beside `format_failures` and `strip_code_fences` and for their reason — a caller writing their own code proposer needs the prompt dspy sends rather than a description of it" }
 "dsrust::optimize::Trial" = { status = "mapped", rust = "Trial", reason = "one entry of dspy's `trial_logs`, as the optuna study records it — the parameters a trial proposed and what it scored. Exported 2026-08-24: `MIPROv2::compile_traced` answers with `Vec<Trial>` and this was `pub` inside a private module, so a caller could hold the value and not name the type. Found by diffing the surface walk against rustdoc's own JSON, which lists an item by where it is *defined*" }
 "dsrust::optimize::Trial::params" = { status = "mapped", reason = "`Trial::params` — the parameter values this trial proposed, as optuna records them" }
 
