@@ -162,6 +162,19 @@ else
   cargo test -p dsrust --test saved_program -- --ignored
 fi
 
+# The sandbox tests, which are `#[ignore]` because they need deno and — on the first run — the
+# Pyodide npm package it fetches. Ten of them, about seven seconds together, and none had ever been
+# run by a gate: CI has installed deno since the sandbox landed and nothing invoked them, which is
+# the same shape as the saved-program test above. A sandbox nobody executes is a sandbox nobody
+# knows still works.
+if ! command -v deno >/dev/null 2>&1; then
+  echo "  no deno — run: curl -fsSL https://deno.land/install.sh | sh   (the sandbox needs it)" >&2
+  exit 1
+fi
+echo "==> the deno/Pyodide sandbox"
+cargo test -p dsrust --test deno_sandbox -- --ignored
+cargo test -p dsrust --test flex_conformance -- --ignored
+
 # The upstream pytest suite, through the bridge. Last because it is the slowest — about four
 # minutes — and because everything above must hold before Python's opinion is worth having.
 #
