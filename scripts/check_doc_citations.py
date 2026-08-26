@@ -33,8 +33,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 #: `max_tokens`, `json_schema_extra` — which no rule could tell from a citation.
 CITED_NAME = re.compile(r"`([a-z][a-z0-9]*(?:_[a-z0-9]+){3,})`")
 #: A path ending in a source extension, backticked or bare.
+#: `.json` as well: a doc comment naming a golden makes the same claim a reason does, and a
+#: renamed fixture would leave the sentence pointing nowhere.
 CITED_FILE = re.compile(
-    r"`?((?:[A-Za-z_][A-Za-z0-9_-]*/)*[A-Za-z_][A-Za-z0-9_]*\.(?:rs|py))`?"
+    r"`?((?:[A-Za-z_][A-Za-z0-9_-]*/)*[A-Za-z_][A-Za-z0-9_]*\.(?:rs|py|json))(?![A-Za-z0-9_])`?"
 )
 RUST_FN = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)", re.M)
 #: `async def` as well as `def`: dspy's streaming tests are coroutines, and leaving the keyword out
@@ -62,6 +64,10 @@ EXTERNAL = {
     "chain_of_thought_n3",
 }
 EXTERNAL_FILES = {
+    # Written by a fuzz campaign into `target/` and deliberately not committed: twenty thousand
+    # random strings are evidence, not a golden.
+    "target/parse_fuzz.json",
+    "target/json_repair_fuzz.json",
     # CPython's and numpy's own suites, cited as the source of a vector table.
     "Lib/test/test_random.py",
     "numpy/random/tests/test_randomstate.py",
@@ -73,7 +79,13 @@ def ours() -> tuple[set[str], set[str]]:
     """Every file in this workspace, and every function it defines."""
     files: set[str] = set()
     names: set[str] = set()
-    for pattern in ("crates/**/*.rs", "crates/**/*.py", "scripts/**/*.py", "examples/**/*.rs"):
+    for pattern in (
+        "crates/**/*.rs",
+        "crates/**/*.py",
+        "crates/**/*.json",
+        "scripts/**/*.py",
+        "examples/**/*.rs",
+    ):
         for path in ROOT.glob(pattern):
             files.add(str(path.relative_to(ROOT)))
             if path.suffix == ".rs":

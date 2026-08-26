@@ -3,7 +3,7 @@
 //! A media type picked off a filename reaches the model: inside the `data:` URI an `Image` or a
 //! `File` renders as, and as an `input_audio` block's `format`. So it is a prompt byte, and the
 //! table is generated from CPython rather than transcribed — `scripts/generate_mimetypes_fixture.py`
-//! writes the golden `tests/conformance/mimetypes.json` that the test below re-derives.
+//! writes the golden `tests/conformance/constants/mimetypes.json` that the test below re-derives.
 //!
 //! **This is CPython's *built-in* table, and upstream's own answer is not deterministic.**
 //! `mimetypes.guess_type` calls `init()`, which merges `/etc/mime.types` and friends over the

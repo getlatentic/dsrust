@@ -66,6 +66,11 @@ RS_FILE = re.compile(r"\b((?:[a-z_][a-z0-9_]*/)*[a-z_][a-z0-9_]*\.py)\b")
 PY_FILE = re.compile(r"\b((?:[a-z_][a-z0-9_]*/)*[a-z_][a-z0-9_]*\.py)\b")
 OURS_PY = ("scripts/", "crates/")
 RS_FILE = re.compile(r"\b((?:[a-z_][a-z0-9_]*/)*[a-z_][a-z0-9_]*\.rs)\b")
+#: A golden named in a reason. Ten reasons cite one — "held by evaluate/max_errors.json" — and
+#: neither this checker nor the doc one resolved a `.json`, so a renamed fixture would have left the
+#: sentence pointing nowhere. All ten resolved when the rule was added; the rule is what keeps that
+#: true.
+GOLDEN = re.compile(r"\b((?:[a-z_][a-z0-9_]*/)*[a-z_][a-z0-9_]*\.json)\b")
 #: `chat.rs::chat_user` — a file and an item *in* it. No other rule sees this spelling: `BARE_PATH`
 #: matches from the `rs`, finds no such crate, and skips the whole path as foreign. So a reason
 #: naming a renamed private helper this way went unchecked, which is how 21 of them were written.
@@ -275,6 +280,7 @@ def names_in(pinned: pathlib.Path) -> set[str]:
 def main() -> int:
     ledger = tomllib.loads(LEDGER.read_text())
     names, files, by_file = tree()
+    goldens = {str(path.relative_to(ROOT)) for path in (ROOT / "crates").rglob("*.json")}
     theirs, unread = package_names()
     their_files = upstream_files()
     owners = members_by_type()
@@ -321,6 +327,10 @@ def main() -> int:
                     f.endswith("/" + named) for f in their_files
                 ):
                     missing.append((key, "dspy file", named))
+            for named in set(GOLDEN.findall(reason)):
+                checked += 1
+                if not any(f.endswith("/" + named) for f in goldens):
+                    missing.append((key, "golden", named))
             for path_named, item in set(RS_PATH.findall(reason + " " + str(entry.get("rust") or ""))):
                 checked += 1
                 # Every file the suffix names, not the first — two files here are called `demos.rs`,
