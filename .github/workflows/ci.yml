@@ -80,6 +80,9 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+          # The sandbox gate runs Pyodide through deno's npm cache. Without this every run
+          # re-downloads it before the ten sandbox tests can start.
+          cache: true
       - name: install ast-grep
         run: cargo install ast-grep --locked
       - name: python environment, pinned
