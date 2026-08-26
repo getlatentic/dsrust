@@ -136,11 +136,11 @@
 "signatures/signature.py::make_signature" = { status = "mapped", rust = "make_signature", reason = "the `make_signature!` proc macro, which builds a signature from a string literal. dspy builds one at runtime and raises on a bad string; this fails the build, pointing at the literal. This entry read `divergence — Rust uses the derive/builder` until the reverse surface walk put the macro in front of it" }
 "signatures/field.py::InputField" = { status = "mapped", rust = "InField" }
 "signatures/field.py::OutputField" = { status = "mapped", rust = "OutField" }
-"signatures/field.py::OldField" = { status = "divergence", reason = "dspy's deprecated legacy field class; not reproduced" }
-"signatures/field.py::OldInputField" = { status = "divergence", reason = "deprecated legacy field; not reproduced" }
-"signatures/field.py::OldOutputField" = { status = "divergence", reason = "deprecated legacy field; not reproduced" }
-"signatures/field.py::move_kwargs" = { status = "divergence", reason = "internal kwargs plumbing for the legacy field" }
-"signatures/field.py::new_to_old_field" = { status = "divergence", reason = "legacy field bridging" }
+"signatures/field.py::OldField" = { status = "divergence", reason = "the pre-pydantic field, exported from `dspy.signatures` and used nowhere else in the tree — kept so a caller written against it still imports. There was no earlier field type here to keep working" }
+"signatures/field.py::OldInputField" = { status = "divergence", reason = "the input half of the pre-pydantic field; see the `OldField` entry" }
+"signatures/field.py::OldOutputField" = { status = "divergence", reason = "the output half of the pre-pydantic field; see the `OldField` entry" }
+"signatures/field.py::move_kwargs" = { status = "divergence", reason = "pydantic refuses arbitrary keywords, so `InputField`/`OutputField` split theirs: the names dspy knows — `desc`, `prefix`, `format`, `__dspy_field_type` — go under `json_schema_extra` and the rest to pydantic. That split is why a dspy field keeps its own metadata in a schema extra. `signature::InField` and `signature::OutField` are plain structs with those as named fields, so there is no bag to split. Said this was plumbing for the legacy field; it is what the current one is built on" }
+"signatures/field.py::new_to_old_field" = { status = "divergence", reason = "reads `prefix`, `desc` and `format` off a modern field's `json_schema_extra` and rebuilds it as an `OldInputField`/`OldOutputField`, for a caller still holding the pre-pydantic API. Nothing here has two field types to bridge between" }
 "signatures/utils.py::get_dspy_field_type" = { status = "divergence", reason = "internal; field-type classification folded into signature/field_type.rs" }
 
 # --- predict ---
@@ -209,8 +209,8 @@
 "primitives/prediction.py::Prediction" = { status = "mapped", rust = "Prediction" }
 "primitives/prediction.py::Completions" = { status = "mapped", rust = "Completions" }
 "primitives/module.py::Module" = { status = "mapped", rust = "Module" }
-"primitives/module.py::ProgramMeta" = { status = "divergence", reason = "Python metaclass" }
-"primitives/module.py::set_attribute_by_name" = { status = "divergence", reason = "internal attribute plumbing" }
+"primitives/module.py::ProgramMeta" = { status = "divergence", reason = "a metaclass that builds the instance and runs the base initialisation *before* `__init__`, so a subclass forgetting `super().__init__()` still gets one. A Rust type is initialised by whoever constructs it and `Module` is a trait with no state of its own, so there is nothing to inject ahead of a constructor" }
+"primitives/module.py::set_attribute_by_name" = { status = "divergence", reason = "`magicattr.set`, which writes through a dotted path — how an optimizer replaces a nested predictor found by name. `Module::named_predictors` hands back `&mut` references instead, so a caller writes through the reference it already has and no path is re-walked" }
 "primitives/base_module.py::BaseModule" = { status = "divergence", reason = "dspy's serialization base; dump/load-state folded into `Module::dump_state` and `Module::load_state`, defaulted on the trait rather than inherited from a base" }
 
 # --- teleprompt (optimizers) ---
@@ -230,7 +230,7 @@
 
 # --- clients (the LM stack) ---
 "clients/base_lm.py::BaseLM" = { status = "mapped", rust = "ChatModel" }
-"clients/base_lm.py::inspect_history" = { status = "divergence", reason = "Python REPL history-printing helper" }
+"clients/base_lm.py::inspect_history" = { status = "divergence", reason = "the module-level form of `BaseLM.inspect_history`, printing across every model rather than one; see that entry" }
 "clients/lm.py::LM" = { status = "mapped", rust = "LM" }
 "clients/lm.py::litellm_completion" = { status = "divergence", reason = "litellm wire call; reproduced natively in the provider stack — `lm/openai/mod.rs`, `lm/anthropic/mod.rs`, `lm/ollama/chat.rs` — each speaking its provider directly rather than through one shim" }
 "clients/lm.py::alitellm_completion" = { status = "divergence", reason = "the async twin of `litellm_completion`; every provider path here is async, so there is one rather than a pair — see the sync entry beside it for where the wire lives" }
@@ -642,8 +642,8 @@
 "primitives/module.py::Module.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
 "primitives/module.py::Module.batch" = { status = "mapped", rust = "Parallel" }
 "primitives/module.py::Module.get_lm" = { status = "mapped", rust = "Predict::lm" }
-"primitives/module.py::Module.inspect_history" = { status = "divergence", reason = "Python REPL history printing" }
-"primitives/module.py::Module.map_named_predictors" = { status = "divergence", reason = "`named_predictors` hands back `&mut` references, so a caller maps over them directly" }
+"primitives/module.py::Module.inspect_history" = { status = "divergence", reason = "prints the last calls' prompts and completions to the terminal, coloured, for reading in a REPL. Nothing here accumulates a history to print — see the `update_history` entry — and a library that prints decides for its caller what the caller's output looks like" }
+"primitives/module.py::Module.map_named_predictors" = { status = "divergence", reason = "upstream applies a function to each predictor and writes the result back through `set_attribute_by_name`. `Module::named_predictors` hands back `&mut` references, so a caller maps over them in place and there is nothing to write back" }
 "primitives/module.py::Module.named_predictors" = { status = "mapped", rust = "Module::named_predictors" }
 "primitives/module.py::Module.predictors" = { status = "mapped", rust = "Module::named_predictors" }
 "primitives/module.py::Module.set_lm" = { status = "mapped", rust = "Predict::set_lm", reason = "every module carries its own — `ChainOfThought`, `CodeAct`, `ProgramOfThought`, `ReAct`, `ReActV2`, `Rlm` and `Predict` each have one, where dspy inherits a single `Module.set_lm`. `Module` here is a trait and declares no such method: a default body would need a field every implementor happens to have" }
@@ -671,7 +671,7 @@
 "clients/base_lm.py::BaseLM.copy" = { status = "mapped", rust = "LM", reason = "`LM` derives `Clone`, which is upstream's `copy()`: take a copy and change it rather than rebuild from the environment. It did not derive it when this row first claimed it did — dspy's `copy(**kwargs)` also applies overrides, and that half is `LmConfig`, a per-call value the copy is not needed for" }
 "clients/base_lm.py::BaseLM.dump_state" = { status = "mapped", rust = "ChatModel::dump_state", reason = "what a model states about itself in a saved program. Defaulted on the trait as upstream's is on the base class, so a model with nothing reconstructible to say writes the `null` dspy writes. No credential is dumped on either side" }
 "clients/base_lm.py::BaseLM.forward" = { status = "divergence", rust = "ChatModel::forward", reason = "same contract — one LmRequest in, one LmResponse out — with one parameter upstream has not: `http: &reqwest::Client`. litellm holds a module-level session, so dspy's signature names no client and its own docstring example constructs one inside `forward`. A caller implementing this trait therefore has to name a reqwest type, which is why the crate re-exports it. Closeable, and filed as lm-shared-client" }
-"clients/base_lm.py::BaseLM.inspect_history" = { status = "divergence", reason = "Python REPL history printing" }
+"clients/base_lm.py::BaseLM.inspect_history" = { status = "divergence", reason = "prints the last calls' prompts and completions to the terminal, coloured, for reading in a REPL. Nothing here accumulates a history to print — see the `update_history` entry — and a library that prints decides for its caller what the caller's output looks like" }
 "clients/base_lm.py::BaseLM.load_state" = { status = "mapped", rust = "saved::rebuild", reason = "the model a saved block names, built again. dspy imports the class the block names when the file is trusted; a Rust binary has no importer, so a block naming a subclass is refused either way" }
 "clients/base_lm.py::BaseLM.supported_params" = { status = "divergence", reason = "dspy's only consumer is JSONAdapter checking whether response_format is in lm.supported_params, and that branch is unreachable here: litellm answers this per *provider* once a model carries a prefix, and `ModelRef` refuses anything but `provider/model-id`. `gpt-4` lacks it; `openai/gpt-4` has it, and only the second is a model this crate can hold. The premise is pinned by `tests/lm_capabilities.rs::every_model_this_crate_can_hold_takes_a_response_format`, so it cannot quietly stop being true. The other predicate that adapter reads, supports_response_schema, is on `Capabilities`" }
 "clients/base_lm.py::BaseLM.supports_function_calling" = { status = "mapped", rust = "ChatModel::capabilities" }
@@ -698,17 +698,17 @@
 "clients/cache.py::Cache.cache_key" = { status = "mapped", rust = "LmRequest::cache_key" }
 "clients/cache.py::Cache.get" = { status = "divergence", reason = "`ResponseCache::replay` is the separate read, and reading counts as a use so a request asked throughout a long run is not the one evicted. `Cached::forward` is the transparent path most callers take — look up, and store the answer if there was none. This entry said \"there is no separate read\" until 2026-08-24, which contradicted the `replay` entry pointing back at this very symbol" }
 "clients/cache.py::Cache.load_memory_cache" = { status = "divergence", reason = "dspy persists its in-memory cache to disk on demand; the crate's disk cache (lm/cache/disk.rs) is written as it goes" }
-"clients/cache.py::Cache.put" = { status = "divergence", reason = "as `get`" }
+"clients/cache.py::Cache.put" = { status = "divergence", reason = "the write half: `ResponseCache::keep` stores a reply under the request's hash, and `Cached::forward` calls it after a miss so most callers never write by hand — see the `Cache.get` entry for the read" }
 "clients/cache.py::Cache.reset_memory_cache" = { status = "mapped", rust = "ResponseCache::clear" }
-"clients/cache.py::Cache.save_memory_cache" = { status = "divergence", reason = "as `load_memory_cache`" }
+"clients/cache.py::Cache.save_memory_cache" = { status = "divergence", reason = "dspy writes its in-memory cache out to disk on demand; the crate's disk cache (lm/cache/disk.rs) is written as it goes, so there is no moment at which a caller has to remember to save — see the `load_memory_cache` entry" }
 
 # LMMessage
-"core/types.py::LMMessage.normalize_parts" = { status = "divergence", reason = "pydantic validation of the parts list; reproduced by the typed `LmPart` enum" }
+"core/types.py::LMMessage.normalize_parts" = { status = "divergence", reason = "a `mode='before'` validator turning a bare string into a one-element text part and rejecting anything else. `api::LmPart` is an enum, so a message either holds parts or does not compile; the string shorthand is `LmMessage::user([LmPart::text(..)])` written out" }
 "core/types.py::LMMessage.text" = { status = "mapped", rust = "LmMessage::text" }
 
 # LMRequest
 "core/types.py::LMRequest.from_call" = { status = "mapped", rust = "LmRequest::from_items", reason = "two constructors rather than one: from_messages is the adapter door, from_items the direct-call one. Upstream raises when both are passed; two constructors make it unwritable" }
-"core/types.py::LMRequest.from_prompt_or_messages" = { status = "divergence", reason = "builds a request from dspy's legacy prompt/messages pair; the crate's boundary is typed-only" }
+"core/types.py::LMRequest.from_prompt_or_messages" = { status = "divergence", reason = "builds a request from whichever of the legacy `prompt`/`messages` pair was given, raising when both were. `api::LmRequest::new` takes messages and nothing else, so the pair — and the raise — have nowhere to arise" }
 "core/types.py::LMRequest.with_config_overrides" = { status = "mapped", rust = "LmRequest::configured" }
 
 # ProgramOfThought
@@ -1029,7 +1029,7 @@
 "clients/cache.py::Cache.enable_memory_cache" = { status = "mapped", rust = "ResponseCache", reason = "ResponseCache::new, always on; a caller opts out per LM with without_cache" }
 "clients/cache.py::Cache.memory_max_entries" = { status = "mapped", rust = "ResponseCache::new", reason = "ResponseCache::new takes the cap" }
 "clients/cache.py::Cache.restrict_pickle" = { status = "divergence", reason = "dspy guards against unpickling arbitrary types. `DiskCache` writes and reads JSON — `serde_json::to_vec` and `from_slice` — so there is no pickle to restrict, and an entry that does not parse is discarded rather than trusted" }
-"clients/cache.py::Cache.safe_types" = { status = "divergence", reason = "the allowlist for dspy's pickle guard. `DiskCache` is JSON, so the types a value may take are whatever `LmResponse` declares, and an unknown key is refused by its own `deny_unknown_fields` rather than by a list kept beside it" }
+"clients/cache.py::Cache.safe_types" = { status = "divergence", reason = "the allowlist for dspy's pickle guard. `cache::DiskCache` is JSON, so the types a value may take are whatever `api::LmResponse` declares, and an unknown key is refused by its own `deny_unknown_fields` rather than by a list kept beside it" }
 "clients/lm.py::LM.cache" = { status = "mapped", rust = "LM::cache", reason = "LM::cache / LmBuilder::cache" }
 "clients/lm.py::LM.callbacks" = { status = "mapped", rust = "LM::callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. `LM::callbacks` sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
 "clients/lm.py::LM.finetuning_model" = { status = "deferred", reason = "finetuning, out of the 1.0 ceiling" }
@@ -1329,9 +1329,9 @@
 "teleprompt/gepa/gepa_utils.py::DspyAdapter.make_reflective_dataset.candidate" = { status = "mapped", rust = "Adapter::reflective_dataset", reason = "the candidate whose run is being reflected on" }
 "teleprompt/gepa/gepa_utils.py::DspyAdapter.make_reflective_dataset.components_to_update" = { status = "mapped", rust = "Adapter::reflective_dataset", reason = "which predictor's instructions the round is proposing for — matched by signature here, since two predictors can share a name" }
 "teleprompt/gepa/gepa_utils.py::DspyAdapter.make_reflective_dataset.eval_batch" = { status = "mapped", rust = "Adapter::reflective_dataset", reason = "what that run produced" }
-"utils/dummies.py::DummyLM.forward.kwargs" = { status = "divergence", reason = "upstream's catch-all for sampling settings passed at the call. They ride on the request as `LmConfig`, so there is nothing loose to catch" }
+"utils/dummies.py::DummyLM.forward.kwargs" = { status = "divergence", reason = "upstream's catch-all for sampling settings passed at the call. They ride on the request as `api::LmConfig`, which `DummyLM` reads back as `lm::Sampling` for a test to assert on, so there is nothing loose to catch" }
 "utils/dummies.py::DummyLM.forward.messages" = { status = "mapped", rust = "DummyLM::forward", reason = "the rendered conversation, which is what a request carries" }
-"utils/dummies.py::DummyLM.forward.prompt" = { status = "divergence", reason = "upstream accepts a bare prompt as well as messages, because a legacy `BaseLM` could be called either way. A request here always carries messages" }
+"utils/dummies.py::DummyLM.forward.prompt" = { status = "divergence", reason = "upstream accepts a bare prompt as well as messages, because a legacy `BaseLM` could be called either way — it wraps one into `[{role: user, content: prompt}]`. An `api::LmRequest` always carries messages, so a caller with a prompt writes that wrap themselves" }
 "clients/openai_format.py::completion_to_lm_response.request" = { status = "mapped", rust = "completion_to_lm_response", reason = "the call being sent, which this crate passes as `&LmRequest`" }
 "clients/openai_format.py::completion_to_lm_response.response" = { status = "mapped", rust = "completion_to_lm_response", reason = "the provider's body, read as a `Value`" }
 "clients/openai_format.py::provider_tool_call_to_part.tool_call" = { status = "mapped", rust = "choice_to_lm_output", reason = "the provider's tool-call object" }
@@ -1504,8 +1504,8 @@
 "core/types.py::LMRequest.from_call.messages" = { status = "divergence", rust = "from_messages", reason = "its own constructor rather than a second optional argument. Upstream raises when both `items` and `messages` are given; two constructors make that unwritable" }
 "core/types.py::LMRequest.from_call.prompt" = { status = "divergence", rust = "from_items", reason = "a bare prompt string is one item, so it goes through `from_items` — passing a single string is upstream's prompt=. Upstream raises when it is combined with either of the others, which again cannot be written here" }
 "core/types.py::LMRequest.from_call.tools" = { status = "mapped", rust = "LmRequest::tools", reason = "LmRequest::tools, a builder taking the specs the request offers" }
-"core/types.py::LMRequest.from_call.kwargs" = { status = "divergence", rust = "configured", reason = "dspy sweeps the remaining keyword arguments into the request's config; the crate takes an `LmConfig` through `configured`, so the settable keys are the ones the type has and a misspelling does not travel to the provider" }
-"core/types.py::LMRequest.with_config_overrides.kwargs" = { status = "divergence", rust = "configured", reason = "the same `LmConfig` rather than loose keys; see the from_call.kwargs entry" }
+"core/types.py::LMRequest.from_call.kwargs" = { status = "divergence", rust = "configured", reason = "dspy sweeps the remaining keyword arguments into the request's config; the crate takes an `api::LmConfig` through `LmRequest::configured`, so the settable keys are the ones the type has and a misspelling is a compile error rather than something the provider rejects" }
+"core/types.py::LMRequest.with_config_overrides.kwargs" = { status = "divergence", rust = "configured", reason = "the same `api::LmConfig` through `LmRequest::configured` rather than loose keys; see the `from_call.kwargs` entry" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.student" = { status = "mapped", rust = "MIPROv2::compile", reason = "the program to rewrite, taken by &mut rather than returned: a compile here edits in place, since Rust has no deep copy of a dyn Module to hand back" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.trainset" = { status = "mapped", rust = "MIPROv2::compile", reason = "what Step 1 bootstraps from" }
 "teleprompt/mipro_optimizer_v2.py::MIPROv2.compile.valset" = { status = "mapped", rust = "MIPROv2::compile", reason = "what each trial scores on; None splits the trainset 20/80 as `_set_and_validate_datasets` does" }
@@ -1665,7 +1665,7 @@
 
 "clients/base_lm.py::BaseLM.load_state.state" = { status = "mapped", rust = "saved::rebuild", reason = "as `LM.load_state.state`" }
 "clients/base_lm.py::BaseLM.copy.kwargs" = { status = "divergence", reason = "upstream's `lm.copy(rollout_id=1, temperature=1.0)`: attribute or request-parameter updates applied to the copy. `Clone` takes no arguments, so a caller clones and then names the change — `LM::timeout`, `LM::cache`, or a field on `api::LmConfig` — which is a compile error when the attribute does not exist rather than a key silently set on the instance" }
-"clients/base_lm.py::BaseLM.load_state.allow_custom_lm_class" = { status = "divergence", rust = "saved::rebuild", reason = "as `LM.load_state.allow_custom_lm_class`" }
+"clients/base_lm.py::BaseLM.load_state.allow_custom_lm_class" = { status = "divergence", rust = "saved::rebuild", reason = "the base-class form of the same flag, and it reaches the same place: `saved::rebuild` builds an `LM` and never imports anything a block names. See the `clients/lm.py` entry" }
 
 "predict/code_act.py::CodeAct.forward.interpreter" = { status = "divergence", reason = "the other half of the same change: `forward` now takes the interpreter the factory built. See `CodeAct.interpreter_factory`" }
 "predict/program_of_thought.py::ProgramOfThought.forward.interpreter" = { status = "divergence", reason = "the other half of the same change: `forward` now takes the interpreter the factory built. See `ProgramOfThought.interpreter_factory`" }
