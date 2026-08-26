@@ -160,6 +160,82 @@ def impl_target(tail: str) -> str | None:
     return found or None
 
 
+def everything_by_type() -> dict[str, set[str]]:
+    """Every member reachable on a type, impls and inherited trait defaults included.
+
+    Wider and less certain than [`members_by_type`], which speaks only for impl-less data types.
+    This one has to guess at three things a regex cannot see cleanly — associated consts, associated
+    types, and the methods a type gets from a trait it never overrides — and it is used only to
+    *warn*, never to fail, because the first attempt at it produced fourteen false positives.
+
+    It exists because the certain check does not cover the case that actually went wrong: three
+    reasons in one afternoon named a member of a type *with* impls — `Refine::code` for
+    `program_code`, and two more — and every one of them passed.
+    """
+    members: dict[str, set[str]] = {}
+    trait_methods: dict[str, set[str]] = {}
+    implements_trait: list[tuple[str, str]] = []
+    opener = re.compile(
+        r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait)\s+([A-Za-z_][A-Za-z0-9_]*)"
+    )
+    impl_line = re.compile(r"^\s*impl\b(.*)$")
+    impl_for = re.compile(r"^\s*impl(?:\s*<[^>]*>)?\s+([A-Za-z_][A-Za-z0-9_]*)[^ ]*\s+for\s+")
+    any_member = re.compile(
+        r"^\s+(?:pub(?:\([^)]*\))?\s+)?(?:default\s+)?(?:async\s+)?(?:unsafe\s+)?"
+        r"(?:const\s+|type\s+)?fn\s+([a-z_][A-Za-z0-9_]*)"
+        r"|^\s+(?:pub(?:\([^)]*\))?\s+)?const\s+([A-Z_][A-Z0-9_]*)\s*:"
+        r"|^\s+(?:pub(?:\([^)]*\))?\s+)?type\s+([A-Za-z_][A-Za-z0-9_]*)\s*[=;:]"
+        r"|^\s+(?:pub(?:\([^)]*\))?\s+)?([a-z_][a-z0-9_]*)\s*:"
+        r"|^\s+([A-Z][A-Za-z0-9_]*)\s*[({,]"
+    )
+
+    def block(lines: list[str], start: int) -> list[str]:
+        depth, at, entered = 0, start, False
+        out = []
+        while at < len(lines):
+            depth += lines[at].count("{") - lines[at].count("}")
+            entered = entered or depth > 0
+            if entered and depth <= 0:
+                break
+            at += 1
+            if at < len(lines):
+                out.append(lines[at])
+        return out
+
+    for path in (ROOT / "crates").rglob("*.rs"):
+        lines = path.read_text(errors="ignore").splitlines()
+        for start, line in enumerate(lines):
+            found = opener.match(line)
+            if found:
+                name = found.group(1)
+                bucket = trait_methods if line.lstrip().startswith(("trait", "pub trait")) else members
+                for own in block(lines, start):
+                    hit = any_member.match(own)
+                    if hit:
+                        bucket.setdefault(name, set()).add(next(g for g in hit.groups() if g))
+                continue
+            found = impl_line.match(line)
+            if not found:
+                continue
+            target = impl_target(found.group(1))
+            if not target:
+                continue
+            for own in block(lines, start):
+                hit = any_member.match(own)
+                if hit:
+                    members.setdefault(target, set()).add(next(g for g in hit.groups() if g))
+            named = impl_for.match(line)
+            if named:
+                implements_trait.append((target, named.group(1)))
+
+    # A type gets every method of every trait it implements, overridden or not.
+    for target, trait in implements_trait:
+        members.setdefault(target, set()).update(trait_methods.get(trait, set()))
+    for name, own in trait_methods.items():
+        members.setdefault(name, set()).update(own)
+    return members
+
+
 def members_by_type() -> dict[str, set[str]]:
     """The members of every `struct` and `enum` that has no `impl` block — and only those.
 
@@ -280,6 +356,7 @@ def names_in(pinned: pathlib.Path) -> set[str]:
 def main() -> int:
     ledger = tomllib.loads(LEDGER.read_text())
     names, files, by_file = tree()
+    everything = everything_by_type()
     goldens = {str(path.relative_to(ROOT)) for path in (ROOT / "crates").rglob("*.json")}
     theirs, unread = package_names()
     their_files = upstream_files()
@@ -367,6 +444,12 @@ def main() -> int:
                     # And the member must belong to *that* type, not merely exist somewhere.
                     owner = parts[-2] if len(parts) >= 2 and parts[-2][:1].isupper() else None
                     if owner in owners and parts[-1] not in owners[owner]:
+                        missing.append((key, "member of", ident))
+                    # The wider index covers types *with* impls, which the certain one skips: it
+                    # reads inherent methods, associated consts and types, and the methods a type
+                    # inherits from every trait it implements. Three reasons named a member of such
+                    # a type wrongly in one afternoon and every one of them passed until this ran.
+                    elif owner in everything and parts[-1] not in everything[owner]:
                         missing.append((key, "member of", ident))
             claim = CAPABILITY.search(reason) if divergence else None
             if claim and not entry.get("rust"):
