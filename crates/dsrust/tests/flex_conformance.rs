@@ -802,6 +802,59 @@ fn it_refuses_the_tool_names_python_refuses() {
     }
 }
 
+/// `code_proposal()` is dspy's `CodeProposalSignature`, field for field and byte for byte.
+///
+/// `code_proposal.json` existed and nothing read it: the prompt harness builds its signature from
+/// the fixture's *own* JSON, so it proved the adapter renders dspy's signature into dspy's bytes
+/// and said nothing about the Rust function. Corrupting the vendored instructions left every test
+/// green. A doc comment named `every_signature_matches_its_dspy_fixture` as holding this, and that
+/// test covers three MIPROv2 signatures and not this one.
+#[test]
+fn the_code_proposal_signature_is_dspys_own() {
+    let fixture: Value = serde_json::from_str(include_str!("conformance/code_proposal.json"))
+        .expect("the fixture parses");
+    let ours = dsrust::predict::flex::proposal::code_proposal();
+    let upstream = fixture["instructions"].as_str().expect("the instructions");
+
+    assert_eq!(
+        dsrust::predict::flex::proposal::CODE_PROPOSAL_INSTRUCTIONS,
+        upstream,
+        "the vendored instructions have drifted from the pinned dspy"
+    );
+    assert_eq!(
+        ours.instructions, upstream,
+        "the signature carries something other than the vendored instructions"
+    );
+    let named = |side: &Value| -> Vec<(String, String)> {
+        side.as_array()
+            .expect("a list of fields")
+            .iter()
+            .map(|field| {
+                (
+                    field["name"].as_str().unwrap_or_default().to_owned(),
+                    field["desc"].as_str().unwrap_or_default().to_owned(),
+                )
+            })
+            .collect()
+    };
+    assert_eq!(
+        ours.inputs
+            .iter()
+            .map(|field| (field.name.clone(), field.desc.clone()))
+            .collect::<Vec<_>>(),
+        named(&fixture["inputs"]),
+        "inputs"
+    );
+    assert_eq!(
+        ours.outputs
+            .iter()
+            .map(|field| (field.name.clone(), field.desc.clone()))
+            .collect::<Vec<_>>(),
+        named(&fixture["outputs"]),
+        "outputs"
+    );
+}
+
 /// The primitives catalog is upstream's file, not a rewrite of it.
 ///
 /// It is what the code proposer is told it may write, and the code it describes is Python running in

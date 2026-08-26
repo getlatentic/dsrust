@@ -45,33 +45,57 @@ fn output(name: &str, desc: &str) -> OutField {
 /// by `the_vendored_catalog_is_upstreams_own`.
 pub const PRIMITIVES_CATALOG: &str = include_str!("primitives_catalog.txt");
 
+/// dspy `CodeProposalSignature`'s docstring, dedented as dspy dedents it.
+///
+/// Its own file for the reason [`PRIMITIVES_CATALOG`] is: nearly three thousand characters that
+/// have to match upstream byte for byte, and a Rust literal holds them behind an escape per
+/// newline and quote — which is a transcription hazard on a value no one can read at a glance.
+/// `scripts/generate_fixtures.py` writes this beside the fixture, from the same pinned dspy, so
+/// regenerating the pin updates both and `every_signature_matches_its_dspy_fixture` catches a
+/// stale one.
+pub const CODE_PROPOSAL_INSTRUCTIONS: &str = include_str!("code_proposal_instructions.txt");
+
 /// dspy `CodeProposalSignature`: what GEPA asks a model when the component is *source*.
 ///
 /// A `Flex`'s optimizable component is a whole `dspy.Module` subclass rather than an instruction, so
 /// the proposer is shown the task, the tools in scope, the catalog of primitives it may use, the
 /// current source and a batch of failures — and answers with a replacement class.
 ///
-/// The instructions are upstream's docstring, dedented as dspy dedents it, and run to nearly three
-/// thousand characters. **Generated from `tests/conformance/code_proposal.json` rather than typed**,
-/// and held to it by `every_signature_matches_its_dspy_fixture` — which makes this a drift catcher
-/// rather than an independent derivation: it earns its place when the pin moves and the fixture is
-/// regenerated, not today.
+/// The instructions are [`CODE_PROPOSAL_INSTRUCTIONS`], vendored rather than typed for the reason
+/// the catalog above is: they are nearly three thousand characters of upstream's docstring, and a
+/// Rust string literal would hold them behind an escape for every newline and quote.
 ///
 /// Public alongside [`format_failures`] and [`strip_code_fences`], and for their reason: a caller
 /// writing their own code proposer needs the prompt dspy sends, not a description of it.
 pub fn code_proposal() -> Signature {
     Signature {
-        instructions: "Revise the full source code of a dspy.Flex submodule.\n\nYou receive the submodule's task description (its Signature), the available context (any tools\nand style notes), the catalog of allowed primitives, the module's current source, and a batch\nof failing examples with feedback. Produce a revised source that fixes the observed failures\nand follows the catalog.\n\nThe source is ONE ``dspy.Module`` subclass with two coupled methods, and you MUST output the\nentire, internally-consistent class:\n  1. ``def __init__(self):`` calling ``super().__init__()`` and assigning the predictors it\n     needs. Pick the simplest primitive that fits each step: ``dspy.Predict(\"...\")`` for a\n     direct call (the common default), ``dspy.ChainOfThought(\"...\")`` when explicit reasoning\n     helps, and ``dspy.RLM`` / ``dspy.ReAct`` when the step must call tools or explore a\n     large/structured input. Assign no predictors at all if the task needs no LM.\n  2. ``def forward(self, **inputs):`` that calls those predictors as ``self.<name>`` and\n     returns ``dspy.Prediction(<output fields>=...)``.\nBecause ``forward`` calls predictors by name, never rename a predictor in one place without\nupdating the other.\n\nTools are OPTIONAL — use them only when a step genuinely needs one; many good modules are just\na ``dspy.Predict`` or two plus plain Python. When you do use tools, they come from two places.\n(1) Any listed in ``available_context`` are in scope by name — wire the useful ones into\n``dspy.RLM(..., tools=[...])`` / ``dspy.ReAct(..., tools=[...])`` or call them directly\n(reference them by the exact names; do not import or redefine them). If ``available_context``\nis '(no extra context)', no tools were provided — don't reference any.\n(2) AUTHOR your own: when a sub-step needs a capability the provided tools don't cover, define a\ndocumented helper nested inside ``forward`` and call it directly. Authored helpers live in this\nsource, so they are optimized and persisted exactly like the rest of the code. They run in the\nsandbox and cannot be handed to a bridged sub-predictor, so only the provided tools may be wired\ninto ``dspy.RLM``/``dspy.ReAct`` via ``tools=[...]``.\n\nOptimize the predictors' INSTRUCTIONS, not just the code structure. Each predictor's\nnatural-language instructions live in this source — construct a predictor over\n``dspy.Signature(\"inputs -> outputs\", \"instructions\")`` and refine those instructions from the\nfailing examples and feedback (add a clear task definition, domain knowledge the model lacked,\nthe required output format, and rules that prevent the observed errors). These predictors are\ninside a dspy.Flex module, so this source is the ONLY place their prompts get optimized. See the primitives\ncatalog's \"Writing and refining instructions\" section for how. Fix instructions when a failure is about\nWHAT the model should do or know; change the structure when it is about HOW steps are wired.".into(),
+        instructions: CODE_PROPOSAL_INSTRUCTIONS.to_owned(),
         inputs: vec![
-            input("task_description", "The submodule's Signature: name, objective, input and output fields."),
-            input("available_context", "Tools (in scope by name) and style notes available to the module. May be '(no extra context)'."),
-            input("primitives_catalog", "Catalog of allowed primitives and conventions the revised code must follow."),
-            input("current_source", "The module's current full source: one dspy.Module subclass (its __init__ and forward)."),
-            input("failures", "A batch of failing examples and feedback. Diagnose them and revise the module to fix them."),
+            input(
+                "task_description",
+                "The submodule's Signature: name, objective, input and output fields.",
+            ),
+            input(
+                "available_context",
+                "Tools (in scope by name) and style notes available to the module. May be '(no extra context)'.",
+            ),
+            input(
+                "primitives_catalog",
+                "Catalog of allowed primitives and conventions the revised code must follow.",
+            ),
+            input(
+                "current_source",
+                "The module's current full source: one dspy.Module subclass (its __init__ and forward).",
+            ),
+            input(
+                "failures",
+                "A batch of failing examples and feedback. Diagnose them and revise the module to fix them.",
+            ),
         ],
-        outputs: vec![
-            output("revised_source", "The full revised module source: one `dspy.Module` subclass with `__init__` (predictors, including any refined `dspy.Signature(..., \"instructions\")`) and `forward`."),
-        ],
+        outputs: vec![output(
+            "revised_source",
+            "The full revised module source: one `dspy.Module` subclass with `__init__` (predictors, including any refined `dspy.Signature(..., \"instructions\")`) and `forward`.",
+        )],
     }
 }
 
@@ -185,8 +209,9 @@ fn proposal_inputs(
 /// dspy `propose_code`: ask for a revised module for each code component, keeping the original when
 /// the proposer cannot answer.
 ///
-/// The prompt is [`code_proposal`], held byte for
-/// byte against dspy's. Upstream keeps the current source on any failure that is not an `LMError` —
+/// The prompt is [`code_proposal`], held to dspy's by
+/// `the_code_proposal_signature_is_dspys_own` — field for field and byte for byte, which nothing
+/// checked until that test was written. Upstream keeps the current source on any failure that is not an `LMError` —
 /// a proposal that fails to arrive should cost a generation, not the run — and lets a model failure
 /// through, which is the distinction reproduced here: a refusal to *answer* keeps the source, and a
 /// refusal to *reach the model* is the caller's to see.
