@@ -285,6 +285,27 @@ impl LM {
         self
     }
 
+    /// Speak the legacy completions wire, which takes one prompt string — dspy's
+    /// `model_type="text"`. See [`OpenAiWire::Text`].
+    ///
+    /// The rendered messages become one prompt the way upstream builds it: each message's content,
+    /// then `BEGIN RESPONSE:`, joined by blank lines. Every role flattens into that, so a model on
+    /// this wire is never told which paragraph was the system prompt — which is dspy's behaviour
+    /// and the reason the wire is worth having only for a model that has no chat endpoint.
+    ///
+    /// ```
+    /// # fn wrapper() -> anyhow::Result<()> {
+    /// let lm = dsrust::LM::builder("openai/gpt-3.5-turbo-instruct")
+    ///     .build()?
+    ///     .openai_text_api();
+    /// # let _ = lm;
+    /// # Ok(()) }
+    /// ```
+    pub fn openai_text_api(mut self) -> Self {
+        self.openai.wire = OpenAiWire::Text;
+        self
+    }
+
     /// Choose which generation-cap field this endpoint is sent. The default follows
     /// OpenAI's own rule; a service that predates `max_completion_tokens` wants
     /// [`TokenLimitRule::AlwaysMaxTokens`].

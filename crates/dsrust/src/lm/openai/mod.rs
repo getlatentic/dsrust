@@ -17,6 +17,7 @@ use super::{ChatModel, LmUsage, api, env_nonempty};
 mod reasoning_temperature;
 mod response;
 pub mod responses;
+pub mod text;
 mod tools;
 
 pub(super) use tools::{apply_tool_choice, provider_extras, tool_json, unreadable_arguments};
@@ -83,6 +84,9 @@ pub enum OpenAiWire {
     #[default]
     Chat,
     Responses,
+    /// dspy `model_type="text"`: the legacy completions endpoint, which takes one prompt string
+    /// rather than a message list. See [`text`].
+    Text,
 }
 
 /// Which OpenAI-shaped service [`Provider::OpenAiCompatible`](super::Provider::OpenAiCompatible)
@@ -213,6 +217,7 @@ impl<'a> Endpoint<'a> {
                 streaming_body(self.model, call, self.json_format, self.token_limit_rule)
             }
             OpenAiWire::Responses => responses::streaming_body(self.model, call, self.json_format),
+            OpenAiWire::Text => text::streaming_body(self.model, call),
         };
         let body = match built {
             Ok(body) => body,
@@ -233,6 +238,15 @@ impl<'a> Endpoint<'a> {
             OpenAiWire::Responses => Box::pin(responses::stream(
                 http,
                 responses_url(self.base_url),
+                self.api_key.map(str::to_owned),
+                self.label.to_owned(),
+                self.model.to_owned(),
+                body,
+                self.timeout,
+            )),
+            OpenAiWire::Text => Box::pin(text::stream(
+                http,
+                completions_url(self.base_url),
                 self.api_key.map(str::to_owned),
                 self.label.to_owned(),
                 self.model.to_owned(),
@@ -276,6 +290,10 @@ impl ChatModel for Endpoint<'_> {
                     responses_url(self.base_url),
                     responses::request(self.model, call, self.json_format)?,
                 ),
+                OpenAiWire::Text => (
+                    completions_url(self.base_url),
+                    text::request(self.model, call)?,
+                ),
             };
             let response = http
                 .post(url)
@@ -302,6 +320,7 @@ impl ChatModel for Endpoint<'_> {
                 OpenAiWire::Responses => {
                     responses::reply(self.label, self.model, status, &headers, &body)
                 }
+                OpenAiWire::Text => text::reply(self.label, self.model, status, &headers, &body),
             }
         }
     }
@@ -309,6 +328,10 @@ impl ChatModel for Endpoint<'_> {
 
 /// A base URL carrying a trailing slash names the same endpoint, and self-hosted setups are
 /// routinely configured with one.
+fn completions_url(base_url: &str) -> String {
+    format!("{}/completions", base_url.trim_end_matches('/'))
+}
+
 fn chat_completions_url(base_url: &str) -> String {
     format!("{}/chat/completions", base_url.trim_end_matches('/'))
 }

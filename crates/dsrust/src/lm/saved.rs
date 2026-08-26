@@ -74,6 +74,7 @@ fn model_type(lm: &LM) -> &'static str {
     match lm.openai.wire {
         OpenAiWire::Responses => "responses",
         OpenAiWire::Chat => "chat",
+        OpenAiWire::Text => "text",
     }
 }
 

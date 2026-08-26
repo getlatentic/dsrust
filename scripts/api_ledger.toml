@@ -233,11 +233,11 @@
 "clients/base_lm.py::inspect_history" = { status = "divergence", reason = "Python REPL history-printing helper" }
 "clients/lm.py::LM" = { status = "mapped", rust = "LM" }
 "clients/lm.py::litellm_completion" = { status = "divergence", reason = "litellm wire call; reproduced natively in the provider stack — `lm/openai/mod.rs`, `lm/anthropic/mod.rs`, `lm/ollama/chat.rs` — each speaking its provider directly rather than through one shim" }
-"clients/lm.py::alitellm_completion" = { status = "divergence", reason = "async litellm wire call; native provider stack is async already" }
-"clients/lm.py::litellm_text_completion" = { status = "divergence", reason = "litellm text-completion wire call; native provider stack" }
-"clients/lm.py::alitellm_text_completion" = { status = "divergence", reason = "async litellm text-completion; native provider stack" }
-"clients/lm.py::litellm_responses_completion" = { status = "divergence", reason = "litellm Responses-API wire call; native provider stack" }
-"clients/lm.py::alitellm_responses_completion" = { status = "divergence", reason = "async litellm Responses-API wire call; native provider stack" }
+"clients/lm.py::alitellm_completion" = { status = "divergence", reason = "the async twin of `litellm_completion`; every provider path here is async, so there is one rather than a pair — see the sync entry beside it for where the wire lives" }
+"clients/lm.py::litellm_text_completion" = { status = "divergence", reason = "upstream flattens the messages into one prompt, re-prefixes the model `text-completion-openai/` for litellm's router, and hands the rest over. `lm/openai/text.rs` speaks the completions endpoint directly: `text::prompt` reproduces the flattening byte for byte and the routing prefix does not travel, since nothing here routes on it" }
+"clients/lm.py::alitellm_text_completion" = { status = "divergence", reason = "the async twin of `litellm_text_completion`; `lm/openai/text.rs` is async throughout, so there is one path rather than a pair" }
+"clients/lm.py::litellm_responses_completion" = { status = "divergence", reason = "litellm's Responses-API call; `lm/openai/responses/mod.rs` speaks that endpoint directly, request and reply both byte-verified against dspy" }
+"clients/lm.py::alitellm_responses_completion" = { status = "divergence", reason = "the async twin of `litellm_responses_completion`; `lm/openai/responses/mod.rs` is async throughout, so there is one path rather than a pair" }
 "clients/cache.py::Cache" = { status = "mapped", rust = "Cached" }
 "clients/cache.py::request_cache" = { status = "divergence", reason = "dspy's internal cache-key decorator. The key is taken by `LmRequest::cache_key` here, over the whole request rather than over a chosen subset of kwargs — a decorator has nothing to wrap when the request is already a value" }
 "clients/provider.py::Provider" = { status = "deferred", reason = "finetuning provider abstraction; out of the 1.0 inference/optimization ceiling" }
@@ -535,7 +535,7 @@
 "adapters/types/citation.py::Citations.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
 "adapters/types/citation.py::Citations.description" = { status = "mapped", rust = "Citations::description" }
 "adapters/types/citation.py::Citations.format" = { status = "mapped", rust = "Citations::format" }
-"adapters/types/citation.py::Citations.from_dict_list" = { status = "mapped", rust = "Citations::new" }
+"adapters/types/citation.py::Citations.from_dict_list" = { status = "mapped", rust = "Citations::new", reason = "build the collection from what a provider returned. Upstream takes the dicts; `Citations::new` takes typed `Citation` values, and reading the dict form is `Deserialize`'s job here" }
 "adapters/types/citation.py::Citations.is_streamable" = { status = "mapped", rust = "Citations::is_streamable" }
 "adapters/types/citation.py::Citations.parse_lm_response" = { status = "mapped", rust = "Citations::parse_lm_response" }
 "adapters/types/citation.py::Citations.parse_stream_chunk" = { status = "divergence", reason = "streaming a partial value of this type is not ported; the crate streams text deltas (adapter/stream.rs)" }
@@ -565,7 +565,7 @@
 "adapters/types/tool.py::ToolCalls.description" = { status = "mapped", rust = "ToolCalls::description" }
 "adapters/types/tool.py::ToolCalls.format" = { status = "mapped", rust = "ToolCalls::format" }
 "adapters/types/tool.py::ToolCalls.from_dict_list" = { status = "mapped", rust = "ToolCalls::from_dict_list" }
-"adapters/types/tool.py::ToolCalls.serialize_model" = { status = "divergence", reason = "reproduced as the type's `Serialize`, via the `Type` seam's `serialized`" }
+"adapters/types/tool.py::ToolCalls.serialize_model" = { status = "divergence", reason = "pydantic's serialiser hook; reproduced as the type's own `Serialize`, which `types::serialized` renders through for a field value" }
 "adapters/types/tool.py::ToolCalls.validate_input" = { status = "divergence", reason = "`ToolCalls`' own `Deserialize`: a list of calls, a map under a `tool_calls` key, or a lone `{name, args}` — and the provider spellings `arguments` and `function` beside dspy's own" }
 
 # ToolCallResults
@@ -1010,8 +1010,8 @@
 "adapters/two_step_adapter.py::TwoStepAdapter.extraction_model" = { status = "mapped", rust = "TwoStepAdapter::extraction_model", reason = "TwoStepAdapter::extraction_model" }
 "adapters/types/image.py::Image.download" = { status = "mapped", rust = "Image::from_url", reason = "3.3.0 removed this as a constructor argument precisely because a value reachable from parsing could set it. Downloading is its own named constructor now, on both sides; a payload carrying `download` is refused by the deserializer rather than honoured or ignored" }
 "adapters/types/image.py::Image.verify" = { status = "mapped", rust = "Image::from_url_unverified", reason = "upstream's TLS switch, which survives 3.3.0 only on the explicit `from_url` factory. A named constructor rather than a `bool`: `false` at a call site says nothing about what it turns off, and a payload carrying `verify` is refused alongside `download`" }
-"adapters/types/tool.py::Tool.arg_desc" = { status = "divergence", reason = "per-argument prose lives in the `args` schema's `description`, which is where it is rendered from" }
-"adapters/types/tool.py::Tool.arg_types" = { status = "divergence", reason = "the JSON Schema in `args` carries each argument's type; dspy keeps the Python annotations beside it for its own coercion" }
+"adapters/types/tool.py::Tool.arg_desc" = { status = "divergence", reason = "per-argument prose lives in `Tool::args` — a JSON object mapping each argument to its JSON Schema — under that schema's `description`, which is where the instructions render it from. Upstream keeps a second dict beside the schema for the same text" }
+"adapters/types/tool.py::Tool.arg_types" = { status = "divergence", reason = "each argument's type is already in its JSON Schema under `Tool::args`; dspy keeps the Python annotations beside it because it coerces the model's arguments against them, and a Rust tool parses the `Value` it is handed" }
 "adapters/types/tool.py::Tool.args" = { status = "mapped", rust = "Tool::args", reason = "Tool::args" }
 "adapters/types/tool.py::Tool.desc" = { status = "mapped", rust = "Tool::description", reason = "Tool::description" }
 "adapters/types/tool.py::Tool.func" = { status = "mapped", rust = "FnTool", reason = "FnTool's closure, or an impl of the Tool trait" }
@@ -1020,7 +1020,7 @@
 "clients/base_lm.py::BaseLM.callbacks" = { status = "mapped", rust = "LM::callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. `LM::callbacks` sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
 "clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "Sampling::max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
 "clients/base_lm.py::BaseLM.model" = { status = "mapped", rust = "LM", reason = "LM::new, positional" }
-"clients/base_lm.py::BaseLM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "the wire enum LM routes on" }
+"clients/base_lm.py::BaseLM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "the wire enum `LM` routes on — chat, responses or text, as upstream's three values; see the `clients/lm.py` entry of the same name" }
 "clients/base_lm.py::BaseLM.num_retries" = { status = "mapped", rust = "LM::retry", reason = "LM::retry / LmBuilder::num_retries; the policy itself is lm::Retry" }
 "clients/base_lm.py::BaseLM.temperature" = { status = "mapped", rust = "Sampling::temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
 "clients/cache.py::Cache.disk_cache_dir" = { status = "mapped", rust = "DiskCache", reason = "DiskCache::new's root" }
@@ -1036,7 +1036,7 @@
 "clients/lm.py::LM.launch_kwargs" = { status = "deferred", reason = "provider launch for finetuning, out of the 1.0 ceiling" }
 "clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "LmBuilder::max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
 "clients/lm.py::LM.model" = { status = "mapped", rust = "LM::new", reason = "LM::new / LM::builder, positional" }
-"clients/lm.py::LM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "OpenAiWire / ModelRef routing decides chat vs responses" }
+"clients/lm.py::LM.model_type" = { status = "mapped", rust = "OpenAiWire", reason = "which wire to speak, all three of upstream's: `OpenAiWire::Chat`, `OpenAiWire::Responses` and `OpenAiWire::Text`, selected by `LM::openai_responses_api` and `LM::openai_text_api`. `ModelRef` picks the provider; this picks the endpoint under it" }
 "clients/lm.py::LM.num_retries" = { status = "mapped", rust = "LM::retry", reason = "LM::retry / LmBuilder::num_retries; three asks and two retries, as upstream's stop_after_attempt counts" }
 "clients/lm.py::LM.provider" = { status = "deferred", reason = "not a routing override, which is what this entry used to say: `provider=` takes a `dspy.clients.provider.Provider` — the finetuning lifecycle object with launch/kill/finetune/reinforce — and `self.provider.launch(self, ...)` is the only thing read off it. That class is already deferred as out of the 1.0 inference/optimization ceiling, so its constructor parameter is too. Routing here is `ModelRef::parse` off the prefix, which is what dspy's own `infer_provider`/`_provider_name` do" }
 "clients/lm.py::LM.temperature" = { status = "mapped", rust = "LmBuilder::temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
@@ -1588,13 +1588,13 @@
 "adapters/baml_adapter.py::BAMLAdapter.format_field_structure.signature" = { status = "mapped", rust = "Signature", reason = "the signature being rendered or parsed, the first argument on BamlAdapter as on dspy's" }
 "adapters/types/base_type.py::Type.parse_lm_response.response" = { status = "mapped", rust = "Type::parse_lm_response", reason = "the reply a custom type reads itself out of" }
 "adapters/types/base_type.py::split_message_content_for_custom_types.messages" = { status = "mapped", rust = "split_custom_types", reason = "the messages whose text is split around the custom-type placeholders" }
-"adapters/types/citation.py::Citations.from_dict_list.citations_dicts" = { status = "divergence", rust = "Citations", reason = "spelled `dicts` on the Rust constructor; `citations_dicts` repeats the type it is being built into" }
+"adapters/types/citation.py::Citations.from_dict_list.citations_dicts" = { status = "divergence", rust = "Citations::new", reason = "a list of citation dicts upstream; `Citations::new` takes typed `Citation` values instead, so there is nothing to name after the shape they arrived in. The dict form is read by `Citations`' own `Deserialize`, which accepts a bare list — see the `validate_input` entry. Said the Rust constructor spelled it `dicts`, and there is no such parameter" }
 "adapters/types/citation.py::Citations.parse_lm_response.response" = { status = "mapped", rust = "Citations::parse_lm_response", reason = "the reply the citations are read out of" }
 "adapters/types/file.py::File.from_file_id.file_id" = { status = "mapped", rust = "File::from_id", reason = "the provider's id for an already-uploaded file" }
 "adapters/types/file.py::File.from_file_id.filename" = { status = "mapped", rust = "File::from_id", reason = "the name shown to the model beside the id" }
 "adapters/types/tool.py::Tool.from_mcp_tool.session" = { status = "mapped", rust = "mcp_tool", reason = "the MCP session the tool is called through" }
 "adapters/types/tool.py::Tool.from_mcp_tool.tool" = { status = "mapped", rust = "mcp_tool", reason = "the MCP tool description to wrap" }
-"adapters/types/tool.py::ToolCalls.from_dict_list.tool_calls_dicts" = { status = "divergence", rust = "ToolCalls", reason = "spelled `dicts`; see Citations.from_dict_list.citations_dicts" }
+"adapters/types/tool.py::ToolCalls.from_dict_list.tool_calls_dicts" = { status = "divergence", rust = "ToolCalls::from_dict_list", reason = "spelled `values` on `ToolCalls::from_dict_list`, which takes `&[Value]`: `tool_calls_dicts` repeats both the type being built and the shape of what it is built from, and the Rust signature states the second already. Said `dicts`, which is neither name" }
 "adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values.tool_calls" = { status = "mapped", rust = "ToolCallResults::from_tool_calls_and_values", reason = "the same `tool_calls`, zipped into one result per call as upstream does" }
 "adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values.values" = { status = "mapped", rust = "ToolCallResults::from_tool_calls_and_values", reason = "the same `values`, zipped into one result per call as upstream does" }
 "adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values.is_errors" = { status = "mapped", rust = "ToolCallResults::from_tool_calls_and_values", reason = "the same `is_errors`, zipped into one result per call as upstream does" }
@@ -2881,6 +2881,8 @@
 "dsrust::lm::LM::openai_base_url" = { status = "divergence", reason = "dspy's `api_base=`, on the wire it applies to" }
 "dsrust::lm::LM::openai_key_var" = { status = "divergence", reason = "reads the key from a named variable rather than the default one — dspy has no equivalent, since litellm reads a fixed name per provider" }
 "dsrust::lm::LM::openai_json_format" = { status = "divergence", reason = "picks the JSON mechanism by hand; see `JsonFormat`" }
+"dsrust::lm::LM::openai_text_api" = { status = "mapped", rust = "LM::openai_text_api", reason = "dspy's `model_type='text'`, which selects the legacy completions endpoint over chat. The rendered messages become one prompt the way `litellm_text_completion` builds it, held byte for byte by tests/text_completion_conformance.rs" }
+"dsrust::lm::openai::text::prompt" = { status = "mapped", rust = "text::prompt", reason = "dspy `litellm_text_completion`'s prompt: each message's content, then `BEGIN RESPONSE:`, joined by blank lines. Public because it is the whole of what upstream contributes on that path and the one part a caller writing their own completions client has to match — the rest is the provider's wire" }
 "dsrust::lm::LM::openai_responses_api" = { status = "mapped", reason = "dspy's `model_type='responses'`, which selects the Responses API over Chat Completions" }
 "dsrust::lm::LM::openai_token_limit_rule" = { status = "divergence", reason = "registers a `TokenLimitRule`; see that entry" }
 "dsrust::lm::LM::anthropic_api_key" = { status = "divergence", reason = "the Anthropic key, per the reason on `openai_api_key`" }
