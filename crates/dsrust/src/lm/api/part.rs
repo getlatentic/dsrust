@@ -230,6 +230,27 @@ impl LmPart {
     }
 
     /// A part carrying a block is spelled as text with an empty string, which is not prose.
+    /// The name dspy gives this part's class, for an error that quotes one.
+    ///
+    /// Upstream's refusals interpolate `type(part).__name__`, so a message naming `LMImagePart`
+    /// has to name it by that spelling and not by the variant's — a caller reading the sentence is
+    /// matching it against dspy's, not against this enum.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Text { .. } => "LMTextPart",
+            Self::Image { .. } => "LMImagePart",
+            Self::Audio { .. } => "LMAudioPart",
+            Self::Video { .. } => "LMVideoPart",
+            Self::Binary { .. } => "LMBinaryPart",
+            Self::Document { .. } => "LMDocumentPart",
+            Self::ToolCall { .. } => "LMToolCallPart",
+            Self::ToolResult { .. } => "LMToolResultPart",
+            Self::Thinking { .. } => "LMThinkingPart",
+            Self::Citation { .. } => "LMCitationPart",
+            Self::Refusal { .. } => "LMRefusalPart",
+        }
+    }
+
     pub fn as_text(&self) -> Option<&str> {
         match self {
             Self::Text { text, metadata } if !metadata.contains_key(LEGACY_BLOCK) => Some(text),

@@ -1,0 +1,422 @@
+{
+  "source": "dspy==3.3.0 clients/openai_format.to_openai_text_request",
+  "dspy_version": "3.3.0",
+  "note": "The legacy completions body dspy builds for a typed request. `prompt` is `messages_to_text_prompt`, whose rule is dspy's own; the rest is `text_config_kwargs`, whose key order is the order it writes them in.",
+  "cases": [
+    {
+      "name": "system_and_user",
+      "lm_request": {
+        "model": "gpt-3.5-turbo-instruct",
+        "messages": [
+          {
+            "role": "system",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "Answer the question."
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "What is the capital of France?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "gpt-3.5-turbo-instruct",
+        "prompt": "Answer the question.\n\nWhat is the capital of France?\n\nBEGIN RESPONSE:"
+      }
+    },
+    {
+      "name": "single_user",
+      "lm_request": {
+        "model": "gpt-3.5-turbo-instruct",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "Hello"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "gpt-3.5-turbo-instruct",
+        "prompt": "Hello\n\nBEGIN RESPONSE:"
+      }
+    },
+    {
+      "name": "a_demo_conversation",
+      "lm_request": {
+        "model": "gpt-3.5-turbo-instruct",
+        "messages": [
+          {
+            "role": "system",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "Answer the question."
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "2 + 2?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "assistant",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "4"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          },
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "3 + 3?"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "gpt-3.5-turbo-instruct",
+        "prompt": "Answer the question.\n\n2 + 2?\n\n4\n\n3 + 3?\n\nBEGIN RESPONSE:"
+      }
+    },
+    {
+      "name": "no_messages",
+      "lm_request": {
+        "model": "gpt-3.5-turbo-instruct",
+        "messages": [],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "gpt-3.5-turbo-instruct",
+        "prompt": "BEGIN RESPONSE:"
+      }
+    },
+    {
+      "name": "two_parts_in_one_message",
+      "lm_request": {
+        "model": "gpt-3.5-turbo-instruct",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "first"
+              },
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "second"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "gpt-3.5-turbo-instruct",
+        "prompt": "firstsecond\n\nBEGIN RESPONSE:"
+      }
+    },
+    {
+      "name": "content_holding_blank_lines",
+      "lm_request": {
+        "model": "gpt-3.5-turbo-instruct",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "first\n\nsecond"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "gpt-3.5-turbo-instruct",
+        "prompt": "first\n\nsecond\n\nBEGIN RESPONSE:"
+      }
+    },
+    {
+      "name": "every_sampling_field",
+      "lm_request": {
+        "model": "gpt-3.5-turbo-instruct",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": 0.7,
+          "max_tokens": 256,
+          "top_p": 0.9,
+          "stop": [
+            "\n\n"
+          ],
+          "n": 2,
+          "logprobs": true,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "gpt-3.5-turbo-instruct",
+        "prompt": "hi\n\nBEGIN RESPONSE:",
+        "temperature": 0.7,
+        "max_tokens": 256,
+        "top_p": 0.9,
+        "stop": [
+          "\n\n"
+        ],
+        "logprobs": true,
+        "n": 2
+      }
+    },
+    {
+      "name": "max_tokens_only",
+      "lm_request": {
+        "model": "gpt-3.5-turbo-instruct",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": null,
+          "max_tokens": 256,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {}
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "gpt-3.5-turbo-instruct",
+        "prompt": "hi\n\nBEGIN RESPONSE:",
+        "max_tokens": 256
+      }
+    },
+    {
+      "name": "an_extension_rides_through",
+      "lm_request": {
+        "model": "gpt-3.5-turbo-instruct",
+        "messages": [
+          {
+            "role": "user",
+            "parts": [
+              {
+                "type": "text",
+                "metadata": {},
+                "text": "hi"
+              }
+            ],
+            "name": null,
+            "metadata": {}
+          }
+        ],
+        "tools": [],
+        "config": {
+          "temperature": 0.5,
+          "max_tokens": null,
+          "top_p": null,
+          "stop": null,
+          "n": null,
+          "logprobs": null,
+          "response_format": null,
+          "reasoning": null,
+          "tool_choice": null,
+          "cache": null,
+          "prompt_cache": null,
+          "extensions": {
+            "best_of": 3
+          }
+        },
+        "metadata": {}
+      },
+      "expected": {
+        "model": "gpt-3.5-turbo-instruct",
+        "prompt": "hi\n\nBEGIN RESPONSE:",
+        "best_of": 3,
+        "temperature": 0.5
+      }
+    }
+  ]
+}

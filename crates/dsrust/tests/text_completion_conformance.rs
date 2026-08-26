@@ -1,4 +1,9 @@
-//! The prompt the legacy completions wire sends is the one dspy sends.
+//! The legacy completions prompt agrees with dspy's *other* path to that wire.
+//!
+//! `lm_api/openai_text.json` holds the body against `to_openai_text_request`, the typed builder
+//! this crate follows. This holds the prompt against `litellm_text_completion`, the path dspy takes
+//! when it hands the call to litellm — a second oracle for the one rule both share, and the only
+//! place the routing prefix they disagree about is visible.
 //!
 //! `model_type="text"` is the one place upstream turns a rendered message list back into a single
 //! string, and the rule is entirely its own: each message's content, then `BEGIN RESPONSE:`, joined
@@ -35,7 +40,8 @@ fn the_prompt_is_the_one_dspy_builds() {
     for case in fixture["cases"].as_array().expect("cases") {
         let name = case["name"].as_str().expect("a name");
         let request = LmRequest::new("gpt-3.5-turbo-instruct", messages(case));
-        let ours = dsrust::lm::openai::text::prompt(&request.messages);
+        let ours =
+            dsrust::lm::openai::text::prompt(&request.messages).expect("every case is text-only");
         let theirs = case["sent"]["prompt"].as_str().expect("dspy's prompt");
         assert_eq!(ours, theirs, "case {name}: prompt");
 
