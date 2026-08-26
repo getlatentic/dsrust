@@ -23,11 +23,13 @@ use crate::signature::{Signature, infer_prefix};
 
 mod candidates;
 mod signatures;
+mod stats;
 
 #[cfg(test)]
 mod conformance;
 
 use candidates::{Evaluated, Evaluations, Proposal, best_program, stripped};
+pub use stats::{CoproStats, DepthScores};
 
 /// dspy `COPRO`: an instruction optimizer driven by a metric.
 ///
@@ -97,12 +99,44 @@ where
         student: &mut S,
         trainset: &[Example],
     ) -> Result<()> {
+        self.compile_traced(student, trainset).await.map(|_| ())
+    }
+
+    /// The same search, handing back what dspy's `track_stats=True` records.
+    ///
+    /// Upstream hangs `results_best`, `results_latest` and `total_calls` off the compiled program;
+    /// a Rust program is the caller's value, so they are returned — the shape
+    /// [`MIPROv2::compile_traced`](crate::optimize::MIPROv2::compile_traced) already uses. There is
+    /// no flag: the numbers are counted either way and `compile` drops them.
+    ///
+    /// ```no_run
+    /// # use dsrust::optimize::{COPRO, CoproStats, DepthScores};
+    /// # async fn wrapper(program: &mut dsrust::Predict, trainset: Vec<dsrust::Example>) -> anyhow::Result<()> {
+    /// let stats: CoproStats = COPRO::new(dsrust::exact_match)
+    ///     .compile_traced(program, &trainset)
+    ///     .await?;
+    ///
+    /// // One entry per depth, per predictor. Reading `best` shows whether the search was still
+    /// // finding better instructions by the last round or had stopped moving.
+    /// for (predictor, depths) in stats.best.iter().enumerate() {
+    ///     for DepthScores { depth, max, average, .. } in depths {
+    ///         println!("predictor {predictor} at depth {depth}: best {max:.1}%, mean {average:.1}%");
+    ///     }
+    /// }
+    /// println!("{} candidates scored", stats.total_calls);
+    /// # Ok(()) }
+    /// ```
+    pub async fn compile_traced<S: Module + ?Sized>(
+        &self,
+        student: &mut S,
+        trainset: &[Example],
+    ) -> Result<CoproStats> {
         if self.breadth <= 1 {
             bail!("COPRO breadth must be greater than 1");
         }
         let predictors = student.named_predictors().len();
         if predictors == 0 {
-            return Ok(());
+            return Ok(CoproStats::default());
         }
 
         let originals = originals(student);
@@ -112,6 +146,7 @@ where
             (0..predictors).map(|_| Evaluations::default()).collect();
         let mut current: Vec<String> = originals.iter().map(|o| o.instruction.clone()).collect();
 
+        let mut stats = CoproStats::for_predictors(predictors);
         for round in 0..self.depth {
             for predictor in 0..predictors {
                 let pool = if predictors > 1 {
@@ -119,11 +154,26 @@ where
                 } else {
                     &latest[predictor]
                 };
-                for candidate in pool {
+                // dspy's `latest_scores`: the tail of the pool, `breadth` long — the candidates
+                // this round's proposal produced, rather than every one seen so far.
+                let newest = pool.len().saturating_sub(self.breadth);
+                let mut latest_scores = Vec::new();
+                for (at, candidate) in pool.iter().enumerate() {
                     let outcome = self
                         .try_candidate(student, predictor, candidate, trainset, &mut current)
                         .await?;
+                    stats.total_calls += 1;
+                    if at >= newest {
+                        latest_scores.push(outcome.score);
+                    }
                     evaluated[predictor].record(outcome);
+                }
+                if let Some(summary) = DepthScores::of(round, &latest_scores) {
+                    stats.latest[predictor].push(summary);
+                }
+                let mut seen = evaluated[predictor].scores();
+                if let Some(summary) = DepthScores::of(round, CoproStats::top_ten(&mut seen)) {
+                    stats.best[predictor].push(summary);
                 }
                 let best = evaluated[predictor].best().instruction.clone();
                 set_instruction(student, predictor, &best);
@@ -144,7 +194,7 @@ where
                 set_instruction(student, predictor, instruction);
             }
         }
-        Ok(())
+        Ok(stats)
     }
 
     /// Set one predictor to one candidate's instruction, score the whole program, and package the

@@ -58,6 +58,15 @@ impl Evaluations {
         }
     }
 
+    /// Every candidate's score, in the insertion order this holds them in.
+    ///
+    /// dspy reads `[x["score"] for x in evaluated_candidates[id(p)].values()]` and sorts a copy, so
+    /// the order here is the one it sorts *from* — which decides nothing for `max`/`min` but does
+    /// decide which of two equal scores a stable sort keeps.
+    pub fn scores(&self) -> Vec<f64> {
+        self.0.iter().map(|candidate| candidate.score).collect()
+    }
+
     /// dspy `max(values(), key=score)`: the highest-scoring candidate, and the earliest one on a
     /// tie — the coordinate-ascent winner this predictor is set to before the next is scored.
     pub fn best(&self) -> &Evaluated {

@@ -75,7 +75,7 @@ impl Scoring {
 
 pub use better_together::{BetterTogether, StepResult};
 pub use bootstrap::BootstrapFewShot;
-pub use copro::COPRO;
+pub use copro::{COPRO, CoproStats, DepthScores};
 pub use ensemble::{Ensemble, Ensembled};
 // `Reflective` travels with the two: a caller implementing `InstructionProposer` cannot read the
 // dataset it is handed without naming the type its entries are, and reaching for it would mean

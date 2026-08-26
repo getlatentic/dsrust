@@ -16,7 +16,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use serde_json::Value;
 
-use super::COPRO;
+use super::{COPRO, CoproStats, DepthScores};
 use crate::evaluate::exact_match;
 use crate::example::{Example, Prediction};
 use crate::lm::dummy::Asked;
@@ -151,6 +151,114 @@ fn compiled_instructions(module: &mut dyn Module) -> Vec<String> {
         .collect()
 }
 
+/// The five numbers a depth is summarised by, against Python's own `statistics`.
+///
+/// Separate from the run comparison because a run cannot discriminate them: the keyed model answers
+/// by question, so every candidate at a depth scores the same and every recorded `std` is `0.0`
+/// with `min == max`. A fixture built only from runs agrees by accident — it cannot tell `pstdev`
+/// from the sample deviation, `average` from `max`, or a top-ten slice from taking everything.
+/// These cases put spread in on purpose, including more than ten scores and ties across the cut.
+#[test]
+fn a_depth_is_summarised_the_way_python_summarises_it() {
+    let fixture = fixture();
+    let rows = fixture["summaries"].as_array().expect("summaries");
+    assert!(!rows.is_empty(), "the golden records no summaries");
+    for row in rows {
+        let name = row["name"].as_str().expect("a name");
+        let scores: Vec<f64> = row["scores"]
+            .as_array()
+            .expect("scores")
+            .iter()
+            .map(|value| value.as_f64().expect("a score"))
+            .collect();
+
+        let ours = DepthScores::of(0, &scores).expect("a non-empty list");
+        assert_summary(name, "whole", &ours, &row["summary"]);
+
+        // The other rule a run never reaches: `results_best` summarises the top ten of a
+        // descending sort, so a set of fifteen is cut and ties across the cut keep their order.
+        let mut sorted = scores.clone();
+        let top = CoproStats::top_ten(&mut sorted);
+        let theirs: Vec<f64> = row["top_ten"]
+            .as_array()
+            .expect("top_ten")
+            .iter()
+            .map(|value| value.as_f64().expect("a score"))
+            .collect();
+        assert_eq!(top, theirs.as_slice(), "{name}: the top ten themselves");
+        let ours = DepthScores::of(0, top).expect("a non-empty list");
+        assert_summary(name, "top_ten", &ours, &row["top_ten_summary"]);
+    }
+}
+
+fn assert_summary(name: &str, which: &str, ours: &DepthScores, theirs: &Value) {
+    for (label, mine, dspys) in [
+        ("max", ours.max, theirs["max"].as_f64().expect("max")),
+        (
+            "average",
+            ours.average,
+            theirs["average"].as_f64().expect("average"),
+        ),
+        ("min", ours.min, theirs["min"].as_f64().expect("min")),
+        ("std", ours.std, theirs["std"].as_f64().expect("std")),
+    ] {
+        assert!(
+            (mine - dspys).abs() < 1e-12,
+            "{name} ({which}) {label}: {mine} is not Python's {dspys}"
+        );
+    }
+}
+
+/// dspy's `track_stats` block, compared against the numbers it recorded for the same run.
+///
+/// The dicts upstream keys by `id(predictor)` are re-keyed to predictor position when the fixture
+/// is written — the ids belong to a `student.deepcopy()` that is never returned, so order is the
+/// only thing that crosses. `std` is `pstdev`, so a single-candidate depth is `0.0` rather than
+/// undefined, and the scores are percentages because that is what `Evaluate.score` reports.
+fn assert_tracked(case: &Value, stats: &CoproStats) {
+    let recorded = &case["stats"];
+    assert_eq!(
+        stats.total_calls,
+        recorded["total_calls"].as_u64().expect("total_calls") as usize,
+        "total_calls for case {:?}",
+        case["instructions"]
+    );
+    for (kind, ours) in [
+        ("results_best", &stats.best),
+        ("results_latest", &stats.latest),
+    ] {
+        let theirs = recorded[kind].as_array().expect("a list per predictor");
+        assert_eq!(ours.len(), theirs.len(), "{kind}: predictors");
+        for (predictor, (mine, dspys)) in ours.iter().zip(theirs).enumerate() {
+            let rows = dspys.as_array().expect("a list per depth");
+            assert_eq!(
+                mine.len(),
+                rows.len(),
+                "{kind}: depths for predictor {predictor}"
+            );
+            for (at, (summary, row)) in mine.iter().zip(rows).enumerate() {
+                let named = |key: &str| row[key].as_f64().expect("a number");
+                assert_eq!(
+                    summary.depth as f64,
+                    named("depth"),
+                    "{kind}[{predictor}][{at}] depth"
+                );
+                for (label, ours, theirs) in [
+                    ("max", summary.max, named("max")),
+                    ("average", summary.average, named("average")),
+                    ("min", summary.min, named("min")),
+                    ("std", summary.std, named("std")),
+                ] {
+                    assert!(
+                        (ours - theirs).abs() < 1e-9,
+                        "{kind}[{predictor}][{at}] {label}: {ours} is not dspy's {theirs}"
+                    );
+                }
+            }
+        }
+    }
+}
+
 #[tokio::test]
 async fn copro_makes_the_decisions_dspy_makes() {
     let fixture = fixture();
@@ -166,15 +274,16 @@ async fn copro_makes_the_decisions_dspy_makes() {
             .collect();
         let mut module = build(case, model.clone());
 
-        COPRO::new(exact_match)
+        let stats = COPRO::new(exact_match)
             .breadth(case["breadth"].as_u64().expect("breadth") as usize)
             .depth(case["depth"].as_u64().expect("depth") as usize)
             .prompt_model(model.clone())
-            .compile(module.as_mut(), &trainset)
+            .compile_traced(module.as_mut(), &trainset)
             .await
             .expect("compiles");
 
         assert_calls(case, &model.asked());
+        assert_tracked(case, &stats);
         let expected: Vec<String> = case["final"]
             .as_array()
             .expect("final")

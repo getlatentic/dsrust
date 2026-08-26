@@ -107,7 +107,46 @@
       ],
       "final": [
         "Proposed at seed"
-      ]
+      ],
+      "stats": {
+        "results_best": [
+          [
+            {
+              "depth": 0,
+              "max": 50.0,
+              "average": 50.0,
+              "min": 50.0,
+              "std": 0.0
+            },
+            {
+              "depth": 1,
+              "max": 50.0,
+              "average": 50.0,
+              "min": 50.0,
+              "std": 0.0
+            }
+          ]
+        ],
+        "results_latest": [
+          [
+            {
+              "depth": 0,
+              "max": 50.0,
+              "average": 50.0,
+              "min": 50.0,
+              "std": 0.0
+            },
+            {
+              "depth": 1,
+              "max": 50.0,
+              "average": 50.0,
+              "min": 50.0,
+              "std": 0.0
+            }
+          ]
+        ],
+        "total_calls": 6
+      }
     },
     {
       "module": "predict",
@@ -178,7 +217,32 @@
       ],
       "final": [
         "Proposed at seed"
-      ]
+      ],
+      "stats": {
+        "results_best": [
+          [
+            {
+              "depth": 0,
+              "max": 50.0,
+              "average": 50.0,
+              "min": 50.0,
+              "std": 0.0
+            }
+          ]
+        ],
+        "results_latest": [
+          [
+            {
+              "depth": 0,
+              "max": 50.0,
+              "average": 50.0,
+              "min": 50.0,
+              "std": 0.0
+            }
+          ]
+        ],
+        "total_calls": 2
+      }
     },
     {
       "module": "pair",
@@ -339,7 +403,331 @@
       "final": [
         "Proposed at seed",
         "Settle the answer."
-      ]
+      ],
+      "stats": {
+        "results_best": [
+          [
+            {
+              "depth": 0,
+              "max": 100.0,
+              "average": 100.0,
+              "min": 100.0,
+              "std": 0.0
+            },
+            {
+              "depth": 1,
+              "max": 100.0,
+              "average": 100.0,
+              "min": 100.0,
+              "std": 0.0
+            }
+          ],
+          [
+            {
+              "depth": 0,
+              "max": 100.0,
+              "average": 100.0,
+              "min": 100.0,
+              "std": 0.0
+            },
+            {
+              "depth": 1,
+              "max": 100.0,
+              "average": 100.0,
+              "min": 100.0,
+              "std": 0.0
+            }
+          ]
+        ],
+        "results_latest": [
+          [
+            {
+              "depth": 0,
+              "max": 100.0,
+              "average": 100.0,
+              "min": 100.0,
+              "std": 0.0
+            },
+            {
+              "depth": 1,
+              "max": 100.0,
+              "average": 100.0,
+              "min": 100.0,
+              "std": 0.0
+            }
+          ],
+          [
+            {
+              "depth": 0,
+              "max": 100.0,
+              "average": 100.0,
+              "min": 100.0,
+              "std": 0.0
+            },
+            {
+              "depth": 1,
+              "max": 100.0,
+              "average": 100.0,
+              "min": 100.0,
+              "std": 0.0
+            }
+          ]
+        ],
+        "total_calls": 12
+      }
+    }
+  ],
+  "summaries": [
+    {
+      "name": "one",
+      "scores": [
+        50.0
+      ],
+      "summary": {
+        "max": 50.0,
+        "average": 50.0,
+        "min": 50.0,
+        "std": 0.0
+      },
+      "top_ten": [
+        50.0
+      ],
+      "top_ten_summary": {
+        "max": 50.0,
+        "average": 50.0,
+        "min": 50.0,
+        "std": 0.0
+      }
+    },
+    {
+      "name": "two_apart",
+      "scores": [
+        0.0,
+        100.0
+      ],
+      "summary": {
+        "max": 100.0,
+        "average": 50.0,
+        "min": 0.0,
+        "std": 50.0
+      },
+      "top_ten": [
+        100.0,
+        0.0
+      ],
+      "top_ten_summary": {
+        "max": 100.0,
+        "average": 50.0,
+        "min": 0.0,
+        "std": 50.0
+      }
+    },
+    {
+      "name": "three_uneven",
+      "scores": [
+        10.0,
+        20.0,
+        60.0
+      ],
+      "summary": {
+        "max": 60.0,
+        "average": 30.0,
+        "min": 10.0,
+        "std": 21.602468994692867
+      },
+      "top_ten": [
+        60.0,
+        20.0,
+        10.0
+      ],
+      "top_ten_summary": {
+        "max": 60.0,
+        "average": 30.0,
+        "min": 10.0,
+        "std": 21.602468994692867
+      }
+    },
+    {
+      "name": "negative_and_zero",
+      "scores": [
+        -25.0,
+        0.0,
+        25.0
+      ],
+      "summary": {
+        "max": 25.0,
+        "average": 0.0,
+        "min": -25.0,
+        "std": 20.41241452319315
+      },
+      "top_ten": [
+        25.0,
+        0.0,
+        -25.0
+      ],
+      "top_ten_summary": {
+        "max": 25.0,
+        "average": 0.0,
+        "min": -25.0,
+        "std": 20.41241452319315
+      }
+    },
+    {
+      "name": "all_equal",
+      "scores": [
+        33.0,
+        33.0,
+        33.0
+      ],
+      "summary": {
+        "max": 33.0,
+        "average": 33.0,
+        "min": 33.0,
+        "std": 0.0
+      },
+      "top_ten": [
+        33.0,
+        33.0,
+        33.0
+      ],
+      "top_ten_summary": {
+        "max": 33.0,
+        "average": 33.0,
+        "min": 33.0,
+        "std": 0.0
+      }
+    },
+    {
+      "name": "fifteen_descending",
+      "scores": [
+        100.0,
+        99.0,
+        98.0,
+        97.0,
+        96.0,
+        95.0,
+        94.0,
+        93.0,
+        92.0,
+        91.0,
+        90.0,
+        89.0,
+        88.0,
+        87.0,
+        86.0
+      ],
+      "summary": {
+        "max": 100.0,
+        "average": 93.0,
+        "min": 86.0,
+        "std": 4.320493798938574
+      },
+      "top_ten": [
+        100.0,
+        99.0,
+        98.0,
+        97.0,
+        96.0,
+        95.0,
+        94.0,
+        93.0,
+        92.0,
+        91.0
+      ],
+      "top_ten_summary": {
+        "max": 100.0,
+        "average": 95.5,
+        "min": 91.0,
+        "std": 2.8722813232690143
+      }
+    },
+    {
+      "name": "fifteen_ascending",
+      "scores": [
+        0.0,
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+        5.0,
+        6.0,
+        7.0,
+        8.0,
+        9.0,
+        10.0,
+        11.0,
+        12.0,
+        13.0,
+        14.0
+      ],
+      "summary": {
+        "max": 14.0,
+        "average": 7.0,
+        "min": 0.0,
+        "std": 4.320493798938574
+      },
+      "top_ten": [
+        14.0,
+        13.0,
+        12.0,
+        11.0,
+        10.0,
+        9.0,
+        8.0,
+        7.0,
+        6.0,
+        5.0
+      ],
+      "top_ten_summary": {
+        "max": 14.0,
+        "average": 9.5,
+        "min": 5.0,
+        "std": 2.8722813232690143
+      }
+    },
+    {
+      "name": "ties_across_the_cut",
+      "scores": [
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "summary": {
+        "max": 5.0,
+        "average": 4.2,
+        "min": 1.0,
+        "std": 1.6
+      },
+      "top_ten": [
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0
+      ],
+      "top_ten_summary": {
+        "max": 5.0,
+        "average": 5.0,
+        "min": 5.0,
+        "std": 0.0
+      }
     }
   ]
 }

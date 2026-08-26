@@ -97,6 +97,14 @@ FIELD = re.compile(r"^\s+pub(?:\([^)]*\))?\s+([a-z_][a-z0-9_]*)\s*:", re.M)
 #: Names that legitimately come from outside these crates, so their absence proves nothing.
 #: The crates this repo owns, so a path rooted in one is ours to have.
 OURS = {"dsrust", "gepa", "pyrng", "tpe", "json_repair", "dsrust_gepa", "dsrust_tpe"}
+#: Roots that are never ours however the workspace spells its own items. The lowercase-and-unknown
+#: rule below is not enough on its own: a field named `std` — dspy's own name for a standard
+#: deviation — put `std` in the tree's names and turned every `std::thread` in a reason into a
+#: claim about this crate.
+FOREIGN_ROOTS = {
+    "std", "core", "alloc", "tokio", "serde", "serde_json", "anyhow", "reqwest", "futures_util",
+    "tracing", "schemars", "regex", "chrono", "base64", "rand", "url", "uuid", "pyo3",
+}
 EXTERNAL = {
     "Serialize", "Deserialize", "Clone", "Debug", "Default", "Display", "PartialEq", "Eq",
     "Hash", "Iterator", "From", "Into", "Option", "Result", "Vec", "String", "Arc", "Box",
@@ -329,6 +337,8 @@ def main() -> int:
             for ident in set(BARE_PATH.findall(reason + " " + str(entry.get("rust") or ""))):
                 checked += 1
                 parts = ident.split("::")
+                if parts[0] in FOREIGN_ROOTS:
+                    continue                   # `std::thread`, `serde_json::Value` — another crate's
                 if parts[0] in OURS:
                     parts = parts[1:]          # a crate-rooted path; the crate itself is not an item
                 elif parts[0][:1].islower() and parts[0] not in names:
