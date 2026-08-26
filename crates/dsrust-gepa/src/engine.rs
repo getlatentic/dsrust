@@ -120,6 +120,13 @@ pub struct GepaOutcome<O> {
     pub num_full_ds_evals: usize,
     pub num_metric_calls_by_discovery: Vec<usize>,
     pub iterations: i64,
+    /// gepa's `prog_candidate_val_subscores`, dspy's `val_subscores`: every candidate's score on
+    /// every validation example, in candidate order. `val_aggregate_scores` is the mean of each.
+    pub val_subscores: Vec<Vec<f64>>,
+    /// gepa's `program_at_pareto_front_valset`, dspy's `per_val_instance_best_candidates`: per
+    /// validation example, which candidates achieve its best score. The Pareto front the search
+    /// selects from, reported so a caller can see which candidate won where.
+    pub per_val_instance_best_candidates: Vec<Vec<usize>>,
     /// gepa's `best_outputs_valset`: per validation example, every program on its Pareto front and
     /// what that program answered. `None` unless the engine was asked to track them — gepa's
     /// `track_best_outputs`, which exists for using GEPA as a batch inference-time search, where
@@ -444,6 +451,9 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
     fn finish(self, state: GepaState<A::Output>) -> GepaOutcome<A::Output> {
         let best_idx = state.best_program();
         let best_outputs_valset = state.best_outputs().map(<[_]>::to_vec);
+        let val_subscores = state.all_subscores().to_vec();
+        let per_val_instance_best_candidates: Vec<Vec<usize>> =
+            state.fronts().iter().map(PyIntSet::to_vec).collect();
         GepaOutcome {
             best: state.candidates[best_idx].clone(),
             val_aggregate_scores: state.mean_scores(),
@@ -454,6 +464,8 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             num_full_ds_evals: state.num_full_ds_evals,
             num_metric_calls_by_discovery: state.num_metric_calls_by_discovery,
             iterations: state.i,
+            val_subscores,
+            per_val_instance_best_candidates,
             best_outputs_valset,
         }
     }

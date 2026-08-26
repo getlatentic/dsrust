@@ -80,6 +80,12 @@ impl<O: Clone> GepaState<O> {
         &self.subscores[candidate]
     }
 
+    /// gepa's `prog_candidate_val_subscores`: every candidate's per-example scores, in candidate
+    /// order. What [`subscores`](Self::subscores) reads one row of.
+    pub fn all_subscores(&self) -> &[Vec<f64>] {
+        &self.subscores
+    }
+
     /// dspy `RoundRobinReflectionComponentSelector`: return the parent's next component to reflect on
     /// and advance that parent's cursor. A new candidate inherits the advanced cursor (see
     /// [`Self::add_program`]), so the family cycles through its components across generations.

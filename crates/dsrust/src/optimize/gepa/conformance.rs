@@ -231,6 +231,57 @@ fn marker(text: &str) -> Option<u64> {
 /// GEPA scores through its own adapter rather than through [`Evaluate`](crate::Evaluate), so no
 /// `evaluate` span is opened — which is the half of the `GEPA.log_dir` reason that was true. The
 /// other half said the run emitted nothing at all, and it emits the student's spans like any other
+/// `GepaOutcome` reports every field dspy's `DspyGEPAResult` does, and they agree with each other.
+///
+/// It was missing two the state already had: `val_subscores` — every candidate's per-example
+/// scores, which `val_aggregate_scores` is the mean of — and `per_val_instance_best_candidates`,
+/// the Pareto front the search itself selects from. A row said the result was "surfaced through
+/// the gepa crate's own result type", which was true of nine of its eleven fields.
+#[tokio::test]
+async fn the_outcome_reports_what_dspys_result_reports() {
+    let task = Arc::new(TaskCoach);
+    let mut student = Predict::parse("question -> answer")
+        .expect("parses")
+        .set_lm(task);
+    student.signature.instructions = "Answer the question.".to_owned();
+    let outcome = GEPA::new(metric, Arc::new(Reflector))
+        .max_metric_calls(20)
+        .reflection_minibatch_size(2)
+        .compile(&mut student, &trainset(), &trainset())
+        .await
+        .expect("compiles");
+
+    let rows = trainset().len();
+    assert_eq!(outcome.val_subscores.len(), outcome.candidates.len());
+    for (candidate, scores) in outcome.val_subscores.iter().enumerate() {
+        assert_eq!(
+            scores.len(),
+            rows,
+            "candidate {candidate} was scored on every row"
+        );
+        let mean = scores.iter().sum::<f64>() / rows as f64;
+        assert!(
+            (mean - outcome.val_aggregate_scores[candidate]).abs() < 1e-12,
+            "candidate {candidate}: the aggregate is the mean of the subscores"
+        );
+    }
+
+    assert_eq!(outcome.per_val_instance_best_candidates.len(), rows);
+    for (row, front) in outcome.per_val_instance_best_candidates.iter().enumerate() {
+        assert!(!front.is_empty(), "row {row} has an empty front");
+        let best = front
+            .iter()
+            .map(|&candidate| outcome.val_subscores[candidate][row])
+            .fold(f64::NEG_INFINITY, f64::max);
+        for (candidate, scores) in outcome.val_subscores.iter().enumerate() {
+            assert!(
+                scores[row] <= best,
+                "row {row}: candidate {candidate} beats its own front"
+            );
+        }
+    }
+}
+
 /// gepa's `track_best_outputs`: what the best programs answered on each validation example.
 ///
 /// Off by default and reporting nothing, on by request and reporting one list per example — every
