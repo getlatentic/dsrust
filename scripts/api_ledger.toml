@@ -311,7 +311,7 @@
 "evaluate/evaluate.py::prediction_is_dictlike" = { status = "divergence", reason = "internal helper" }
 "evaluate/evaluate.py::stylize_metric_name" = { status = "divergence", reason = "Python display" }
 "evaluate/evaluate.py::truncate_cell" = { status = "divergence", reason = "Python display" }
-"evaluate/metrics.py::answer_exact_match" = { status = "mapped", rust = "answer_exact_match" }
+"evaluate/metrics.py::answer_exact_match" = { status = "mapped", rust = "metrics::answer_exact_match", reason = "whether the prediction's answer matches any reference exactly. Scored rather than boolean, because that is what a metric is: upstream returns Python's `True`, which the same arithmetic reads as `1.0`" }
 "evaluate/metrics.py::EM" = { status = "mapped", rust = "em" }
 "evaluate/metrics.py::F1" = { status = "mapped", rust = "f1" }
 "evaluate/metrics.py::HotPotF1" = { status = "mapped", rust = "hotpot_f1" }
@@ -1044,16 +1044,16 @@
 "clients/lm.py::LM.use_developer_role" = { status = "mapped", rust = "LmBuilder::use_developer_role", reason = "LmBuilder::use_developer_role / LM::use_developer_role; applied on the Responses wire only, as upstream's is" }
 "evaluate/evaluate.py::Evaluate.devset" = { status = "mapped", rust = "Evaluate::devset", reason = "Evaluate::devset" }
 "evaluate/evaluate.py::Evaluate.display_progress" = { status = "divergence", reason = "progress is the caller's to render; tracing spans carry the events" }
-"evaluate/evaluate.py::Evaluate.display_table" = { status = "divergence", reason = "dspy prints a pandas table; Outcome carries the rows for a caller to render" }
+"evaluate/evaluate.py::Evaluate.display_table" = { status = "divergence", reason = "dspy prints a pandas table; `Evaluation::results` carries the rows for a caller to render" }
 "evaluate/evaluate.py::Evaluate.failure_score" = { status = "mapped", rust = "Evaluate::failure_score", reason = "Evaluate::failure_score" }
 "evaluate/evaluate.py::Evaluate.max_errors" = { status = "mapped", rust = "Evaluate::max_errors" }
 "evaluate/evaluate.py::Evaluate.metric" = { status = "mapped", rust = "Evaluate::metric", reason = "Evaluate::metric" }
 "evaluate/evaluate.py::Evaluate.num_threads" = { status = "mapped", rust = "Evaluate::num_threads" }
 "evaluate/evaluate.py::Evaluate.provide_traceback" = { status = "divergence", reason = "a failed row keeps its error string in Scored::prediction" }
-"evaluate/evaluate.py::Evaluate.save_as_csv" = { status = "divergence", reason = "serialising the outcome is the caller's; Outcome::results is public" }
-"evaluate/evaluate.py::Evaluate.save_as_json" = { status = "divergence", reason = "serialising the outcome is the caller's; Outcome::results is public" }
-"evaluate/evaluate.py::EvaluationResult.results" = { status = "mapped", rust = "Evaluation::results", reason = "Outcome::results" }
-"evaluate/evaluate.py::EvaluationResult.score" = { status = "mapped", rust = "Evaluation::score", reason = "Outcome::score" }
+"evaluate/evaluate.py::Evaluate.save_as_csv" = { status = "divergence", reason = "serialising the result is the caller's; `Evaluation::results` is public and every `Scored` row on it carries the example, the prediction and the score" }
+"evaluate/evaluate.py::Evaluate.save_as_json" = { status = "divergence", reason = "serialising the result is the caller's; `Evaluation::results` is public and every `Scored` row on it carries the example, the prediction and the score" }
+"evaluate/evaluate.py::EvaluationResult.results" = { status = "mapped", rust = "Evaluation::results", reason = "every scored row, in devset order — dspy's list of `(example, prediction, score)` tuples as a list of `Scored`" }
+"evaluate/evaluate.py::EvaluationResult.score" = { status = "mapped", rust = "Evaluation::score", reason = "dspy `round(100 * ncorrect / ntotal, 2)`: the metric's mean as the percentage upstream reports, which is what `Evaluate::run` puts there" }
 "predict/best_of_n.py::BestOfN.N" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new's n" }
 "predict/best_of_n.py::BestOfN.fail_count" = { status = "mapped", rust = "BestOfN::fail_count", reason = "BestOfN::fail_count" }
 "predict/best_of_n.py::BestOfN.module" = { status = "mapped", rust = "BestOfN", reason = "BestOfN::new, positional" }
@@ -1459,8 +1459,8 @@
 "evaluate/metrics.py::normalize_text.s" = { status = "divergence", rust = "normalize_text", reason = "spelled `text`; `s` names nothing a reader can use" }
 "evaluate/metrics.py::answer_exact_match.example" = { status = "mapped", rust = "answer_exact_match", reason = "the same first parameter" }
 "evaluate/metrics.py::answer_exact_match.pred" = { status = "divergence", rust = "answer_exact_match", reason = "spelled `prediction`, matching every other metric here and the Prediction type it takes" }
-"evaluate/metrics.py::answer_exact_match.frac" = { status = "divergence", rust = "answer_match", reason = "Rust has no default arguments, so the fraction is its own function: `answer_exact_match` is upstream's frac=1.0 call and `answer_match(example, prediction, frac)` is the general one. Splitting rather than making every caller pass 1.0" }
-"evaluate/metrics.py::answer_exact_match.trace" = { status = "divergence", reason = "dspy's metrics take `trace` and return a bool rather than a float when it is set, which is how a bootstrap tells 'good enough to keep' from 'how good'. The crate keeps the two apart at the optimizer instead: a metric is always Fn(&Example, &Prediction) -> f64 and BootstrapFewShot's `metric_threshold` decides what counts as a keeper, so no metric has to change shape depending on who called it" }
+"evaluate/metrics.py::answer_exact_match.frac" = { status = "divergence", rust = "metrics::answer_match", reason = "Rust has no default arguments, so the fraction is its own function: `metrics::answer_exact_match` is upstream's frac=1.0 call and `metrics::answer_match(example, prediction, frac)` is the general one. Splitting rather than making every caller pass 1.0" }
+"evaluate/metrics.py::answer_exact_match.trace" = { status = "divergence", reason = "upstream's unused third argument, documented as `Unused; reserved for compatibility` and measured to be so — the return is `True`/`False` whether or not a trace is passed. Said this metric returned a bool rather than a float *when trace was set*, which is a convention some hand-written dspy metrics follow and this one does not, and which contradicted the `answer_passage_match.trace` row beside it. Where the crate does draw that line is the optimizer: a metric is always `Fn(&Example, &Prediction) -> f64` and `BootstrapFewShot::metric_threshold` decides what counts as a keeper, so no metric changes shape depending on who called it" }
 "signatures/signature.py::Signature.append.field" = { status = "mapped", rust = "Signature::append", reason = "the field to add, as a `Side` that says which half it joins" }
 "signatures/signature.py::Signature.append.name" = { status = "divergence", rust = "append", reason = "carried on the `Side` value rather than beside it: dspy takes (name, field, type_) as three loose arguments that must agree, where one typed value cannot disagree with itself" }
 "signatures/signature.py::Signature.append.type_" = { status = "divergence", rust = "append", reason = "carried on the `Side`'s field kind; see the name entry beside it" }

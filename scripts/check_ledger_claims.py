@@ -122,6 +122,111 @@ def tree() -> tuple[set[str], set[str], dict[str, set[str]]]:
     return names, files, by_file
 
 
+def impl_target(tail: str) -> str | None:
+    """The type an `impl` line is *for*, past its generics.
+
+    A regex with `<[^>]*>` cannot skip the parameter list of
+    `impl<E: Iterator<Item = LmStreamEvent>> LmStream<E>` — it stops at the inner `>` and matches
+    nothing, so `LmStream` looked like a type with no impl and its methods read as missing. Angle
+    brackets nest; counting them is the only thing that reads them.
+    """
+    if " for " in tail:
+        tail = tail.split(" for ", 1)[1]
+    depth, name = 0, []
+    for character in tail:
+        if character == "<":
+            depth += 1
+        elif character == ">":
+            depth -= 1
+        elif depth == 0:
+            if character.isalnum() or character == "_":
+                name.append(character)
+            elif name:
+                break
+    found = "".join(name)
+    return found or None
+
+
+def members_by_type() -> dict[str, set[str]]:
+    """The members of every `struct` and `enum` that has no `impl` block — and only those.
+
+    A flat name set cannot tell `Evaluation::results` from `Outcome::results`. Five reasons named
+    an `Outcome` this crate does not have, two of them as `Outcome::results`, and the check passed
+    because `refine.rs` defines an unrelated `Outcome` and something somewhere has a `results`
+    field. The gate's own comment says a *bare* name resolves against any type that has one; a
+    qualified path was doing the same, which is worse — writing `Type::member` is how you say
+    *which* type.
+
+    Restricted to impl-less data types because that is the whole of what a regex can be sure of: a
+    `struct` or `enum` declaration lists its members and there is nowhere else for one to come
+    from. Anything with an `impl` can also carry associated consts, associated types, and trait
+    methods it never overrides, and asking about those produced fourteen false positives —
+    `Predict::dump_state` is defaulted on `Module` and appears in no block belonging to `Predict`.
+    A gate that cries wolf gets worked around, so this one only speaks where it knows.
+
+    What it therefore does **not** catch: a wrong member on a type that has an `impl`.
+    `Evaluation::rows` passes, because `Evaluation` has impls and `rows` is a field on something
+    else. Closing that needs the trait methods each type inherits, which means resolving
+    `impl Trait for Type` against the trait's own defaults — worth doing, not done here.
+    """
+    owners: dict[str, set[str]] = {}
+    #: A name is only usable here if the workspace declares it exactly once, as a data type with no
+    #: `impl`. `Module` is a trait in `dsrust` and an unrelated `enum` in `dsrust-derive`, and
+    #: `Outcome` is one enum here and a different idea in five ledger reasons — a second declaration
+    #: anywhere means the members of one of them are not the members of the other.
+    implemented: set[str] = set()
+    times_declared: dict[str, int] = {}
+    declared = re.compile(
+        r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum)\s+([A-Za-z_][A-Za-z0-9_]*)", re.M
+    )
+    trait_or_type = re.compile(
+        r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait)\s+([A-Za-z_][A-Za-z0-9_]*)", re.M
+    )
+    implements = re.compile(r"^\s*impl\b(.*)$")
+    member = re.compile(
+        r"^\s+(?:pub(?:\([^)]*\))?\s+)?([a-z_][a-z0-9_]*)\s*:|^\s+([A-Z][A-Za-z0-9_]*)\s*[({,]"
+    )
+    for path in (ROOT / "crates").rglob("*.rs"):
+        lines = path.read_text(errors="ignore").splitlines()
+        for line in lines:
+            found = implements.match(line)
+            if found:
+                target = impl_target(found.group(1))
+                if target:
+                    implemented.add(target)
+            found = trait_or_type.match(line)
+            if found:
+                name = found.group(1)
+                times_declared[name] = times_declared.get(name, 0) + 1
+                if line.lstrip().startswith(("trait", "pub trait")):
+                    implemented.add(name)
+        for start, line in enumerate(lines):
+            found = declared.match(line)
+            if not found:
+                continue
+            name = found.group(1)
+            depth, at, entered = 0, start, False
+            # The block this opener owns, by brace balance. `entered` matters: an
+            # `impl<M> Type<M>\nwhere\n    …\n{` opens its brace three lines below the name, and
+            # breaking on depth alone cut every such block to nothing — which reported
+            # `MIPROv2::score` missing while it sat in one.
+            while at < len(lines):
+                depth += lines[at].count("{") - lines[at].count("}")
+                entered = entered or depth > 0
+                if entered and depth <= 0:
+                    break
+                at += 1
+                if at < len(lines):
+                    hit = member.match(lines[at])
+                    if hit:
+                        owners.setdefault(name, set()).add(next(g for g in hit.groups() if g))
+    return {
+        name: members
+        for name, members in owners.items()
+        if name not in implemented and times_declared.get(name, 0) == 1
+    }
+
+
 def upstream_files() -> set[str]:
     """Every `.py` path under the pinned dspy, relative to its package root."""
     root = ROOT / "third_party" / "dspy" / "dspy"
@@ -164,6 +269,7 @@ def main() -> int:
     names, files, by_file = tree()
     theirs, unread = package_names()
     their_files = upstream_files()
+    owners = members_by_type()
 
     missing: list[tuple[str, str, str]] = []
     unverified: list[tuple[str, str]] = []
@@ -211,10 +317,10 @@ def main() -> int:
                 checked += 1
                 # Every file the suffix names, not the first — two files here are called `demos.rs`,
                 # and picking one of them reported a reason wrong that named the other.
-                owners = [f for f in files if f.endswith("/" + path_named) or f == path_named]
-                if not owners:
+                owning_files = [f for f in files if f.endswith("/" + path_named) or f == path_named]
+                if not owning_files:
                     missing.append((key, "file", path_named))
-                elif not any(item in by_file[f] for f in owners):
+                elif not any(item in by_file[f] for f in owning_files):
                     missing.append((key, "item in file", f"{path_named}::{item}"))
             for named in set(WITH_NAME.findall(reason + " " + str(entry.get("rust") or ""))):
                 checked += 1
@@ -237,6 +343,11 @@ def main() -> int:
                     if part not in names:
                         missing.append((key, "qualified path", ident))
                         break
+                else:
+                    # And the member must belong to *that* type, not merely exist somewhere.
+                    owner = parts[-2] if len(parts) >= 2 and parts[-2][:1].isupper() else None
+                    if owner in owners and parts[-1] not in owners[owner]:
+                        missing.append((key, "member of", ident))
             claim = CAPABILITY.search(reason) if divergence else None
             if claim and not entry.get("rust"):
                 named_something = bool(RS_FILE.search(reason)) or any(
