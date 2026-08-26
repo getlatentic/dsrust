@@ -130,8 +130,8 @@
 
 # --- signatures ---
 "signatures/signature.py::Signature" = { status = "mapped", rust = "Signature" }
-"signatures/signature.py::SignatureMeta" = { status = "divergence", reason = "Python metaclass; a Rust signature is built by #[derive(Signature)]" }
-"signatures/signature.py::ensure_signature" = { status = "divergence", reason = "string/Signature coercion; Rust uses a typed SignatureSpec" }
+"signatures/signature.py::SignatureMeta" = { status = "divergence", reason = "Python metaclass, which is how upstream turns a class body into fields; a Rust signature is built by `#[derive(Signature)]` in dsrust-derive, which emits a `signature::SignatureSpec` impl instead" }
+"signatures/signature.py::ensure_signature" = { status = "divergence", reason = "string/Signature coercion; a Rust caller either parses the string form into a `Signature` or derives `signature::SignatureSpec`, so there is no value that might be either" }
 "signatures/signature.py::infer_prefix" = { status = "mapped", rust = "infer_prefix" }
 "signatures/signature.py::make_signature" = { status = "mapped", rust = "make_signature", reason = "the `make_signature!` proc macro, which builds a signature from a string literal. dspy builds one at runtime and raises on a bad string; this fails the build, pointing at the literal. This entry read `divergence — Rust uses the derive/builder` until the reverse surface walk put the macro in front of it" }
 "signatures/field.py::InputField" = { status = "mapped", rust = "InField" }
@@ -232,7 +232,7 @@
 "clients/base_lm.py::BaseLM" = { status = "mapped", rust = "ChatModel" }
 "clients/base_lm.py::inspect_history" = { status = "divergence", reason = "Python REPL history-printing helper" }
 "clients/lm.py::LM" = { status = "mapped", rust = "LM" }
-"clients/lm.py::litellm_completion" = { status = "divergence", reason = "litellm wire call; reproduced natively in the provider stack (lm/api, lm/anthropic, lm/ollama)" }
+"clients/lm.py::litellm_completion" = { status = "divergence", reason = "litellm wire call; reproduced natively in the provider stack — `lm/openai/mod.rs`, `lm/anthropic/mod.rs`, `lm/ollama/chat.rs` — each speaking its provider directly rather than through one shim" }
 "clients/lm.py::alitellm_completion" = { status = "divergence", reason = "async litellm wire call; native provider stack is async already" }
 "clients/lm.py::litellm_text_completion" = { status = "divergence", reason = "litellm text-completion wire call; native provider stack" }
 "clients/lm.py::alitellm_text_completion" = { status = "divergence", reason = "async litellm text-completion; native provider stack" }
@@ -668,7 +668,7 @@
 # BaseLM
 "clients/base_lm.py::BaseLM.acall" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
 "clients/base_lm.py::BaseLM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward`/`call` is the async method; upstream's separate sync/async pair has no counterpart" }
-"clients/base_lm.py::BaseLM.copy" = { status = "divergence", reason = "reproduced as `Clone` plus the per-call `LmConfig`, which is where a rollout differs" }
+"clients/base_lm.py::BaseLM.copy" = { status = "mapped", rust = "LM", reason = "`LM` derives `Clone`, which is upstream's `copy()`: take a copy and change it rather than rebuild from the environment. It did not derive it when this row first claimed it did — dspy's `copy(**kwargs)` also applies overrides, and that half is `LmConfig`, a per-call value the copy is not needed for" }
 "clients/base_lm.py::BaseLM.dump_state" = { status = "mapped", rust = "ChatModel::dump_state", reason = "what a model states about itself in a saved program. Defaulted on the trait as upstream's is on the base class, so a model with nothing reconstructible to say writes the `null` dspy writes. No credential is dumped on either side" }
 "clients/base_lm.py::BaseLM.forward" = { status = "divergence", rust = "ChatModel::forward", reason = "same contract — one LmRequest in, one LmResponse out — with one parameter upstream has not: `http: &reqwest::Client`. litellm holds a module-level session, so dspy's signature names no client and its own docstring example constructs one inside `forward`. A caller implementing this trait therefore has to name a reqwest type, which is why the crate re-exports it. Closeable, and filed as lm-shared-client" }
 "clients/base_lm.py::BaseLM.inspect_history" = { status = "divergence", reason = "Python REPL history printing" }
@@ -1463,21 +1463,21 @@
 "evaluate/metrics.py::answer_exact_match.trace" = { status = "divergence", reason = "upstream's unused third argument, documented as `Unused; reserved for compatibility` and measured to be so — the return is `True`/`False` whether or not a trace is passed. Said this metric returned a bool rather than a float *when trace was set*, which is a convention some hand-written dspy metrics follow and this one does not, and which contradicted the `answer_passage_match.trace` row beside it. Where the crate does draw that line is the optimizer: a metric is always `Fn(&Example, &Prediction) -> f64` and `BootstrapFewShot::metric_threshold` decides what counts as a keeper, so no metric changes shape depending on who called it" }
 "signatures/signature.py::Signature.append.field" = { status = "mapped", rust = "Signature::append", reason = "the field to add, as a `Side` that says which half it joins" }
 "signatures/signature.py::Signature.append.name" = { status = "divergence", rust = "append", reason = "carried on the `Side` value rather than beside it: dspy takes (name, field, type_) as three loose arguments that must agree, where one typed value cannot disagree with itself" }
-"signatures/signature.py::Signature.append.type_" = { status = "divergence", rust = "append", reason = "carried on the `Side`'s field kind; see the name entry beside it" }
+"signatures/signature.py::Signature.append.type_" = { status = "divergence", rust = "append", reason = "carried on the field inside `Side::Input` or `Side::Output` — its `kind` — rather than passed beside the name; see the name entry beside it" }
 "signatures/signature.py::Signature.prepend.field" = { status = "mapped", rust = "Signature::prepend", reason = "the field to add, as a `Side` that says which half it joins" }
 "signatures/signature.py::Signature.prepend.name" = { status = "divergence", rust = "prepend", reason = "carried on the `Side` value rather than beside it: dspy takes (name, field, type_) as three loose arguments that must agree, where one typed value cannot disagree with itself" }
-"signatures/signature.py::Signature.prepend.type_" = { status = "divergence", rust = "prepend", reason = "carried on the `Side`'s field kind; see the name entry beside it" }
+"signatures/signature.py::Signature.prepend.type_" = { status = "divergence", rust = "prepend", reason = "carried on the field inside `Side::Input` or `Side::Output` — its `kind` — rather than passed beside the name; see the name entry beside it" }
 "signatures/signature.py::Signature.insert.field" = { status = "mapped", rust = "Signature::insert", reason = "the field to add, as a `Side`" }
 "signatures/signature.py::Signature.insert.index" = { status = "mapped", rust = "Signature::insert", reason = "the same signed index, negative counting from the end as upstream's does" }
-"signatures/signature.py::Signature.insert.name" = { status = "divergence", rust = "insert", reason = "carried on the `Side` value; see Signature.append.name" }
-"signatures/signature.py::Signature.insert.type_" = { status = "divergence", rust = "insert", reason = "carried on the `Side`'s field kind; see Signature.append.name" }
+"signatures/signature.py::Signature.insert.name" = { status = "divergence", rust = "insert", reason = "carried on the field inside `Side::Input` or `Side::Output`; see Signature.append.name" }
+"signatures/signature.py::Signature.insert.type_" = { status = "divergence", rust = "insert", reason = "carried on the field inside `Side::Input` or `Side::Output` — its `kind` — rather than passed beside the name; see Signature.append.name" }
 "signatures/signature.py::Signature.delete.name" = { status = "mapped", rust = "Signature::delete", reason = "the field name to remove" }
 "signatures/signature.py::Signature.with_instructions.instructions" = { status = "mapped", rust = "Signature::with_instructions", reason = "the replacement instructions; `impl Into<String>` so a literal needs no ceremony" }
 "signatures/signature.py::Signature.with_updated_fields.name" = { status = "mapped", rust = "Signature::with_updated_fields", reason = "the field to edit" }
 "signatures/signature.py::Signature.with_updated_fields.kwargs" = { status = "divergence", rust = "FieldEdit", reason = "dspy takes **kwargs and copies whichever pydantic FieldInfo attributes it recognises; the crate takes a closure over a `FieldEdit`, so the editable attributes are the ones the type exposes and a typo is a compile error rather than a silently ignored key" }
 "signatures/signature.py::Signature.with_updated_fields.type_" = { status = "divergence", rust = "FieldEdit", reason = "set through the same `FieldEdit` closure as the rest; see the kwargs entry beside it" }
 "signatures/signature.py::Signature.load_state.state" = { status = "divergence", rust = "load_state", reason = "a Signature has no load_state of its own here — Module::load_state restores instructions and demos for the whole program, which is the only place dspy's is reached from and the only shape the saved file has" }
-"signatures/signature.py::infer_prefix.attribute_name" = { status = "divergence", rust = "infer_prefix", reason = "spelled `name`: the function takes a field name, and `attribute_` says only that Python reached it through getattr" }
+"signatures/signature.py::infer_prefix.attribute_name" = { status = "divergence", rust = "infer_prefix", reason = "spelled `name` on `signature::infer_prefix`: the function takes a field name, and `attribute_` says only that Python reached it through getattr" }
 "primitives/module.py::Module.batch.max_errors" = { status = "mapped", rust = "Parallel", reason = "Parallel::max_errors, a public field under dspy's own name" }
 "primitives/module.py::Module.batch.provide_traceback" = { status = "mapped", rust = "Parallel", reason = "Parallel::provide_traceback, a public field under dspy's own name" }
 "primitives/module.py::Module.batch.return_failed_examples" = { status = "mapped", rust = "Parallel", reason = "Parallel::return_failed_examples, a public field under dspy's own name" }
@@ -1602,7 +1602,7 @@
 "clients/cache.py::Cache.cache_key.ignored_args_for_cache_key" = { status = "divergence", rust = "cache_key", reason = "dspy takes the ignore-list per call; the crate has the same names as a constant beside the key function, because varying them per call would make two callers disagree about what is the same request" }
 "clients/lm.py::LM.forward.messages" = { status = "mapped", rust = "LM::call", reason = "the turns to send; `lm.call(items![...])` takes them as items, of which a message is one" }
 "clients/lm.py::LM.forward.prompt" = { status = "divergence", rust = "call", reason = "a bare string is one item, so `lm.call(items!['...'])` is upstream's prompt=; there is no separate parameter to disagree with the others" }
-"clients/lm.py::LM.forward.kwargs" = { status = "divergence", rust = "Sampling", reason = "per-call overrides are an `LmConfig`/`Sampling` rather than loose keys, so a misspelling is a compile error instead of something the provider rejects" }
+"clients/lm.py::LM.forward.kwargs" = { status = "divergence", rust = "Sampling", reason = "per-call overrides are an `api::LmConfig` (or `lm::Sampling` where a test reads them back) rather than loose keys, so a misspelling is a compile error instead of something the provider rejects" }
 "predict/aggregation.py::majority.prediction_or_completions" = { status = "divergence", rust = "majority", reason = "spelled `completions`: the crate takes the completions directly, where dspy accepts a Prediction, a Completions or a list and unwraps whichever it was given" }
 "predict/aggregation.py::majority.normalize" = { status = "mapped", rust = "majority", reason = "how a value is normalised before votes are counted" }
 "predict/aggregation.py::majority.field" = { status = "mapped", rust = "majority", reason = "which field is voted on; None takes the signature's last output as upstream does" }
@@ -1664,6 +1664,7 @@
 "clients/lm.py::LM.load_state.allow_custom_lm_class" = { status = "divergence", rust = "saved::rebuild", reason = "dspy's inner flag, which permits importing the LM class a block names. A Rust binary has no importer, so the trusted path refuses too — with a message saying to construct the model and set it rather than with upstream's" }
 
 "clients/base_lm.py::BaseLM.load_state.state" = { status = "mapped", rust = "saved::rebuild", reason = "as `LM.load_state.state`" }
+"clients/base_lm.py::BaseLM.copy.kwargs" = { status = "divergence", reason = "upstream's `lm.copy(rollout_id=1, temperature=1.0)`: attribute or request-parameter updates applied to the copy. `Clone` takes no arguments, so a caller clones and then names the change — `LM::timeout`, `LM::cache`, or a field on `api::LmConfig` — which is a compile error when the attribute does not exist rather than a key silently set on the instance" }
 "clients/base_lm.py::BaseLM.load_state.allow_custom_lm_class" = { status = "divergence", rust = "saved::rebuild", reason = "as `LM.load_state.allow_custom_lm_class`" }
 
 "predict/code_act.py::CodeAct.forward.interpreter" = { status = "divergence", reason = "the other half of the same change: `forward` now takes the interpreter the factory built. See `CodeAct.interpreter_factory`" }

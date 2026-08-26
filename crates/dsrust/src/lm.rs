@@ -70,6 +70,20 @@ pub const DEFAULT_OLLAMA_HOST: &str = "http://localhost:11434";
 
 /// One configured language model: a model reference plus the credentials and hosts its
 /// provider needs.
+///
+/// [`Clone`] is dspy's `BaseLM.copy()`: a caller who wants the same model under a different
+/// setting takes a copy and changes it, rather than rebuilding it from the environment and
+/// hoping the credentials resolve the same way. The callbacks come along by `Arc`, so a copy
+/// watches what the original watched.
+///
+/// ```
+/// # fn wrapper() -> anyhow::Result<()> {
+/// let patient = dsrust::LM::builder("openai/gpt-4o-mini").build()?;
+/// let brief = patient.clone().timeout(std::time::Duration::from_secs(5));
+/// assert_eq!(brief.model.id, patient.model.id, "the same model, asked differently");
+/// # Ok(()) }
+/// ```
+#[derive(Clone)]
 pub struct LM {
     pub model: ModelRef,
     pub anthropic_api_key: Option<String>,
