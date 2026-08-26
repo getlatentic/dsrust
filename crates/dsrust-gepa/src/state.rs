@@ -7,7 +7,7 @@ use crate::pareto::ParetoFront;
 
 /// dspy `GEPAState`, restricted to the default `instance` frontier and `FullEvaluationPolicy` (every
 /// candidate is scored on the whole valset, so every subscore vector has the same length).
-pub struct GepaState {
+pub struct GepaState<O> {
     pub candidates: Vec<Candidate>,
     pub parents: Vec<Vec<usize>>,
     pub num_metric_calls_by_discovery: Vec<usize>,
@@ -16,14 +16,14 @@ pub struct GepaState {
     pub total_num_evals: usize,
     pub num_full_ds_evals: usize,
     subscores: Vec<Vec<f64>>,
-    front: ParetoFront,
+    front: ParetoFront<O>,
     /// dspy `named_predictor_id_to_update_next_for_program_candidate`.
     next_predictor: Vec<usize>,
     /// dspy `list_of_named_predictors` — the seed candidate's component names.
     components: Vec<String>,
 }
 
-impl GepaState {
+impl<O: Clone> GepaState<O> {
     /// dspy `initialize_gepa_state`: the seed is candidate 0, scored on the full valset, and its score
     /// count is the starting eval total (`num_full_ds_evals = 1`).
     pub fn new(seed_candidate: Candidate, seed_scores: Vec<f64>) -> Self {
@@ -41,6 +41,26 @@ impl GepaState {
             total_num_evals: total,
             num_full_ds_evals: 1,
         }
+    }
+
+    /// The same, keeping what the seed and every later candidate answered — gepa's
+    /// `track_best_outputs=True`, which it documents as requiring `track_stats` because the
+    /// outputs are reported on the result.
+    pub fn tracking_outputs(
+        seed_candidate: Candidate,
+        seed_scores: Vec<f64>,
+        seed_outputs: &[O],
+    ) -> Self {
+        let mut state = Self::new(seed_candidate, seed_scores.clone());
+        state.front = ParetoFront::seeded_tracking(&seed_scores, seed_outputs);
+        state
+    }
+
+    /// gepa's `best_outputs_valset`: per validation example, every program on its front and what
+    /// that program answered. `None` unless the run was started with
+    /// [`tracking_outputs`](Self::tracking_outputs).
+    pub fn best_outputs(&self) -> Option<&[Vec<(usize, O)>]> {
+        self.front.best_outputs()
     }
 
     /// The per-testcase Pareto front, as [`crate::pareto::select_candidate`] reads it.
@@ -98,13 +118,27 @@ impl GepaState {
         val_scores: Vec<f64>,
         discovered_at: usize,
     ) -> usize {
+        self.add_program_with_outputs(parents, candidate, val_scores, discovered_at, None)
+    }
+
+    /// The same, carrying what this candidate answered on each validation example so the front can
+    /// keep the outputs of whichever programs are currently best — gepa's `track_best_outputs`.
+    pub fn add_program_with_outputs(
+        &mut self,
+        parents: &[usize],
+        candidate: Candidate,
+        val_scores: Vec<f64>,
+        discovered_at: usize,
+        outputs: Option<Vec<O>>,
+    ) -> usize {
         let new_idx = self.candidates.len();
         let inherited = parents
             .iter()
             .map(|&p| self.next_predictor[p])
             .max()
             .unwrap_or(0);
-        self.front.add_program(new_idx, &val_scores);
+        self.front
+            .add_program_with_outputs(new_idx, &val_scores, outputs.as_deref());
         self.candidates.push(candidate);
         self.parents.push(parents.to_vec());
         self.num_metric_calls_by_discovery.push(discovered_at);
@@ -151,7 +185,7 @@ mod best_program_tests {
     /// on a *different* number of examples cannot be added that way at all. Coverage varies only
     /// under a partial evaluation policy, which is the case the tie clause exists for and the case
     /// no test had. `best_program` reads nothing but this field.
-    fn with_scores(all: &[&[f64]]) -> GepaState {
+    fn with_scores(all: &[&[f64]]) -> GepaState<()> {
         let mut state = GepaState::new(candidate("seed"), vec![0.0]);
         state.subscores = all.iter().map(|scores| scores.to_vec()).collect();
         state

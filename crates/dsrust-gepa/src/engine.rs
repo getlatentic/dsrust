@@ -110,7 +110,7 @@ struct Proposal {
 }
 
 /// What a completed run reports — the fields of dspy's `GEPAResult` the engine determines.
-pub struct GepaOutcome {
+pub struct GepaOutcome<O> {
     pub candidates: Vec<Candidate>,
     pub parents: Vec<Vec<usize>>,
     pub val_aggregate_scores: Vec<f64>,
@@ -120,6 +120,11 @@ pub struct GepaOutcome {
     pub num_full_ds_evals: usize,
     pub num_metric_calls_by_discovery: Vec<usize>,
     pub iterations: i64,
+    /// gepa's `best_outputs_valset`: per validation example, every program on its Pareto front and
+    /// what that program answered. `None` unless the engine was asked to track them — gepa's
+    /// `track_best_outputs`, which exists for using GEPA as a batch inference-time search, where
+    /// the answers *are* the result rather than the candidate that produced them.
+    pub best_outputs_valset: Option<Vec<Vec<(usize, O)>>>,
 }
 
 /// dspy `GEPAEngine` under its default configuration. The adapter supplies the evaluation and
@@ -142,6 +147,10 @@ pub struct GepaEngine<A: GepaAdapter> {
     pub candidate_selection_strategy: CandidateSelection,
     /// Which of a candidate's components a reflection rewrites. See [`ComponentSelection`].
     pub component_selector: ComponentSelection,
+    /// gepa's `track_best_outputs`: keep what each front's programs answered, reported on
+    /// [`GepaOutcome::best_outputs_valset`]. Off by default, as upstream's is — an adapter pays to
+    /// carry the outputs and nothing reads them otherwise.
+    pub track_best_outputs: bool,
 }
 
 /// gepa's `CandidateSelector`: which candidate an iteration mutates.
@@ -205,9 +214,16 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
     /// Run the loop from `seed_candidate` until the metric-call budget is spent, returning the best
     /// candidate found. dspy checks the budget only at the top of each iteration, so the iteration in
     /// flight always runs to completion even when it pushes the total past `max_metric_calls`.
-    pub async fn optimize(mut self, seed_candidate: Candidate) -> GepaOutcome {
+    pub async fn optimize(mut self, seed_candidate: Candidate) -> GepaOutcome<A::Output> {
         let base = self.adapter.evaluate_valset(&seed_candidate).await;
-        let mut state = GepaState::new(seed_candidate, base.scores);
+        // The seed's own answers start the front, as gepa's initialisation does — a run whose seed
+        // is never beaten on some example still reports what it answered there.
+        let mut state = match (self.track_best_outputs, base.outputs) {
+            (true, Some(outputs)) => {
+                GepaState::tracking_outputs(seed_candidate, base.scores, &outputs)
+            }
+            _ => GepaState::new(seed_candidate, base.scores),
+        };
         let mut rng = Random::seeded(self.seed);
         let mut sampler = BatchSampler::new(self.minibatch_size);
         let mut merge = MergeSchedule::default();
@@ -284,7 +300,7 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
     /// shared stream ahead of the iteration's reflective step.
     async fn try_merge(
         &mut self,
-        state: &mut GepaState,
+        state: &mut GepaState<A::Output>,
         rng: &mut Random,
         performed: &mut MergesPerformed,
     ) -> MergeOutcome {
@@ -355,7 +371,7 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
     /// each of which still spends the parent's minibatch evaluation.
     async fn propose(
         &mut self,
-        state: &mut GepaState,
+        state: &mut GepaState<A::Output>,
         rng: &mut Random,
         sampler: &mut BatchSampler,
     ) -> Option<Proposal> {
@@ -411,7 +427,7 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
 
     /// dspy `_run_full_eval_and_add`: an accepted proposal is re-scored on the whole valset (recording
     /// the eval total at discovery first) and folded into the state.
-    async fn accept(&mut self, state: &mut GepaState, proposal: Proposal) {
+    async fn accept(&mut self, state: &mut GepaState<A::Output>, proposal: Proposal) {
         let discovered_at = state.total_num_evals;
         let eval = self.adapter.evaluate_valset(&proposal.candidate).await;
         state.total_num_evals += self.valset_size;
@@ -425,8 +441,9 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
     }
 
     /// Assemble the outcome: the best program is the highest mean valset score (dspy's `GEPAResult`).
-    fn finish(self, state: GepaState) -> GepaOutcome {
+    fn finish(self, state: GepaState<A::Output>) -> GepaOutcome<A::Output> {
         let best_idx = state.best_program();
+        let best_outputs_valset = state.best_outputs().map(<[_]>::to_vec);
         GepaOutcome {
             best: state.candidates[best_idx].clone(),
             val_aggregate_scores: state.mean_scores(),
@@ -437,6 +454,7 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             num_full_ds_evals: state.num_full_ds_evals,
             num_metric_calls_by_discovery: state.num_metric_calls_by_discovery,
             iterations: state.i,
+            best_outputs_valset,
         }
     }
 }

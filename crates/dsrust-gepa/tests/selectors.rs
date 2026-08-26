@@ -181,7 +181,7 @@ fn both_component_selectors_choose_what_gepa_chooses() {
 
     for round in rounds {
         let cursor = round["cursor"].as_u64().expect("cursor") as usize;
-        let mut state = gepa::GepaState::for_components(declared.clone(), cursor);
+        let mut state = gepa::GepaState::<()>::for_components(declared.clone(), cursor);
         ours.push(state.select_component(0));
         theirs.push(
             round["round_robin"][0]
@@ -227,7 +227,7 @@ fn both_component_selectors_choose_what_gepa_chooses() {
     for name in &declared {
         seed.insert(name.clone(), String::new());
     }
-    let mut from_seed = gepa::GepaState::new(seed, vec![1.0]);
+    let mut from_seed = gepa::GepaState::<()>::new(seed, vec![1.0]);
     let walk: Vec<String> = (0..declared.len())
         .map(|_| from_seed.select_component(0))
         .collect();

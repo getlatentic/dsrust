@@ -231,6 +231,60 @@ fn marker(text: &str) -> Option<u64> {
 /// GEPA scores through its own adapter rather than through [`Evaluate`](crate::Evaluate), so no
 /// `evaluate` span is opened — which is the half of the `GEPA.log_dir` reason that was true. The
 /// other half said the run emitted nothing at all, and it emits the student's spans like any other
+/// gepa's `track_best_outputs`: what the best programs answered on each validation example.
+///
+/// Off by default and reporting nothing, on by request and reporting one list per example — every
+/// program on that example's Pareto front, paired with what it answered there. The seed is program
+/// 0 and starts on every front, so an example nothing beats it on still reports its answer.
+///
+/// The ledger said `GepaOutcome` already carried this. It carried the best *candidate*, which is a
+/// map of component instructions; nothing kept a prediction past the score it earned.
+#[tokio::test]
+async fn tracking_best_outputs_reports_what_each_front_answered() {
+    let run = |track: bool| async move {
+        let task = Arc::new(TaskCoach);
+        let mut student = Predict::parse("question -> answer")
+            .expect("parses")
+            .set_lm(task);
+        student.signature.instructions = "Answer the question.".to_owned();
+        GEPA::new(metric, Arc::new(Reflector))
+            .max_metric_calls(20)
+            .reflection_minibatch_size(2)
+            .track_best_outputs(track)
+            .compile(&mut student, &trainset(), &trainset())
+            .await
+            .expect("compiles")
+    };
+
+    assert!(
+        run(false).await.best_outputs_valset.is_none(),
+        "outputs were kept without being asked for"
+    );
+
+    let outcome = run(true).await;
+    let tracked = outcome
+        .best_outputs_valset
+        .expect("asked for the best outputs");
+    assert_eq!(
+        tracked.len(),
+        trainset().len(),
+        "one list per valset example"
+    );
+    for (example, answers) in tracked.iter().enumerate() {
+        assert!(
+            !answers.is_empty(),
+            "example {example} has a front and nothing answered it"
+        );
+        for (program, _) in answers {
+            assert!(
+                *program < outcome.candidates.len(),
+                "example {example} names program {program}, and the run has {} of them",
+                outcome.candidates.len()
+            );
+        }
+    }
+}
+
 /// caller. Both halves are held here rather than read off the source.
 #[test]
 fn a_gepa_run_opens_the_students_spans_and_no_evaluate_span() {

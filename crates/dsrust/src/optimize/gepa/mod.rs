@@ -66,6 +66,7 @@ pub struct GEPA<M> {
     num_threads: usize,
     /// dspy `candidate_selection_strategy`. See [`CandidateSelection`].
     candidate_selection_strategy: CandidateSelection,
+    track_best_outputs: bool,
     /// dspy `component_selector`. See [`ComponentSelection`].
     component_selector: ComponentSelection,
     /// dspy `instruction_proposer`. See [`InstructionProposer`].
@@ -93,6 +94,7 @@ where
             num_threads: 1,
             candidate_selection_strategy: CandidateSelection::default(),
             component_selector: ComponentSelection::default(),
+            track_best_outputs: false,
             proposer: None,
         }
     }
@@ -115,6 +117,21 @@ where
     /// against a hosted model.
     pub fn num_threads(mut self, num_threads: usize) -> Self {
         self.num_threads = num_threads.max(1);
+        self
+    }
+
+    /// dspy `track_best_outputs`: keep what the best programs answered on each validation example,
+    /// reported on [`GepaOutcome::best_outputs_valset`].
+    ///
+    /// Upstream requires `track_stats` alongside it because that is where it puts the result;
+    /// there is no such flag here — `compile` hands back the outcome either way — so this alone
+    /// decides whether the outputs are carried. Off by default, as upstream's is: the adapter has
+    /// to clone every prediction to keep them.
+    ///
+    /// What it is for is GEPA as a batch inference-time search: pass the batch as the valset and
+    /// the answers *are* the result, rather than the candidate that produced them.
+    pub fn track_best_outputs(mut self, track: bool) -> Self {
+        self.track_best_outputs = track;
         self
     }
 
@@ -247,7 +264,7 @@ where
         student: &mut S,
         trainset: &[Example],
         valset: &[Example],
-    ) -> Result<GepaOutcome> {
+    ) -> Result<GepaOutcome<Prediction>> {
         assert!(
             self.max_metric_calls > 0,
             "GEPA needs a metric-call budget; set it with max_metric_calls"
@@ -292,7 +309,8 @@ where
                 self.num_threads,
                 self.proposer.clone(),
                 self.seed,
-            ),
+            )
+            .tracking_outputs(self.track_best_outputs),
             trainset_size: trainset.len(),
             valset_size: valset.len(),
             minibatch_size: self.reflection_minibatch_size,
@@ -304,6 +322,7 @@ where
             max_merge_invocations: self.max_merge_invocations,
             candidate_selection_strategy: self.candidate_selection_strategy,
             component_selector: self.component_selector,
+            track_best_outputs: self.track_best_outputs,
         };
         let outcome = engine.optimize(seed_candidate).await;
         set_instructions(student, &outcome.best);

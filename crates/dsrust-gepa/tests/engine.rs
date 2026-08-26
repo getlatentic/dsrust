@@ -47,12 +47,15 @@ impl MirrorAdapter {
 }
 
 impl GepaAdapter for MirrorAdapter {
+    // Nothing here reports an output, so the type is the empty one.
+    type Output = ();
+
     async fn evaluate_minibatch(
         &mut self,
         ids: &[usize],
         candidate: &Candidate,
         capture_traces: bool,
-    ) -> EvalBatch {
+    ) -> EvalBatch<Self::Output> {
         let scores = ids.iter().map(|&id| self.score(candidate, id)).collect();
         if capture_traces {
             EvalBatch::traced(scores)
@@ -61,7 +64,7 @@ impl GepaAdapter for MirrorAdapter {
         }
     }
 
-    async fn evaluate_valset(&mut self, candidate: &Candidate) -> EvalBatch {
+    async fn evaluate_valset(&mut self, candidate: &Candidate) -> EvalBatch<Self::Output> {
         EvalBatch::scored(
             (0..self.valset_size)
                 .map(|id| self.score(candidate, id))
@@ -69,7 +72,11 @@ impl GepaAdapter for MirrorAdapter {
         )
     }
 
-    async fn evaluate_valset_ids(&mut self, ids: &[usize], candidate: &Candidate) -> EvalBatch {
+    async fn evaluate_valset_ids(
+        &mut self,
+        ids: &[usize],
+        candidate: &Candidate,
+    ) -> EvalBatch<Self::Output> {
         EvalBatch::scored(ids.iter().map(|&id| self.score(candidate, id)).collect())
     }
 
@@ -77,7 +84,7 @@ impl GepaAdapter for MirrorAdapter {
         &mut self,
         candidate: &Candidate,
         components: &[String],
-        _captured: &EvalBatch,
+        _captured: &EvalBatch<Self::Output>,
     ) -> Candidate {
         components
             .iter()
@@ -148,6 +155,7 @@ async fn reproduces_the_runs_gepa_produces() {
             // The golden was recorded from gepa under its defaults; naming them keeps a later
             // change of default from silently re-pointing this at another strategy.
             candidate_selection_strategy: CandidateSelection::Pareto,
+            track_best_outputs: false,
             component_selector: ComponentSelection::RoundRobin,
         };
         let outcome = engine.optimize(candidate_of(&case["seed_candidate"])).await;

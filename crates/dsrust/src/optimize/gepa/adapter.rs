@@ -51,6 +51,10 @@ pub(super) struct Adapter<'a, S: Module + ?Sized, M> {
     /// dspy `instruction_proposer`: a caller's own proposal step, replacing the reflection tree
     /// entirely when set. See [`InstructionProposer`](super::InstructionProposer).
     proposer: Option<Arc<dyn super::InstructionProposer>>,
+    /// dspy `track_best_outputs`: whether a scoring run keeps each example's prediction so the
+    /// engine can report what the best programs answered. Off unless the caller asked, because it
+    /// clones every prediction on every valset evaluation.
+    track_best_outputs: bool,
     /// dspy's `DspyAdapter.rng`, which picks which trace instance a reflection reads. A *second*
     /// generator from the same seed, not the engine's: `gepa.py` builds `random.Random(self.seed)`
     /// for the adapter and passes `optimize(seed=self.seed)` separately, so a draw here cannot
@@ -82,8 +86,18 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
             has_flexes,
             num_threads,
             proposer,
+            track_best_outputs: false,
             rng: Random::seeded(seed),
         }
+    }
+
+    /// Keep each example's prediction while scoring — gepa's `track_best_outputs`.
+    ///
+    /// A builder rather than a tenth positional argument to [`new`](Self::new), which is already
+    /// carrying more than a reader can hold.
+    pub(super) fn tracking_outputs(mut self, track: bool) -> Self {
+        self.track_best_outputs = track;
+        self
     }
 }
 
@@ -100,7 +114,7 @@ where
         examples: &[Example],
         candidate: &Candidate,
         capture_traces: bool,
-    ) -> EvalBatch {
+    ) -> EvalBatch<Prediction> {
         set_instructions(self.student, candidate);
         if capture_traces {
             self.captured.clear();
@@ -115,37 +129,55 @@ where
         for example in examples {
             running.push(self.run_one(example, capture_traces));
         }
-        let ran: Vec<(f64, Option<Captured>)> = futures_util::stream::iter(running)
-            .buffered(self.num_threads.max(1))
-            .collect()
-            .await;
+        let ran: Vec<(f64, Option<Captured>, Option<Prediction>)> =
+            futures_util::stream::iter(running)
+                .buffered(self.num_threads.max(1))
+                .collect()
+                .await;
         let mut scores = Vec::with_capacity(examples.len());
-        for (score, captured) in ran {
+        let mut answered = Vec::with_capacity(examples.len());
+        for (score, captured, prediction) in ran {
             scores.push(score);
             if let Some(captured) = captured {
                 self.captured.push(captured);
             }
+            if let Some(prediction) = prediction {
+                answered.push(prediction);
+            }
         }
-        if capture_traces {
-            EvalBatch::traced(scores)
-        } else {
-            EvalBatch::scored(scores)
+        let mut batch = match capture_traces {
+            true => EvalBatch::traced(scores),
+            false => EvalBatch::scored(scores),
+        };
+        // Only when every run reported one, so a partial list can never be read positionally
+        // against the scores it is supposed to line up with.
+        if self.track_best_outputs && answered.len() == examples.len() {
+            batch.outputs = Some(answered);
         }
+        batch
     }
 
     /// One example: run the (already-built) program with tracing, then score it. Returns the score
     /// and, when capturing, the run itself for reflection.
-    async fn run_one(&self, example: &Example, capture_traces: bool) -> (f64, Option<Captured>) {
+    async fn run_one(
+        &self,
+        example: &Example,
+        capture_traces: bool,
+    ) -> (f64, Option<Captured>, Option<Prediction>) {
         let inputs = example.inputs().expect("a dataset row declares its inputs");
         let mut trace = Vec::new();
         let Ok(prediction) = self.student.forward_traced(inputs, &mut trace).await else {
+            let failed = Prediction::new(Example::default(), String::new());
             let captured = capture_traces.then(|| Captured {
                 example: example.clone(),
-                prediction: Prediction::new(Example::default(), String::new()),
+                prediction: failed.clone(),
                 trace: Vec::new(),
                 scored: Feedback::score_only(self.failure_score),
             });
-            return (self.failure_score, captured);
+            // A run that failed still answered *something* on this example, and gepa records the
+            // output beside the score it earned rather than leaving a hole in the list.
+            let answered = self.track_best_outputs.then_some(failed);
+            return (self.failure_score, captured, answered);
         };
         // dspy's scoring call is the ordinary metric call — `Evaluate` and `bootstrap_trace_data`
         // pass no predictor, and a trace only while capturing. A program holding a `Flex` scores
@@ -163,7 +195,8 @@ where
             trace,
             scored: feedback.clone(),
         });
-        (feedback.score, captured)
+        let answered = self.track_best_outputs.then(|| prediction.clone());
+        (feedback.score, captured, answered)
     }
 
     /// dspy `make_reflective_dataset` for one predictor: an `Inputs`/`Generated Outputs`/`Feedback`
@@ -267,22 +300,29 @@ where
     S: Module + ?Sized + Send,
     M: Fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback + Send + Sync,
 {
+    /// What the student answered, which is what a caller tracking best outputs wants back.
+    type Output = Prediction;
+
     async fn evaluate_minibatch(
         &mut self,
         ids: &[usize],
         candidate: &Candidate,
         capture_traces: bool,
-    ) -> EvalBatch {
+    ) -> EvalBatch<Prediction> {
         let examples: Vec<Example> = ids.iter().map(|&id| self.trainset[id].clone()).collect();
         self.evaluate(&examples, candidate, capture_traces).await
     }
 
-    async fn evaluate_valset(&mut self, candidate: &Candidate) -> EvalBatch {
+    async fn evaluate_valset(&mut self, candidate: &Candidate) -> EvalBatch<Prediction> {
         let examples = self.valset.to_vec();
         self.evaluate(&examples, candidate, false).await
     }
 
-    async fn evaluate_valset_ids(&mut self, ids: &[usize], candidate: &Candidate) -> EvalBatch {
+    async fn evaluate_valset_ids(
+        &mut self,
+        ids: &[usize],
+        candidate: &Candidate,
+    ) -> EvalBatch<Prediction> {
         let examples: Vec<Example> = ids.iter().map(|&id| self.valset[id].clone()).collect();
         self.evaluate(&examples, candidate, false).await
     }
@@ -294,7 +334,7 @@ where
         &mut self,
         candidate: &Candidate,
         components: &[String],
-        _captured: &EvalBatch,
+        _captured: &EvalBatch<Prediction>,
     ) -> Candidate {
         // A component whose runs produced nothing is left out of both paths: upstream skips it
         // rather than proposing against an empty dataset, and a caller's proposer is not handed one
