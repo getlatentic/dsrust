@@ -18,7 +18,7 @@ import dspy
 from dspy.evaluate.metrics import normalize_text
 from dspy.predict.aggregation import majority
 
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "predict"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "predict"
 PINNED = (pathlib.Path(__file__).parent / "DSPY_VERSION").read_text().strip()
 
 # Strings that separate the five normalisation steps from one another.

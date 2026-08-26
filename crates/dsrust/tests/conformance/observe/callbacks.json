@@ -1,0 +1,269 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_callback_fixture.py",
+  "dspy_version": "3.3.0",
+  "note": "Each case is the sequence of BaseCallback handlers one program fired, with the nesting depth of the call each belongs to. `chain_of_thought_n3` is the sequence upstream asserts by hand in tests/callback/test_callback.py.",
+  "cases": [
+    {
+      "name": "predict",
+      "note": "one predictor: the module, its render, the model call, one parse",
+      "handlers": [
+        {
+          "handler": "on_module_start",
+          "depth": 0
+        },
+        {
+          "handler": "on_adapter_format_start",
+          "depth": 1
+        },
+        {
+          "handler": "on_adapter_format_end",
+          "depth": 1
+        },
+        {
+          "handler": "on_lm_start",
+          "depth": 1
+        },
+        {
+          "handler": "on_lm_end",
+          "depth": 1
+        },
+        {
+          "handler": "on_adapter_parse_start",
+          "depth": 1
+        },
+        {
+          "handler": "on_adapter_parse_end",
+          "depth": 1
+        },
+        {
+          "handler": "on_module_end",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "chain_of_thought_n3",
+      "note": "upstream's own asserted sequence: parsing runs once per output",
+      "handlers": [
+        {
+          "handler": "on_module_start",
+          "depth": 0
+        },
+        {
+          "handler": "on_module_start",
+          "depth": 1
+        },
+        {
+          "handler": "on_adapter_format_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_format_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_lm_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_lm_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_parse_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_parse_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_parse_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_parse_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_parse_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_parse_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_module_end",
+          "depth": 1
+        },
+        {
+          "handler": "on_module_end",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "nested_modules",
+      "note": "two predictors under one module, so both children name the same parent",
+      "handlers": [
+        {
+          "handler": "on_module_start",
+          "depth": 0
+        },
+        {
+          "handler": "on_module_start",
+          "depth": 1
+        },
+        {
+          "handler": "on_adapter_format_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_format_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_lm_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_lm_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_parse_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_parse_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_module_end",
+          "depth": 1
+        },
+        {
+          "handler": "on_module_start",
+          "depth": 1
+        },
+        {
+          "handler": "on_adapter_format_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_format_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_lm_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_lm_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_parse_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_parse_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_module_end",
+          "depth": 1
+        },
+        {
+          "handler": "on_module_end",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "evaluate",
+      "note": "a devset run, with the module calls it made inside it",
+      "handlers": [
+        {
+          "handler": "on_evaluate_start",
+          "depth": 0
+        },
+        {
+          "handler": "on_module_start",
+          "depth": 1
+        },
+        {
+          "handler": "on_adapter_format_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_format_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_lm_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_lm_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_parse_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_parse_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_module_end",
+          "depth": 1
+        },
+        {
+          "handler": "on_evaluate_end",
+          "depth": 0
+        }
+      ]
+    },
+    {
+      "name": "evaluate_abandoned",
+      "note": "past max_errors the run raises, and the end handler still fires — with the exception",
+      "handlers": [
+        {
+          "handler": "on_evaluate_start",
+          "depth": 0
+        },
+        {
+          "handler": "on_module_start",
+          "depth": 1
+        },
+        {
+          "handler": "on_adapter_format_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_adapter_format_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_lm_start",
+          "depth": 2
+        },
+        {
+          "handler": "on_lm_end",
+          "depth": 2
+        },
+        {
+          "handler": "on_module_end",
+          "depth": 1
+        },
+        {
+          "handler": "on_evaluate_end",
+          "depth": 0
+        }
+      ]
+    }
+  ]
+}

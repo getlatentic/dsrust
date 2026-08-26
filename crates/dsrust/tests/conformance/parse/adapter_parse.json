@@ -1,0 +1,1095 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_parse_fixture.py",
+  "dspy_version": "3.3.0",
+  "note": "What each adapter's parse returns for a reply, and which it refuses. The refusals matter as much as the successes: a reply the crate accepts where dspy raises reaches the caller as a wrong value rather than an error.",
+  "cases": [
+    {
+      "name": "literal_member",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\nred",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_quoted",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\n\"red\"",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_single_quoted",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\n'red'",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_annotation_spelled",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\nLiteral[red]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_str_spelled",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\nstr[red]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_annotation_and_quotes",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\nLiteral[\"red\"]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_surrounded_by_space",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\n  red  ",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "colour": "red"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_not_a_member",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\ngreen",
+      "adapter": "chat",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse field colour with value green from the LM response. Error message: 'green' is not one of ('red', 'blue')\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## colour ## ]]\ngreen \n\nExpected to find output fields in the LM response: [colour] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "literal_wrong_case",
+      "signature": "question -> colour: typing.Literal['red', 'blue']",
+      "completion": "[[ ## colour ## ]]\nRED",
+      "adapter": "chat",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse field colour with value RED from the LM response. Error message: 'RED' is not one of ('red', 'blue')\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## colour ## ]]\nRED \n\nExpected to find output fields in the LM response: [colour] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "plain",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "no_completed_marker",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "content_on_the_header_line",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## reasoning ## ]] Because.\n[[ ## answer ## ]] Paris",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "field_repeated",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## reasoning ## ]]\nfirst\n\n[[ ## answer ## ]]\nParis\n\n[[ ## reasoning ## ]]\nsecond",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "first",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "fields_out_of_order",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## reasoning ## ]]\nBecause.",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "reasoning": "Because."
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "unknown_field",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## confidence ## ]]\nhigh\n\n[[ ## answer ## ]]\nParis",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "field_missing",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]] \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "nothing_at_all",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "",
+      "adapter": "chat",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response:  \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "prose_only",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "I think the answer is Paris.",
+      "adapter": "chat",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response: I think the answer is Paris. \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "prose_before_the_first_marker",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "Sure! Here you go.\n\n[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "blank_lines_around_markers",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "\n\n[[ ## reasoning ## ]]\n\n\nBecause.\n\n\n\n[[ ## answer ## ]]\n\nParis\n\n\n",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "non_word_marker_name",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## reasoning ## ]]\nBecause.\n[[ ## my-note ## ]]\nstill reasoning\n[[ ## answer ## ]]\nParis\n[[ ## completed ## ]]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.\n[[ ## my-note ## ]]\nstill reasoning",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "empty_marker_name",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## reasoning ## ]]\nBecause.\n[[ ##  ## ]]\nstill reasoning\n[[ ## answer ## ]]\nParis\n[[ ## completed ## ]]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.\n[[ ##  ## ]]\nstill reasoning",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "indented_marker",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## reasoning ## ]]\nBecause.\n\n    [[ ## answer ## ]]\nParis",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "# ]]\nParis"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "marker_name_beyond_ascii",
+      "signature": "question -> réponse: str, 答え: str",
+      "completion": "[[ ## réponse ## ]]\nParis\n\n[[ ## 答え ## ]]\nはい\n\n[[ ## completed ## ]]\n",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "réponse": "Paris",
+          "答え": "はい"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "marker_inside_a_value",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## reasoning ## ]]\nthe model wrote [[ ## answer ## ]] in the middle\n\n[[ ## answer ## ]]\nParis",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "the model wrote [[ ## answer ## ]] in the middle",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "multiline_value",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## reasoning ## ]]\nline one\nline two\n\nline four\n\n[[ ## answer ## ]]\nParis",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "line one\nline two\n\nline four",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "completed_repeated",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[[ ## reasoning ## ]]\nBecause.\n\n[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]\n\n[[ ## completed ## ]]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "typed_fields",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\n7\n\n[[ ## tags ## ]]\n[\"a\", \"b\"]\n\n[[ ## completed ## ]]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_unclosed",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[\"a\", \"b\"",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_single_quoted",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n['a', 'b']",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_bare_words",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[a, b]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_asymmetric_quotes",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[\"a, \"b\"]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a, ",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "tags_smart_quotes",
+      "signature": "question -> answer: str, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## tags ## ]]\n[“a”, “b”]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "note_single_quoted_literal",
+      "signature": "question -> answer: str, note: typing.Any",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## note ## ]]\n'a'",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "note": "a"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "note_python_true",
+      "signature": "question -> answer: str, note: typing.Any",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## note ## ]]\nTrue",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "note": true
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "note_bare_word",
+      "signature": "question -> answer: str, note: typing.Any",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## note ## ]]\nhello",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "note": "hello"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "typed_field_that_will_not_parse",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\nvery high\n\n[[ ## tags ## ]]\n[\"a\"]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse field score with value very high from the LM response. Error message: 1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='very high', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\nvery high\n\n[[ ## tags ## ]]\n[\"a\"] \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
+        "message_diverges": "pydantic-error-text"
+      },
+      "diverges": false
+    },
+    {
+      "name": "typed_field_empty",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\n\n\n[[ ## tags ## ]]\n[\"a\"]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse field score with value  from the LM response. Error message: 1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer ## ]]\nParis\n\n[[ ## score ## ]]\n\n\n[[ ## tags ## ]]\n[\"a\"] \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
+        "message_diverges": "pydantic-error-text"
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_plain",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>Because.</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_non_greedy",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>Because.</reasoning><answer>Paris</answer>extra</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_same_name_nested",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning><reasoning>inner</reasoning></reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "<reasoning>inner",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_hyphenated_name",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<my-reasoning>Because.</my-reasoning>\n<reasoning>R</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "R",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_name_with_a_combining_mark",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<xְ><reasoning>Because.</reasoning></xְ>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_name_beyond_ascii",
+      "signature": "question -> réponse: str, 答え: str",
+      "completion": "<réponse>Paris</réponse>\n<答え>はい</答え>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "réponse": "Paris",
+          "答え": "はい"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_tag_with_attribute",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning id=\"1\">Because.</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning id=\"1\">Because.</reasoning>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_first_wins",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>first</reasoning>\n<reasoning>second</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "first",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_unknown_tag",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>Because.</reasoning>\n<confidence>high</confidence>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_field_missing",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_unclosed",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>Because.\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>Because.\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_mismatched_close",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>Because.</thinking>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>Because.</thinking>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_multiline_body",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>\n  line one\n  line two\n</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "line one\n  line two",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_buried_in_prose",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "Sure! <reasoning>Because.</reasoning> and so <answer>Paris</answer> there.",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_empty_body",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning></reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_nothing_at_all",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response:  \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_underscored_name",
+      "signature": "question -> final_answer: str",
+      "completion": "<final_answer>Paris</final_answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "final_answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_field_inside_a_non_word_tag",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<my-wrapper><reasoning>Because.</reasoning></my-wrapper>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_typed_fields",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "<answer>Paris</answer>\n<score>7</score>\n<tags>[\"a\", \"b\"]</tags>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_typed_that_will_not_parse",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "<answer>Paris</answer>\n<score>very high</score>\n<tags>[\"a\"]</tags>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse field annotation=int required=True json_schema_extra={'__dspy_field_type': 'output', 'prefix': 'Score:', 'desc': '${score}'} with value very high: 1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='very high', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <answer>Paris</answer>\n<score>very high</score>\n<tags>[\"a\"]</tags> \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
+        "message_diverges": "pydantic-error-text"
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_plain",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{\"reasoning\": \"Because.\", \"answer\": \"Paris\"}",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_in_prose",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "Sure! {\"reasoning\": \"Because.\", \"answer\": \"Paris\"} there you go.",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_in_a_fence",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "```json\n{\"reasoning\": \"Because.\", \"answer\": \"Paris\"}\n```",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_nested_object_in_prose",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "text {\"reasoning\": {\"why\": \"Because.\"}, \"answer\": \"Paris\"} more",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "{'why': 'Because.'}",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_array_holding_the_object",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "[{\"reasoning\": \"Because.\", \"answer\": \"Paris\"}]",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_trailing_comma",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{\"reasoning\": \"Because.\", \"answer\": \"Paris\",}",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_single_quotes",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{'reasoning': 'Because.', 'answer': 'Paris'}",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_unquoted_keys",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{reasoning: \"Because.\", answer: \"Paris\"}",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_missing_closing_brace",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{\"reasoning\": \"Because.\", \"answer\": \"Paris\"",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_python_literals",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{'reasoning': None, 'answer': 'Paris'}",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "None",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_extra_field",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{\"reasoning\": \"Because.\", \"answer\": \"Paris\", \"confidence\": \"high\"}",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_field_missing",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "{\"answer\": \"Paris\"}",
+      "adapter": "json",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter JSONAdapter failed to parse the LM response. \n\nLM Response: {\"answer\": \"Paris\"} \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_not_an_object_at_all",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "just some prose with no braces",
+      "adapter": "json",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "LM response cannot be serialized to a JSON object.\n\nAdapter JSONAdapter failed to parse the LM response. \n\nLM Response: just some prose with no braces \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_empty",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "",
+      "adapter": "json",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "LM response cannot be serialized to a JSON object.\n\nAdapter JSONAdapter failed to parse the LM response. \n\nLM Response:  \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_typed_native",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "{\"answer\": \"Paris\", \"score\": 7, \"tags\": [\"a\", \"b\"]}",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_typed_as_strings",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "{\"answer\": \"Paris\", \"score\": \"7\", \"tags\": \"[\\\"a\\\", \\\"b\\\"]\"}",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_unescaped_quote_inside_a_string",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "{\"answer\": \"Paris\", \"score\": \"7\", \"tags\": \"[\"a\", \"b\"]\"}",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_typed_that_will_not_parse",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "{\"answer\": \"Paris\", \"score\": \"very high\", \"tags\": [\"a\"]}",
+      "adapter": "json",
+      "dspy": {
+        "ok": false,
+        "error": "ValidationError",
+        "message": "1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='very high', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing",
+        "message_diverges": "pydantic-error-text"
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_two_objects_and_prose",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "first {\"reasoning\": \"Because.\", \"answer\": \"Paris\"} then {\"answer\": \"Berlin\"}",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    }
+  ]
+}

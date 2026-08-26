@@ -1,0 +1,113 @@
+{
+  "source": "generated from dspy==3.3.0b1 via scripts/generate_text_completion_fixture.py",
+  "dspy_version": "3.3.0b1",
+  "note": "What `litellm_text_completion` passes to litellm for each rendered message list. `prompt` and `model` are dspy's own; the rest rides through from the request.",
+  "cases": [
+    {
+      "name": "system_and_user",
+      "model": "openai/gpt-3.5-turbo-instruct",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Answer the question."
+        },
+        {
+          "role": "user",
+          "content": "What is the capital of France?"
+        }
+      ],
+      "extra": {},
+      "sent": {
+        "model": "text-completion-openai/gpt-3.5-turbo-instruct",
+        "prompt": "Answer the question.\n\nWhat is the capital of France?\n\nBEGIN RESPONSE:"
+      }
+    },
+    {
+      "name": "single_user",
+      "model": "openai/gpt-3.5-turbo-instruct",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello"
+        }
+      ],
+      "extra": {},
+      "sent": {
+        "model": "text-completion-openai/gpt-3.5-turbo-instruct",
+        "prompt": "Hello\n\nBEGIN RESPONSE:"
+      }
+    },
+    {
+      "name": "a_demo_conversation",
+      "model": "openai/gpt-3.5-turbo-instruct",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Answer the question."
+        },
+        {
+          "role": "user",
+          "content": "2 + 2?"
+        },
+        {
+          "role": "assistant",
+          "content": "4"
+        },
+        {
+          "role": "user",
+          "content": "3 + 3?"
+        }
+      ],
+      "extra": {},
+      "sent": {
+        "model": "text-completion-openai/gpt-3.5-turbo-instruct",
+        "prompt": "Answer the question.\n\n2 + 2?\n\n4\n\n3 + 3?\n\nBEGIN RESPONSE:"
+      }
+    },
+    {
+      "name": "no_messages",
+      "model": "openai/gpt-3.5-turbo-instruct",
+      "messages": [],
+      "extra": {},
+      "sent": {
+        "model": "text-completion-openai/gpt-3.5-turbo-instruct",
+        "prompt": "BEGIN RESPONSE:"
+      }
+    },
+    {
+      "name": "content_holding_blank_lines",
+      "model": "openai/gpt-3.5-turbo-instruct",
+      "messages": [
+        {
+          "role": "user",
+          "content": "first\n\nsecond"
+        }
+      ],
+      "extra": {},
+      "sent": {
+        "model": "text-completion-openai/gpt-3.5-turbo-instruct",
+        "prompt": "first\n\nsecond\n\nBEGIN RESPONSE:"
+      }
+    },
+    {
+      "name": "with_sampling",
+      "model": "openai/gpt-3.5-turbo-instruct",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Hello"
+        }
+      ],
+      "extra": {
+        "temperature": 0.7,
+        "max_tokens": 100
+      },
+      "sent": {
+        "model": "text-completion-openai/gpt-3.5-turbo-instruct",
+        "prompt": "Hello\n\nBEGIN RESPONSE:",
+        "temperature": 0.7,
+        "max_tokens": 100
+      }
+    }
+  ]
+}

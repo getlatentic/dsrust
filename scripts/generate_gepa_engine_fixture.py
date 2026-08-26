@@ -36,7 +36,7 @@ from gepa import optimize
 from pins import require
 from gepa.core.adapter import EvaluationBatch
 
-OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust-gepa" / "tests" / "conformance"
 PINNED = require("gepa")
 
 WEIGHT = 0.125
@@ -87,7 +87,7 @@ class ScriptedAdapter:
 
 
 # (label, components, cap, trainset, valset, minibatch, max_metric_calls, perfect, seed, use_merge,
-# mode). Varied seeds force distinct selection draws; a small budget forces an early stop; the
+# mode, max_merge_invocations). Varied seeds force distinct selection draws; a small budget forces an early stop; the
 # two-component cases split the Pareto front and make acceptance depend on the shuffled minibatch;
 # perfect_score=0.0 makes the seed already-perfect. The `merge_*` cases turn merge on: they run long
 # enough to grow the candidate pool past index 7 (where CPython set order stops matching sorted) and
@@ -95,19 +95,34 @@ class ScriptedAdapter:
 # subsample accept test, and the interleaving of merge draws with reflective ones — is exercised
 # end to end, not just the merge functions in isolation.
 CASES = [
-    ("single_seed0", ["instruction"], 4, 5, 6, 2, 40, 1.0, 0, False, "tradeoff"),
-    ("single_small_budget", ["instruction"], 3, 4, 4, 2, 10, 1.0, 2, False, "tradeoff"),
-    ("skip_perfect", ["instruction"], 4, 4, 4, 2, 8, 0.0, 3, False, "tradeoff"),
-    ("two_components_seed1", ["instr_a", "instr_b"], 3, 6, 4, 2, 50, 1.0, 1, False, "tradeoff"),
-    ("two_components_seed5", ["instr_a", "instr_b"], 4, 5, 4, 3, 60, 1.0, 5, False, "tradeoff"),
-    ("merge_seed1", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 1, True, "merge"),
-    ("merge_seed3", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge"),
+    ("single_seed0", ["instruction"], 4, 5, 6, 2, 40, 1.0, 0, False, "tradeoff", 5),
+    ("single_small_budget", ["instruction"], 3, 4, 4, 2, 10, 1.0, 2, False, "tradeoff", 5),
+    ("skip_perfect", ["instruction"], 4, 4, 4, 2, 8, 0.0, 3, False, "tradeoff", 5),
+    ("two_components_seed1", ["instr_a", "instr_b"], 3, 6, 4, 2, 50, 1.0, 1, False, "tradeoff", 5),
+    ("two_components_seed5", ["instr_a", "instr_b"], 4, 5, 4, 3, 60, 1.0, 5, False, "tradeoff", 5),
+    ("merge_seed1", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 1, True, "merge", 5),
+    ("merge_seed3", ["a", "b"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge", 5),
+    # The invocation cap, in the one regime where it changes anything. Two components at any cap
+    # from one to five gives the identical run — the extra attempts a larger cap allows all come
+    # back with no mergeable pair — so a capped *two*-component case looked like coverage and
+    # discriminated nothing; measured, and five mutants of the schedule survived it.
+    #
+    # Three components split the Pareto front wider, so attempts keep finding pairs and the cap
+    # genuinely bounds the run: at seed 3 a cap of one accepts two merges against four uncapped,
+    # over 12 candidates against 14. Both arms are recorded, because the pair is what separates the
+    # `total_tested < cap` comparison from its neighbours, and the `due` and `total_tested`
+    # arithmetic from theirs.
+    ("merge_capped", ["a", "b", "c"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge", 1),
+    ("merge_uncapped_three", ["a", "b", "c"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge", 5),
+    # And a cap of zero, which forbids merging outright: `total_tested < 0` is false where
+    # `<= 0` would be true, so this is the arm that separates those two spellings.
+    ("merge_forbidden", ["a", "b", "c"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge", 0),
 ]
 
 
 def build_once(
     label, components, cap, trainset_size, valset_size, minibatch_size,
-    max_metric_calls, perfect, seed, use_merge, mode,
+    max_metric_calls, perfect, seed, use_merge, mode, max_merge_invocations,
 ) -> dict:
     trainset = list(range(trainset_size))
     valset = list(range(valset_size))
@@ -123,7 +138,7 @@ def build_once(
         perfect_score=perfect,
         seed=seed,
         use_merge=use_merge,
-        max_merge_invocations=5,
+        max_merge_invocations=max_merge_invocations,
         raise_on_exception=True,
     )
 
@@ -138,6 +153,7 @@ def build_once(
         "perfect_score": perfect,
         "seed": seed,
         "use_merge": use_merge,
+        "max_merge_invocations": max_merge_invocations,
         "mode": mode,
         "seed_candidate": seed_candidate,
         "result": {

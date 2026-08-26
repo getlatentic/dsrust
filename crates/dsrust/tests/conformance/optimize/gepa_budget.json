@@ -1,0 +1,138 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_gepa_budget_fixture.py",
+  "dspy_version": "3.3.0",
+  "cases": [
+    {
+      "num_preds": 1,
+      "num_candidates": 2,
+      "valset_size": 100,
+      "minibatch_size": 35,
+      "full_eval_steps": 5,
+      "budget": 550
+    },
+    {
+      "num_preds": 3,
+      "num_candidates": 8,
+      "valset_size": 250,
+      "minibatch_size": 35,
+      "full_eval_steps": 5,
+      "budget": 3550
+    },
+    {
+      "num_preds": 1,
+      "num_candidates": 1,
+      "valset_size": 50,
+      "minibatch_size": 35,
+      "full_eval_steps": 5,
+      "budget": 190
+    },
+    {
+      "num_preds": 4,
+      "num_candidates": 1,
+      "valset_size": 50,
+      "minibatch_size": 35,
+      "full_eval_steps": 5,
+      "budget": 190
+    },
+    {
+      "num_preds": 1,
+      "num_candidates": 4,
+      "valset_size": 100,
+      "minibatch_size": 35,
+      "full_eval_steps": 5,
+      "budget": 600
+    },
+    {
+      "num_preds": 1,
+      "num_candidates": 32,
+      "valset_size": 100,
+      "minibatch_size": 35,
+      "full_eval_steps": 5,
+      "budget": 2940
+    },
+    {
+      "num_preds": 8,
+      "num_candidates": 4,
+      "valset_size": 100,
+      "minibatch_size": 35,
+      "full_eval_steps": 5,
+      "budget": 3760
+    },
+    {
+      "num_preds": 1,
+      "num_candidates": 2,
+      "valset_size": 100,
+      "minibatch_size": 35,
+      "full_eval_steps": 1,
+      "budget": 850
+    },
+    {
+      "num_preds": 1,
+      "num_candidates": 2,
+      "valset_size": 100,
+      "minibatch_size": 35,
+      "full_eval_steps": 100,
+      "budget": 450
+    },
+    {
+      "num_preds": 2,
+      "num_candidates": 3,
+      "valset_size": 40,
+      "minibatch_size": 10,
+      "full_eval_steps": 3,
+      "budget": 375
+    },
+    {
+      "num_preds": 1,
+      "num_candidates": 2,
+      "valset_size": 0,
+      "minibatch_size": 35,
+      "full_eval_steps": 5,
+      "budget": 150
+    },
+    {
+      "num_preds": 1,
+      "num_candidates": 2,
+      "valset_size": 100,
+      "minibatch_size": 0,
+      "full_eval_steps": 5,
+      "budget": 410
+    },
+    {
+      "num_preds": 12,
+      "num_candidates": 64,
+      "valset_size": 1000,
+      "minibatch_size": 35,
+      "full_eval_steps": 5,
+      "budget": 69400
+    }
+  ],
+  "refusals": [
+    {
+      "kwargs": {
+        "num_preds": 1,
+        "num_candidates": 2,
+        "valset_size": -1
+      },
+      "error": "num_trials, valset_size, and minibatch_size must be >= 0."
+    },
+    {
+      "kwargs": {
+        "num_preds": 1,
+        "num_candidates": 2,
+        "valset_size": 10,
+        "minibatch_size": -1
+      },
+      "error": "num_trials, valset_size, and minibatch_size must be >= 0."
+    },
+    {
+      "kwargs": {
+        "num_preds": 1,
+        "num_candidates": 2,
+        "valset_size": 10,
+        "full_eval_steps": 0
+      },
+      "error": "full_eval_steps must be >= 1."
+    }
+  ]
+}

@@ -30,6 +30,11 @@ def main() -> None:
     predictor = program.predict
     print(f"instructions={predictor.signature.instructions!r}")
     print(f"demos={len(predictor.demos)}")
+    # Every key dspy kept, not just the count. `augmented` is the one a bootstrap writes that is
+    # not a signature field, so it is the one a reader could drop while the demo still looked
+    # whole — and MIPROv2 gathers on exactly that key.
+    for demo in predictor.demos:
+        print(f"demo_keys={sorted(demo.keys())}")
     for name, field in predictor.signature.fields.items():
         extra = field.json_schema_extra
         print(f"field {name}: prefix={extra.get('prefix')!r} desc={extra.get('desc')!r}")

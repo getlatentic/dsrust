@@ -1,0 +1,180 @@
+//! GEPA's minibatch sampler (`strategies/batch_sampler.py`): shuffle the trainset ids each epoch,
+//! pad to a whole number of minibatches, and hand out consecutive slices as iterations advance.
+//!
+//! Stateful and seeded off `pyrng`'s CPython RNG: the shuffle is `random.shuffle`, and the padding
+//! appends the least-frequent id (`Counter.most_common()[::-1][0]`), whose ties break to the id seen
+//! latest — so padding takes the tail of the shuffle in reverse.
+
+use std::collections::BTreeMap;
+
+use pyrng::Random;
+
+/// dspy `EpochShuffledBatchSampler`. The generator is not owned: in a real run it is shared with
+/// candidate selection, so the caller threads one [`Random`] through both.
+pub struct BatchSampler {
+    minibatch_size: usize,
+    shuffled_ids: Vec<usize>,
+    /// dspy starts the epoch at `-1` so the first call always refreshes.
+    epoch: i64,
+    last_trainset_size: usize,
+}
+
+impl BatchSampler {
+    pub fn new(minibatch_size: usize) -> Self {
+        Self {
+            minibatch_size,
+            shuffled_ids: Vec::new(),
+            epoch: -1,
+            last_trainset_size: 0,
+        }
+    }
+
+    /// dspy `next_minibatch_ids`: the ids for `iteration`'s minibatch. The trainset ids are `0..n`,
+    /// as an in-memory loader yields them. Reshuffles from `rng` when the epoch rolls over.
+    pub fn next_minibatch_ids(
+        &mut self,
+        trainset_size: usize,
+        iteration: usize,
+        rng: &mut Random,
+    ) -> Vec<usize> {
+        assert!(
+            trainset_size > 0,
+            "cannot sample a minibatch from an empty trainset"
+        );
+        let base = iteration * self.minibatch_size;
+        let current_epoch = if self.epoch == -1 {
+            0
+        } else {
+            (base / self.shuffled_ids.len().max(1)) as i64
+        };
+        let needs_refresh = self.shuffled_ids.is_empty()
+            || trainset_size != self.last_trainset_size
+            || current_epoch > self.epoch;
+        if needs_refresh {
+            self.epoch = current_epoch;
+            self.update_shuffled(trainset_size, rng);
+        }
+
+        let base = base % self.shuffled_ids.len();
+        self.shuffled_ids[base..base + self.minibatch_size].to_vec()
+    }
+
+    /// dspy `_update_shuffled`: a fresh shuffle of `0..n`, padded up to a multiple of the minibatch
+    /// size with least-frequent ids.
+    fn update_shuffled(&mut self, trainset_size: usize, rng: &mut Random) {
+        self.last_trainset_size = trainset_size;
+        self.shuffled_ids = (0..trainset_size).collect();
+        rng.shuffle(&mut self.shuffled_ids);
+
+        // Counter over the shuffle: ids in first-appearance order, each once to start.
+        let mut order: Vec<usize> = Vec::new();
+        let mut counts: BTreeMap<usize, usize> = BTreeMap::new();
+        for &id in &self.shuffled_ids {
+            if counts.insert(id, 1).is_none() {
+                order.push(id);
+            }
+        }
+
+        let remainder = trainset_size % self.minibatch_size;
+        let to_pad = if remainder == 0 {
+            0
+        } else {
+            self.minibatch_size - remainder
+        };
+        for _ in 0..to_pad {
+            let selected = least_frequent(&order, &counts);
+            self.shuffled_ids.push(selected);
+            *counts.get_mut(&selected).expect("a counted id") += 1;
+        }
+    }
+}
+
+/// dspy `id_freqs.most_common()[::-1][0][0]`: the least-frequent id, ties broken toward the one seen
+/// latest — reversing a count-descending, first-appearance-stable order leaves count ascending with
+/// insertion descending, so this is the minimum count and, among ties, the maximum insertion index.
+fn least_frequent(order: &[usize], counts: &BTreeMap<usize, usize>) -> usize {
+    *order
+        .iter()
+        .enumerate()
+        .min_by(|(a_index, a), (b_index, b)| counts[*a].cmp(&counts[*b]).then(b_index.cmp(a_index)))
+        .map(|(_, id)| id)
+        .expect("a non-empty trainset has ids")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+
+    /// The live bound behind the engine's stall guard: an empty trainset is refused here rather
+    /// than yielding an empty minibatch that spends nothing and spins the optimize loop forever.
+    /// The engine's own guard is unreachable *because* of this, so this is where it is pinned.
+    #[test]
+    #[should_panic(expected = "cannot sample a minibatch from an empty trainset")]
+    fn an_empty_trainset_is_refused_rather_than_sampled() {
+        BatchSampler::new(2).next_minibatch_ids(0, 0, &mut Random::seeded(0));
+    }
+
+    /// The three reasons to reshuffle are alternatives, not conjuncts: no ids yet, a trainset that
+    /// changed size, or an epoch that rolled over. The `&&` mutant demanded all three at once, so
+    /// the very first call — which has no ids but the same size and epoch — would sample from an
+    /// empty pool. Each cause is exercised on its own here.
+    #[test]
+    fn any_one_of_the_three_causes_reshuffles_on_its_own() {
+        // No ids yet: the first call must fill them, with size and epoch otherwise unchanged.
+        let mut sampler = BatchSampler::new(2);
+        let first = sampler.next_minibatch_ids(4, 0, &mut Random::seeded(0));
+        assert_eq!(first.len(), 2, "the first call sampled from an empty pool");
+
+        // A changed trainset size, at the same iteration and epoch.
+        let mut sampler = BatchSampler::new(2);
+        sampler.next_minibatch_ids(4, 0, &mut Random::seeded(0));
+        let widened = sampler.next_minibatch_ids(9, 0, &mut Random::seeded(0));
+        assert!(
+            widened.iter().any(|&id| id >= 4),
+            "the pool did not grow with the trainset: {widened:?}"
+        );
+
+        // An epoch rollover, at the same size: iteration 2 at minibatch 2 over 4 ids is epoch 1.
+        let mut sampler = BatchSampler::new(2);
+        let mut rng = Random::seeded(0);
+        sampler.next_minibatch_ids(4, 0, &mut rng);
+        let epoch_zero = sampler.epoch;
+        sampler.next_minibatch_ids(4, 2, &mut rng);
+        assert!(sampler.epoch > epoch_zero, "the epoch did not roll over");
+    }
+
+    /// The minibatch ids GEPA's own sampler hands out over a run of iterations, across trainset sizes
+    /// and minibatch sizes that force padding and epoch rollovers — from
+    /// `tests/conformance/batch.json`, generated by running the real gepa package.
+    #[test]
+    fn samples_the_minibatches_gepa_samples() {
+        let path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/batch.json");
+        let text = std::fs::read_to_string(&path).expect("the batch golden is committed");
+        let fixture: Value = serde_json::from_str(&text).expect("the golden parses");
+
+        for case in fixture["cases"].as_array().expect("cases") {
+            let n = case["trainset_size"].as_u64().expect("n") as usize;
+            let mb = case["minibatch_size"].as_u64().expect("mb") as usize;
+            let seed = case["seed"].as_u64().expect("seed");
+            let mut sampler = BatchSampler::new(mb);
+            // In isolation the sampler owns the whole generator; in the engine it is shared.
+            let mut rng = Random::seeded(seed);
+            let expected = case["batches"].as_array().expect("batches");
+            for (iteration, want) in expected.iter().enumerate() {
+                let want: Vec<usize> = want
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .map(|v| v.as_u64().unwrap() as usize)
+                    .collect();
+                assert_eq!(
+                    sampler.next_minibatch_ids(n, iteration, &mut rng),
+                    want,
+                    "n={n} mb={mb} seed={seed} iteration={iteration}"
+                );
+            }
+        }
+    }
+}

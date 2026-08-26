@@ -1,0 +1,556 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_signature_fixture.py",
+  "dspy_version": "3.3.0",
+  "infer_prefix": [
+    {
+      "name": "camelCaseText",
+      "prefix": "Camel Case Text"
+    },
+    {
+      "name": "snake_case_text",
+      "prefix": "Snake Case Text"
+    },
+    {
+      "name": "text2number",
+      "prefix": "Text 2 Number"
+    },
+    {
+      "name": "HTMLParser",
+      "prefix": "HTML Parser"
+    },
+    {
+      "name": "",
+      "prefix": ""
+    },
+    {
+      "name": "a",
+      "prefix": "A"
+    },
+    {
+      "name": "A",
+      "prefix": "A"
+    },
+    {
+      "name": "question",
+      "prefix": "Question"
+    },
+    {
+      "name": "Question",
+      "prefix": "Question"
+    },
+    {
+      "name": "HTML",
+      "prefix": "HTML"
+    },
+    {
+      "name": "HTMLParserError",
+      "prefix": "HTML Parser Error"
+    },
+    {
+      "name": "parseHTML",
+      "prefix": "Parse HTML"
+    },
+    {
+      "name": "parseHTMLNow",
+      "prefix": "Parse HTML Now"
+    },
+    {
+      "name": "AParser",
+      "prefix": "A Parser"
+    },
+    {
+      "name": "ABCdef",
+      "prefix": "AB Cdef"
+    },
+    {
+      "name": "aB",
+      "prefix": "A B"
+    },
+    {
+      "name": "aBc",
+      "prefix": "A Bc"
+    },
+    {
+      "name": "aBcDe",
+      "prefix": "A Bc De"
+    },
+    {
+      "name": "2text",
+      "prefix": "2 Text"
+    },
+    {
+      "name": "text2",
+      "prefix": "Text 2"
+    },
+    {
+      "name": "text2number3more",
+      "prefix": "Text 2 Number 3 More"
+    },
+    {
+      "name": "x2y",
+      "prefix": "X 2 Y"
+    },
+    {
+      "name": "abc123",
+      "prefix": "Abc 123"
+    },
+    {
+      "name": "123abc",
+      "prefix": "123 Abc"
+    },
+    {
+      "name": "123",
+      "prefix": "123"
+    },
+    {
+      "name": "v2Model",
+      "prefix": "V 2 Model"
+    },
+    {
+      "name": "modelV2",
+      "prefix": "Model V 2"
+    },
+    {
+      "name": "_leading",
+      "prefix": " Leading"
+    },
+    {
+      "name": "trailing_",
+      "prefix": "Trailing "
+    },
+    {
+      "name": "double__underscore",
+      "prefix": "Double  Underscore"
+    },
+    {
+      "name": "_",
+      "prefix": " "
+    },
+    {
+      "name": "__",
+      "prefix": "  "
+    },
+    {
+      "name": "snake_case_HTML",
+      "prefix": "Snake Case HTML"
+    },
+    {
+      "name": "MixedCase_with_snake",
+      "prefix": "Mixed Case With Snake"
+    },
+    {
+      "name": "café_au_lait",
+      "prefix": "Café Au Lait"
+    },
+    {
+      "name": "naïveParser",
+      "prefix": "Naïve Parser"
+    },
+    {
+      "name": "ΑΒΓdelta",
+      "prefix": "Αβγdelta"
+    },
+    {
+      "name": "ПриветМир",
+      "prefix": "Приветмир"
+    },
+    {
+      "name": "text٢number",
+      "prefix": "Text ٢ Number"
+    },
+    {
+      "name": "٢text",
+      "prefix": "٢ Text"
+    },
+    {
+      "name": "Ⅻtext",
+      "prefix": "Ⅻtext"
+    },
+    {
+      "name": "text½number",
+      "prefix": "Text½number"
+    },
+    {
+      "name": "ABécole",
+      "prefix": "Abécole"
+    },
+    {
+      "name": "café2",
+      "prefix": "Café2"
+    },
+    {
+      "name": "2école",
+      "prefix": "2école"
+    }
+  ],
+  "parse": [
+    {
+      "signature": "email -> sentiment",
+      "instructions": "Given the fields `email`, produce the fields `sentiment`.",
+      "inputs": [
+        {
+          "name": "email",
+          "annotation": "str"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "sentiment",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "question -> answer",
+      "instructions": "Given the fields `question`, produce the fields `answer`.",
+      "inputs": [
+        {
+          "name": "question",
+          "annotation": "str"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "answer",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "question, context -> answer",
+      "instructions": "Given the fields `question`, `context`, produce the fields `answer`.",
+      "inputs": [
+        {
+          "name": "question",
+          "annotation": "str"
+        },
+        {
+          "name": "context",
+          "annotation": "str"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "answer",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "question, context -> reasoning, answer",
+      "instructions": "Given the fields `question`, `context`, produce the fields `reasoning`, `answer`.",
+      "inputs": [
+        {
+          "name": "question",
+          "annotation": "str"
+        },
+        {
+          "name": "context",
+          "annotation": "str"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "reasoning",
+          "annotation": "str"
+        },
+        {
+          "name": "answer",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "a: int -> b: float",
+      "instructions": "Given the fields `a`, produce the fields `b`.",
+      "inputs": [
+        {
+          "name": "a",
+          "annotation": "int"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "b",
+          "annotation": "float"
+        }
+      ]
+    },
+    {
+      "signature": "a: int, b: float, c: bool -> d: str",
+      "instructions": "Given the fields `a`, `b`, `c`, produce the fields `d`.",
+      "inputs": [
+        {
+          "name": "a",
+          "annotation": "int"
+        },
+        {
+          "name": "b",
+          "annotation": "float"
+        },
+        {
+          "name": "c",
+          "annotation": "bool"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "d",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "ctx: list[str] -> answer",
+      "instructions": "Given the fields `ctx`, produce the fields `answer`.",
+      "inputs": [
+        {
+          "name": "ctx",
+          "annotation": "list[str]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "answer",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "ctx: list[str], weights: dict[str, int] -> answer",
+      "instructions": "Given the fields `ctx`, `weights`, produce the fields `answer`.",
+      "inputs": [
+        {
+          "name": "ctx",
+          "annotation": "list[str]"
+        },
+        {
+          "name": "weights",
+          "annotation": "dict[str, int]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "answer",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "nested: dict[str, list[int]] -> out: tuple[int, str]",
+      "instructions": "Given the fields `nested`, produce the fields `out`.",
+      "inputs": [
+        {
+          "name": "nested",
+          "annotation": "dict[str, list[int]]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "out",
+          "annotation": "tuple[int, str]"
+        }
+      ]
+    },
+    {
+      "signature": "  spaced   ,  out  ->   answer  ",
+      "instructions": "Given the fields `spaced`, `out`, produce the fields `answer`.",
+      "inputs": [
+        {
+          "name": "spaced",
+          "annotation": "str"
+        },
+        {
+          "name": "out",
+          "annotation": "str"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "answer",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "x: Optional[int] -> y: str",
+      "instructions": "Given the fields `x`, produce the fields `y`.",
+      "inputs": [
+        {
+          "name": "x",
+          "annotation": "Optional[int]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "x: int | None -> y: str",
+      "instructions": "Given the fields `x`, produce the fields `y`.",
+      "inputs": [
+        {
+          "name": "x",
+          "annotation": "Optional[int]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "x: int | str -> y: str",
+      "instructions": "Given the fields `x`, produce the fields `y`.",
+      "inputs": [
+        {
+          "name": "x",
+          "annotation": "Union[int, str]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "x: int | str | None -> y: str",
+      "instructions": "Given the fields `x`, produce the fields `y`.",
+      "inputs": [
+        {
+          "name": "x",
+          "annotation": "Union[int, str, NoneType]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "x: list[int] | None -> y: str",
+      "instructions": "Given the fields `x`, produce the fields `y`.",
+      "inputs": [
+        {
+          "name": "x",
+          "annotation": "Optional[list[int]]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "x: dict[str, int | None] -> y: str",
+      "instructions": "Given the fields `x`, produce the fields `y`.",
+      "inputs": [
+        {
+          "name": "x",
+          "annotation": "dict[str, Optional[int]]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "x: list[int | str] -> y: str",
+      "instructions": "Given the fields `x`, produce the fields `y`.",
+      "inputs": [
+        {
+          "name": "x",
+          "annotation": "list[Union[int, str]]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "x: tuple[int | None, str] -> y: str",
+      "instructions": "Given the fields `x`, produce the fields `y`.",
+      "inputs": [
+        {
+          "name": "x",
+          "annotation": "tuple[Optional[int], str]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "x: Union[int, str] -> y: str",
+      "instructions": "Given the fields `x`, produce the fields `y`.",
+      "inputs": [
+        {
+          "name": "x",
+          "annotation": "Union[int, str]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "x: Optional[list[str]] -> y: str",
+      "instructions": "Given the fields `x`, produce the fields `y`.",
+      "inputs": [
+        {
+          "name": "x",
+          "annotation": "Optional[list[str]]"
+        }
+      ],
+      "outputs": [
+        {
+          "name": "y",
+          "annotation": "str"
+        }
+      ]
+    },
+    {
+      "signature": "",
+      "error": "Invalid signature format: '', must contain exactly one '->'."
+    },
+    {
+      "signature": "question",
+      "error": "Invalid signature format: 'question', must contain exactly one '->'."
+    },
+    {
+      "signature": "a -> b -> c",
+      "error": "Invalid signature format: 'a -> b -> c', must contain exactly one '->'."
+    },
+    {
+      "signature": "a, b -> b, a",
+      "error": "Input and output fields must have distinct names, but found duplicates: 'a, b'."
+    },
+    {
+      "signature": "a -> a",
+      "error": "Input and output fields must have distinct names, but found duplicates: 'a'."
+    }
+  ]
+}

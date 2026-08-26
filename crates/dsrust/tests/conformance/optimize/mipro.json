@@ -1,0 +1,2928 @@
+{
+  "source": "generated from dspy==3.3.0 + optuna==4.9.0 via scripts/generate_mipro_fixture.py",
+  "dspy_version": "3.3.0",
+  "optuna_version": "4.9.0",
+  "trainset": [
+    {
+      "question": "capital of France?",
+      "answer": "Paris"
+    },
+    {
+      "question": "capital of Germany?",
+      "answer": "Berlin"
+    },
+    {
+      "question": "capital of Spain?",
+      "answer": "Madrid"
+    }
+  ],
+  "profiles": {
+    "1": [
+      "capital of France?",
+      "capital of Germany?"
+    ],
+    "2": [
+      "capital of France?",
+      "capital of Germany?"
+    ],
+    "3": [
+      "capital of France?",
+      "capital of Germany?",
+      "capital of Spain?"
+    ],
+    "4": [
+      "capital of Spain?"
+    ]
+  },
+  "tips": [
+    "",
+    "Don't be afraid to be creative when creating the new instruction!",
+    "Keep the instruction clear and concise.",
+    "Make sure your instruction is very informative and descriptive.",
+    "The instruction should include a high stakes scenario in which the LM must solve the task!",
+    "Include a persona that is relevant to the task in the instruction (ie. \"You are a ...\")"
+  ],
+  "cases": [
+    {
+      "num_candidates": 5,
+      "num_trials": 3,
+      "seed": 0,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 3,
+      "seed": 1,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 3,
+      "seed": 5,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 0.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 3,
+      "seed": 9,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 100.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-3 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "num_candidates": 6,
+      "num_trials": 8,
+      "seed": 7,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision.",
+        "Answer with GOOD-6 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 0.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-4 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "num_candidates": 4,
+      "num_trials": 6,
+      "seed": 3,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 100.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 66.67
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-3 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 3,
+      "seed": 0,
+      "max_bootstrapped_demos": 4,
+      "max_labeled_demos": 4,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 3
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 4
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 2
+          },
+          "score": 0.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        [
+          {
+            "question": "capital of Germany?",
+            "answer": "Berlin"
+          },
+          {
+            "question": "capital of Spain?",
+            "answer": "Madrid"
+          },
+          {
+            "question": "capital of France?",
+            "answer": "Paris"
+          }
+        ]
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 6,
+      "seed": 1,
+      "max_bootstrapped_demos": 4,
+      "max_labeled_demos": 4,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 4
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 0
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 0
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 2
+          },
+          "score": 100.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 1
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 4
+          },
+          "score": 66.67
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-3 precision."
+      ],
+      "compiled_demos": [
+        [
+          {
+            "question": "capital of Spain?",
+            "answer": "Madrid"
+          },
+          {
+            "question": "capital of Germany?",
+            "answer": "Berlin"
+          },
+          {
+            "question": "capital of France?",
+            "answer": "Paris"
+          }
+        ]
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 4,
+      "seed": 5,
+      "max_bootstrapped_demos": 2,
+      "max_labeled_demos": 0,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 1
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4,
+            "0_predictor_demos": 3
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 2
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 4
+          },
+          "score": 33.33
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-4 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "num_candidates": 4,
+      "num_trials": 6,
+      "seed": 3,
+      "max_bootstrapped_demos": 2,
+      "max_labeled_demos": 4,
+      "fewshot_aware_proposer": false,
+      "baseline_solves": [],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided.",
+        "No task demos provided."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 2
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 2
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 66.67
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        [
+          {
+            "question": "capital of Germany?",
+            "answer": "Berlin"
+          },
+          {
+            "question": "capital of Spain?",
+            "answer": "Madrid"
+          },
+          {
+            "question": "capital of France?",
+            "answer": "Paris"
+          }
+        ]
+      ]
+    },
+    {
+      "num_candidates": 5,
+      "num_trials": 3,
+      "seed": 0,
+      "max_bootstrapped_demos": 4,
+      "max_labeled_demos": 4,
+      "fewshot_aware_proposer": true,
+      "baseline_solves": [
+        "capital of France?",
+        "capital of Germany?",
+        "capital of Spain?"
+      ],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "Question: capital of France?\nAnswer: Paris\n\nQuestion: capital of Germany?\nAnswer: Berlin\n\nQuestion: capital of Spain?\nAnswer: Madrid\n\n",
+        "Question: capital of France?\nAnswer: Paris\n\nQuestion: capital of Germany?\nAnswer: Berlin\n\nQuestion: capital of Spain?\nAnswer: Madrid\n\n",
+        "Question: capital of France?\nAnswer: Paris\n\nQuestion: capital of France?\nAnswer: Paris\n\nQuestion: capital of Spain?\nAnswer: Madrid\n\n",
+        "Question: capital of France?\nAnswer: Paris\n\nQuestion: capital of Spain?\nAnswer: Madrid\n\nQuestion: capital of Germany?\nAnswer: Berlin\n\n"
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 100.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 3
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 4
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 2
+          },
+          "score": 100.0
+        }
+      ],
+      "compiled": [
+        "Given the fields `question`, produce the fields `answer`."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "num_candidates": 4,
+      "num_trials": 4,
+      "seed": 7,
+      "max_bootstrapped_demos": 2,
+      "max_labeled_demos": 2,
+      "fewshot_aware_proposer": true,
+      "baseline_solves": [
+        "capital of France?",
+        "capital of Germany?",
+        "capital of Spain?"
+      ],
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision."
+      ],
+      "task_demos": [
+        "No task demos provided.",
+        "Question: capital of France?\nAnswer: Paris\n\nQuestion: capital of Germany?\nAnswer: Berlin\n\nQuestion: capital of Spain?\nAnswer: Madrid\n\n",
+        "Question: capital of France?\nAnswer: Paris\n\nQuestion: capital of Germany?\nAnswer: Berlin\n\nQuestion: capital of Spain?\nAnswer: Madrid\n\n",
+        "Question: capital of Spain?\nAnswer: Madrid\n\nQuestion: capital of France?\nAnswer: Paris\n\nQuestion: capital of France?\nAnswer: Paris\n\n"
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 100.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 0
+          },
+          "score": 66.67
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 3
+          },
+          "score": 33.33
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 1
+          },
+          "score": 100.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 100.0
+        }
+      ],
+      "compiled": [
+        "Given the fields `question`, produce the fields `answer`."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    }
+  ],
+  "minibatch_trainset": [
+    {
+      "question": "capital of C0?",
+      "answer": "CAP-0"
+    },
+    {
+      "question": "capital of C1?",
+      "answer": "CAP-1"
+    },
+    {
+      "question": "capital of C2?",
+      "answer": "CAP-2"
+    },
+    {
+      "question": "capital of C3?",
+      "answer": "CAP-3"
+    },
+    {
+      "question": "capital of C4?",
+      "answer": "CAP-4"
+    },
+    {
+      "question": "capital of C5?",
+      "answer": "CAP-5"
+    },
+    {
+      "question": "capital of C6?",
+      "answer": "CAP-6"
+    },
+    {
+      "question": "capital of C7?",
+      "answer": "CAP-7"
+    },
+    {
+      "question": "capital of C8?",
+      "answer": "CAP-8"
+    },
+    {
+      "question": "capital of C9?",
+      "answer": "CAP-9"
+    },
+    {
+      "question": "capital of C10?",
+      "answer": "CAP-10"
+    },
+    {
+      "question": "capital of C11?",
+      "answer": "CAP-11"
+    },
+    {
+      "question": "capital of C12?",
+      "answer": "CAP-12"
+    },
+    {
+      "question": "capital of C13?",
+      "answer": "CAP-13"
+    },
+    {
+      "question": "capital of C14?",
+      "answer": "CAP-14"
+    },
+    {
+      "question": "capital of C15?",
+      "answer": "CAP-15"
+    },
+    {
+      "question": "capital of C16?",
+      "answer": "CAP-16"
+    },
+    {
+      "question": "capital of C17?",
+      "answer": "CAP-17"
+    },
+    {
+      "question": "capital of C18?",
+      "answer": "CAP-18"
+    },
+    {
+      "question": "capital of C19?",
+      "answer": "CAP-19"
+    },
+    {
+      "question": "capital of C20?",
+      "answer": "CAP-20"
+    },
+    {
+      "question": "capital of C21?",
+      "answer": "CAP-21"
+    },
+    {
+      "question": "capital of C22?",
+      "answer": "CAP-22"
+    },
+    {
+      "question": "capital of C23?",
+      "answer": "CAP-23"
+    },
+    {
+      "question": "capital of C24?",
+      "answer": "CAP-24"
+    },
+    {
+      "question": "capital of C25?",
+      "answer": "CAP-25"
+    },
+    {
+      "question": "capital of C26?",
+      "answer": "CAP-26"
+    },
+    {
+      "question": "capital of C27?",
+      "answer": "CAP-27"
+    },
+    {
+      "question": "capital of C28?",
+      "answer": "CAP-28"
+    },
+    {
+      "question": "capital of C29?",
+      "answer": "CAP-29"
+    },
+    {
+      "question": "capital of C30?",
+      "answer": "CAP-30"
+    },
+    {
+      "question": "capital of C31?",
+      "answer": "CAP-31"
+    },
+    {
+      "question": "capital of C32?",
+      "answer": "CAP-32"
+    },
+    {
+      "question": "capital of C33?",
+      "answer": "CAP-33"
+    },
+    {
+      "question": "capital of C34?",
+      "answer": "CAP-34"
+    },
+    {
+      "question": "capital of C35?",
+      "answer": "CAP-35"
+    },
+    {
+      "question": "capital of C36?",
+      "answer": "CAP-36"
+    },
+    {
+      "question": "capital of C37?",
+      "answer": "CAP-37"
+    },
+    {
+      "question": "capital of C38?",
+      "answer": "CAP-38"
+    },
+    {
+      "question": "capital of C39?",
+      "answer": "CAP-39"
+    },
+    {
+      "question": "capital of C40?",
+      "answer": "CAP-40"
+    },
+    {
+      "question": "capital of C41?",
+      "answer": "CAP-41"
+    },
+    {
+      "question": "capital of C42?",
+      "answer": "CAP-42"
+    },
+    {
+      "question": "capital of C43?",
+      "answer": "CAP-43"
+    },
+    {
+      "question": "capital of C44?",
+      "answer": "CAP-44"
+    },
+    {
+      "question": "capital of C45?",
+      "answer": "CAP-45"
+    },
+    {
+      "question": "capital of C46?",
+      "answer": "CAP-46"
+    },
+    {
+      "question": "capital of C47?",
+      "answer": "CAP-47"
+    },
+    {
+      "question": "capital of C48?",
+      "answer": "CAP-48"
+    },
+    {
+      "question": "capital of C49?",
+      "answer": "CAP-49"
+    },
+    {
+      "question": "capital of C50?",
+      "answer": "CAP-50"
+    },
+    {
+      "question": "capital of C51?",
+      "answer": "CAP-51"
+    },
+    {
+      "question": "capital of C52?",
+      "answer": "CAP-52"
+    },
+    {
+      "question": "capital of C53?",
+      "answer": "CAP-53"
+    },
+    {
+      "question": "capital of C54?",
+      "answer": "CAP-54"
+    },
+    {
+      "question": "capital of C55?",
+      "answer": "CAP-55"
+    },
+    {
+      "question": "capital of C56?",
+      "answer": "CAP-56"
+    },
+    {
+      "question": "capital of C57?",
+      "answer": "CAP-57"
+    },
+    {
+      "question": "capital of C58?",
+      "answer": "CAP-58"
+    },
+    {
+      "question": "capital of C59?",
+      "answer": "CAP-59"
+    },
+    {
+      "question": "capital of C60?",
+      "answer": "CAP-60"
+    },
+    {
+      "question": "capital of C61?",
+      "answer": "CAP-61"
+    },
+    {
+      "question": "capital of C62?",
+      "answer": "CAP-62"
+    },
+    {
+      "question": "capital of C63?",
+      "answer": "CAP-63"
+    },
+    {
+      "question": "capital of C64?",
+      "answer": "CAP-64"
+    },
+    {
+      "question": "capital of C65?",
+      "answer": "CAP-65"
+    },
+    {
+      "question": "capital of C66?",
+      "answer": "CAP-66"
+    },
+    {
+      "question": "capital of C67?",
+      "answer": "CAP-67"
+    },
+    {
+      "question": "capital of C68?",
+      "answer": "CAP-68"
+    },
+    {
+      "question": "capital of C69?",
+      "answer": "CAP-69"
+    },
+    {
+      "question": "capital of C70?",
+      "answer": "CAP-70"
+    },
+    {
+      "question": "capital of C71?",
+      "answer": "CAP-71"
+    },
+    {
+      "question": "capital of C72?",
+      "answer": "CAP-72"
+    },
+    {
+      "question": "capital of C73?",
+      "answer": "CAP-73"
+    },
+    {
+      "question": "capital of C74?",
+      "answer": "CAP-74"
+    },
+    {
+      "question": "capital of C75?",
+      "answer": "CAP-75"
+    },
+    {
+      "question": "capital of C76?",
+      "answer": "CAP-76"
+    },
+    {
+      "question": "capital of C77?",
+      "answer": "CAP-77"
+    },
+    {
+      "question": "capital of C78?",
+      "answer": "CAP-78"
+    },
+    {
+      "question": "capital of C79?",
+      "answer": "CAP-79"
+    },
+    {
+      "question": "capital of C80?",
+      "answer": "CAP-80"
+    },
+    {
+      "question": "capital of C81?",
+      "answer": "CAP-81"
+    },
+    {
+      "question": "capital of C82?",
+      "answer": "CAP-82"
+    },
+    {
+      "question": "capital of C83?",
+      "answer": "CAP-83"
+    },
+    {
+      "question": "capital of C84?",
+      "answer": "CAP-84"
+    },
+    {
+      "question": "capital of C85?",
+      "answer": "CAP-85"
+    },
+    {
+      "question": "capital of C86?",
+      "answer": "CAP-86"
+    },
+    {
+      "question": "capital of C87?",
+      "answer": "CAP-87"
+    },
+    {
+      "question": "capital of C88?",
+      "answer": "CAP-88"
+    },
+    {
+      "question": "capital of C89?",
+      "answer": "CAP-89"
+    },
+    {
+      "question": "capital of C90?",
+      "answer": "CAP-90"
+    },
+    {
+      "question": "capital of C91?",
+      "answer": "CAP-91"
+    },
+    {
+      "question": "capital of C92?",
+      "answer": "CAP-92"
+    },
+    {
+      "question": "capital of C93?",
+      "answer": "CAP-93"
+    },
+    {
+      "question": "capital of C94?",
+      "answer": "CAP-94"
+    },
+    {
+      "question": "capital of C95?",
+      "answer": "CAP-95"
+    },
+    {
+      "question": "capital of C96?",
+      "answer": "CAP-96"
+    },
+    {
+      "question": "capital of C97?",
+      "answer": "CAP-97"
+    },
+    {
+      "question": "capital of C98?",
+      "answer": "CAP-98"
+    },
+    {
+      "question": "capital of C99?",
+      "answer": "CAP-99"
+    },
+    {
+      "question": "capital of C100?",
+      "answer": "CAP-100"
+    },
+    {
+      "question": "capital of C101?",
+      "answer": "CAP-101"
+    },
+    {
+      "question": "capital of C102?",
+      "answer": "CAP-102"
+    },
+    {
+      "question": "capital of C103?",
+      "answer": "CAP-103"
+    },
+    {
+      "question": "capital of C104?",
+      "answer": "CAP-104"
+    },
+    {
+      "question": "capital of C105?",
+      "answer": "CAP-105"
+    },
+    {
+      "question": "capital of C106?",
+      "answer": "CAP-106"
+    },
+    {
+      "question": "capital of C107?",
+      "answer": "CAP-107"
+    },
+    {
+      "question": "capital of C108?",
+      "answer": "CAP-108"
+    },
+    {
+      "question": "capital of C109?",
+      "answer": "CAP-109"
+    },
+    {
+      "question": "capital of C110?",
+      "answer": "CAP-110"
+    },
+    {
+      "question": "capital of C111?",
+      "answer": "CAP-111"
+    },
+    {
+      "question": "capital of C112?",
+      "answer": "CAP-112"
+    },
+    {
+      "question": "capital of C113?",
+      "answer": "CAP-113"
+    },
+    {
+      "question": "capital of C114?",
+      "answer": "CAP-114"
+    },
+    {
+      "question": "capital of C115?",
+      "answer": "CAP-115"
+    },
+    {
+      "question": "capital of C116?",
+      "answer": "CAP-116"
+    },
+    {
+      "question": "capital of C117?",
+      "answer": "CAP-117"
+    },
+    {
+      "question": "capital of C118?",
+      "answer": "CAP-118"
+    },
+    {
+      "question": "capital of C119?",
+      "answer": "CAP-119"
+    },
+    {
+      "question": "capital of C120?",
+      "answer": "CAP-120"
+    },
+    {
+      "question": "capital of C121?",
+      "answer": "CAP-121"
+    },
+    {
+      "question": "capital of C122?",
+      "answer": "CAP-122"
+    },
+    {
+      "question": "capital of C123?",
+      "answer": "CAP-123"
+    },
+    {
+      "question": "capital of C124?",
+      "answer": "CAP-124"
+    },
+    {
+      "question": "capital of C125?",
+      "answer": "CAP-125"
+    },
+    {
+      "question": "capital of C126?",
+      "answer": "CAP-126"
+    },
+    {
+      "question": "capital of C127?",
+      "answer": "CAP-127"
+    },
+    {
+      "question": "capital of C128?",
+      "answer": "CAP-128"
+    },
+    {
+      "question": "capital of C129?",
+      "answer": "CAP-129"
+    },
+    {
+      "question": "capital of C130?",
+      "answer": "CAP-130"
+    },
+    {
+      "question": "capital of C131?",
+      "answer": "CAP-131"
+    },
+    {
+      "question": "capital of C132?",
+      "answer": "CAP-132"
+    },
+    {
+      "question": "capital of C133?",
+      "answer": "CAP-133"
+    },
+    {
+      "question": "capital of C134?",
+      "answer": "CAP-134"
+    },
+    {
+      "question": "capital of C135?",
+      "answer": "CAP-135"
+    },
+    {
+      "question": "capital of C136?",
+      "answer": "CAP-136"
+    },
+    {
+      "question": "capital of C137?",
+      "answer": "CAP-137"
+    },
+    {
+      "question": "capital of C138?",
+      "answer": "CAP-138"
+    },
+    {
+      "question": "capital of C139?",
+      "answer": "CAP-139"
+    }
+  ],
+  "minibatch_profiles": {
+    "1": [
+      "capital of C0?",
+      "capital of C102?",
+      "capital of C105?",
+      "capital of C108?",
+      "capital of C111?",
+      "capital of C114?",
+      "capital of C117?",
+      "capital of C120?",
+      "capital of C123?",
+      "capital of C126?",
+      "capital of C129?",
+      "capital of C12?",
+      "capital of C132?",
+      "capital of C135?",
+      "capital of C138?",
+      "capital of C15?",
+      "capital of C18?",
+      "capital of C21?",
+      "capital of C24?",
+      "capital of C27?",
+      "capital of C30?",
+      "capital of C33?",
+      "capital of C36?",
+      "capital of C39?",
+      "capital of C3?",
+      "capital of C42?",
+      "capital of C45?",
+      "capital of C48?",
+      "capital of C51?",
+      "capital of C54?",
+      "capital of C57?",
+      "capital of C60?",
+      "capital of C63?",
+      "capital of C66?",
+      "capital of C69?",
+      "capital of C6?",
+      "capital of C72?",
+      "capital of C75?",
+      "capital of C78?",
+      "capital of C81?",
+      "capital of C84?",
+      "capital of C87?",
+      "capital of C90?",
+      "capital of C93?",
+      "capital of C96?",
+      "capital of C99?",
+      "capital of C9?"
+    ],
+    "2": [
+      "capital of C0?",
+      "capital of C100?",
+      "capital of C104?",
+      "capital of C108?",
+      "capital of C112?",
+      "capital of C116?",
+      "capital of C120?",
+      "capital of C124?",
+      "capital of C128?",
+      "capital of C12?",
+      "capital of C132?",
+      "capital of C136?",
+      "capital of C16?",
+      "capital of C20?",
+      "capital of C24?",
+      "capital of C28?",
+      "capital of C32?",
+      "capital of C36?",
+      "capital of C40?",
+      "capital of C44?",
+      "capital of C48?",
+      "capital of C4?",
+      "capital of C52?",
+      "capital of C56?",
+      "capital of C60?",
+      "capital of C64?",
+      "capital of C68?",
+      "capital of C72?",
+      "capital of C76?",
+      "capital of C80?",
+      "capital of C84?",
+      "capital of C88?",
+      "capital of C8?",
+      "capital of C92?",
+      "capital of C96?"
+    ],
+    "3": [
+      "capital of C0?",
+      "capital of C100?",
+      "capital of C105?",
+      "capital of C10?",
+      "capital of C110?",
+      "capital of C115?",
+      "capital of C120?",
+      "capital of C125?",
+      "capital of C130?",
+      "capital of C135?",
+      "capital of C15?",
+      "capital of C20?",
+      "capital of C25?",
+      "capital of C30?",
+      "capital of C35?",
+      "capital of C40?",
+      "capital of C45?",
+      "capital of C50?",
+      "capital of C55?",
+      "capital of C5?",
+      "capital of C60?",
+      "capital of C65?",
+      "capital of C70?",
+      "capital of C75?",
+      "capital of C80?",
+      "capital of C85?",
+      "capital of C90?",
+      "capital of C95?"
+    ],
+    "4": [
+      "capital of C0?",
+      "capital of C102?",
+      "capital of C108?",
+      "capital of C114?",
+      "capital of C120?",
+      "capital of C126?",
+      "capital of C12?",
+      "capital of C132?",
+      "capital of C138?",
+      "capital of C18?",
+      "capital of C24?",
+      "capital of C30?",
+      "capital of C36?",
+      "capital of C42?",
+      "capital of C48?",
+      "capital of C54?",
+      "capital of C60?",
+      "capital of C66?",
+      "capital of C6?",
+      "capital of C72?",
+      "capital of C78?",
+      "capital of C84?",
+      "capital of C90?",
+      "capital of C96?"
+    ],
+    "5": [
+      "capital of C0?",
+      "capital of C105?",
+      "capital of C112?",
+      "capital of C119?",
+      "capital of C126?",
+      "capital of C133?",
+      "capital of C14?",
+      "capital of C21?",
+      "capital of C28?",
+      "capital of C35?",
+      "capital of C42?",
+      "capital of C49?",
+      "capital of C56?",
+      "capital of C63?",
+      "capital of C70?",
+      "capital of C77?",
+      "capital of C7?",
+      "capital of C84?",
+      "capital of C91?",
+      "capital of C98?"
+    ],
+    "6": [
+      "capital of C0?",
+      "capital of C104?",
+      "capital of C112?",
+      "capital of C120?",
+      "capital of C128?",
+      "capital of C136?",
+      "capital of C16?",
+      "capital of C24?",
+      "capital of C32?",
+      "capital of C40?",
+      "capital of C48?",
+      "capital of C56?",
+      "capital of C64?",
+      "capital of C72?",
+      "capital of C80?",
+      "capital of C88?",
+      "capital of C8?",
+      "capital of C96?"
+    ],
+    "7": [
+      "capital of C0?",
+      "capital of C108?",
+      "capital of C117?",
+      "capital of C126?",
+      "capital of C135?",
+      "capital of C18?",
+      "capital of C27?",
+      "capital of C36?",
+      "capital of C45?",
+      "capital of C54?",
+      "capital of C63?",
+      "capital of C72?",
+      "capital of C81?",
+      "capital of C90?",
+      "capital of C99?",
+      "capital of C9?"
+    ]
+  },
+  "minibatch_cases": [
+    {
+      "auto": "light",
+      "minibatch": null,
+      "minibatch_size": 35,
+      "minibatch_full_eval_steps": 5,
+      "seed": 0,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "valset_given": true,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision.",
+        "Answer with GOOD-6 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 40.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 28.57
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 14.29
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 17.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 29.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 37.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 14.29
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 20.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "auto": "light",
+      "minibatch": null,
+      "minibatch_size": 35,
+      "minibatch_full_eval_steps": 5,
+      "seed": 7,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "valset_given": true,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision.",
+        "Answer with GOOD-6 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 11.43
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 11.43
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 14.29
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 17.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 19.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 8.57
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 11.43
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 25.71
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 21.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-3 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "auto": "medium",
+      "minibatch": null,
+      "minibatch_size": 35,
+      "minibatch_full_eval_steps": 5,
+      "seed": 3,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "valset_given": true,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision.",
+        "Answer with GOOD-6 precision.",
+        "Answer with GOOD-7 precision.",
+        "Answer with GOOD-8 precision.",
+        "Answer with GOOD-9 precision.",
+        "Answer with GOOD-10 precision.",
+        "Answer with GOOD-11 precision.",
+        "Answer with GOOD-12 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 17.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 9
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 6
+          },
+          "score": 11.43
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 9
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 9
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 12.86
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 8
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 11
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 14.29
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 14.29
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 14.29
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 14.29
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 28.57
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 17.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 22.86
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 17.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 7
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 28.57
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 22.86
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 25.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "auto": "light",
+      "minibatch": null,
+      "minibatch_size": 35,
+      "minibatch_full_eval_steps": 5,
+      "seed": 1,
+      "max_bootstrapped_demos": 4,
+      "max_labeled_demos": 4,
+      "valset_given": true,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 5
+          },
+          "score": 25.71
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 1
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 0
+          },
+          "score": 22.86
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 2
+          },
+          "score": 22.86
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 25.71
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 5
+          },
+          "score": 24.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 3
+          },
+          "score": 22.86
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 2
+          },
+          "score": 25.71
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 2
+          },
+          "score": 25.71
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 5
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 25.71
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 24.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        [
+          {
+            "question": "capital of C21?",
+            "answer": "CAP-21"
+          },
+          {
+            "question": "capital of C87?",
+            "answer": "CAP-87"
+          },
+          {
+            "question": "capital of C83?",
+            "answer": "CAP-83"
+          },
+          {
+            "question": "capital of C44?",
+            "answer": "CAP-44"
+          }
+        ]
+      ]
+    },
+    {
+      "auto": "medium",
+      "minibatch": null,
+      "minibatch_size": 20,
+      "minibatch_full_eval_steps": 2,
+      "seed": 5,
+      "max_bootstrapped_demos": 4,
+      "max_labeled_demos": 4,
+      "valset_given": true,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision.",
+        "Answer with GOOD-6 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 8
+          },
+          "score": 15.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 3
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 8
+          },
+          "score": 17.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 4
+          },
+          "score": 25.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 2
+          },
+          "score": 10.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 4
+          },
+          "score": 17.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 9
+          },
+          "score": 15.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 4
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 9
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5,
+            "0_predictor_demos": 7
+          },
+          "score": 15.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4,
+            "0_predictor_demos": 6
+          },
+          "score": 10.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5,
+            "0_predictor_demos": 7
+          },
+          "score": 12.86
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 9
+          },
+          "score": 40.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 9
+          },
+          "score": 25.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 9
+          },
+          "score": 25.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 35.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 25.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 25.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 5
+          },
+          "score": 30.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4,
+            "0_predictor_demos": 1
+          },
+          "score": 10.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 5
+          },
+          "score": 25.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 3
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5,
+            "0_predictor_demos": 5
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 3
+          },
+          "score": 25.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 2
+          },
+          "score": 25.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 10
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 2
+          },
+          "score": 25.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        [
+          {
+            "question": "capital of C51?",
+            "answer": "CAP-51"
+          },
+          {
+            "question": "capital of C5?",
+            "answer": "CAP-5"
+          },
+          {
+            "question": "capital of C72?",
+            "answer": "CAP-72"
+          },
+          {
+            "question": "capital of C40?",
+            "answer": "CAP-40"
+          }
+        ]
+      ]
+    },
+    {
+      "auto": "light",
+      "minibatch": null,
+      "minibatch_size": 35,
+      "minibatch_full_eval_steps": 5,
+      "seed": 2,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "valset_given": false,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision.",
+        "Answer with GOOD-6 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 28.57
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 14.29
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 19.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 22.86
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 2.86
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 8.57
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 26.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "auto": null,
+      "minibatch": true,
+      "minibatch_size": 35,
+      "minibatch_full_eval_steps": 5,
+      "seed": 0,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "valset_given": true,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision.",
+        "Answer with GOOD-6 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 31.43
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 28.57
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 17.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 11.43
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 17.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 25.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 25.71
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 11.43
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 14.29
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 20.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "auto": null,
+      "minibatch": true,
+      "minibatch_size": 40,
+      "minibatch_full_eval_steps": 3,
+      "seed": 2,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "valset_given": true,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision.",
+        "Answer with GOOD-6 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 12.5
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 12.5
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 12.5
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 27.5
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2
+          },
+          "score": 27.5
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 25.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 15.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 35.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 30.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4
+          },
+          "score": 14.29
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    },
+    {
+      "auto": null,
+      "minibatch": true,
+      "minibatch_size": 25,
+      "minibatch_full_eval_steps": 2,
+      "seed": 4,
+      "max_bootstrapped_demos": 4,
+      "max_labeled_demos": 4,
+      "valset_given": true,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision.",
+        "Answer with GOOD-6 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 0
+          },
+          "score": 8.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 32.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 25.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4,
+            "0_predictor_demos": 1
+          },
+          "score": 16.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 0
+          },
+          "score": 12.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 4,
+            "0_predictor_demos": 1
+          },
+          "score": 14.29
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 2
+          },
+          "score": 12.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0,
+            "0_predictor_demos": 5
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3,
+            "0_predictor_demos": 0
+          },
+          "score": 17.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 3
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 1
+          },
+          "score": 24.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1,
+            "0_predictor_demos": 3
+          },
+          "score": 25.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5,
+            "0_predictor_demos": 4
+          },
+          "score": 12.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 2,
+            "0_predictor_demos": 2
+          },
+          "score": 20.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        [
+          {
+            "question": "capital of C98?",
+            "answer": "CAP-98"
+          },
+          {
+            "question": "capital of C107?",
+            "answer": "CAP-107"
+          },
+          {
+            "question": "capital of C10?",
+            "answer": "CAP-10"
+          },
+          {
+            "question": "capital of C66?",
+            "answer": "CAP-66"
+          }
+        ]
+      ]
+    },
+    {
+      "auto": null,
+      "minibatch": true,
+      "minibatch_size": 35,
+      "minibatch_full_eval_steps": 5,
+      "seed": 6,
+      "max_bootstrapped_demos": 0,
+      "max_labeled_demos": 0,
+      "valset_given": false,
+      "proposals": [
+        "Answer with GOOD-1 precision.",
+        "Answer with GOOD-2 precision.",
+        "Answer with GOOD-3 precision.",
+        "Answer with GOOD-4 precision.",
+        "Answer with GOOD-5 precision.",
+        "Answer with GOOD-6 precision."
+      ],
+      "trials": [
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 5
+          },
+          "score": 8.57
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 14.29
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 20.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 3
+          },
+          "score": 16.96
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 37.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 0
+          },
+          "score": 0.0
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 37.14
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 25.71
+        },
+        {
+          "params": {
+            "0_predictor_instruction": 1
+          },
+          "score": 25.0
+        }
+      ],
+      "compiled": [
+        "Answer with GOOD-2 precision."
+      ],
+      "compiled_demos": [
+        []
+      ]
+    }
+  ]
+}

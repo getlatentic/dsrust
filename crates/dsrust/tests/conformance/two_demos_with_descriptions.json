@@ -1,0 +1,63 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_fixtures.py",
+  "dspy_version": "3.3.0",
+  "instructions": "Pick a colour and justify it.",
+  "inputs": [
+    {
+      "name": "request",
+      "kind": "str",
+      "desc": "the request"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "colour",
+      "kind": "str",
+      "desc": "the chosen colour"
+    },
+    {
+      "name": "why",
+      "kind": "str",
+      "desc": "one short sentence"
+    }
+  ],
+  "module": "predict",
+  "demos": [
+    {
+      "request": "something calm",
+      "colour": "blue",
+      "why": "It reads as still."
+    },
+    {
+      "request": "something warm",
+      "colour": "amber",
+      "why": "It holds light."
+    }
+  ],
+  "values": {
+    "request": "something bold"
+  },
+  "expected_system": "Your input fields are:\n1. `request` (str): the request\nYour output fields are:\n1. `colour` (str): the chosen colour\n2. `why` (str): one short sentence\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## request ## ]]\n{request}\n\n[[ ## colour ## ]]\n{colour}\n\n[[ ## why ## ]]\n{why}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Pick a colour and justify it.",
+  "expected_turns": [
+    {
+      "role": "user",
+      "content": "[[ ## request ## ]]\nsomething calm"
+    },
+    {
+      "role": "assistant",
+      "content": "[[ ## colour ## ]]\nblue\n\n[[ ## why ## ]]\nIt reads as still.\n\n[[ ## completed ## ]]\n"
+    },
+    {
+      "role": "user",
+      "content": "[[ ## request ## ]]\nsomething warm"
+    },
+    {
+      "role": "assistant",
+      "content": "[[ ## colour ## ]]\namber\n\n[[ ## why ## ]]\nIt holds light.\n\n[[ ## completed ## ]]\n"
+    },
+    {
+      "role": "user",
+      "content": "[[ ## request ## ]]\nsomething bold\n\nRespond with the corresponding output fields, starting with the field `[[ ## colour ## ]]`, then `[[ ## why ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`."
+    }
+  ]
+}

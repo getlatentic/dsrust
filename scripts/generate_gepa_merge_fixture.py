@@ -19,6 +19,7 @@ order are what is being pinned.
 from __future__ import annotations
 
 import json
+import math
 import os
 import pathlib
 import random
@@ -34,7 +35,7 @@ from gepa.proposer.merge import (
 
 from pins import require
 
-OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust-gepa" / "tests" / "conformance"
 PINNED = require("gepa")
 
 
@@ -65,18 +66,35 @@ def merge_case(name, candidates, parents, scores, merge_candidates, seed) -> dic
 
 
 def subsample_case(name, scores1, scores2, num, seed) -> dict:
+    rng = random.Random(seed)
     proposer = MergeProposer(
         logger=_Silent(),
         valset=None,
         evaluator=None,
         use_merge=True,
         max_merge_invocations=5,
-        rng=random.Random(seed),
+        rng=rng,
     )
     s1 = {i: v for i, v in enumerate(scores1)}
     s2 = {i: v for i, v in enumerate(scores2)}
     selected = proposer.select_eval_subsample_for_merged_program(s1, s2, num_subsample_ids=num)
-    return {"name": name, "scores1": scores1, "scores2": scores2, "num": num, "seed": seed, "selected": selected}
+    return {
+        "name": name,
+        "scores1": [_carry(v) for v in scores1],
+        "scores2": [_carry(v) for v in scores2],
+        "num": num,
+        "seed": seed,
+        "selected": selected,
+        # Where the generator was left. The selection alone cannot see an over-draw: the returned
+        # list is truncated to `num`, and CPython's `sample` returns the same prefix for a larger
+        # `k`, so a round that takes one too many is invisible in the ids and visible only here.
+        "after": rng.random(),
+    }
+
+
+def _carry(value: float):
+    """JSON has no nan, so it travels as a string the crate reads back."""
+    return "nan" if math.isnan(value) else value
 
 
 class _Silent:
@@ -107,11 +125,26 @@ def main() -> None:
         merge_case("two_only", SPLIT, SPLIT_PARENTS, scores, [1, 2], 1),
         merge_case("no_pair", SPLIT, SPLIT_PARENTS, scores, [1], 0),  # too few to sample
     ]
+    nan = float("nan")
     subsamples = [
         subsample_case("balanced", [0.9, 0.1, 0.5, 0.5, 0.3, 0.8], [0.1, 0.9, 0.5, 0.5, 0.7, 0.2], 5, 0),
         subsample_case("all_equal", [0.5] * 8, [0.5] * 8, 5, 3),
         subsample_case("id1_dominates", [0.9, 0.8, 0.7, 0.6, 0.5], [0.1, 0.2, 0.3, 0.4, 0.4], 4, 2),
         subsample_case("small_pool", [0.6, 0.4], [0.4, 0.6], 5, 1),
+        # Three ids per disagreeing bucket against `n_each = 2`, so each of the first two rounds
+        # leaves one behind and the third round has a choice to get wrong: it draws from the
+        # *agreeing* ids, not from whatever the earlier rounds did not reach. Every case above
+        # empties both disagreeing buckets first, which makes the two populations the same list.
+        subsample_case(
+            "leftover_in_both_buckets",
+            [0.9, 0.9, 0.9, 0.1, 0.1, 0.1, 0.5, 0.5],
+            [0.1, 0.1, 0.1, 0.9, 0.9, 0.9, 0.5, 0.5],
+            5,
+            0,
+        ),
+        # A nan pair, which no ordering claims: `>` is false both ways, so gepa's complement puts it
+        # among the agreeing ids while an `==` reading drops it from every bucket.
+        subsample_case("nan_pair", [0.9, 0.9, nan, 0.5, 0.5], [0.1, 0.1, nan, 0.5, 0.5], 3, 2),
     ]
     fixture = {
         "source": f"generated from gepa=={PINNED} via scripts/generate_gepa_merge_fixture.py "

@@ -1,0 +1,84 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_dataset_summary_fixture.py",
+  "dspy_version": "3.3.0",
+  "note": "The examples field is Python source, not JSON. repr picks its quote from what the string holds, and order_input_keys_in_string sorts the input-key set — without which the prompt would differ between two runs of dspy itself.",
+  "signatures": {
+    "dataset_descriptor": "Your input fields are:\n1. `examples` (str): Sample data points from the dataset\nYour output fields are:\n1. `observations` (str): Somethings that holds true for most or all of the data you observed\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## examples ## ]]\n{examples}\n\n[[ ## observations ## ]]\n{observations}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Given several examples from a dataset please write observations about trends that hold for most or all of the samples. Some areas you may consider in your observations: topics, content, syntax, conciseness, etc. It will be useful to make an educated guess as to the nature of the task this dataset will enable. Don't be afraid to be creative",
+    "dataset_descriptor_with_prior_observations": "Your input fields are:\n1. `examples` (str): Sample data points from the dataset\n2. `prior_observations` (str): Some prior observations I made about the data\nYour output fields are:\n1. `observations` (str): Somethings that holds true for most or all of the data you observed or COMPLETE if you have nothing to add\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## examples ## ]]\n{examples}\n\n[[ ## prior_observations ## ]]\n{prior_observations}\n\n[[ ## observations ## ]]\n{observations}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Given several examples from a dataset please write observations about trends that hold for most or all of the samples. I will also provide you with a few observations I have already made.  Please add your own observations or if you feel the observations are comprehensive say 'COMPLETE' Some areas you may consider in your observations: topics, content, syntax, conciceness, etc. It will be useful to make an educated guess as to the nature of the task this dataset will enable. Don't be afraid to be creative",
+    "observation_summarizer": "Your input fields are:\n1. `observations` (str): Observations I have made about my dataset\nYour output fields are:\n1. `summary` (str): Two to Three sentence summary of only the most significant highlights of my observations\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## observations ## ]]\n{observations}\n\n[[ ## summary ## ]]\n{summary}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Given a series of observations I have made about my dataset, please summarize them into a brief 2-3 sentence summary which highlights only the most important details."
+  },
+  "rows": [
+    {
+      "fields": {
+        "question": "capital of France?",
+        "answer": "Paris"
+      },
+      "input_keys": [
+        "question"
+      ]
+    },
+    {
+      "fields": {
+        "zebra": "last",
+        "alpha": "first",
+        "n": 3,
+        "ok": true,
+        "nothing": null
+      },
+      "input_keys": [
+        "alpha",
+        "zebra"
+      ]
+    },
+    {
+      "fields": {
+        "text": "it's tricky",
+        "note": "say \"hi\"",
+        "both": "both ' and \""
+      },
+      "input_keys": [
+        "text"
+      ]
+    },
+    {
+      "fields": {
+        "path": "a\\b",
+        "tags": [
+          "x",
+          "y"
+        ],
+        "score": 1.5
+      },
+      "input_keys": [
+        "path"
+      ]
+    }
+  ],
+  "slices": [
+    {
+      "start": 0,
+      "stop": 1,
+      "repr": "[Example({'question': 'capital of France?', 'answer': 'Paris'}) (input_keys={'question'})]"
+    },
+    {
+      "start": 0,
+      "stop": 2,
+      "repr": "[Example({'question': 'capital of France?', 'answer': 'Paris'}) (input_keys={'question'}), Example({'zebra': 'last', 'alpha': 'first', 'n': 3, 'ok': True, 'nothing': None}) (input_keys={'alpha', 'zebra'})]"
+    },
+    {
+      "start": 1,
+      "stop": 3,
+      "repr": "[Example({'zebra': 'last', 'alpha': 'first', 'n': 3, 'ok': True, 'nothing': None}) (input_keys={'alpha', 'zebra'}), Example({'text': \"it's tricky\", 'note': 'say \"hi\"', 'both': 'both \\' and \"'}) (input_keys={'text'})]"
+    },
+    {
+      "start": 0,
+      "stop": 4,
+      "repr": "[Example({'question': 'capital of France?', 'answer': 'Paris'}) (input_keys={'question'}), Example({'zebra': 'last', 'alpha': 'first', 'n': 3, 'ok': True, 'nothing': None}) (input_keys={'alpha', 'zebra'}), Example({'text': \"it's tricky\", 'note': 'say \"hi\"', 'both': 'both \\' and \"'}) (input_keys={'text'}), Example({'path': 'a\\\\b', 'tags': ['x', 'y'], 'score': 1.5}) (input_keys={'path'})]"
+    },
+    {
+      "start": 2,
+      "stop": 4,
+      "repr": "[Example({'text': \"it's tricky\", 'note': 'say \"hi\"', 'both': 'both \\' and \"'}) (input_keys={'text'}), Example({'path': 'a\\\\b', 'tags': ['x', 'y'], 'score': 1.5}) (input_keys={'path'})]"
+    }
+  ]
+}

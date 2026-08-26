@@ -20,7 +20,7 @@ import json
 import pathlib
 import sys
 
-OUT = pathlib.Path(__file__).parent.parent / "gepa" / "tests" / "conformance"
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust-gepa" / "tests" / "conformance"
 
 # Deterministic without an RNG: a fixed spread of sequences chosen to cross the boundaries a
 # faithful port has to clear — a table that stays at 8 slots, one that resizes to 32 and 128, keys
@@ -43,6 +43,16 @@ BUILD_CASES = [
     list(range(100)),
     [40, 8, 72, 8, 40, 1, 99, 50, 17, 17, 3],
     [i * 8 for i in range(12)],  # every key collides on the low 3 bits, forcing the probe chain
+    # A collision *near the top of the table*, which is the only way the perturb step runs at all:
+    # the nine-slot linear window is tried first and absorbs every collision where
+    # `slot + 9 <= mask`, so the cases above reach `perturb` almost never. These keys are all
+    # congruent to the last slot, and they differ above bit five — which is what the perturb shift
+    # reads. Without them, shifting `perturb` the wrong way changed no recorded order.
+    [31, 63, 95, 127, 159, 191, 223, 255],
+    [7, 15, 23, 39, 71, 135, 263, 519],
+    # The same idea one table size up, so the case survives the resize to mask 31 rather than
+    # being decided entirely at mask 7.
+    list(range(24)) + [31, 63, 95, 127, 159],
     [i * 7 for i in range(20)],
     [100, 50, 25, 12, 6, 3, 1, 0, 200, 150],
 ]
@@ -54,7 +64,19 @@ INTERSECTION_CASES = [
     ([10, 11, 12, 13], [12, 13, 14, 15]),
     ([5, 8, 13, 21], [8, 21, 34]),
     ([0, 1, 2, 3, 4, 5], [3, 4, 5]),
-    ([9, 14, 6, 2], [14, 2, 40, 9]),  # equal size: CPython iterates the right operand
+    ([9, 14, 6, 2], [14, 2, 40, 9]),  # equal size, but `a & b` and `b & a` come out the same
+    # Equal size *and* discriminating: `a & b` is [143, 87] where `b & a` is [87, 143]. The tie rule
+    # — which operand CPython iterates when the two are the same length — is unobservable on most
+    # pairs, including the one above, because the result is re-inserted into a fresh table that
+    # usually lands on the same order either way. Found by search after a mutation run showed the
+    # `>` in the size comparison could be `<`, `==` or `>=` with every test still passing.
+    ([87, 143, 102, 289], [143, 78, 87, 297]),
+    ([143, 78, 87, 297], [87, 143, 102, 289]),
+    # Unequal size, and it shows *which* operand is iterated: taking the smaller gives [183, 31],
+    # taking the larger gives [31, 183]. Every other unequal case here comes out the same either
+    # way, so the size comparison could have been reversed with the suite still green.
+    ([183, 31, 12], [91, 31, 65, 203, 183, 78]),
+    ([91, 31, 65, 203, 183, 78], [183, 31, 12]),
     (list(range(30)), list(range(15, 45))),
     ([i * 8 for i in range(10)], [i * 8 for i in range(5, 15)]),
 ]

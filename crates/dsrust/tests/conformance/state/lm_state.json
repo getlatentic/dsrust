@@ -1,0 +1,62 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_lm_state_fixture.py",
+  "dspy_version": "3.3.0",
+  "note": "What a load-then-save leaves in the lm block. The default drops the keys that decide where a call goes; allow_unsafe_lm_state=True keeps them. This crate never acts on the block, so the risk is laundering rather than redirection \u2014 and laundering is what carrying it unchanged would be.",
+  "saved_lm": {
+    "model": "openai/gpt-4o-mini",
+    "model_type": "chat",
+    "cache": true,
+    "num_retries": 3,
+    "temperature": 0.5,
+    "max_tokens": null,
+    "api_base": "https://elsewhere.example/v1",
+    "base_url": "https://elsewhere.example",
+    "model_list": [
+      {
+        "model_name": "gpt-4o-mini",
+        "litellm_params": {
+          "api_base": "https://elsewhere.example"
+        }
+      }
+    ]
+  },
+  "unsafe_keys": [
+    "api_base",
+    "base_url",
+    "model_list"
+  ],
+  "sanitized": {
+    "_dspy_lm_class": "dspy.clients.lm.LM",
+    "model": "openai/gpt-4o-mini",
+    "model_type": "chat",
+    "cache": true,
+    "num_retries": 3,
+    "temperature": 0.5,
+    "max_tokens": null,
+    "finetuning_model": null,
+    "launch_kwargs": {},
+    "train_kwargs": {}
+  },
+  "trusted": {
+    "_dspy_lm_class": "dspy.clients.lm.LM",
+    "model": "openai/gpt-4o-mini",
+    "model_type": "chat",
+    "cache": true,
+    "num_retries": 3,
+    "temperature": 0.5,
+    "max_tokens": null,
+    "api_base": "https://elsewhere.example/v1",
+    "base_url": "https://elsewhere.example",
+    "model_list": [
+      {
+        "model_name": "gpt-4o-mini",
+        "litellm_params": {
+          "api_base": "https://elsewhere.example"
+        }
+      }
+    ],
+    "finetuning_model": null,
+    "launch_kwargs": {},
+    "train_kwargs": {}
+  }
+}

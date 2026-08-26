@@ -1,0 +1,236 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_pot_fixture.py",
+  "dspy_version": "3.3.0",
+  "signatures": [
+    {
+      "task": "question -> answer",
+      "modes": {
+        "generate": {
+          "instructions": "You will be given `question` and you will respond with `generated_code`.\nGenerating executable Python code that programmatically computes the correct `generated_code`.\nAfter you're done with the computation and think you have the final output, make sure to submit your output by calling the preloaded function `SUBMIT()`.\nYou must structure your output in a dict, like {\"field_a\": value_a, ...}, with the correct value mapping for the field(s): `answer`.",
+          "inputs": [
+            {
+              "name": "question",
+              "desc": ""
+            }
+          ],
+          "outputs": [
+            {
+              "name": "generated_code",
+              "desc": "python code that answers the question"
+            }
+          ]
+        },
+        "regenerate": {
+          "instructions": "You are given `question`, `previous_code`, `error` due to an error in previous code.\nYour task is to correct the error and provide the new `generated_code`.",
+          "inputs": [
+            {
+              "name": "question",
+              "desc": ""
+            },
+            {
+              "name": "previous_code",
+              "desc": "previously-generated python code that errored"
+            },
+            {
+              "name": "error",
+              "desc": "error message from previously-generated python code"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "generated_code",
+              "desc": "python code that answers the question"
+            }
+          ]
+        },
+        "answer": {
+          "instructions": "Given the final code `question`, `final_generated_code`, `code_output`, provide the final `answer`.",
+          "inputs": [
+            {
+              "name": "question",
+              "desc": ""
+            },
+            {
+              "name": "final_generated_code",
+              "desc": "python code that answers the question"
+            },
+            {
+              "name": "code_output",
+              "desc": "output of previously-generated python code"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "answer",
+              "desc": ""
+            }
+          ]
+        }
+      }
+    },
+    {
+      "task": "question, context -> answer, confidence",
+      "modes": {
+        "generate": {
+          "instructions": "You will be given `question`, `context` and you will respond with `generated_code`.\nGenerating executable Python code that programmatically computes the correct `generated_code`.\nAfter you're done with the computation and think you have the final output, make sure to submit your output by calling the preloaded function `SUBMIT()`.\nYou must structure your output in a dict, like {\"field_a\": value_a, ...}, with the correct value mapping for the field(s): `answer`, `confidence`.",
+          "inputs": [
+            {
+              "name": "question",
+              "desc": ""
+            },
+            {
+              "name": "context",
+              "desc": ""
+            }
+          ],
+          "outputs": [
+            {
+              "name": "generated_code",
+              "desc": "python code that answers the question"
+            }
+          ]
+        },
+        "regenerate": {
+          "instructions": "You are given `question`, `context`, `previous_code`, `error` due to an error in previous code.\nYour task is to correct the error and provide the new `generated_code`.",
+          "inputs": [
+            {
+              "name": "question",
+              "desc": ""
+            },
+            {
+              "name": "context",
+              "desc": ""
+            },
+            {
+              "name": "previous_code",
+              "desc": "previously-generated python code that errored"
+            },
+            {
+              "name": "error",
+              "desc": "error message from previously-generated python code"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "generated_code",
+              "desc": "python code that answers the question"
+            }
+          ]
+        },
+        "answer": {
+          "instructions": "Given the final code `question`, `context`, `final_generated_code`, `code_output`, provide the final `answer`, `confidence`.",
+          "inputs": [
+            {
+              "name": "question",
+              "desc": ""
+            },
+            {
+              "name": "context",
+              "desc": ""
+            },
+            {
+              "name": "final_generated_code",
+              "desc": "python code that answers the question"
+            },
+            {
+              "name": "code_output",
+              "desc": "output of previously-generated python code"
+            }
+          ],
+          "outputs": [
+            {
+              "name": "answer",
+              "desc": ""
+            },
+            {
+              "name": "confidence",
+              "desc": ""
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "parse_code": [
+    {
+      "written": "```python\nx = 1\nprint(x)\n```",
+      "code": "x = 1\nprint(x)",
+      "error": null
+    },
+    {
+      "written": "```python x = 1 ```",
+      "code": "x = 1",
+      "error": null
+    },
+    {
+      "written": "```python\nprint(1)\n``",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "print(1)\n---\nnotes",
+      "code": "print(1)\n",
+      "error": null
+    },
+    {
+      "written": "print(1)\n\n\nnotes",
+      "code": "print(1)",
+      "error": null
+    },
+    {
+      "written": "y = 2\nanswer = y + 1",
+      "code": "y = 2\nanswer = y + 1\nanswer",
+      "error": null
+    },
+    {
+      "written": "answer = 1",
+      "code": "answer = 1",
+      "error": null
+    },
+    {
+      "written": "",
+      "code": "",
+      "error": "Error: Empty code after parsing."
+    },
+    {
+      "written": "a = 1 = 2",
+      "code": "a = 1 = 2",
+      "error": "Error: Code format is not correct."
+    },
+    {
+      "written": "```python\n```",
+      "code": "```python\n```",
+      "error": null
+    },
+    {
+      "written": "no fence here\nresult = 4",
+      "code": "no fence here\nresult = 4\nresult",
+      "error": null
+    },
+    {
+      "written": "```python\nresult  =  4\n```",
+      "code": "result  =  4",
+      "error": null
+    },
+    {
+      "written": "text before\n```python\nprint(2)\n```\ntext after",
+      "code": "print(2)",
+      "error": null
+    },
+    {
+      "written": "```py\nx = 1\nprint(x)\n```",
+      "code": "```py\nx = 1\nprint(x)\n```",
+      "error": null
+    },
+    {
+      "written": "```Python\nprint(1)\n```",
+      "code": "```Python\nprint(1)\n```",
+      "error": null
+    },
+    {
+      "written": "```python3\nprint(1)\n```",
+      "code": "```python3\nprint(1)\n```",
+      "error": null
+    }
+  ]
+}

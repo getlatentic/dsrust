@@ -1,0 +1,233 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_codeact_fixture.py",
+  "dspy_version": "3.3.0",
+  "cases": [
+    {
+      "label": "plain",
+      "task": "question -> answer",
+      "task_instructions": "Given the fields `question`, produce the fields `answer`.",
+      "tools": [
+        "factorial, whose description is <desc>Compute the factorial of n.</desc>. It takes arguments {'n': {'type': 'integer'}}."
+      ],
+      "codeact": {
+        "instructions": "Given the fields `question`, produce the fields `answer`.\n\nYou are an intelligent agent. For each episode, you will receive the fields `question` as input.\nYour goal is to generate executable Python code that collects any necessary information for producing `answer`.\nFor each iteration, you will generate a code snippet that either solves the task or progresses towards the solution.\nEnsure any output you wish to extract from the code is printed to the console. The code should be enclosed in a fenced code block.\nWhen all information for producing the outputs (`answer`) are available to be extracted, mark `finished=True` besides the final Python code.\nYou have access to the Python Standard Library and the following functions:\n(1) factorial, whose description is <desc>Compute the factorial of n.</desc>. It takes arguments {'n': {'type': 'integer'}}.",
+        "inputs": [
+          {
+            "name": "question",
+            "desc": ""
+          },
+          {
+            "name": "trajectory",
+            "desc": ""
+          }
+        ],
+        "outputs": [
+          {
+            "name": "generated_code",
+            "desc": "Python code that when executed, produces output relevant to answering the question"
+          },
+          {
+            "name": "finished",
+            "desc": "a boolean flag to determine if the process is done"
+          }
+        ]
+      },
+      "extract": {
+        "instructions": "Given the fields `question`, produce the fields `answer`.",
+        "inputs": [
+          {
+            "name": "question",
+            "desc": ""
+          },
+          {
+            "name": "trajectory",
+            "desc": ""
+          }
+        ],
+        "outputs": [
+          {
+            "name": "reasoning",
+            "desc": ""
+          },
+          {
+            "name": "answer",
+            "desc": ""
+          }
+        ]
+      }
+    },
+    {
+      "label": "multi",
+      "task": "question, context -> answer, confidence",
+      "task_instructions": "Given the fields `question`, `context`, produce the fields `answer`, `confidence`.",
+      "tools": [
+        "factorial, whose description is <desc>Compute the factorial of n.</desc>. It takes arguments {'n': {'type': 'integer'}}.",
+        "lookup, whose description is <desc>Look a thing up.    Spans two lines, so the newline flattening in a tool's string form is exercised.  </desc>. It takes arguments {'name': {'type': 'string'}, 'year': {'type': 'integer'}}."
+      ],
+      "codeact": {
+        "instructions": "Given the fields `question`, `context`, produce the fields `answer`, `confidence`.\n\nYou are an intelligent agent. For each episode, you will receive the fields `question`, `context` as input.\nYour goal is to generate executable Python code that collects any necessary information for producing `answer`, `confidence`.\nFor each iteration, you will generate a code snippet that either solves the task or progresses towards the solution.\nEnsure any output you wish to extract from the code is printed to the console. The code should be enclosed in a fenced code block.\nWhen all information for producing the outputs (`answer`, `confidence`) are available to be extracted, mark `finished=True` besides the final Python code.\nYou have access to the Python Standard Library and the following functions:\n(1) factorial, whose description is <desc>Compute the factorial of n.</desc>. It takes arguments {'n': {'type': 'integer'}}.\n(2) lookup, whose description is <desc>Look a thing up.    Spans two lines, so the newline flattening in a tool's string form is exercised.  </desc>. It takes arguments {'name': {'type': 'string'}, 'year': {'type': 'integer'}}.",
+        "inputs": [
+          {
+            "name": "question",
+            "desc": ""
+          },
+          {
+            "name": "context",
+            "desc": ""
+          },
+          {
+            "name": "trajectory",
+            "desc": ""
+          }
+        ],
+        "outputs": [
+          {
+            "name": "generated_code",
+            "desc": "Python code that when executed, produces output relevant to answering the question"
+          },
+          {
+            "name": "finished",
+            "desc": "a boolean flag to determine if the process is done"
+          }
+        ]
+      },
+      "extract": {
+        "instructions": "Given the fields `question`, `context`, produce the fields `answer`, `confidence`.",
+        "inputs": [
+          {
+            "name": "question",
+            "desc": ""
+          },
+          {
+            "name": "context",
+            "desc": ""
+          },
+          {
+            "name": "trajectory",
+            "desc": ""
+          }
+        ],
+        "outputs": [
+          {
+            "name": "reasoning",
+            "desc": ""
+          },
+          {
+            "name": "answer",
+            "desc": ""
+          },
+          {
+            "name": "confidence",
+            "desc": ""
+          }
+        ]
+      }
+    },
+    {
+      "label": "described",
+      "task": "Described",
+      "task_instructions": "Answer the question carefully.",
+      "tools": [
+        "factorial, whose description is <desc>Compute the factorial of n.</desc>. It takes arguments {'n': {'type': 'integer'}}."
+      ],
+      "codeact": {
+        "instructions": "Answer the question carefully.\n\nYou are an intelligent agent. For each episode, you will receive the fields `question` as input.\nYour goal is to generate executable Python code that collects any necessary information for producing `answer`.\nFor each iteration, you will generate a code snippet that either solves the task or progresses towards the solution.\nEnsure any output you wish to extract from the code is printed to the console. The code should be enclosed in a fenced code block.\nWhen all information for producing the outputs (`answer`) are available to be extracted, mark `finished=True` besides the final Python code.\nYou have access to the Python Standard Library and the following functions:\n(1) factorial, whose description is <desc>Compute the factorial of n.</desc>. It takes arguments {'n': {'type': 'integer'}}.",
+        "inputs": [
+          {
+            "name": "question",
+            "desc": ""
+          },
+          {
+            "name": "trajectory",
+            "desc": ""
+          }
+        ],
+        "outputs": [
+          {
+            "name": "generated_code",
+            "desc": "Python code that when executed, produces output relevant to answering the question"
+          },
+          {
+            "name": "finished",
+            "desc": "a boolean flag to determine if the process is done"
+          }
+        ]
+      },
+      "extract": {
+        "instructions": "Answer the question carefully.",
+        "inputs": [
+          {
+            "name": "question",
+            "desc": ""
+          },
+          {
+            "name": "trajectory",
+            "desc": ""
+          }
+        ],
+        "outputs": [
+          {
+            "name": "reasoning",
+            "desc": ""
+          },
+          {
+            "name": "answer",
+            "desc": ""
+          }
+        ]
+      }
+    },
+    {
+      "label": "no_tools",
+      "task": "question -> answer",
+      "task_instructions": "Given the fields `question`, produce the fields `answer`.",
+      "tools": [],
+      "codeact": {
+        "instructions": "Given the fields `question`, produce the fields `answer`.\n\nYou are an intelligent agent. For each episode, you will receive the fields `question` as input.\nYour goal is to generate executable Python code that collects any necessary information for producing `answer`.\nFor each iteration, you will generate a code snippet that either solves the task or progresses towards the solution.\nEnsure any output you wish to extract from the code is printed to the console. The code should be enclosed in a fenced code block.\nWhen all information for producing the outputs (`answer`) are available to be extracted, mark `finished=True` besides the final Python code.\nYou have access to the Python Standard Library and the following functions:",
+        "inputs": [
+          {
+            "name": "question",
+            "desc": ""
+          },
+          {
+            "name": "trajectory",
+            "desc": ""
+          }
+        ],
+        "outputs": [
+          {
+            "name": "generated_code",
+            "desc": "Python code that when executed, produces output relevant to answering the question"
+          },
+          {
+            "name": "finished",
+            "desc": "a boolean flag to determine if the process is done"
+          }
+        ]
+      },
+      "extract": {
+        "instructions": "Given the fields `question`, produce the fields `answer`.",
+        "inputs": [
+          {
+            "name": "question",
+            "desc": ""
+          },
+          {
+            "name": "trajectory",
+            "desc": ""
+          }
+        ],
+        "outputs": [
+          {
+            "name": "reasoning",
+            "desc": ""
+          },
+          {
+            "name": "answer",
+            "desc": ""
+          }
+        ]
+      }
+    }
+  ]
+}

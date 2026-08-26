@@ -1,0 +1,56 @@
+{
+  "machine_specific": {
+    ".aac": {
+      "builtin": "audio/aac",
+      "this_machine": "audio/x-aac"
+    },
+    ".flac": {
+      "builtin": null,
+      "this_machine": "audio/x-flac"
+    },
+    ".m4a": {
+      "builtin": null,
+      "this_machine": "audio/mp4a-latm"
+    },
+    ".ogg": {
+      "builtin": null,
+      "this_machine": "audio/ogg"
+    },
+    ".opus": {
+      "builtin": "audio/opus",
+      "this_machine": "audio/ogg"
+    },
+    ".xml": {
+      "builtin": "text/xml",
+      "this_machine": "application/xml"
+    }
+  },
+  "note": "CPython's built-in mimetypes table. `mimetypes.guess_type` merges system files over this, so the entries under `machine_specific` are ones where dspy's answer depends on the host.",
+  "types": {
+    ".aac": "audio/aac",
+    ".bin": "application/octet-stream",
+    ".bmp": "image/bmp",
+    ".csv": "text/csv",
+    ".gif": "image/gif",
+    ".htm": "text/html",
+    ".html": "text/html",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".json": "application/json",
+    ".md": "text/markdown",
+    ".mp3": "audio/mpeg",
+    ".mp4": "video/mp4",
+    ".opus": "audio/opus",
+    ".pdf": "application/pdf",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".tiff": "image/tiff",
+    ".txt": "text/plain",
+    ".wasm": "application/wasm",
+    ".wav": "audio/x-wav",
+    ".webm": "video/webm",
+    ".webp": "image/webp",
+    ".xml": "text/xml",
+    ".zip": "application/zip"
+  }
+}

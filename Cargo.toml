@@ -1,47 +1,25 @@
-[package]
-name = "dsrust"
-version = "0.1.0-alpha.2"
-edition = "2024"
-license = "MIT OR Apache-2.0"
-description = "A faithful, byte-for-byte Rust port of DSPy: signatures, adapters, modules, providers, and optimizers, tested against DSPy itself."
-readme = "README.md"
-authors = ["Tosin Amuda"]
-keywords = ["dspy", "llm", "prompt", "ai", "agents"]
-categories = ["science", "api-bindings"]
-exclude = [
-    "/third_party", "/local-compare", "/tests", "/scripts", "/docs", "/bridge",
-    "/backlog.toml", "/HANDOFF.md", "/.claude-tooling.md", "/pyproject.toml", "/uv.lock",
-]
-repository = "https://github.com/getlatentic/dsrust"
-
-[lib]
-name = "dsrust"
-path = "src/lib.rs"
-
 [workspace]
-members = ["derive", "bridge", "tpe", "pyrng", "gepa"]
-default-members = [".", "derive", "tpe", "pyrng", "gepa"]
+resolver = "3"
+members = ["crates/*"]
+default-members = [
+    "crates/dsrust",
+    "crates/dsrust-derive",
+    "crates/dsrust-gepa",
+    "crates/dsrust-tpe",
+    "crates/pyrng",
+]
 
-[dependencies]
-anyhow = "1"
-base64 = "0.22.1"
-dsrust-derive = { version = "0.1.0-alpha.1", path = "derive" }
-gepa = { version = "0.1.0-alpha.1", path = "gepa", package = "dsrust-gepa" }
-pyrng = { version = "0.1.0-alpha.1", path = "pyrng" }
-bytes = "1"
-futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
-lru = { version = "0.18.1", default-features = false }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
-schemars = "1"
-serde = { version = "1", features = ["derive"] }
-# preserve_order keeps schemas in pydantic's insertion order; sorting keys would break byte-conformance.
-serde_json = { version = "1", features = ["preserve_order"] }
-sha2 = "0.11.0"
-tpe = { version = "0.1.0-alpha.1", path = "tpe", package = "dsrust-tpe" }
-tracing = "0.1"
-unicode-general-category = "1.1.0"
-unicode-normalization = "0.1.25"
+# rustc's post-link LLVM strip leaves `LC_SYMTAB.stroff` at `4 mod 8`, and macOS 27's dyld refuses
+# the image: "mis-aligned LINKEDIT string pool". It rejects the PyO3 bridge, so the whole upstream
+# suite cannot run — see rust-lang/rust#157750 and llvm/llvm-project#203678. Fixed upstream for
+# Rust 1.98; drop this once the toolchain here is past it.
+#
+# `[profile.*]` in a workspace *member* is ignored, which is why an earlier attempt at this appeared
+# to change nothing. It has to live here, in the root.
+[profile.release]
+strip = "none"
 
-[dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Full debug info dominates target/debug (25 GiB at its peak). Line tables keep
+# file/line in backtraces and panics, which is all this suite reads.
+[profile.dev]
+debug = "line-tables-only"

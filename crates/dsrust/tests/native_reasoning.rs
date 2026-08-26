@@ -1,0 +1,223 @@
+//! What a `Reasoning` output field changes about a request and its reply.
+//!
+//! dspy's `Reasoning.adapt_to_native_lm_feature`: a reasoning model with a `Reasoning` field reasons
+//! on its own channel, so the field leaves the render and the request carries a `reasoning_effort`
+//! instead. `parse_lm_response` then reads the reply's thinking back into that field. A model that
+//! cannot reason renders the field as prose, unchanged.
+
+use std::sync::{Arc, Mutex};
+
+use dsrust::lm::api::{self};
+use dsrust::lm::{Capabilities, ChatModel, DynChatModel};
+use dsrust::module::Module;
+use dsrust::predict::Predict;
+use dsrust::signature::{FieldKind, OutField, Signature};
+use serde_json::{Value, json};
+
+/// A model of a stated ability that answers with a fixed reply and keeps the requests it saw.
+struct Recorder {
+    capabilities: Capabilities,
+    reply: api::LmResponse,
+    seen: Mutex<Vec<api::LmRequest>>,
+}
+
+impl Recorder {
+    fn new(reasoning: bool, reply: api::LmResponse) -> Arc<Self> {
+        Arc::new(Self {
+            capabilities: Capabilities {
+                reasoning,
+                ..Default::default()
+            },
+            reply,
+            seen: Mutex::new(Vec::new()),
+        })
+    }
+
+    fn request(&self) -> api::LmRequest {
+        self.seen
+            .lock()
+            .expect("not poisoned")
+            .first()
+            .cloned()
+            .expect("a request went out")
+    }
+}
+
+impl ChatModel for Recorder {
+    async fn forward(&self, request: &api::LmRequest) -> anyhow::Result<api::LmResponse> {
+        self.seen
+            .lock()
+            .expect("not poisoned")
+            .push(request.clone());
+        Ok(self.reply.clone())
+    }
+
+    fn capabilities(&self) -> impl std::future::Future<Output = Capabilities> + Send {
+        std::future::ready(self.capabilities)
+    }
+}
+
+/// `reasoning: Reasoning` then `answer`, dspy's `ChainOfThought` shape.
+fn reasoning_signature() -> Signature {
+    // The signature the golden was generated from: `question -> reasoning, answer`, with the
+    // instructions dspy's docstring gives. Built by parsing rather than by `single_input`, whose
+    // input is named `request` and carries a description — both of which are prompt bytes.
+    let mut signature: Signature = "question -> answer".parse().expect("parses");
+    signature.instructions = "Answer the question.".to_owned();
+    signature.outputs.insert(
+        0,
+        OutField {
+            name: "reasoning".into(),
+            kind: FieldKind::Reasoning,
+            ..Default::default()
+        },
+    );
+    signature
+}
+
+/// A reply carrying its reasoning on the thinking channel, and the answer as prose.
+fn reply_with_thinking(thinking: &str) -> api::LmResponse {
+    api::LmResponse {
+        outputs: vec![api::LmOutput {
+            parts: vec![
+                api::LmPart::Thinking {
+                    text: thinking.to_owned(),
+                    redacted: false,
+                    metadata: Default::default(),
+                },
+                api::LmPart::text("[[ ## answer ## ]]\n42\n\n[[ ## completed ## ]]"),
+            ],
+            ..Default::default()
+        }],
+        ..Default::default()
+    }
+}
+
+fn asked() -> dsrust::example::Example {
+    dsrust::example::Example::new([("question", json!("what is six times seven"))])
+}
+
+/// A reasoning model: the request carries `reasoning_effort: "low"` and the reasoning field never
+/// reaches the prompt — it is asked for on the model's own channel, not as a rendered block.
+#[tokio::test]
+async fn a_reasoning_model_carries_the_effort_and_drops_the_field_from_the_prompt() {
+    let model = Recorder::new(true, reply_with_thinking("six sevens are forty-two"));
+    let predict = Predict::from_signature(reasoning_signature())
+        .set_lm(model.clone() as Arc<dyn DynChatModel>);
+    let _ = predict.forward(asked()).await;
+
+    let request = model.request();
+    assert_eq!(
+        request
+            .config
+            .reasoning
+            .as_ref()
+            .and_then(|r| r.effort.as_deref()),
+        Some("low"),
+        "the default effort rides on the request"
+    );
+    // Byte for byte against what dspy rendered, not `!contains("[[ ## reasoning ## ]]")`. Removing
+    // a field renumbers every output line after it, and a substring check passes for a render that
+    // dropped the field and got the rest wrong — which is what the same switch caught in
+    // `citations-native`.
+    assert_eq!(
+        request.system(),
+        recorded("openai/o3")["system"].as_str().expect("system"),
+        "the reasoning-model render diverges from dspy's"
+    );
+}
+
+/// Whichever arm the golden recorded for `model`.
+fn recorded(model: &str) -> Value {
+    let golden: Value =
+        serde_json::from_str(include_str!("conformance/adapter/reasoning_native.json"))
+            .expect("the golden parses");
+    golden["renders"]
+        .as_array()
+        .expect("renders")
+        .iter()
+        .find(|render| render["model"] == model)
+        .unwrap_or_else(|| panic!("no recorded render for {model}"))
+        .clone()
+}
+
+/// dspy `parse_lm_response`: the reply's thinking fills the reasoning field, and the answer is read
+/// from the prose beside it.
+#[tokio::test]
+async fn the_reply_thinking_fills_the_reasoning_field() {
+    let model = Recorder::new(true, reply_with_thinking("six sevens are forty-two"));
+    let predict =
+        Predict::from_signature(reasoning_signature()).set_lm(model as Arc<dyn DynChatModel>);
+    let prediction = predict
+        .forward(asked())
+        .await
+        .expect("a reasoning reply parses");
+
+    assert_eq!(
+        prediction.get("reasoning").and_then(Value::as_str),
+        Some("six sevens are forty-two")
+    );
+    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("42"));
+}
+
+/// A model that cannot reason renders the field as prose and carries no effort — the field stays in
+/// the signature and the reply is read the ordinary way.
+#[tokio::test]
+async fn a_model_that_cannot_reason_renders_the_field() {
+    let reply = api::LmResponse::text(
+        "[[ ## reasoning ## ]]\nsix sevens are forty-two\n\n[[ ## answer ## ]]\n42\n\n[[ ## completed ## ]]",
+    );
+    let model = Recorder::new(false, reply);
+    let predict = Predict::from_signature(reasoning_signature())
+        .set_lm(model.clone() as Arc<dyn DynChatModel>);
+    let prediction = predict
+        .forward(asked())
+        .await
+        .expect("a prose reply parses");
+
+    assert!(
+        model.request().config.reasoning.is_none(),
+        "no effort for a non-reasoning model"
+    );
+    let prompt = serde_json::to_string(&model.request().messages).expect("serializes");
+    assert!(
+        prompt.contains("[[ ## reasoning ## ]]"),
+        "the field is rendered as prose"
+    );
+    assert_eq!(prediction.get("answer").and_then(Value::as_str), Some("42"));
+    assert_eq!(
+        prediction.get("reasoning").and_then(Value::as_str),
+        Some("six sevens are forty-two")
+    );
+}
+
+/// The other arm, which is where the citations comparison failed: a model that cannot reason
+/// renders the field, so the prompt asks for it in prose and the numbering includes it.
+///
+/// Byte for byte, because this is the arm a substring check cannot speak for — `contains` passes
+/// whatever the field line says and whatever comes after it.
+#[tokio::test]
+async fn a_model_that_cannot_reason_renders_it_the_way_dspy_does() {
+    let model = Recorder::new(false, reply_with_thinking("unused"));
+    let predict = Predict::from_signature(reasoning_signature())
+        .set_lm(model.clone() as Arc<dyn DynChatModel>);
+    let _ = predict.forward(asked()).await;
+
+    let request = model.request();
+    assert_eq!(
+        request
+            .config
+            .reasoning
+            .as_ref()
+            .and_then(|r| r.effort.as_deref()),
+        None,
+        "a model that cannot reason carries no effort"
+    );
+    assert_eq!(
+        request.system(),
+        recorded("openai/gpt-4o-mini")["system"]
+            .as_str()
+            .expect("system"),
+        "the plain-model render diverges from dspy's"
+    );
+}

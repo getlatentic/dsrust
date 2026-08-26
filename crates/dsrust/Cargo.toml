@@ -1,0 +1,68 @@
+[package]
+name = "dsrust"
+version = "0.1.0-alpha.2"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "A faithful, byte-for-byte Rust port of DSPy: signatures, adapters, modules, providers, and optimizers, tested against DSPy itself."
+readme = "../../README.md"
+authors = ["Tosin Amuda"]
+keywords = ["dspy", "llm", "prompt", "ai", "agents"]
+categories = ["science", "api-bindings"]
+exclude = ["/tests", "/examples/trajectory.rs"]
+repository = "https://github.com/getlatentic/dsrust"
+
+[lib]
+name = "dsrust"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22.1"
+dsrust-derive = { version = "0.1.0-alpha.1", path = "../dsrust-derive" }
+gepa = { version = "0.1.0-alpha.1", path = "../dsrust-gepa", package = "dsrust-gepa" }
+json_repair = { version = "0.1.0-alpha.1", path = "../dsrust-json-repair", package = "dsrust-json-repair", features = ["serde"] }
+pyrng = { version = "0.1.0-alpha.1", path = "../pyrng" }
+bytes = "1"
+futures-channel = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
+futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
+lru = { version = "0.18.1", default-features = false }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+# preserve_order keeps schemas in pydantic's insertion order; sorting keys would break
+# byte-conformance. float_roundtrip stops the parser losing the last bit of a full-precision
+# float read back from a golden — see the note in dsrust-gepa/Cargo.toml.
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+sha2 = "0.11.0"
+# Just the timer, for the backoff between retries. `reqwest` already puts tokio in the tree with
+# `time` on, so this adds nothing a caller was not already compiling — and, unlike `rt-multi-thread`,
+# it hands nobody a scheduler they did not ask for. A program still brings its own runtime.
+tokio = { version = "1", default-features = false, features = ["time"] }
+tpe = { version = "0.1.0-alpha.1", path = "../dsrust-tpe", package = "dsrust-tpe" }
+tracing = "0.1"
+unicode-general-category = "1.1.0"
+unicode-normalization = "0.1.25"
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+flacenc = "0.5.1"
+mp3lame-encoder = { version = "0.2.4", optional = true }
+
+[dev-dependencies]
+claxon = "0.4.3"
+symphonia = { version = "0.6.0", default-features = false, features = ["mp3"] }
+# Only `#[tokio::test]` reaches for it: nothing in `src/` names a tokio type at runtime, so this
+# crate requires a reactor without depending on the crate that provides one. A caller picks their
+# own runtime features; asking for `rt-multi-thread` here would hand every consumer the
+# work-stealing scheduler whether their program wants it or not.
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[features]
+# MP3 encoding for `Audio::from_samples_as`, off by default and deliberately so.
+#
+# `mp3lame-encoder` and `mp3lame-sys` are **LGPL-3.0**, where this crate is MIT OR Apache-2.0.
+# Enabling this links LAME into the consumer's binary and brings LGPL obligations with it —
+# notices, and permitting the library to be replaced — which is a choice only the consumer can
+# make. It also needs a C toolchain to build. Off by default keeps the default build permissive
+# and pure Rust; a caller who needs MP3 (OpenAI accepts wav and mp3 for audio input, and nothing
+# else) turns it on knowing what it costs.
+mp3 = ["dep:mp3lame-encoder"]

@@ -1,0 +1,24 @@
+{
+  "python": {
+    "ok": true,
+    "_ok": true,
+    "ok1": true,
+    "1no": false,
+    "no-dash": false,
+    "café": true,
+    "αβ": true,
+    "número": true,
+    "": false,
+    "_": true,
+    "ⅷ": true,
+    "½": false,
+    "٢": false,
+    "a٢": true,
+    "µ": true,
+    "Ⅰ": true,
+    "x́": true,
+    "〇": true,
+    "a-": false,
+    "ok_": true
+  }
+}

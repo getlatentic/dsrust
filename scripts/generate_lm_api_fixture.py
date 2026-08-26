@@ -6,7 +6,7 @@ a changed discriminator literal, or a default that moved shows up as a parse fai
 `tests/lm_api_conformance.rs` instead of surviving as a plausible-looking struct.
 
     uv venv .dspy-venv-3.3 --python 3.12
-    uv pip install --python .dspy-venv-3.3/bin/python "dspy==3.3.0b1"
+    uv pip install --python .dspy-venv-3.3/bin/python "dspy==3.3.0"
     .dspy-venv-3.3/bin/python scripts/generate_lm_api_fixture.py
 """
 
@@ -17,10 +17,15 @@ import pathlib
 import sys
 
 import dspy
+
+from pins import require
 import dspy.core.types as t
 
-PINNED = "3.3.0b1"
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "lm_api" / "dspy_3_3.json"
+# Read from the pin rather than written here: a generator that names its own
+# version cannot follow a bump, and six of them refused to run at 3.3.0 for
+# exactly that reason while claiming the pin had drifted.
+PINNED = require("dspy")
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "lm_api" / "dspy_3_3.json"
 
 CITATION = t.LMCitationPart(text="the quote", title="The Paper", url="https://example.com")
 IMAGE = t.LMImagePart(url="https://example.com/a.jpg", detail="high")

@@ -24,13 +24,18 @@ import sys
 from unittest import mock
 
 import dspy
+
+from pins import require
 import dspy.core.types as t
 import litellm
 from dspy.clients.openai_format import to_openai_chat_request
 from litellm.llms.custom_httpx.http_handler import HTTPHandler
 
-PINNED = "3.3.0b1"
-OUT = pathlib.Path(__file__).parent.parent / "tests" / "conformance" / "lm_api" / "litellm_chat.json"
+# Read from the pin rather than written here: a generator that names its own
+# version cannot follow a bump, and six of them refused to run at 3.3.0 for
+# exactly that reason while claiming the pin had drifted.
+PINNED = require("dspy")
+OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "lm_api" / "litellm_chat.json"
 
 # The litellm route for each dsrs provider. dsrs mirrors litellm's own split: `ollama` here is
 # the `/api/chat` route (litellm's `ollama_chat`), and `ollama_generate` is the `/api/generate`
