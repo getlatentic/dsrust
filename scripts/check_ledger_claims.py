@@ -45,8 +45,11 @@ UNVERIFIED = 0
 
 #: A reason that points at something: "reproduced as X", "handled by Y".
 SUBSTITUTION = re.compile(
-    r"\b(reproduced (via|as|by)|handled by|covered by|answered by|done by"
-    r"|lives (in|on)|reached (through|by)|provided by|supplied by)\b",
+    # `reproduced in` was missing while `reproduced via|as|by` were there, so
+    # "reproduced in lm/api" went unchecked — one of a run of very short reasons that name a
+    # substitution and nothing else, which is exactly the shape most worth checking.
+    r"\b(reproduced (via|as|by|in)|handled by|covered by|answered by|done by"
+    r"|lives (in|on)|reached (through|by)|provided by|supplied by|folded into)\b",
     re.I,
 )
 #: A reason that claims the crate *does* something.
@@ -55,6 +58,13 @@ CAPABILITY = re.compile(
     r"|validates?|enforces?|retries|caches?|branches on)\b",
     re.I,
 )
+RS_FILE = re.compile(r"\b((?:[a-z_][a-z0-9_]*/)*[a-z_][a-z0-9_]*\.py)\b")
+#: The mirror of `RS_FILE`, for the other tree. A reason naming `predict/predict.py` is making a
+#: claim about where upstream keeps something, and that claim goes stale the day the pin moves and
+#: a file is renamed — which is the one thing nothing here re-derives. Paths this repo owns are
+#: excluded by prefix, since a reason may cite `scripts/generate_fixtures.py` as ours.
+PY_FILE = re.compile(r"\b((?:[a-z_][a-z0-9_]*/)*[a-z_][a-z0-9_]*\.py)\b")
+OURS_PY = ("scripts/", "crates/")
 RS_FILE = re.compile(r"\b((?:[a-z_][a-z0-9_]*/)*[a-z_][a-z0-9_]*\.rs)\b")
 #: `chat.rs::chat_user` — a file and an item *in* it. No other rule sees this spelling: `BARE_PATH`
 #: matches from the `rs`, finds no such crate, and skips the whole path as foreign. So a reason
@@ -112,6 +122,14 @@ def tree() -> tuple[set[str], set[str], dict[str, set[str]]]:
     return names, files, by_file
 
 
+def upstream_files() -> set[str]:
+    """Every `.py` path under the pinned dspy, relative to its package root."""
+    root = ROOT / "third_party" / "dspy" / "dspy"
+    if not root.is_dir():
+        return set()
+    return {str(path.relative_to(root)) for path in root.rglob("*.py")}
+
+
 def package_names() -> tuple[set[str], list[str]]:
     """Every `def`/`class` name in the pinned Python packages, and the ones that could not be read.
 
@@ -145,6 +163,7 @@ def main() -> int:
     ledger = tomllib.loads(LEDGER.read_text())
     names, files, by_file = tree()
     theirs, unread = package_names()
+    their_files = upstream_files()
 
     missing: list[tuple[str, str, str]] = []
     unverified: list[tuple[str, str]] = []
@@ -180,6 +199,14 @@ def main() -> int:
             # `LmBuilder::callbacks`, and every one of those reasons said "there is no" — which no
             # substitution-only check ever looks at. A reason may still name a Python symbol or an
             # environment variable in backticks, and those carry no `::`.
+            for named in set(PY_FILE.findall(reason)):
+                if named.startswith(OURS_PY) or not their_files:
+                    continue
+                checked += 1
+                if named not in their_files and not any(
+                    f.endswith("/" + named) for f in their_files
+                ):
+                    missing.append((key, "dspy file", named))
             for path_named, item in set(RS_PATH.findall(reason + " " + str(entry.get("rust") or ""))):
                 checked += 1
                 # Every file the suffix names, not the first — two files here are called `demos.rs`,

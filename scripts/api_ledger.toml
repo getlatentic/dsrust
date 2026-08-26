@@ -146,7 +146,7 @@
 # --- predict ---
 "predict/predict.py::Predict" = { status = "mapped", rust = "Predict" }
 "predict/predict.py::serialize_object" = { status = "divergence", reason = "internal state-serialization helper" }
-"predict/parameter.py::Parameter" = { status = "divergence", reason = "Python base-class marker for learnable params; folded into Module/Predict" }
+"predict/parameter.py::Parameter" = { status = "divergence", reason = "Python base-class marker for learnable params; folded into `Module` and `Predict`, which carry the demos and the instructions a parameter would have held" }
 "predict/chain_of_thought.py::ChainOfThought" = { status = "mapped", rust = "ChainOfThought" }
 "predict/react.py::ReAct" = { status = "mapped", rust = "ReAct" }
 "predict/react_v2.py::ReActV2" = { status = "mapped", rust = "ReActV2" }
@@ -211,7 +211,7 @@
 "primitives/module.py::Module" = { status = "mapped", rust = "Module" }
 "primitives/module.py::ProgramMeta" = { status = "divergence", reason = "Python metaclass" }
 "primitives/module.py::set_attribute_by_name" = { status = "divergence", reason = "internal attribute plumbing" }
-"primitives/base_module.py::BaseModule" = { status = "divergence", reason = "dspy's serialization base; dump/load-state folded into Module" }
+"primitives/base_module.py::BaseModule" = { status = "divergence", reason = "dspy's serialization base; dump/load-state folded into `Module::dump_state` and `Module::load_state`, defaulted on the trait rather than inherited from a base" }
 
 # --- teleprompt (optimizers) ---
 "teleprompt/teleprompt.py::Teleprompter" = { status = "mapped", rust = "Optimizer" }
@@ -330,17 +330,17 @@
 "core/types.py::LMAudioPart" = { status = "divergence", reason = "reproduced as the LmPart::Audio variant" }
 "core/types.py::LMVideoPart" = { status = "divergence", reason = "reproduced as the LmPart::Video variant" }
 "core/types.py::LMDocumentPart" = { status = "divergence", reason = "reproduced as the LmPart::Document variant" }
-"core/types.py::LMBinaryPart" = { status = "divergence", reason = "reproduced as an LmPart variant" }
+"core/types.py::LMBinaryPart" = { status = "divergence", reason = "reproduced as the `LmPart::Binary` variant" }
 "core/types.py::LMToolCallPart" = { status = "divergence", reason = "reproduced as the LmPart::ToolCall variant" }
 "core/types.py::LMToolResultPart" = { status = "divergence", reason = "reproduced as the LmPart::ToolResult variant" }
 "core/types.py::LMThinkingPart" = { status = "divergence", reason = "reproduced as the LmPart::Thinking variant" }
 "core/types.py::LMCitationPart" = { status = "divergence", reason = "reproduced as the LmPart::Citation variant" }
-"core/types.py::LMRefusalPart" = { status = "divergence", reason = "reproduced as an LmPart variant" }
-"core/types.py::LMToolSpec" = { status = "divergence", reason = "reproduced in the LM request tool spec (lm/api)" }
-"core/types.py::LMReasoningConfig" = { status = "divergence", reason = "reproduced as the reasoning config in lm/api" }
-"core/types.py::LMToolChoice" = { status = "divergence", reason = "reproduced as the tool-choice config in lm/api" }
-"core/types.py::LMCacheConfig" = { status = "divergence", reason = "reproduced in lm/api" }
-"core/types.py::LMPromptCacheConfig" = { status = "divergence", reason = "reproduced in lm/api" }
+"core/types.py::LMRefusalPart" = { status = "divergence", reason = "reproduced as the `LmPart::Refusal` variant" }
+"core/types.py::LMToolSpec" = { status = "divergence", reason = "reproduced as `LmToolSpec` in lm/api/message.rs" }
+"core/types.py::LMReasoningConfig" = { status = "divergence", reason = "reproduced as `LmReasoningConfig` in lm/api/config.rs" }
+"core/types.py::LMToolChoice" = { status = "divergence", reason = "reproduced as `LmToolChoice` in lm/api/config.rs" }
+"core/types.py::LMCacheConfig" = { status = "divergence", reason = "reproduced as `LmCacheConfig` in lm/api/config.rs" }
+"core/types.py::LMPromptCacheConfig" = { status = "divergence", reason = "reproduced as `LmPromptCacheConfig` in lm/api/config.rs" }
 "core/types.py::LMConfig" = { status = "divergence", reason = "reproduced as the LM config (lm/api/config.rs)" }
 "core/types.py::LMUsage" = { status = "divergence", reason = "reproduced as `LmUsage` (`lm/call.rs`), which is where the response carries what a call cost" }
 "core/types.py::LMOutput" = { status = "divergence", reason = "reproduced as part of the LM response (lm/api/response.rs)" }
