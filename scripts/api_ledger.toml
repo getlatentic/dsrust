@@ -146,7 +146,7 @@
 # --- predict ---
 "predict/predict.py::Predict" = { status = "mapped", rust = "Predict" }
 "predict/predict.py::serialize_object" = { status = "divergence", reason = "walks a value turning pydantic models into JSON-compatible ones, `model_dump(mode=\"json\")` recursively, so `dump_state` can write it. A Rust state is `serde_json::Value` already and `Serialize` decides the same question at the type" }
-"predict/parameter.py::Parameter" = { status = "divergence", reason = "Python base-class marker for learnable params; folded into `Module` and `Predict`, which carry the demos and the instructions a parameter would have held" }
+"predict/parameter.py::Parameter" = { status = "divergence", reason = "Python base-class marker for learnable params; folded into `Module` and `Predict`, which carry `Predict::demos` and the signature's instructions a parameter would have held" }
 "predict/chain_of_thought.py::ChainOfThought" = { status = "mapped", rust = "ChainOfThought" }
 "predict/react.py::ReAct" = { status = "mapped", rust = "ReAct" }
 "predict/react_v2.py::ReActV2" = { status = "mapped", rust = "ReActV2" }
@@ -500,7 +500,7 @@
 # Type
 "adapters/types/base_type.py::Type.adapt_to_native_lm_feature" = { status = "divergence", reason = "reproduced as adapter/native_tools.rs and native_reasoning.rs, which decide the same removal from the request" }
 "adapters/types/base_type.py::Type.description" = { status = "mapped", rust = "Type::description" }
-"adapters/types/base_type.py::Type.extract_custom_type_from_annotation" = { status = "divergence", reason = "Python annotation walking; a Rust field states its type directly" }
+"adapters/types/base_type.py::Type.extract_custom_type_from_annotation" = { status = "divergence", reason = "walks an annotation looking for a `Type` subclass nested inside it, because a Python field's type is a value to inspect. A Rust field states its type as `signature::FieldKind`, decided where it is declared" }
 "adapters/types/base_type.py::Type.format" = { status = "mapped", rust = "Type::format" }
 "adapters/types/base_type.py::Type.is_streamable" = { status = "mapped", rust = "Type::is_streamable" }
 "adapters/types/base_type.py::Type.parse_lm_response" = { status = "mapped", rust = "Type::parse_lm_response" }
@@ -566,7 +566,7 @@
 "adapters/types/tool.py::ToolCalls.format" = { status = "mapped", rust = "ToolCalls::format" }
 "adapters/types/tool.py::ToolCalls.from_dict_list" = { status = "mapped", rust = "ToolCalls::from_dict_list" }
 "adapters/types/tool.py::ToolCalls.serialize_model" = { status = "divergence", reason = "pydantic's serialiser hook; reproduced as the type's own `Serialize`, which `types::serialized` renders through for a field value" }
-"adapters/types/tool.py::ToolCalls.validate_input" = { status = "divergence", reason = "`ToolCalls`' own `Deserialize`: a list of calls, a map under a `tool_calls` key, or a lone `{name, args}` — and the provider spellings `arguments` and `function` beside dspy's own" }
+"adapters/types/tool.py::ToolCalls.validate_input" = { status = "divergence", reason = "`types::ToolCalls`' own `Deserialize`: a list of calls, a map under a `tool_calls` key, or a lone `{name, args}` — and the provider spellings `arguments` and `function` beside dspy's own. Held against upstream by tests/type_coercion_conformance.rs" }
 
 # ToolCallResults
 "adapters/types/tool.py::ToolCallResults.from_tool_calls_and_values" = { status = "mapped", rust = "ToolCallResults::from_tool_calls_and_values" }
@@ -650,7 +650,7 @@
 
 # Teleprompter
 "teleprompt/teleprompt.py::Teleprompter.compile" = { status = "mapped", rust = "Optimizer::compile" }
-"teleprompt/teleprompt.py::Teleprompter.get_params" = { status = "divergence", reason = "reads the optimizer's own `__dict__`; a Rust optimizer's configuration is its public fields" }
+"teleprompt/teleprompt.py::Teleprompter.get_params" = { status = "divergence", reason = "reads the optimizer's own `__dict__`. A Rust optimizer's configuration is its own fields, set by builder — `COPRO::breadth`, `COPRO::depth` — so a caller reads back what they set rather than asking the object" }
 
 # BootstrapFewShot
 "teleprompt/bootstrap.py::BootstrapFewShot.compile" = { status = "mapped", rust = "BootstrapFewShot::compile" }
@@ -731,7 +731,7 @@
 
 # RLM
 "predict/rlm.py::RLM.forward" = { status = "mapped", rust = "Rlm::forward" }
-"predict/rlm.py::RLM.aforward" = { status = "divergence", reason = "Rust is async throughout, so the one `forward` is the async method" }
+"predict/rlm.py::RLM.aforward" = { status = "divergence", reason = "Rust is async throughout, so `Module::forward` is the async method and there is no sync twin to distinguish it from" }
 "predict/rlm.py::RLM.tools" = { status = "mapped", rust = "Rlm::tools", reason = "Rlm::tools" }
 
 # the REPL types
@@ -747,7 +747,7 @@
 "primitives/sandbox_serializable.py::SandboxSerializable.sandbox_assignment" = { status = "mapped", rust = "SandboxSerializable::sandbox_assignment" }
 "primitives/sandbox_serializable.py::SandboxSerializable.rlm_preview" = { status = "mapped", rust = "SandboxSerializable::rlm_preview" }
 "primitives/sandbox_serializable.py::SandboxSerializable.to_repl_variable" = { status = "divergence", reason = "a one-call forward to `sandbox::build_repl_variable`, which the free function already is; upstream keeps both because a Python method reads better on the instance" }
-"primitives/repl_types.py::REPLHistory.serialize_model" = { status = "divergence", reason = "as `REPLVariable.serialize_model`" }
+"primitives/repl_types.py::REPLHistory.serialize_model" = { status = "divergence", reason = "as `REPLVariable.serialize_model`: the value crosses as its prose, via `types::serialized`" }
 
 [constructors]
 "teleprompt/gepa/gepa_flex_utils.py::CodeProposalSignature.task_description" = { status = "mapped", rust = "proposal::code_proposal", reason = "the submodule's signature: name, objective, input and output fields" }
@@ -1067,7 +1067,7 @@
 "predict/code_act.py::CodeAct.tools" = { status = "mapped", rust = "CodeAct::new", reason = "CodeAct::new, positional" }
 "predict/multi_chain_comparison.py::MultiChainComparison.M" = { status = "mapped", rust = "MultiChainComparison::attempts", reason = "MultiChainComparison::attempts' attempts" }
 "predict/multi_chain_comparison.py::MultiChainComparison.signature" = { status = "mapped", rust = "MultiChainComparison::attempts", reason = "MultiChainComparison::attempts, positional" }
-"predict/multi_chain_comparison.py::MultiChainComparison.temperature" = { status = "divergence", reason = "dspy raises the temperature for the comparison ask; set it on the module's config or the LM instead" }
+"predict/multi_chain_comparison.py::MultiChainComparison.temperature" = { status = "divergence", reason = "dspy defaults the comparison ask to `temperature=0.7`, above the model's own; set it here with `Predict::set_lm` on a model configured for it, or through `api::LmConfig`" }
 "predict/parallel.py::Parallel.access_examples" = { status = "mapped", rust = "Parallel::access_examples", reason = "Parallel::access_examples" }
 "predict/parallel.py::Parallel.disable_progress_bar" = { status = "mapped", rust = "Parallel::disable_progress_bar", reason = "Parallel::disable_progress_bar" }
 "predict/parallel.py::Parallel.max_errors" = { status = "mapped", rust = "Parallel::max_errors", reason = "Parallel::max_errors" }
@@ -1102,7 +1102,7 @@
 "primitives/example.py::Example.base" = { status = "mapped", rust = "Example::with_inputs", reason = "Example's Clone plus with_inputs, which is what dspy's base= copies" }
 "primitives/module.py::Module.callbacks" = { status = "divergence", reason = "dspy's Module.__init__ stores a per-instance list every subclass inherits, and both of the registration paths its own documentation shows are ported: process-wide (configure_callbacks) and per model (`LM::callbacks`). A Rust Module is a trait, so there is no shared constructor to hold a list and each of the eight module structs would carry its own field — while a derived Module could not have one at all. A handler is told which module type it is watching and CallId::parent gives the call it sits under. Filed as `callbacks-per-module`" }
 "primitives/prediction.py::Completions.list_or_dict" = { status = "divergence", reason = "dspy accepts either shape; LmResponse::outputs is always a list" }
-"primitives/prediction.py::Completions.signature" = { status = "divergence", reason = "dspy's Completions keeps the signature to render itself; LmResponse carries the outputs and the adapter holds the signature" }
+"primitives/prediction.py::Completions.signature" = { status = "divergence", reason = "dspy's Completions keeps the signature so it can render itself; `api::LmResponse` carries the outputs and the `Adapter` holds the signature, so neither has to" }
 "teleprompt/bettertogether.py::BetterTogether.metric" = { status = "mapped", rust = "BetterTogether", reason = "BetterTogether::new, positional" }
 "teleprompt/bootstrap.py::BootstrapFewShot.max_bootstrapped_demos" = { status = "mapped", rust = "BootstrapFewShot::max_bootstrapped_demos", reason = "BootstrapFewShot::max_bootstrapped_demos" }
 "teleprompt/bootstrap.py::BootstrapFewShot.max_errors" = { status = "mapped", rust = "BootstrapFewShot::max_errors", reason = "BootstrapFewShot::max_errors" }
@@ -1216,7 +1216,7 @@
 "clients/base_lm.py::BaseLM.__call__.items" = { status = "mapped", rust = "LmRequest::from_items", reason = "the direct-call items upstream normalises with `LMRequest.from_call`; a caller builds the request with the same constructor and hands it over" }
 "clients/base_lm.py::BaseLM.__call__.prompt" = { status = "divergence", reason = "upstream's legacy path, which answers `list[str | dict]` instead of an `LMResponse`. This crate is typed-only — a prompt is a `User` message on an `LmRequest`" }
 "clients/base_lm.py::BaseLM.__call__.messages" = { status = "divergence", reason = "the other half of that legacy path; see the `prompt` entry beside it" }
-"clients/base_lm.py::BaseLM.__call__.kwargs" = { status = "divergence", reason = "Python's `*args`/`**kwargs`. A Rust call takes the typed inputs the signature names — per-call configuration is `LmRequest`'s own fields" }
+"clients/base_lm.py::BaseLM.__call__.kwargs" = { status = "divergence", reason = "Python's `*args`/`**kwargs`. A Rust call takes the typed inputs the signature names: `ChatModel::forward` takes an `api::LmRequest`, whose own fields carry the per-call configuration" }
 "evaluate/evaluate.py::Evaluate.__call__.program" = { status = "mapped", rust = "Evaluate::new", reason = "the program to score, taken when the evaluation is built rather than when it is run" }
 "evaluate/evaluate.py::Evaluate.__call__.devset" = { status = "mapped", rust = "Evaluate::devset", reason = "the same field upstream's constructor takes; `__call__` re-offers it per call and a Rust caller builds another `Evaluate`" }
 "evaluate/evaluate.py::Evaluate.__call__.metric" = { status = "mapped", rust = "Evaluate::metric", reason = "as `devset`: a constructor field here, re-offered per call upstream" }
@@ -1313,7 +1313,7 @@
 "teleprompt/utils.py::get_signature.predictor" = { status = "mapped", rust = "NamedPredictor::signature", reason = "the `predictor` of that, carried where this crate carries it" }
 "teleprompt/utils.py::set_signature.predictor" = { status = "mapped", rust = "NamedPredictor::signature", reason = "the `predictor` of that, carried where this crate carries it" }
 "teleprompt/utils.py::set_signature.updated_signature" = { status = "mapped", rust = "NamedPredictor::signature", reason = "the `updated_signature` of that, carried where this crate carries it" }
-"utils/mcp.py::convert_mcp_tool.session" = { status = "divergence", reason = "the MCP session upstream calls through. This crate's tool holds the transport a caller gives it, so the session is not a second argument" }
+"utils/mcp.py::convert_mcp_tool.session" = { status = "divergence", reason = "the MCP session upstream calls through. A `Tool` here holds the transport a caller gave it, so `Tool::call` needs no second argument naming where to send it" }
 "utils/mcp.py::convert_mcp_tool.tool" = { status = "mapped", rust = "mcp_tool", reason = "the MCP tool being converted" }
 "utils/saving.py::load.allow_pickle" = { status = "divergence", reason = "upstream's opt-in to unpickling a saved program. Nothing here pickles — a saved program is JSON — so there is nothing to opt in to. Not to be confused with `allow_unsafe_lm_state`, dspy's *other* load-time trust flag, which is `module::Trust` and decides whether a saved `lm` block's redirect keys survive. `Trust` is the nearby idea and is about a *model* block, not a pickle" }
 "utils/saving.py::load.path" = { status = "mapped", rust = "Module::load_state", reason = "upstream reads the file; a caller here reads it and hands over the state, which is where the type information is" }
@@ -1363,7 +1363,7 @@
 "streaming/messages.py::StatusStreamingCallback.on_tool_start.call_id" = { status = "mapped", rust = "Announcing::on_tool_start", reason = "the call this point belongs to — `CallId` here, which the `Callback` methods take" }
 "streaming/messages.py::StatusStreamingCallback.on_tool_start.inputs" = { status = "mapped", rust = "Announcing::on_tool_start", reason = "what it was called with" }
 "streaming/messages.py::StatusStreamingCallback.on_tool_start.instance" = { status = "mapped", rust = "Announcing::on_tool_start", reason = "what is being called, which this crate names rather than passes" }
-"streaming/streamify.py::streamify.async_streaming" = { status = "divergence", reason = "upstream's switch between an async generator and a sync one. A `Stream` is awaited by whoever polls it; the sync form is a runtime choice this crate leaves to its caller" }
+"streaming/streamify.py::streamify.async_streaming" = { status = "divergence", reason = "upstream's switch between an async generator and a sync one. A stream of `adapter::stream::Streamed` is awaited by whoever polls it; the sync form is a runtime choice this crate leaves to its caller" }
 "streaming/streamify.py::streamify.include_final_prediction_in_output_stream" = { status = "divergence", reason = "upstream can leave the answer off the stream. This always yields it as `Streamed::Answer`, because a stream that may or may not end with the thing you asked for makes every caller write both branches" }
 "streaming/streamify.py::streamify.is_async_program" = { status = "divergence", reason = "upstream asks whether the program is a coroutine, because a Python module may be either. Every `Module::forward` here is async, so there is nothing to ask" }
 "streaming/streamify.py::streamify.program" = { status = "mapped", rust = "Watching::new", reason = "the module to run and watch" }
@@ -1476,7 +1476,7 @@
 "signatures/signature.py::Signature.delete.name" = { status = "mapped", rust = "Signature::delete", reason = "the field name to remove" }
 "signatures/signature.py::Signature.with_instructions.instructions" = { status = "mapped", rust = "Signature::with_instructions", reason = "the replacement instructions; `impl Into<String>` so a literal needs no ceremony" }
 "signatures/signature.py::Signature.with_updated_fields.name" = { status = "mapped", rust = "Signature::with_updated_fields", reason = "the field to edit" }
-"signatures/signature.py::Signature.with_updated_fields.kwargs" = { status = "divergence", rust = "FieldEdit", reason = "dspy takes **kwargs and copies whichever pydantic FieldInfo attributes it recognises; the crate takes a closure over a `FieldEdit`, so the editable attributes are the ones the type exposes and a typo is a compile error rather than a silently ignored key" }
+"signatures/signature.py::Signature.with_updated_fields.kwargs" = { status = "divergence", rust = "FieldEdit", reason = "dspy takes **kwargs and copies whichever pydantic FieldInfo attributes it recognises; the crate takes a closure over a `side::FieldEdit`, so the editable attributes are the ones the type exposes and a typo is a compile error rather than a silently ignored key" }
 "signatures/signature.py::Signature.with_updated_fields.type_" = { status = "divergence", rust = "FieldEdit", reason = "set through the same `FieldEdit` closure as the rest; see the kwargs entry beside it" }
 "signatures/signature.py::Signature.load_state.state" = { status = "divergence", rust = "load_state", reason = "a Signature has no load_state of its own here — Module::load_state restores instructions and demos for the whole program, which is the only place dspy's is reached from and the only shape the saved file has" }
 "signatures/signature.py::infer_prefix.attribute_name" = { status = "divergence", rust = "infer_prefix", reason = "spelled `name` on `signature::infer_prefix`: the function takes a field name, and `attribute_` says only that Python reached it through getattr" }
@@ -1559,7 +1559,7 @@
 "teleprompt/bettertogether.py::BetterTogether.compile.shuffle_trainset_between_steps" = { status = "mapped", rust = "BetterTogether::shuffle_trainset_between_steps", reason = "whether the trainset is reshuffled between steps, off the same seeded generator" }
 "teleprompt/bettertogether.py::BetterTogether.compile.valset_ratio" = { status = "mapped", rust = "BetterTogether::valset_ratio", reason = "how much of the trainset each step holds back" }
 "teleprompt/bettertogether.py::BetterTogether.compile.seed" = { status = "mapped", rust = "BetterTogether::seed", reason = "the seed for the shuffle between steps" }
-"teleprompt/bettertogether.py::BetterTogether.compile.optimizer_compile_args" = { status = "divergence", reason = "dspy passes a dict through to whichever optimizer a step runs; here each optimizer is already configured on its own builder before it is handed over, so there is nothing left to forward" }
+"teleprompt/bettertogether.py::BetterTogether.compile.optimizer_compile_args" = { status = "divergence", reason = "dspy passes a dict through to whichever optimizer a step runs; here each is configured before it is handed over — `COPRO::breadth` by builder, `BootstrapFewShot::max_labeled_demos` as a public field — so by then there is nothing left to forward" }
 "teleprompt/bettertogether.py::BetterTogether.compile.num_threads" = { status = "mapped", rust = "Scoring", reason = "carried on the Scoring each step's optimizer was built with, which is where dspy's num_threads ends up too" }
 "teleprompt/bettertogether.py::BetterTogether.compile.max_errors" = { status = "mapped", rust = "Scoring", reason = "carried on the Scoring each step's optimizer was built with, which is where dspy's max_errors ends up too" }
 "teleprompt/bettertogether.py::BetterTogether.compile.provide_traceback" = { status = "mapped", rust = "Scoring", reason = "carried on the Scoring each step's optimizer was built with, which is where dspy's provide_traceback ends up too" }
@@ -1630,7 +1630,7 @@
 "primitives/code_interpreter.py::CodeInterpreter.execute.variables" = { status = "mapped", rust = "CodeInterpreter::execute", reason = "the names injected above the code, as dspy's `_inject_variables` writes them" }
 "primitives/example.py::Example.get.key" = { status = "divergence", rust = "get", reason = "spelled `name` on `Example::get`: an Example's keys are field names, which is what every other method there calls them" }
 "primitives/example.py::Example.get.default" = { status = "divergence", rust = "get", reason = "the crate returns `Option<&Value>`, so a caller writes its own default with `unwrap_or` rather than passing one in — and can tell absent from present-and-null, which dspy's default cannot" }
-"primitives/example.py::Example.items.include_dspy" = { status = "divergence", rust = "items", reason = "dspy's internal keys are stored beside the user's and this flag says whether to show them; the crate keeps the input-field marks out of the map entirely, so there is nothing to filter" }
+"primitives/example.py::Example.items.include_dspy" = { status = "divergence", rust = "items", reason = "dspy's internal keys are stored beside the user's and this flag says whether to show them; `Example::fields` yields only the caller's, because the input-field marks live outside the map entirely — so there is nothing to filter" }
 "primitives/example.py::Example.with_inputs.keys" = { status = "mapped", rust = "Example::with_inputs", reason = "the field names that count as inputs" }
 "primitives/prediction.py::Prediction.from_completions.list_or_dict" = { status = "divergence", rust = "from_completions", reason = "spelled `completions` and typed as one thing: dspy accepts a list of dicts or a dict of lists and normalises whichever arrived" }
 "primitives/prediction.py::Prediction.from_completions.signature" = { status = "mapped", rust = "Prediction::from_candidates", reason = "the signature the completions belong to" }
@@ -1654,13 +1654,13 @@
 "primitives/sandbox_serializable.py::build_repl_variable.field_info" = { status = "mapped", rust = "build_repl_variable", reason = "the same `field_info`" }
 "signatures/field.py::InputField.kwargs" = { status = "divergence", rust = "InputField", reason = "dspy takes **kwargs and keeps whichever pydantic FieldInfo attributes it recognises; the crate's field carries the ones a signature renders — desc, prefix, format — as typed members, so a key it does not understand cannot be silently kept" }
 "signatures/field.py::OutputField.kwargs" = { status = "divergence", rust = "OutputField", reason = "dspy takes **kwargs and keeps whichever pydantic FieldInfo attributes it recognises; the crate's field carries the ones a signature renders — desc, prefix, format — as typed members, so a key it does not understand cannot be silently kept" }
-"utils/exceptions.py::is_retryable_lm_error.error" = { status = "divergence", rust = "is_retryable", reason = "a method on the error rather than a free function taking one: the crate's LmFailure knows its own kind, so `failure.is_retryable()` needs no dispatch on a foreign exception type" }
+"utils/exceptions.py::is_retryable_lm_error.error" = { status = "divergence", rust = "is_retryable", reason = "a method on the error rather than a free function taking one: `LmFailure::is_retryable` reads the kind the failure already carries, and needs no dispatch on a foreign exception type" }
 
 "signatures/signature.py::make_signature.signature" = { status = "mapped", rust = "make_signature", reason = "the string literal the macro takes, `\"question -> answer\"`. dspy also accepts a dict of names to (type, FieldInfo) pairs, which is what a Rust caller writes as a derived struct instead" }
 "signatures/signature.py::make_signature.signature_name" = { status = "divergence", rust = "make_signature", reason = "dspy names the class it builds so a traceback and a repr have something to say; the macro expands to a value rather than a type, so there is no name to give" }
 
 "signatures/signature.py::make_signature.instructions" = { status = "divergence", rust = "with_instructions", reason = "dspy takes the instructions beside the string; the macro takes the string alone and `Signature::with_instructions` sets them, which is also how a signature parsed at runtime gets them" }
-"signatures/signature.py::make_signature.custom_types" = { status = "divergence", reason = "a map from a name in the string to the Python type it means, needed because dspy resolves an annotation by looking it up. A Rust type is in scope where the macro expands, so there is nothing to hand it" }
+"signatures/signature.py::make_signature.custom_types" = { status = "divergence", reason = "a map from a name in the string to the Python type it means, needed because dspy resolves an annotation by looking it up. A Rust type is in scope where `#[derive(Signature)]` expands, so there is nothing to hand it" }
 
 "clients/lm.py::LM.load_state.state" = { status = "mapped", rust = "saved::rebuild", reason = "the block itself" }
 "clients/lm.py::LM.load_state.allow_custom_lm_class" = { status = "divergence", rust = "saved::rebuild", reason = "dspy's inner flag, which permits importing the LM class a block names. A Rust binary has no importer, so the trusted path refuses too — with a message saying to construct the model and set it rather than with upstream's" }
