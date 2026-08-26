@@ -145,15 +145,15 @@
 
 # --- predict ---
 "predict/predict.py::Predict" = { status = "mapped", rust = "Predict" }
-"predict/predict.py::serialize_object" = { status = "divergence", reason = "internal state-serialization helper" }
+"predict/predict.py::serialize_object" = { status = "divergence", reason = "walks a value turning pydantic models into JSON-compatible ones, `model_dump(mode=\"json\")` recursively, so `dump_state` can write it. A Rust state is `serde_json::Value` already and `Serialize` decides the same question at the type" }
 "predict/parameter.py::Parameter" = { status = "divergence", reason = "Python base-class marker for learnable params; folded into `Module` and `Predict`, which carry the demos and the instructions a parameter would have held" }
 "predict/chain_of_thought.py::ChainOfThought" = { status = "mapped", rust = "ChainOfThought" }
 "predict/react.py::ReAct" = { status = "mapped", rust = "ReAct" }
 "predict/react_v2.py::ReActV2" = { status = "mapped", rust = "ReActV2" }
 "predict/refine.py::Refine" = { status = "mapped", rust = "Refine" }
 "predict/refine.py::OfferFeedback" = { status = "divergence", reason = "reproduced as the OfferFeedback signature built by predict/refine/feedback.rs::signature(), not a same-named type" }
-"predict/refine.py::inspect_modules" = { status = "divergence", reason = "internal module walk" }
-"predict/refine.py::recursive_mask" = { status = "divergence", reason = "internal masking helper" }
+"predict/refine.py::inspect_modules" = { status = "mapped", rust = "describe::modules", reason = "renders every predictor's fields and original instructions into the text `Refine`'s feedback ask carries as `modules_defn`. Prompt content, not a debug view — held byte for byte against upstream's own rendering by predict/inspect_modules.json. Said this was an internal module walk" }
+"predict/refine.py::recursive_mask" = { status = "divergence", reason = "walks a value replacing whatever `orjson` refuses, so the feedback ask can carry it as JSON. Everything crossing that boundary here is already a `serde_json::Value` — a trace, a prediction, an example all serialise by construction — so there is nothing to find and replace" }
 "predict/best_of_n.py::BestOfN" = { status = "mapped", rust = "BestOfN" }
 "predict/parallel.py::Parallel" = { status = "mapped", rust = "Parallel" }
 "predict/program_of_thought.py::ProgramOfThought" = { status = "mapped", rust = "ProgramOfThought" }
@@ -371,7 +371,7 @@
 "predict/flex/flex.py::Flex.signature" = { status = "mapped", rust = "Flex::signature", reason = "the signature the baseline is built over" }
 "predict/flex/flex.py::Flex.forward" = { status = "mapped", rust = "Flex::forward", reason = "runs the bound source in a fresh sandbox and answers the guest while it does. The boundary it crosses: `CodeInterpreter::execute` and `Tool::call` are synchronous and a predictor is not, so the interpreter runs on its own thread and the two host tools post their questions to the asynchronous side over futures channels — a `std::thread` rather than `spawn_blocking`, because this crate takes tokio for `time` alone. `a_flex_runs_its_baseline_through_the_sandbox` drives the whole crossing against a real Pyodide sandbox" }
 "predict/flex/flex.py::Flex.named_predictors" = { status = "divergence", reason = "upstream answers with an empty list, because a Flex's update unit is its `module_src` and not a predictor an optimizer walks to. Nothing here holds a predictor to hand back either" }
-"predict/flex/flex.py::Flex.reset" = { status = "divergence", reason = "clears the LM and keeps `module_src`. This crate's `Flex` holds no LM of its own — a caller scopes one, as every other module here is driven" }
+"predict/flex/flex.py::Flex.reset" = { status = "divergence", reason = "clears the LM and keeps `module_src`. `predict::Flex` holds no LM of its own — a caller scopes one with `lm::context`, as every other module here is driven — so there is nothing for a reset to clear" }
 "predict/flex/flex.py::Flex.set_lm" = { status = "divergence", reason = "as `reset`: the model is scoped by the caller rather than stored on the module" }
 "predict/flex/flex.py::Flex.get_lm" = { status = "divergence", reason = "as `set_lm`; there is no stored model to read back" }
 "predict/flex/flex.py::Flex.dump_state" = { status = "mapped", rust = "Flex::dump_state", reason = "`{module_src, lm}`, which is what a saved Flex is. It does not fit a predictor state and it was never meant to: running dspy over a program holding one `Predict` and one `Flex` writes both shapes into one map, so `ProgramState` holds a `SubmoduleState` and `a_state_map_reads_both_shapes_dspy_writes` reads dspy's own output back" }
@@ -590,7 +590,7 @@
 "predict/predict.py::Predict.forward" = { status = "mapped", rust = "Predict::forward" }
 "predict/predict.py::Predict.get_config" = { status = "mapped", rust = "Predict::config" }
 "predict/predict.py::Predict.load_state" = { status = "mapped", rust = "Predict::load_state" }
-"predict/predict.py::Predict.reset" = { status = "divergence", reason = "clearing a predictor's learned state; a Rust caller rebuilds it or assigns the fields `named_predictors` exposes" }
+"predict/predict.py::Predict.reset" = { status = "divergence", reason = "clears `lm`, `traces`, `train` and `demos` back to empty. A Rust caller rebuilds the predictor or assigns those fields through `named_predictors`, which hands back `&mut` — a method that empties four fields reads as ceremony where the fields are reachable" }
 "predict/predict.py::Predict.update_config" = { status = "mapped", rust = "Predict::config" }
 
 # ChainOfThought
@@ -1198,6 +1198,7 @@
 "teleprompt/gepa/gepa_flex_utils.py::propose_code.task_descriptions" = { status = "mapped", rust = "proposal::propose_code", reason = "what each component's module is for, defaulting to the component key as upstream defaults it" }
 "teleprompt/gepa/gepa_flex_utils.py::propose_code.context_blurbs" = { status = "mapped", rust = "proposal::propose_code", reason = "the tools in scope by name, defaulting to `(no extra context)` — a string the prompt's own instructions branch on, so the default is not cosmetic" }
 "teleprompt/gepa/gepa_flex_utils.py::propose_code.reflection_lm" = { status = "mapped", rust = "proposal::propose_code", reason = "the model that proposes, scoped for the call as upstream scopes it with `dspy.context(lm=…)`" }
+"predict/refine.py::inspect_modules.program" = { status = "mapped", rust = "describe::modules", reason = "the program whose predictors are being rendered; `describe::modules` takes the walk's result — a `&[NamedPredictor]` — rather than the program, since the caller has already walked it to get the names it also needs" }
 "predict/flex/flex.py::Flex.dump_state.json_mode" = { status = "divergence", reason = "upstream's flag for whether the state must be JSON-serialisable, which its pickle path can decline. `ProgramState` is JSON by construction — a serde type with no second representation — so there is no other mode to ask about" }
 "predict/flex/flex.py::Flex.load_state.state" = { status = "mapped", rust = "Flex::load_state_with", reason = "the saved state to bind from" }
 "predict/flex/flex.py::Flex.load_state.allow_unsafe_lm_state" = { status = "divergence", reason = "upstream's opt-in to reconstructing a custom LM class from the file. This crate has `Trust` for that on `Module::load_state_trusted`, and a `Flex` stores no model to reconstruct — see the `set_lm` entry" }

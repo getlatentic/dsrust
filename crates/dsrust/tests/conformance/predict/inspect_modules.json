@@ -1,0 +1,27 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_inspect_modules_fixture.py",
+  "dspy_version": "3.3.0",
+  "note": "`inspect_modules` output per program shape — the text `Refine`'s feedback ask carries as `modules_defn`. Compared exactly: tabs, the trailing space after an undescribed field's colon, and the rule width are all bytes a model reads.",
+  "cases": [
+    {
+      "name": "a_bare_predict",
+      "rendered": "--------------------------------------------------------------------------------\nModule self\n\tInput Fields:\n\t\t1. `question` (str):\n\tOutput Fields:\n\t\t1. `answer` (str):\n\tOriginal Instructions: \n\t\tGiven the fields `question`, produce the fields `answer`.\n--------------------------------------------------------------------------------"
+    },
+    {
+      "name": "a_chain_of_thought",
+      "rendered": "--------------------------------------------------------------------------------\nModule predict\n\tInput Fields:\n\t\t1. `question` (str):\n\tOutput Fields:\n\t\t1. `reasoning` (str): \n\t\t2. `answer` (str):\n\tOriginal Instructions: \n\t\tGiven the fields `question`, produce the fields `answer`.\n--------------------------------------------------------------------------------"
+    },
+    {
+      "name": "two_predictors",
+      "rendered": "--------------------------------------------------------------------------------\nModule draft\n\tInput Fields:\n\t\t1. `question` (str):\n\tOutput Fields:\n\t\t1. `draft` (str):\n\tOriginal Instructions: \n\t\tDraft an answer.\n--------------------------------------------------------------------------------\nModule settle\n\tInput Fields:\n\t\t1. `draft` (str):\n\tOutput Fields:\n\t\t1. `answer` (str):\n\tOriginal Instructions: \n\t\tGiven the fields `draft`, produce the fields `answer`.\n--------------------------------------------------------------------------------"
+    },
+    {
+      "name": "a_described_field",
+      "rendered": "--------------------------------------------------------------------------------\nModule self\n\tInput Fields:\n\t\t1. `question` (str):\n\tOutput Fields:\n\t\t1. `answer` (str): One word only.\n\tOriginal Instructions: \n\t\tGiven the fields `question`, produce the fields `answer`.\n--------------------------------------------------------------------------------"
+    },
+    {
+      "name": "multiline_instructions",
+      "rendered": "--------------------------------------------------------------------------------\nModule self\n\tInput Fields:\n\t\t1. `question` (str):\n\tOutput Fields:\n\t\t1. `answer` (str):\n\tOriginal Instructions: \n\t\tAnswer the question.\n\t\tBe brief.\n\t\t\n\t\tNever guess.\n--------------------------------------------------------------------------------"
+    }
+  ]
+}

@@ -57,33 +57,80 @@ fn indented(block: &str) -> String {
 mod tests {
     use super::*;
     use crate::module::Module;
+    use crate::signature::Signature;
     use crate::{ChainOfThought, Predict};
 
-    /// Byte for byte against dspy 3.2.1's `inspect_modules` for the same program. The command in
-    /// this module's header regenerates it.
+    /// Two predictors, so the rule *between* blocks and the per-predictor names both show — the
+    /// field names are the ones the golden's Python program uses, since `named_predictors` reads
+    /// them off the struct.
+    #[derive(crate::Module)]
+    struct Pair {
+        draft: Predict,
+        settle: Predict,
+    }
+
+    impl crate::module::Forward for Pair {
+        async fn forward(&self, inputs: crate::Example) -> anyhow::Result<crate::Prediction> {
+            self.settle.forward(inputs).await
+        }
+    }
+
+    /// Byte for byte against dspy's own `inspect_modules` for the same programs.
     ///
-    /// Writing this found two divergences in `ChainOfThought` itself, both since fixed: it named
-    /// its predictor `self` where dspy names it `predict`, and gave `reasoning` a prose
+    /// This is prompt content, not a debug view: `Refine`'s feedback ask carries it as
+    /// `modules_defn`, so a tab that became spaces or a dropped trailing space changes what the
+    /// feedback model reads. It was a hand-written expected string until
+    /// `scripts/generate_inspect_modules_fixture.py` replaced it — right, as it happened, but a
+    /// hand-written expectation agrees with the code it tests by construction and would go on
+    /// agreeing after a pin bump moved the format.
+    ///
+    /// Writing the original found two divergences in `ChainOfThought` itself, both since fixed: it
+    /// named its predictor `self` where dspy names it `predict`, and gave `reasoning` a prose
     /// description where dspy gives a sentinel that renders as nothing.
     #[test]
-    fn a_chain_of_thought_reads_the_way_upstream_renders_it() {
-        let mut program =
-            ChainOfThought::from_signature("question -> answer".parse().expect("a signature"));
-        let rendered = modules(&program.named_predictors());
+    fn every_program_shape_reads_the_way_upstream_renders_it() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../tests/conformance/predict/inspect_modules.json"
+        ))
+        .expect("the golden parses");
 
-        assert_eq!(
-            rendered,
-            "--------------------------------------------------------------------------------\n\
-             Module predict\n\
-             \tInput Fields:\n\
-             \t\t1. `question` (str):\n\
-             \tOutput Fields:\n\
-             \t\t1. `reasoning` (str): \n\
-             \t\t2. `answer` (str):\n\
-             \tOriginal Instructions: \n\
-             \t\tGiven the fields `question`, produce the fields `answer`.\n\
-             --------------------------------------------------------------------------------"
-        );
+        for case in fixture["cases"].as_array().expect("cases") {
+            let name = case["name"].as_str().expect("a name");
+            let theirs = case["rendered"].as_str().expect("dspy's rendering");
+            let ours = match name {
+                "a_bare_predict" => modules(&Predict!("question -> answer").named_predictors()),
+                "a_chain_of_thought" => modules(
+                    &ChainOfThought::from_signature(
+                        "question -> answer".parse().expect("a signature"),
+                    )
+                    .named_predictors(),
+                ),
+                "a_described_field" => {
+                    let mut signature: Signature =
+                        "question -> answer".parse().expect("a signature");
+                    signature.outputs[0].desc = "One word only.".to_owned();
+                    modules(&Predict::from_signature(signature).named_predictors())
+                }
+                "multiline_instructions" => {
+                    let signature: Signature = "question -> answer".parse().expect("a signature");
+                    let signature = signature
+                        .with_instructions("Answer the question.\nBe brief.\n\nNever guess.");
+                    modules(&Predict::from_signature(signature).named_predictors())
+                }
+                "two_predictors" => {
+                    let draft: Signature = "question -> draft".parse().expect("a signature");
+                    let mut program = Pair {
+                        draft: Predict::from_signature(draft.with_instructions("Draft an answer.")),
+                        settle: Predict::from_signature(
+                            "draft -> answer".parse().expect("a signature"),
+                        ),
+                    };
+                    modules(&program.named_predictors())
+                }
+                other => panic!("the golden names a case this test does not build: {other}"),
+            };
+            assert_eq!(ours, theirs, "case {name}");
+        }
     }
 
     /// The separator repeats per module, so two predictors are two blocks rather than one long
