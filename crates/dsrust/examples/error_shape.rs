@@ -1,5 +1,5 @@
 //! What this crate returns for a failing provider call, as JSON, so it can be compared with what
-//! dspy raises for the same call. Driven by `scripts/../errcmp.py`.
+//! dspy raises for the same call. Driven by `scripts/compare_error_shapes.py`.
 
 use dsrust::lm::{LM, LmFailure, configure};
 use dsrust::{Module, Predict, Signature};

@@ -272,7 +272,7 @@ mod tests {
     use crate::signature::JsonType;
     use serde_json::json;
 
-    /// An output field carrying exactly the reflection `bridge/python/rust_adapter.py` sends.
+    /// An output field carrying exactly the reflection `crates/dsrs-bridge/python/rust_adapter.py` sends.
     fn reflected_output(reflection: Value) -> OutField {
         OutField {
             name: "output".into(),

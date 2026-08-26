@@ -198,7 +198,7 @@ mod tests {
     use crate::signature::{FieldKind, InField, JsonType, OutField};
     use serde_json::json;
 
-    /// `PatientDetails` as `bridge/python/rust_adapter.py` reflects it, trimmed to the members
+    /// `PatientDetails` as `crates/dsrs-bridge/python/rust_adapter.py` reflects it, trimmed to the members
     /// the assertions here read.
     fn patient_reflection() -> Value {
         json!({
@@ -338,7 +338,7 @@ mod tests {
     /// Both forms below were taken from dspy 3.2.1 rather than reasoned about: rendering the same
     /// field through `BAMLAdapter` with a `BaseModel` gives `{\n  "name": ...\n}` and with an
     /// equivalent `dict` gives `{"name": ..., "age": ...}` on one line. Upstream's own test for
-    /// this (`test_baml_adapter_formats_pydantic_input_as_clean_json`) asserts only that
+    /// this (`test_baml_adapter_formats_pydantic_inputs_as_clean_json`) asserts only that
     /// `\'"name": "John Doe"\'` appears somewhere in the message, which is true of both forms — so
     /// a green upstream suite does not pin this and these literals are what does.
     #[test]

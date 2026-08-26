@@ -13,7 +13,7 @@
 //!   - the predicate (`merge.py`, `filter_program_candidates`) walks
 //!     `list(program_candidates[ancestor].keys())` — dict order, so the program's declaration order.
 //!     Exact here, since [`Candidate`] keeps it.
-//!   - the construction (`merge_programs_by_common_predictors`) walks
+//!   - the construction (`sample_and_attempt_merge_programs_by_common_predictors`) walks
 //!     `set(program_candidates[ancestor].keys())` — a *set* of strings, whose iteration order
 //!     CPython randomises per process under siphash.
 //!

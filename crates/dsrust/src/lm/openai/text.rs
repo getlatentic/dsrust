@@ -8,8 +8,9 @@
 //! Both halves are dspy's own and derivable from nothing: the prompt is each message's text parts
 //! concatenated with no separator, the messages joined by blank lines with `BEGIN RESPONSE:`
 //! appended to the *list*, and the config is `text_config_kwargs` — extensions first, then
-//! temperature, max_tokens, top_p, stop, logprobs, n, in that order. Held byte for byte by
-//! `tests/openai_text_conformance.rs`.
+//! temperature, max_tokens, top_p, stop, logprobs, n, in that order. Held byte for byte against
+//! `to_openai_text_request` by this file's own `our_body_matches_dspy_33_to_openai_text_request`,
+//! and against the litellm path by `tests/text_completion_conformance.rs`.
 
 use anyhow::Result;
 use serde_json::{Value, json};

@@ -113,6 +113,9 @@ python3 "$ROOT/scripts/check_rust_surface.py"
 # And the reasons themselves, which nothing checked until a substitution claim was wrong twice —
 # `callbacks` and both `log_dir` entries each pointed at tracing spans that were not there.
 python3 "$ROOT/scripts/check_ledger_claims.py"
+# The same question for doc comments, which make the same claims and which nothing read: six were
+# wrong the day this landed, every one written while fixing something else.
+python3 "$ROOT/scripts/check_doc_citations.py"
 
 # A module this crate explains itself in terms of belongs on the ported list, or its symbols are
 # held to nothing. `clients/openai_format.py` sat that way while the OpenAI body was byte-verified

@@ -9,7 +9,7 @@
 //! Without this a Rust-declared signature reached BAML as the bare word `json`, which is the one
 //! thing that adapter exists not to send.
 //!
-//! The tree this builds is the same one `bridge/python/reflect.py` produces from a pydantic model,
+//! The tree this builds is the same one `crates/dsrs-bridge/python/reflect.py` produces from a pydantic model,
 //! because [`baml::notation`](crate::adapter::baml) reads exactly one shape whichever side built
 //! it.
 

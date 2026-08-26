@@ -32,7 +32,7 @@ use crate::signature::Signature;
 ///
 /// Vendored rather than rewritten because the guest is Python here exactly as it is upstream: this
 /// source defines the stand-in `dspy` module the optimizer-authored code imports, and any drift
-/// from it is drift in what that code is allowed to say. `a_vendored_shim_matches_upstreams` holds
+/// from it is drift in what that code is allowed to say. `the_vendored_shim_is_upstreams_own` holds
 /// it to the pinned file byte for byte.
 pub const SANDBOX_SHIM: &str = include_str!("flex/_sandbox_shim.py");
 
