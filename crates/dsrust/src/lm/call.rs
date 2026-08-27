@@ -30,6 +30,20 @@ pub struct Sampling {
 }
 
 impl Sampling {
+    /// This sampling laid over `beneath`, field by field — dspy's `{**self.config, **config}`.
+    ///
+    /// A field set here wins and one left unset keeps the other's, which is what a dict merge does
+    /// for a key that is absent. It cannot express "explicitly clear this field", because a dict
+    /// merge cannot either: upstream has no spelling for a key that is present and means nothing.
+    pub fn over(&self, beneath: &Self) -> Self {
+        Self {
+            temperature: self.temperature.or(beneath.temperature),
+            max_tokens: self.max_tokens.or(beneath.max_tokens),
+            completions: self.completions.or(beneath.completions),
+            rollout_id: self.rollout_id.or(beneath.rollout_id),
+        }
+    }
+
     /// A fresh rollout at the temperature upstream re-asks with. dspy's
     /// `lm.copy(rollout_id=n, temperature=1.0)`, which is how every one of its retry-shaped
     /// modules makes attempt two differ from attempt one.

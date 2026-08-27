@@ -77,17 +77,38 @@ CONFIGS = [
 ]
 
 
-def resolved(model: dict, config: dict) -> dict:
+#: What one *call* passed as `config=`, which upstream merges over the module's. Paired against
+#: the module configs above rather than multiplied by them: the merge is per key, so a handful of
+#: pairs pins it, and what needs the wide sweep is the temperature rule that runs after it.
+CALL_CONFIGS = [
+    {},
+    {"temperature": 1.0},
+    {"n": 3},
+    {"temperature": 0.0},
+    {"temperature": 0.9, "n": 2},
+    {"rollout_id": 7},
+]
+
+
+def resolved(model: dict, config: dict, call: dict | None = None) -> dict:
     """The `lm_kwargs` dict `_forward_preprocess` hands the adapter."""
     predictor = dspy.Predict("question -> answer", **config)
     predictor.lm = dspy.LM("openai/gpt-4o-mini", **model)
-    return predictor._forward_preprocess(question="hi")[1]
+    asked = {"question": "hi"}
+    if call is not None:
+        asked["config"] = call
+    return predictor._forward_preprocess(**asked)[1]
 
 
 def main() -> None:
     cases = [
         {"model": model, "config": config, "resolved": resolved(model, config)}
         for model, config in itertools.product(MODELS, CONFIGS)
+    ]
+    merges = [
+        {"model": model, "config": config, "call": call, "resolved": resolved(model, config, call)}
+        for model, config in itertools.product(MODELS[:5], CONFIGS[:6])
+        for call in CALL_CONFIGS
     ]
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(
@@ -98,9 +119,12 @@ def main() -> None:
                 "note": (
                     "Per (model kwargs, module config): the config dspy resolved. `temperature` "
                     "appears in the result only where the module set one or the rule wrote 0.7, "
-                    "since the model's own kwargs merge later at the LM rather than here."
+                    "since the model's own kwargs merge later at the LM rather than here. "
+                    "`merges` adds the per-call `config=`, which upstream lays over the module's "
+                    "as `{**self.config, **config}` before the rule above runs."
                 ),
                 "cases": cases,
+                "merges": merges,
             },
             indent=2,
             ensure_ascii=False,
@@ -108,7 +132,11 @@ def main() -> None:
         + "\n"
     )
     bumped = sum(1 for case in cases if case["resolved"].get("temperature") == 0.7)
-    print(f"  wrote {OUT.name}: {len(cases)} cases, {bumped} where the rule fired", file=sys.stderr)
+    print(
+        f"  wrote {OUT.name}: {len(cases)} cases, {bumped} where the rule fired, "
+        f"{len(merges)} with a per-call config",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":

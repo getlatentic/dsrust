@@ -1,7 +1,7 @@
 {
   "source": "dspy==3.3.0 predict/predict.py::Predict._forward_preprocess",
   "dspy_version": "3.3.0",
-  "note": "Per (model kwargs, module config): the config dspy resolved. `temperature` appears in the result only where the module set one or the rule wrote 0.7, since the model's own kwargs merge later at the LM rather than here.",
+  "note": "Per (model kwargs, module config): the config dspy resolved. `temperature` appears in the result only where the module set one or the rule wrote 0.7, since the model's own kwargs merge later at the LM rather than here. `merges` adds the per-call `config=`, which upstream lays over the module's as `{**self.config, **config}` before the rule above runs.",
   "cases": [
     {
       "model": {},
@@ -1259,6 +1259,2453 @@
       "resolved": {
         "temperature": 0.7,
         "n": 3
+      }
+    }
+  ],
+  "merges": [
+    {
+      "model": {},
+      "config": {},
+      "call": {},
+      "resolved": {}
+    },
+    {
+      "model": {},
+      "config": {},
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {},
+      "config": {},
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "n": 3,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {},
+      "config": {},
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {},
+      "config": {},
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {},
+      "config": {},
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.0,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.1
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.1,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.15
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.15,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.5
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.5,
+        "n": 3
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.5,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "n": 2
+      },
+      "call": {},
+      "resolved": {
+        "n": 2,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "n": 3,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 0.9
+      }
+    },
+    {
+      "model": {},
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "n": 2,
+        "rollout_id": 7,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {},
+      "call": {},
+      "resolved": {}
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {},
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {},
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "n": 3,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {},
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {},
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {},
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.0,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.1
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.1,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.15
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.15,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.5
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.5,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.5,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {},
+      "resolved": {
+        "n": 2,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "n": 3,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 0.9
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.0
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "n": 2,
+        "rollout_id": 7,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {},
+      "call": {},
+      "resolved": {}
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {},
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {},
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "n": 3,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {},
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {},
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {},
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.0,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.1
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.1,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.15
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.15,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.5
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.5,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.5,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {},
+      "resolved": {
+        "n": 2,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "n": 3,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 0.9
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.15
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "n": 2,
+        "rollout_id": 7,
+        "temperature": 0.7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {},
+      "call": {},
+      "resolved": {}
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {},
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {},
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {},
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {},
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {},
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.0,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.0,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.1
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.1,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.15
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.15,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.5
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.5,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.5,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {},
+      "resolved": {
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 0.9
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.2
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "n": 2,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {},
+      "call": {},
+      "resolved": {}
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {},
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {},
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {},
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {},
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {},
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.0,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.0
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.0,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.1
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.1
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.1,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.15
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.7,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.15
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.15,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {},
+      "resolved": {
+        "temperature": 0.5
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "temperature": 0.5,
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "temperature": 0.9,
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "temperature": 0.5
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "temperature": 0.5,
+        "rollout_id": 7
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {},
+      "resolved": {
+        "n": 2
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 1.0
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 1.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "n": 3
+      },
+      "resolved": {
+        "n": 3
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 0.0
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 0.0
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "temperature": 0.9,
+        "n": 2
+      },
+      "resolved": {
+        "n": 2,
+        "temperature": 0.9
+      }
+    },
+    {
+      "model": {
+        "temperature": 0.9
+      },
+      "config": {
+        "n": 2
+      },
+      "call": {
+        "rollout_id": 7
+      },
+      "resolved": {
+        "n": 2,
+        "rollout_id": 7
       }
     }
   ]

@@ -12,6 +12,7 @@
 
 use dsrust::lm::api::{LmConfig, LmRequest, LmResponse};
 use dsrust::lm::{ChatModel, Sampling};
+use dsrust::predict::Steering;
 use dsrust::{Example, Module, Predict};
 use serde_json::Value;
 
@@ -95,4 +96,58 @@ async fn the_temperature_sent_is_the_one_dspy_resolves() {
         fired, 45,
         "the cases where the rule fires are what make this a test"
     );
+}
+
+/// A per-call `config=` laid over the module's, and the rule running after the merge.
+///
+/// dspy merges `{**self.config, **config}` in `_forward_preprocess` and *then* asks whether to
+/// raise the temperature, so a call asking for three completions is three however the module was
+/// configured. 180 recorded (model, module config, call config) triples. `rollout_id` is in the
+/// call set because it is the one field that never reaches a provider — it varies the cache key,
+/// which is what makes a second attempt a second call rather than a replay.
+#[tokio::test]
+async fn a_per_call_config_lies_over_the_modules() {
+    let fixture: Value = serde_json::from_str(include_str!(
+        "conformance/predict/completion_temperature.json"
+    ))
+    .expect("the golden parses");
+
+    for case in fixture["merges"].as_array().expect("merges") {
+        let model = std::sync::Arc::new(Scripted {
+            defaults: model_kwargs(&case["model"]),
+            asked: std::sync::Mutex::new(Vec::new()),
+        });
+        let predict = Predict::parse("question -> answer")
+            .expect("parses")
+            .set_lm(model.clone())
+            .config(module_config(&case["config"]));
+        let steering = Steering {
+            config: Some(Sampling {
+                rollout_id: case["call"]["rollout_id"].as_u64(),
+                ..module_config(&case["call"])
+            }),
+            ..Steering::default()
+        };
+        predict
+            .forward_with_steering(Example::new([("question", Value::from("hi"))]), &steering)
+            .await
+            .expect("the scripted model answers");
+
+        let sent = model.asked.lock().expect("no other thread holds it")[0].clone();
+        let where_at = format!(
+            "model {} config {} call {}",
+            case["model"], case["config"], case["call"]
+        );
+        let resolved = &case["resolved"];
+        assert_eq!(
+            sent.temperature,
+            resolved["temperature"].as_f64(),
+            "{where_at}: temperature"
+        );
+        assert_eq!(
+            sent.n,
+            resolved["n"].as_u64().map(|count| count as u32),
+            "{where_at}: n"
+        );
+    }
 }

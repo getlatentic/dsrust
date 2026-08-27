@@ -24,6 +24,16 @@ pub struct Steering {
     /// bills and generates against rather than writing again. See `predicted_output` for the
     /// other way in — an input field of the same shape, which takes precedence over this.
     pub predicted_output: Option<Value>,
+    /// dspy's `config=` proper: sampling for *this* ask, over whatever the module carries.
+    ///
+    /// Upstream merges the two as `{**self.config, **config}`, so a field the call names wins and
+    /// one it leaves out keeps the module's — which is what [`Sampling::over`] does per field. Set
+    /// this and nothing else to reach `predict(q=…, config={"temperature": 1.0})`.
+    ///
+    /// The merge happens *before* the completion-count temperature rule, as upstream's does: ask
+    /// for three completions here and the rule sees three, whatever the module was configured
+    /// with.
+    pub config: Option<Sampling>,
 }
 
 /// dspy `_forward_preprocess`: an input named `prediction` shaped like OpenAI's Predicted Outputs
@@ -208,7 +218,11 @@ impl<S> Predict<S> {
         //
         // Both halves of dspy's `_forward_preprocess` resolve through the model, so the sampling
         // is settled against what the model would have supplied before the request is built.
-        let sampling = randomness::for_completions(&self.config, &lm.defaults_dyn());
+        let asked_with = match &steering.config {
+            Some(over) => over.over(&self.config),
+            None => self.config.clone(),
+        };
+        let sampling = randomness::for_completions(&asked_with, &lm.defaults_dyn());
         let mut request = api::request_of(messages, mode, &sampling);
         if let Some(plan) = native {
             request.tools = plan.tools;

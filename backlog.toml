@@ -36,9 +36,9 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1456
+rust_tests = 1458
 upstream_tests_passing = 1144
-upstream_tests_crossing = 656
+upstream_tests_crossing = 667
 upstream_tests_deciding_signatures = 643
 # Gaps this port has declared, counted from conftest.py's NOT_YET_IMPLEMENTED. Not the same as the
 # xfails pytest reports: dspy marks two of its own image cases xfail for a gap upstream has.
@@ -3800,7 +3800,7 @@ example: `serde_json::Value` cannot hold `inf`, so it crosses as a one-key objec
 id = "b16"
 title = "The Flex baseline and the sandbox's tool registry are answered by Python"
 kind = "verification-gap"
-state = "next"
+state = "done"
 detail = """
 The six `tests/flex/` suites run as of 2026-08-27: 109 tests, 83 crossing into the crate, none
 failing. Twelve of the twenty-six that do not cross are a gap rather than a boundary.
@@ -3817,6 +3817,27 @@ reproduces all of it in `predict/flex/bridge.rs` and crosses none of it.
 Both are named individually in conftest's `DOES_NOT_EXERCISE_RUST` rather than exempted as a
 class, so closing this is deleting lines and watching the crossing count move. The precedent for
 the size of the win: one `parse_module_class_name` crossing moved sixteen tests at once.
+
+**Closed the same day, and the precedent held.** One crossing did it: `Flex._baseline_src` runs in
+every `Flex.__init__`, so wiring `rendering::baseline_src` behind it moved **eleven of the twelve**
+at once — the two baseline assertions and nine of the ten tool ones, which reach the registry
+through a baseline that names the tools. 83 -> 94 of 109 crossing.
+
+The crate renders the signature string itself rather than being handed upstream's, so what agrees
+is the whole artifact: the `dspy.Predict` / `dspy.RLM` choice, the signature's spelling, the class
+name, the `return dspy.Prediction(...)` line and the indentation between them.
+
+Two things the wiring surfaced. A signature can name an annotation no `FieldKind` holds —
+`Callable[[int], int]` is upstream's own example, and dspy renders that field into the baseline
+*untyped* rather than into source that would fail to bind. A Rust caller cannot declare such a
+field, so the shim falls back to dspy's own and records **no** crossing, rather than crediting
+Python's answer to the crate. And the fixture guard was `startswith("upstream_test_flex")`, which
+does not reach `tests/flex/test_tools.py` — it flattens to `upstream_test_tools` — so the file
+holding both baseline tests was the one file the patch never applied to.
+
+The twelfth is a boundary rather than a gap: it execs dspy's shim source and checks it against
+dspy's prompt catalogue, and both are vendored here byte-for-byte and pinned by
+`the_vendored_shim_is_upstreams_own` and `the_vendored_catalog_is_upstreams_own`.
 """
 
 [[backlog]]
@@ -4011,9 +4032,21 @@ dropping the `num_generations` arm each turn the conformance test red.
 **Item 2 shipped** with the typed-LM migration: `LmConfig::extensions` is the overflow map this
 entry proposed, and `LMConfig`'s eleven typed fields are ported beside it.
 
-**Item 3 is what remains.** There is still no per-call `config=`: `Steering` carries three specific
-fields (reasoning effort, a forced tool, predicted outputs) rather than an arbitrary config merged
-over the module's, so `predict(q=..., config={"temperature": 1.0})` has no spelling here.
+**Item 3 shipped the same day, which closes this entry.** `Steering::config` is an optional
+`Sampling` laid over the module's — `Sampling::over`, field by field, which is what a dict merge
+does for a key that is absent. It cannot express "explicitly clear this field" because
+`{**self.config, **config}` cannot either: upstream has no spelling for a key that is present and
+means nothing.
+
+The **order** is the part worth testing: upstream merges and *then* asks whether to raise the
+temperature, so a call asking for three completions is three however the module was configured.
+`merges` in the same golden holds 180 recorded (model kwargs, module config, call config) triples,
+and two controls bite — ignoring the per-call config, and applying the merge after the rule instead
+of before.
+
+`rollout_id` is in the call set on purpose: it is the one field that never reaches a provider. It
+varies the cache key, which is what makes a second attempt a second call rather than a replay, and
+it is the field dspy's own documented spelling of `config=` names first.
 '''
 
 [[backlog]]
@@ -4494,6 +4527,25 @@ kind = "release"
 detail = """
 Not blocked by scope — blocked by deciding what the 0.1 API surface promises. Adapter::format
 became fallible once already; another such change after publishing is a breaking release.
+
+**Restated 2026-08-27, because the entry no longer described the state.** An alpha is already
+published: `dsrust`, `dsrust-gepa`, `dsrust-tpe`, `dsrust-derive` and `pyrng` all went out on
+2026-07-24 at the versions this tree carries, with this project's own descriptions. The naming
+question this was written around is settled — `dsrust*` rather than the taken `dsrs`/`gepa`/`tpe`
+— and the API-promise worry it names is about the *next* release, not the first.
+
+What is actually blocking a fresh publish, checked rather than assumed:
+
+  - **`dsrust-json-repair` has never been published**, and `dsrust` depends on it by both path and
+    version. It has to go up first or `dsrust` will not resolve. `cargo publish --dry-run` on it is
+    clean: 39 files, 322 KiB, verifies and builds.
+  - **The published alpha is a month and 255+ commits stale.** Everything since — the typed LM
+    boundary, the reasoning-model split, `Flex`, the completion-temperature rule — is unreleased, so
+    a republish is a version bump rather than a re-cut of the same tree.
+
+Publishing is outward-facing and irreversible, so it waits on the owner saying go. What no longer
+waits on anything: which names, whether the metadata is complete (it is, on all six), and whether
+the one unpublished crate packages cleanly (it does).
 """
 
 # ---------------------------------------------------------------------------
@@ -4768,6 +4820,24 @@ act on, which is the laundering `_sanitize_lm_state` exists to prevent.
 Closing this means either porting enough of litellm's resolution to say which of the two aliases
 wins, or deciding the pair is out of scope and saying so in the README beside the interop claim.
 Recorded 2026-08-02 while shipping `saved-lm-round-trip`.
+
+**The alias half is closed, 2026-08-27, by measurement rather than by a decision.** It was never a
+judgement call: `litellm/main.py`'s `completion` opens with `if base_url is not None: api_base =
+base_url`, unconditionally, so the alias wins whenever it is set. Recorded by *running* it —
+`state/base_url_precedence.json` holds the endpoint litellm's own OpenAI client is constructed with
+under each of the three combinations, captured by spying on `openai.OpenAI.__init__`. `rebuild`
+reads `base_url` ahead of `api_base` now, and reversing that order turns two tests red.
+
+**It found a wrong assertion.** `a_trusted_load_keeps_the_redirect` compared the restored endpoint
+against the block's `api_base`, and the golden's two aliases differ on purpose —
+`https://elsewhere.example/v1` against `https://elsewhere.example` — so the test was pinning the
+crate's own behaviour rather than upstream's, and a trusted load of a dspy-written block had been
+reaching the wrong one of the two.
+
+**`model_list` stays out, and is now the whole of this entry.** It configures litellm's router,
+which has no counterpart here: a router is a different product surface from an `LM`, and storing a
+key nothing reads is the shape `_sanitize_lm_state` exists to prevent. Stated in the test rather
+than left to a diff of two saved files.
 """
 
 [[story]]
