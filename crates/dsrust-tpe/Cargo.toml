@@ -1,6 +1,6 @@
 [package]
 name = "dsrust-tpe"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/getlatentic/dsrust"
@@ -12,7 +12,7 @@ description = "A faithful Rust reproduction of optuna's TPESampler over categori
 name = "tpe"
 
 [dependencies]
-pyrng = { version = "0.1.0-alpha.1", path = "../pyrng" }
+pyrng = { version = "0.1.0-alpha.2", path = "../pyrng" }
 
 [dev-dependencies]
 serde_json = "1"

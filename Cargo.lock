@@ -269,7 +269,7 @@ dependencies = [
 
 [[package]]
 name = "dsrust"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 dependencies = [
  "anyhow",
  "base64",
@@ -301,7 +301,7 @@ dependencies = [
 
 [[package]]
 name = "dsrust-derive"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -311,7 +311,7 @@ dependencies = [
 
 [[package]]
 name = "dsrust-gepa"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "pyrng",
  "serde_json",
@@ -320,7 +320,7 @@ dependencies = [
 
 [[package]]
 name = "dsrust-json-repair"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -328,7 +328,7 @@ dependencies = [
 
 [[package]]
 name = "dsrust-tpe"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "pyrng",
  "serde_json",
@@ -1048,7 +1048,7 @@ dependencies = [
 
 [[package]]
 name = "pyrng"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 dependencies = [
  "serde_json",
 ]

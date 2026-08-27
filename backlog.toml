@@ -4543,9 +4543,27 @@ What is actually blocking a fresh publish, checked rather than assumed:
     boundary, the reasoning-model split, `Flex`, the completion-temperature rule — is unreleased, so
     a republish is a version bump rather than a re-cut of the same tree.
 
-Publishing is outward-facing and irreversible, so it waits on the owner saying go. What no longer
-waits on anything: which names, whether the metadata is complete (it is, on all six), and whether
-the one unpublished crate packages cleanly (it does).
+Publishing is outward-facing and irreversible, so it waits on the owner saying go. Everything
+before that is done as of 2026-08-27:
+
+  - **Versions bumped**, and the inter-crate requirements with them: the five leaf and middle
+    crates to `0.1.0-alpha.2`, `dsrust` to `0.1.0-alpha.3`. The workspace builds and the gates are
+    green at those numbers.
+  - **The three leaf crates dry-run clean**: `pyrng` (8 files, 32.8 KiB), `dsrust-json-repair`
+    (39 files, 322 KiB), `dsrust-derive` (11 files, 56.7 KiB).
+  - **The other three cannot be dry-run until their dependencies are up**, which is inherent to a
+    multi-crate release rather than a defect — `cargo` says so exactly: "failed to select a version
+    for the requirement `pyrng = ^0.1.0-alpha.2`; candidate versions found which didn't match:
+    0.1.0-alpha.1".
+
+So the order is fixed by the graph, and it is the whole of what remains:
+
+    cargo publish -p pyrng
+    cargo publish -p dsrust-json-repair      # never published; `dsrust` depends on it
+    cargo publish -p dsrust-derive
+    cargo publish -p dsrust-tpe
+    cargo publish -p dsrust-gepa
+    cargo publish -p dsrust
 """
 
 # ---------------------------------------------------------------------------
