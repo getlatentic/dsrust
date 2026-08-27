@@ -43,6 +43,33 @@ LEDGER = ROOT / "scripts" / "api_ledger.toml"
 #: raise this only with a note saying which.
 UNVERIFIED = 0
 
+#: Rows every rule walks past: a `divergence` or `deferred` reason in which no `.rs` file, no
+#: upstream `.py`, no golden, no name, no type and no qualified path appears — so nothing in it is
+#: resolved against either tree, and the only thing holding it up is that somebody read it once.
+#:
+#: **Zero, and it can stay zero.** Every dspy-facing row names something now, and the walk down was
+#: not a rewording exercise: naming what a sentence was about found `_get_max_tokens_key`, a
+#: function dspy has never had, and the divergence behind it changed five model names' request
+#: bodies. It also found `adapter/stream.rs` cited four times for a file that is
+#: `adapter/stream/mod.rs`, a `JSONAdapter.format_finetune_data` described as formatting something
+#: when upstream raises `NotImplementedError`, and a `requires_permission_to_run` described as
+#: blocking on `input()` three releases after it stopped.
+#:
+#: This is the metric the whole ledger audit was run against, and for most of that run it lived
+#: nowhere but in a command typed at a shell. It read 24 with a looser test than the checker
+#: actually applies — a backticked name counted as reached whether or not any rule looked at it —
+#: where the checker's own walk read 130. A number that is remembered rather than run is the second
+#: one in this repo to have been wrong.
+UNREACHED = 0
+
+#: The same question for the other half of the ledger: a `[rust_only]` row justifying an invented
+#: Rust item. Its *key* is gated — `check_rust_surface.py` fails if the item is not there — and so
+#: is whether anything calls it. What nothing read is the reason, and these reasons are where the
+#: port's claims about the other side live: that numpy normalises a cumulative sum by its last
+#: entry, that CPython's `&` iterates the smaller operand, that dspy reads litellm's registry per
+#: call. Each is a fact the Rust item was built from, and a wrong one is a wrong item.
+INVENTED = 106
+
 #: A reason that points at something: "reproduced as X", "handled by Y".
 SUBSTITUTION = re.compile(
     # `reproduced in` was missing while `reproduced via|as|by` were there, so
@@ -88,6 +115,38 @@ BARE_PATH = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)+)
 #: was named in three entries and `with_extract_lm` in a fourth, none of them qualified, so no
 #: `::` rule could see them.
 WITH_NAME = re.compile(r"\b(with_[a-z][a-z0-9_]*)\b")
+#: A backticked snake_case name — `use_instruct_history`, `dump_state`, `__init__`. Half the ledger
+#: is written about Python, and until this rule existed *none* of that half was checked: the Rust
+#: side of every reason resolved against the tree while a sentence could say dspy's
+#: `_get_max_tokens_key` decides the token key and nothing would notice that no such function has
+#: ever existed. It was the first thing this rule caught, and the real one behind it was a
+#: divergence in five model names' request bodies.
+#:
+#: Checked against both trees, as `WITH_NAME` is: a name is legitimate if this workspace defines it
+#: *or* it appears in the pinned Python. The pinned side is every word token rather than every
+#: `def` — `use_instruct_history` is a keyword argument and `reasoning_effort` a dict key, and a
+#: definitions-only index would call both of them missing. That makes it a weak check for what a
+#: name *is* and an exact one for whether it is there at all, which is the claim being made and the
+#: one a pin bump falsifies.
+PY_IDENT = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*_[A-Za-z0-9_]*)`")
+#: A backticked type name, on **every** row rather than only on substitutions. 774 reasons name
+#: one and the substitution-only rule looked at a fraction of them, against the Rust tree alone —
+#: so `NotImplementedError`, `Protocol` and `FieldInfo` were unchecked for being Python, and a
+#: renamed Rust type was unchecked for sitting in a sentence that did not say "reproduced as".
+TYPE_NAME = re.compile(r"`([A-Z][A-Za-z0-9_]*)`")
+#: A dotted Python path — `inspect.getfile`, `gepa.optimize`, `dspy.load`. The last segment is the
+#: item, and it is what a pin bump renames.
+DOTTED = re.compile(r"`([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+)`")
+#: A backticked *expression* rather than a bare name, and the names inside it. `LM(cache=...)`,
+#: `dependency_versions: {dspy: DSPY_VERSION}`, `lm.copy(**kwargs)` — 173 reasons name a dspy call
+#: form this way and every rule above walked past all of them, because each anchors its backticks
+#: to the whole name. A parameter named inside a call form is exactly as much of a claim as one
+#: written alone.
+#:
+#: Spans holding a path are left to the file and qualified-path rules, which read them properly; a
+#: long one is prose in backticks rather than an expression.
+SPAN = re.compile(r"`([^`]+)`")
+SPAN_TOKEN = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*_[A-Za-z0-9_]*|[A-Z][A-Za-z0-9_]*)\b")
 DEFINITION = re.compile(
     r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?"
     r"(?:fn|struct|enum|const|static|type|trait|mod|union)\s+([A-Za-z_][A-Za-z0-9_]*)",
@@ -110,10 +169,33 @@ FOREIGN_ROOTS = {
     "std", "core", "alloc", "tokio", "serde", "serde_json", "anyhow", "reqwest", "futures_util",
     "tracing", "schemars", "regex", "chrono", "base64", "rand", "url", "uuid", "pyo3",
 }
+#: Names in no tree here, which is not an error for any of them. Listed rather than inferred: a
+#: rule that guessed would either miss a real absence or cry wolf, and this is short enough to read.
+CITED_ELSEWHERE = {
+    # Members of crates this workspace depends on but does not vendor.
+    "buffer_unordered", "unwrap_or", "spawn_blocking", "from_slice", "deny_unknown_fields",
+    "serde_json", "vorbis_rs",
+    # CPython's and numpy's C sources, which `pyrng` reproduces and no `.py` file holds.
+    "genrand_res53", "genrand_uint32", "init_by_array", "init_genrand", "rk_double", "rk_random",
+    # This repo's own names that are not code: an environment variable, and a case *inside* a
+    # golden rather than a definition anywhere.
+    "DSRS_CACHEDIR", "evaluate_abandoned",
+    # Prose: the stem `infer_prefix` splits an attribute name on, written as a fragment.
+    "attribute_",
+    # An environment variable, a cache directory, and a doc example's own local.
+    "RUST_LOG", "dsrs_cache", "a_set",
+    # gepa 0.1.1's *old* placeholder names. Their absence from the pinned tree is the sentence's
+    # whole point — the entry says the rename happened — so this is the one case where a name in
+    # neither tree is the claim rather than a mistake.
+    "curr_instructions", "inputs_outputs_feedback",
+    # `String::push_str`, written on a receiver rather than as a path.
+    "push_str",
+}
 EXTERNAL = {
     "Serialize", "Deserialize", "Clone", "Debug", "Default", "Display", "PartialEq", "Eq",
     "Hash", "Iterator", "From", "Into", "Option", "Result", "Vec", "String", "Arc", "Box",
     "Send", "Sync", "JsonSchema", "Value", "Map", "Duration", "Instant", "Path", "PathBuf",
+    "BTreeMap", "AsRef", "Fn",
 }
 
 
@@ -343,6 +425,31 @@ def package_names() -> tuple[set[str], list[str]]:
     return found, unread
 
 
+def pinned_words() -> tuple[set[str], list[str]]:
+    """Every identifier-shaped token in the pinned Python, and the roots that could not be read.
+
+    dspy's `tests/` tree as well as its package: a reason names an upstream test as readily as an
+    upstream function, and reading only the package reported `IN_PROGRESS` — an enum member in
+    `tests/predict/test_predict.py` — as a name that exists nowhere. litellm and json_repair for
+    the same reason: this crate reproduces both, and its reasons say so in their words.
+    """
+    found: set[str] = set()
+    unread: list[str] = []
+    roots = [ROOT / "third_party" / "dspy"]
+    for package in ("gepa", "litellm", "json_repair"):
+        hits = sorted((ROOT / ".venv" / "lib").glob(f"*/site-packages/{package}"))
+        roots += hits
+        if not hits:
+            unread.append(f".venv/…/site-packages/{package}")
+    for root in roots:
+        if not root.is_dir():
+            unread.append(str(root))
+            continue
+        for path in root.rglob("*.py"):
+            found |= set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", path.read_text(errors="ignore")))
+    return found, unread
+
+
 def names_in(pinned: pathlib.Path) -> set[str]:
     """Every `def`/`class` name under one package directory."""
     found: set[str] = set()
@@ -359,14 +466,18 @@ def main() -> int:
     everything = everything_by_type()
     goldens = {str(path.relative_to(ROOT)) for path in (ROOT / "crates").rglob("*.json")}
     theirs, unread = package_names()
+    words, unread_words = pinned_words()
+    unread += unread_words
     their_files = upstream_files()
     owners = members_by_type()
 
     missing: list[tuple[str, str, str]] = []
     unverified: list[tuple[str, str]] = []
+    unreached: list[tuple[str, str]] = []
+    invented: list[tuple[str, str]] = []
     substitutions = 0
     checked = 0
-    for table in ledger.values():
+    for section, table in ledger.items():
         if not isinstance(table, dict):
             continue
         for key, entry in table.items():
@@ -374,14 +485,11 @@ def main() -> int:
                 continue
             reason = str(entry.get("reason", ""))
             divergence = entry.get("status") == "divergence"
+            reached_at = checked
             if divergence and SUBSTITUTION.search(reason):
                 substitutions += 1
                 # A substitution points at Rust, so a bare name in one is checkable — and often is
                 # a private helper: `numbered_block` is the first in the file.
-                for named in set(RS_FILE.findall(reason)):
-                    checked += 1
-                    if not any(f.endswith("/" + named) or f == named for f in files):
-                        missing.append((key, "file", named))
                 for ident in set(IDENT.findall(reason)):
                     checked += 1
                     parts = ident.split("::")
@@ -396,6 +504,14 @@ def main() -> int:
             # `LmBuilder::callbacks`, and every one of those reasons said "there is no" — which no
             # substitution-only check ever looks at. A reason may still name a Python symbol or an
             # environment variable in backticks, and those carry no `::`.
+            # Outside the substitution gate: four reasons named `adapter/stream.rs` in a
+            # parenthesis and three more named a provider module after "reproduced natively in",
+            # which the phrase list does not match. A `.rs` path is a claim about this tree
+            # wherever it sits in the sentence.
+            for named in set(RS_FILE.findall(reason)):
+                checked += 1
+                if not any(f.endswith("/" + named) or f == named for f in files):
+                    missing.append((key, "file", named))
             for named in set(PY_FILE.findall(reason)):
                 if named.startswith(OURS_PY) or not their_files:
                     continue
@@ -417,6 +533,29 @@ def main() -> int:
                     missing.append((key, "file", path_named))
                 elif not any(item in by_file[f] for f in owning_files):
                     missing.append((key, "item in file", f"{path_named}::{item}"))
+            cited: dict[str, str] = {}
+            for pattern, what in (
+                (PY_IDENT, "name"),
+                (TYPE_NAME, "type"),
+                (DOTTED, "path"),
+            ):
+                for named in pattern.findall(reason):
+                    cited.setdefault(named, what)
+            # And the names inside a backticked expression, which none of the three can see.
+            for span in SPAN.findall(reason):
+                if "/" in span or "::" in span or span.count(" ") > 6:
+                    continue          # a path: the file and qualified-path rules read these
+                if re.search(r"\.(rs|py|json|toml|sh|md)\b", span):
+                    continue          # a bare filename: the file and golden rules read these
+                for named in SPAN_TOKEN.findall(span):
+                    cited.setdefault(named, "name")
+            for named, what in cited.items():
+                if named in CITED_ELSEWHERE or named in EXTERNAL or not words:
+                    continue
+                checked += 1
+                wanted = named.rsplit(".", 1)[-1]
+                if wanted not in words and wanted not in names:
+                    missing.append((key, f"{what} in neither tree", named))
             for named in set(WITH_NAME.findall(reason + " " + str(entry.get("rust") or ""))):
                 checked += 1
                 if named not in names and named not in theirs:
@@ -451,6 +590,13 @@ def main() -> int:
                     # a type wrongly in one afternoon and every one of them passed until this ran.
                     elif owner in everything and parts[-1] not in everything[owner]:
                         missing.append((key, "member of", ident))
+            # A row every rule above walked past. Not an error — a reason may legitimately be
+            # about Python machinery — but it is the reading list, and it only shrinks by someone
+            # naming what the sentence is about.
+            if checked == reached_at and entry.get("status") != "mapped":
+                (invented if section == "rust_only" else unreached).append(
+                    (key, entry.get("status"))
+                )
             claim = CAPABILITY.search(reason) if divergence else None
             if claim and not entry.get("rust"):
                 named_something = bool(RS_FILE.search(reason)) or any(
@@ -471,6 +617,26 @@ def main() -> int:
             print(f"    {key}\n      -> {kind} {named}")
         return 1
 
+    print(
+        f"  dspy-facing rows no rule reaches: {len(unreached)} (floor {UNREACHED})"
+    )
+    print(f"  [rust_only] rows no rule reaches: {len(invented)} (floor {INVENTED})")
+    if len(invented) > INVENTED or "--invented" in sys.argv:
+        for key, status in invented:
+            print(f"      ? {key}  ({status})")
+    if len(invented) > INVENTED:
+        print(f"\nLedger-claims gate FAILED: {len(invented)} unreached, floor {INVENTED}")
+        return 1
+    if len(invented) < INVENTED:
+        print(f"  {INVENTED - len(invented)} below the floor — lower INVENTED to {len(invented)}")
+    if len(unreached) > UNREACHED or "--unreached" in sys.argv:
+        for key, status in unreached:
+            print(f"      ? {key}  ({status})")
+    if len(unreached) > UNREACHED:
+        print(f"\nLedger-claims gate FAILED: {len(unreached)} unreached, floor {UNREACHED}")
+        return 1
+    if len(unreached) < UNREACHED:
+        print(f"  {UNREACHED - len(unreached)} below the floor — lower UNREACHED to {len(unreached)}")
     print(f"  capability claims naming nothing checkable: {len(unverified)} (floor {UNVERIFIED})")
     for key, verb in unverified:
         print(f"      ? {key}  (\"{verb}\")")
