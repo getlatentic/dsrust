@@ -28,6 +28,12 @@ impl ChatModel for LM {
         Some(crate::lm::saved::dump(self))
     }
 
+    /// The settings this model fills a request's gaps from — the `LmConfig` `with_defaults`
+    /// applies, stated so a module can read it before the request is built.
+    fn defaults(&self) -> api::LmConfig {
+        self.config.clone()
+    }
+
     async fn forward(&self, request: &api::LmRequest) -> Result<api::LmResponse> {
         self.answer(&self.with_defaults(request)).await
     }

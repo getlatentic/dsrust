@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1455
+rust_tests = 1456
 upstream_tests_passing = 1035
 upstream_tests_crossing = 573
 upstream_tests_deciding_signatures = 583
@@ -3973,6 +3973,24 @@ has.
 This is the one place the "use Rust properly where bytes do not force otherwise" rule points both
 ways at once. The extras *do* reach bytes, so they cannot be dropped; the set cannot be
 enumerated, so it cannot be fully typed. The split is the answer rather than a compromise.
+
+**Item 1 shipped 2026-08-27.** `predict::randomness::for_completions`, held to
+`predict/completion_temperature.json` — 110 pairs of model kwargs and module config recorded by
+calling `_forward_preprocess` itself, 45 of which fire the rule. Faithful to the two things a
+reading gets wrong: `or` is Python's, so a temperature of **0.0 is falsy** and falls through to the
+model's (`temperature=0.0, n=2` under a bare model resolves to 0.7 and under a model at 0.9 sends
+0.0); and the `n` chain has a third arm, `num_generations`, which has no field upstream either and
+is read out of `LmConfig::extensions`. Both fields resolve *through* the model, which is why
+`ChatModel::defaults` exists — dspy's `lm.kwargs`, stated so a module can read it before the
+request is built. Three controls: dropping the rule, treating a zero temperature as set, and
+dropping the `num_generations` arm each turn the conformance test red.
+
+**Item 2 shipped** with the typed-LM migration: `LmConfig::extensions` is the overflow map this
+entry proposed, and `LMConfig`'s eleven typed fields are ported beside it.
+
+**Item 3 is what remains.** There is still no per-call `config=`: `Steering` carries three specific
+fields (reasoning effort, a forced tool, predicted outputs) rather than an arbitrary config merged
+over the module's, so `predict(q=..., config={"temperature": 1.0})` has no spelling here.
 '''
 
 [[backlog]]

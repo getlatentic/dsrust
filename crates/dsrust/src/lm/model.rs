@@ -80,6 +80,16 @@ pub trait DynChatModel: Send + Sync {
 
     /// The object-safe form of [`ChatModel::native_citations_usable`].
     fn native_citations_usable_dyn(&self) -> bool;
+
+    /// The object-safe form of [`ChatModel::defaults`].
+    ///
+    /// Defaulted rather than required, as [`ChatModel::defaults`] is and as the three predicates
+    /// beside it are not: a model with no settings of its own has one honest answer, and making
+    /// every hand-written `DynChatModel` — a scripted double in a test, mostly — restate it would
+    /// be noise. The blanket impl below overrides it with the typed trait's.
+    fn defaults_dyn(&self) -> api::LmConfig {
+        api::LmConfig::default()
+    }
 }
 
 impl<T: ChatModel + Send + Sync> DynChatModel for T {
@@ -124,6 +134,10 @@ impl<T: ChatModel + Send + Sync> DynChatModel for T {
 
     fn dump_state_dyn(&self) -> Option<serde_json::Map<String, serde_json::Value>> {
         ChatModel::dump_state(self)
+    }
+
+    fn defaults_dyn(&self) -> api::LmConfig {
+        ChatModel::defaults(self)
     }
 }
 
@@ -245,6 +259,20 @@ pub trait ChatModel {
     /// provider but one upstream.
     fn native_citations_usable(&self) -> bool {
         false
+    }
+
+    /// dspy's `lm.kwargs`: what this model supplies for a call that names nothing.
+    ///
+    /// A module reads it for one reason — `Predict`'s rule that raising the completion count
+    /// above one at a near-zero temperature sends 0.7 instead resolves both fields *through* the
+    /// model, so a `Predict` that sets neither still has to know what its model would send. The
+    /// settings themselves are applied at the model, in `LM::with_defaults`; this only says what
+    /// they are.
+    ///
+    /// Empty by default, which is what a model carrying no settings of its own reports — the same
+    /// answer `lm.kwargs.get(...)` gives for a `BaseLM` subclass that set none.
+    fn defaults(&self) -> api::LmConfig {
+        api::LmConfig::default()
     }
 
     /// Whether native reasoning is usable over this model's current path — dspy's model-specific

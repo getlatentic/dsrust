@@ -78,6 +78,7 @@ mod multi_chain_comparison;
 mod native;
 mod parallel;
 pub mod program_of_thought;
+mod randomness;
 mod recovery;
 pub mod refine;
 pub mod rlm;
@@ -204,7 +205,11 @@ impl<S> Predict<S> {
         let messages = messages_for(opening, feedback);
         // The typed 3.3 boundary: predict hands the model an `LMRequest`. Behind it the request
         // is lowered to the shape the providers still speak, so no wire byte moves.
-        let mut request = api::request_of(messages, mode, &self.config);
+        //
+        // Both halves of dspy's `_forward_preprocess` resolve through the model, so the sampling
+        // is settled against what the model would have supplied before the request is built.
+        let sampling = randomness::for_completions(&self.config, &lm.defaults_dyn());
+        let mut request = api::request_of(messages, mode, &sampling);
         if let Some(plan) = native {
             request.tools = plan.tools;
             ask_for_parallel_calls(&mut request, asking.parallel);
