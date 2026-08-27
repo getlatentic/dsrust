@@ -18,7 +18,7 @@
 use crate::lm::api;
 use crate::lm::error::{LmErrorKind, LmFailure};
 
-use super::super::token_limit::is_openai_reasoning_model;
+use super::super::reasoning_model::on_the_wire;
 
 /// Refuse the pairing dspy refuses: a reasoning model, a reasoning effort that is not `none`, and a
 /// temperature that is neither unset nor `1`.
@@ -29,7 +29,7 @@ pub(super) fn checked(
     model: &str,
     endpoint: &str,
 ) -> Result<(), LmFailure> {
-    if !is_openai_reasoning_model(model) {
+    if !on_the_wire(model) {
         return Ok(());
     }
     let effort = config

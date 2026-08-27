@@ -644,18 +644,11 @@ DOES_NOT_EXERCISE_RUST = {
     # `__call__` answers with the legacy list of strings or an `LMResponse`. That fork does not
     # exist here: `ChatModel` is typed-only and the legacy call shape was deleted rather than
     # bridged, so there is no second contract for the crate to choose between. The typed side of it
-    # — what a request and a response *are* — crosses in the tests that build one.
+    # — what a request and a response *are* — crosses in the tests that build one, and four that
+    # used to be listed here now do: crossing `openai_format._is_openai_reasoning_model` put the
+    # crate in the path of any test whose request names a model.
     "test_base_lm_default_call_keeps_legacy_outputs": "dspy's two forward contracts",
-    "test_base_lm_experimental_call_returns_lm_response_through_legacy_bridge": (
-        "dspy's two forward contracts"
-    ),
-    "test_base_lm_explicit_lm_request_returns_lm_response_without_experimental": (
-        "dspy's two forward contracts"
-    ),
     "test_base_lm_inherited_legacy_forward_returning_lm_response_errors_on_direct_call": (
-        "dspy's two forward contracts"
-    ),
-    "test_base_lm_legacy_bridge_records_typed_history_and_usage_once": (
         "dspy's two forward contracts"
     ),
     "test_base_lm_typed_forward_contract_uses_lm_request": "dspy's two forward contracts",
@@ -663,7 +656,6 @@ DOES_NOT_EXERCISE_RUST = {
         "dspy's two forward contracts"
     ),
     "test_base_lm_request_call_rejects_mixed_inputs": "dspy's two forward contracts",
-    "test_base_lm_async_explicit_lm_request_returns_lm_response": "dspy's two forward contracts",
 }
 
 #: Tests that reach the crate even though their class is declared above as not doing so. A class
@@ -1068,14 +1060,31 @@ def _rust_cache_key(self, request, ignored_args_for_cache_key=None):
 
 
 def _rust_is_openai_reasoning_model(model: str) -> bool:
-    """dspy's `_is_openai_reasoning_model`, decided by the crate.
+    """dspy's `clients/lm.py::_is_openai_reasoning_model`, decided by the crate.
 
-    It is one predicate and it decides two things a request carries: whether the generation cap
-    travels as `max_tokens` or `max_completion_tokens`, and whether `temperature=1.0` and a 16k
-    floor are demanded. dspy spells it as a regex; the crate reads the family off the name.
+    dspy has *two* functions of this name and they are different rules. This is the one in
+    `clients/lm.py`, which decides what `dump_state` writes and what `load_state` reads back, and
+    which demands `temperature=1.0` and a 16k floor at construction. The other lives in
+    `clients/openai_format.py`, decides the wire, and is crossed by
+    `_rust_wire_reasoning_model` below.
+
+    They disagree on five names — `o1-preview` and `gpt-5.1` are reasoning models to the wire rule
+    alone, `o5`, `azure/o3` and `openrouter/openai/gpt-5` to the state rule alone. Crossing only
+    one of them left the other answered by Python, and the crate held a third rule that matched
+    neither.
     """
     crossings.record_render()
     return dsrs_bridge.is_openai_reasoning_model(model)
+
+
+def _rust_wire_reasoning_model(model: str) -> bool:
+    """dspy's `clients/openai_format.py::_is_openai_reasoning_model`, decided by the crate.
+
+    Whether the generation cap travels as `max_tokens` or `max_completion_tokens`, and whether a
+    reasoning effort at a non-default temperature is refused before the call goes out.
+    """
+    crossings.record_render()
+    return dsrs_bridge.wire_reasoning_model(model)
 
 
 @pytest.fixture(autouse=True)
@@ -1229,11 +1238,18 @@ def _closing_a_schema_is_rust(request, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _reasoning_families_are_rust(request, monkeypatch):
-    """For the LM suite, which models count as reasoning models is the crate's answer."""
+    """For the LM suite, which models count as reasoning models is the crate's answer.
+
+    Both of dspy's predicates, because they are different rules and a suite that crossed one of
+    them would report a port right about the wire while Python still answered for the state.
+    """
     if request.node.module.__name__ != "upstream_test_lm":
         return
     monkeypatch.setattr(
         "dspy.clients.lm._is_openai_reasoning_model", _rust_is_openai_reasoning_model
+    )
+    monkeypatch.setattr(
+        "dspy.clients.openai_format._is_openai_reasoning_model", _rust_wire_reasoning_model
     )
 
 

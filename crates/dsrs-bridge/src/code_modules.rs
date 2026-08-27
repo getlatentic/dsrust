@@ -427,15 +427,21 @@ pub(crate) fn cache_key(request: &str, ignored: Option<Vec<String>>) -> PyResult
     ))
 }
 
-/// dspy `_is_openai_reasoning_model`, decided by the crate.
+/// dspy `clients/lm.py::_is_openai_reasoning_model`, decided by the crate.
 ///
-/// Which family a model belongs to is the whole of the decision behind two things a request
-/// carries: whether the generation cap travels as `max_tokens` or `max_completion_tokens`, and
-/// whether `temperature=1.0` and a 16k floor are required.
+/// The *state* predicate, which is the one this stands in for: it decides what `dump_state` writes
+/// and what `load_state` reads back. dspy's other one, in `clients/openai_format.py`, decides the
+/// wire and is crossed by [`wire_reasoning_model`] beside it — the two disagree on five names, so
+/// a single crossing would leave one of them answered by Python.
 #[pyfunction]
 pub(crate) fn is_openai_reasoning_model(model: &str) -> bool {
-    use dsrust::lm::{TokenLimitField, TokenLimitRule};
-    TokenLimitRule::ByOpenAiModelFamily.field_for(model) == TokenLimitField::MaxCompletionTokens
+    dsrust::lm::reasoning_model::in_saved_state(model)
+}
+
+/// dspy `clients/openai_format.py::_is_openai_reasoning_model`, decided by the crate.
+#[pyfunction]
+pub(crate) fn wire_reasoning_model(model: &str) -> bool {
+    dsrust::lm::reasoning_model::on_the_wire(model)
 }
 
 /// The Responses-API request body the crate builds for a chat-shaped request.

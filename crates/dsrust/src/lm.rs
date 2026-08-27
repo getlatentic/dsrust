@@ -11,6 +11,7 @@ pub mod global;
 mod model;
 mod ollama;
 pub mod openai;
+pub mod reasoning_model;
 pub mod retry;
 mod routing;
 pub mod saved;

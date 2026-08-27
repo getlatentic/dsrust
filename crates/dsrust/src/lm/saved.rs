@@ -21,7 +21,7 @@ use serde_json::{Map, Value, json};
 
 use super::LM;
 use super::openai::OpenAiWire;
-use super::token_limit::is_openai_reasoning_model;
+use super::reasoning_model::in_saved_state;
 
 /// dspy's `LM_CLASS_STATE_KEY`: which `BaseLM` subclass wrote the block.
 pub const CLASS_KEY: &str = "_dspy_lm_class";
@@ -42,7 +42,7 @@ pub const UNSAFE_KEYS: [&str; 3] = ["api_base", "base_url", "model_list"];
 /// else they could say, and omitting them would make the file one dspy did not write.
 pub fn dump(lm: &LM) -> Map<String, Value> {
     let model = lm.model.reference();
-    let reasoning = is_openai_reasoning_model(&model);
+    let reasoning = in_saved_state(&model);
     let mut block = Map::new();
 
     block.insert(CLASS_KEY.to_owned(), json!(BUILTIN_CLASS));

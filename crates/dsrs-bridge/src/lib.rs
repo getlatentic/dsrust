@@ -901,6 +901,10 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
         code_modules::is_openai_reasoning_model,
         module
     )?)?;
+    module.add_function(wrap_pyfunction!(
+        code_modules::wire_reasoning_model,
+        module
+    )?)?;
     module.add_function(wrap_pyfunction!(code_modules::responses_body, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::responses_request, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::responses_outputs, module)?)?;
