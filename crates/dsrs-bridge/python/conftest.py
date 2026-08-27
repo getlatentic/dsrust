@@ -652,6 +652,79 @@ DOES_NOT_EXERCISE_RUST = {
         "dspy's two forward contracts"
     ),
     "test_base_lm_typed_forward_contract_uses_lm_request": "dspy's two forward contracts",
+    # --- streaming, added 2026-08-27 ------------------------------------------------------------
+    #
+    # 32 of the 43 cross once dspy's name-keyed allowlist knows the Rust subclasses. These eleven
+    # drive upstream's own `StreamListener` and the plumbing around it: three test a pure string
+    # helper on the listener, and the rest assert on what `streamify` yields — a generator's chunk
+    # sequence, status messages from a `StatusMessageProvider`, the sync bridge. The crate's
+    # counterpart is `adapter::stream`, whose own chunk boundaries are held against a stream
+    # recorded from gpt-4o-mini by `the_chunks_are_dspys_own_token_boundaries`.
+    "test_stream_listener_could_form_end_identifier_chat_adapter": (
+        "a pure string helper on dspy's listener, called with no adapter in play at all"
+    ),
+    "test_stream_listener_could_form_end_identifier_json_adapter": (
+        "the same helper, for the JSON markers"
+    ),
+    "test_stream_listener_could_form_end_identifier_xml_adapter": (
+        "the same helper, for the XML markers"
+    ),
+    "test_stream_listener_chat_adapter": (
+        "upstream's listener over a canned chunk list; the crate's own boundaries are held by "
+        "`the_chunks_are_dspys_own_token_boundaries`"
+    ),
+    "test_stream_listener_json_adapter": ("the same, for `JsonFieldListener`'s counterpart"),
+    "test_streamify_yields_expected_response_chunks": (
+        "what dspy's generator yields around a Python program — `adapter::stream::streamify` is a "
+        "`Stream` and yields its own"
+    ),
+    "test_streaming_response_yields_expected_response_chunks": (
+        "dspy's `streaming_response` wrapper over that generator"
+    ),
+    "test_streaming_allows_custom_chunk_types": (
+        "a caller's own type flowing through dspy's generator, which is Python typing rather than "
+        "anything rendered"
+    ),
+    "test_sync_streaming": (
+        "dspy's sync bridge around an async generator; Rust has no such bridge to offer that is "
+        "not a runtime choice, which is the caller's"
+    ),
+    "test_status_message_non_blocking": (
+        "that dspy's status messages do not block its generator — a property of the asyncio "
+        "plumbing, not of the wording, which `DefaultStatus` holds"
+    ),
+    "test_status_message_non_blocking_async_program": ("the same, for an async program"),
+    # --- five more suites added 2026-08-27, whose excuses had gone stale ------------------------
+    #
+    # `test_gepa_instruction_proposer.py` and `test_auto_evaluation.py` needed no lines at all —
+    # every test in both crosses. These seven are the rest, and all seven drive Python plumbing
+    # with a `Mock` on the other side of it.
+    "test_eval_candidate_program_full_trainset": (
+        "asserts on a `Mock`'s `call_args` — that dspy passed `callback_metadata` to its own "
+        "evaluator, which is a Python call convention rather than anything scored"
+    ),
+    "test_eval_candidate_program_minibatch": (
+        "the same `Mock` assertion for the minibatch arm; what it samples is held by "
+        "`optimize/mipro/conformance/minibatch.rs`"
+    ),
+    "test_eval_candidate_program_failure": (
+        "dspy returning its `failure_score` when its own evaluator raises, checked through a "
+        "`Mock` that raises"
+    ),
+    "test_create_n_fewshot_demo_sets_passes_metric_threshold_for_unshuffled": (
+        "patches `dspy.teleprompt.utils.BootstrapFewShot` with a `Mock` and asserts a keyword "
+        "reached it; the threshold's effect on which demos survive is held by "
+        "`optimize/bootstrap.rs`"
+    ),
+    "test_bootstrap_trace_data_passes_callback_metadata": (
+        "the same call-convention assertion, for what `bootstrap_trace_data` hands its evaluator"
+    ),
+    "test_capture_crashes_does_not_capture_lm_errors": (
+        "dspy telling a program's own exception from an `LMRateLimitError` by Python class; the "
+        "crate's split is `LmErrorKind`, and an `anyhow::Error` from a module is a different type "
+        "rather than a different subclass"
+    ),
+    "test_input_keys": "dspy's `CSVDataset` loader, which reads a file and builds Examples",
     # --- dspy.Flex, six suites added 2026-08-27 -------------------------------------------------
     #
     # 83 of the 135 tests cross. These do not, and each is here for one of three reasons rather
@@ -1371,6 +1444,39 @@ def _rust_flex_baseline_src(self, original) -> str:
         self._name or "",
         [name for name in named if name],
     )
+
+
+@pytest.fixture(autouse=True)
+def _streaming_knows_the_rust_adapters(request, monkeypatch):
+    """dspy keys its streaming allowlist by class *name*, so a subclass it accepts by type is not.
+
+    `StreamListener.receive` reads `settings.adapter.__class__.__name__` and looks it up in
+    `adapter_identifiers` — a dict of three literal names. `RustChatAdapter` is a `dspy.ChatAdapter`
+    and renders the very markers the listener watches for, and it was refused with "Unsupported
+    adapter for streaming". That one string was the whole of why this suite was excused as "dspy's
+    async streaming plumbing"; teaching the table the three subclass names turns 21 failures into
+    32 passes, none of them a divergence.
+
+    The entry is the base class's own, unmodified: what the listener looks for is the adapter's
+    markers, and those are what the crate renders.
+    """
+    if request.node.module.__name__ != "upstream_test_streaming":
+        return
+    from dspy.streaming.streaming_listener import StreamListener
+
+    original = StreamListener.__init__
+
+    def knowing(self, *args, **kwargs):
+        original(self, *args, **kwargs)
+        for rust, base in (
+            ("RustChatAdapter", "ChatAdapter"),
+            ("RustJSONAdapter", "JSONAdapter"),
+            ("RustXMLAdapter", "XMLAdapter"),
+        ):
+            if base in self.adapter_identifiers:
+                self.adapter_identifiers[rust] = self.adapter_identifiers[base]
+
+    monkeypatch.setattr(StreamListener, "__init__", knowing)
 
 
 @pytest.fixture(autouse=True)

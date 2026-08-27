@@ -37,14 +37,14 @@ updated = "2026-07-28"
 # behind while every generated number beside it stayed true.
 [status]
 rust_tests = 1458
-upstream_tests_passing = 1144
-upstream_tests_crossing = 667
-upstream_tests_deciding_signatures = 643
+upstream_tests_passing = 1195
+upstream_tests_crossing = 705
+upstream_tests_deciding_signatures = 684
 # Gaps this port has declared, counted from conftest.py's NOT_YET_IMPLEMENTED. Not the same as the
 # xfails pytest reports: dspy marks two of its own image cases xfail for a gap upstream has.
 xfail_backlog = 4
 upstream_tests_xfailed = 4
-suites_run = 58
+suites_run = 64
 release_stage = "alpha"
 
 # ---------------------------------------------------------------------------
