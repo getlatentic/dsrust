@@ -909,6 +909,7 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
         code_modules::flex_module_class_name,
         module
     )?)?;
+    module.add_function(wrap_pyfunction!(code_modules::flex_baseline_src, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::responses_body, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::responses_request, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::responses_outputs, module)?)?;

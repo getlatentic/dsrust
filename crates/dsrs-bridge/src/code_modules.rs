@@ -444,6 +444,44 @@ pub(crate) fn wire_reasoning_model(model: &str) -> bool {
     dsrust::lm::reasoning_model::on_the_wire(model)
 }
 
+/// dspy `predict/flex/flex.py::Flex._baseline_src`, decided by the crate.
+///
+/// The source a `Flex` starts from, before any optimizer has rewritten it — a single `dspy.Predict`
+/// over the whole signature, or a `dspy.RLM` wired to the tools by name. It is prompt bytes twice
+/// over: a code proposer reads it as the thing to improve, and whatever it writes replaces it.
+///
+/// Reached through `Flex::with_tools`, so the two refusals upstream makes at construction — a name
+/// that is not a Python identifier, and one belonging to the sandbox's own namespace — are the
+/// crate's too, and surface here as the `ValueError` dspy raises.
+#[pyfunction]
+pub(crate) fn flex_baseline_src(
+    instructions: &str,
+    inputs: Vec<PyInField>,
+    outputs: Vec<PyOutField>,
+    name: &str,
+    tool_names: Vec<String>,
+) -> PyResult<String> {
+    use dsrust::react::{FnTool, Tool};
+
+    let signature = build_signature(instructions, inputs, outputs)?;
+    let tools: Vec<Arc<dyn Tool>> = tool_names
+        .into_iter()
+        .map(|named| {
+            Arc::new(FnTool::new(
+                named,
+                "",
+                serde_json::json!({}),
+                |_: &Value| Ok(String::new()),
+            )) as Arc<dyn Tool>
+        })
+        .collect();
+    let flex = dsrust::predict::flex::Flex::new(signature)
+        .named(name)
+        .with_tools(tools)
+        .map_err(|refused| PyValueError::new_err(format!("{refused}")))?;
+    Ok(flex.module_src().to_owned())
+}
+
 /// dspy `predict/flex/bridge.py::parse_module_class_name`, decided by the crate.
 ///
 /// Which class the sandbox instantiates out of the source a proposer wrote. Upstream parses with

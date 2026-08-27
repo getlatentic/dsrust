@@ -708,26 +708,13 @@ DOES_NOT_EXERCISE_RUST = {
         "a claim about Python annotation objects, which a `FieldKind` does not hold"
     ),
     #
-    # (c) **A gap, not a boundary.** These assert on the generated baseline's source and on the
-    # sandbox's tool glue, and `rendering::baseline_src` and `flex/bridge.rs` are the crate's
-    # counterparts — no crossing is wired for either, so Python answers. Filed as
-    # `flex-baseline-crossing`. Named individually rather than as a class exemption, so closing it
-    # is a matter of deleting lines and watching the count move.
-    "test_baseline_is_predict_without_tools": "no crossing for `rendering::baseline_src` yet",
-    "test_baseline_is_rlm_with_tools": "no crossing for `rendering::baseline_src` yet",
-    "test_reserved_bridge_tool_names_are_rejected": "no crossing for the tool registry yet",
-    "test_tool_is_in_scope_for_bound_code": "no crossing for the tool registry yet",
-    "test_save_load_roundtrips_tool_using_code": "no crossing for the tool registry yet",
-    "test_load_without_tools_cannot_resolve_them": "no crossing for the tool registry yet",
-    "test_dspy_tool_wrapper_is_available_in_the_sandbox": "no crossing for the tool registry yet",
+    # (c) dspy's shim source checked against dspy's own prompt catalogue. Both halves are vendored
+    # here byte-for-byte and held by `the_vendored_shim_is_upstreams_own` and
+    # `the_vendored_catalog_is_upstreams_own`, so the contract this test checks — every
+    # `dspy.X(...)` the proposer is told to write exists in the sandbox — holds by construction
+    # rather than by anything the crate decides.
     "test_proposer_prompts_only_advertise_names_the_sandbox_defines": (
-        "no crossing for the tool registry yet"
-    ),
-    "test_gepa_proposer_is_told_about_tools": "no crossing for the tool registry yet",
-    "test_self_authored_tool_persists_with_the_code": "no crossing for the tool registry yet",
-    "test_direct_tool_calls_go_through_the_tool_wrapper": "no crossing for the tool registry yet",
-    "test_direct_tool_calls_receive_restored_custom_type_inputs": (
-        "no crossing for the tool registry yet"
+        "dspy's shim against dspy's catalogue; both are vendored and pinned to upstream's bytes"
     ),
     "test_base_lm_typed_forward_contract_rejects_non_lm_response_at_call_time": (
         "dspy's two forward contracts"
@@ -1330,14 +1317,80 @@ def _rust_flex_module_class_name(module_src: str) -> str:
         raise CodeInterpreterError(str(refused)) from refused
 
 
+#: The six suites `tests/flex/` flattens to.
+FLEX_SUITES = {
+    "upstream_test_flex_binding",
+    "upstream_test_flex_gepa",
+    "upstream_test_flex_gepa_seed",
+    "upstream_test_flex_interpreter",
+    "upstream_test_flex_output_types",
+    "upstream_test_tools",
+}
+
+
+def _rust_flex_baseline_src_over(original):
+    """`Flex._baseline_src` decided by the crate, falling back where it cannot be asked.
+
+    A signature can name an annotation no `FieldKind` holds — `Callable[[int], int]` is upstream's
+    own example, and dspy renders that field into the baseline *untyped* rather than into source
+    that would fail to bind. A Rust caller cannot declare such a field at all, so there is nothing
+    here to be right or wrong about: the fallback runs dspy's own and records no crossing, which
+    keeps the passing count honest rather than crediting Python's answer to the crate.
+    """
+
+    def _baseline_src(self) -> str:
+        return _rust_flex_baseline_src(self, original)
+
+    return _baseline_src
+
+
+def _rust_flex_baseline_src(self, original) -> str:
+    """dspy's `Flex._baseline_src`, decided by the crate.
+
+    The source a `Flex` starts from and a code proposer is asked to improve — prompt bytes twice
+    over, since whatever the proposer writes replaces it. The crate renders the signature string
+    itself rather than being handed upstream's, so what has to agree is the whole thing: the
+    `dspy.Predict` / `dspy.RLM` choice, the signature's spelling, the class name, the `return
+    dspy.Prediction(...)` line, and the indentation between them.
+    """
+    from reflect import Unsupported, describe, described_outputs
+
+    cls = self._signature_cls
+    try:
+        fields = (describe(cls.input_fields), described_outputs(cls))
+    except Unsupported:
+        return original(self)
+    named = [
+        getattr(tool, "name", None) or getattr(tool, "__name__", None)
+        for tool in self._flex_ctx.tools
+    ]
+    crossings.record_render()
+    return dsrs_bridge.flex_baseline_src(
+        getattr(cls, "instructions", "") or "",
+        *fields,
+        self._name or "",
+        [name for name in named if name],
+    )
+
+
 @pytest.fixture(autouse=True)
 def _flex_bridge_is_rust(request, monkeypatch):
-    """For the Flex suites, the generated module's class name is the crate's answer."""
-    if not request.node.module.__name__.startswith("upstream_test_flex"):
+    """For the Flex suites, what the crate has a counterpart for is the crate's answer.
+
+    Two so far, and the first is why the second exists: crossing `parse_module_class_name` alone
+    moved sixteen tests out of "passed without the crate deciding anything", because it is called
+    on every bind. `_baseline_src` sits on the same kind of path — every `Flex.__init__` runs it.
+    """
+    # By name, not by prefix: `tests/flex/test_tools.py` flattens to `upstream_test_tools`, which
+    # no `upstream_test_flex` prefix reaches — and it is the file holding both baseline tests.
+    if request.node.module.__name__ not in FLEX_SUITES:
         return
-    from dspy.predict.flex import bridge
+    from dspy.predict.flex import bridge, flex
 
     monkeypatch.setattr(bridge, "parse_module_class_name", _rust_flex_module_class_name)
+    monkeypatch.setattr(
+        flex.Flex, "_baseline_src", _rust_flex_baseline_src_over(flex.Flex._baseline_src)
+    )
 
 
 @pytest.fixture(autouse=True)
