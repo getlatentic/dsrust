@@ -106,7 +106,7 @@ impl JsonType {
 
 impl FieldKind {
     /// A non-scalar whose Python type this crate cannot name, and whose structure nothing
-    /// described. `FieldKind::reflected_json` is what the derive reaches for instead wherever a
+    /// described. `JsonType::reflected` is what the derive reaches for instead wherever a
     /// `schemars` schema exists, which is every field it generates.
     pub fn opaque_json() -> Self {
         FieldKind::Json(JsonType::plain("json"))

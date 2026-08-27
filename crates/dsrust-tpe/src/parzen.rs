@@ -4,7 +4,7 @@
 //! Each kernel is a categorical distribution per parameter — an observation adds one to its own
 //! category over a flat `prior_weight / n_kernels` floor, the prior kernel stays flat — and the
 //! mixture weights come from optuna's `default_weights`. The estimator both draws candidates
-//! ([`Parzen::sample`]) and scores them ([`Parzen::pdf`]); the sampler above ranks candidates by the
+//! ([`Parzen::sample`]) and scores them ([`Parzen::log_pdf`]); the sampler above ranks candidates by the
 //! ratio of the "below" density to the "above" one.
 
 use pyrng::RandomState;

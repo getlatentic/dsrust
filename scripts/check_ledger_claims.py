@@ -154,7 +154,10 @@ SPAN = re.compile(r"`([^`]+)`")
 SPAN_TOKEN = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*_[A-Za-z0-9_]*|[A-Z][A-Za-z0-9_]*)\b")
 DEFINITION = re.compile(
     r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?"
-    r"(?:fn|struct|enum|const|static|type|trait|mod|union)\s+([A-Za-z_][A-Za-z0-9_]*)",
+    r"(?:fn|struct|enum|const|static|type|trait|mod|union)\s+([A-Za-z_][A-Za-z0-9_]*)"
+    # `macro_rules! name` — a definition no other arm matches, and `asks_with_a_prediction` is
+    # one of three the workspace exports.
+    r"|^\s*macro_rules!\s+([A-Za-z_][A-Za-z0-9_]*)",
     re.M,
 )
 #: Enum variants, which a reason names as often as a type — `LmPart::Text`.
@@ -173,6 +176,7 @@ OURS = {"dsrust", "gepa", "pyrng", "tpe", "json_repair", "dsrust_gepa", "dsrust_
 FOREIGN_ROOTS = {
     "std", "core", "alloc", "tokio", "serde", "serde_json", "anyhow", "reqwest", "futures_util",
     "tracing", "schemars", "regex", "chrono", "base64", "rand", "url", "uuid", "pyo3",
+    "image", "sha2", "futures_channel",
 }
 #: Names in no tree here, which is not an error for any of them. Listed rather than inferred: a
 #: rule that guessed would either miss a real absence or cry wolf, and this is short enough to read.
@@ -200,7 +204,7 @@ EXTERNAL = {
     "Serialize", "Deserialize", "Clone", "Debug", "Default", "Display", "PartialEq", "Eq",
     "Hash", "Iterator", "From", "Into", "Option", "Result", "Vec", "String", "Arc", "Box",
     "Send", "Sync", "JsonSchema", "Value", "Map", "Duration", "Instant", "Path", "PathBuf",
-    "BTreeMap", "AsRef", "Fn",
+    "BTreeMap", "AsRef", "Fn", "EnvFilter",
 }
 
 
@@ -214,7 +218,8 @@ def tree() -> tuple[set[str], set[str], dict[str, set[str]]]:
     names, files, by_file = set(EXTERNAL), set(), {}
     for path in (ROOT / "crates").rglob("*.rs"):
         text = path.read_text(errors="ignore")
-        own = set(DEFINITION.findall(text)) | set(VARIANT.findall(text)) | set(FIELD.findall(text))
+        own = {first or second for first, second in DEFINITION.findall(text)}
+        own |= set(VARIANT.findall(text)) | set(FIELD.findall(text))
         names |= own
         rel = str(path.relative_to(ROOT))
         files.add(rel)
@@ -262,6 +267,7 @@ def everything_by_type() -> dict[str, set[str]]:
     members: dict[str, set[str]] = {}
     trait_methods: dict[str, set[str]] = {}
     implements_trait: list[tuple[str, str]] = []
+    declarations: dict[str, int] = {}
     opener = re.compile(
         r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait)\s+([A-Za-z_][A-Za-z0-9_]*)"
     )
@@ -295,6 +301,7 @@ def everything_by_type() -> dict[str, set[str]]:
             found = opener.match(line)
             if found:
                 name = found.group(1)
+                declarations[name] = declarations.get(name, 0) + 1
                 bucket = trait_methods if line.lstrip().startswith(("trait", "pub trait")) else members
                 for own in block(lines, start):
                     hit = any_member.match(own)
@@ -307,6 +314,7 @@ def everything_by_type() -> dict[str, set[str]]:
             target = impl_target(found.group(1))
             if not target:
                 continue
+            declarations.setdefault(target, 1)
             for own in block(lines, start):
                 hit = any_member.match(own)
                 if hit:
@@ -320,7 +328,10 @@ def everything_by_type() -> dict[str, set[str]]:
         members.setdefault(target, set()).update(trait_methods.get(trait, set()))
     for name, own in trait_methods.items():
         members.setdefault(name, set()).update(own)
-    return members
+    # A name declared more than once cannot speak for either declaration — `Task` is a doc
+    # example's struct in one crate and a real one elsewhere, and asking whether `Task::predict`
+    # exists gets the wrong `Task`. The certain index guards this; so must this one.
+    return {name: own for name, own in members.items() if declarations[name] == 1}
 
 
 def members_by_type() -> dict[str, set[str]]:

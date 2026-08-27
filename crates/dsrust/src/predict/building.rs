@@ -2,7 +2,7 @@
 //!
 //! dspy builds one by calling the class and mutating attributes afterwards. The same settings live
 //! here as builder methods, and they are the ones an optimizer reaches for — `set_lm` and
-//! `with_config` are what let `BestOfN` run the same module against calls that differ, and
+//! `config` are what let `BestOfN` run the same module against calls that differ, and
 //! `demos` is what a bootstrap writes its result into.
 
 use std::marker::PhantomData;
