@@ -1,0 +1,26 @@
+{
+  "source": "litellm 1.93.0 main.completion, under dspy==3.3.0",
+  "litellm_version": "1.93.0",
+  "note": "The endpoint litellm's OpenAI client is constructed with, per combination of the two aliases a trusted load restores. `base_url` wins where both are set.",
+  "cases": [
+    {
+      "block": {
+        "api_base": "https://compiled-against.example/v1"
+      },
+      "endpoint": "https://compiled-against.example/v1"
+    },
+    {
+      "block": {
+        "base_url": "https://the-alias.example/v1"
+      },
+      "endpoint": "https://the-alias.example/v1"
+    },
+    {
+      "block": {
+        "api_base": "https://compiled-against.example/v1",
+        "base_url": "https://the-alias.example/v1"
+      },
+      "endpoint": "https://the-alias.example/v1"
+    }
+  ]
+}

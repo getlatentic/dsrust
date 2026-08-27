@@ -122,29 +122,62 @@ fn a_trusted_load_keeps_the_redirect() {
     let ours = ours.as_object().expect("a block");
 
     assert!(
-        trusted.contains_key("api_base"),
-        "the golden's trusted arm must differ from its default one"
+        trusted.contains_key("api_base") && trusted.contains_key("base_url"),
+        "the golden's trusted arm must carry both aliases for this to mean anything"
     );
+    // The endpoint reached is litellm's answer, not the `api_base` key's: the golden's two aliases
+    // differ on purpose — `https://elsewhere.example/v1` against `https://elsewhere.example` — and
+    // `base_url` wins. This assertion read `api_base` until 2026-08-27 and was pinning the crate's
+    // own behaviour rather than upstream's.
     assert_eq!(
         ours.get("api_base"),
-        trusted.get("api_base"),
-        "a trusted load should reach the endpoint it was compiled against"
+        trusted.get("base_url"),
+        "a trusted load reaches the endpoint litellm would have called"
     );
 
-    // The other two are kept by the sanitiser and then not honoured, so they do not come back out.
-    // `base_url` is litellm's alias for the field `api_base` already set — restoring both would
-    // mean deciding which wins, which is a question only litellm's resolution order answers.
-    // `model_list` configures its router, and this crate has no router to configure. Asserted
-    // rather than left unsaid: a trusted round-trip here is narrower than dspy's, and the place to
-    // find that out is a test rather than a diff of two saved files.
-    for key in ["base_url", "model_list"] {
-        assert!(
-            trusted.contains_key(key),
-            "the golden's trusted arm should carry {key}"
-        );
-        assert!(
-            !ours.contains_key(key),
-            "{key} came back, so this comment is now wrong"
+    // `base_url` is honoured too, and wins where a block carries both — see
+    // `the_alias_wins_where_a_block_carries_both`. It does not come back *out* of a dump, because
+    // this crate writes one endpoint under one name; what it does is decide which endpoint a
+    // trusted load reaches.
+    //
+    // `model_list` is the one half still narrower than dspy: it configures litellm's router, and
+    // this crate has none to configure, so restoring it would store a key nothing can act on.
+    // Asserted rather than left unsaid — the place to find that out is a test rather than a diff
+    // of two saved files.
+    assert!(
+        trusted.contains_key("model_list"),
+        "the golden's trusted arm should carry model_list"
+    );
+    assert!(
+        !ours.contains_key("model_list"),
+        "model_list came back, so this comment is now wrong"
+    );
+}
+
+/// Which endpoint a trusted load reaches when the block names both aliases.
+///
+/// dspy preserves `api_base` and `base_url` through an unsafe load and litellm treats the second as
+/// an alias for the first — `completion` opens with `if base_url is not None: api_base = base_url`,
+/// so the alias wins whenever it is set. `state/base_url_precedence.json` is the endpoint litellm's
+/// own OpenAI client was constructed with under each combination, captured by running it.
+#[test]
+fn the_alias_wins_where_a_block_carries_both() {
+    let golden: Value =
+        serde_json::from_str(include_str!("conformance/state/base_url_precedence.json"))
+            .expect("the golden parses");
+
+    for case in golden["cases"].as_array().expect("cases") {
+        let mut block = serde_json::Map::new();
+        block.insert("model".to_owned(), Value::from("openai/gpt-4o-mini"));
+        for (key, value) in case["block"].as_object().expect("a block") {
+            block.insert(key.clone(), value.clone());
+        }
+        let lm = dsrust::lm::saved::rebuild(&block, true).expect("a trusted rebuild");
+        let theirs = case["endpoint"].as_str().expect("litellm's endpoint");
+        assert_eq!(
+            lm.openai.base_url, theirs,
+            "block {}: the endpoint a trusted load reaches",
+            case["block"]
         );
     }
 }

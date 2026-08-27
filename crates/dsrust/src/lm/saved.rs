@@ -164,13 +164,23 @@ pub fn rebuild(block: &Map<String, Value>, trusted: bool) -> Result<LM> {
     if block.get("use_developer_role").and_then(Value::as_bool) == Some(true) {
         lm = lm.use_developer_role(true);
     }
-    // Present only on a trusted load — `sanitize` has already dropped it otherwise. `base_url` and
-    // `model_list` survive that same load and are *not* applied: the first is litellm's alias for
-    // a field this crate has one of, and the second is its router's, which has no counterpart here
-    // at all. A trusted round-trip therefore keeps the endpoint and loses those two, which is
-    // narrower than dspy and is the direction to be narrow in.
-    if let Some(base_url) = block.get("api_base").and_then(Value::as_str) {
-        lm = lm.openai_base_url(base_url);
+    // Present only on a trusted load — `sanitize` has already dropped both otherwise.
+    //
+    // `base_url` is litellm's alias for `api_base`, and it **wins** when a block carries both:
+    // `litellm/main.py`'s `completion` opens with `if base_url is not None: api_base = base_url`,
+    // unconditionally. Measured rather than read — building the client under each of the three
+    // combinations shows the endpoint it is constructed with — because which alias wins is the
+    // whole of what there was to decide, and a reading of one line is not a run.
+    //
+    // `model_list` is not applied and is the one half still narrower than dspy: it configures
+    // litellm's router, which has no counterpart here, so restoring it would store a key nothing
+    // can act on — the laundering `_sanitize_lm_state` exists to prevent.
+    let endpoint = block
+        .get("base_url")
+        .or_else(|| block.get("api_base"))
+        .and_then(Value::as_str);
+    if let Some(endpoint) = endpoint {
+        lm = lm.openai_base_url(endpoint);
     }
 
     lm.config.temperature = block.get("temperature").and_then(Value::as_f64);
