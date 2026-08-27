@@ -652,6 +652,83 @@ DOES_NOT_EXERCISE_RUST = {
         "dspy's two forward contracts"
     ),
     "test_base_lm_typed_forward_contract_uses_lm_request": "dspy's two forward contracts",
+    # --- dspy.Flex, six suites added 2026-08-27 -------------------------------------------------
+    #
+    # 83 of the 135 tests cross. These do not, and each is here for one of three reasons rather
+    # than as a batch: a `parse_module_class_name` crossing alone moved sixteen of them, so a line
+    # here is a claim that no such crossing is possible, not that none has been tried.
+    #
+    # (a) Python the crate cannot be wrong about, because the shape is unrepresentable in Rust.
+    # `Flex` takes a typed interpreter, so there is no wrong type to reject and no `None` to
+    # refuse; a `Prediction`'s fields are `serde_json::Value` already, so "cannot cross the
+    # boundary" cannot arise and the conversion these two check happens at the type rather than in
+    # a function.
+    "test_bad_interpreter_type_raises": "a Rust Flex takes a typed interpreter; no wrong type exists",
+    "test_bare_instance_is_rejected": "a Rust Flex takes a typed interpreter; no wrong type exists",
+    "test_none_interpreter_factory_is_rejected": (
+        "a Rust Flex takes a typed interpreter; there is no None to refuse"
+    ),
+    "test_default_interpreter_factory_is_python_interpreter": (
+        "which interpreter a bare `dspy.Flex` defaults to, decided by dspy's own constructor"
+    ),
+    "test_accepts_interpreter_factory_only_for_code_executing_kinds": (
+        "dspy inspects `cls.__init__` for an `interpreter_factory` parameter; a Rust module's "
+        "interpreter is a field on the types that have one"
+    ),
+    "test_prediction_to_fields_rejects_non_jsonable": (
+        "a Rust prediction's fields are `serde_json::Value`, so a value that cannot cross the "
+        "boundary is unrepresentable rather than refused"
+    ),
+    "test_prediction_to_fields_serializes_json_mode_values": (
+        "the JSON-mode conversion happens at the type here, not in `fields_of` — crossing it "
+        "would test the shim's own conversion, which is what the bridge exists to prevent"
+    ),
+    "test_state_layout_unchanged_without_a_flex": (
+        "the layout dspy writes for a program holding no Flex at all, which is its own state dict"
+    ),
+    "test_shim_file_literals_match_bridge_constants": (
+        "dspy's shim source against dspy's own constants; the Rust host ships its own shim"
+    ),
+    "test_shim_reaches_host_only_via_registered_tools": (
+        "the same, for what dspy's shim is allowed to reach"
+    ),
+    "test_gepa_plain_module_requires_trainset": "dspy's own argument check, before anything renders",
+    "test_metric_exception_scores_failure_instead_of_aborting": (
+        "a metric that raises is caught by dspy's adapter; the crate's `Feedback` path is held by "
+        "`optimize/gepa/conformance.rs`"
+    ),
+    #
+    # (b) The annotation grammar, which is a claim about *Python* types. `render_annotation` takes
+    # a Python annotation object and a custom-type map; a Rust `FieldKind` already carries the name
+    # dspy would print, so there is nothing on this side to hand it.
+    "test_render_annotation_rejects_what_the_grammar_cannot_carry": (
+        "a claim about Python annotation objects, which a `FieldKind` does not hold"
+    ),
+    "test_render_annotation_round_trips_through_the_signature_parser": (
+        "a claim about Python annotation objects, which a `FieldKind` does not hold"
+    ),
+    #
+    # (c) **A gap, not a boundary.** These assert on the generated baseline's source and on the
+    # sandbox's tool glue, and `rendering::baseline_src` and `flex/bridge.rs` are the crate's
+    # counterparts — no crossing is wired for either, so Python answers. Filed as
+    # `flex-baseline-crossing`. Named individually rather than as a class exemption, so closing it
+    # is a matter of deleting lines and watching the count move.
+    "test_baseline_is_predict_without_tools": "no crossing for `rendering::baseline_src` yet",
+    "test_baseline_is_rlm_with_tools": "no crossing for `rendering::baseline_src` yet",
+    "test_reserved_bridge_tool_names_are_rejected": "no crossing for the tool registry yet",
+    "test_tool_is_in_scope_for_bound_code": "no crossing for the tool registry yet",
+    "test_save_load_roundtrips_tool_using_code": "no crossing for the tool registry yet",
+    "test_load_without_tools_cannot_resolve_them": "no crossing for the tool registry yet",
+    "test_dspy_tool_wrapper_is_available_in_the_sandbox": "no crossing for the tool registry yet",
+    "test_proposer_prompts_only_advertise_names_the_sandbox_defines": (
+        "no crossing for the tool registry yet"
+    ),
+    "test_gepa_proposer_is_told_about_tools": "no crossing for the tool registry yet",
+    "test_self_authored_tool_persists_with_the_code": "no crossing for the tool registry yet",
+    "test_direct_tool_calls_go_through_the_tool_wrapper": "no crossing for the tool registry yet",
+    "test_direct_tool_calls_receive_restored_custom_type_inputs": (
+        "no crossing for the tool registry yet"
+    ),
     "test_base_lm_typed_forward_contract_rejects_non_lm_response_at_call_time": (
         "dspy's two forward contracts"
     ),
@@ -1234,6 +1311,33 @@ def _closing_a_schema_is_rust(request, monkeypatch):
         return {"name": value.__name__, "type": "json_schema", "schema": json.loads(closed)}
 
     monkeypatch.setattr(openai_format, "response_format_to_responses", format_of)
+
+
+def _rust_flex_module_class_name(module_src: str) -> str:
+    """dspy's `parse_module_class_name`, decided by the crate.
+
+    Which class the sandbox instantiates out of the source a proposer wrote. Upstream reads it
+    with `ast` and prefers the first class defining `forward`; the crate scans, because the shape
+    is fixed and it carries no Python parser — so what has to agree is the *choice*, including the
+    fallback to the first class when none defines `forward`.
+    """
+    crossings.record_render()
+    try:
+        return dsrs_bridge.flex_module_class_name(module_src)
+    except ValueError as refused:
+        from dspy.primitives.code_interpreter import CodeInterpreterError
+
+        raise CodeInterpreterError(str(refused)) from refused
+
+
+@pytest.fixture(autouse=True)
+def _flex_bridge_is_rust(request, monkeypatch):
+    """For the Flex suites, the generated module's class name is the crate's answer."""
+    if not request.node.module.__name__.startswith("upstream_test_flex"):
+        return
+    from dspy.predict.flex import bridge
+
+    monkeypatch.setattr(bridge, "parse_module_class_name", _rust_flex_module_class_name)
 
 
 @pytest.fixture(autouse=True)

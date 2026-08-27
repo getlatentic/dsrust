@@ -32,26 +32,6 @@ MANIFEST = ROOT / "scripts" / "upstream_tests.txt"
 #: survives someone asking.
 EXCUSED = {
     # New in dspy 3.3.0, and each decided rather than overlooked.
-    #
-    # `dspy.Flex` is a whole feature this port does not have — its own class, its own GEPA
-    # extension, its own interpreter binding: 1092 lines of source and 2570 of tests.
-    #
-    # This used to read "its docstring calls itself experimental ... porting an API upstream
-    # reserves the right to delete is not a 1.0 obligation". The quote is real — `@experimental`
-    # writes that sentence — but the standard is not this crate's. Six things in the pin carry
-    # that decorator and five are ported and fully classified: `Citation`, `Document`, `Rlm`,
-    # `ReActV2`, and `GEPA`, which alone holds forty ledger entries. Experimental has never been
-    # the line here, so it cannot be the line for this one.
-    #
-    # The real reason is size, which is a schedule and not a boundary. Tracked as `dspy-flex`.
-    "tests/flex/test_flex_binding.py": "dspy.Flex: 1092 lines of source and a host/guest bridge, not ported yet (`dspy-flex`)",
-    "tests/flex/test_flex_gepa.py": "dspy.Flex: 1092 lines of source and a host/guest bridge, not ported yet (`dspy-flex`)",
-    "tests/flex/test_flex_gepa_seed.py": "dspy.Flex: 1092 lines of source and a host/guest bridge, not ported yet (`dspy-flex`)",
-    "tests/flex/test_flex_interpreter.py": "dspy.Flex: 1092 lines of source and a host/guest bridge, not ported yet (`dspy-flex`)",
-    "tests/flex/test_flex_output_types.py": "dspy.Flex: 1092 lines of source and a host/guest bridge, not ported yet (`dspy-flex`)",
-    "tests/flex/test_tools.py": "dspy.Flex: 1092 lines of source and a host/guest bridge, not ported yet (`dspy-flex`)",
-    # Live, by its own docstring: "provider behavior that cannot be verified with the mocked unit
-    # tests". The crate's own live tests carry `#[ignore]` for the same reason.
     "tests/clients/test_lm_direct_live.py": "talks to a live provider",
     # Thirty cases, and not one renders or parses: every one drives dspy's own `Image`/`Audio`/`File`
     # constructors, its `from_path`/`from_url` factories, its deprecation warnings, and `requests`.
@@ -227,7 +207,10 @@ def experimental_is_not_a_line() -> list[str]:
     """No excuse may rest on `@experimental` while the crate ports things carrying it.
 
     `dspy.Flex`'s six files were excused because its docstring says the API "may change or be
-    removed in a future release without warning". The sentence is real — `@experimental` writes it.
+    removed in a future release without warning". They run as of 2026-08-27 — 109 tests, 83 of them
+    crossing into the crate — and the excuse that outlived its reason had by then become "not
+    ported yet", of a module with 1246 lines and its own conformance test. The sentence quoted here
+    is real — `@experimental` writes it.
     The standard is not this crate's: six modules in the pin carry that decorator and five are
     ported and classified, `GEPA` among them with forty ledger entries. An excuse naming a boundary
     the crate does not hold is the shape `SCOPE_EXCLUSIONS` gates for `deferred` ledger rows, and

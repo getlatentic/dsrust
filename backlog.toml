@@ -37,14 +37,14 @@ updated = "2026-07-28"
 # behind while every generated number beside it stayed true.
 [status]
 rust_tests = 1456
-upstream_tests_passing = 1035
-upstream_tests_crossing = 573
-upstream_tests_deciding_signatures = 583
+upstream_tests_passing = 1144
+upstream_tests_crossing = 656
+upstream_tests_deciding_signatures = 643
 # Gaps this port has declared, counted from conftest.py's NOT_YET_IMPLEMENTED. Not the same as the
 # xfails pytest reports: dspy marks two of its own image cases xfail for a gap upstream has.
 xfail_backlog = 4
 upstream_tests_xfailed = 4
-suites_run = 52
+suites_run = 58
 release_stage = "alpha"
 
 # ---------------------------------------------------------------------------
@@ -3794,6 +3794,29 @@ reads its reply — not at the internal type representation. Rust primitives are
 long as the rendered string and the parse are identical. The non-finite float is the worked
 example: `serde_json::Value` cannot hold `inf`, so it crosses as a one-key object and
 `variables.rs` rebuilds the `float('inf')` dspy would have written.
+"""
+
+[[backlog]]
+id = "b16"
+title = "The Flex baseline and the sandbox's tool registry are answered by Python"
+kind = "verification-gap"
+state = "next"
+detail = """
+The six `tests/flex/` suites run as of 2026-08-27: 109 tests, 83 crossing into the crate, none
+failing. Twelve of the twenty-six that do not cross are a gap rather than a boundary.
+
+`test_baseline_is_predict_without_tools` and `test_baseline_is_rlm_with_tools` assert on the
+generated baseline's source. The crate has `rendering::baseline_src` and no bridge function for it,
+so Python answers — and the baseline is prompt bytes: a model reads the source it is asked to
+improve.
+
+The other ten assert on the sandbox's tool glue — the per-forward registry, the `dspy.Tool` wrapper
+in scope for generated code, what a proposer is told about tools, what survives a save. The crate
+reproduces all of it in `predict/flex/bridge.rs` and crosses none of it.
+
+Both are named individually in conftest's `DOES_NOT_EXERCISE_RUST` rather than exempted as a
+class, so closing this is deleting lines and watching the crossing count move. The precedent for
+the size of the win: one `parse_module_class_name` crossing moved sixteen tests at once.
 """
 
 [[backlog]]

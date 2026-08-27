@@ -77,6 +77,8 @@ SUITES=(
   clients/test_lm.py teleprompt/test_ensemble.py teleprompt/test_random_search.py
   utils/test_usage_tracker.py utils/test_settings.py utils/test_saving.py
   utils/test_parallelizer.py utils/test_mcp.py propose/test_grounded_proposer.py
+  flex/test_flex_binding.py flex/test_flex_gepa.py flex/test_flex_gepa_seed.py
+  flex/test_flex_interpreter.py flex/test_flex_output_types.py flex/test_tools.py
 )
 
 # SUITES is an allowlist, so a green run only speaks for the files in it. Reporting that against

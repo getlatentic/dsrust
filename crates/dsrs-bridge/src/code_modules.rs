@@ -444,6 +444,17 @@ pub(crate) fn wire_reasoning_model(model: &str) -> bool {
     dsrust::lm::reasoning_model::on_the_wire(model)
 }
 
+/// dspy `predict/flex/bridge.py::parse_module_class_name`, decided by the crate.
+///
+/// Which class the sandbox instantiates out of the source a proposer wrote. Upstream parses with
+/// `ast` and prefers the first class defining `forward`; `class_name_of` scans, because the shape
+/// is fixed and this crate carries no Python parser — so the scan is the half worth crossing.
+#[pyfunction]
+pub(crate) fn flex_module_class_name(module_src: &str) -> PyResult<String> {
+    dsrust::predict::flex::class_name_of(module_src)
+        .map_err(|error| PyValueError::new_err(format!("{error}")))
+}
+
 /// The Responses-API request body the crate builds for a chat-shaped request.
 ///
 /// dspy has two routes to this body: a typed one over `LMRequest`, which the crate implements, and
