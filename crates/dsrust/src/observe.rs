@@ -402,9 +402,13 @@ mod tests {
 /// `tracing` caches each callsite's interest process-wide: a callsite first reached while no
 /// subscriber exists caches as never-interested, and a thread-local subscriber installed afterwards
 /// sees nothing through it. Both tests using this were green alone and red in the suite, and the
-/// suite's order is what decided which. Rebuilding the cache is not enough either — a test on
-/// another thread re-poisons it mid-run. One subscriber that always exists ends the race, and the
-/// counts land on whichever thread is recording.
+/// suite's order is what decided which. The counts land on whichever thread is recording.
+///
+/// A global subscriber alone was not enough: it is installed lazily by the first call, so a test
+/// thread reaching a span callsite before that lands still poisons it, and the rebuild
+/// `set_global_default` does covers only what is registered by then. So the cache is rebuilt on
+/// every call. Single-threaded the suite has never gone red; at 24 threads both tests failed
+/// together with no spans at all, which is that window and not an ordering.
 #[cfg(test)]
 pub(crate) fn spans_opened_by<T>(
     work: impl Future<Output = T>,
@@ -447,6 +451,13 @@ pub(crate) fn spans_opened_by<T>(
         })
         .as_ref()
         .expect("nothing else in this crate installs a global subscriber");
+    // Every call, not once beside the install. A callsite reached before the subscriber existed
+    // cached its interest against no dispatcher and stays cached; `set_global_default` rebuilds
+    // for the callsites registered *by then*, and another test thread registering one a moment
+    // later slips past that rebuild. Both tests using this went red together in one parallel run
+    // with no spans recorded at all, and green on the next — which is the shape of a callsite
+    // poisoned by an interleaving rather than by an order.
+    tracing::callsite::rebuild_interest_cache();
 
     RECORDING.with_borrow_mut(|recording| *recording = Some(BTreeMap::new()));
     tokio::runtime::Builder::new_current_thread()
@@ -454,7 +465,16 @@ pub(crate) fn spans_opened_by<T>(
         .build()
         .expect("a runtime")
         .block_on(work);
-    RECORDING
+    let opened = RECORDING
         .with_borrow_mut(|recording| recording.take())
-        .unwrap_or_default()
+        .unwrap_or_default();
+    // Not a finding about the work: every caller runs a program, and a program always opens a
+    // `module` span. An empty map means the recorder never saw a callsite — the poisoned-interest
+    // window above — and reporting it as "this optimizer opened no span" is what sent the last
+    // reader looking in the wrong file.
+    assert!(
+        !opened.is_empty(),
+        "no span of any name reached the recorder, so this is the harness and not the run"
+    );
+    opened
 }
