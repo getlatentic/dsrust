@@ -13,7 +13,7 @@ use anyhow::{Result, bail};
 use pyrng::Random;
 
 use super::{BootstrapFewShot, LabeledFewShot};
-use crate::example::{Example, Prediction};
+use crate::example::Example;
 use crate::module::{Module, ProgramState};
 
 /// One attempt and what it scored, in the order dspy records them.
@@ -66,7 +66,7 @@ pub struct BootstrapRandomSearch<M> {
 
 impl<M> BootstrapRandomSearch<M>
 where
-    M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+    M: crate::evaluate::Metric,
 {
     /// dspy's defaults: four bootstrapped demos, sixteen labelled, sixteen candidate sets.
     pub fn new(metric: M) -> Self {
@@ -180,8 +180,8 @@ where
         (shuffled, size)
     }
 
-    fn bootstrap(&self, demos: usize) -> BootstrapFewShot<&M> {
-        let mut optimizer = BootstrapFewShot::new(&self.metric);
+    fn bootstrap(&self, demos: usize) -> BootstrapFewShot<crate::evaluate::MetricRef<'_, M>> {
+        let mut optimizer = BootstrapFewShot::new(crate::evaluate::MetricRef(&self.metric));
         optimizer.max_bootstrapped_demos = demos;
         optimizer.max_labeled_demos = self.max_labeled_demos;
         optimizer.max_rounds = self.max_rounds;
@@ -247,7 +247,7 @@ where
                 .apply(crate::evaluate::Evaluate::new(
                     valset.to_vec(),
                     |example| student.forward(example),
-                    &self.metric,
+                    crate::evaluate::MetricRef(&self.metric),
                 ))
                 .run()
                 .await?
@@ -294,6 +294,7 @@ fn winner(attempts: &[Attempt]) -> Option<(usize, f64)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::example::Prediction;
     use crate::optimize::scripted::{Answers, Solver, trainset};
 
     /// The winner rule on its own: strictly-better replaces, a tie never does.

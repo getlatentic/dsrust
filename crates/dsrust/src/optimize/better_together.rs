@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 use anyhow::{Result, bail};
 
 use crate::evaluate::Evaluate;
-use crate::example::{Example, Prediction};
+use crate::example::Example;
 use crate::module::{Module, ProgramState};
 
 use super::DynOptimizer;
@@ -73,7 +73,7 @@ pub struct BetterTogether<M> {
 
 impl<M> BetterTogether<M>
 where
-    M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+    M: crate::evaluate::Metric,
 {
     /// A meta-optimizer over the named optimizers. The names are what a strategy string uses.
     pub fn new(
@@ -190,7 +190,7 @@ where
             .apply(Evaluate::new(
                 valset.to_vec(),
                 |inputs| student.forward(inputs),
-                |example: &Example, prediction: &Prediction| (self.metric)(example, prediction),
+                crate::evaluate::MetricRef(&self.metric),
             ))
             .run()
             .await;
@@ -251,6 +251,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::example::Prediction;
 
     /// `score` is the metric's average over the valset — every strategy comparison rides on it,
     /// and all three constant-replacement mutants survived because no test read the number back.

@@ -63,7 +63,7 @@ impl Scoring {
     where
         P: Fn(crate::Example) -> F,
         F: std::future::Future<Output = anyhow::Result<crate::Prediction>>,
-        M: Fn(&crate::Example, &crate::Prediction) -> f64,
+        M: crate::evaluate::Metric,
     {
         let evaluate = evaluate.max_errors(self.max_errors);
         match self.num_threads {

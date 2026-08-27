@@ -49,7 +49,7 @@ pub struct COPRO<M> {
 
 impl<M> COPRO<M>
 where
-    M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+    M: crate::evaluate::Metric,
 {
     /// A COPRO at dspy's defaults: breadth 10, depth 3, temperature 1.4, proposing with the same
     /// model the program already uses.
@@ -285,7 +285,7 @@ where
             .apply(Evaluate::new(
                 trainset.to_vec(),
                 |inputs| student.forward(inputs),
-                |example: &Example, prediction: &Prediction| (self.metric)(example, prediction),
+                crate::evaluate::MetricRef(&self.metric),
             ))
             .run()
             .await;
@@ -341,7 +341,7 @@ fn text_field(prediction: &Prediction, name: &str) -> String {
 
 impl<M> Optimizer for COPRO<M>
 where
-    M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+    M: crate::evaluate::Metric,
 {
     fn compile<'a>(
         &'a self,

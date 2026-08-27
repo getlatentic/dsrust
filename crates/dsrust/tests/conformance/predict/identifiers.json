@@ -1,4 +1,7 @@
 {
+  "source": "CPython 3.14.5, via scripts/generate_python_text_fixtures.py",
+  "python_version": "3.14.5",
+  "note": "`str.isidentifier`, which is Unicode's XID_Start/XID_Continue rather than ASCII. It decides whether a `Flex` tool's name can be written into generated code. Keyword-ness is *not* part of it: `class` is an identifier by this test and refused later.",
   "python": {
     "ok": true,
     "_ok": true,
@@ -10,7 +13,7 @@
     "número": true,
     "": false,
     "_": true,
-    "ⅷ": true,
+    "Ⅶ": true,
     "½": false,
     "٢": false,
     "a٢": true,
@@ -18,7 +21,10 @@
     "Ⅰ": true,
     "x́": true,
     "〇": true,
-    "a-": false,
-    "ok_": true
+    "a b": false,
+    "class": true,
+    "None": true,
+    "ok_": true,
+    "__dunder__": true
   }
 }

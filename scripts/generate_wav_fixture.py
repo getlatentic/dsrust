@@ -21,6 +21,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import platform
 import pathlib
 
 import numpy as np
@@ -75,6 +76,8 @@ def main() -> int:
     OUT.write_text(
         json.dumps(
             {
+                "source": f"CPython {platform.python_version()} wave + soundfile, via scripts/generate_wav_fixture.py",
+                "python_version": platform.python_version(),
                 "note": (
                     "soundfile.write(..., format='WAV', subtype='PCM_16'), which is what "
                     "dspy's Audio.from_array emits. libsndfile writes a canonical 44-byte RIFF "

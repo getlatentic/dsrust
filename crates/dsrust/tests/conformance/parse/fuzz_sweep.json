@@ -1,4 +1,6 @@
 {
+ "source": "dspy==3.3.0 ChatAdapter.parse under a seeded fuzz sweep, via scripts/fuzz_parse.py",
+ "dspy_version": "3.3.0",
  "seed": 0,
  "signature": "question -> reasoning: str, answer: str",
  "cases": [

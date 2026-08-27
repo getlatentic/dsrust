@@ -481,30 +481,22 @@ mod cleandoc_tests {
     /// dspy runs a signature's docstring through `inspect.cleandoc`, and a doc comment here plays
     /// the same part — so it is normalised the same way.
     ///
-    /// The expected values were recorded by running Python (see
-    /// `crates/dsrust/tests/conformance/predict/cleandoc.json`), not reasoned out. Three of these
-    /// nine disagree with a per-line one-space strip, which is what this did before: a uniformly
-    /// indented comment, one whose first line is flush against a deeper rest, and one with a tab.
+    /// Read out of `predict/cleandoc.json` rather than transcribed from it. The nine pairs that
+    /// used to be inline here agreed with that golden by hand-copying, so regenerating it moved
+    /// nothing; three of them disagree with a per-line one-space strip, which is what this code
+    /// did before they were recorded.
     #[test]
     fn it_cleans_the_docstring_python_cleans() {
-        for (raw, expected) in [
-            (
-                " Answer the question.\n Be brief.",
-                "Answer the question.\nBe brief.",
-            ),
-            (
-                "     Answer the question.\n     Be brief.",
-                "Answer the question.\nBe brief.",
-            ),
-            ("Answer.\n     Be brief.", "Answer.\nBe brief."),
-            (" Answer.\n   Deeper.\n Back.", "Answer.\n  Deeper.\nBack."),
-            (" Answer.\tBriefly.", "Answer.        Briefly."),
-            ("\n Answer.", "Answer."),
-            (" Answer.\n", "Answer."),
-            (" Answer.\n\n Be brief.", "Answer.\n\nBe brief."),
-            (" Answer.", "Answer."),
-        ] {
-            assert_eq!(cleandoc(raw), expected, "cleandoc({raw:?})");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../dsrust/tests/conformance/predict/cleandoc.json");
+        let raw = std::fs::read_to_string(&path).expect("the golden is committed");
+        let golden: serde_json::Value = serde_json::from_str(&raw).expect("it parses");
+        let cases = golden["cases"].as_object().expect("cases");
+        assert!(cases.len() >= 13, "the golden lost cases: {}", cases.len());
+        for (name, case) in cases {
+            let raw = case["raw"].as_str().expect("a docstring");
+            let expected = case["cleandoc"].as_str().expect("what Python answered");
+            assert_eq!(cleandoc(raw), expected, "case {name:?}: cleandoc({raw:?})");
         }
     }
 }

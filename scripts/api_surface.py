@@ -107,6 +107,7 @@ PORTED_MODULES = [
     "clients/openai_format.py",
     # evaluate
     "evaluate/evaluate.py",
+    "evaluate/auto_evaluation.py",
     "evaluate/metrics.py",
     # core
     "core/types.py",

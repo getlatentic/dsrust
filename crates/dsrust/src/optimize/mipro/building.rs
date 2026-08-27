@@ -8,12 +8,11 @@ use std::future::Future;
 use std::sync::Arc;
 
 use super::MIPROv2;
-use crate::example::{Example, Prediction};
 use crate::lm::DynChatModel;
 
 impl<M> MIPROv2<M>
 where
-    M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+    M: crate::evaluate::Metric,
 {
     /// A MIPROv2 proposing with this model, at upstream's own defaults: `auto="light"`, which
     /// decides the counts, the valset and whether trials run on minibatches.

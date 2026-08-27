@@ -35,7 +35,7 @@ use anyhow::{Result, bail};
 
 use super::Optimizer;
 use super::rng::Rng;
-use crate::example::{Example, Prediction};
+use crate::example::Example;
 use crate::lm::DynChatModel;
 use crate::module::Module;
 use crate::signature::Signature;
@@ -147,7 +147,7 @@ struct RunMode {
 
 impl<M> MIPROv2<M>
 where
-    M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+    M: crate::evaluate::Metric,
 {
     /// dspy `compile(student, trainset=...)`: rewrite the student's instructions in place, leaving it
     /// holding the highest-scoring combination the search found.
@@ -387,7 +387,7 @@ impl Slot {
 
 impl<M> Optimizer for MIPROv2<M>
 where
-    M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+    M: crate::evaluate::Metric,
 {
     fn compile<'a>(
         &'a self,

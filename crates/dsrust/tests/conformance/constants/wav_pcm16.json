@@ -61,5 +61,7 @@
     }
   },
   "libsndfile": "1.2.2",
-  "note": "soundfile.write(..., format='WAV', subtype='PCM_16'), which is what dspy's Audio.from_array emits. libsndfile writes a canonical 44-byte RIFF header and no vendor chunks, which is why this is reproducible."
+  "note": "soundfile.write(..., format='WAV', subtype='PCM_16'), which is what dspy's Audio.from_array emits. libsndfile writes a canonical 44-byte RIFF header and no vendor chunks, which is why this is reproducible.",
+  "python_version": "3.13.5",
+  "source": "CPython 3.13.5 wave + soundfile, via scripts/generate_wav_fixture.py"
 }

@@ -26,6 +26,7 @@ it is recorded in the golden so nobody has to rediscover it.
 from __future__ import annotations
 
 import json
+import platform
 import mimetypes
 import pathlib
 
@@ -61,6 +62,8 @@ def main() -> int:
     OUT.write_text(
         json.dumps(
             {
+                "source": f"CPython {platform.python_version()} mimetypes, via scripts/generate_mimetypes_fixture.py",
+                "python_version": platform.python_version(),
                 "note": (
                     "CPython's built-in mimetypes table. `mimetypes.guess_type` merges system "
                     "files over this, so the entries under `machine_specific` are ones where "

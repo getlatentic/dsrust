@@ -10,7 +10,7 @@ use anyhow::Result;
 
 use super::super::rng::Rng;
 use super::super::{BootstrapFewShot, LabeledFewShot};
-use crate::example::{Example, Prediction};
+use crate::example::Example;
 use crate::module::Module;
 
 /// dspy `min_num_samples`: the smallest a drawn bootstrap size may be.
@@ -31,7 +31,7 @@ pub(super) async fn create_demo_sets<S, M>(
 ) -> Result<Vec<Vec<Vec<Example>>>>
 where
     S: Module + ?Sized,
-    M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+    M: crate::evaluate::Metric,
 {
     let predictors = student.named_predictors().len();
     let mut sets: Vec<Vec<Vec<Example>>> = vec![Vec::new(); predictors];
@@ -80,12 +80,12 @@ fn bootstrap<M>(
     max_labeled: usize,
     metric: &M,
     metric_threshold: Option<f64>,
-) -> BootstrapFewShot<&M> {
+) -> BootstrapFewShot<crate::evaluate::MetricRef<'_, M>> {
     BootstrapFewShot {
         max_bootstrapped_demos: max_bootstrapped,
         max_labeled_demos: max_labeled,
         metric_threshold,
-        ..BootstrapFewShot::new(metric)
+        ..BootstrapFewShot::new(crate::evaluate::MetricRef(metric))
     }
 }
 

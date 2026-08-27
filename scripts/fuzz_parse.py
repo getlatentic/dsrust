@@ -23,6 +23,8 @@ import sys
 
 import dspy
 
+from pins import require
+
 OUT = pathlib.Path(__file__).parent.parent / "target" / "parse_fuzz.json"
 
 #: Where `--sweep` writes. Committed, and small enough to read: it exists so the differential
@@ -34,7 +36,6 @@ SWEEP = (
 )
 
 FIELDS = ["reasoning", "answer"]
-
 
 def names(rng: random.Random) -> list[str]:
     """Field names for one reply, **with repeats**.
@@ -178,6 +179,9 @@ def main() -> None:
     out.write_text(
         json.dumps(
             {
+                "source": f"dspy=={require('dspy')} ChatAdapter.parse under a seeded fuzz sweep, "
+                "via scripts/fuzz_parse.py",
+                "dspy_version": require("dspy"),
                 "seed": seed,
                 "signature": "question -> reasoning: str, answer: str",
                 "cases": cases,

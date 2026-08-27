@@ -15,11 +15,61 @@ use futures_util::StreamExt;
 
 use crate::example::{Example, Prediction};
 
+pub mod auto;
 pub mod dpr;
 pub mod metrics;
 
 /// dspy `settings.max_errors`: how many rows may fail before a run gives up.
 pub const DEFAULT_MAX_ERRORS: usize = 10;
+
+/// What scores one row — dspy's metric, which is any callable.
+///
+/// A plain closure is one through the blanket impl below, so `|example, prediction| …` keeps
+/// working and costs a `ready` future per row, which is nothing beside a program call.
+///
+/// It is a trait rather than an `Fn` bound because upstream's metrics include **LM judges**:
+/// `SemanticF1` and `CompleteAndGrounded` are `dspy.Module`s that call a model to score, and a
+/// port whose metric could not await would have had them as values a caller cannot pass to
+/// `Evaluate` or to any optimizer. dspy needs no such seam — every callable is a metric there —
+/// so this is the shape that keeps the *capability* the same rather than the spelling.
+pub trait Metric: Send + Sync {
+    /// This prediction's score against that example's labels.
+    fn score<'a>(
+        &'a self,
+        example: &'a Example,
+        prediction: &'a Prediction,
+    ) -> std::pin::Pin<Box<dyn Future<Output = f64> + Send + 'a>>;
+}
+
+/// A borrowed metric, which is how an optimizer lends its own to a scoring pass without giving it
+/// up.
+///
+/// A newtype rather than `impl Metric for &M`, which cannot be written: `&F` is itself an `Fn`, so
+/// that impl overlaps the closure one below and the compiler refuses both.
+pub struct MetricRef<'a, M: ?Sized>(pub &'a M);
+
+impl<M: Metric + ?Sized> Metric for MetricRef<'_, M> {
+    fn score<'a>(
+        &'a self,
+        example: &'a Example,
+        prediction: &'a Prediction,
+    ) -> std::pin::Pin<Box<dyn Future<Output = f64> + Send + 'a>> {
+        self.0.score(example, prediction)
+    }
+}
+
+impl<F> Metric for F
+where
+    F: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+{
+    fn score<'a>(
+        &'a self,
+        example: &'a Example,
+        prediction: &'a Prediction,
+    ) -> std::pin::Pin<Box<dyn Future<Output = f64> + Send + 'a>> {
+        Box::pin(std::future::ready(self(example, prediction)))
+    }
+}
 
 /// What one example scored, and what produced that score.
 ///
@@ -102,7 +152,7 @@ impl<P, M, F> Evaluate<P, M>
 where
     P: Fn(Example) -> F,
     F: Future<Output = anyhow::Result<Prediction>>,
-    M: Fn(&Example, &Prediction) -> f64,
+    M: Metric,
 {
     pub fn new(devset: Vec<Example>, program: P, metric: M) -> Self {
         Self {
@@ -231,7 +281,7 @@ where
         };
         let (prediction, score) = match (self.program)(inputs).await {
             Ok(prediction) => {
-                let score = (self.metric)(&example, &prediction);
+                let score = self.metric.score(&example, &prediction).await;
                 (Ok(prediction), score)
             }
             Err(error) => (Err(format!("{error:#}")), self.failure_score),

@@ -90,7 +90,7 @@ impl BootstrapFewShot<fn(&Example, &Prediction) -> f64> {
 
 impl<M> BootstrapFewShot<M>
 where
-    M: Fn(&Example, &Prediction) -> f64,
+    M: crate::evaluate::Metric,
 {
     /// dspy `compile(student, teacher=None, trainset=...)`: the student teaches itself.
     ///
@@ -210,7 +210,7 @@ where
         let prediction = prediction?;
         let accepted = match &self.metric {
             None => true,
-            Some(metric) => self.accepts(metric(example, &prediction)),
+            Some(metric) => self.accepts(metric.score(example, &prediction).await),
         };
         Ok(accepted.then(|| Solved {
             program: augmented_turn(&inputs, &prediction.example),
@@ -253,7 +253,7 @@ where
 
 impl<M> Optimizer for BootstrapFewShot<M>
 where
-    M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+    M: crate::evaluate::Metric,
 {
     fn compile<'a>(
         &'a self,

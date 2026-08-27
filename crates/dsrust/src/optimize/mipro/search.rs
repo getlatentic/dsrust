@@ -10,14 +10,14 @@ use anyhow::{Result, bail};
 use super::minibatch::{self, Averages};
 use super::{MIPROv2, RunMode, Slot, Trial, apply, search_space};
 use crate::evaluate::{Evaluate, Pass};
-use crate::example::{Example, Prediction};
+use crate::example::Example;
 use crate::module::Module;
 
 use super::super::rng::Rng;
 
 impl<M> MIPROv2<M>
 where
-    M: Fn(&Example, &Prediction) -> f64 + Send + Sync,
+    M: crate::evaluate::Metric,
 {
     /// Seed the sampler with the default program as a baseline trial, run `num_trials` more, and
     /// leave the student on the best combination. Candidate zero of every predictor is its original
@@ -164,7 +164,7 @@ where
             .apply(Evaluate::new(
                 examples.to_vec(),
                 |inputs| student.forward(inputs),
-                |example: &Example, prediction: &Prediction| (self.metric)(example, prediction),
+                crate::evaluate::MetricRef(&self.metric),
             ))
             .pass(pass)
             .run()

@@ -26,6 +26,8 @@
     }
   },
   "note": "CPython's built-in mimetypes table. `mimetypes.guess_type` merges system files over this, so the entries under `machine_specific` are ones where dspy's answer depends on the host.",
+  "python_version": "3.13.5",
+  "source": "CPython 3.13.5 mimetypes, via scripts/generate_mimetypes_fixture.py",
   "types": {
     ".aac": "audio/aac",
     ".bin": "application/octet-stream",
