@@ -68,7 +68,12 @@ UNREACHED = 0
 #: port's claims about the other side live: that numpy normalises a cumulative sum by its last
 #: entry, that CPython's `&` iterates the smaller operand, that dspy reads litellm's registry per
 #: call. Each is a fact the Rust item was built from, and a wrong one is a wrong item.
-INVENTED = 106
+#:
+#: **Zero.** Naming what each row was about found two claims with nothing behind them: `system_of`
+#: said dspy reads `messages[0]` inline for a system prompt, and nothing in the pinned tree
+#: separates a system message at all; and a `DummyLM` mode described as taking an answers dict by
+#: some other shape than the dict-of-dicts upstream matches against the final message.
+INVENTED = 0
 
 #: A reason that points at something: "reproduced as X", "handled by Y".
 SUBSTITUTION = re.compile(
@@ -399,11 +404,19 @@ def members_by_type() -> dict[str, set[str]]:
 
 
 def upstream_files() -> set[str]:
-    """Every `.py` path under the pinned dspy, relative to its package root."""
-    root = ROOT / "third_party" / "dspy" / "dspy"
-    if not root.is_dir():
-        return set()
-    return {str(path.relative_to(root)) for path in root.rglob("*.py")}
+    """Every `.py` path under the pinned packages, relative to each package root.
+
+    gepa as well as dspy: this crate reproduces that package too, and eight reasons cite one of its
+    files — `proposer/merge.py`, `core/adapter.py` — which read as dspy paths that do not exist
+    until it is here.
+    """
+    roots = [ROOT / "third_party" / "dspy" / "dspy"]
+    roots += sorted((ROOT / ".venv" / "lib").glob("*/site-packages/gepa"))
+    found: set[str] = set()
+    for root in roots:
+        if root.is_dir():
+            found |= {str(path.relative_to(root)) for path in root.rglob("*.py")}
+    return found
 
 
 def package_names() -> tuple[set[str], list[str]]:
@@ -495,7 +508,11 @@ def main() -> int:
                     parts = ident.split("::")
                     if not (parts[0][0].isupper() or len(parts) > 1):
                         continue
-                    if not any(part in names for part in parts):
+                    # In *either* tree. A substitution usually points at Rust, but not always:
+                    # `RoundRobinReflectionComponentSelector` is the gepa class a round-robin
+                    # cursor lives on, and rejecting it for being Python would be crying wolf at
+                    # a correct name because the sentence happened to say "lives on".
+                    if not any(part in names or part in words for part in parts):
                         missing.append((key, "identifier", ident))
 
             # A **qualified** path is unambiguously Rust wherever it appears, so it is checked on
