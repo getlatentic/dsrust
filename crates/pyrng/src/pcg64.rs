@@ -97,27 +97,38 @@ pub struct Pcg64 {
 }
 
 impl Pcg64 {
-    /// `np.random.default_rng(seed)`, seeded through `SeedSequence` as numpy does.
-    pub fn seeded(seed: u64) -> Self {
+    /// The `(state, stream)` numpy's `SeedSequence` derives for a seed, before any stepping.
+    ///
+    /// numpy asks it for four *64-bit* words — eight 32-bit ones paired up, low half first — and
+    /// builds each 128-bit value as `first << 64 | second`. So the pair order is little-endian and
+    /// the pair-of-pairs order is big-endian, and reading all four words one way gives a valid
+    /// PCG64 stream that is not numpy's.
+    ///
+    /// Public because it is the half that belongs to *numpy* rather than to PCG: handing these two
+    /// values to an independent PCG64 must produce the same stream, which is what
+    /// `agrees_with_rand_pcg` asserts.
+    pub fn seed_values(seed: u64) -> (u128, u128) {
         let words = seed_sequence::generate_state(seed, 8);
-        // numpy asks `SeedSequence` for four *64-bit* words — which is these eight paired up, low
-        // half first — and then builds each 128-bit value as `first << 64 | second`. So the pair
-        // order is little-endian and the pair-of-pairs order is big-endian, and reading all four
-        // words one way gives a valid PCG64 stream that is not numpy's.
         let read = |at: usize| -> u128 {
             let low = |at: usize| (words[at] as u64) | ((words[at + 1] as u64) << 32);
             ((low(at) as u128) << 64) | (low(at + 2) as u128)
         };
-        // numpy seeds the increment first — `(inc << 1) | 1` — then advances once, then adds the
-        // initial state and advances again. Seeding the state directly would give a valid PCG64
-        // stream and the wrong one.
-        let increment = (read(4) << 1) | 1;
+        (read(0), read(4))
+    }
+
+    /// `np.random.default_rng(seed)`, seeded through `SeedSequence` as numpy does.
+    pub fn seeded(seed: u64) -> Self {
+        let (state, stream) = Self::seed_values(seed);
+        // numpy seeds the increment first — `(stream << 1) | 1` — then advances once, then adds
+        // the initial state and advances again. Seeding the state directly would give a valid
+        // PCG64 stream and the wrong one.
+        let increment = (stream << 1) | 1;
         let mut generator = Self {
             state: 0,
             increment,
         };
         generator.step();
-        generator.state = generator.state.wrapping_add(read(0));
+        generator.state = generator.state.wrapping_add(state);
         generator.step();
         generator
     }

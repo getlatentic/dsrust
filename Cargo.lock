@@ -1050,6 +1050,8 @@ dependencies = [
 name = "pyrng"
 version = "0.1.0-alpha.2"
 dependencies = [
+ "rand_core",
+ "rand_pcg",
  "serde_json",
 ]
 

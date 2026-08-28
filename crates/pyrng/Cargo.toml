@@ -15,3 +15,9 @@ description = "Byte-faithful Rust reproductions of Python's Mersenne-Twister RNG
 # float. Here the goldens' probabilities are *inputs* to `choice`, so a rounded one would change the
 # draw rather than the comparison — see the note in dsrust-gepa/Cargo.toml for where it was caught.
 serde_json = { version = "1", features = ["float_roundtrip"] }
+# A second, independent oracle for PCG64's core. `rand_pcg::Lcg128Xsl64` is officially `pcg64` and
+# uses the same multiplier and the same XSL-RR output; asserting agreement is what settles whether
+# the hand-written stepper is the algorithm or merely something that matches numpy on five seeds.
+# A dev-dependency: this crate ships with none, and reproducing Python is what it is for.
+rand_pcg = "0.10"
+rand_core = "0.10"

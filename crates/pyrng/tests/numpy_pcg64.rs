@@ -80,3 +80,31 @@ fn the_poisson_draws_are_numpys() {
         "both branches have to be reached for this to be a test of the branch: {branches:?}"
     );
 }
+
+/// The stepper is PCG64 itself, not merely something that matches numpy on five seeds.
+///
+/// `rand_pcg::Lcg128Xsl64` is officially `pcg64`: same 128-bit LCG multiplier
+/// (`0x2360ED051FC65DA44385DF649FCCF645`), same XSL-RR output, and its `new(state, stream)` does
+/// what numpy's `pcg64_srandom_r` does — increment `(stream << 1) | 1`, step, add the state, step.
+/// So handing it the two values numpy's `SeedSequence` derived must give numpy's stream.
+///
+/// This is what tells the two halves apart. If the seeding were wrong and the stepper right, this
+/// test would still pass while the golden failed; if the stepper were wrong, both would fail. The
+/// golden alone could not say which.
+#[test]
+fn agrees_with_rand_pcg() {
+    use rand_core::Rng;
+
+    for seed in [0u64, 1, 7, 42, 2024, 999_999] {
+        let (state, stream) = Pcg64::seed_values(seed);
+        let mut ours = Pcg64::seeded(seed);
+        let mut theirs = rand_pcg::Lcg128Xsl64::new(state, stream);
+        for at in 0..32 {
+            assert_eq!(
+                ours.next_u64(),
+                theirs.next_u64(),
+                "seed {seed}, word {at}: the hand-written stepper left PCG64"
+            );
+        }
+    }
+}
