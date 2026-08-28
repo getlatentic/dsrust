@@ -30,7 +30,14 @@ import sys
 import tomllib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-LEDGER = ROOT / "scripts" / "api_ledger.toml"
+#: Both classification tables. `api_ledger.toml` justifies a symbol inside a ported module;
+#: `unported_modules.toml` justifies a whole module being outside them. The reasons in the second
+#: make the same kind of claim as the reasons in the first — `COPRO.__init__` dropped `verbose`,
+#: `named_parameters` sets `a.b[0].c` — so they earn the same rules rather than a prose exemption.
+LEDGERS = [
+    ROOT / "scripts" / "api_ledger.toml",
+    ROOT / "scripts" / "unported_modules.toml",
+]
 
 #: Capability claims that name nothing a checker can look at — "this crate caches", with no
 #: identifier, file or path to go and read.
@@ -489,7 +496,10 @@ def names_in(pinned: pathlib.Path) -> set[str]:
 
 
 def main() -> int:
-    ledger = tomllib.loads(LEDGER.read_text())
+    ledger = {}
+    for path in LEDGERS:
+        for section, table in tomllib.loads(path.read_text()).items():
+            ledger.setdefault(section, {}).update(table)
     names, files, by_file = tree()
     everything = everything_by_type()
     goldens = {str(path.relative_to(ROOT)) for path in (ROOT / "crates").rglob("*.json")}

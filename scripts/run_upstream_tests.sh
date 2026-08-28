@@ -115,6 +115,10 @@ echo "==> API surface"
 "$VENV/bin/python" "$ROOT/scripts/check_api_surface.py"
 # The same question the other way round: what this crate invented, which the walk above cannot see.
 python3 "$ROOT/scripts/check_rust_surface.py"
+# And the modules the walk above never reaches. `check_api_surface` measures the ported list; it
+# says nothing about the 73 modules outside it, which held 137 public symbols justified only by a
+# parenthesis in a docstring that had gone stale. This makes the two lists exhaustive and disjoint.
+"$VENV/bin/python" "$ROOT/scripts/check_unported_modules.py"
 # And the reasons themselves, which nothing checked until a substitution claim was wrong twice —
 # `callbacks` and both `log_dir` entries each pointed at tracing spans that were not there.
 python3 "$ROOT/scripts/check_ledger_claims.py"

@@ -28,10 +28,13 @@ import pinned_constructors
 ROOT = pathlib.Path(__file__).parent.parent
 DSPY = ROOT / "third_party" / "dspy" / "dspy"
 
-#: The dspy modules this crate ports, relative to `third_party/dspy/dspy`. A module absent here is
-#: out of scope for API conformance — either not ported (KNN, the avatar/simba
-#: optimizers) or infrastructure with no public surface to mirror. Adding a module here is a claim
-#: that the crate reproduces its public API, checked against the ledger.
+#: The dspy modules this crate ports, relative to `third_party/dspy/dspy`. Adding a module here is
+#: a claim that the crate reproduces its public API, checked against the ledger.
+#:
+#: A module absent here is not unexamined: `unported_modules.toml` classifies every one of them
+#: with a reason, and `check_unported_modules.py` fails if the two lists are not exhaustive and
+#: disjoint. That table replaced a parenthesis in this comment, which named the avatar and SIMBA
+#: optimizers as unported and went on saying so after SIMBA was ported.
 PORTED_MODULES = [
     # adapters
     "adapters/base.py",
