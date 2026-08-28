@@ -9,6 +9,7 @@
 pub mod cpython;
 pub mod mt19937;
 pub mod numpy;
+pub mod pcg64;
 
 pub use cpython::Random;
 pub use mt19937::Mt19937;

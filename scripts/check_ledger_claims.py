@@ -186,6 +186,7 @@ CITED_ELSEWHERE = {
     "serde_json", "vorbis_rs",
     # CPython's and numpy's C sources, which `pyrng` reproduces and no `.py` file holds.
     "genrand_res53", "genrand_uint32", "init_by_array", "init_genrand", "rk_double", "rk_random",
+    "pcg64_next64", "random_poisson", "random_poisson_mult", "next_double",
     # This repo's own names that are not code: an environment variable, and a case *inside* a
     # golden rather than a definition anywhere.
     "DSRS_CACHEDIR", "evaluate_abandoned",
@@ -460,7 +461,10 @@ def pinned_words() -> tuple[set[str], list[str]]:
     found: set[str] = set()
     unread: list[str] = []
     roots = [ROOT / "third_party" / "dspy"]
-    for package in ("gepa", "litellm", "json_repair"):
+    # numpy as well: `pyrng` reproduces two of its generators, so a reason naming `SeedSequence`
+    # or `default_rng` is a claim about a package this port follows exactly as dspy is. Its *C*
+    # sources — `rk_random`, `rk_double` — stay in `CITED_ELSEWHERE`, since no tree here holds them.
+    for package in ("gepa", "litellm", "json_repair", "numpy"):
         hits = sorted((ROOT / ".venv" / "lib").glob(f"*/site-packages/{package}"))
         roots += hits
         if not hits:
