@@ -126,7 +126,7 @@ fn unlisted(tag: &str) -> String {
 #[tokio::test]
 async fn the_probe_asks_the_configured_host_and_carries_its_credential() {
     let stub = Stub::answering(json!({ "template": "{{ if .Tools }}{{ end }}" }));
-    let lm = LM::new(&unlisted("carries"))
+    let lm = LM::new(unlisted("carries"))
         .expect("a valid reference")
         .ollama_host(&stub.host)
         .ollama_api_key("hosted-secret");
@@ -149,7 +149,7 @@ async fn the_probe_asks_the_configured_host_and_carries_its_credential() {
 #[tokio::test]
 async fn an_unauthenticated_host_is_asked_without_a_credential() {
     let stub = Stub::answering(json!({ "template": "{{ .Prompt }}" }));
-    let lm = LM::new(&unlisted("bare"))
+    let lm = LM::new(unlisted("bare"))
         .expect("a valid reference")
         .ollama_host(&stub.host);
 
@@ -162,7 +162,7 @@ async fn an_unauthenticated_host_is_asked_without_a_credential() {
 /// program or claim capabilities it never confirmed.
 #[tokio::test]
 async fn a_host_that_cannot_be_reached_grants_nothing() {
-    let lm = LM::new(&unlisted("unreachable"))
+    let lm = LM::new(unlisted("unreachable"))
         .expect("a valid reference")
         // Port 9 is discard: nothing listens, and the connection is refused rather than hanging.
         .ollama_host("http://127.0.0.1:9");

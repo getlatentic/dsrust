@@ -22,7 +22,7 @@ fn configure_live() -> String {
     let model =
         std::env::var("MODEL").unwrap_or_else(|_| "ggml-org/gemma-3-1b-it-GGUF:Q4_K_M".to_owned());
     configure(
-        LM::new(&format!("openai/{model}"))
+        LM::new(format!("openai/{model}"))
             .expect("a model id")
             .openai_base_url(&base_url)
             .openai_api_key("not-needed-locally"),

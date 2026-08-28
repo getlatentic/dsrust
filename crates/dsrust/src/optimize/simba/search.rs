@@ -347,7 +347,7 @@ pub(super) fn slate(winners: usize, num_candidates: usize) -> Vec<usize> {
 /// order before it.
 pub(super) fn next_batch(
     rng: &mut Random,
-    indices: &mut Vec<usize>,
+    indices: &mut [usize],
     cursor: &mut usize,
     bsize: usize,
     trainset: usize,

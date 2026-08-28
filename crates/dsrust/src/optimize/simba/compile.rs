@@ -117,7 +117,7 @@ impl<M: Metric> Simba<M> {
                 step.strategies.push((strategy, applied));
 
                 candidates.push(student.dump_state());
-                if candidates.len() >= self.num_candidates + 1 {
+                if candidates.len() > self.num_candidates {
                     break;
                 }
             }

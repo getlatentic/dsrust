@@ -42,8 +42,7 @@ impl<'de> Deserialize<'de> for Audio {
             serde_json::Value::Object(fields)
                 if fields.contains_key("data") && fields.contains_key("audio_format") =>
             {
-                let encoded =
-                    Encoded::deserialize(&value).map_err(|error| D::Error::custom(error))?;
+                let encoded = Encoded::deserialize(&value).map_err(D::Error::custom)?;
                 Ok(Self {
                     data: encoded.data,
                     audio_format: encoded.audio_format,

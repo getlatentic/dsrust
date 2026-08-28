@@ -24,6 +24,11 @@ use super::super::reasoning_model::on_the_wire;
 /// temperature that is neither unset nor `1`.
 ///
 /// `endpoint` is dspy's, and reaches the caller in the issue line: `chat` or `responses`.
+// The `Err` is 192 bytes: `LmFailure` is dspy's `LMUnsupportedFeatureError` flattened, and it
+// carries the refused features and the issue behind each one because that is what lets a caller
+// drop a feature and retry. `Box`ing it would cost both call sites their `?` into `anyhow` —
+// `Box<LmFailure>` is not an `Error` — to save 192 bytes on the way to an HTTP request.
+#[allow(clippy::result_large_err)]
 pub(super) fn checked(
     config: &api::LmConfig,
     model: &str,
@@ -42,10 +47,11 @@ pub(super) fn checked(
     }
     // Upstream's `config.temperature in {None, 1}`: unset is the default and 1.0 *is* the default,
     // so neither conflicts with reasoning.
-    match config.temperature {
-        None => return Ok(()),
-        Some(temperature) if temperature == 1.0 => return Ok(()),
-        Some(_) => {}
+    if config
+        .temperature
+        .is_none_or(|temperature| temperature == 1.0)
+    {
+        return Ok(());
     }
     let effort = effort.unwrap_or_default();
     let temperature = config.temperature.unwrap_or_default();

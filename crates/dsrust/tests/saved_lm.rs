@@ -119,11 +119,11 @@ fn no_credential_reaches_a_saved_block() {
 fn a_model_that_cannot_describe_itself_writes_null() {
     struct Silent;
     impl ChatModel for Silent {
-        fn forward<'a>(
+        async fn forward<'a>(
             &'a self,
             _request: &'a dsrust::lm::api::LmRequest,
-        ) -> impl Future<Output = anyhow::Result<dsrust::lm::api::LmResponse>> + Send + 'a {
-            async { anyhow::bail!("not asked") }
+        ) -> anyhow::Result<dsrust::lm::api::LmResponse> {
+            anyhow::bail!("not asked")
         }
     }
     assert_eq!(ChatModel::dump_state(&Silent), None);

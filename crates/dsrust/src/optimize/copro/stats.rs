@@ -73,7 +73,7 @@ impl CoproStats {
     }
 
     /// The ten highest scores, descending — dspy sorts every evaluated candidate and slices.
-    pub(super) fn top_ten(scores: &mut Vec<f64>) -> &[f64] {
+    pub(super) fn top_ten(scores: &mut [f64]) -> &[f64] {
         scores.sort_by(|left, right| right.total_cmp(left));
         &scores[..scores.len().min(10)]
     }

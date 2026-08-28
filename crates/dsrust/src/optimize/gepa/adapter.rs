@@ -68,6 +68,17 @@ pub(super) struct Adapter<'a, S: Module + ?Sized, M> {
     rng: Random,
 }
 
+/// What the caller settles before a run and never changes during it.
+///
+/// Named rather than passed one by one because the four together are what a reader has to hold to
+/// know how a run will behave, and `new`'s other five are the program and its data.
+pub(super) struct Settings {
+    pub failure_score: f64,
+    pub num_threads: usize,
+    pub proposer: Option<Arc<dyn super::InstructionProposer>>,
+    pub seed: u64,
+}
+
 impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
     pub(super) fn new(
         student: &'a mut S,
@@ -75,11 +86,14 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
         reflection: Arc<dyn DynChatModel>,
         trainset: &'a [Example],
         valset: &'a [Example],
-        failure_score: f64,
-        num_threads: usize,
-        proposer: Option<Arc<dyn super::InstructionProposer>>,
-        seed: u64,
+        settings: Settings,
     ) -> Self {
+        let Settings {
+            failure_score,
+            num_threads,
+            proposer,
+            seed,
+        } = settings;
         let has_flexes = !student.named_flexes().is_empty();
         Self {
             student,
@@ -98,16 +112,16 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
         }
     }
 
-    /// Keep each example's prediction while scoring — gepa's `track_best_outputs`.
-    ///
-    /// A builder rather than a tenth positional argument to [`new`](Self::new), which is already
-    /// carrying more than a reader can hold.
     /// gepa's `add_format_failure_as_feedback`.
     pub(super) fn reflecting_on_format_failures(mut self, add: bool) -> Self {
         self.add_format_failure_as_feedback = add;
         self
     }
 
+    /// Keep each example's prediction while scoring — gepa's `track_best_outputs`.
+    ///
+    /// A builder rather than another argument to [`new`](Self::new), for the reason
+    /// [`Settings`] exists.
     pub(super) fn tracking_outputs(mut self, track: bool) -> Self {
         self.track_best_outputs = track;
         self
@@ -372,10 +386,12 @@ mod tests {
             std::sync::Arc::new(crate::DummyLM::new([])),
             &trainset,
             &trainset,
-            0.0,
-            1,
-            None,
-            0,
+            Settings {
+                failure_score: 0.0,
+                num_threads: 1,
+                proposer: None,
+                seed: 0,
+            },
         );
         adapter.captured = vec![Captured {
             example: example! { question: "capital of France?" },
@@ -461,10 +477,12 @@ mod tests {
                 std::sync::Arc::new(crate::DummyLM::new([])),
                 &trainset,
                 &trainset,
-                0.0,
-                1,
-                None,
-                seed,
+                Settings {
+                    failure_score: 0.0,
+                    num_threads: 1,
+                    proposer: None,
+                    seed,
+                },
             );
             let instruction = golden["instruction"].as_str().expect("the instruction");
             adapter.captured = questions
@@ -531,10 +549,12 @@ mod tests {
             std::sync::Arc::new(crate::DummyLM::new([])),
             &[],
             &[],
-            0.0,
-            1,
-            None,
-            seed,
+            Settings {
+                failure_score: 0.0,
+                num_threads: 1,
+                proposer: None,
+                seed,
+            },
         )
     }
 
@@ -776,10 +796,12 @@ mod failed_parse_tests {
             std::sync::Arc::new(crate::DummyLM::new([])),
             &[],
             &[],
-            failure_score,
-            1,
-            None,
-            0,
+            Settings {
+                failure_score,
+                num_threads: 1,
+                proposer: None,
+                seed: 0,
+            },
         );
         adapter
             .evaluate(&examples, &Candidate::new(), true)
@@ -925,10 +947,12 @@ mod failed_parse_tests {
             std::sync::Arc::new(crate::DummyLM::new([])),
             &[],
             &[],
-            0.0,
-            1,
-            None,
-            0,
+            Settings {
+                failure_score: 0.0,
+                num_threads: 1,
+                proposer: None,
+                seed: 0,
+            },
         )
         .reflecting_on_format_failures(add_format_failure_as_feedback);
         adapter.evaluate(&examples, &Candidate::new(), true).await;

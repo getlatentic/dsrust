@@ -59,6 +59,7 @@ impl RandomState {
 
 /// numpy `searchsorted(cdf, u, side="right")`: the count of entries less than or equal to `u`,
 /// which for a normalised CDF and a `u` in `[0, 1)` is the chosen category.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn searchsorted_right(cdf: &[f64], u: f64) -> usize {
     // `partition_point`, for the reason `cpython::bisect_right` uses it: a halving loop terminates
     // only because `(low + high) / 2` stays strictly inside the bounds, and changing that

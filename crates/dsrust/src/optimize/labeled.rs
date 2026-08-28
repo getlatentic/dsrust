@@ -63,28 +63,26 @@ impl LabeledFewShot {
 }
 
 impl Optimizer for LabeledFewShot {
-    fn compile<'a>(
+    async fn compile<'a>(
         &'a self,
         student: &'a mut dyn Module,
         teacher: Option<&'a mut dyn Module>,
         trainset: &'a [Example],
         valset: Option<&'a [Example]>,
-    ) -> impl Future<Output = anyhow::Result<()>> + Send + 'a {
-        async move {
-            if valset.is_some() {
-                return Err(anyhow::anyhow!(
-                    "LabeledFewShot samples demos from the trainset and never scores a candidate, \
-                     so it has no valset to score on"
-                ));
-            }
-            if teacher.is_some() {
-                return Err(anyhow::anyhow!(
-                    "LabeledFewShot draws demos from the trainset and has no teacher to learn from"
-                ));
-            }
-            LabeledFewShot::compile(self, student, trainset);
-            Ok(())
+    ) -> anyhow::Result<()> {
+        if valset.is_some() {
+            return Err(anyhow::anyhow!(
+                "LabeledFewShot samples demos from the trainset and never scores a candidate, \
+                 so it has no valset to score on"
+            ));
         }
+        if teacher.is_some() {
+            return Err(anyhow::anyhow!(
+                "LabeledFewShot draws demos from the trainset and has no teacher to learn from"
+            ));
+        }
+        LabeledFewShot::compile(self, student, trainset);
+        Ok(())
     }
 }
 

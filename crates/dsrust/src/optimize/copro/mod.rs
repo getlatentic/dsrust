@@ -343,26 +343,20 @@ impl<M> Optimizer for COPRO<M>
 where
     M: crate::evaluate::Metric,
 {
-    fn compile<'a>(
+    async fn compile<'a>(
         &'a self,
         student: &'a mut dyn Module,
         teacher: Option<&'a mut dyn Module>,
         trainset: &'a [Example],
         valset: Option<&'a [Example]>,
-    ) -> impl Future<Output = Result<()>> + Send + 'a {
-        async move {
-            if valset.is_some() {
-                bail!(
-                    "COPRO scores on the trainset, as upstream's compile does — it takes no valset"
-                );
-            }
-            if teacher.is_some() {
-                bail!(
-                    "COPRO optimizes instructions from a metric and has no teacher to learn from"
-                );
-            }
-            COPRO::compile(self, student, trainset).await
+    ) -> Result<()> {
+        if valset.is_some() {
+            bail!("COPRO scores on the trainset, as upstream's compile does — it takes no valset");
         }
+        if teacher.is_some() {
+            bail!("COPRO optimizes instructions from a metric and has no teacher to learn from");
+        }
+        COPRO::compile(self, student, trainset).await
     }
 }
 

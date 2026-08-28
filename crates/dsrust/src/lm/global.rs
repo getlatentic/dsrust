@@ -54,6 +54,15 @@ pub fn configure_model(http: reqwest::Client, lm: Arc<dyn DynChatModel>) {
 /// Hold the returned guard for as long as the test uses the model, which means binding it:
 /// `let _configured = install_for_test(...)` and not `let _ = ...`, which drops it at once.
 #[cfg(test)]
+/// Installs `lm` as the process-wide default and returns the token that keeps other installing
+/// tests out until it drops.
+///
+/// The guard is *meant* to be held across the test's awaits — that is the whole of what it does,
+/// and it is why each caller carries an `await_holding_lock` allow. It cannot deadlock the way
+/// that lint guards against: `SERIAL` is taken by nothing but this function, so the code under
+/// test never waits on it, and [`current`] reads the model by cloning out rather than by holding
+/// anything. The `!Send` guard also pins these tests to the current-thread runtime, which the
+/// compiler enforces rather than trusting.
 pub(crate) fn install_for_test(lm: Arc<dyn DynChatModel>) -> std::sync::MutexGuard<'static, ()> {
     static SERIAL: std::sync::Mutex<()> = std::sync::Mutex::new(());
     // A test that panicked while holding this poisoned it. Its failure is already reported, and

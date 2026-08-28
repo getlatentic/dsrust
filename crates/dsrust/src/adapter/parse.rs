@@ -91,7 +91,7 @@ fn section_value(field: &OutField, text: &str) -> Value {
         // them, since a bare quoted string at the top level is a literal and not a JSON value.
         FieldKind::Json(_) => {
             let candidate = repair::loads(text).unwrap_or_else(|_| Value::from(""));
-            match candidate == Value::from("") && !text.is_empty() {
+            match candidate == "" && !text.is_empty() {
                 true => repair::python_literal(text).unwrap_or_else(|| Value::from(text)),
                 false => candidate,
             }

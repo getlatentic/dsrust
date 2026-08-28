@@ -51,12 +51,11 @@ async fn a_configured_model_answers_for_the_reference_it_was_built_from() {
 async fn a_model_that_says_nothing_grants_nothing() {
     struct Silent;
     impl ChatModel for Silent {
-        fn forward<'a>(
+        async fn forward<'a>(
             &'a self,
             _request: &'a dsrust::lm::api::LmRequest,
-        ) -> impl std::future::Future<Output = anyhow::Result<dsrust::lm::api::LmResponse>> + Send + 'a
-        {
-            async { unreachable!("not called") }
+        ) -> anyhow::Result<dsrust::lm::api::LmResponse> {
+            unreachable!("not called")
         }
     }
     assert_eq!(Silent.capabilities().await, Capabilities::default());

@@ -304,10 +304,7 @@ impl Parser {
             }
             if let Some(default) = prop_schema.get("default") {
                 let key_path = format!("{path}.{key}");
-                obj.insert(
-                    key.clone(),
-                    repairer.copy_json_value(default, &key_path, "default")?,
-                );
+                obj.insert(key.clone(), repairer.copy_json_value(default));
                 repairer.log("Inserted default value for missing property", &key_path);
             }
         }

@@ -102,6 +102,7 @@ fn configure(lm: Arc<Scripted>) -> std::sync::MutexGuard<'static, ()> {
     guard
 }
 
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn the_agent_calls_a_tool_then_finishes() {
     let lm = Arc::new(Scripted::new(&[
@@ -133,6 +134,7 @@ async fn the_agent_calls_a_tool_then_finishes() {
     assert!(seen[1].contains("The weather in Tokyo is sunny."));
 }
 
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn the_budget_stops_a_model_that_never_finishes() {
     // Without a cap this would loop against a paid provider forever.
@@ -153,6 +155,7 @@ async fn the_budget_stops_a_model_that_never_finishes() {
     );
 }
 
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_failing_tool_reports_into_the_trajectory_and_the_episode_continues() {
     let lm = Arc::new(Scripted::new(&[

@@ -258,6 +258,35 @@ fn quoted_member(value: &str) -> String {
     }
 }
 
+/// The Python name dspy prints for a kind, or `None` where the kind has no single one.
+///
+/// dspy's `SIMPLE_TYPES`, as the sandbox's generated `SUBMIT` signature spells them: only these six
+/// can be written into a Python `def`. Anything else — an enum, a declared struct — goes over
+/// unannotated, which is what upstream does with a type it cannot spell.
+///
+/// ```
+/// use dsrust::signature::{FieldKind, python_name};
+///
+/// assert_eq!(python_name(&FieldKind::Int), Some("int"));
+/// // `Reasoning` renders as `str` — it is a str-like custom type, and its annotation is what a
+/// // model is shown rather than the type's own name.
+/// assert_eq!(python_name(&FieldKind::Reasoning), Some("str"));
+/// // An enum prints the type that named its members, so there is no fixed word for it here.
+/// assert_eq!(python_name(&FieldKind::Enum("Status".to_owned())), None);
+/// ```
+pub fn python_name(kind: &FieldKind) -> Option<&'static str> {
+    Some(match kind {
+        FieldKind::Str | FieldKind::Reasoning => "str",
+        FieldKind::Bool => "bool",
+        FieldKind::Int => "int",
+        FieldKind::Float => "float",
+        // The annotation is what a prompt carries, so it is what says list from dict.
+        FieldKind::Json(json) if json.annotation.starts_with("list") => "list",
+        FieldKind::Json(json) if json.annotation.starts_with("dict") => "dict",
+        _ => return None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -376,33 +405,4 @@ mod tests {
             "Literal['active', 'done']"
         );
     }
-}
-
-/// The Python name dspy prints for a kind, or `None` where the kind has no single one.
-///
-/// dspy's `SIMPLE_TYPES`, as the sandbox's generated `SUBMIT` signature spells them: only these six
-/// can be written into a Python `def`. Anything else — an enum, a declared struct — goes over
-/// unannotated, which is what upstream does with a type it cannot spell.
-///
-/// ```
-/// use dsrust::signature::{FieldKind, python_name};
-///
-/// assert_eq!(python_name(&FieldKind::Int), Some("int"));
-/// // `Reasoning` renders as `str` — it is a str-like custom type, and its annotation is what a
-/// // model is shown rather than the type's own name.
-/// assert_eq!(python_name(&FieldKind::Reasoning), Some("str"));
-/// // An enum prints the type that named its members, so there is no fixed word for it here.
-/// assert_eq!(python_name(&FieldKind::Enum("Status".to_owned())), None);
-/// ```
-pub fn python_name(kind: &FieldKind) -> Option<&'static str> {
-    Some(match kind {
-        FieldKind::Str | FieldKind::Reasoning => "str",
-        FieldKind::Bool => "bool",
-        FieldKind::Int => "int",
-        FieldKind::Float => "float",
-        // The annotation is what a prompt carries, so it is what says list from dict.
-        FieldKind::Json(json) if json.annotation.starts_with("list") => "list",
-        FieldKind::Json(json) if json.annotation.starts_with("dict") => "dict",
-        _ => return None,
-    })
 }

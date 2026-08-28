@@ -11,9 +11,6 @@ use futures_util::{Stream, StreamExt};
 
 use super::{Capabilities, api};
 
-/// The object-safe form of [`ChatModel`], so a model can be stored behind a pointer.
-///
-
 /// The events a model that cannot stream reports: the answer, whole, as one delta.
 ///
 /// What upstream's scripted models give a listener, and what the defaults below hand back so that

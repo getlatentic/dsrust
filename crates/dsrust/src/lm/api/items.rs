@@ -21,6 +21,11 @@ use super::{LmMessage, LmPart, LmResponse};
 ///
 /// The three `From` impls are what let a call site stay prose — `"hello"`, an [`LmMessage`], or an
 /// [`LmResponse`] handed straight back in.
+// 536 bytes against the next variant's 288, because `Response` carries a whole `LmResponse`.
+// These are call arguments — a handful per call, built and consumed at the call site — and the
+// three `From` impls are what let that call site stay prose. A `Box` in one variant is a `Box`
+// every `From` and every match has to spell.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq)]
 pub enum LmItem {
     Message(LmMessage),

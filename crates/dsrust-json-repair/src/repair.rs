@@ -161,7 +161,7 @@ impl Repair {
     pub fn from_file(&self, path: impl AsRef<std::path::Path>) -> Result<Value> {
         let text = std::fs::read_to_string(path.as_ref())
             .map_err(|error| Error::new(&format!("{}: {error}", path.as_ref().display())))?;
-        self.from_text_of_a_file(&text)
+        self.parse_file_text(&text)
     }
 
     /// The value in a reader, as `json_repair.load(fd)` reads it.
@@ -178,7 +178,7 @@ impl Repair {
         reader
             .read_to_string(&mut text)
             .map_err(|error| Error::new(&error.to_string()))?;
-        self.from_text_of_a_file(&text)
+        self.parse_file_text(&text)
     }
 
     /// A value written out as `json.dumps` writes it, honouring [`Repair::ensure_ascii`].
@@ -196,7 +196,9 @@ impl Repair {
         crate::dump::dumps(value, self.ensure_ascii)
     }
 
-    fn from_text_of_a_file(&self, text: &str) -> Result<Value> {
+    /// What [`Repair::from_file`] and [`Repair::from_reader`] share: the parse with the suffix
+    /// fast path off, which is the whole of what upstream does differently for file input.
+    fn parse_file_text(&self, text: &str) -> Result<Value> {
         self.run(text, None, Suffix::Repair).map(|(value, _)| value)
     }
 

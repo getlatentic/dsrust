@@ -283,6 +283,49 @@ pub trait Module: Send + Sync {
     }
 }
 
+/// What asking one module answers with.
+///
+/// dspy has one call spelling across both ways of declaring a task, because every module there
+/// answers with the same dynamic `Prediction`. Rust need not give that up to match: the spelling
+/// is shared and the answer stays whatever the module promised, so a derived task still hands
+/// back its own outputs struct and `result.answer` still means the field.
+pub trait Ask {
+    type Answer;
+
+    fn ask<'a>(
+        &'a self,
+        inputs: Example,
+    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Self::Answer>> + Send + 'a>>;
+}
+
+/// Answer with the fields the module parsed, which is what a task declared by its field names
+/// has to give.
+///
+/// Written per module rather than blanket over [`Module`], because a derived task is a `Module`
+/// too and answers with something better than a `Prediction`. One blanket impl would make that
+/// unreachable.
+#[macro_export]
+macro_rules! asks_with_a_prediction {
+    ($module:ty) => {
+        impl $crate::Ask for $module {
+            type Answer = $crate::Prediction;
+
+            fn ask<'a>(
+                &'a self,
+                inputs: $crate::Example,
+            ) -> ::std::pin::Pin<
+                ::std::boxed::Box<
+                    dyn ::std::future::Future<Output = ::anyhow::Result<$crate::Prediction>>
+                        + Send
+                        + 'a,
+                >,
+            > {
+                $crate::Module::forward(self, inputs)
+            }
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -426,47 +469,4 @@ mod tests {
         assert_eq!(module.demos.len(), 1);
         assert_eq!(module.signature.instructions, "Echo it exactly.");
     }
-}
-
-/// What asking one module answers with.
-///
-/// dspy has one call spelling across both ways of declaring a task, because every module there
-/// answers with the same dynamic `Prediction`. Rust need not give that up to match: the spelling
-/// is shared and the answer stays whatever the module promised, so a derived task still hands
-/// back its own outputs struct and `result.answer` still means the field.
-pub trait Ask {
-    type Answer;
-
-    fn ask<'a>(
-        &'a self,
-        inputs: Example,
-    ) -> std::pin::Pin<Box<dyn Future<Output = Result<Self::Answer>> + Send + 'a>>;
-}
-
-/// Answer with the fields the module parsed, which is what a task declared by its field names
-/// has to give.
-///
-/// Written per module rather than blanket over [`Module`], because a derived task is a `Module`
-/// too and answers with something better than a `Prediction`. One blanket impl would make that
-/// unreachable.
-#[macro_export]
-macro_rules! asks_with_a_prediction {
-    ($module:ty) => {
-        impl $crate::Ask for $module {
-            type Answer = $crate::Prediction;
-
-            fn ask<'a>(
-                &'a self,
-                inputs: $crate::Example,
-            ) -> ::std::pin::Pin<
-                ::std::boxed::Box<
-                    dyn ::std::future::Future<Output = ::anyhow::Result<$crate::Prediction>>
-                        + Send
-                        + 'a,
-                >,
-            > {
-                $crate::Module::forward(self, inputs)
-            }
-        }
-    };
 }

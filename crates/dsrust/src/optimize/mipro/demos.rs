@@ -19,20 +19,32 @@ const MIN_NUM_SAMPLES: u64 = 1;
 /// Build the demo sets, indexed `[predictor][set]`. Each set is produced by clearing the program's
 /// demos (the in-place stand-in for dspy's `reset_copy`), running the set's strategy, and reading
 /// the demos back. The program is left demo-free.
+/// The four counts MIPROv2 settles before it starts drawing, which move together and are read
+/// together: how many sets to build, and what each strategy is allowed to put in one.
+pub(super) struct Bounds {
+    pub num_candidate_sets: usize,
+    pub max_labeled: usize,
+    pub max_bootstrapped: usize,
+    pub metric_threshold: Option<f64>,
+}
+
 pub(super) async fn create_demo_sets<S, M>(
     student: &mut S,
-    num_candidate_sets: usize,
     trainset: &[Example],
-    max_labeled: usize,
-    max_bootstrapped: usize,
     metric: &M,
-    metric_threshold: Option<f64>,
     rng: &mut Rng,
+    bounds: &Bounds,
 ) -> Result<Vec<Vec<Vec<Example>>>>
 where
     S: Module + ?Sized,
     M: crate::evaluate::Metric,
 {
+    let &Bounds {
+        num_candidate_sets,
+        max_labeled,
+        max_bootstrapped,
+        metric_threshold,
+    } = bounds;
     let predictors = student.named_predictors().len();
     let mut sets: Vec<Vec<Vec<Example>>> = vec![Vec::new(); predictors];
 
@@ -196,13 +208,16 @@ mod tests {
             let mut rng = Rng::seeded(case["seed"].as_u64().expect("seed"));
             let sets = create_demo_sets(
                 &mut student,
-                case["num_sets"].as_u64().expect("num_sets") as usize,
                 &train,
-                case["max_labeled"].as_u64().expect("max_labeled") as usize,
-                case["max_bootstrapped"].as_u64().expect("max_bootstrapped") as usize,
                 &exact_match,
-                None,
                 &mut rng,
+                &Bounds {
+                    num_candidate_sets: case["num_sets"].as_u64().expect("num_sets") as usize,
+                    max_labeled: case["max_labeled"].as_u64().expect("max_labeled") as usize,
+                    max_bootstrapped: case["max_bootstrapped"].as_u64().expect("max_bootstrapped")
+                        as usize,
+                    metric_threshold: None,
+                },
             )
             .await
             .expect("builds the sets");

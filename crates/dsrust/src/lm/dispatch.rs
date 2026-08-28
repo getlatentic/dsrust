@@ -10,8 +10,6 @@
 //! string to a wire format. The trait is what makes the built-ins interchangeable with a caller's
 //! own provider.
 
-use std::future::Future;
-
 use anyhow::Result;
 use futures_util::Stream;
 
@@ -60,31 +58,29 @@ impl ChatModel for LM {
 
     /// What this model's provider will honour natively: what the caller stated, else the registry
     /// dspy consults, else — for an ollama model the registry does not list — the server itself.
-    fn capabilities(&self) -> impl Future<Output = Capabilities> + Send {
-        async move {
-            if let Some(stated) = self.capabilities {
-                return stated;
-            }
-            match self.model.provider {
-                // The `/api/generate` wire cannot carry a native tool call — litellm renders tools
-                // into the prompt on this route rather than sending them — so this configured LM
-                // has no native feature to offer, whatever the registry says about the model.
-                Provider::Ollama => Capabilities::default(),
-                // The chat route can. litellm keeps ollama's rows under an `ollama/` key and falls
-                // through to the server for a model it does not list; so does this.
-                Provider::OllamaChat => Capabilities::listed(&format!("ollama/{}", self.model.id))
-                    .unwrap_or(
-                        ollama::capabilities(
-                            &global::client(),
-                            &self.ollama_host,
-                            self.ollama_api_key.as_deref(),
-                            self.timeout,
-                            &self.model.id,
-                        )
-                        .await,
-                    ),
-                _ => Capabilities::listed(&self.model.reference()).unwrap_or_default(),
-            }
+    async fn capabilities(&self) -> Capabilities {
+        if let Some(stated) = self.capabilities {
+            return stated;
+        }
+        match self.model.provider {
+            // The `/api/generate` wire cannot carry a native tool call — litellm renders tools
+            // into the prompt on this route rather than sending them — so this configured LM
+            // has no native feature to offer, whatever the registry says about the model.
+            Provider::Ollama => Capabilities::default(),
+            // The chat route can. litellm keeps ollama's rows under an `ollama/` key and falls
+            // through to the server for a model it does not list; so does this.
+            Provider::OllamaChat => Capabilities::listed(&format!("ollama/{}", self.model.id))
+                .unwrap_or(
+                    ollama::capabilities(
+                        &global::client(),
+                        &self.ollama_host,
+                        self.ollama_api_key.as_deref(),
+                        self.timeout,
+                        &self.model.id,
+                    )
+                    .await,
+                ),
+            _ => Capabilities::listed(&self.model.reference()).unwrap_or_default(),
         }
     }
 

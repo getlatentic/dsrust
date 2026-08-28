@@ -6,7 +6,6 @@
 //! message content is the answer and any `tool_calls` become [`ToolCall`](api::LmPart::ToolCall)
 //! parts.
 
-use std::future::Future;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
@@ -29,44 +28,35 @@ pub(crate) struct Chat<'a> {
 }
 
 impl ChatModel for Chat<'_> {
-    fn forward<'a>(
-        &'a self,
-        call: &'a api::LmRequest,
-    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
-        async move {
-            let http = &crate::lm::global::client();
-            let request = http
-                .post(format!("{}/api/chat", self.host))
-                .timeout(self.timeout)
-                .json(&request(self.model, call));
-            let response = authorized(request, self.api_key)
-                .send()
-                .await
-                .map_err(|error| {
-                    crate::lm::LmFailure::from_transport(&error, self.model, "ollama")
-                })?;
-            let status = response.status();
-            let headers = response.headers().clone();
-            let body: Value = response
-                .json()
-                .await
-                .explain("ollama response was not JSON")?;
-            if !status.is_success() {
-                if let Some(too_long) =
-                    crate::lm::ContextWindowExceeded::detected(self.model, &body)
-                {
-                    return Err(too_long.into());
-                }
-                return Err(
-                    crate::lm::LmFailure::from_status(status.as_u16(), refusal(&body))
-                        .on_model(self.model)
-                        .from_provider("ollama")
-                        .headers(&headers)
-                        .into(),
-                );
+    async fn forward<'a>(&'a self, call: &'a api::LmRequest) -> Result<api::LmResponse> {
+        let http = &crate::lm::global::client();
+        let request = http
+            .post(format!("{}/api/chat", self.host))
+            .timeout(self.timeout)
+            .json(&request(self.model, call));
+        let response = authorized(request, self.api_key)
+            .send()
+            .await
+            .map_err(|error| crate::lm::LmFailure::from_transport(&error, self.model, "ollama"))?;
+        let status = response.status();
+        let headers = response.headers().clone();
+        let body: Value = response
+            .json()
+            .await
+            .explain("ollama response was not JSON")?;
+        if !status.is_success() {
+            if let Some(too_long) = crate::lm::ContextWindowExceeded::detected(self.model, &body) {
+                return Err(too_long.into());
             }
-            reply(self.model, &body)
+            return Err(
+                crate::lm::LmFailure::from_status(status.as_u16(), refusal(&body))
+                    .on_model(self.model)
+                    .from_provider("ollama")
+                    .headers(&headers)
+                    .into(),
+            );
         }
+        reply(self.model, &body)
     }
 }
 

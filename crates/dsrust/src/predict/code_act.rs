@@ -529,7 +529,10 @@ mod conformance {
             .collect()
     }
 
-    fn ours(signature: &Signature) -> (Vec<(String, String)>, Vec<(String, String)>) {
+    /// A field's name and the type it declares.
+    type NameAndType = (String, String);
+
+    fn ours(signature: &Signature) -> (Vec<NameAndType>, Vec<NameAndType>) {
         (
             signature
                 .inputs

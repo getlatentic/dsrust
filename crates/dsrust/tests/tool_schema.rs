@@ -127,6 +127,7 @@ fn every_tool_is_numbered_in_the_order_supplied_with_finish_last() {
     );
 }
 
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn the_schema_reaches_the_prompt_the_model_is_actually_sent() {
     let lm = Arc::new(DummyLM::new([
@@ -149,6 +150,7 @@ async fn the_schema_reaches_the_prompt_the_model_is_actually_sent() {
     );
 }
 
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_call_with_a_bad_argument_becomes_an_observation_rather_than_aborting() {
     // dspy reports the failure into the trajectory so the model can correct itself against

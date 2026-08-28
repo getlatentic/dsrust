@@ -33,6 +33,7 @@ fn signature() -> Signature {
     )
 }
 
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_predict_answers_from_the_script() {
     let lm = Arc::new(DummyLM::new([example! { answer: "Paris" }]));
@@ -52,6 +53,7 @@ async fn a_predict_answers_from_the_script() {
     assert!(lm.asked()[0].last_message().contains("capital of France?"));
 }
 
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_scripted_bool_survives_the_render_and_parse_round_trip() {
     // The dummy renders a field the way the adapter does, which spells a bool Python's way.
@@ -76,6 +78,7 @@ async fn a_scripted_bool_survives_the_render_and_parse_round_trip() {
     assert_eq!(prediction.get("sure"), Some(&Value::Bool(true)));
 }
 
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_compiled_program_shows_its_demos_to_the_model() {
     let lm = Arc::new(DummyLM::new([example! { answer: "Madrid" }]));
@@ -97,6 +100,7 @@ async fn a_compiled_program_shows_its_demos_to_the_model() {
     assert_eq!(lm.asked()[0].turns().len(), 5);
 }
 
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_keyed_dummy_suits_a_loop_whose_order_the_model_chooses() {
     let lm = Arc::new(DummyLM::keyed([
@@ -129,6 +133,7 @@ async fn a_keyed_dummy_suits_a_loop_whose_order_the_model_chooses() {
 ///
 /// Measured against dspy 3.3.0b1 with the same script: `prediction.answer` is `red`,
 /// `prediction.completions.answer` is `["red", "blue", "green"]`.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_call_asking_for_several_answers_holds_all_of_them() {
     let lm = Arc::new(DummyLM::new([
@@ -169,6 +174,7 @@ async fn a_call_asking_for_several_answers_holds_all_of_them() {
 
 /// A call asking for one answer carries no completions, which is every existing caller — upstream's
 /// single-candidate `Prediction` reads the same way.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_call_asking_for_one_answer_carries_no_completions() {
     let lm = Arc::new(DummyLM::new([example! { answer: "Paris" }]));

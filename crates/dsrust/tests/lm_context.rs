@@ -56,6 +56,7 @@ fn answered(prediction: &Prediction) -> String {
 
 /// A program built against the configured model asks the scoped one inside the block, and the
 /// configured one again outside it — without being rebuilt, which is the whole point.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_scope_redirects_a_program_that_was_already_built() {
     let _serial = SERIAL
@@ -97,6 +98,7 @@ async fn a_scope_redirects_a_program_that_was_already_built() {
 
 /// A nested program — a module inside a module — reaches the scoped model too, however deep.
 /// `set_lm` would have to be threaded through every predictor to do the same.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_scope_reaches_a_nested_program() {
     let _serial = SERIAL
@@ -141,6 +143,7 @@ async fn a_scope_reaches_a_nested_program() {
 /// This is why the scope is a future rather than a guard: a thread-local set once and held across
 /// an `.await` would be read by whichever piece of work the runtime polled next, and `Evaluate`
 /// runs its rows exactly that way.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn interleaved_scopes_do_not_borrow_each_others_model() {
     let _serial = SERIAL

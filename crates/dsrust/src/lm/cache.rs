@@ -301,13 +301,8 @@ mod tests {
 
     /// The dummy never awaits anything real, so a trivial executor keeps these synchronous.
     fn futures_lite_block_on<F: std::future::Future>(future: F) -> F::Output {
-        use std::task::{Context, Poll, Wake, Waker};
-        struct Noop;
-        impl Wake for Noop {
-            fn wake(self: std::sync::Arc<Self>) {}
-        }
-        let waker = Waker::from(std::sync::Arc::new(Noop));
-        let mut context = Context::from_waker(&waker);
+        use std::task::{Context, Poll, Waker};
+        let mut context = Context::from_waker(Waker::noop());
         let mut future = Box::pin(future);
         loop {
             if let Poll::Ready(value) = future.as_mut().poll(&mut context) {

@@ -40,7 +40,7 @@ impl SchemaRepairer {
                 };
                 let key_path = format!("{path}.{key}");
                 if let Some(filled) =
-                    self.fill_missing_required_for_salvage(Some(&prop_schema.1), &key_path)?
+                    self.fill_missing_required_for_salvage(Some(&prop_schema.1))?
                 {
                     fields.insert(key.clone(), filled);
                     self.log(
@@ -74,10 +74,7 @@ impl SchemaRepairer {
                 );
             } else if prop_schema.get("default").is_some() && !config.required.contains(key) {
                 let default = prop_schema.get("default").expect("just checked");
-                repaired.insert(
-                    key.clone(),
-                    self.copy_json_value(default, &key_path, "default")?,
-                );
+                repaired.insert(key.clone(), self.copy_json_value(default));
                 self.log("Inserted default value for missing property", &key_path);
             }
         }

@@ -303,6 +303,13 @@ fn is_false(value: &bool) -> bool {
     !*value
 }
 
+/// A bare string is text, which is the coercion dspy's variadic role constructors do.
+impl<T: Into<String>> From<T> for LmPart {
+    fn from(text: T) -> Self {
+        Self::text(text)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -430,12 +437,5 @@ mod tests {
         assert_eq!(part.as_text(), None);
         assert_eq!(part.legacy_block(), Some(&block));
         assert_eq!(LmPart::text("real prose").as_text(), Some("real prose"));
-    }
-}
-
-/// A bare string is text, which is the coercion dspy's variadic role constructors do.
-impl<T: Into<String>> From<T> for LmPart {
-    fn from(text: T) -> Self {
-        Self::text(text)
     }
 }

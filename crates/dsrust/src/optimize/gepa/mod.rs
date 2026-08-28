@@ -326,10 +326,12 @@ where
                 self.reflection_model.clone(),
                 trainset,
                 valset,
-                self.failure_score,
-                self.num_threads,
-                self.proposer.clone(),
-                self.seed,
+                adapter::Settings {
+                    failure_score: self.failure_score,
+                    num_threads: self.num_threads,
+                    proposer: self.proposer.clone(),
+                    seed: self.seed,
+                },
             )
             .tracking_outputs(self.track_best_outputs)
             .reflecting_on_format_failures(self.add_format_failure_as_feedback),
@@ -359,21 +361,19 @@ where
     /// GEPA has no teacher — it optimizes instructions from a metric. With no valset it scores on
     /// the whole trainset, which is upstream's own `valset = valset or trainset` and *not* the
     /// 20/80 split MIPROv2 makes: two optimizers, two defaults.
-    fn compile<'a>(
+    async fn compile<'a>(
         &'a self,
         student: &'a mut dyn Module,
         teacher: Option<&'a mut dyn Module>,
         trainset: &'a [Example],
         valset: Option<&'a [Example]>,
-    ) -> impl Future<Output = Result<()>> + Send + 'a {
-        async move {
-            if teacher.is_some() {
-                bail!("GEPA optimizes instructions from a metric and has no teacher to learn from");
-            }
-            self.compile(student, trainset, valset.unwrap_or(trainset))
-                .await?;
-            Ok(())
+    ) -> Result<()> {
+        if teacher.is_some() {
+            bail!("GEPA optimizes instructions from a metric and has no teacher to learn from");
         }
+        self.compile(student, trainset, valset.unwrap_or(trainset))
+            .await?;
+        Ok(())
     }
 }
 

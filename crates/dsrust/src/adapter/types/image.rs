@@ -69,7 +69,7 @@ impl Image {
                 bytes.len()
             );
         };
-        Ok(Self::reference(&crate::resource::data_uri(
+        Ok(Self::reference(crate::resource::data_uri(
             media_type,
             &crate::resource::encode(bytes),
         )))

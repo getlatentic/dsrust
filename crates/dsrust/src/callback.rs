@@ -349,6 +349,9 @@ mod tests {
     /// these same points. Two things close that gap — [`Counting::seen`] keys on the call, and the
     /// tests that can use [`watched_by`] do, since a scoped watcher lives in a thread-local and is
     /// therefore invisible to work on any other thread.
+    /// Registers `callbacks` process-wide and returns the token that keeps other tests in this
+    /// file out until it drops. Held across awaits on purpose, for the reason
+    /// [`crate::lm::global::install_for_test`] gives: `SERIAL` is taken by nothing else.
     fn install(callbacks: Vec<Arc<dyn Callback>>) -> std::sync::MutexGuard<'static, ()> {
         static SERIAL: Mutex<()> = Mutex::new(());
         let guard = SERIAL
@@ -460,6 +463,7 @@ mod tests {
     /// asked, and silent — which is exactly how it failed: `streamify`'s status messages came out
     /// empty with the callback correctly installed. A short-circuit has to know about everything
     /// the thing it short-circuits would have told.
+    #[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
     #[tokio::test]
     async fn a_scoped_watcher_is_seen_by_the_interest_check() {
         let _installed = install(Vec::new());

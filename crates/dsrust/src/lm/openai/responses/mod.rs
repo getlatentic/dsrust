@@ -13,17 +13,21 @@ use anyhow::{Result, anyhow};
 use futures_util::Stream;
 use serde_json::{Value, json};
 
-use super::{JsonFormat, provider_extras, response};
-use crate::lm::api::{self, Metadata};
+use super::{JsonFormat, response};
+use crate::lm::api;
 use crate::lm::streaming::Framing;
 
 mod media;
+mod parts;
 mod schema;
 mod stream;
+mod tools;
 
 pub use schema::close_object_schemas;
 
+use parts::{content_item_parts, function_call_part};
 use stream::frame;
+use tools::{apply_responses_tool_choice, tool_item};
 
 // -------- request: LmRequest -> Responses body --------
 
@@ -371,52 +375,6 @@ pub fn responses_to_lm_response(body: &Value, fallback_model: &str) -> api::LmRe
     }
 }
 
-/// dspy's `response_content_item_to_parts`: a text item (or a bare `{text}`) as text, a refusal as a
-/// refusal part, a function call as a tool call. Image/audio/file output items are not modelled here.
-fn content_item_parts(item: &Value) -> Vec<api::LmPart> {
-    let item_type = item["type"].as_str();
-    let text = item["text"].as_str();
-    if matches!(item_type, Some("text" | "output_text" | "input_text"))
-        || (text.is_some() && item_type.is_none())
-    {
-        return vec![api::LmPart::text(text.unwrap_or_default())];
-    }
-    match item_type {
-        Some("refusal" | "output_refusal") => vec![refusal(item)],
-        Some("tool_call" | "function_call") => vec![function_call_part(item)],
-        Some(other) => media::part(other, item).into_iter().collect(),
-        None => Vec::new(),
-    }
-}
-
-/// dspy's `refusal_to_part`: the decline text read from whichever field the item carried it in.
-fn refusal(item: &Value) -> api::LmPart {
-    let text = item["refusal"]
-        .as_str()
-        .or_else(|| item["text"].as_str())
-        .or_else(|| item["content"].as_str())
-        .unwrap_or_default();
-    api::LmPart::refusal(text)
-}
-
-/// dspy's `responses_function_call_to_part`: name and arguments at the top level (not under
-/// `function`), the whole raw item kept as provider data.
-fn function_call_part(item: &Value) -> api::LmPart {
-    let arguments = item["arguments"].as_str().unwrap_or("{}");
-    let mut provider_data: Metadata = item.as_object().cloned().unwrap_or_default();
-    let args = match serde_json::from_str::<Value>(arguments) {
-        Ok(Value::Object(map)) => map,
-        parsed => super::unreadable_arguments(&mut provider_data, arguments, parsed.err()),
-    };
-    api::LmPart::ToolCall {
-        id: item["call_id"].as_str().map(str::to_owned),
-        name: item["name"].as_str().unwrap_or_default().to_owned(),
-        args,
-        provider_data,
-        metadata: Metadata::new(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -679,61 +637,4 @@ mod tests {
             "the streamed reply equals the non-streamed one"
         );
     }
-}
-
-/// dspy 3.3.0's `tool_to_openai_responses`: the Responses API's function-tool shape.
-///
-/// Flat, where the chat dialect nests under `function` — `{type, name, parameters}` with the
-/// optional fields beside them rather than inside. Until 3.3.0 both wires shared
-/// `tool_to_openai`, so this wire sent the chat shape and OpenAI took it; the two renderers split
-/// when `strict` arrived, and the provider extras land at the top level here for the same reason
-/// they land under `function` there — each dialect puts them where it puts its function fields.
-fn tool_item(tool: &api::LmToolSpec) -> Value {
-    let mut data = json!({
-        "type": tool.r#type,
-        "name": tool.name,
-        "parameters": tool.parameters,
-    });
-    if let Some(description) = &tool.description {
-        data["description"] = json!(description);
-    }
-    if let Some(strict) = tool.strict {
-        data["strict"] = json!(strict);
-    }
-    for (key, value) in provider_extras(tool) {
-        data[key] = value.clone();
-    }
-    data
-}
-
-/// dspy 3.3.0's `tool_choice_to_openai_responses`: the Responses API's flat `tool_choice`.
-///
-/// `{"type": "function", "name": …}`, where the chat dialect nests the name under `"function"`.
-/// Both wires shared one renderer until 3.3.0.
-///
-/// And this one **refuses** a constraint the wire cannot express, where the chat renderer falls
-/// back to the bare mode. Reproduced rather than softened: the body builder already returns a
-/// `Result`, so there is no reason to answer a request upstream rejects.
-fn apply_responses_tool_choice(body: &mut Value, choice: &api::LmToolChoice) -> Result<()> {
-    match choice.allowed.as_deref() {
-        Some(allowed) => {
-            if allowed.len() != 1
-                || !matches!(
-                    choice.mode,
-                    api::ToolChoiceMode::Required | api::ToolChoiceMode::Auto
-                )
-            {
-                anyhow::bail!(
-                    "OpenAI Responses tool_choice only supports constraining to a single allowed \
-                     tool with mode 'required' or 'auto'."
-                );
-            }
-            body["tool_choice"] = json!({ "type": "function", "name": allowed[0] });
-        }
-        None => body["tool_choice"] = json!(choice.mode),
-    }
-    if let Some(parallel) = choice.parallel {
-        body["parallel_tool_calls"] = json!(parallel);
-    }
-    Ok(())
 }

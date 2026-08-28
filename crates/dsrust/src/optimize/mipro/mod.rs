@@ -28,7 +28,6 @@
 //! exposed it: a preset proposes `n/2` instructions against `n` demo sets and runs long enough to
 //! reach TPE.
 
-use std::future::Future;
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
@@ -194,21 +193,23 @@ where
         let demo_sets = self
             .on_task_model(demos::create_demo_sets(
                 student,
-                mode.fewshot_candidates,
                 &trainset,
-                if zeroshot {
-                    ZEROSHOT_LABELED
-                } else {
-                    self.max_labeled_demos
-                },
-                if zeroshot {
-                    ZEROSHOT_BOOTSTRAPPED
-                } else {
-                    self.max_bootstrapped_demos
-                },
                 &self.metric,
-                self.metric_threshold,
                 &mut rng,
+                &demos::Bounds {
+                    num_candidate_sets: mode.fewshot_candidates,
+                    max_labeled: if zeroshot {
+                        ZEROSHOT_LABELED
+                    } else {
+                        self.max_labeled_demos
+                    },
+                    max_bootstrapped: if zeroshot {
+                        ZEROSHOT_BOOTSTRAPPED
+                    } else {
+                        self.max_bootstrapped_demos
+                    },
+                    metric_threshold: self.metric_threshold,
+                },
             ))
             .await?;
 
@@ -389,21 +390,17 @@ impl<M> Optimizer for MIPROv2<M>
 where
     M: crate::evaluate::Metric,
 {
-    fn compile<'a>(
+    async fn compile<'a>(
         &'a self,
         student: &'a mut dyn Module,
         teacher: Option<&'a mut dyn Module>,
         trainset: &'a [Example],
         valset: Option<&'a [Example]>,
-    ) -> impl Future<Output = Result<()>> + Send + 'a {
-        async move {
-            if teacher.is_some() {
-                bail!(
-                    "MIPROv2 proposes instructions from a metric and has no teacher to learn from"
-                );
-            }
-            MIPROv2::compile(self, student, trainset, valset).await
+    ) -> Result<()> {
+        if teacher.is_some() {
+            bail!("MIPROv2 proposes instructions from a metric and has no teacher to learn from");
         }
+        MIPROv2::compile(self, student, trainset, valset).await
     }
 }
 

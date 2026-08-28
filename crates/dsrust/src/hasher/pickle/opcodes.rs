@@ -35,4 +35,6 @@ pub(super) const STACK_GLOBAL: u8 = 0x93;
 pub(super) const MEMOIZE: u8 = 0x94;
 pub(super) const BINGET: u8 = b'h';
 pub(super) const LONG_BINGET: u8 = b'j';
+/// `pickle.DEFAULT_PROTOCOL`, which is what `pickle.dumps` uses when no protocol is passed.
+/// Not the highest CPython supports: 5 exists and is not the default.
 pub(super) const PROTOCOL: u8 = 4;

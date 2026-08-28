@@ -73,6 +73,7 @@ fn graded(example: &Example, prediction: &Prediction) -> f64 {
 }
 
 /// A rule written by the model reaches the compiled program's instructions, after the original.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_written_rule_is_appended_to_the_instruction() {
     let lm = Arc::new(DummyLM::keyed([
@@ -207,6 +208,7 @@ async fn a_written_rule_is_appended_to_the_instruction() {
 }
 
 /// A model that names no module leaves every instruction alone, and the strategy says so.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn advice_for_no_module_changes_nothing() {
     let lm = Arc::new(DummyLM::keyed([

@@ -161,6 +161,16 @@ fn user_message(signature: &Signature, inputs: &[Input<'_>]) -> String {
     parts.join("\n\n").trim().to_owned()
 }
 
+/// A demo's or a replayed turn's value.
+///
+/// These come from an [`Example`], which holds JSON a caller put there rather than a record
+/// instance, so they take the ordinary formatter — the same answer upstream reaches for a demo
+/// built from a plain mapping. The provenance that earns the multi-line layout rides only a live
+/// input, which a demo value is not.
+fn demo_value(_signature: &Signature, _name: &str, value: &Value) -> String {
+    format_value(value)
+}
+
 /// How one input value is written.
 ///
 /// A record is laid out over several lines, which is the half of this format that faces the
@@ -173,17 +183,6 @@ fn user_message(signature: &Signature, inputs: &[Input<'_>]) -> String {
 /// answer still exists and carried here on [`Input::record`]. Asking the field's declared type
 /// instead would lay out a loose mapping handed to a record-declared field over several lines,
 /// where upstream writes it inline.
-
-/// A demo's or a replayed turn's value.
-///
-/// These come from an [`Example`], which holds JSON a caller put there rather than a record
-/// instance, so they take the ordinary formatter — the same answer upstream reaches for a demo
-/// built from a plain mapping. The provenance that earns the multi-line layout rides only a live
-/// input, which a demo value is not.
-fn demo_value(_signature: &Signature, _name: &str, value: &Value) -> String {
-    format_value(value)
-}
-
 fn input_value(input: &Input<'_>) -> String {
     match input.is_record_object() {
         true => serde_json::to_string_pretty(&input.value)

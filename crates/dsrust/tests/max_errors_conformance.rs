@@ -59,7 +59,7 @@ async fn it_gives_up_where_dspy_gives_up() {
                 );
             }
             false => {
-                let scored = evaluation.expect(&format!("{label}: dspy returned"));
+                let scored = evaluation.unwrap_or_else(|_| panic!("{label}: dspy returned"));
                 assert_eq!(
                     scored.results.len(),
                     case["results"].as_u64().expect("results") as usize,

@@ -27,6 +27,11 @@ use crate::module::Module;
 ///
 /// dspy yields the same two kinds from `streamify` — `StreamResponse` while the program runs, then
 /// the `Prediction` — and a caller tells them apart the same way.
+// 328 bytes against the next variant's 80, because `Answer` carries a whole `Prediction`.
+// Boxing it would put a `Box` in the public enum a caller matches on — where dspy yields
+// `StreamResponse | Prediction` and nothing wraps either — to save 248 bytes on a value that
+// exists between one `next()` and the next. Nothing collects these; the stream is the point.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
 pub enum Streamed {
     /// One piece of a watched field, on the model's own token boundary, and which field of which

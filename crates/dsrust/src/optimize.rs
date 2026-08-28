@@ -169,19 +169,17 @@ mod tests {
     struct KeepTheFirst;
 
     impl Optimizer for KeepTheFirst {
-        fn compile<'a>(
+        async fn compile<'a>(
             &'a self,
             student: &'a mut dyn Module,
             _teacher: Option<&'a mut dyn Module>,
             trainset: &'a [Example],
             _valset: Option<&'a [Example]>,
-        ) -> impl Future<Output = Result<()>> + Send + 'a {
-            async move {
-                for predictor in student.named_predictors() {
-                    *predictor.demos = trainset.iter().take(1).cloned().collect();
-                }
-                Ok(())
+        ) -> Result<()> {
+            for predictor in student.named_predictors() {
+                *predictor.demos = trainset.iter().take(1).cloned().collect();
             }
+            Ok(())
         }
     }
 

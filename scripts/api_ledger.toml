@@ -319,8 +319,8 @@
 "clients/openai_format.py::responses_to_lm_response" = { status = "mapped", rust = "responses::responses_to_lm_response", reason = "a Responses reply read into the typed response" }
 "clients/openai_format.py::usage_from_response" = { status = "mapped", rust = "response::usage", reason = "every counter the provider sent, unknown ones kept, the two spellings mirrored and the total derived" }
 "clients/openai_format.py::provider_tool_call_to_part" = { status = "mapped", rust = "response::choice_to_lm_output", reason = "a provider's tool call as a part. Read where the choice is read rather than as its own step, since nothing else calls it" }
-"clients/openai_format.py::responses_function_call_to_part" = { status = "mapped", rust = "responses::function_call_part", reason = "a Responses function call as a part" }
-"clients/openai_format.py::tool_to_openai_responses" = { status = "mapped", rust = "responses::tool_item", reason = "the Responses API's function-tool shape — flat, where the chat dialect nests under `function`" }
+"clients/openai_format.py::responses_function_call_to_part" = { status = "mapped", rust = "responses::parts::function_call_part", reason = "a Responses function call as a part" }
+"clients/openai_format.py::tool_to_openai_responses" = { status = "mapped", rust = "responses::tools::tool_item", reason = "the Responses API's function-tool shape — flat, where the chat dialect nests under `function`" }
 "streaming/messages.py::StreamResponse" = { status = "mapped", rust = "program::StreamedField", reason = "one piece of a watched field and which field of which predictor it belongs to" }
 "streaming/messages.py::StatusMessage" = { status = "mapped", rust = "Streamed::Status", reason = "what the program is doing, on the same stream as the chunks — a variant here rather than a type, since a caller matches on what arrived either way" }
 "streaming/messages.py::StatusMessageProvider" = { status = "mapped", rust = "status::StatusMessages", reason = "the six stages, four of which say nothing until a caller gives them words — upstream's own default" }
@@ -1509,14 +1509,14 @@
 "clients/openai_format.py::completion_to_lm_response.request" = { status = "mapped", rust = "response::completion_to_lm_response", reason = "the call being sent, which this crate passes as `&LmRequest`" }
 "clients/openai_format.py::completion_to_lm_response.response" = { status = "mapped", rust = "response::completion_to_lm_response", reason = "the provider's body, read as a `Value`" }
 "clients/openai_format.py::provider_tool_call_to_part.tool_call" = { status = "mapped", rust = "response::choice_to_lm_output", reason = "the provider's tool-call object" }
-"clients/openai_format.py::responses_function_call_to_part.output_item" = { status = "mapped", rust = "responses::function_call_part", reason = "one item of the Responses output list" }
+"clients/openai_format.py::responses_function_call_to_part.output_item" = { status = "mapped", rust = "responses::parts::function_call_part", reason = "one item of the Responses output list" }
 "clients/openai_format.py::responses_to_lm_response.request" = { status = "mapped", rust = "responses::responses_to_lm_response", reason = "the call being sent, which this crate passes as `&LmRequest`" }
 "clients/openai_format.py::responses_to_lm_response.response" = { status = "mapped", rust = "responses::responses_to_lm_response", reason = "the provider's body, read as a `Value`" }
 "clients/openai_format.py::to_openai_text_request.request" = { status = "mapped", rust = "text::request", reason = "the typed request being turned into a completions body, spread as the model and the call `text::request` takes — the same split as the chat entry beside it" }
 "clients/openai_format.py::to_openai_chat_request.request" = { status = "mapped", rust = "openai::request", reason = "the call being sent, which this crate passes as `&LmRequest`" }
 "clients/openai_format.py::to_openai_responses_request.enforce_reasoning_temperature" = { status = "mapped", rust = "responses::request", reason = "the same value under this crate's own name" }
 "clients/openai_format.py::to_openai_responses_request.request" = { status = "mapped", rust = "responses::request", reason = "the call being sent, which this crate passes as `&LmRequest`" }
-"clients/openai_format.py::tool_to_openai_responses.tool" = { status = "mapped", rust = "responses::tool_item", reason = "the tool being rendered" }
+"clients/openai_format.py::tool_to_openai_responses.tool" = { status = "mapped", rust = "responses::tools::tool_item", reason = "the tool being rendered" }
 "clients/openai_format.py::usage_from_response.response" = { status = "mapped", rust = "response::usage", reason = "the provider's body, read as a `Value`" }
 "streaming/messages.py::StatusStreamingCallback.on_lm_end.call_id" = { status = "mapped", rust = "Announcing::on_lm_end", reason = "the call this point belongs to — `CallId` here, which the `Callback` methods take" }
 "streaming/messages.py::StatusStreamingCallback.on_lm_end.exception" = { status = "mapped", rust = "Announcing::on_lm_end", reason = "the failure, which a Rust handler receives as the `Err` side of a `Result`" }

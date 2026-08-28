@@ -26,6 +26,10 @@ fn almost_equal(actual: f64, desired: f64) -> bool {
 /// this crate reproducing numpy's C output to the last bit — stronger than numpy's own test.
 #[test]
 fn matches_numpys_own_random_sample_vector() {
+    // numpy's literals, at the 17 digits its own test file spells them with. Four hold a digit
+    // past what an `f64` keeps; shortening them would make this a check against a number this
+    // repository chose rather than against the text upstream asserts.
+    #[allow(clippy::excessive_precision)]
     let desired = [
         0.61879477158567997,
         0.59162362775974664,

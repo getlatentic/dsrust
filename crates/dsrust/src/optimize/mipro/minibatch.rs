@@ -94,13 +94,13 @@ pub fn batch(examples: &[Example], batch_size: usize, rng: &mut Rng) -> Vec<Exam
 /// `full_eval_steps + 1`, so the two disagree and the tail condition usually cannot fire. That is
 /// upstream's arithmetic, reproduced rather than corrected.
 pub fn adjusted_trials(num_trials: usize, full_eval_steps: usize) -> usize {
-    let trailing = usize::from(num_trials % full_eval_steps != 0);
+    let trailing = usize::from(!num_trials.is_multiple_of(full_eval_steps));
     num_trials + num_trials / full_eval_steps + 1 + trailing
 }
 
 /// Whether trial `trial` — counted from one, as upstream counts — is followed by a full evaluation.
 pub fn full_evaluation_due(trial: usize, adjusted: usize, full_eval_steps: usize) -> bool {
-    trial % (full_eval_steps + 1) == 0 || trial + 1 == adjusted
+    trial.is_multiple_of(full_eval_steps + 1) || trial + 1 == adjusted
 }
 
 /// dspy's `param_score_dict` and `fully_evaled_param_combos`: every score each parameter

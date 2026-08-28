@@ -95,6 +95,22 @@ cargo build --all-targets --workspace --exclude dsrs-bridge
 echo "==> cargo fmt --check"
 cargo fmt --check
 
+echo "==> cargo clippy -D warnings"
+# Absent until 2026-08-28, which is the whole reason it is here rather than in a habit: nothing
+# ran it, so nothing enforced it. It was not idle either — the first run under `-D warnings` found
+# a doc comment for `input_value` sitting on `demo_value`, another for `PROTOCOL` left behind when
+# the constant moved to `opcodes`, and an older copy of `DynChatModel`'s doc attached to
+# `one_shot`, each of them silently merged into the *next* item's documentation.
+#
+# `-D warnings` also means the first crate with a finding stops the ones after it. `pyrng` and
+# `dsrust-json-repair` had eight between them, and behind those eight the other crates had never
+# been linted at all — 57 more, including a `label` threaded through a recursion nothing read.
+# A lint that fails a whole crate hides every crate downstream of it, which is an argument for
+# running it from the start rather than for running it leniently.
+#
+# `--all-targets` because tests are code: three of the fixes above were in `tests/`.
+bounded cargo clippy --workspace --all-targets -- -D warnings
+
 echo "==> cursor-loop lint (scripts/lints/)"
 # A while-loop advancing by hand-maintained arithmetic is one mutated operator from a spin, and
 # the shape hung the suite four times in one day before this existed. The rule file carries the

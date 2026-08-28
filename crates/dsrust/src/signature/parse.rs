@@ -208,10 +208,10 @@ fn canonical(annotation: &str) -> String {
 fn canonical_union(members: &[&str]) -> String {
     let members: Vec<String> = members.iter().map(|member| canonical(member)).collect();
     // Exactly two, one of them `None`, is the shape `Optional` exists to spell.
-    if members.len() == 2 {
-        if let Some(at) = members.iter().position(|member| member == "None") {
-            return format!("Optional[{}]", members[1 - at]);
-        }
+    if members.len() == 2
+        && let Some(at) = members.iter().position(|member| member == "None")
+    {
+        return format!("Optional[{}]", members[1 - at]);
     }
     let spelled: Vec<&str> = members
         .iter()
@@ -426,6 +426,7 @@ mod ergonomics {
     /// haiku_generator = dspy.Predict("subject -> haiku")
     /// result = haiku_generator(subject="computer science")
     /// ```
+    #[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
     #[tokio::test]
     async fn a_single_input_task_is_declared_and_called_in_two_lines() {
         let _configured = install_for_test(Arc::new(DummyLM::new([
@@ -450,6 +451,7 @@ mod many_inputs {
     use crate::{DummyLM, Module, Predict, call, example, input};
 
     /// Both spellings, on a signature with more than one input.
+    #[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
     #[tokio::test]
     async fn several_inputs_are_named_in_either_spelling() {
         let _configured = install_for_test(Arc::new(DummyLM::keyed([(

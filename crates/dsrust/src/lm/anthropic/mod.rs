@@ -5,8 +5,6 @@
 //! become the answer, `tool_use` blocks become [`ToolCall`](api::LmPart::ToolCall) parts, and the
 //! `json_tool_call` litellm forces for a schema is read back as the structured reply's text.
 
-use std::future::Future;
-
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
@@ -30,37 +28,32 @@ pub(crate) struct Anthropic<'a> {
 }
 
 impl ChatModel for Anthropic<'_> {
-    fn forward<'a>(
-        &'a self,
-        call: &'a api::LmRequest,
-    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
-        async move {
-            let http = &crate::lm::global::client();
-            let key = self
-                .api_key
-                .ok_or_else(|| anyhow!("ANTHROPIC_API_KEY is not set"))?;
-            let response = http
-                .post(MESSAGES_URL)
-                .header("x-api-key", key)
-                .header("anthropic-version", "2023-06-01")
-                .header("content-type", "application/json")
-                .timeout(self.timeout)
-                .json(&request::request(self.model, call))
-                .send()
-                .await
-                .map_err(|error| {
-                    crate::lm::LmFailure::from_transport(&error, self.model, "anthropic")
-                })?;
-            let status = response.status();
-            // Before the body, which consumes the response: a failure's `retry-after` is what the
-            // retry waits for rather than guessing.
-            let headers = response.headers().clone();
-            let body: Value = response
-                .json()
-                .await
-                .explain("anthropic response was not JSON")?;
-            reply(self.model, status, &headers, &body)
-        }
+    async fn forward<'a>(&'a self, call: &'a api::LmRequest) -> Result<api::LmResponse> {
+        let http = &crate::lm::global::client();
+        let key = self
+            .api_key
+            .ok_or_else(|| anyhow!("ANTHROPIC_API_KEY is not set"))?;
+        let response = http
+            .post(MESSAGES_URL)
+            .header("x-api-key", key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .timeout(self.timeout)
+            .json(&request::request(self.model, call))
+            .send()
+            .await
+            .map_err(|error| {
+                crate::lm::LmFailure::from_transport(&error, self.model, "anthropic")
+            })?;
+        let status = response.status();
+        // Before the body, which consumes the response: a failure's `retry-after` is what the
+        // retry waits for rather than guessing.
+        let headers = response.headers().clone();
+        let body: Value = response
+            .json()
+            .await
+            .explain("anthropic response was not JSON")?;
+        reply(self.model, status, &headers, &body)
     }
 }
 

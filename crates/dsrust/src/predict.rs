@@ -1043,6 +1043,7 @@ mod one_api {
     /// The answer differs on purpose: a task declared by its field names has only fields to
     /// hand back, while a derived one hands back its own outputs, so `.color` keeps meaning the
     /// field rather than a lookup that might miss.
+    #[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
     #[tokio::test]
     async fn both_signature_forms_are_built_and_asked_the_same_way() {
         let reply = "[[ ## color ## ]]\nred\n\n[[ ## why ## ]]\ncalm\n\n[[ ## completed ## ]]";
@@ -1083,6 +1084,7 @@ mod per_call_model {
     /// This is the seam an optimizer needs: `BestOfN` runs a module several times against models
     /// that differ only in their config, and a bootstrap round after the first needs one that
     /// will not answer from a cache. Neither can reach a process-wide default to arrange it.
+    #[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
     #[tokio::test]
     async fn a_module_asks_its_own_model_over_the_configured_one() {
         let _configured = crate::lm::global::install_for_test(Arc::new(DummyLM::new([

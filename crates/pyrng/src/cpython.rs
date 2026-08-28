@@ -166,6 +166,7 @@ impl Random {
 ///
 /// `hi` is `len - 1`, matching CPython's `random.choices`, which caps the index at the last
 /// element so a draw that rounds up to the total still lands in the population.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
 fn bisect_right(sorted: &[f64], x: f64, hi: usize) -> usize {
     // `partition_point` rather than a hand-rolled halving loop. The loop was right, and its
     // termination rested on `(low + high) / 2` staying strictly between the bounds — so changing
@@ -206,7 +207,7 @@ fn setsize(k: usize) -> usize {
     // rounding `k * 3` up to a power of two and then up again to an even exponent is the same
     // number — and cannot round the wrong way, since no power of four is divisible by three.
     let two = (k * 3).next_power_of_two();
-    let table = if two.trailing_zeros() % 2 == 0 {
+    let table = if two.trailing_zeros().is_multiple_of(2) {
         two
     } else {
         two << 1

@@ -93,12 +93,12 @@ fn validated(data: &Value) -> Result<ToolCalls> {
             _ if is_tool_call_dict(fields) => Ok(ToolCalls::new(vec![normalized_call(data)?])),
             _ => Err(anyhow!(
                 "Received invalid value for `dspy.ToolCalls`: {}",
-                crate::python::text(&data)
+                crate::python::text(data)
             )),
         },
         _ => Err(anyhow!(
             "Received invalid value for `dspy.ToolCalls`: {}",
-            crate::python::text(&data)
+            crate::python::text(data)
         )),
     }
 }
@@ -325,6 +325,21 @@ fn written(value: Option<&Value>) -> Option<String> {
         .and_then(Value::as_str)
         .filter(|text| !text.is_empty())
         .map(str::to_owned)
+}
+
+/// dspy `Tool.__str__`: one tool as the line the model reads — the name, the description in
+/// `<desc>` tags, and the argument schema it has to fill. It is what a `list[Tool]` field renders
+/// each entry as, and what `ReAct`'s numbered catalogue is built from.
+pub fn format_tool(name: &str, description: &str, args: &Value) -> String {
+    let desc = match description.is_empty() {
+        true => ".".to_owned(),
+        // dspy flattens newlines so a multi-line description cannot break a numbered list.
+        false => format!(", whose description is <desc>{description}</desc>.").replace('\n', "  "),
+    };
+    format!(
+        "{name}{desc} It takes arguments {}.",
+        crate::python::repr(args)
+    )
 }
 
 #[cfg(test)]
@@ -588,19 +603,4 @@ mod tests {
                 .results_match_calls()
         );
     }
-}
-
-/// dspy `Tool.__str__`: one tool as the line the model reads — the name, the description in
-/// `<desc>` tags, and the argument schema it has to fill. It is what a `list[Tool]` field renders
-/// each entry as, and what `ReAct`'s numbered catalogue is built from.
-pub fn format_tool(name: &str, description: &str, args: &Value) -> String {
-    let desc = match description.is_empty() {
-        true => ".".to_owned(),
-        // dspy flattens newlines so a multi-line description cannot break a numbered list.
-        false => format!(", whose description is <desc>{description}</desc>.").replace('\n', "  "),
-    };
-    format!(
-        "{name}{desc} It takes arguments {}.",
-        crate::python::repr(args)
-    )
 }

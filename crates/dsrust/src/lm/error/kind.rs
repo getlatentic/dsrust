@@ -11,7 +11,7 @@
 use std::fmt;
 
 /// Which kind of LM failure this is. dspy's `LMError` subclasses, flattened.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum LmErrorKind {
     /// The request never reached the provider: DNS, TLS, a reset connection.
     Transport,
@@ -24,6 +24,7 @@ pub enum LmErrorKind {
     /// The provider answered, and the answer was a failure this does not name more precisely.
     Provider,
     /// A failure with no status and no recognisable shape.
+    #[default]
     Unexpected,
     /// Rejected credentials. 401 or 403.
     Auth,

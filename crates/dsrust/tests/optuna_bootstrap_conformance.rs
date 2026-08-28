@@ -61,8 +61,7 @@ impl dsrust::lm::ChatModel for LastCountryNamed {
             .join("\n");
         let answer = CAPITALS
             .iter()
-            .filter(|(country, _)| prompt.contains(&format!("of {country}?")))
-            .next_back()
+            .rfind(|(country, _)| prompt.contains(&format!("of {country}?")))
             .map_or("unknown", |(_, capital)| *capital);
         Ok(dsrust::lm::api::LmResponse::completions([format!(
             "[[ ## answer ## ]]\n{answer}\n\n[[ ## completed ## ]]"

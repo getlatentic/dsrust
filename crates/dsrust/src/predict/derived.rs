@@ -23,6 +23,7 @@ use crate::signature::SignatureSpec;
 /// follows from, not a second module.
 pub type TypedPredict<S> = Predict<S>;
 
+#[allow(clippy::new_without_default)] // dspy has `Predict(QA)` and no `Default`; so does this
 impl<S: SignatureSpec + Send + Sync> Predict<S> {
     /// The module for this task, which is dspy's `Predict(QA)`.
     pub fn new() -> Self {

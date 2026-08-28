@@ -138,13 +138,13 @@ where
         for _ in 0..self.num_candidates {
             student.load_state(&bootstrapped)?;
             let mut rules = Vec::with_capacity(instructions.len());
-            for position in 0..instructions.len() {
+            for (position, instruction) in instructions.iter().enumerate() {
                 let asked = self.examples_text(student, trainset, position);
                 let written = self.induce(&mut induction, &asked, &mut rng).await?;
                 let predictor = student.named_predictors().swap_remove(position);
                 // Appended to the *original* instruction rather than to whatever the last candidate
                 // left, which is what upstream's two resets amount to.
-                predictor.signature.instructions = with_rules(&instructions[position], &written);
+                predictor.signature.instructions = with_rules(instruction, &written);
                 rules.push(written);
             }
             let score = self.score(student, valset).await?;

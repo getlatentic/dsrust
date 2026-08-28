@@ -275,7 +275,10 @@ fn a_failed_run_records_the_error_and_no_outputs() {
 /// enumerates is every module that owns a `Module::forward` of its own.
 #[test]
 fn every_module_is_watched() {
-    let cases: Vec<(&str, Box<dyn Fn() -> Box<dyn Module>>)> = vec![
+    /// A module's name and a way to build one, since each is built differently.
+    type Buildable = (&'static str, Box<dyn Fn() -> Box<dyn Module>>);
+
+    let cases: Vec<Buildable> = vec![
         (
             "Predict",
             Box::new(|| Box::new(Predict!("question -> answer").set_lm(one_answer()))),

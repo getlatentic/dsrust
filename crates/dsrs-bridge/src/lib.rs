@@ -530,6 +530,7 @@ fn format_messages(
 /// Rust. Returns the prediction's output fields as JSON text and the raw reply the model gave.
 #[pyfunction]
 #[pyo3(signature = (adapter, instructions, inputs, outputs, values, py_lm, demos = None, n = None))]
+#[allow(clippy::too_many_arguments)] // the arguments are the Python call above
 fn predict_forward(
     adapter: &str,
     instructions: &str,
@@ -561,8 +562,10 @@ fn predict_forward(
         .collect();
     // The module-level config spells the completion count `completions`; it becomes the wire
     // request's `n`, which is the kwarg a `DummyLM` reads.
-    let mut config = dsrust::lm::Sampling::default();
-    config.completions = n;
+    let config = dsrust::lm::Sampling {
+        completions: n,
+        ..Default::default()
+    };
     let predict = dsrust::predict::Predict::from_signature(signature)
         .config(config)
         .demos(demos)
@@ -700,6 +703,7 @@ pub(crate) fn py_tools(
 /// and the extraction all run in Rust.
 #[pyfunction]
 #[pyo3(signature = (instructions, inputs, outputs, values, py_lm, tools, max_iters = None))]
+#[allow(clippy::too_many_arguments)] // the arguments are the Python call above
 fn react_forward(
     py: Python<'_>,
     instructions: &str,

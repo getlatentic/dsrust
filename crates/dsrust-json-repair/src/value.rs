@@ -144,6 +144,11 @@ impl Value {
 #[derive(Clone, Debug, Default)]
 pub struct Object {
     entries: Vec<(String, Value)>,
+    // Boxed to keep the absent case cheap, which is nearly every case: the index is not built
+    // until an object passes sixteen entries, and one of these exists for every object the parser
+    // reads. `Option<Box<_>>` is 8 bytes against `Option<HashMap<_, _>>`'s 48, so `Object` is 32
+    // rather than 72 — measured, not assumed, and the reason the lint is wrong here.
+    #[allow(clippy::box_collection)]
     index: Option<Box<std::collections::HashMap<String, usize>>>,
 }
 

@@ -34,12 +34,6 @@ pub struct LmFailure {
     pub issues: Vec<String>,
 }
 
-impl Default for LmErrorKind {
-    fn default() -> Self {
-        Self::Unexpected
-    }
-}
-
 impl LmFailure {
     /// A failure of this kind, with nothing known about it yet.
     pub fn new(kind: LmErrorKind, message: impl Into<String>) -> Self {

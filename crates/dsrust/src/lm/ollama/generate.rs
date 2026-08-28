@@ -11,7 +11,6 @@
 //! rendered by the adapter, folded into the prompt like any other content. `ollama_chat/` is the
 //! route to reach for native calls.
 
-use std::future::Future;
 use std::time::Duration;
 
 use anyhow::{Result, anyhow};
@@ -35,44 +34,35 @@ pub(crate) struct Generate<'a> {
 }
 
 impl ChatModel for Generate<'_> {
-    fn forward<'a>(
-        &'a self,
-        call: &'a api::LmRequest,
-    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
-        async move {
-            let http = &crate::lm::global::client();
-            let request = http
-                .post(format!("{}/api/generate", self.host))
-                .timeout(self.timeout)
-                .json(&request(self.model, call));
-            let response = authorized(request, self.api_key)
-                .send()
-                .await
-                .map_err(|error| {
-                    crate::lm::LmFailure::from_transport(&error, self.model, "ollama")
-                })?;
-            let status = response.status();
-            let headers = response.headers().clone();
-            let body: Value = response
-                .json()
-                .await
-                .explain("ollama response was not JSON")?;
-            if !status.is_success() {
-                if let Some(too_long) =
-                    crate::lm::ContextWindowExceeded::detected(self.model, &body)
-                {
-                    return Err(too_long.into());
-                }
-                return Err(
-                    crate::lm::LmFailure::from_status(status.as_u16(), refusal(&body))
-                        .on_model(self.model)
-                        .from_provider("ollama")
-                        .headers(&headers)
-                        .into(),
-                );
+    async fn forward<'a>(&'a self, call: &'a api::LmRequest) -> Result<api::LmResponse> {
+        let http = &crate::lm::global::client();
+        let request = http
+            .post(format!("{}/api/generate", self.host))
+            .timeout(self.timeout)
+            .json(&request(self.model, call));
+        let response = authorized(request, self.api_key)
+            .send()
+            .await
+            .map_err(|error| crate::lm::LmFailure::from_transport(&error, self.model, "ollama"))?;
+        let status = response.status();
+        let headers = response.headers().clone();
+        let body: Value = response
+            .json()
+            .await
+            .explain("ollama response was not JSON")?;
+        if !status.is_success() {
+            if let Some(too_long) = crate::lm::ContextWindowExceeded::detected(self.model, &body) {
+                return Err(too_long.into());
             }
-            reply(self.model, &body)
+            return Err(
+                crate::lm::LmFailure::from_status(status.as_u16(), refusal(&body))
+                    .on_model(self.model)
+                    .from_provider("ollama")
+                    .headers(&headers)
+                    .into(),
+            );
         }
+        reply(self.model, &body)
     }
 }
 
@@ -456,7 +446,7 @@ mod tests {
     /// nothing defaulted. Every expectation is litellm's captured output.
     #[test]
     fn our_body_matches_litellm_for_ollama_generate() {
-        crate::lm::tests::each_case("ollama_generate", |model, call| request(model, call));
+        crate::lm::tests::each_case("ollama_generate", request);
     }
 
     /// The reply's `response` field is the whole answer, the counts and stop reason beside it.

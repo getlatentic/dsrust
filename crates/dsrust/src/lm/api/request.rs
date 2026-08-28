@@ -373,7 +373,10 @@ mod cache_key_tests {
         with_tool.tools = vec![LmToolSpec::new("search", parameters)];
         assert_ne!(key(&with_tool), plain, "a tool changes the call");
 
-        let variants: [(&str, fn(&mut LmConfig)); 6] = [
+        /// A config knob's name and the change that sets it.
+        type ConfigChange = (&'static str, fn(&mut LmConfig));
+
+        let variants: [ConfigChange; 6] = [
             ("temperature", |config| config.temperature = Some(0.7)),
             ("top_p", |config| config.top_p = Some(0.9)),
             ("stop", |config| config.stop = Some(vec!["END".to_owned()])),

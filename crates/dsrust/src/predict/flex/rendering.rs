@@ -187,10 +187,9 @@ pub fn class_name_of(module_src: &str) -> Result<String> {
             }
         } else if line.trim_start().starts_with("def forward(")
             && line.starts_with(char::is_whitespace)
+            && let Some(last) = classes.last_mut()
         {
-            if let Some(last) = classes.last_mut() {
-                last.1 = true;
-            }
+            last.1 = true;
         }
     }
     let chosen = classes

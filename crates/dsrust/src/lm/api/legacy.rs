@@ -230,8 +230,11 @@ fn document(object: &serde_json::Map<String, Value>) -> LmPart {
     }
 }
 
+/// A key a block may name, and the source it builds.
+type NamedSource = (&'static str, fn(String) -> LmSource);
+
 /// The source keys a block may name directly, in the order upstream checks them.
-fn named_sources() -> [(&'static str, fn(String) -> LmSource); 4] {
+fn named_sources() -> [NamedSource; 4] {
     [
         ("data", LmSource::Data),
         ("url", LmSource::Url),

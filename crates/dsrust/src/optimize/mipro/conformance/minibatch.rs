@@ -25,8 +25,13 @@ use std::sync::{Arc, Mutex};
 use crate::callback::{CallId, Callback, watched_by};
 use crate::evaluate::Pass;
 
+/// A question and its answer, as the fixture spells them.
+type Row = (String, String);
+/// Which rows a profile scores as passing, keyed by the profile's own id.
+type Profiles = HashMap<u64, Vec<String>>;
+
 /// The 140-row set the minibatch cases run on, and its score profiles.
-fn dataset(fixture: &Value) -> (Vec<(String, String)>, HashMap<u64, Vec<String>>) {
+fn dataset(fixture: &Value) -> (Vec<Row>, Profiles) {
     let table = fixture["minibatch_trainset"]
         .as_array()
         .expect("minibatch trainset")

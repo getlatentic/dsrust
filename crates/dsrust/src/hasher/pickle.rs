@@ -29,9 +29,6 @@ use crate::Example;
 mod framing;
 mod opcodes;
 
-/// `pickle.DEFAULT_PROTOCOL`, which is what `pickle.dumps` uses when no protocol is passed. Not
-/// the highest CPython supports: 5 exists and is not the default.
-
 /// `pickle.Pickler._BATCHSIZE`: how many items a single `SETITEMS`/`APPENDS` run covers.
 const BATCH: usize = 1000;
 

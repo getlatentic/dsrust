@@ -234,6 +234,7 @@ async fn shows_each_attempt_what_dspy_showed_it() {
 /// optimizer could not walk it: the ergonomic front door led away from the half of DSPy that
 /// makes the other half worth having. Reaching `compile` at all is the assertion — it takes
 /// `M: Module`, which a derived program could not satisfy.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_derived_signature_can_be_compiled() {
     use std::sync::Arc;

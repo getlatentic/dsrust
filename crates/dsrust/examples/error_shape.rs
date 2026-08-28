@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let base =
         std::env::var("PROBE_BASE").unwrap_or_else(|_| "http://127.0.0.1:8080/v1".to_owned());
     configure(
-        LM::new(&format!("openai/{model}"))?
+        LM::new(format!("openai/{model}"))?
             .openai_base_url(&base)
             .openai_api_key("x")
             .cache(false),

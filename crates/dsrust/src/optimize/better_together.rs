@@ -279,19 +279,17 @@ mod tests {
     struct Writes(&'static str);
 
     impl Optimizer for Writes {
-        fn compile<'a>(
+        async fn compile<'a>(
             &'a self,
             student: &'a mut dyn Module,
             _teacher: Option<&'a mut dyn Module>,
             _trainset: &'a [Example],
             _valset: Option<&'a [Example]>,
-        ) -> impl Future<Output = Result<()>> + Send + 'a {
-            async move {
-                for predictor in student.named_predictors() {
-                    predictor.signature.instructions = self.0.to_owned();
-                }
-                Ok(())
+        ) -> Result<()> {
+            for predictor in student.named_predictors() {
+                predictor.signature.instructions = self.0.to_owned();
             }
+            Ok(())
         }
     }
 
@@ -299,14 +297,14 @@ mod tests {
     struct Fails;
 
     impl Optimizer for Fails {
-        fn compile<'a>(
+        async fn compile<'a>(
             &'a self,
             _student: &'a mut dyn Module,
             _teacher: Option<&'a mut dyn Module>,
             _trainset: &'a [Example],
             _valset: Option<&'a [Example]>,
-        ) -> impl Future<Output = Result<()>> + Send + 'a {
-            async move { bail!("this step fails") }
+        ) -> Result<()> {
+            bail!("this step fails")
         }
     }
 

@@ -351,46 +351,6 @@ pub fn as_json(example: &Example) -> String {
     rendered
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn an_examples_fields_render_as_the_dict_dspy_passes() {
-        let example = Example::new([
-            ("question", serde_json::json!("capital of France?")),
-            ("hops", serde_json::json!(2)),
-        ]);
-        assert_eq!(
-            as_json(&example),
-            r#"{"question":"capital of France?","hops":2}"#
-        );
-        assert_eq!(as_json(&Example::default()), "{}");
-    }
-
-    /// A field name with a quote in it still renders as JSON rather than breaking the object.
-    #[test]
-    fn a_field_name_is_escaped() {
-        let example = Example::new([(r#"od"d"#, serde_json::json!(1))]);
-        assert_eq!(as_json(&example), r#"{"od\"d":1}"#);
-    }
-
-    /// Nothing is recorded on a disabled span, which is every span in a program with no subscriber.
-    #[test]
-    fn a_disabled_span_records_nothing() {
-        let watch = Watch {
-            span: Span::none(),
-            call: CallId::next(),
-            instance: Vec::new(),
-        };
-        assert!(watch.span.is_disabled());
-        watch.shown(|| unreachable!("a disabled span asks for no inputs"));
-        watch.finished::<()>(Ok(&()), |_| {
-            unreachable!("a disabled span asks for no description")
-        });
-    }
-}
-
 /// How many spans of each name a piece of work opened.
 ///
 /// A span nobody collects is indistinguishable from no span, which is how the ledger came to say
@@ -477,4 +437,44 @@ pub(crate) fn spans_opened_by<T>(
         "no span of any name reached the recorder, so this is the harness and not the run"
     );
     opened
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_examples_fields_render_as_the_dict_dspy_passes() {
+        let example = Example::new([
+            ("question", serde_json::json!("capital of France?")),
+            ("hops", serde_json::json!(2)),
+        ]);
+        assert_eq!(
+            as_json(&example),
+            r#"{"question":"capital of France?","hops":2}"#
+        );
+        assert_eq!(as_json(&Example::default()), "{}");
+    }
+
+    /// A field name with a quote in it still renders as JSON rather than breaking the object.
+    #[test]
+    fn a_field_name_is_escaped() {
+        let example = Example::new([(r#"od"d"#, serde_json::json!(1))]);
+        assert_eq!(as_json(&example), r#"{"od\"d":1}"#);
+    }
+
+    /// Nothing is recorded on a disabled span, which is every span in a program with no subscriber.
+    #[test]
+    fn a_disabled_span_records_nothing() {
+        let watch = Watch {
+            span: Span::none(),
+            call: CallId::next(),
+            instance: Vec::new(),
+        };
+        assert!(watch.span.is_disabled());
+        watch.shown(|| unreachable!("a disabled span asks for no inputs"));
+        watch.finished::<()>(Ok(&()), |_| {
+            unreachable!("a disabled span asks for no description")
+        });
+    }
 }

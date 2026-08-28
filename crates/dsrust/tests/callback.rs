@@ -209,6 +209,7 @@ fn asked() -> Example {
 }
 
 /// One predictor: the module, its render, the model call, one parse.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_predict_fires_the_sequence_dspy_fires() {
     let recording = Arc::new(Recording::default());
@@ -238,6 +239,7 @@ async fn a_predict_fires_the_sequence_dspy_fires() {
 /// — and what this asserts is the part that could not be had otherwise: two predictors of the *same
 /// signature*, one watched, and only its points recorded. Filtering by the module's kind or by
 /// `CallId::parent` cannot tell those two apart.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn only_the_predictor_a_caller_watched_is_recorded() {
     let watched = Arc::new(Recording::default());
@@ -278,6 +280,7 @@ async fn only_the_predictor_a_caller_watched_is_recorded() {
 /// `Predict::forward` reads one output whatever `n` is — see the `predict-completions` story — so
 /// this case is run at the default `n`, where the two agree, and the fixture's `n=3` case is checked
 /// against it below.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn a_chain_of_thought_nests_its_predictor() {
     let recording = Arc::new(Recording::default());
@@ -311,6 +314,7 @@ async fn a_chain_of_thought_nests_its_predictor() {
 
 /// Two predictors under one module: both children name the same parent, and neither names the
 /// other's — the property upstream's `test_active_id` asserts.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn two_predictors_under_one_module_share_a_parent() {
     #[derive(Module)]
@@ -352,6 +356,7 @@ async fn two_predictors_under_one_module_share_a_parent() {
 
 /// A devset run, with the module calls it made inside it — the outermost point, and the one whose
 /// nesting a `span.enter()` held across an await would get wrong.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn an_evaluation_encloses_the_calls_it_made() {
     let recording = Arc::new(Recording::default());
@@ -380,6 +385,7 @@ async fn an_evaluation_encloses_the_calls_it_made() {
 /// The sequence is the fixture's, because upstream's decorator fires the end handler on the way out
 /// with the exception rather than leaving the start unanswered. The crate returned from inside the
 /// open point instead, so a handler that had been told an evaluation began was never told it ended.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn an_abandoned_evaluation_still_closes_its_point() {
     let recording = Arc::new(Recording::default());
@@ -441,6 +447,7 @@ async fn a_tool_call_is_watched() {
 ///
 /// It did not: `call` reached `ChatModel::forward` rather than the blanket `forward_dyn`, so the one
 /// entry named after upstream's decorated method was the one entry with no point on it.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn asking_a_model_directly_fires_the_lm_point() {
     use dsrust::lm::ChatModel;

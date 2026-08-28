@@ -70,8 +70,8 @@ pub(crate) mod seed_sequence {
             }
         }
         for extra in source.iter().skip(pool.len()) {
-            for slot in 0..pool.len() {
-                pool[slot] = mix(pool[slot], hashmix(*extra, &mut hash_const));
+            for slot in &mut pool {
+                *slot = mix(*slot, hashmix(*extra, &mut hash_const));
             }
         }
 
@@ -263,6 +263,10 @@ impl Pcg64 {
 /// `x0` at five, where the series is worth `2e-14`.) And disabling the early return for one and two
 /// gives `5.6e-16` there instead of the exact zero, below both bounds.
 fn loggam(x: f64) -> f64 {
+    // numpy's coefficients, spelled as numpy spells them. Two carry a digit past what an `f64`
+    // keeps, and rounding them to what it keeps would be editing the transcription to please a
+    // lint — the same literal, but no longer the same text as the source it is checked against.
+    #[allow(clippy::excessive_precision)]
     const A: [f64; 10] = [
         8.333333333333333e-02,
         -2.777777777777778e-03,

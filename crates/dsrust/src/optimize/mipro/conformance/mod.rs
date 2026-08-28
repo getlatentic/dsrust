@@ -334,6 +334,7 @@ fn coach(
 /// Two models that answer differently is the only way to see the split: a run that evaluated on the
 /// proposer's model would compile a different instruction, and one that proposed on the task model
 /// would propose different text. Both are asserted.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
 #[tokio::test]
 async fn the_task_model_runs_the_program_and_the_prompt_model_writes_the_proposals() {
     use std::sync::atomic::{AtomicUsize, Ordering};

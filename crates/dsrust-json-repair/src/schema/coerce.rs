@@ -135,16 +135,16 @@ impl SchemaRepairer {
     pub(crate) fn fill_missing(&self, schema: &Value, path: &str) -> Result<Value> {
         if let Some(constant) = schema.get("const") {
             self.log("Filled missing value with const", path);
-            return self.copy_json_value(constant, path, "const");
+            return Ok(self.copy_json_value(constant));
         }
         if let Some(allowed) = schema.get("enum") {
             let first = first_enum_value(allowed, path)?;
             self.log("Filled missing value with first enum value", path);
-            return self.copy_json_value(&first, path, "enum");
+            return Ok(self.copy_json_value(&first));
         }
         if let Some(default) = schema.get("default") {
             self.log("Filled missing value with default", path);
-            return self.copy_json_value(default, path, "default");
+            return Ok(self.copy_json_value(default));
         }
 
         if let Some(Value::Array(types)) = schema.get("type") {
@@ -220,23 +220,26 @@ impl SchemaRepairer {
     }
 
     /// `_fill_missing_required_for_salvage`: a required property with nothing to put in it.
+    ///
+    /// Upstream takes a `path` as well, and spends it entirely on [`Self::copy_json_value`]'s two
+    /// error messages — neither of which this port can raise. It is not taken here rather than
+    /// taken and ignored, so that nothing suggests a caller's path reaches a decision.
     pub(crate) fn fill_missing_required_for_salvage(
         &self,
         schema: Option<&Value>,
-        path: &str,
     ) -> Result<Option<Value>> {
         let Ok(resolved @ Value::Object(_)) = self.resolve_schema(schema) else {
             return Ok(None);
         };
-        for (key, label) in [("default", "default"), ("const", "const")] {
+        for key in ["default", "const"] {
             if let Some(value) = resolved.get(key) {
-                return Ok(Some(self.copy_json_value(value, path, label)?));
+                return Ok(Some(self.copy_json_value(value)));
             }
         }
         if let Some(Value::Array(allowed)) = resolved.get("enum")
             && let Some(first) = allowed.first()
         {
-            return Ok(Some(self.copy_json_value(first, path, "enum")?));
+            return Ok(Some(self.copy_json_value(first)));
         }
 
         // The same `is None` guard as `fill_missing`, and the same trap.
@@ -258,27 +261,29 @@ impl SchemaRepairer {
         }
     }
 
-    /// `_copy_json_value`: a schema's own literal, checked for being JSON at all.
-    pub(crate) fn copy_json_value(&self, value: &Value, path: &str, label: &str) -> Result<Value> {
+    /// `_copy_json_value`: a schema's own literal, deep-copied.
+    ///
+    /// Upstream raises twice here — on a dict key that is not a string, and on a value Python
+    /// cannot express as JSON — and carries `path` and `label` for no other purpose than naming
+    /// those two messages. Neither is reachable across this boundary: [`Value`] is a closed JSON
+    /// enum and an object's keys are `String`, so there is nothing to refuse, nothing left to name
+    /// it with, and no way for the copy to fail. What is left is the copy.
+    pub(crate) fn copy_json_value(&self, value: &Value) -> Value {
         match value {
-            Value::Array(items) => Ok(Value::Array(
+            Value::Array(items) => Value::Array(
                 items
                     .iter()
-                    .enumerate()
-                    .map(|(idx, item)| self.copy_json_value(item, &format!("{path}[{idx}]"), label))
-                    .collect::<Result<Vec<_>>>()?,
-            )),
+                    .map(|item| self.copy_json_value(item))
+                    .collect(),
+            ),
             Value::Object(fields) => {
                 let mut copied = crate::value::Object::new();
                 for (key, item) in fields.iter() {
-                    copied.insert(
-                        key.to_owned(),
-                        self.copy_json_value(item, &format!("{path}.{key}"), label)?,
-                    );
+                    copied.insert(key.to_owned(), self.copy_json_value(item));
                 }
-                Ok(Value::Object(copied))
+                Value::Object(copied)
             }
-            scalar => Ok(scalar.clone()),
+            scalar => scalar.clone(),
         }
     }
 

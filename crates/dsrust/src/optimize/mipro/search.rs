@@ -129,7 +129,7 @@ where
         };
         let params = params.to_vec();
         averages.mark_evaluated(&params);
-        apply(student, candidates, demo_sets, &space, &params);
+        apply(student, candidates, demo_sets, space, &params);
         let score = self.score(student, &mode.valset, mode).await?;
         Ok(Some((params, score)))
     }

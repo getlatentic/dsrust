@@ -3,8 +3,6 @@
 //! `response_format` they accept, so one request builder, one reply reader and one error
 //! shape serve all of them rather than a copy per service.
 
-use std::future::Future;
-
 use anyhow::{Result, anyhow};
 use serde_json::{Value, json};
 
@@ -272,56 +270,49 @@ fn streaming_body(
 }
 
 impl ChatModel for Endpoint<'_> {
-    fn forward<'a>(
-        &'a self,
-        call: &'a api::LmRequest,
-    ) -> impl Future<Output = Result<api::LmResponse>> + Send + 'a {
-        async move {
-            let http = &crate::lm::global::client();
-            let key = self
-                .api_key
-                .ok_or_else(|| anyhow!("{} is not set", self.key_var))?;
-            let (url, body) = match self.wire {
-                OpenAiWire::Chat => (
-                    chat_completions_url(self.base_url),
-                    request(self.model, call, self.json_format, self.token_limit_rule)?,
-                ),
-                OpenAiWire::Responses => (
-                    responses_url(self.base_url),
-                    responses::request(self.model, call, self.json_format)?,
-                ),
-                OpenAiWire::Text => (
-                    completions_url(self.base_url),
-                    text::request(self.model, call)?,
-                ),
-            };
-            let response = http
-                .post(url)
-                .bearer_auth(key)
-                .timeout(self.timeout)
-                .json(&body)
-                .send()
-                .await
-                .map_err(|error| {
-                    crate::lm::LmFailure::from_transport(&error, self.model, self.label)
-                })?;
-            let status = response.status();
-            // Taken before the body, which consumes the response — and needed for a failure, where
-            // `retry-after` is what the retry waits for rather than guessing.
-            let headers = response.headers().clone();
-            let body: Value = response
-                .json()
-                .await
-                .explain_with(|| format!("{} response was not JSON", self.label))?;
-            match self.wire {
-                OpenAiWire::Chat => {
-                    response::reply(self.label, self.model, status, &headers, &body)
-                }
-                OpenAiWire::Responses => {
-                    responses::reply(self.label, self.model, status, &headers, &body)
-                }
-                OpenAiWire::Text => text::reply(self.label, self.model, status, &headers, &body),
+    async fn forward<'a>(&'a self, call: &'a api::LmRequest) -> Result<api::LmResponse> {
+        let http = &crate::lm::global::client();
+        let key = self
+            .api_key
+            .ok_or_else(|| anyhow!("{} is not set", self.key_var))?;
+        let (url, body) = match self.wire {
+            OpenAiWire::Chat => (
+                chat_completions_url(self.base_url),
+                request(self.model, call, self.json_format, self.token_limit_rule)?,
+            ),
+            OpenAiWire::Responses => (
+                responses_url(self.base_url),
+                responses::request(self.model, call, self.json_format)?,
+            ),
+            OpenAiWire::Text => (
+                completions_url(self.base_url),
+                text::request(self.model, call)?,
+            ),
+        };
+        let response = http
+            .post(url)
+            .bearer_auth(key)
+            .timeout(self.timeout)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|error| {
+                crate::lm::LmFailure::from_transport(&error, self.model, self.label)
+            })?;
+        let status = response.status();
+        // Taken before the body, which consumes the response — and needed for a failure, where
+        // `retry-after` is what the retry waits for rather than guessing.
+        let headers = response.headers().clone();
+        let body: Value = response
+            .json()
+            .await
+            .explain_with(|| format!("{} response was not JSON", self.label))?;
+        match self.wire {
+            OpenAiWire::Chat => response::reply(self.label, self.model, status, &headers, &body),
+            OpenAiWire::Responses => {
+                responses::reply(self.label, self.model, status, &headers, &body)
             }
+            OpenAiWire::Text => text::reply(self.label, self.model, status, &headers, &body),
         }
     }
 }

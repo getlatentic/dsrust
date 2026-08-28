@@ -332,13 +332,15 @@ mod tests {
             crate::optimize::scripted::Solver::new(crate::optimize::scripted::Answers::Correctly);
         let sets = crate::optimize::mipro::demos::create_demo_sets(
             &mut student,
-            4,
             &crate::optimize::scripted::trainset(),
-            2,
-            2,
             &crate::evaluate::exact_match,
-            None,
             &mut Rng::seeded(0),
+            &crate::optimize::mipro::demos::Bounds {
+                num_candidate_sets: 4,
+                max_labeled: 2,
+                max_bootstrapped: 2,
+                metric_threshold: None,
+            },
         )
         .await
         .expect("the scripted program bootstraps");
@@ -382,7 +384,7 @@ mod tests {
     #[test]
     fn a_field_the_demo_lacks_prints_as_none() {
         let partial = example! { augmented: true, question: "q?" };
-        let shown = task_demos(&signature(), &vec![vec![], vec![partial]], 1);
+        let shown = task_demos(&signature(), &[vec![], vec![partial]], 1);
         assert_eq!(shown, "Question: q?\nAnswer: None\n\n");
     }
 }
