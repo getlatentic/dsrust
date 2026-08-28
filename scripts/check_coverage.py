@@ -118,11 +118,6 @@ EXCUSED = {
     # `a_reply_carrying_parts_survives_the_round_trip` holds that, and
     # `the_providers_raw_choice_is_not_kept_on_disk` holds the one thing deliberately dropped.
     "tests/clients/test_disk_serialization.py": "Python pickling policy; the round-trip idea is held by lm/cache/disk.rs",
-    "tests/clients/test_inspect_global_history.py": (
-        "dspy's history printing. Probed rather than assumed: three of its nine reach the "
-        "crate, and only through the adapter render every other suite already covers; the "
-        "other six format and print a history this crate does not accumulate"
-    ),
     "tests/clients/test_lm_local.py": "launching a locally-served model",
     # The three modules behind this file are in PORTED_MODULES now, so their symbols are held to
     # the ledger and not only their behaviour to a golden. They were cited by name throughout
@@ -244,6 +239,46 @@ def experimental_is_not_a_line() -> list[str]:
     ]
 
 
+#: The per-test declarations in the bridge's conftest, which make the same kind of claim a file-level
+#: excuse does and are nine times as many.
+CONFTEST = (
+    pathlib.Path(__file__).parent.parent / "crates" / "dsrs-bridge" / "python" / "conftest.py"
+)
+DECLARATIONS = (
+    "DOES_NOT_EXERCISE_RUST",
+    "NOT_YET_IMPLEMENTED",
+    "NOT_ADAPTER_CONFORMANCE",
+    "SIGNATURE_CONFORMANCE",
+)
+
+
+def declared_reasons() -> dict[str, str]:
+    """Every per-test declaration in the conftest, as `dict name -> its reason`.
+
+    Read with `ast` rather than by importing: the conftest needs pytest, dspy and a built bridge,
+    and this check has to run without any of them.
+    """
+    import ast
+
+    found: dict[str, str] = {}
+    tree = ast.parse(CONFTEST.read_text())
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)):
+            continue
+        if node.targets[0].id not in DECLARATIONS or not isinstance(node.value, ast.Dict):
+            continue
+        for key, value in zip(node.value.keys, node.value.values):
+            if not isinstance(key, ast.Constant):
+                continue
+            try:
+                reason = ast.literal_eval(value)
+            except ValueError:
+                continue
+            if isinstance(reason, str):
+                found[f"{node.targets[0].id}[{key.value}]"] = reason
+    return found
+
+
 def names_that_do_not_exist() -> list[str]:
     """Every `.rs` file, golden and `Type::member` an excuse names, resolved against the tree.
 
@@ -264,7 +299,11 @@ def names_that_do_not_exist() -> list[str]:
     goldens = {str(path.relative_to(ROOT)) for path in (ROOT / "crates").rglob("*.json")}
 
     missing: list[str] = []
-    for path, why in EXCUSED.items():
+    # The conftest's per-test declarations join the file-level excuses: same rules, same
+    # indexes, and 266 more reasons that nothing read. `LM::with_callbacks` sat wrong in an
+    # excuse for months at a density of one in seven; there is no reason the larger corpus
+    # would be cleaner for having been unchecked longer.
+    for path, why in {**EXCUSED, **declared_reasons()}.items():
         for named in sorted(set(ledger.RS_FILE.findall(why))):
             if not any(f.endswith("/" + named) or f == named for f in files):
                 missing.append(f"{path} names {named}, which is not a file here")
@@ -299,6 +338,51 @@ def running() -> set[str]:
     return {f"tests/{name}" for name in re.findall(r"[\w/]+/test_\w+\.py", block.group(1))}
 
 
+#: Phrases an excuse uses when it rests on the module simply not being here. Each is a claim about
+#: this crate rather than about the test, and each stops being true the day the module lands.
+ABSENCE = (
+    "deferred",
+    "out of scope",
+    "does not cover",
+    "not ported",
+    "the port does not",
+)
+
+
+def stale_excuses() -> list[str]:
+    """An excuse that rests on a module this crate has since ported.
+
+    `tests/A/test_B.py` covers `A/B.py`, near enough to check: when that module is in
+    PORTED_MODULES, an excuse saying the feature is deferred or out of scope is quoting a state
+    that has changed. The excuse may still be right — a ported module can have Python-only tests —
+    but then it has to say *that*, and this makes it say it.
+
+    Found by the history suite going stale: its excuse said the crate does not accumulate a history
+    and therefore six of nine tests could not cross, which was true when written and wrong once
+    `utils/inspect_history.py` was ported. All nine cross now.
+    """
+    import api_surface
+
+    ported = set(api_surface.PORTED_MODULES)
+    problems = []
+    for path, why in sorted(EXCUSED.items()):
+        parts = pathlib.PurePosixPath(path).parts
+        if len(parts) != 3 or not parts[2].startswith("test_"):
+            continue
+        module = f"{parts[1]}/{parts[2][len('test_'):]}"
+        if module not in ported:
+            continue
+        flat = " ".join(why.split()).lower()
+        for phrase in ABSENCE:
+            if phrase in flat:
+                problems.append(
+                    f"{path} is excused as {phrase!r}, but {module} is in PORTED_MODULES — "
+                    "run the suite, or say what about the tests is Python-only"
+                )
+                break
+    return problems
+
+
 def main() -> None:
     manifest = [
         line.strip()
@@ -312,6 +396,7 @@ def main() -> None:
     stale = [f for f in EXCUSED if f not in manifest]
     both = [f for f in EXCUSED if f in run]
     unresolved = names_that_do_not_exist()
+    outdated = stale_excuses()
 
     print(f"  {len(run)} of {len(manifest)} upstream files run, {len(EXCUSED)} excused by name")
 
@@ -331,6 +416,7 @@ def main() -> None:
     if unresolved:
         failures.append(f"{len(unresolved)} excuse(s) naming something that does not exist:")
         failures += [f"      -> {line}" for line in sorted(unresolved)]
+    failures += outdated
     failures += resting
 
     if failures:

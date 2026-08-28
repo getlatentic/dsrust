@@ -11,6 +11,7 @@ genuinely runs on Rust.
 
 import json
 import os
+import sys
 
 import dspy
 import pytest
@@ -162,12 +163,6 @@ NOT_YET_IMPLEMENTED = {
     # another, and replays the registration and the mounts". That stopped being true when the
     # session became terminal, and a stale comment about a skipped test is how a skip outlives its
     # reason.)
-    "test_tools_re_register_after_process_restart": (
-        "the test kills dspy's own subprocess handle, which the Rust sandbox does not own"
-    ),
-    "test_mounts_replay_after_process_restart": (
-        "the test kills dspy's own subprocess handle, which the Rust sandbox does not own"
-    ),
     "test_process_death_ends_stateful_session": (
         "the test kills dspy's own subprocess handle, which the Rust sandbox does not own; the "
         "terminal-session rule it checks is held by deno.rs's own tests"
@@ -304,7 +299,6 @@ DOES_NOT_EXERCISE_RUST = {
     # an id, from a dict, and what each refuses. The adapter is not reached — these build the
     # value that an adapter would later render, and four tests in the file do render one.
     "test_encode_file_to_dict_from_bytes": "dspy.File encoding itself",
-    "test_encode_file_to_dict_from_path": "dspy.File encoding itself",
     "test_file_custom_mime_type": "dspy.File's own mime detection",
     "test_file_data_uri_in_format": "dspy.File's own data URI",
     "test_file_from_bytes": "dspy.File construction",
@@ -327,11 +321,9 @@ DOES_NOT_EXERCISE_RUST = {
     "test_invalid_file_string": "dspy.File rejecting a malformed string",
     # `dspy.Image` doing the same, plus the PIL and download paths that never reach a prompt.
     "test_different_mime_types": "dspy.Image's own mime detection",
-    "test_from_methods_warn": "dspy.Image's deprecation warning",
     "test_image_repr": "dspy.Image's own string form",
     "test_invalid_string_format": "dspy.Image rejecting a malformed string",
     "test_mime_type_from_response_headers": "dspy.Image reading a response header",
-    "test_pil_image_with_download_parameter": "dspy.Image's download flag",
     # Resolving a custom annotation to a type, which is Python's type system answering about
     # itself. `reflect.py` is where this crate depends on that answer rather than making it.
     "test_basic_custom_type_resolution": "dspy resolving an annotation to a type",
@@ -1054,6 +1046,37 @@ def _use_rust_adapter(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _use_rust_history_printer(monkeypatch):
+    """Render dspy's history through this crate's `pretty_print_history`.
+
+    Upstream's two rendering tests hand the function a literal history and read the text back, which
+    is exactly what the Rust side answers — so they cross rather than testing dspy against itself.
+    The four that make predictor calls first need `GLOBAL_HISTORY`, which this crate does not
+    accumulate, and they are declared as such.
+    """
+
+    def rust_pretty_print_history(history, n=1, file=None):
+        text = dsrs_bridge.pretty_print_history(json.dumps(history, default=str), n, file is None)
+        crossings.record_render()
+        print(text, end="", file=file or sys.stdout)
+
+    for target in (
+        "dspy.utils.inspect_history.pretty_print_history",
+        "dspy.clients.base_lm.pretty_print_history",
+    ):
+        monkeypatch.setattr(target, rust_pretty_print_history, raising=False)
+    # The suite does `from dspy.utils.inspect_history import pretty_print_history`, which binds the
+    # original into its own namespace at import — long before this fixture runs. Patching only the
+    # defining module leaves those two tests calling dspy's function and passing for reasons this
+    # crate has no part in, which the crossing guard duly reported.
+    for module in sys.modules.values():
+        if getattr(module, "__name__", "").startswith("upstream_test_") and hasattr(
+            module, "pretty_print_history"
+        ):
+            monkeypatch.setattr(module, "pretty_print_history", rust_pretty_print_history)
+
+
+@pytest.fixture(autouse=True)
 def _use_rust_predict(request, monkeypatch):
     """For the predict suite, make `dspy.Predict` this crate's `Predict`, so those tests exercise
     our module's orchestration — render, call, parse — not dspy's over our adapter.
@@ -1632,12 +1655,80 @@ def _rebind_in_the_test_module(monkeypatch, request):
         monkeypatch.setattr(module, "majority", rust_signature.majority)
 
 
+#: A full run collects well over a thousand tests; anything smaller is a filtered one, where a
+#: declaration for an uncollected test is expected rather than orphaned.
+_WHOLE_RUN = 1000
+
+
 def pytest_configure(config):
     """Upstream marks async tests with `@pytest.mark.asyncio`; honour it without editing them."""
     config.option.asyncio_mode = "auto"
 
 
+def _orphaned_declarations(items) -> list[str]:
+    """Declaration keys that match no collected test.
+
+    A declaration is prose asserting something about a test, and a key naming a test upstream no
+    longer ships asserts it about nothing. That direction is not dangerous at runtime — the entry is
+    simply never consulted — but it is how a corpus rots: 283 of these carry a reason, and until now
+    the only rule over them was that the *tests* had to be declared, never that the declarations had
+    to name a test. A bogus key was added and a full green run did not notice.
+
+    Every spelling `_require_a_crossing` accepts is accepted here, so a key that works is never
+    reported as an orphan.
+    """
+    known: set[str] = set()
+    for item in items:
+        module = item.module.__name__ + ".py"
+        case = item.name
+        name = case.split("[")[0]
+        known |= {
+            f"{module}::{case}",
+            case,
+            f"{module}::{name}",
+            f"{module}::{name.removesuffix('_async')}",
+            name,
+            name.removesuffix("_async"),
+        }
+        cls = getattr(item, "cls", None)
+        if cls is not None:
+            known |= {f"{module}::{cls.__name__}", cls.__name__}
+        known.add(module)
+    declared = (
+        DOES_NOT_EXERCISE_RUST,
+        NOT_YET_IMPLEMENTED,
+        NOT_ADAPTER_CONFORMANCE,
+        SIGNATURE_CONFORMANCE,
+    )
+    return sorted(
+        f"{table}[{key}]"
+        for table, entries in zip(
+            (
+                "DOES_NOT_EXERCISE_RUST",
+                "NOT_YET_IMPLEMENTED",
+                "NOT_ADAPTER_CONFORMANCE",
+                "SIGNATURE_CONFORMANCE",
+            ),
+            declared,
+        )
+        for key in entries
+        if key not in known
+    )
+
+
 def pytest_collection_modifyitems(items):
+    # `-k` does not shrink this: pytest hands the hook everything it collected and applies the
+    # filter afterwards, so a filtered run still sees the whole suite and the check still holds.
+    # The floor is for a run pointed at fewer files than the harness passes, where collection
+    # itself is partial and every declaration outside those files would read as an orphan.
+    if len(items) >= _WHOLE_RUN:
+        orphans = _orphaned_declarations(items)
+        if orphans:
+            raise pytest.UsageError(
+                "these declarations name no collected test — upstream renamed or dropped them, "
+                "so the reason they carry is about nothing:\n  "
+                + "\n  ".join(orphans)
+            )
     for item in items:
         # Async variants share the sync name plus a suffix, and share the same gap.
         # A parametrized test's name carries its case in brackets; the gap is per function.

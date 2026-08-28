@@ -65,6 +65,7 @@ SUITES=(
   signatures/test_signature.py signatures/test_custom_types.py
   signatures/test_adapter_file.py signatures/test_adapter_image.py
   primitives/test_example.py
+  clients/test_inspect_global_history.py
   predict/test_multi_chain_comparison.py predict/test_aggregation.py
   predict/test_refine.py predict/test_best_of_n.py predict/test_parallel.py
   predict/test_rlm.py predict/test_program_of_thought.py predict/test_code_act.py

@@ -873,6 +873,19 @@ fn json_fallback_settings(
         .then_some((false, None)))
 }
 
+/// dspy `pretty_print_history`, so upstream's own suite renders through this crate.
+///
+/// The history arrives as JSON because that is the shape `GLOBAL_HISTORY` holds — a list of dicts
+/// with `messages`, `outputs` and a timestamp — and the answer is the text upstream would have
+/// printed, which the shim writes wherever it was told to.
+#[pyfunction]
+#[pyo3(signature = (history, n, colours))]
+fn pretty_print_history(history: &str, n: usize, colours: bool) -> PyResult<String> {
+    let entries: Vec<Value> = serde_json::from_str(history)
+        .map_err(|error| PyValueError::new_err(format!("bad history: {error}")))?;
+    Ok(dsrust::lm::api::pretty_print_history(&entries, n, colours))
+}
+
 #[pymodule]
 fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     // The two sandbox failure classes, so the shim can tell the code's failure from the
@@ -886,6 +899,7 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
         module.py().get_type::<sandbox::SandboxSessionFailed>(),
     )?;
     module.add_function(wrap_pyfunction!(format_messages, module)?)?;
+    module.add_function(wrap_pyfunction!(pretty_print_history, module)?)?;
     module.add_function(wrap_pyfunction!(predict_forward, module)?)?;
     module.add_function(wrap_pyfunction!(react_forward, module)?)?;
     module.add_function(wrap_pyfunction!(code_modules::rlm_forward, module)?)?;
