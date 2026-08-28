@@ -135,6 +135,7 @@ PORTED_MODULES = [
     # source that implements it. See the `ported-in-effect-unlisted` story for how they were found.
     "teleprompt/bootstrap_trace.py",
     "teleprompt/teleprompt_optuna.py",
+    "teleprompt/infer_rules.py",
     "teleprompt/gepa/instruction_proposal.py",
     "teleprompt/gepa/gepa_utils.py",
     "teleprompt/gepa/gepa_flex_utils.py",

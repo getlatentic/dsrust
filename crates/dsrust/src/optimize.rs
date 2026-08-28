@@ -19,6 +19,7 @@ mod copro;
 mod earned;
 mod ensemble;
 mod gepa;
+mod infer_rules;
 mod labeled;
 mod mipro;
 mod optuna;
@@ -86,6 +87,7 @@ pub use gepa::{
     Candidate, Feedback, GEPA, GepaOutcome, InstructionProposer, MetricContext,
     MultiModalInstructionProposer, Reflective, ReflectiveDataset,
 };
+pub use infer_rules::{InferRules, RuleCandidate};
 pub use labeled::LabeledFewShot;
 // `Trial` travels beside it: `MIPROv2::compile_traced` answers with `Vec<Trial>`, and a type a
 // caller cannot name is one they cannot put in a signature, a field or a `let`.
