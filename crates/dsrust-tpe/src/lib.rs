@@ -8,6 +8,7 @@
 //!
 //! The generator is [`pyrng::RandomState`], numpy's legacy MT19937; [`TpeSampler`] is built on it.
 
+mod argsort;
 mod int_sampler;
 mod numerical;
 mod parzen;

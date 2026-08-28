@@ -117,3 +117,48 @@ fn the_quantile_matches_on_both_sides() {
         same(ours, expected, &format!("ppf({q}, {a}, {b})"));
     }
 }
+
+/// `logaddexp` has an equal-arguments arm no ordinary pair reaches — `logaddexp(x, x)` is
+/// `x + ln 2`, not the general `big + log1p(exp(small - big))` — and an infinite argument short-
+/// circuits rather than subtracting infinities.
+#[test]
+fn the_log_sum_handles_equal_and_infinite_arguments() {
+    let golden = golden();
+    let cases = golden["log_sum"].as_array().expect("log_sum");
+    assert!(cases.len() >= 7, "the golden lost log_sum cases");
+    let mut equal = 0;
+    for case in cases {
+        let left = case["left"].as_f64().unwrap_or(f64::NEG_INFINITY);
+        let right = case["right"].as_f64().unwrap_or(f64::NEG_INFINITY);
+        equal += usize::from(left == right);
+        same(
+            tpe::truncnorm::log_sum(left, right),
+            number(&case["value"]),
+            &format!("log_sum({left}, {right})"),
+        );
+    }
+    assert!(
+        equal >= 3,
+        "only {equal} pair(s) are equal; the arm they exist for is untested"
+    );
+}
+
+/// The same inversion one input at a time, which is the only way the initial guess is visible.
+///
+/// In a batch the Newton loop runs until *every* element has converged, and the extra steps take
+/// both of the guess's regimes to the same answer. Alone, the switch at -5 decides the last bits —
+/// so a mutant moving that boundary survives the batch and dies here.
+#[test]
+fn inverting_one_at_a_time_shows_the_guess() {
+    for case in golden()["ndtri_exp_alone"]
+        .as_array()
+        .expect("ndtri_exp_alone")
+    {
+        let input = case["input"].as_f64().expect("an input");
+        same(
+            tpe::truncnorm::ndtri_exp(&[input])[0],
+            number(&case["value"]),
+            &format!("ndtri_exp([{input}])"),
+        );
+    }
+}

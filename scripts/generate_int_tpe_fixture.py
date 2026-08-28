@@ -51,6 +51,13 @@ CASES = [
     ("a_single_choice_parameter", [("demo_index_for_p", 0, 0)], 14),
     ("a_wide_range", [("demo_index_for_p", 0, 49)], 24),
     (
+        # Past 25 trials the oldest weights fade — `np.linspace(1/n, 1.0, num=n-25)` — and every
+        # shorter run in this file leaves that ramp empty, so nothing here reached it until now.
+        "past_twenty_five_trials_the_oldest_weights_fade",
+        [("demo_index_for_p", 0, 5)],
+        32,
+    ),
+    (
         "three_parameters_of_different_widths",
         [("demo_index_for_a", 0, 1), ("demo_index_for_b", 0, 9), ("demo_index_for_c", 0, 4)],
         18,

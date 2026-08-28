@@ -45,6 +45,11 @@ pub fn ndtr(a: f64) -> f64 {
 /// optuna's `_ndtr_single`, which splits on the sign to keep the tail accurate. Reached only from
 /// [`log_ndtr`], and not interchangeable with [`ndtr`] — they take different branches and differ in
 /// the last bits.
+///
+/// The *second* comparison carries an equivalent mutant. At `x == 1/√2` — reached at `a == 1`,
+/// which the grid holds — the middle and last arms agree to the last bit on this libm, both
+/// answering `0.8413447460685429`, so moving the boundary changes nothing. The first comparison
+/// does not: its two arms differ by an ULP at `a == -1`, and the grid catches that one.
 fn ndtr_single(a: f64) -> f64 {
     let x = a / std::f64::consts::SQRT_2;
     let half_sqrt2 = 1.0 / std::f64::consts::SQRT_2;
@@ -73,19 +78,20 @@ pub fn log_ndtr(a: f64) -> f64 {
     let mut denom_factor = 1.0f64;
     let denom_cons = 1.0 / (a * a);
     let mut sign = 1.0f64;
-    let mut i = 0.0f64;
-    // Upstream loops until the term stops moving the sum. Bounded here for the reason the rest of
-    // this crate bounds its loops: a reversed comparison should fail a test, not spin a core.
-    while (last_total - right_hand_side).abs() > f64::EPSILON {
-        i += 1.0;
+    // Upstream loops until the term stops moving the sum. The bound is the range's rather than a
+    // comparison of its own: a `while i < limit` is two mutants nothing can catch, since the series
+    // converges in a handful of terms and no input reaches the limit. The convergence test is still
+    // upstream's, and is what actually ends the loop.
+    for step in 1..=1000u32 {
+        if (last_total - right_hand_side).abs() <= f64::EPSILON {
+            break;
+        }
+        let i = f64::from(step);
         last_total = right_hand_side;
         sign = -sign;
         denom_factor *= denom_cons;
         numerator *= 2.0 * i - 1.0;
         right_hand_side += sign * numerator * denom_factor;
-        if i > 1000.0 {
-            break;
-        }
     }
     log_lhs + right_hand_side.ln()
 }
@@ -95,8 +101,11 @@ pub fn norm_logpdf(x: f64) -> f64 {
     -(x * x) / 2.0 - NORM_PDF_LOG_C
 }
 
-fn log_sum(log_p: f64, log_q: f64) -> f64 {
+pub fn log_sum(log_p: f64, log_q: f64) -> f64 {
     // `np.logaddexp`, whose branch keeps the larger term outside the exponential.
+    //
+    // The comparison below carries an equivalent mutant: equal arguments have already returned, so
+    // it only ever sees two different values and `>` and `>=` pick the same one.
     if log_p == log_q {
         return log_p + std::f64::consts::LN_2;
     }
@@ -166,6 +175,8 @@ pub fn ndtri_exp(ys: &[f64]) -> Vec<f64> {
             // the far tail from dividing two underflowed numbers.
             let dx = (log_ndtr_x - z) * (log_ndtr_x - log_norm_pdf_x).exp();
             *x -= dx;
+            // Upstream's relative tolerance. The comparison carries an equivalent mutant: it can
+            // only matter when the step is *exactly* `1e-8` times the value, which no input reaches.
             settled &= dx.abs() < 1e-8 * x.abs();
         }
         if settled {

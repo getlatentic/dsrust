@@ -38,6 +38,13 @@ SEEDS = [0, 1, 7, 42, 2024]
 #: `num_demos / max_demos` for the shapes SIMBA reaches: no demos yet, part-full, exactly full,
 #: and over. Lambda is a ratio, so these are the values that actually occur.
 LAMBDAS = [0.0, 0.25, 0.5, 0.75, 1.0, 1.25, 2.0, 4.0, 9.999, 10.0, 12.5, 40.0]
+#: The transformed-rejection branch above lambda ten accepts on its first test more than nine
+#: attempts in ten, so its later arms — the `k < 0` retry, the `us < 0.013` squeeze, and the
+#: log-density acceptance that calls `loggam` — are reached only by volume. Twenty-four draws per
+#: stream left every one of them unexercised; these lambdas and a longer stream reach them.
+LAMBDAS += [10.001, 25.0, 100.0, 1000.0]
+#: Draws per stream. Raised from 24 for the reason above: the arms this is here to pin are rare.
+DRAWS = 400
 
 
 def words(seed: int, count: int) -> list[int]:
@@ -70,7 +77,7 @@ def main() -> None:
                 "raw_words": {str(seed): words(seed, 12) for seed in SEEDS},
                 "doubles": {str(seed): doubles(seed, 12) for seed in SEEDS},
                 "poisson": [
-                    {"seed": seed, "lam": lam, "draws": poissons(seed, lam, 24)}
+                    {"seed": seed, "lam": lam, "draws": poissons(seed, lam, DRAWS)}
                     for seed in SEEDS
                     for lam in LAMBDAS
                 ],

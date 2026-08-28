@@ -10,7 +10,7 @@
 
 use pyrng::RandomState;
 
-use crate::parzen::pairwise_sum;
+use crate::parzen::{default_weights, pairwise_sum};
 use crate::truncnorm;
 
 /// One `IntDistribution`. `step` is one for every parameter dspy asks for, so the bounds the kernels
@@ -158,8 +158,10 @@ fn neighbour_widths(observations: &[f64], low: f64, high: f64) -> Vec<f64> {
     if observations.is_empty() {
         return Vec::new();
     }
-    let mut order: Vec<usize> = (0..observations.len()).collect();
-    order.sort_by(|&a, &b| observations[a].total_cmp(&observations[b]));
+    // numpy's own permutation, not a stable one: with duplicate observations the two disagree from
+    // seventeen elements up, and which duplicate lands at a run's boundary decides which kernel
+    // gets the wide sigma. See `argsort`.
+    let order = crate::argsort::argsort(observations);
     let mut padded = Vec::with_capacity(observations.len() + 2);
     padded.push(low);
     padded.extend(order.iter().map(|&i| observations[i]));
@@ -180,20 +182,6 @@ fn neighbour_widths(observations: &[f64], low: f64, high: f64) -> Vec<f64> {
         widths[index] = sorted[position];
     }
     widths
-}
-
-/// optuna's `default_weights` for the numerical path: the oldest trials fade linearly once there
-/// are more than 25, and the newest 25 all count fully.
-fn default_weights(n: usize) -> Vec<f64> {
-    if n < 25 {
-        return vec![1.0; n];
-    }
-    let ramp: Vec<f64> = (0..n - 25)
-        .map(|i| (i as f64 + 1.0) / (n - 25) as f64)
-        .collect();
-    ramp.into_iter()
-        .chain(std::iter::repeat_n(1.0, 25))
-        .collect()
 }
 
 /// `np.round`: half to even, which Rust's `f64::round` is not.
@@ -218,4 +206,102 @@ fn logsumexp(values: &[f64]) -> f64 {
     }
     let shifted: Vec<f64> = values.iter().map(|value| (value - largest).exp()).collect();
     pairwise_sum(&shifted).ln() + largest
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+
+    fn rounding_golden() -> Value {
+        serde_json::from_str(include_str!("../tests/conformance/half_to_even.json"))
+            .expect("the rounding golden is valid JSON")
+    }
+
+    #[test]
+    fn rounding_is_numpys_and_not_rusts() {
+        let golden: Value =
+            serde_json::from_str(include_str!("../tests/conformance/half_to_even.json"))
+                .expect("the rounding golden is valid JSON");
+        let cases = golden["cases"].as_array().expect("cases");
+        assert!(cases.len() >= 15, "the golden lost cases: {}", cases.len());
+        let mut differ = 0;
+        for case in cases {
+            let value = case["value"].as_f64().expect("a value");
+            let expected = case["rounded"].as_f64().expect("a rounding");
+            assert_eq!(half_to_even(value), expected, "np.round({value})");
+            differ += usize::from(value.round() != expected);
+        }
+        assert!(
+            differ >= 5,
+            "only {differ} case(s) tell numpy's rounding from Rust's; the corpus has stopped covering \
+             the thing it exists for"
+        );
+    }
+
+    /// The mixture weights are normalised, which nothing downstream re-derives: `sample` draws
+    /// through a cdf it renormalises, but `log_pdf` adds `ln(weight)` as it stands.
+    #[test]
+    fn the_mixture_weights_sum_to_one() {
+        for observations in [
+            vec![],
+            vec![1.0],
+            vec![2.0, 2.0, 3.0],
+            (0..30).map(|i| f64::from(i % 6)).collect::<Vec<_>>(),
+        ] {
+            let built = Numerical::build(&observations, IntRange::new(0, 5), 1.0);
+            let total: f64 = built.weights.iter().sum();
+            assert!(
+                (total - 1.0).abs() < 1e-12,
+                "weights for {} observation(s) sum to {total}",
+                observations.len()
+            );
+            assert_eq!(
+                built.weights.len(),
+                built.mus.len(),
+                "one weight per kernel, the prior included"
+            );
+        }
+    }
+
+    /// The snap back onto the grid is relative to the range's own low, which every dspy caller
+    /// leaves at zero — so a range starting elsewhere is the only thing that can tell an offset
+    /// from an absent one.
+    #[test]
+    fn a_draw_is_snapped_relative_to_the_ranges_low() {
+        let range = IntRange::new(10, 20);
+        let built = Numerical::build(&[15.0, 15.0, 15.0], range, 1.0);
+        let mut rng = RandomState::new(0);
+        let drawn = built.sample(&mut rng, 64);
+        assert!(
+            drawn.iter().all(|&v| (10.0..=20.0).contains(&v)),
+            "every draw is inside the range"
+        );
+        let near = drawn
+            .iter()
+            .filter(|&&v| (13.0..=17.0).contains(&v))
+            .count();
+        assert!(
+            near > 32,
+            "the kernels sit at 15, so most draws should too; only {near} of 64 did"
+        );
+    }
+
+    /// The shift `logsumexp` subtracts is what keeps a far tail from underflowing, and the guard
+    /// that zeroes it exists for a mixture whose every term is `-inf`.
+    #[test]
+    fn the_shift_survives_an_all_impossible_mixture() {
+        assert_eq!(
+            logsumexp(&[f64::NEG_INFINITY; 4]),
+            f64::NEG_INFINITY,
+            "a mixture that can produce nothing has no density"
+        );
+        // Without the shift these underflow to zero and the answer is `-inf` instead of the sum.
+        let tiny = [-800.0, -801.0, -802.0];
+        let shifted = logsumexp(&tiny);
+        assert!(
+            shifted.is_finite() && shifted > -801.0,
+            "terms below the exponent's floor need the shift; got {shifted}"
+        );
+    }
 }

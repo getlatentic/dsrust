@@ -14,6 +14,12 @@
 # a change the compiler accepts and no behaviour can distinguish — and chasing those is wasted work.
 # What matters is that the number never rises: a new survivor is a new line nothing checks.
 #
+# **A floor is only a floor over the code it was measured against.** This is not run by the gates,
+# so a module added after a measurement is covered by nothing until someone re-runs it — which is
+# how `pcg64.rs` sat outside pyrng's floor of 7 from the day it landed. Adding a file to a scoped
+# crate means re-measuring that crate, and a floor that has not moved while the crate grew is a
+# number about the past.
+#
 #     ./scripts/run_mutants.sh            # the adapter slice, then every scoped crate
 #     ./scripts/run_mutants.sh dsrust-tpe # one of them
 #     ./scripts/run_mutants.sh adapter    # one dsrust slice (see SLICES; ~40-80 minutes each)
@@ -30,12 +36,69 @@ cd "$ROOT"
 # 61 to 63 while the thing it is supposed to track had improved. A hang is still not a passing test,
 # so both are floors; collapsing them is what hid the direction.
 #
-#   dsrust-tpe 1 — `n < 25` against `n <= 25` in `default_weights`. At n=25 the ramp is empty either
-#                  way and both arms return twenty-five ones, so nothing can tell them apart.
-#   pyrng      7 — every one a reasoned equivalent with its note in the source, and none of them
-#                  hanging any more: the three that used to spin (`bisect_right`'s comparison and
-#                  `below`'s rejection loop) are `partition_point` walks now, so the same mutants
-#                  fail in milliseconds instead of burning the timeout. `choices`' `len - 1` needs
+#   dsrust-tpe 11 — one of them the old floor: `n < 25` against `n <= 25` in `parzen`'s
+#                  `default_weights`, where at n=25 the ramp is empty either way and both arms
+#                  return twenty-five ones. The other ten arrived with `argsort` and `truncnorm`,
+#                  and each was measured rather than assumed. Seven are in `argsort`: six on the
+#                  choice of which partition to push and which to walk — the halves are disjoint and
+#                  both get sorted, so the order changes only the stack depth (flipping it leaves
+#                  all twenty tests green) — and one on the insertion sort's `pl + 1`, where
+#                  starting a place earlier re-inserts an element into a prefix of one. Three are in
+#                  `truncnorm`: `ndtr_single`'s *second* boundary, where the two arms agree to the
+#                  last bit on this libm; `log_sum`'s big/small pick, which equal arguments have
+#                  already returned past; and Newton's relative tolerance at exact equality. Every
+#                  one carries its note in the source.
+#                  Measured down from 29 missed + 2 hanging at first run: the hangs were manual
+#                  cursors a mutant could stall (bounded searches now), and the survivors were a
+#                  wrong `default_weights` — a second, incorrect copy of a function the crate
+#                  already had right — plus untested boundaries in rounding, weights, the
+#                  log-sum-exp shift, and a range whose low is not zero.
+#
+#                  The last hang was worth the three passes it took, because the first two treated
+#                  it as a loop that needed a bound and it was not one. `argsort`'s partition walks
+#                  ended in `unwrap_or(pr)` / `unwrap_or(pl)`, and an exhausted walk clamped *onto*
+#                  the end of its range is a fixed point: on an inverted range — which the width
+#                  test's mutant reaches and no real input does — both walks came up empty every
+#                  pass, neither index moved, and `pi >= pj` never came true. Landing one past the
+#                  end instead, where numpy's own pointer sits, makes the pair cross and the loop
+#                  stop. Wrapping the whole thing in `for _ in 0..num` had hidden none of that and
+#                  cost three survivors of its own.
+#
+#                  Both replacements are counted rather than clamped — `pi += 1 + take_while(..)
+#                  .count()` — so the fallback is the arithmetic's own answer and not a constant no
+#                  test can reach. That is the general shape: a defensive branch nothing exercises
+#                  is a survivor by construction, and the two `unwrap_or` constants plus a
+#                  `leading_zeros` depth bound were exactly that, five untestable mutants added
+#                  while fixing a hang. What catches the width mutant now is one assertion at the
+#                  push, `stack.len() < num`, true because each entry goes on at half the range
+#                  below it, and written as the length rather than the log of it so the bound holds
+#                  no arithmetic of its own.
+#   pyrng      37 — **a floor is only a floor over the code it was measured against.** This said 7
+#                  until 2026-08-28, and 7 was right when it was written: `pcg64.rs` did not exist
+#                  yet. It arrived with SIMBA, nobody re-ran this, and a ratchet that is never
+#                  re-measured cannot notice a module. Nine of the 37 are the original reasoned
+#                  equivalents; the rest are `pcg64`'s, and two of those were mine this session.
+#
+#                  Five *hangs* became zero on the way: `generate_state`'s shift-until-empty and
+#                  both poisson loops were cursors a mutant could stall, and are bounded walks now —
+#                  which is why the missed count rose rather than fell. A mutant that used to burn
+#                  the timeout now runs and is counted, and the timeouts had been masking a whole
+#                  cluster in `poisson_ptrs` and `loggam`.
+#
+#                  The poisson corpus was widened first — 24 draws per stream to 400, and lambdas
+#                  out to 1000, so 32,000 draws instead of 1,440 — and every one still matches
+#                  numpy. It moved the count by two, which is the finding: the rejection branch's
+#                  later arms are reached constantly and *cannot be told apart from the first one*.
+#                  Worked example: `k < 0.0 || (us < 0.013 && v > us)` guards a retry, and with the
+#                  `||` weakened to `&&` a negative `k` falls through to the log-density test, whose
+#                  comparison against a NaN `loggam(k + 1)` is false — so the loop goes round again
+#                  having drawn exactly what it would have drawn. Same draws, same answer.
+#
+#                  What that leaves is genuine work rather than noise, and it is filed as
+#                  `poisson-arms-nothing-distinguishes` in backlog.toml rather than absorbed here.
+#                  The original nine: `choices`' `len - 1` needs `random_double() * total` to reach
+#                  `total`, which a draw strictly below one does not; `twist`'s `|` and `^` act on
+#                  disjoint masks; `getrandbits` at exactly 32. `choices`' `len - 1` needs
 #                  `random_double() * total` to reach `total`, which a draw strictly below one does
 #                  not; `twist`'s `|` and `^` act on disjoint masks; `getrandbits` at exactly 32
 #                  shifts by zero either way; and both `<=` spellings in the two searches need a
@@ -87,8 +150,8 @@ cd "$ROOT"
 #               *reads*. Filed as `parse-side-goldens`; no ratchet entry until that lands, since a
 #               five-hour floor nobody runs is not a gate.
 BASELINES=(
-  "dsrust-tpe:1:0"
-  "pyrng:7:0"
+  "dsrust-tpe:11:0"
+  "pyrng:37:0"
   "dsrust-gepa:13:0"
   "dsrust-json-repair:156:1"
 )

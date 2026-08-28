@@ -134,3 +134,41 @@ fn argmax(values: &[f64]) -> usize {
     }
     best
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The untransform is relative to the range's own low, which every dspy caller leaves at zero —
+    /// `suggest_int(name, 0, len - 1)` — so a range starting elsewhere is the only thing that can
+    /// tell the offset from an absent one.
+    #[test]
+    fn the_untransform_is_relative_to_the_ranges_low() {
+        let range = IntRange::new(3, 8);
+        // 5.5 is 2.5 above the low, and half-to-even takes that to 2.
+        assert_eq!(untransform(5.5, range), 5);
+        assert_eq!(
+            untransform(6.5, range),
+            7,
+            "the next half rounds the other way"
+        );
+        assert_eq!(untransform(2.6, range), 3, "below the low, clamped up");
+        assert_eq!(untransform(99.0, range), 8, "above the high, clamped down");
+        assert_eq!(
+            untransform(3.0, IntRange::new(0, 5)),
+            3,
+            "and a zero low is the plain case"
+        );
+    }
+
+    /// `default_gamma` is a tenth, rounded up, capped at 25 — the split every TPE trial is built on.
+    #[test]
+    fn the_split_size_is_a_capped_tenth() {
+        assert_eq!(default_gamma(0), 0);
+        assert_eq!(default_gamma(1), 1);
+        assert_eq!(default_gamma(10), 1);
+        assert_eq!(default_gamma(11), 2, "rounded up, not down");
+        assert_eq!(default_gamma(250), 25);
+        assert_eq!(default_gamma(1000), 25, "capped");
+    }
+}

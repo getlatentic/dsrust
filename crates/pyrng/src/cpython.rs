@@ -463,5 +463,48 @@ fn limbs(magnitude: &[u8]) -> Vec<u32> {
     while words.len() > 1 && *words.last().expect("checked above") == 0 {
         words.pop();
     }
+    // No bytes is the number zero, which CPython still spends a word on — the same one `key` gives
+    // a seed of zero, and the one `Mt19937::from_key` asserts it was handed.
+    if words.is_empty() {
+        words.push(0);
+    }
     words
+}
+
+#[cfg(test)]
+mod seed_tests {
+    use super::limbs;
+
+    /// The magnitude's 32-bit words, least significant first, with the integer's absent leading
+    /// zeroes dropped.
+    ///
+    /// A digest is what reaches this in practice and one starting with a zero byte is a one-in-256
+    /// event, so the trim has never been exercised by the recorded seeds — which is exactly the
+    /// kind of branch a golden of real inputs leaves standing.
+    #[test]
+    fn the_leading_zeroes_an_integer_does_not_have_are_dropped() {
+        assert_eq!(limbs(&[0x01, 0x02, 0x03, 0x04]), vec![0x0102_0304]);
+        assert_eq!(limbs(&[0xff]), vec![0xff]);
+        assert_eq!(
+            limbs(&[]),
+            vec![0],
+            "no bytes is the number zero, which keeps one word"
+        );
+        assert_eq!(limbs(&[0x00]), vec![0], "and so is one zero byte");
+        assert_eq!(
+            limbs(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05]),
+            vec![5],
+            "a top word of zero is not part of the number"
+        );
+        assert_eq!(
+            limbs(&[0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02]),
+            vec![2, 1],
+            "least significant first, and a *middle* zero byte stays"
+        );
+        assert_eq!(
+            limbs(&[0x01, 0x02, 0x03, 0x04, 0x05]),
+            vec![0x0203_0405, 0x01],
+            "a length that is not a multiple of four leaves a short top word"
+        );
+    }
 }

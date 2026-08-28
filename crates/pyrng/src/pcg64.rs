@@ -47,14 +47,14 @@ pub(crate) mod seed_sequence {
     pub(crate) fn generate_state(entropy: u64, words: usize) -> Vec<u32> {
         // The entropy is spread into 32-bit words, little end first, as `_coerce_to_uint32_array`
         // does for a Python int.
-        let mut source: Vec<u32> = Vec::new();
-        let mut rest = entropy;
-        while rest > 0 {
-            source.push((rest & 0xffff_ffff) as u32);
-            rest >>= 32;
-        }
-        if source.is_empty() {
-            source.push(0);
+        // Written as a bounded walk over the two words a `u64` has rather than a loop that shifts
+        // until the value runs out: the loop is the same two iterations, and a mutant that stops
+        // the shift advancing should fail a test rather than spin.
+        let mut source: Vec<u32> = (0..2)
+            .map(|word| ((entropy >> (32 * word)) & 0xffff_ffff) as u32)
+            .collect();
+        while source.len() > 1 && *source.last().expect("two words") == 0 {
+            source.pop();
         }
 
         let mut pool = [0u32; 4];
@@ -172,16 +172,18 @@ impl Pcg64 {
             return 0;
         }
         let enlam = (-lam).exp();
-        let mut drawn = 0u64;
         let mut product = 1.0;
-        loop {
+        // numpy multiplies uniforms until the product drops below `exp(-lam)`. The count is
+        // unbounded in principle and never large in practice — at the branch's own ceiling of
+        // `lam < 10` the mean is under ten and the tail falls off geometrically. The bound is here
+        // because a draw a mutant pins at one would otherwise never let the product fall.
+        for drawn in 0..10_000u64 {
             product *= self.next_double();
-            if product > enlam {
-                drawn += 1;
-            } else {
+            if product <= enlam {
                 return drawn;
             }
         }
+        panic!("ten thousand uniforms multiplied without falling below exp(-{lam})")
     }
 
     /// numpy's `random_poisson_ptrs`: Hörmann's transformed rejection, two uniforms per attempt.
@@ -192,7 +194,10 @@ impl Pcg64 {
         let a = -0.059 + 0.02483 * b;
         let invalpha = 1.1239 + 1.1328 / (b - 3.4);
         let vr = 0.9277 - 3.6224 / (b - 2.0);
-        loop {
+        // Rejection sampling, so the attempt count is unbounded in principle. Hörmann's method
+        // accepts well over ninety per cent of attempts, which makes ten thousand rejections in a
+        // row impossible in practice and a stalled draw the only way to reach the bound.
+        for _ in 0..10_000u32 {
             let u = self.next_double() - 0.5;
             let v = self.next_double();
             let us = 0.5 - u.abs();
@@ -209,6 +214,7 @@ impl Pcg64 {
                 return k as u64;
             }
         }
+        panic!("ten thousand rejections drawing a poisson at lambda {lam}")
     }
 }
 

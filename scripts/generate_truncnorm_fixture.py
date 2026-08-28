@@ -74,7 +74,22 @@ GRID = [
     28.0,
     30.0,
 ]
+#: The branch boundaries themselves. `ndtr_single` splits at `a/sqrt2 == ±1/sqrt2`, which is
+#: `a == ±1`; `log_ndtr` at 6 and -20. A grid that steps over a boundary tests neither side of it.
+GRID += [1.0, -1.0, 6.0, -6.0, -20.0]
 GRID = sorted({value for x in GRID for value in (x, -x)})
+
+#: `log_sum` has an equal-arguments arm — `logaddexp(x, x)` is `x + ln 2` — that no ordinary pair
+#: reaches, and `ndtri_exp` switches regime at exactly -5 and at -1e-2.
+LOG_SUM_PAIRS = [
+    (-1.0, -1.0),
+    (0.0, 0.0),
+    (-700.0, -700.0),
+    (-1.0, -2.0),
+    (-2.0, -1.0),
+    (float("-inf"), -1.0),
+    (-1.0, float("-inf")),
+]
 
 
 def encoded(value: float) -> float | str:
@@ -133,15 +148,37 @@ def main() -> None:
         -1.0,
         -4.9,
         -5.0,
+        -5.0000001,
+        -4.9999999,
         -5.1,
+        -0.01,
+        -0.0100001,
+        -0.0099999,
         -20.0,
         -100.0,
         -400.0,
     ]
+    record["log_sum"] = [
+        {
+            "left": None if math.isinf(left) else left,
+            "right": None if math.isinf(right) else right,
+            "value": encoded(float(np.logaddexp(left, right))),
+        }
+        for left, right in LOG_SUM_PAIRS
+    ]
+
     record["ndtri_exp"] = {
         "inputs": ndtri_inputs,
         "values": [encoded(float(v)) for v in _truncnorm._ndtri_exp(np.array(ndtri_inputs, dtype=float))],
     }
+
+    # Batches of one, which is the only way to see the initial guess: in a batch the Newton loop
+    # runs until *every* element has converged, and the extra steps take both guesses to the same
+    # place. Alone, the regime switch at -5 is the only thing deciding the answer.
+    record["ndtri_exp_alone"] = [
+        {"input": value, "value": encoded(float(_truncnorm._ndtri_exp(np.array([value]))[0]))}
+        for value in (-4.9999999, -5.0, -5.0000001, -0.0099999, -0.01, -0.0100001)
+    ]
 
     # `ppf(q, a, b)`, the quantile the sampler actually draws through.
     ppf_cases = [

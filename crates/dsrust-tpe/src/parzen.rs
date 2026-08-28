@@ -143,7 +143,7 @@ fn mixture_weights(observations: usize, prior_weight: f64) -> Vec<f64> {
 /// algebra and rounds differently: it disagreed with optuna in the last bit at two indices out of
 /// fifty. That would be pedantic if the weights were only weights, but they reach an acquisition
 /// whose ties `np.argmax` breaks by first index, so a last-bit difference picks a different trial.
-fn default_weights(n: usize) -> Vec<f64> {
+pub(crate) fn default_weights(n: usize) -> Vec<f64> {
     if n < 25 {
         return vec![1.0; n];
     }

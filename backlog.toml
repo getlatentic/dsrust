@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1517
+rust_tests = 1527
 upstream_tests_passing = 1201
 upstream_tests_crossing = 711
 upstream_tests_deciding_signatures = 687
@@ -5876,4 +5876,40 @@ map.
 
 `teleprompt/bootstrap_trace.py` moved to PORTED_MODULES and the backlog floor dropped to 5.
 `GEPA.add_format_failure_as_feedback` is `mapped`, not a divergence.
+"""
+
+[[story]]
+id = "poisson-arms-nothing-distinguishes"
+sprint = "api"
+title = "Thirty draws in a thousand reach numpy's rejection arms, and no test can tell them apart"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+`pyrng`'s `pcg64.rs` reproduces numpy's `random_poisson`, and its transformed-rejection branch
+(lambda at or above ten) carries 25 surviving mutants across `poisson_ptrs` and `loggam`. They were
+invisible until 2026-08-28 for two compounding reasons: the crate's mutation floor was measured
+before `pcg64.rs` existed and never re-run, and three unbounded loops turned the mutants that reach
+this code into timeouts rather than survivors.
+
+Both of those are fixed — the loops are bounded and the floor is re-measured at 37 — so what is left
+is the real question: **32,000 recorded draws, matching numpy exactly, cannot distinguish these
+arms.**
+
+The corpus is not the problem. It was widened first, from 1,440 draws to 32,000 with lambdas out to
+1000, and that moved the count by two. The arms are reached constantly; they just agree.
+
+The worked example is `k < 0.0 || (us < 0.013 && v > us)`, which guards a retry. Weaken the `||` to
+`&&` and a negative `k` falls through to the log-density acceptance instead, whose comparison
+against a NaN `loggam(k + 1)` is false — so the loop goes round again having consumed exactly the
+draws it would have consumed. Same randomness, same answer, no test can see it.
+"""
+acceptance = """
+- Each of the 25 classified by *which* of the three species it is: a missing test, a mutant that
+  should win, or a branch with no meaning. The classification is the deliverable — a count is not.
+- Any that is a missing test gets one, with numpy as the oracle rather than a hand-computed
+  expectation.
+- Any that is genuinely equivalent gets its reason in the source beside the line, the way
+  `argsort`'s six and `truncnorm`'s three now have theirs.
+- `pyrng`'s floor drops by however many were real, and the note says which.
 """
