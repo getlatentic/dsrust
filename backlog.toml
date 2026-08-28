@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1471
+rust_tests = 1468
 upstream_tests_passing = 1195
 upstream_tests_crossing = 705
 upstream_tests_deciding_signatures = 684
@@ -3794,6 +3794,50 @@ reads its reply — not at the internal type representation. Rust primitives are
 long as the rendered string and the parse are identical. The non-finite float is the worked
 example: `serde_json::Value` cannot hold `inf`, so it crosses as a one-key object and
 `variables.rs` rebuilds the `float('inf')` dspy would have written.
+"""
+
+[[backlog]]
+id = "b17"
+title = "SIMBA: the oracle is recorded, the search loop is not written"
+kind = "scoped"
+state = "next"
+detail = """
+`teleprompt/simba.py` + `simba_utils.py` — 630 lines, the biggest in-scope unported module and one
+of the eleven `api-conformance-backlog` names. Stochastic introspective mini-batch ascent: sample a
+mini-batch, run each example under several programs, find the examples whose scores vary most, and
+either append a demo from the best run or ask a model to write a rule from the contrast between the
+best and worst.
+
+**What is done.** The two primitives a Rust re-implementation gets wrong, both verified:
+
+  - `pyrng::pcg64` — numpy's `default_rng` is PCG64, not the MT19937 `RandomState` this crate
+    already had. Held to numpy over 5 seeds of raw words and doubles and 60 `poisson` streams, and
+    cross-checked against `rand_pcg::Lcg128Xsl64` so a seeding bug is distinguishable from a
+    stepper bug. SIMBA's one draw from it decides how many demos a candidate drops.
+  - `optimize/simba_arithmetic.json` — numpy's `percentile` at its linear default, and Python's
+    banker's `round`, which SIMBA uses to pick its final slate. Rust's `f64::round` disagrees on
+    every half.
+
+**And the oracle.** `optimize/simba.json` is every decision dspy's own SIMBA made on a scripted
+model, in order: two data shuffles, 28 softmax program picks at both temperatures, each step's 10th
+and 90th percentile, 9 poisson demo-drop draws with the 12 indices they dropped, and which of the
+two strategies each bucket invoked and whether it applied. There is **no upstream test file for
+SIMBA**, so a run is the only oracle there is; recording it first means the port is written against
+evidence rather than against a reading.
+
+The scripted model answers the same however the prompt changes, so the final winner ties with the
+baseline — the *decisions* are what discriminate a working port, which is why they are what the
+golden holds.
+
+**What is not done: the search loop itself, and its two strategies.** `append_a_rule` needs SIMBA's
+own `OfferFeedback`, which shares a name with `refine.py`'s and is a **different signature** —
+it contrasts a worse trajectory against a better one where refine's assigns blame against a
+threshold. Its `inspect_modules` *is* byte-identical to refine's (the only difference is an unused
+`enumerate`), so `refine::describe::modules` covers it.
+
+The arithmetic was written and then removed rather than landed without a consumer: the compiler's
+dead-code check, `check_surface_has_callers` and plain reading all said the same thing. It is in
+the history at `0270881` and comes back with the loop.
 """
 
 [[backlog]]

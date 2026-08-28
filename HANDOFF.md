@@ -28,7 +28,7 @@ character for character, including whitespace that looks accidental. Much of it 
 
 | | |
 |---|---|
-| Rust tests | 1471 passing |
+| Rust tests | 1468 passing |
 | Upstream dspy tests | 1195 passing, 705 crossing into Rust, 684 deciding a signature |
 | Upstream files run | 64 of 94, every other one excused by name |
 | Strict-xfail backlog | 4 entries in `conftest.py` |

@@ -1,0 +1,750 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_simba_fixture.py",
+  "dspy_version": "3.3.0",
+  "note": "Every decision dspy's SIMBA made on a scripted model, in order. There is no upstream test file for SIMBA, so a run is the only oracle there is. Recorded ahead of the port. There is no upstream test file for SIMBA, so a run is the only oracle there is — and committing it first means the port is written against evidence rather than against a reading of the source.",
+  "config": {
+    "bsize": 3,
+    "num_candidates": 2,
+    "max_steps": 3,
+    "max_demos": 2,
+    "seed": 0
+  },
+  "trainset": [
+    {
+      "question": "capital of France?",
+      "answer": "Paris"
+    },
+    {
+      "question": "capital of Spain?",
+      "answer": "Madrid"
+    },
+    {
+      "question": "capital of Italy?",
+      "answer": "Rome"
+    },
+    {
+      "question": "capital of Japan?",
+      "answer": "Tokyo"
+    },
+    {
+      "question": "capital of Peru?",
+      "answer": "Lima"
+    },
+    {
+      "question": "capital of Chile?",
+      "answer": "Santiago"
+    }
+  ],
+  "shuffled_indices": [
+    4,
+    2,
+    1,
+    0,
+    5,
+    3
+  ],
+  "models": [
+    [
+      {
+        "rollout_id": 0,
+        "temperature": 1.0
+      },
+      {
+        "rollout_id": 1,
+        "temperature": 1.0
+      }
+    ],
+    [
+      {
+        "rollout_id": 0,
+        "temperature": 1.0
+      },
+      {
+        "rollout_id": 1,
+        "temperature": 1.0
+      }
+    ],
+    [
+      {
+        "rollout_id": 0,
+        "temperature": 1.0
+      },
+      {
+        "rollout_id": 1,
+        "temperature": 1.0
+      }
+    ]
+  ],
+  "strategies": [
+    {
+      "strategy": "append_a_demo",
+      "applied": true
+    },
+    {
+      "strategy": "append_a_demo",
+      "applied": true
+    },
+    {
+      "strategy": "append_a_rule",
+      "applied": false
+    },
+    {
+      "strategy": "append_a_demo",
+      "applied": true
+    },
+    {
+      "strategy": "append_a_rule",
+      "applied": false
+    },
+    {
+      "strategy": "append_a_demo",
+      "applied": false
+    },
+    {
+      "strategy": "append_a_demo",
+      "applied": true
+    },
+    {
+      "strategy": "append_a_rule",
+      "applied": false
+    },
+    {
+      "strategy": "append_a_rule",
+      "applied": false
+    }
+  ],
+  "shuffles": [
+    [
+      4,
+      2,
+      1,
+      0,
+      5,
+      3
+    ],
+    [
+      2,
+      5,
+      0,
+      4,
+      1,
+      3
+    ]
+  ],
+  "percentiles": [
+    {
+      "q": 10.0,
+      "sample": [
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0
+      ],
+      "value": 0.0
+    },
+    {
+      "q": 90.0,
+      "sample": [
+        1.0,
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0
+      ],
+      "value": 1.0
+    },
+    {
+      "q": 10.0,
+      "sample": [
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      "value": 0.0
+    },
+    {
+      "q": 90.0,
+      "sample": [
+        1.0,
+        0.0,
+        0.0,
+        1.0,
+        0.0,
+        0.0
+      ],
+      "value": 1.0
+    },
+    {
+      "q": 10.0,
+      "sample": [
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0
+      ],
+      "value": 0.0
+    },
+    {
+      "q": 90.0,
+      "sample": [
+        1.0,
+        0.0,
+        1.0,
+        1.0,
+        0.0,
+        1.0
+      ],
+      "value": 1.0
+    }
+  ],
+  "softmax_picks": [
+    {
+      "population": [
+        0
+      ],
+      "weights": [
+        1.0
+      ],
+      "picked": [
+        0
+      ]
+    },
+    {
+      "population": [
+        0
+      ],
+      "weights": [
+        1.0
+      ],
+      "picked": [
+        0
+      ]
+    },
+    {
+      "population": [
+        0
+      ],
+      "weights": [
+        1.0
+      ],
+      "picked": [
+        0
+      ]
+    },
+    {
+      "population": [
+        0
+      ],
+      "weights": [
+        1.0
+      ],
+      "picked": [
+        0
+      ]
+    },
+    {
+      "population": [
+        0
+      ],
+      "weights": [
+        1.0
+      ],
+      "picked": [
+        0
+      ]
+    },
+    {
+      "population": [
+        0
+      ],
+      "weights": [
+        1.0
+      ],
+      "picked": [
+        0
+      ]
+    },
+    {
+      "population": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m",
+        "n",
+        "o",
+        "p",
+        "q",
+        "r",
+        "s",
+        "t",
+        "u",
+        "v",
+        "w",
+        "x",
+        "y",
+        "z",
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "_"
+      ],
+      "weights": null,
+      "picked": [
+        "a",
+        "s",
+        "w",
+        "e",
+        "5",
+        "k",
+        "z",
+        "h"
+      ]
+    },
+    {
+      "population": [
+        0
+      ],
+      "weights": [
+        1.0
+      ],
+      "picked": [
+        0
+      ]
+    },
+    {
+      "population": [
+        0
+      ],
+      "weights": [
+        1.0
+      ],
+      "picked": [
+        0
+      ]
+    },
+    {
+      "population": [
+        0
+      ],
+      "weights": [
+        1.0
+      ],
+      "picked": [
+        0
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        0
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        0
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    },
+    {
+      "population": [
+        1,
+        0
+      ],
+      "weights": [
+        0.9655548043337888,
+        0.03444519566621118
+      ],
+      "picked": [
+        1
+      ]
+    }
+  ],
+  "poissons": [
+    {
+      "lam": 1.0,
+      "drawn": 1
+    },
+    {
+      "lam": 1.0,
+      "drawn": 0
+    },
+    {
+      "lam": 1.0,
+      "drawn": 0
+    },
+    {
+      "lam": 1.0,
+      "drawn": 3
+    },
+    {
+      "lam": 1.0,
+      "drawn": 3
+    },
+    {
+      "lam": 1.0,
+      "drawn": 1
+    },
+    {
+      "lam": 1.0,
+      "drawn": 1
+    },
+    {
+      "lam": 1.0,
+      "drawn": 2
+    },
+    {
+      "lam": 1.0,
+      "drawn": 1
+    }
+  ],
+  "randranges": [
+    {
+      "args": [
+        2
+      ],
+      "drawn": 1
+    },
+    {
+      "args": [
+        2
+      ],
+      "drawn": 1
+    },
+    {
+      "args": [
+        2
+      ],
+      "drawn": 0
+    },
+    {
+      "args": [
+        2
+      ],
+      "drawn": 1
+    },
+    {
+      "args": [
+        2
+      ],
+      "drawn": 0
+    },
+    {
+      "args": [
+        2
+      ],
+      "drawn": 1
+    },
+    {
+      "args": [
+        2
+      ],
+      "drawn": 0
+    },
+    {
+      "args": [
+        2
+      ],
+      "drawn": 1
+    },
+    {
+      "args": [
+        2
+      ],
+      "drawn": 1
+    },
+    {
+      "args": [
+        2
+      ],
+      "drawn": 1
+    },
+    {
+      "args": [
+        2
+      ],
+      "drawn": 0
+    },
+    {
+      "args": [
+        2
+      ],
+      "drawn": 0
+    }
+  ],
+  "strategy_picks": [
+    "append_a_demo_",
+    "append_a_demo_",
+    "append_a_rule",
+    "append_a_demo_",
+    "append_a_rule",
+    "append_a_demo_",
+    "append_a_demo_",
+    "append_a_rule",
+    "append_a_rule"
+  ],
+  "compiled_predictors": [
+    {
+      "name": "self",
+      "instructions": "Given the fields `question`, produce the fields `answer`.",
+      "demos": [
+        {
+          "augmented": "True",
+          "question": "capital of Kenya?",
+          "answer": "Nairobi"
+        },
+        {
+          "augmented": "True",
+          "question": "capital of Ghana?",
+          "answer": "Accra"
+        }
+      ]
+    }
+  ],
+  "candidate_scores": [
+    0.5,
+    0.5,
+    0.5
+  ],
+  "trial_logs": {
+    "0": {
+      "train_score": 0.5
+    },
+    "1": {
+      "train_score": 0.5
+    },
+    "2": {}
+  }
+}
