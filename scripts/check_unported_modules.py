@@ -39,7 +39,7 @@ GOLDENS = ROOT / "crates" / "dsrust" / "tests" / "conformance"
 
 #: Modules in scope for 1.0 that are not ported yet. A floor: porting one lowers it, and nothing
 #: may raise it — a new upstream module is either ported, decided about, or lowers nothing.
-BACKLOG = 5
+BACKLOG = 4
 
 STATUSES = {"backlog", "upstream_dead", "dead_consumer", "out_of_scope", "no_surface"}
 

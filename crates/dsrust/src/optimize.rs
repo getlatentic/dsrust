@@ -82,8 +82,8 @@ pub use ensemble::{Ensemble, Ensembled};
 // dataset it is handed without naming the type its entries are, and reaching for it would mean
 // depending on the engine crate directly.
 pub use gepa::{
-    Candidate, Feedback, GEPA, GepaOutcome, InstructionProposer, MetricContext, Reflective,
-    ReflectiveDataset,
+    Candidate, Feedback, GEPA, GepaOutcome, InstructionProposer, MetricContext,
+    MultiModalInstructionProposer, Reflective, ReflectiveDataset,
 };
 pub use labeled::LabeledFewShot;
 // `Trial` travels beside it: `MIPROv2::compile_traced` answers with `Vec<Trial>`, and a type a

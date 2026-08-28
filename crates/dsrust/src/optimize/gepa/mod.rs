@@ -15,6 +15,7 @@ mod adapter;
 mod binding;
 mod failing;
 mod metric;
+mod multimodal;
 mod proposer;
 mod reflecting;
 
@@ -33,6 +34,7 @@ pub use gepa::Candidate;
 pub use gepa::GepaOutcome;
 pub use gepa::Reflective;
 pub use metric::{Feedback, MetricContext};
+pub use multimodal::MultiModalInstructionProposer;
 pub use proposer::{InstructionProposer, ReflectiveDataset};
 
 use adapter::Adapter;
