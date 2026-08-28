@@ -92,7 +92,7 @@ impl Parzen {
 /// over the categories, so a program proposing twelve instructions rounds differently from one
 /// proposing six. That difference reaches the acquisition, which ties constantly, and `np.argmax`
 /// keeps the first of a tie — so it decides which trial runs next.
-fn pairwise_sum(values: &[f64]) -> f64 {
+pub(crate) fn pairwise_sum(values: &[f64]) -> f64 {
     const BLOCK: usize = 128;
     let n = values.len();
     if n < 8 {

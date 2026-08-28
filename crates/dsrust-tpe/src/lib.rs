@@ -8,8 +8,11 @@
 //!
 //! The generator is [`pyrng::RandomState`], numpy's legacy MT19937; [`TpeSampler`] is built on it.
 
+mod int_sampler;
+mod numerical;
 mod parzen;
 mod sampler;
 pub mod truncnorm;
 
+pub use int_sampler::IntTpeSampler;
 pub use sampler::TpeSampler;
