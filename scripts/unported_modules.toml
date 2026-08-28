@@ -99,6 +99,5 @@
 
 # ── in scope, not ported yet ──────────────────────────────────────────────────────────────────
 "teleprompt/infer_rules.py" = { status = "backlog", reason = "`InferRules`: BootstrapFewShot, then a model reads the bootstrapped demos and writes a natural-language rule per predictor, kept only if the rule scores better on the validation set" }
-"teleprompt/teleprompt_optuna.py" = { status = "backlog", reason = "`BootstrapFewShotWithOptuna`: an optuna study over which bootstrapped demo set each predictor gets. The sampler it draws through is already reproduced in the `tpe` crate for MIPROv2" }
 "propose/propose_base.py" = { status = "backlog", reason = "`Proposer`, the abstract base MIPROv2's `GroundedProposer` implements. Abstract by construction — instantiating it raises `TypeError` — so what a port owes is the seam, not a body" }
 "utils/inspect_history.py" = { status = "backlog", reason = "`pretty_print_history`, the coloured transcript dump `dspy.inspect_history` prints. Ledger-classified as a divergence today because nothing here accumulates a history; the backlog item is the accumulation, not the colours" }
