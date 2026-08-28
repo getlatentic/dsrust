@@ -84,7 +84,44 @@ def _read_all() -> tuple[dict[str, set[str]], dict[str, set[str]]]:
             named |= set(DECLARED.findall(source))
             if named:
                 owned.setdefault(_module_of(path), set()).update(named)
+            _read_nested(source, owned)
     return owned, traits
+
+
+#: `pub mod roles {` — a module declared *inside* a file rather than as one.
+NESTED = re.compile(r"^(?P<indent>[ 	]*)(?:pub(?:\([^)]*\))?\s+)?mod\s+(?P<name>\w+)\s*\{")
+#: What such a block declares, indented under it.
+NESTED_ITEM = re.compile(
+    r"^[ 	]+(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:fn|struct|enum|trait|type)\s+(?P<name>\w+)"
+)
+
+
+def _read_nested(source: str, owned: dict[str, set[str]]) -> None:
+    """Items inside a `mod name { … }` block, under that module's name.
+
+    The file-level walk anchors its patterns at column zero, so anything a nested module declares
+    was invisible: `roles::System` and `roles::Developer` are free functions inside
+    `lm/api/message.rs`'s `pub mod roles`, and the ownership index knew neither. Four mapped names
+    could not be qualified for that reason and no other, which is a small enough blind spot to
+    close rather than to write down.
+
+    Depth-tracked rather than indent-matched, because a nested module's body is not the only thing
+    indented under it.
+    """
+    name: str | None = None
+    depth = 0
+    for line in source.splitlines():
+        if name is None:
+            opens = NESTED.match(line)
+            if opens and "cfg(test)" not in line:
+                name, depth = opens.group("name"), line.count("{") - line.count("}")
+            continue
+        depth += line.count("{") - line.count("}")
+        found = NESTED_ITEM.match(line)
+        if found:
+            owned.setdefault(name, set()).add(found.group("name"))
+        if depth <= 0:
+            name = None
 
 
 def members() -> dict[str, set[str]]:

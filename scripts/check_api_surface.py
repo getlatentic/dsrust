@@ -256,7 +256,7 @@ def report_deferred(tables: dict) -> list[str]:
     ]
 
 
-BARE_FLOOR = 307
+BARE_FLOOR = 0
 
 
 def report_bare(tables: dict) -> int:
