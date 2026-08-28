@@ -25,7 +25,7 @@ pyrng = { version = "0.1.0-alpha.2", path = "../pyrng" }
 bytes = "1"
 futures-channel = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
 futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
-lru = { version = "0.18.1", default-features = false }
+lru = { version = "0.18.2", default-features = false }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 schemars = "1"
 serde = { version = "1", features = ["derive"] }

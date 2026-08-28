@@ -122,6 +122,23 @@ if ! ast-grep --version > /dev/null 2>&1; then
 fi
 bounded ast-grep scan --rule scripts/lints/cursor_arithmetic_loop.yml crates/
 
+echo "==> cargo deny --all-features check"
+# Advisories, licences, and where each crate came from. `deny.toml` carries the policy and the
+# reason for every non-obvious entry.
+#
+# Added the same day as clippy and for the same reason: `cargo-deny` was *installed* on this
+# machine and had never been run, so none of it was checked. The first run found RUSTSEC-2026-0253
+# against `lru` 0.18.1 — a use-after-free in `LruCache::pop()` when a stored key's `Drop` panics —
+# on a direct dependency of `dsrust`. A tool that is present but ungated is a tool nobody runs.
+#
+# `--all-features`, because the licence question this repo actually has to answer lives behind an
+# optional feature: LAME is LGPL-3.0, and a default-features run never sees it.
+if ! cargo deny --version > /dev/null 2>&1; then
+  echo "cargo-deny is not installed: cargo install cargo-deny --locked" >&2
+  exit 127
+fi
+bounded cargo deny --all-features check
+
 echo "==> cargo doc --no-deps"
 # Fresh, because cargo caches rendered docs: seven unresolved intra-doc links sat at HEAD for as
 # long as nobody touched the files holding them, and this gate reported clean the whole time.

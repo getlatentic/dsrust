@@ -1,0 +1,77 @@
+# Supply-chain gates: advisories, licences, and where a crate came from.
+#
+# Added 2026-08-28, and not idly. `cargo-deny` was installed on this machine and had never been
+# run, so nothing checked any of this — the first run found RUSTSEC-2026-0253 against `lru` 0.18.1,
+# a use-after-free in `LruCache::pop()` when a key's `Drop` panics, on a direct dependency of
+# `dsrust`. It is `0.18.3` now. A tool that is present but ungated is a tool nobody runs.
+
+[advisories]
+# No `ignore` list. An advisory this crate decides not to act on gets a line here with the reason it
+# does not apply, which is a thing to write once there is one — never a way to quiet the gate.
+yanked = "deny"
+
+[licenses]
+# Explicit rather than a category, so a new licence in the tree is a decision rather than a default.
+# This crate is `MIT OR Apache-2.0`; everything below is compatible with distributing it under
+# either.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    # `ring` is `Apache-2.0 AND ISC`, and `rustls-webpki` is ISC alone.
+    "ISC",
+    # `bytemuck`, `miniz_oxide`.
+    "Zlib",
+    # `byteorder`, `memchr` — public-domain dedication with an MIT fallback.
+    "Unlicense",
+    # `subtle` alone; `moxcms` and `pxfm` offer it or Apache-2.0.
+    "BSD-3-Clause",
+    # The `icu_*` collation and normalisation crates, reached through `idna` and so through every
+    # URL this parses. Permissive, and the licence the Unicode data itself ships under.
+    "Unicode-3.0",
+    # `symphonia`, which decodes what the MP3 encoder wrote so a test can check it. A
+    # **dev-dependency**, so it is in no consumer's tree at all; and MPL is file-level copyleft in
+    # any case, which reaches the four MPL files and nothing that links them. Listed rather than
+    # waved through because a future MPL crate in `[dependencies]` is a different question, and
+    # should have to be asked.
+    "MPL-2.0",
+    # `target-lexicon`, reached through PyO3's build script. Apache with the LLVM exception, which
+    # only removes Apache's patent-retaliation reach — strictly more permissive than plain Apache.
+    "Apache-2.0 WITH LLVM-exception",
+    # `webpki-roots`: Mozilla's root certificate bundle. A licence for *data* rather than code, and
+    # a permissive one; it governs the certificate list this trusts, not anything compiled.
+    "CDLA-Permissive-2.0",
+]
+# `ring`'s files carry the licence text rather than an SPDX expression covering every file.
+# LAME, and only LAME. **LGPL-3.0**, where everything above is permissive and this crate is
+# `MIT OR Apache-2.0`: linking it brings obligations — notices, and permitting the library to be
+# replaced — that only a consumer can accept. That is why `mp3` is an opt-in feature rather than a
+# default, and why this is an exception naming two crates rather than a licence in the allow list.
+# A third crate arriving under LGPL fails this gate, which is the point.
+[[licenses.exceptions]]
+name = "mp3lame-encoder"
+allow = ["LGPL-3.0"]
+
+[[licenses.exceptions]]
+name = "mp3lame-sys"
+allow = ["LGPL-3.0"]
+
+[[licenses.clarify]]
+name = "ring"
+expression = "Apache-2.0 AND ISC"
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
+
+[bans]
+# Duplicate versions are a warning, not a failure: this tree does not choose most of them, and a
+# gate that fails on a transitive crate's minor-version skew fails for something nobody here can
+# fix. Worth seeing, not worth blocking on.
+multiple-versions = "warn"
+wildcards = "deny"
+# The workspace's own crates depend on each other by path and carry no version, which is what a
+# path dependency is. The rule is aimed at a wildcard on a *registry* crate.
+allow-wildcard-paths = true
+
+[sources]
+# crates.io and nothing else. A git or path dependency slipping into a published crate is the kind
+# of thing that is obvious in review and invisible in a lockfile.
+unknown-registry = "deny"
+unknown-git = "deny"

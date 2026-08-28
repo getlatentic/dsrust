@@ -3,6 +3,9 @@ name = "dsrs-bridge"
 version = "0.1.0"
 edition = "2024"
 publish = false
+# `publish = false` and a licence anyway: the supply-chain gate reads every crate in the workspace,
+# and an unlicensed one is a hole whether or not it ships.
+license = "MIT OR Apache-2.0"
 
 # A thin PyO3 shim so Python DSPy's own pytest suite can drive this crate's renderer. It
 # exists only for conformance: nothing in `dsrs` depends on it.
