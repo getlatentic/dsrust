@@ -15,4 +15,4 @@ name = "tpe"
 pyrng = { version = "0.1.0-alpha.2", path = "../pyrng" }
 
 [dev-dependencies]
-serde_json = "1"
+serde_json = { version = "1", features = ["float_roundtrip"] }

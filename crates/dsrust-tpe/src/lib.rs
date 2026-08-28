@@ -10,5 +10,6 @@
 
 mod parzen;
 mod sampler;
+pub mod truncnorm;
 
 pub use sampler::TpeSampler;

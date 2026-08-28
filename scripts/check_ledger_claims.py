@@ -463,7 +463,8 @@ def pinned_words() -> tuple[set[str], list[str]]:
     dspy's `tests/` tree as well as its package: a reason names an upstream test as readily as an
     upstream function, and reading only the package reported `IN_PROGRESS` — an enum member in
     `tests/predict/test_predict.py` — as a name that exists nowhere. litellm and json_repair for
-    the same reason: this crate reproduces both, and its reasons say so in their words.
+    the same reason: this crate reproduces both, and its reasons say so in their words. numpy and
+    optuna join them: `pyrng` reproduces two numpy generators and `tpe` reproduces optuna's sampler.
     """
     found: set[str] = set()
     unread: list[str] = []
@@ -471,7 +472,9 @@ def pinned_words() -> tuple[set[str], list[str]]:
     # numpy as well: `pyrng` reproduces two of its generators, so a reason naming `SeedSequence`
     # or `default_rng` is a claim about a package this port follows exactly as dspy is. Its *C*
     # sources — `rk_random`, `rk_double` — stay in `CITED_ELSEWHERE`, since no tree here holds them.
-    for package in ("gepa", "litellm", "json_repair", "numpy"):
+    # optuna for the same reason: the `tpe` crate reproduces its sampler, down to the truncated
+    # normal it vendored from SciPy, and a reason naming `_log_gauss_mass` is a claim about it.
+    for package in ("gepa", "litellm", "json_repair", "numpy", "optuna"):
         hits = sorted((ROOT / ".venv" / "lib").glob(f"*/site-packages/{package}"))
         roots += hits
         if not hits:

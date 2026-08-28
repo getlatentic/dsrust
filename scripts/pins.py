@@ -24,6 +24,9 @@ PINS = {
     "gepa": "0.1.1",
     # dspy asks for `json-repair>=0.54.2`; this is what resolved, and what the port reproduces.
     "json_repair": "0.61.7",
+    # dspy names optuna only as an extra (`dspy[optuna]`), unversioned. This is what resolved, and
+    # what the `tpe` crate is verified against — MIPROv2's search is this sampler's decisions.
+    "optuna": "4.9.0",
 }
 
 
