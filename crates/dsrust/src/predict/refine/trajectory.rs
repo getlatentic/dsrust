@@ -60,12 +60,15 @@ pub(super) fn advise_inputs(
 fn trajectory(trace: &[TraceStep]) -> Value {
     let steps: Vec<Value> = trace
         .iter()
-        .map(|step| {
-            json!({
+        // An unparsed step is omitted, which is what upstream's trace holds: a call whose parse
+        // failed raises out of `Refine`'s forward and records nothing.
+        .filter_map(|step| {
+            let outputs = step.outputs.answered()?;
+            Some(json!({
                 "module_name": step.predictor,
                 "inputs": object_of(&step.inputs),
-                "outputs": object_of(&step.outputs),
-            })
+                "outputs": object_of(outputs),
+            }))
         })
         .collect();
     Value::Array(steps)
@@ -104,7 +107,7 @@ mod tests {
         vec![TraceStep {
             predictor: "predict".to_owned(),
             inputs: example! { question: "Why is the sky blue?" },
-            outputs: example! { answer: "Rayleigh scattering." },
+            outputs: crate::StepOutputs::Answered(example! { answer: "Rayleigh scattering." }),
             signature: crate::Signature::single_input("Answer.", Vec::new()),
         }]
     }

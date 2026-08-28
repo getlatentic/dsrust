@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1492
+rust_tests = 1498
 upstream_tests_passing = 1195
 upstream_tests_crossing = 705
 upstream_tests_deciding_signatures = 684
@@ -5814,52 +5814,66 @@ undemonstrated however well it is used.
 [[story]]
 id = "failed-parses-in-the-trace"
 sprint = "api"
-title = "GEPA loses an example to a half-parsed completion, and upstream's graded reward is dead code"
-state = "todo"
+title = "GEPA loses an example to an unreadable completion, and upstream's graded reward is dead code"
+state = "done"
 size = "L"
 suites = []
 plan = """
 `teleprompt/bootstrap_trace.py` is the trace collector GEPA reaches for whenever it wants
-trajectories, and it is the one in-scope caller — the other two, `grpo.py` and
-`bootstrap_finetune.py`, are out of scope. Its job is to keep going when an `AdapterParseError`
-ends a forward: it appends a `FailedPrediction` to the trace and scores it with a format reward, so
-a program that answered unparseably still produces something to reflect on.
+trajectories, and it is the one in-scope caller — `grpo.py` and `bootstrap_finetune.py` are out of
+scope. Its job is to keep going when an `AdapterParseError` ends a forward: it appends a
+`FailedPrediction` to the trace and scores it with a format reward, so a program that answered
+unparseably still produces something to reflect on.
 
-This crate has no counterpart. A parse failure returns `Err` and ends the run, which is why the
-ledger records GEPA's `add_format_failure_as_feedback` as a divergence: the flag filters
-`FailedPrediction` entries out of a reflective dataset that can never contain one.
+This crate discarded all of it. A failed run scored `failure_score` with an empty trace and an
+empty prediction, which is why the ledger recorded GEPA's `add_format_failure_as_feedback` as a
+divergence: the flag filters `FailedPrediction` entries out of a reflective dataset that could
+never contain one.
+"""
+done = """
+**Both arms are ported, and they behave differently enough that reading the source was not enough.**
 
-Two things were measured before any of that is ported, and both change what "faithful" means here.
+*A completion that parsed nothing* keeps the example. The trace holds whatever ran before the
+failure plus a step carrying the raw text, the score is the format reward, and GEPA renders it for
+the reflection model as a fenced raw-response block with the field structure it should have
+followed. Those are prompt bytes and they are held byte-for-byte.
 
-**The graded reward is unreachable.** Line 91 computes
+*A completion that parsed something* is **dropped from the batch**. Upstream's graded reward is
 
     format_failure_score + (failure_score - format_failure_score) * (present / expected)
 
-where `present` and `expected` are `list(...)` — so the partial-parse arm raises `TypeError:
-unsupported operand type(s) for /: 'list' and 'list'` every time a completion parses *some* fields.
-GEPA passes `format_failure_score=failure_score`, which would make the term zero, but Python
-evaluates the division first and raises anyway. `Evaluate` swallows it, the result unpacks as
-`ValueError: not enough values to unpack`, and with GEPA's `raise_on_error=False` the example is
-**dropped from the batch**. So a half-parsed completion silently shortens GEPA's reflective set.
+where both are `list(...)`, so it raises `TypeError`. `Evaluate` swallows it, the result fails to
+unpack, and GEPA's `raise_on_error=False` drops the example — a batch of three comes back with zero
+scores, zero outputs and zero trajectories. That is reproduced as the behaviour it is rather than
+as the crash that causes it, and `optimize/failed_parse.json` records the empty batch so a repaired
+upstream turns the golden stale rather than passing quietly.
 
-**`capture_failed_parses` is never read.** GEPA passes it `True`; the body of the function does not
-mention the parameter after its signature line, and the `except AdapterParseError` arm runs whatever
-it is set to.
+**The first reading of that arm was wrong, and running it is what caught it.** Constructing an
+`AdapterParseError` by hand with a non-empty `parsed_result` reaches the graded arm — but no real
+call does, because `ChatAdapter.__call__` catches its own parse error and retries through
+`JSONAdapter`, so the error that escapes is the fallback's. Reaching it needs a reply that is valid
+JSON carrying *some* of the declared output fields. The story's first draft claimed any half-parsed
+completion drops the example; that claim was measured and corrected before any Rust was written.
 
-What that leaves worth porting is the arm that works — a completion that parsed *nothing* becomes a
-`FailedPrediction(completion_text, format_reward=format_failure_score)` and stays in the trace.
-"""
-acceptance = """
-- A golden generated by *running* `bootstrap_trace_data`, recording both arms: the total-parse
-  failure that yields a `FailedPrediction`, and the partial parse that raises and drops the example.
-  Recorded as behaviour, not repaired — a port that fixed the arithmetic would diverge from every
-  dspy run in the wild.
-- `TraceStep` carries a failure arm, and every optimizer that walks a trace says what it does with
-  one.
-- GEPA's capture path keeps a run whose parse failed instead of ending it, and its reflective
-  dataset can contain a failure — which is what `add_format_failure_as_feedback` filters.
-- The ledger entry for `GEPA.add_format_failure_as_feedback` stops citing the absence of
-  `FailedPrediction` as the reason, or says what still blocks it.
-- `teleprompt/bootstrap_trace.py` moves from `unported_modules.toml` to PORTED_MODULES, and BACKLOG
-  drops to 5.
+**`capture_failed_parses` is still never read.** GEPA passes it `True`; the body does not mention
+the parameter after its signature line, and the `except AdapterParseError` arm runs regardless.
+
+**`TraceStep.outputs` is now an enum**, and the compiler named all six readers. Four of them —
+BootstrapFewShot's demo builder, SIMBA's two renderings, and Refine's trajectory — skip an unparsed
+step, which is what upstream's trace holds: the call that raised was never recorded at all. Only
+GEPA both produces and consumes one.
+
+**Python's `or`, not a null check.** The score is `prediction.format_reward or format_failure_score`,
+so a reward of exactly zero is falsy and takes the fallback. `FailedPrediction::score` reproduces
+that, and a case pins it where `unwrap_or` would differ.
+
+**With the flag off and every run failing, upstream refuses** — `No valid predictions found for any
+module.` — rather than proposing from nothing. Recorded, and asserted against.
+
+Four controls bite, each on exactly one test: keeping the dropped example, reflecting on failures
+regardless of the flag, `unwrap_or` in place of `or`, and rendering the failure as an empty answer
+map.
+
+`teleprompt/bootstrap_trace.py` moved to PORTED_MODULES and the backlog floor dropped to 5.
+`GEPA.add_format_failure_as_feedback` is `mapped`, not a divergence.
 """

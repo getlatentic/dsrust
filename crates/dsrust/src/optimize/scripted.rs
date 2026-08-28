@@ -16,8 +16,10 @@ use crate::signature::Signature;
 
 /// What a program was looking at when it was asked one question.
 mod two_hop;
+mod unparsed;
 
 pub(crate) use two_hop::TwoHop;
+pub(crate) use unparsed::Unparsed;
 
 #[derive(Clone)]
 pub(crate) struct Call {
@@ -229,13 +231,13 @@ impl Module for Pair {
             trace.push(TraceStep {
                 predictor: "first".to_owned(),
                 inputs,
-                outputs: Example::new([("draft", json!(draft))]),
+                outputs: crate::StepOutputs::Answered(Example::new([("draft", json!(draft))])),
                 signature: self.first.clone(),
             });
             trace.push(TraceStep {
                 predictor: "second".to_owned(),
                 inputs: Example::new([("draft", json!(draft))]),
-                outputs: Example::new([("answer", json!(answered))]),
+                outputs: crate::StepOutputs::Answered(Example::new([("answer", json!(answered))])),
                 signature: self.second.clone(),
             });
             Ok(prediction)
@@ -328,7 +330,7 @@ impl Module for Lopsided {
             trace.push(TraceStep {
                 predictor: "ran".to_owned(),
                 inputs,
-                outputs: prediction.example.clone(),
+                outputs: crate::StepOutputs::Answered(prediction.example.clone()),
                 signature: self.ran.clone(),
             });
             Ok(prediction)

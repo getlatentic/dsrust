@@ -18,7 +18,10 @@ use crate::lm::Sampling;
 use crate::signature::Signature;
 
 mod state;
+mod trace;
 mod trust;
+
+pub use trace::{FailedPrediction, StepOutputs, TraceStep, relabel};
 
 use state::demo_from_fields;
 pub use state::{
@@ -63,27 +66,6 @@ pub struct NamedPredictor<'a> {
     /// predictor is that same problem again. Unset on a predictor that was never pinned, which is
     /// the `null` dspy writes.
     pub lm: &'a mut Option<std::sync::Arc<dyn crate::lm::DynChatModel>>,
-}
-
-/// One predictor call: which predictor ran, what it was asked, and what it answered.
-///
-/// dspy's `settings.trace` step, a `(predictor, inputs, outputs)` triple appended to a
-/// thread-local that an optimizer reads afterwards. Here the trace is passed rather than
-/// ambient, and a predictor is identified by the name [`Module::named_predictors`] gives it
-/// rather than by object identity, so the two walks agree by construction.
-#[derive(Clone)]
-pub struct TraceStep {
-    pub predictor: String,
-    pub inputs: Example,
-    pub outputs: Example,
-    /// The predictor's signature as it stood for this call, which is dspy's `trace[i][0].signature`
-    /// reached through the predictor object the tuple's first slot holds.
-    ///
-    /// GEPA needs it for two things a name cannot answer: which trace entries belong to the
-    /// component being reflected on — upstream matches `signature.equals`, so two predictors
-    /// sharing a signature *and* an instruction pool together — and which input is the `History`,
-    /// which is a question about the field's annotation rather than its value.
-    pub signature: crate::signature::Signature,
 }
 
 /// What a program of your own has to say: how to run it.
@@ -299,54 +281,6 @@ pub trait Module: Send + Sync {
         let _ = trace;
         self.forward(inputs)
     }
-}
-
-/// Rename every step `record` added, which is how a composed module claims its children's calls
-/// as its own predictor.
-///
-/// The `from` mark is taken *before* the child runs, so only what that child added is renamed and a
-/// step recorded earlier keeps its own name. An optimizer walks the trace by predictor name, so a
-/// composed module that skips this has its children attributed to whatever ran before them:
-///
-/// ```
-/// use dsrust::module::{TraceStep, relabel};
-///
-/// # fn example(mut trace: Vec<TraceStep>) {
-/// let mark = trace.len();
-/// // ... a child module runs and records its own steps ...
-/// relabel(&mut trace, mark, "summarise");
-/// assert!(trace[mark..].iter().all(|step| step.predictor == "summarise"));
-/// # }
-/// ```
-pub fn relabel(trace: &mut [TraceStep], from: usize, name: &str) {
-    for step in &mut trace[from..] {
-        step.predictor = name.to_owned();
-    }
-}
-
-/// Ask a module, naming each input where its value goes.
-///
-/// ```
-/// # async fn wrapper(haiku: dsrust::Predict) -> anyhow::Result<()> {
-/// let result = dsrust::call!(haiku, subject = "computer science", tone = "wry").await?;
-/// # Ok(()) }
-/// ```
-///
-/// Rust has neither named arguments nor a mapping literal, so the two are written here instead:
-/// the field name sits where the value does, which is what `subject=` does in Python. Evaluates
-/// to the call's future, so the caller writes `.await?` and sees where the model is reached.
-///
-/// Asks through [`Ask`], so what comes back is whatever the module promised. A module of your
-/// own joins in with one line — `dsrust::asks_with_a_prediction!(YourModule);` — which is the same
-/// line the modules here use.
-#[macro_export]
-macro_rules! call {
-    ($module:expr, $($field:ident = $value:expr),* $(,)?) => {
-        $crate::Ask::ask(
-            &$module,
-            $crate::input! { $($field: $value),* },
-        )
-    };
 }
 
 #[cfg(test)]

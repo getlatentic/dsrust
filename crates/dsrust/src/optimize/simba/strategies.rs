@@ -51,12 +51,17 @@ fn append_a_demo(bucket: &Bucket, student: &mut dyn Module, batch_10p: f64, maxl
     }
     let mut per_predictor: Vec<(String, Example)> = Vec::new();
     for step in &best.trace {
+        // SIMBA traces its own calls, and a parse failure raises out of the run rather than
+        // recording a step — so upstream never has one here either. See `StepOutputs`.
+        let Some(outputs) = step.outputs.answered() else {
+            continue;
+        };
         let mut fields: Vec<(String, serde_json::Value)> =
             vec![("augmented".to_owned(), serde_json::Value::Bool(true))];
         for (name, value) in step.inputs.fields() {
             fields.push((name.to_owned(), truncated(value, maxlen)));
         }
-        for (name, value) in step.outputs.fields() {
+        for (name, value) in outputs.fields() {
             fields.push((name.to_owned(), value.clone()));
         }
         let demo = Example::new(fields);
@@ -222,12 +227,15 @@ fn trajectory_of(run: &Run) -> Value {
     Value::Array(
         run.trace
             .iter()
-            .map(|step| {
-                serde_json::json!({
+            // An unparsed step is left out rather than rendered as a call that answered nothing:
+            // upstream's trace has no entry for it at all.
+            .filter_map(|step| {
+                let outputs = step.outputs.answered()?;
+                Some(serde_json::json!({
                     "module_name": step.predictor,
                     "inputs": fields_of(&step.inputs),
-                    "outputs": fields_of(&step.outputs),
-                })
+                    "outputs": fields_of(outputs),
+                }))
             })
             .collect(),
     )

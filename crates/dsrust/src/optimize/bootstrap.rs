@@ -216,7 +216,17 @@ where
             program: augmented_turn(&inputs, &prediction.example),
             per_predictor: trace
                 .into_iter()
-                .map(|step| (step.predictor, augmented_turn(&step.inputs, &step.outputs)))
+                // An unparsed step earns no demo. dspy cannot reach one here — a parse failure
+                // raises out of the whole forward and `_bootstrap_one_example` marks the example
+                // unsuccessful, so nothing is recorded for that call — and skipping is what its
+                // trace holds. Only `bootstrap_trace_data` keeps a failure, and only GEPA calls it.
+                .filter_map(|step| {
+                    let outputs = step.outputs.answered()?;
+                    Some((
+                        step.predictor.clone(),
+                        augmented_turn(&step.inputs, outputs),
+                    ))
+                })
                 .collect(),
         }))
     }

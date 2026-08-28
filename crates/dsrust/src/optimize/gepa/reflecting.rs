@@ -126,6 +126,13 @@ pub(super) struct Captured {
     /// Reflecting on source asks "what should this program have done", which scoring already
     /// answered.
     pub(super) scored: Feedback,
+    /// dspy's `prediction` when the *program's* answer was a `FailedPrediction` rather than a
+    /// parsed one.
+    ///
+    /// Separate from `prediction`, which stays the empty answer a failed run gives, because the
+    /// two are asked different questions: `prediction` is what the metric and the code proposer
+    /// see, and this decides whether an example contributes a reflective record at all.
+    pub(super) unparsed: Option<crate::FailedPrediction>,
 }
 
 /// dspy `code_reflective_records`: the reflective dataset for a *code* component.
@@ -155,4 +162,36 @@ pub(super) fn code_reflective_records(captured: &[Captured]) -> Vec<ReflectiveSa
             ]
         })
         .collect()
+}
+
+/// dspy's `Generated Outputs` for a step whose completion would not parse: a raw-response block
+/// rather than a field map.
+///
+/// A `Reflective::Text`, not a `Map`, because upstream rebinds `new_outputs` from a dict to a
+/// string here — the reflection model is shown the text nobody could read, not an empty answer.
+pub(super) fn unparsed_outputs(completion_text: &str) -> Reflective {
+    Reflective::Text(format!(
+        "Couldn't parse the output as per the expected output format. The model's raw response \
+         was:\n```\n{completion_text}\n```\n\n"
+    ))
+}
+
+/// dspy's `Feedback` for such a step: the instruction to follow, plus the shape it should have had.
+///
+/// The shape is `ChatAdapter.format(signature, [], {})` rendered as `role: content` per message —
+/// always the chat adapter, whatever the run was configured with, because what the model is being
+/// shown is dspy's canonical field layout rather than the wire it just failed on.
+pub(super) fn unparsed_feedback(signature: &crate::signature::Signature) -> String {
+    let mut structure = String::new();
+    use crate::adapter::Adapter as _;
+    if let Ok(messages) = crate::adapter::ChatAdapter::default().format(signature, &[], &[]) {
+        for message in messages {
+            let content = message.text().unwrap_or_default();
+            structure.push_str(&message.role);
+            structure.push_str(": ");
+            structure.push_str(&content);
+            structure.push('\n');
+        }
+    }
+    format!("Your output failed to parse. Follow this structure:\n{structure}")
 }

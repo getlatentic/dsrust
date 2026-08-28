@@ -191,7 +191,7 @@ impl ReActV2 {
         trace.push(TraceStep {
             predictor: "react".to_owned(),
             inputs,
-            outputs: pred.example.clone(),
+            outputs: crate::StepOutputs::Answered(pred.example.clone()),
             signature: self.react.signature.clone(),
         });
         let calls = coerce_tool_calls(&pred)?;

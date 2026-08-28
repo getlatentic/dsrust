@@ -45,7 +45,10 @@ impl TwoHop {
             signature: self.signature.clone(),
             inputs: Example::new([("question", json!(question)), ("hop", json!(hop))])
                 .with_inputs(["question", "hop"]),
-            outputs: Example::new([("answer", json!(format!("{hop} answer")))]),
+            outputs: crate::StepOutputs::Answered(Example::new([(
+                "answer",
+                json!(format!("{hop} answer")),
+            )])),
         }
     }
 }

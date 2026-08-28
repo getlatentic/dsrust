@@ -73,6 +73,7 @@ impl<S> Predict<S> {
                 message: Some(format!(
                     "Failed to parse response from the original completion: {error:#}"
                 )),
+                signature: self.signature.clone(),
             })
         })?;
         self.signature.coerce(&mut value)?;

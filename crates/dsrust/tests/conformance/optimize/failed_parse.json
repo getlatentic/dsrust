@@ -1,0 +1,173 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_failed_parse_fixture.py",
+  "note": "`kept` below `batch_size` means dspy dropped examples: the graded arm raises `TypeError: unsupported operand type(s) for /: 'list' and 'list'`, which `Evaluate` swallows and `bootstrap_trace_data` cannot unpack.",
+  "arms": {
+    "no_declared_field_parsed": {
+      "batch_size": 3,
+      "failure_score": 0.0,
+      "format_failure_score": -1.0,
+      "kept": 3,
+      "trajectories": [
+        {
+          "score": -1.0,
+          "prediction_failed": true,
+          "completion_text": "there is nothing structured here",
+          "format_reward": -1.0,
+          "trace": [
+            {
+              "failed": true
+            }
+          ]
+        },
+        {
+          "score": -1.0,
+          "prediction_failed": true,
+          "completion_text": "there is nothing structured here",
+          "format_reward": -1.0,
+          "trace": [
+            {
+              "failed": true
+            }
+          ]
+        },
+        {
+          "score": -1.0,
+          "prediction_failed": true,
+          "completion_text": "there is nothing structured here",
+          "format_reward": -1.0,
+          "trace": [
+            {
+              "failed": true
+            }
+          ]
+        }
+      ]
+    },
+    "some_declared_field_parsed": {
+      "batch_size": 3,
+      "failure_score": 0.0,
+      "format_failure_score": -1.0,
+      "kept": 0,
+      "trajectories": []
+    },
+    "a_parsing_run_for_contrast": {
+      "batch_size": 3,
+      "failure_score": 0.0,
+      "format_failure_score": -1.0,
+      "kept": 3,
+      "trajectories": [
+        {
+          "score": 1.0,
+          "prediction_failed": false,
+          "completion_text": null,
+          "format_reward": null,
+          "trace": [
+            {
+              "failed": false
+            }
+          ]
+        },
+        {
+          "score": 1.0,
+          "prediction_failed": false,
+          "completion_text": null,
+          "format_reward": null,
+          "trace": [
+            {
+              "failed": false
+            }
+          ]
+        },
+        {
+          "score": 1.0,
+          "prediction_failed": false,
+          "completion_text": null,
+          "format_reward": null,
+          "trace": [
+            {
+              "failed": false
+            }
+          ]
+        }
+      ]
+    },
+    "a_zero_reward_falls_back": {
+      "batch_size": 3,
+      "failure_score": 0.25,
+      "format_failure_score": 0.0,
+      "kept": 3,
+      "trajectories": [
+        {
+          "score": 0.0,
+          "prediction_failed": true,
+          "completion_text": "there is nothing structured here",
+          "format_reward": 0.0,
+          "trace": [
+            {
+              "failed": true
+            }
+          ]
+        },
+        {
+          "score": 0.0,
+          "prediction_failed": true,
+          "completion_text": "there is nothing structured here",
+          "format_reward": 0.0,
+          "trace": [
+            {
+              "failed": true
+            }
+          ]
+        },
+        {
+          "score": 0.0,
+          "prediction_failed": true,
+          "completion_text": "there is nothing structured here",
+          "format_reward": 0.0,
+          "trace": [
+            {
+              "failed": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "reflective": [
+    {
+      "add_format_failure_as_feedback": false,
+      "scores": [
+        0.0,
+        0.0
+      ],
+      "records": null,
+      "raises": {
+        "type": "Exception",
+        "message": "No valid predictions found for any module."
+      }
+    },
+    {
+      "add_format_failure_as_feedback": true,
+      "scores": [
+        0.0,
+        0.0
+      ],
+      "records": [
+        {
+          "Inputs": {
+            "question": "q0"
+          },
+          "Generated Outputs": "Couldn't parse the output as per the expected output format. The model's raw response was:\n```\nthere is nothing structured here\n```\n\n",
+          "Feedback": "Your output failed to parse. Follow this structure:\nsystem: Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `answer` (str): \n2. `note` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## note ## ]]\n{note}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Given the fields `question`, produce the fields `answer`, `note`.\nuser: Respond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, then `[[ ## note ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`.\n"
+        },
+        {
+          "Inputs": {
+            "question": "q1"
+          },
+          "Generated Outputs": "Couldn't parse the output as per the expected output format. The model's raw response was:\n```\nthere is nothing structured here\n```\n\n",
+          "Feedback": "Your output failed to parse. Follow this structure:\nsystem: Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `answer` (str): \n2. `note` (str):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n[[ ## question ## ]]\n{question}\n\n[[ ## answer ## ]]\n{answer}\n\n[[ ## note ## ]]\n{note}\n\n[[ ## completed ## ]]\nIn adhering to this structure, your objective is: \n        Given the fields `question`, produce the fields `answer`, `note`.\nuser: Respond with the corresponding output fields, starting with the field `[[ ## answer ## ]]`, then `[[ ## note ## ]]`, and then ending with the marker for `[[ ## completed ## ]]`.\n"
+        }
+      ]
+    }
+  ]
+}

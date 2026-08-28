@@ -133,6 +133,9 @@ fn a_parse_failure_renders_as_dspy_renders_it() {
         };
         let mismatch = FieldMismatch {
             parsed,
+            // Not part of the rendered message; it is what `bootstrap_trace_data` reads to find
+            // the predictor that failed.
+            signature: dsrust::signature::Signature::single_input("Answer.", Vec::new()),
             adapter_name: case["adapter_name"].as_str().expect("a name").to_owned(),
             lm_response: case["lm_response"].as_str().expect("a response").to_owned(),
             expected_fields: case["expected_fields"]

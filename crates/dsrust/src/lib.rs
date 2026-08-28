@@ -68,7 +68,10 @@ pub use evaluate::{Evaluate, Evaluation, Pass, Scored, exact_match};
 pub use example::{Completions, Example, Prediction};
 pub use hasher::Hasher;
 pub use lm::Capabilities;
-pub use module::{Ask, Forward, Module, NamedPredictor, PredictorState, ProgramState, TraceStep};
+pub use module::{
+    Ask, FailedPrediction, Forward, Module, NamedPredictor, PredictorState, ProgramState,
+    StepOutputs, TraceStep,
+};
 pub use optimize::{
     Attempt, BootstrapFewShot, BootstrapRandomSearch, COPRO, DynOptimizer, Ensemble, Ensembled,
     Feedback, GEPA, GepaOutcome, LabeledFewShot, MIPROv2, MetricContext, Optimizer,

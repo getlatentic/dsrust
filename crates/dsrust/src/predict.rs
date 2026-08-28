@@ -1011,7 +1011,7 @@ impl<S: Send + Sync> Module for Predict<S> {
             trace.push(TraceStep {
                 predictor: "self".to_owned(),
                 inputs,
-                outputs: prediction.example.clone(),
+                outputs: crate::StepOutputs::Answered(prediction.example.clone()),
                 signature: self.signature.clone(),
             });
             Ok(prediction)

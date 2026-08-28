@@ -46,6 +46,7 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
             adapter_name: "ChatAdapter".to_owned(),
             lm_response: raw.to_owned(),
             expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
+            signature: signature.clone(),
             message: None,
             reports_parsed: true,
         }));
@@ -67,6 +68,7 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
             adapter_name: "ChatAdapter".to_owned(),
             lm_response: raw.to_owned(),
             expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
+            signature: signature.clone(),
             message: Some(error.to_string()),
             // Upstream raises inside its cast loop, before `parsed_result` exists.
             reports_parsed: false,
@@ -219,6 +221,13 @@ pub struct FieldMismatch {
     pub expected_fields: Vec<String>,
     /// dspy's optional `message`, written above the rest and separated by a blank line.
     pub message: Option<String>,
+    /// The signature that was being read, which is dspy's `AdapterParseError.signature`.
+    ///
+    /// The names alone are in `expected_fields`; this is the whole thing, because the one caller
+    /// that needs it asks a question names cannot answer. `bootstrap_trace_data` finds the
+    /// predictor whose signature *is* this one — `pred.signature == failed_signature` — so it can
+    /// record which predictor failed, and two predictors can declare the same field names.
+    pub signature: crate::signature::Signature,
     /// Whether upstream would have had a `parsed_result` to report at all.
     ///
     /// False for a cast failure: upstream raises inside its cast loop, before the result is
@@ -295,6 +304,7 @@ pub(super) fn declared_fields(
             adapter_name: adapter_name.to_owned(),
             lm_response: raw.to_owned(),
             expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
+            signature: signature.clone(),
             message: None,
             reports_parsed: true,
         })),
@@ -331,6 +341,7 @@ pub(super) fn parse_json<'a>(signature: &Signature, raw: &'a str) -> Result<(Val
         expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
         message: Some("LM response cannot be serialized to a JSON object.".to_owned()),
         reports_parsed: true,
+        signature: signature.clone(),
     }))
 }
 

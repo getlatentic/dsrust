@@ -13,6 +13,7 @@
 
 mod adapter;
 mod binding;
+mod failing;
 mod metric;
 mod proposer;
 mod reflecting;
@@ -67,6 +68,7 @@ pub struct GEPA<M> {
     /// dspy `candidate_selection_strategy`. See [`CandidateSelection`].
     candidate_selection_strategy: CandidateSelection,
     track_best_outputs: bool,
+    add_format_failure_as_feedback: bool,
     /// dspy `component_selector`. See [`ComponentSelection`].
     component_selector: ComponentSelection,
     /// dspy `instruction_proposer`. See [`InstructionProposer`].
@@ -95,6 +97,7 @@ where
             candidate_selection_strategy: CandidateSelection::default(),
             component_selector: ComponentSelection::default(),
             track_best_outputs: false,
+            add_format_failure_as_feedback: false,
             proposer: None,
         }
     }
@@ -130,6 +133,22 @@ where
     ///
     /// What it is for is GEPA as a batch inference-time search: pass the batch as the valset and
     /// the answers *are* the result, rather than the candidate that produced them.
+    /// dspy `add_format_failure_as_feedback`: let a completion that would not parse be reflected
+    /// on, instead of dropping the step.
+    ///
+    /// Off by default, as upstream's is. With it off, a run whose answer never parsed contributes
+    /// nothing to any reflective dataset — and a batch where *every* run failed leaves GEPA with
+    /// no example to propose from, which upstream refuses rather than guessing at.
+    ///
+    /// With it on, such a step is preferred over any other: the record shows the raw completion
+    /// under `Generated Outputs` and replaces the metric's feedback with the field structure the
+    /// model should have followed. Which means it also costs a metric call less, and does not
+    /// advance the generator that would otherwise have drawn a step.
+    pub fn add_format_failure_as_feedback(mut self, add: bool) -> Self {
+        self.add_format_failure_as_feedback = add;
+        self
+    }
+
     pub fn track_best_outputs(mut self, track: bool) -> Self {
         self.track_best_outputs = track;
         self
@@ -310,7 +329,8 @@ where
                 self.proposer.clone(),
                 self.seed,
             )
-            .tracking_outputs(self.track_best_outputs),
+            .tracking_outputs(self.track_best_outputs)
+            .reflecting_on_format_failures(self.add_format_failure_as_feedback),
             trainset_size: trainset.len(),
             valset_size: valset.len(),
             minibatch_size: self.reflection_minibatch_size,

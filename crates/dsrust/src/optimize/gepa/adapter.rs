@@ -3,13 +3,15 @@
 //! reflection), assembles the reflective dataset from those traces, and calls the reflection model to
 //! rewrite an instruction — the LLM work the [`gepa`] engine drives through [`gepa::GepaAdapter`].
 
-use futures_util::StreamExt;
 use std::collections::BTreeMap;
 use std::sync::Arc;
+
+mod evaluating;
 
 use super::binding::set_instructions;
 use super::reflecting::{
     Captured, code_reflective_records, reflective_records, rendered_inputs, rendered_map,
+    unparsed_feedback, unparsed_outputs,
 };
 use gepa::{
     Candidate, EvalBatch, GepaAdapter, Reflective, ReflectiveSample, extract_new_instruction,
@@ -55,6 +57,10 @@ pub(super) struct Adapter<'a, S: Module + ?Sized, M> {
     /// engine can report what the best programs answered. Off unless the caller asked, because it
     /// clones every prediction on every valset evaluation.
     track_best_outputs: bool,
+    /// dspy `add_format_failure_as_feedback`: whether a step whose completion would not parse may
+    /// be reflected on. Off, as upstream's default is — with it off such a step is filtered out of
+    /// every reflective dataset, and an example holding nothing else drops out with it.
+    add_format_failure_as_feedback: bool,
     /// dspy's `DspyAdapter.rng`, which picks which trace instance a reflection reads. A *second*
     /// generator from the same seed, not the engine's: `gepa.py` builds `random.Random(self.seed)`
     /// for the adapter and passes `optimize(seed=self.seed)` separately, so a draw here cannot
@@ -87,6 +93,7 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
             num_threads,
             proposer,
             track_best_outputs: false,
+            add_format_failure_as_feedback: false,
             rng: Random::seeded(seed),
         }
     }
@@ -95,6 +102,12 @@ impl<'a, S: Module + ?Sized, M> Adapter<'a, S, M> {
     ///
     /// A builder rather than a tenth positional argument to [`new`](Self::new), which is already
     /// carrying more than a reader can hold.
+    /// gepa's `add_format_failure_as_feedback`.
+    pub(super) fn reflecting_on_format_failures(mut self, add: bool) -> Self {
+        self.add_format_failure_as_feedback = add;
+        self
+    }
+
     pub(super) fn tracking_outputs(mut self, track: bool) -> Self {
         self.track_best_outputs = track;
         self
@@ -106,99 +119,6 @@ where
     S: Module + ?Sized,
     M: Fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback + Send + Sync,
 {
-    /// Run the candidate program over `examples`, scoring each with the metric. When capturing, the
-    /// per-example runs are stashed for the reflection step. dspy never raises for one example's
-    /// failure — a failed run scores `failure_score` and contributes no trace.
-    async fn evaluate(
-        &mut self,
-        examples: &[Example],
-        candidate: &Candidate,
-        capture_traces: bool,
-    ) -> EvalBatch<Prediction> {
-        set_instructions(self.student, candidate);
-        if capture_traces {
-            self.captured.clear();
-        }
-        // Order-preserving, so a trace still lines up with the example that produced it and the
-        // reflection reads the same dataset whatever the thread count. `buffered` and not
-        // `buffer_unordered`, for the same reason `Evaluate` uses it.
-        // Built in a plain loop rather than through `map`: a closure returning a future that
-        // borrows both its argument and `self` needs a higher-ranked bound the compiler will not
-        // infer, and there is no closure here to need one.
-        let mut running = Vec::with_capacity(examples.len());
-        for example in examples {
-            running.push(self.run_one(example, capture_traces));
-        }
-        let ran: Vec<(f64, Option<Captured>, Option<Prediction>)> =
-            futures_util::stream::iter(running)
-                .buffered(self.num_threads.max(1))
-                .collect()
-                .await;
-        let mut scores = Vec::with_capacity(examples.len());
-        let mut answered = Vec::with_capacity(examples.len());
-        for (score, captured, prediction) in ran {
-            scores.push(score);
-            if let Some(captured) = captured {
-                self.captured.push(captured);
-            }
-            if let Some(prediction) = prediction {
-                answered.push(prediction);
-            }
-        }
-        let mut batch = match capture_traces {
-            true => EvalBatch::traced(scores),
-            false => EvalBatch::scored(scores),
-        };
-        // Only when every run reported one, so a partial list can never be read positionally
-        // against the scores it is supposed to line up with.
-        if self.track_best_outputs && answered.len() == examples.len() {
-            batch.outputs = Some(answered);
-        }
-        batch
-    }
-
-    /// One example: run the (already-built) program with tracing, then score it. Returns the score
-    /// and, when capturing, the run itself for reflection.
-    async fn run_one(
-        &self,
-        example: &Example,
-        capture_traces: bool,
-    ) -> (f64, Option<Captured>, Option<Prediction>) {
-        let inputs = example.inputs().expect("a dataset row declares its inputs");
-        let mut trace = Vec::new();
-        let Ok(prediction) = self.student.forward_traced(inputs, &mut trace).await else {
-            let failed = Prediction::new(Example::default(), String::new());
-            let captured = capture_traces.then(|| Captured {
-                example: example.clone(),
-                prediction: failed.clone(),
-                trace: Vec::new(),
-                scored: Feedback::score_only(self.failure_score),
-            });
-            // A run that failed still answered *something* on this example, and gepa records the
-            // output beside the score it earned rather than leaving a hole in the list.
-            let answered = self.track_best_outputs.then_some(failed);
-            return (self.failure_score, captured, answered);
-        };
-        // dspy's scoring call is the ordinary metric call — `Evaluate` and `bootstrap_trace_data`
-        // pass no predictor, and a trace only while capturing. A program holding a `Flex` scores
-        // through `evaluate_with_trace` instead, which hands the run over as `program_trace` and
-        // leaves `trace` empty, so a metric written for ordinary scoring reads the same thing in
-        // both regimes.
-        let scoring = match self.has_flexes {
-            true => MetricContext::scoring_a_program(&trace),
-            false => MetricContext::scoring(capture_traces.then_some(trace.as_slice())),
-        };
-        let feedback = (self.metric)(example, &prediction, &scoring);
-        let captured = capture_traces.then(|| Captured {
-            example: example.clone(),
-            prediction: prediction.clone(),
-            trace,
-            scored: feedback.clone(),
-        });
-        let answered = self.track_best_outputs.then(|| prediction.clone());
-        (feedback.score, captured, answered)
-    }
-
     /// dspy `make_reflective_dataset` for one predictor: an `Inputs`/`Generated Outputs`/`Feedback`
     /// record per captured example whose trace touched this predictor. The predictor's inputs and
     /// outputs render the way dspy's `str(value)` does ([`Example::rendered`]).
@@ -223,11 +143,33 @@ where
                 .trace
                 .iter()
                 .filter(|step| step.signature.equals(signature))
+                // dspy's `add_format_failure_as_feedback`: with the flag off, a step whose
+                // completion would not parse is dropped here, and an example with nothing else
+                // for this predictor drops out with it.
+                .filter(|step| {
+                    self.add_format_failure_as_feedback || step.outputs.answered().is_some()
+                })
                 .collect();
             if instances.is_empty() {
                 continue;
             }
-            let step = instances[self.rng.choice_index(instances.len())];
+            // A failure is *preferred* and short-circuits the draw — upstream takes the first one
+            // and never calls `rng.choice`, so the generator does not advance for this example and
+            // the next one's draw lands where upstream's does.
+            let failed = instances
+                .iter()
+                .find(|step| step.outputs.failure().is_some());
+            let step = match failed {
+                Some(step) => step,
+                None => {
+                    // An example whose *program* answer failed to parse contributes nothing once
+                    // no failing step was selected for this predictor.
+                    if captured.unparsed.is_some() {
+                        continue;
+                    }
+                    instances[self.rng.choice_index(instances.len())]
+                }
+            };
             // dspy calls the metric a second time here, with the predictor it wants feedback for
             // and the instance it just drew, and keeps only the text — the score stays the one
             // scoring produced, which is what upstream's `fb["score"] = module_score` does.
@@ -240,12 +182,24 @@ where
             };
             let feedback =
                 (self.metric)(&captured.example, &captured.prediction, &reflecting).text();
+            let (outputs, feedback) = match step.outputs.failure() {
+                // A failure is not scored a second time: upstream replaces the metric's feedback
+                // with the structure the model should have followed, and never calls it.
+                Some(failed) => (
+                    unparsed_outputs(&failed.completion_text),
+                    unparsed_feedback(signature),
+                ),
+                None => (
+                    rendered_map(step.outputs.answered().expect("not a failure")),
+                    feedback,
+                ),
+            };
             samples.push(vec![
                 (
                     "Inputs".to_owned(),
                     rendered_inputs(&step.inputs, signature),
                 ),
-                ("Generated Outputs".to_owned(), rendered_map(&step.outputs)),
+                ("Generated Outputs".to_owned(), outputs),
                 ("Feedback".to_owned(), Reflective::Text(feedback)),
             ]);
         }
@@ -429,10 +383,11 @@ mod tests {
             trace: vec![crate::TraceStep {
                 predictor: "self".to_owned(),
                 inputs: example! { question: "capital of France?" },
-                outputs: example! { answer: "Paris" },
+                outputs: crate::StepOutputs::Answered(example! { answer: "Paris" }),
                 signature: qa_signature("Answer."),
             }],
             scored: Feedback::score_only(1.0),
+            unparsed: None,
         }];
 
         let dataset = adapter.reflective_dataset("self", &qa_signature("Answer."));
@@ -618,17 +573,18 @@ mod tests {
                 crate::TraceStep {
                     predictor: "step".to_owned(),
                     inputs: example! { question: question },
-                    outputs: example! { answer: first.clone() },
+                    outputs: crate::StepOutputs::Answered(example! { answer: first.clone() }),
                     signature: qa_signature(instruction),
                 },
                 crate::TraceStep {
                     predictor: "step".to_owned(),
                     inputs: example! { question: first },
-                    outputs: example! { answer: second },
+                    outputs: crate::StepOutputs::Answered(example! { answer: second }),
                     signature: qa_signature(instruction),
                 },
             ],
             scored: Feedback::score_only(1.0),
+            unparsed: None,
         }
     }
 
@@ -660,10 +616,11 @@ mod tests {
             trace: vec![crate::TraceStep {
                 predictor: "step".to_owned(),
                 inputs,
-                outputs: example! { answer: answer },
+                outputs: crate::StepOutputs::Answered(example! { answer: answer }),
                 signature: signature.clone(),
             }],
             scored: Feedback::score_only(1.0),
+            unparsed: None,
         }];
 
         let dataset = adapter.reflective_dataset("step", &signature);
@@ -701,17 +658,18 @@ mod tests {
                     crate::TraceStep {
                         predictor: "alpha".to_owned(),
                         inputs: example! { question: question },
-                        outputs: example! { answer: middle },
+                        outputs: crate::StepOutputs::Answered(example! { answer: middle }),
                         signature: signature.clone(),
                     },
                     crate::TraceStep {
                         predictor: "beta".to_owned(),
                         inputs: example! { question: middle },
-                        outputs: example! { answer: end },
+                        outputs: crate::StepOutputs::Answered(example! { answer: end }),
                         signature: signature.clone(),
                     },
                 ],
                 scored: Feedback::score_only(1.0),
+                unparsed: None,
             }];
 
             // Upstream walks `components_to_update` in order off one generator, so the order the
@@ -771,5 +729,216 @@ mod tests {
                 )
             })
             .collect()
+    }
+}
+
+/// What GEPA does with a completion no adapter could read, against dspy's own run.
+///
+/// `optimize/failed_parse.json` was generated by calling `bootstrap_trace_data` — the collector
+/// upstream's GEPA reaches for — and recording both of its arms. They differ in more than a
+/// number: one keeps the example as a `FailedPrediction`, the other drops it from the batch.
+#[cfg(test)]
+mod failed_parse_tests {
+    use super::*;
+    use crate::example;
+    use crate::optimize::scripted::Unparsed;
+
+    fn golden() -> serde_json::Value {
+        serde_json::from_str(include_str!(
+            "../../../tests/conformance/optimize/failed_parse.json"
+        ))
+        .expect("the failed-parse golden is valid JSON")
+    }
+
+    fn batch(size: usize) -> Vec<Example> {
+        (0..size)
+            .map(|i| example! { question: format!("q{i}") }.with_inputs(["question"]))
+            .collect()
+    }
+
+    fn scoring() -> impl Fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback {
+        |_: &Example, _: &Prediction, _: &MetricContext<'_>| Feedback::score_only(1.0)
+    }
+
+    async fn traced<M>(
+        student: &mut Unparsed,
+        metric: &M,
+        size: usize,
+        failure_score: f64,
+    ) -> Vec<f64>
+    where
+        M: Fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback + Send + Sync,
+    {
+        let examples = batch(size);
+        let mut adapter = Adapter::new(
+            student,
+            metric,
+            std::sync::Arc::new(crate::DummyLM::new([])),
+            &[],
+            &[],
+            failure_score,
+            1,
+            None,
+            0,
+        );
+        adapter
+            .evaluate(&examples, &Candidate::new(), true)
+            .await
+            .scores
+    }
+
+    /// Every example whose completion parsed *nothing* survives, each scoring the format reward.
+    #[tokio::test]
+    async fn a_completion_reading_as_nothing_stays_in_the_batch() {
+        let arm = golden()["arms"]["no_declared_field_parsed"].clone();
+        let expected: Vec<f64> = arm["trajectories"]
+            .as_array()
+            .expect("trajectories")
+            .iter()
+            .map(|row| row["score"].as_f64().expect("a score"))
+            .collect();
+        assert_eq!(
+            arm["kept"], arm["batch_size"],
+            "dspy kept every example here"
+        );
+
+        let mut student = Unparsed::reading_nothing("there is nothing structured here");
+        let metric = scoring();
+        let scores = traced(
+            &mut student,
+            &metric,
+            arm["batch_size"].as_u64().expect("a size") as usize,
+            arm["format_failure_score"].as_f64().expect("a score"),
+        )
+        .await;
+        assert_eq!(
+            scores, expected,
+            "one score per example, all the format reward"
+        );
+    }
+
+    /// And every example whose completion parsed *something* is dropped, because upstream's graded
+    /// arm raises before it can build a reward.
+    #[tokio::test]
+    async fn a_completion_reading_as_something_is_dropped() {
+        let arm = golden()["arms"]["some_declared_field_parsed"].clone();
+        assert_eq!(arm["kept"].as_u64(), Some(0), "dspy kept none of them");
+
+        let mut student = Unparsed::reading_one_field(r#"{"answer": "half"}"#);
+        let metric = scoring();
+        let scores = traced(
+            &mut student,
+            &metric,
+            arm["batch_size"].as_u64().expect("a size") as usize,
+            arm["format_failure_score"].as_f64().expect("a score"),
+        )
+        .await;
+        assert!(
+            scores.is_empty(),
+            "the batch came back with {} score(s), not none",
+            scores.len()
+        );
+    }
+
+    /// Python's `or`, not a null check: a reward of exactly zero is falsy and takes the fallback.
+    #[test]
+    fn a_zero_format_reward_falls_back_to_the_constant() {
+        let arm = golden()["arms"]["a_zero_reward_falls_back"].clone();
+        let failed = crate::FailedPrediction {
+            completion_text: "unreadable".to_owned(),
+            format_reward: Some(0.0),
+        };
+        assert_eq!(
+            failed.score(arm["format_failure_score"].as_f64().expect("a score")),
+            arm["trajectories"][0]["score"].as_f64().expect("a score"),
+            "a zero reward is discarded for `format_failure_score`"
+        );
+        assert_eq!(
+            failed.score(0.75),
+            0.75,
+            "and `unwrap_or` would have kept the zero"
+        );
+    }
+
+    /// The record a reflection model reads: the raw completion, and the structure it should have
+    /// followed. Both byte-for-byte, because both are prompt.
+    #[tokio::test]
+    async fn the_reflective_record_shows_the_raw_completion_and_the_structure() {
+        let recorded = golden()["reflective"]
+            .as_array()
+            .expect("reflective")
+            .iter()
+            .find(|run| run["add_format_failure_as_feedback"] == serde_json::Value::Bool(true))
+            .expect("the flag-on run")
+            .clone();
+        let record = &recorded["records"][0];
+
+        let dataset = dataset_over(true).await;
+        assert_eq!(dataset.len(), 2, "both failing examples produced a record");
+        let sample = &dataset[0];
+        assert_eq!(
+            text_of(sample, "Generated Outputs"),
+            record["Generated Outputs"].as_str().expect("a string"),
+            "the raw-response block"
+        );
+        assert_eq!(
+            text_of(sample, "Feedback"),
+            record["Feedback"].as_str().expect("a string"),
+            "the structure instruction"
+        );
+    }
+
+    /// With the flag off every failing step is filtered out, and nothing is left to reflect on —
+    /// which upstream refuses rather than proposing from nothing.
+    #[tokio::test]
+    async fn with_the_flag_off_no_record_survives() {
+        let recorded = golden()["reflective"]
+            .as_array()
+            .expect("reflective")
+            .iter()
+            .find(|run| run["add_format_failure_as_feedback"] == serde_json::Value::Bool(false))
+            .expect("the flag-off run")
+            .clone();
+        assert!(
+            recorded["records"].is_null(),
+            "dspy produced no records at all"
+        );
+        assert_eq!(
+            recorded["raises"]["message"].as_str(),
+            Some("No valid predictions found for any module."),
+            "and refused rather than guessing"
+        );
+        assert!(
+            dataset_over(false).await.is_empty(),
+            "the flag is what lets a failure through"
+        );
+    }
+
+    async fn dataset_over(add_format_failure_as_feedback: bool) -> Vec<ReflectiveSample> {
+        let mut student = Unparsed::reading_nothing("there is nothing structured here");
+        let metric = scoring();
+        let examples = batch(2);
+        let signature = student.named_predictors()[0].signature.clone();
+        let mut adapter = Adapter::new(
+            &mut student,
+            &metric,
+            std::sync::Arc::new(crate::DummyLM::new([])),
+            &[],
+            &[],
+            0.0,
+            1,
+            None,
+            0,
+        )
+        .reflecting_on_format_failures(add_format_failure_as_feedback);
+        adapter.evaluate(&examples, &Candidate::new(), true).await;
+        adapter.reflective_dataset("p", &signature)
+    }
+
+    fn text_of(sample: &ReflectiveSample, key: &str) -> String {
+        match sample.iter().find(|(name, _)| name == key).map(|(_, v)| v) {
+            Some(Reflective::Text(text)) => text.clone(),
+            _ => panic!("{key} is not rendered as text"),
+        }
     }
 }
