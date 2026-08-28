@@ -279,6 +279,60 @@ def declared_reasons() -> dict[str, str]:
     return found
 
 
+def reasons_naming_nothing() -> list[str]:
+    """A comment block inside a declaration table that introduces no entry.
+
+    The tables are prose plus keys, and `_orphaned_declarations` in the conftest already refuses a
+    key naming no test. Nothing read the other half. A paragraph explaining why some tests are
+    deferred, left behind after its entries were deleted, still reads as a live gap — and it is the
+    one claim no gate could see, because it names nothing to check it against.
+
+    Found by reading `NOT_YET_IMPLEMENTED`, whose last paragraph argued that converting sets in the
+    shim "would green all three" of tests that had all been passing since the 3.3.0 pin.
+
+    A comment sharing a line with code is that entry's own note, not an introduction, so only runs
+    of whole comment lines count.
+    """
+    import ast
+    import io
+    import tokenize
+
+    source = CONFTEST.read_text()
+    tree = ast.parse(source)
+    lines = source.splitlines()
+    problems = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)):
+            continue
+        name = node.targets[0].id
+        if name not in DECLARATIONS or not isinstance(node.value, ast.Dict):
+            continue
+        span = range(node.value.lineno, (node.value.end_lineno or node.value.lineno) + 1)
+        keys = [key.lineno for key in node.value.keys if key is not None]
+        standalone = sorted(
+            token.start[0]
+            for token in tokenize.generate_tokens(io.StringIO(source).readline)
+            if token.type == tokenize.COMMENT
+            and token.start[0] in span
+            and not lines[token.start[0] - 1][: token.start[1]].strip()
+        )
+        blocks: list[list[int]] = []
+        for row in standalone:
+            if blocks and blocks[-1][-1] == row - 1:
+                blocks[-1].append(row)
+            else:
+                blocks.append([row])
+        for block in blocks:
+            if any(lineno > block[-1] for lineno in keys):
+                continue
+            problems.append(
+                f"{name} carries a reason at {CONFTEST.name}:{block[0]}-{block[-1]} that "
+                "introduces no entry — its tests are no longer declared, so the paragraph is "
+                "about nothing"
+            )
+    return problems
+
+
 def names_that_do_not_exist() -> list[str]:
     """Every `.rs` file, golden and `Type::member` an excuse names, resolved against the tree.
 
@@ -397,6 +451,7 @@ def main() -> None:
     both = [f for f in EXCUSED if f in run]
     unresolved = names_that_do_not_exist()
     outdated = stale_excuses()
+    about_nothing = reasons_naming_nothing()
 
     print(f"  {len(run)} of {len(manifest)} upstream files run, {len(EXCUSED)} excused by name")
 
@@ -416,6 +471,7 @@ def main() -> None:
     if unresolved:
         failures.append(f"{len(unresolved)} excuse(s) naming something that does not exist:")
         failures += [f"      -> {line}" for line in sorted(unresolved)]
+    failures += about_nothing
     failures += outdated
     failures += resting
 

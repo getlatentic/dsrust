@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1527
+rust_tests = 1528
 upstream_tests_passing = 1201
 upstream_tests_crossing = 711
 upstream_tests_deciding_signatures = 687
@@ -5882,7 +5882,44 @@ map.
 id = "poisson-arms-nothing-distinguishes"
 sprint = "api"
 title = "Thirty draws in a thousand reach numpy's rejection arms, and no test can tell them apart"
-state = "todo"
+state = "done"
+shipped = "2026-08-28"
+outcome = """
+Twenty, not twenty-five — the estimate was made from a timeout-masked run. Seven were reachable and
+nobody had looked; twelve are equivalent for one reason; one was caught by widening alone.
+
+The reason the twelve share is the title's own premise, and it was wrong. The arms *are* reached —
+`loggam` runs 7,901 times in the recorded corpus and every arm fires tens of thousands of times in a
+sweep. What no test can tell apart is narrower and more interesting: two of PTRS's three arms are
+**squeezes**, shortcuts whose regions sit strictly inside what the density test would decide anyway,
+and every surviving mutant on them makes a squeeze *smaller*. That only sends work to the density
+test. Verified rather than argued — 360,000 draws with no acceptance outside the density's own
+region — and written on `poisson_ptrs`, along with the fact that only a mutant moving a squeeze onto
+the far side of the density test can ever show up.
+
+The seven came from two different kinds of test, which is the transferable part:
+
+  - Three deep streams in the golden, chosen as the *shortest* witness for each mutant over 24 seeds
+    and five lambdas. Widening the corpus blindly had already been tried and moved the count by two;
+    searching for a witness moved it by four. A bigger corpus and a better one are not the same
+    thing, and the difference here was 350,000 draws against 2,400.
+  - A second oracle for `loggam`, CPython's `lgamma` over 138 points, which asks whether the series
+    is ln Γ at all rather than whether it matches numpy. It reaches three coefficients that poisson
+    would need some 10^8 draws to touch, because the acceptance test's two sides are usually far
+    apart — the smallest margin in 66,427 comparisons is 4.3e-06, and only the second coefficient is
+    worth more than that.
+
+Two survivors are provably unreachable rather than merely rare: `A[9]` is multiplied by `x2` nine
+times before it meets `A[0]`, and with `x0` never below seven, flipping its sign changes the
+returned `f64` by exactly zero; and `n` is a free shift in a recurrence exact for any `n`.
+
+Method note: the first witness search was wrong and said so loudly. It shared one PCG64 stream
+across lambdas, so it reported witnesses at offsets no `default_rng(seed)` reaches — the Rust tests
+kept passing against mutants the model called catchable, which is what exposed it. A witness that
+cannot be reproduced from a seed is not a witness.
+
+pyrng's floor: 37 -> 29, 0 hanging.
+"""
 size = "M"
 suites = []
 plan = """

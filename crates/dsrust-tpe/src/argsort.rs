@@ -136,11 +136,6 @@ mod tests {
     use super::*;
     use serde_json::Value;
 
-    fn golden() -> Value {
-        serde_json::from_str(include_str!("../tests/conformance/argsort.json"))
-            .expect("the argsort golden is valid JSON")
-    }
-
     #[test]
     fn every_recorded_permutation_is_numpys() {
         let golden: Value = serde_json::from_str(include_str!("../tests/conformance/argsort.json"))

@@ -73,11 +73,11 @@ cd "$ROOT"
 #                  push, `stack.len() < num`, true because each entry goes on at half the range
 #                  below it, and written as the length rather than the log of it so the bound holds
 #                  no arithmetic of its own.
-#   pyrng      37 — **a floor is only a floor over the code it was measured against.** This said 7
+#   pyrng      29 — **a floor is only a floor over the code it was measured against.** This said 7
 #                  until 2026-08-28, and 7 was right when it was written: `pcg64.rs` did not exist
 #                  yet. It arrived with SIMBA, nobody re-ran this, and a ratchet that is never
-#                  re-measured cannot notice a module. Nine of the 37 are the original reasoned
-#                  equivalents; the rest are `pcg64`'s, and two of those were mine this session.
+#                  re-measured cannot notice a module. It went 7 -> 37 on re-measurement, then 37 ->
+#                  29 once the 37 were read rather than counted.
 #
 #                  Five *hangs* became zero on the way: `generate_state`'s shift-until-empty and
 #                  both poisson loops were cursors a mutant could stall, and are bounded walks now —
@@ -85,24 +85,35 @@ cd "$ROOT"
 #                  the timeout now runs and is counted, and the timeouts had been masking a whole
 #                  cluster in `poisson_ptrs` and `loggam`.
 #
-#                  The poisson corpus was widened first — 24 draws per stream to 400, and lambdas
-#                  out to 1000, so 32,000 draws instead of 1,440 — and every one still matches
-#                  numpy. It moved the count by two, which is the finding: the rejection branch's
-#                  later arms are reached constantly and *cannot be told apart from the first one*.
-#                  Worked example: `k < 0.0 || (us < 0.013 && v > us)` guards a retry, and with the
-#                  `||` weakened to `&&` a negative `k` falls through to the log-density test, whose
-#                  comparison against a NaN `loggam(k + 1)` is false — so the loop goes round again
-#                  having drawn exactly what it would have drawn. Same draws, same answer.
+#                  Those turned out to be two findings, not one. **Seven were reachable and nobody
+#                  had looked**: three deep streams in the golden kill them, chosen as the shortest
+#                  witnesses over 24 seeds — `k` landing exactly on zero, the `v > us` squeeze
+#                  deciding, and one draw in 350,000 where `loggam`'s second coefficient flips an
+#                  acceptance — and a second oracle kills three more, CPython's `lgamma` against the
+#                  series over 138 points, which reaches coefficients poisson would need some 10^8
+#                  draws to touch. Both are in the source with their numbers.
 #
-#                  What that leaves is genuine work rather than noise, and it is filed as
-#                  `poisson-arms-nothing-distinguishes` in backlog.toml rather than absorbed here.
-#                  The original nine: `choices`' `len - 1` needs `random_double() * total` to reach
-#                  `total`, which a draw strictly below one does not; `twist`'s `|` and `^` act on
-#                  disjoint masks; `getrandbits` at exactly 32. `choices`' `len - 1` needs
-#                  `random_double() * total` to reach `total`, which a draw strictly below one does
-#                  not; `twist`'s `|` and `^` act on disjoint masks; `getrandbits` at exactly 32
-#                  shifts by zero either way; and both `<=` spellings in the two searches need a
-#                  draw landing exactly on a cumulative boundary.
+#                  **Twelve are equivalent for one reason**, written on `poisson_ptrs`: two of its
+#                  three arms are squeezes, regions that sit strictly inside what the density test
+#                  would decide anyway, and every surviving mutant on them makes a squeeze *smaller*
+#                  — which only sends work to the density test and cannot move a draw. Verified, not
+#                  argued: 360,000 draws with no acceptance outside the density's own region. The
+#                  rest are below arithmetic's reach — `A[9]` changes the returned `f64` by exactly
+#                  zero, and `n` is a free shift in a recurrence that is exact for any `n`.
+#
+#                  The corpus was widened first, and that is what made the split visible: 24 draws
+#                  per stream to 400, lambdas out to 1000, then three streams of 1200 to 2400. It
+#                  moved the count by two on its own. Widening blindly stops there; the remaining
+#                  seven needed a witness search, and that is the difference between a bigger corpus
+#                  and a better one.
+#
+#                  The other seventeen are outside poisson and are boundary cases of the same kind:
+#                  `choices`' `len - 1` needs `random_double() * total` to reach `total`, which a
+#                  draw strictly below one does not; `twist`'s `|` and `^` act on disjoint masks;
+#                  `getrandbits` at exactly 32 shifts by zero either way; both `<=` spellings in the
+#                  two searches need a draw landing exactly on a cumulative boundary; and
+#                  `seed_values` and `generate_state` mix words with `|` where the operands cannot
+#                  overlap.
 #
 #   Both re-measured 2026-08-07 under the fixed methodology and both reproduced exactly (151 and
 #   203 mutants). They had stood since before that fix, and "probably unchanged" is not a
@@ -151,7 +162,7 @@ cd "$ROOT"
 #               five-hour floor nobody runs is not a gate.
 BASELINES=(
   "dsrust-tpe:11:0"
-  "pyrng:37:0"
+  "pyrng:29:0"
   "dsrust-gepa:13:0"
   "dsrust-json-repair:156:1"
 )

@@ -187,6 +187,29 @@ impl Pcg64 {
     }
 
     /// numpy's `random_poisson_ptrs`: Hörmann's transformed rejection, two uniforms per attempt.
+    ///
+    /// Two of the three arms are *squeezes* — shortcuts that decide a point without evaluating the
+    /// density, and that are correct because the region each one claims sits strictly inside what
+    /// the density test would have decided anyway. `us >= 0.07 && v <= vr` accepts only points the
+    /// third arm also accepts (checked over 360,000 draws: no acceptance outside it), and
+    /// `us < 0.013 && v > us` rejects only proposals so far into the tail that the density rejects
+    /// them too — at `lam` ten, `us` that small puts `k` near 27, whose log density is about -21
+    /// against a left-hand side that cannot fall below -7.
+    ///
+    /// That is why nine mutants on this function survive a corpus that reaches every arm tens of
+    /// thousands of times: **narrowing a squeeze is unobservable by construction.** All four ways
+    /// to break `vr` make it smaller or negative, which only sends work to the density test; the
+    /// two ways to shrink `us < 0.013` and the two that shrink `v > us` toward equality do the
+    /// same. Only a mutant that moves a squeeze *across* the density test can show up: reversing
+    /// `v > us` does, since the points it then rejects are the small-`v` ones the density accepts.
+    /// The `k < 0` guard is not a squeeze at all — it drops proposals outside the support — so
+    /// widening it to `k <= 0` or narrowing it to `k == 0` changes a real decision. All three are
+    /// caught, by the deep streams the golden carries for exactly this.
+    ///
+    /// The ninth, `||` weakened to `&&`, is the same principle by a different route: a negative
+    /// `k` that no longer retries falls through to the density test, where `loggam` of a
+    /// non-positive argument is NaN and the comparison is false, so it retries anyway having
+    /// consumed the same two uniforms.
     fn poisson_ptrs(&mut self, lam: f64) -> u64 {
         let slam = lam.sqrt();
         let loglam = lam.ln();
@@ -222,6 +245,23 @@ impl Pcg64 {
 ///
 /// PTRS compares against this, so a different implementation of the same mathematical function
 /// changes which draws are accepted — the last digit decides a rejection.
+///
+/// Held twice over, because the two hold different things. The poisson streams hold it to numpy
+/// exactly and are the fidelity claim; what they do not reach is the tail of the series, since the
+/// acceptance test is an inequality whose sides are far apart. The smallest margin over 66,427
+/// comparisons swept for this is `4.3e-06`, so a coefficient worth less than that moves no draw,
+/// and only the second is worth more — `1.6e-05`, and the golden now carries the one stream in
+/// 350,000 where it decides. `tests/conformance/loggam.json` holds the rest, against CPython's
+/// `lgamma`, which asks whether the series is ln Γ at all rather than whether it matches numpy.
+///
+/// Three lines survive both, and the reasons are worth keeping because none is a near miss. `A[9]`
+/// seeds the Horner evaluation and is multiplied by `x2` nine times before it meets `A[0]`; with
+/// `x0` never below seven that is a factor of `49^-9`, and flipping its sign changes the returned
+/// `f64` by exactly zero. `n` is a free shift, since `ln Γ(x) = ln Γ(x + n) - Σ ln(x + i)` holds
+/// for any non-negative `n` — computing it from `7 + x` rather than `7 - x` costs `7e-15` against
+/// two implementations that agree to `8.9e-16`. (`7 / x` is *not* free and is caught: it can leave
+/// `x0` at five, where the series is worth `2e-14`.) And disabling the early return for one and two
+/// gives `5.6e-16` there instead of the exact zero, below both bounds.
 fn loggam(x: f64) -> f64 {
     const A: [f64; 10] = [
         8.333333333333333e-02,
@@ -258,4 +298,54 @@ fn loggam(x: f64) -> f64 {
         }
     }
     gl
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+
+    /// `loggam` against CPython's `lgamma` — a second implementation of the same function, the way
+    /// `rand_pcg` is a second implementation of the stepper.
+    ///
+    /// The poisson streams hold `loggam` to numpy exactly, which is the fidelity claim. They do not
+    /// hold its coefficients to much: it is read through an inequality whose sides are usually far
+    /// apart, so a coefficient worth less than the smallest margin moves no draw. This asks the
+    /// sharper question instead — whether the series is ln Γ at all — and catches the fourth and
+    /// sixth coefficients, which poisson would need some `10^8` draws to reach.
+    #[test]
+    fn the_series_agrees_with_an_independent_ln_gamma() {
+        let golden: Value = serde_json::from_str(include_str!("../tests/conformance/loggam.json"))
+            .expect("the loggam golden is valid JSON");
+        let tolerance = golden["relative_tolerance"].as_f64().expect("a tolerance");
+        let values = golden["values"].as_array().expect("values");
+        assert!(
+            values.len() >= 130,
+            "the golden lost values: {}",
+            values.len()
+        );
+        let mut worst = 0.0f64;
+        for value in values {
+            let x = value["x"].as_f64().expect("an x");
+            let expected = value["lgamma"].as_f64().expect("an lgamma");
+            let relative = (loggam(x) - expected).abs() / expected.abs().max(1.0);
+            assert!(
+                relative <= tolerance,
+                "loggam({x}) is {} against lgamma's {expected}, a relative {relative:e} past \
+                 {tolerance:e}",
+                loggam(x)
+            );
+            worst = worst.max(relative);
+        }
+        // The two differ by four ULPs — `8.88e-16`, the same value on both sides, since `ln` is
+        // the same libm call. The bound above is a hundred times that, and this asserts the
+        // hundred is still there, so a bound that has quietly gone slack fails rather than passes
+        // wider. Ten is the slack this guard allows itself: closer than that to the tolerance and
+        // the tolerance is no longer describing anything.
+        assert!(
+            worst < tolerance / 10.0,
+            "the two implementations now differ by {worst:e}, close enough to the {tolerance:e} \
+             bound that it has stopped being headroom"
+        );
+    }
 }

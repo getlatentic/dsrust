@@ -46,6 +46,21 @@ LAMBDAS += [10.001, 25.0, 100.0, 1000.0]
 #: Draws per stream. Raised from 24 for the reason above: the arms this is here to pin are rare.
 DRAWS = 400
 
+#: Streams long enough to reach the three decisions that even four hundred draws miss, each one the
+#: *shortest* witness found for a mutant that survived without it — searched over 24 seeds and five
+#: lambdas on freshly seeded streams, since a stream shared across lambdas witnesses at offsets no
+#: `default_rng(seed)` can reproduce.
+#:
+#:   (11, 10.5)   draw 1113 — `k` lands exactly on zero, which separates `k < 0` from `k <= 0` and
+#:                from `k == 0`. Reachable only near the branch at ten, where the proposal's tail
+#:                reaches the origin at all.
+#:   (0, 10.0)    draw 2295 — the squeeze's `v > us` decides. It needs `us < 0.013`, roughly one
+#:                attempt in eighty, and then `v <= us` on top of that.
+#:   (22, 10.001) draw 1963 — the acceptance flips on `loggam`'s second coefficient. It contributes
+#:                about `1e-4` to a comparison whose sides are usually orders apart, so this is the
+#:                one draw in 350,000 where they are not.
+DEEP = [(11, 10.5, 1200), (0, 10.0, 2400), (22, 10.001, 2000)]
+
 
 def words(seed: int, count: int) -> list[int]:
     """Raw 64-bit words straight off the bit generator, before any distribution."""
@@ -77,6 +92,10 @@ def main() -> None:
                 "raw_words": {str(seed): words(seed, 12) for seed in SEEDS},
                 "doubles": {str(seed): doubles(seed, 12) for seed in SEEDS},
                 "poisson": [
+                    {"seed": seed, "lam": lam, "draws": poissons(seed, lam, count)}
+                    for seed, lam, count in DEEP
+                ]
+                + [
                     {"seed": seed, "lam": lam, "draws": poissons(seed, lam, DRAWS)}
                     for seed in SEEDS
                     for lam in LAMBDAS

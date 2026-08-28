@@ -213,11 +213,6 @@ mod tests {
     use super::*;
     use serde_json::Value;
 
-    fn rounding_golden() -> Value {
-        serde_json::from_str(include_str!("../tests/conformance/half_to_even.json"))
-            .expect("the rounding golden is valid JSON")
-    }
-
     #[test]
     fn rounding_is_numpys_and_not_rusts() {
         let golden: Value =

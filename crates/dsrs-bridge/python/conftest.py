@@ -171,21 +171,17 @@ NOT_YET_IMPLEMENTED = {
         "the test patches dspy's own `_read_response_line`, which the Rust sandbox does not call; "
         "the terminal-session rule it checks is held by deno.rs's own tests"
     ),
-    # These pass a Python `set` or `tuple` as an input *variable*. `CodeInterpreter::execute` takes
-    # a `serde_json::Map`, which has neither, so a Rust caller cannot reach this path at all — there
-    # is no crate behaviour here to be right or wrong about.
-    #
-    # Converting them in the shim would green all three and test the shim. The conversion is not
-    # pure reflection either: dspy sorts a set on the way out, so `{3,1,2}` reaches the sandbox as
-    # `[1, 2, 3]`, and that ordering is a byte the model reads. Deciding it in Python is the thing
-    # the bridge exists to prevent.
 }
 
-# `test_serialize_set` and `test_serialize_set_mixed_types` were here for the same reason as
-# `test_nested_sets_and_tuples` and are not any more: dspy 3.3.0 added `_make_jsonable` and
-# `_dump_pydantic`, so a set is converted on dspy's side before it ever reaches this crate's
-# sandbox. They XPASSed at the new pin, which is what a strict xfail is for — a divergence that
-# upstream closes should be noticed rather than carried.
+# `test_serialize_set`, `test_serialize_set_mixed_types` and `test_nested_sets_and_tuples` were all
+# here and are not any more. They pass a Python `set` or `tuple` as an input *variable*, which
+# `CodeInterpreter::execute` could not take — it takes a `serde_json::Map`, which has neither — and
+# converting them in the shim was refused, because dspy sorts a set on the way out and `{3,1,2}`
+# reaching the sandbox as `[1, 2, 3]` is a byte the model reads. Deciding that in Python is what the
+# bridge exists to prevent. dspy 3.3.0 settled it upstream instead, with `_make_jsonable` and
+# `_dump_pydantic`: a set is converted on dspy's side before it ever reaches this crate. All three
+# XPASSed at the new pin, which is what a strict xfail is for — a divergence that upstream closes
+# should be noticed rather than carried.
 
 
 # Upstream tests that pass without the crate rendering or parsing anything, with the reason.
