@@ -10,7 +10,7 @@ use anyhow::{Result, bail};
 use pyrng::cpython::Random;
 use pyrng::pcg64::Pcg64;
 
-use super::search::{Run, Simba, Step};
+use super::search::{Candidate, Compiled, Run, Simba, Step};
 use super::{search, strategies};
 use crate::evaluate::Metric;
 use crate::example::Example;
@@ -26,7 +26,7 @@ impl<M: Metric> Simba<M> {
         &self,
         student: &mut dyn Module,
         trainset: &[Example],
-    ) -> Result<Vec<Step>> {
+    ) -> Result<Compiled> {
         if trainset.len() < self.bsize {
             bail!("Trainset too small: {} < {}", trainset.len(), self.bsize);
         }
@@ -35,6 +35,8 @@ impl<M: Metric> Simba<M> {
         let mut rng = Random::seeded(self.seed);
         let mut numpy = Pcg64::seeded(self.seed);
 
+        // dspy's `prompt_model or dspy.settings.lm`: the rule ask goes to the configured model.
+        let advisor = crate::predict::Predict::from_signature(super::feedback::offer_feedback());
         let baseline = student.dump_state();
         let mut pool = search::Pool::seeded(baseline.clone());
         let mut winners: Vec<ProgramState> = vec![baseline.clone()];
@@ -109,6 +111,7 @@ impl<M: Metric> Simba<M> {
                     student,
                     step.percentiles,
                     self.demo_input_field_maxlen,
+                    &advisor,
                 )
                 .await?;
                 step.strategies.push((strategy, applied));
@@ -124,6 +127,7 @@ impl<M: Metric> Simba<M> {
                 let scores = self.score_over(student, &batch).await;
                 let average = mean(&scores);
                 step.candidate_scores.push(average);
+                step.candidates.push(candidate.clone());
                 pool.register(candidate.clone(), scores);
             }
             if let Some(best) = best_index(&step.candidate_scores) {
@@ -141,7 +145,19 @@ impl<M: Metric> Simba<M> {
         }
         let best = best_index(&scored).unwrap_or(0);
         student.load_state(&winners[slate[best]])?;
-        Ok(steps)
+
+        let mut candidates: Vec<Candidate> = slate
+            .iter()
+            .zip(&scored)
+            .map(|(index, score)| Candidate {
+                score: *score,
+                program: winners[*index].clone(),
+            })
+            .collect();
+        // dspy sorts `candidate_data` by score descending before attaching it. A stable sort keeps
+        // the slate's own order among ties, as Python's does.
+        candidates.sort_by(|left, right| right.score.total_cmp(&left.score));
+        Ok(Compiled { steps, candidates })
     }
 
     /// dspy `SIMBA.compile`, keeping only the compiled program.

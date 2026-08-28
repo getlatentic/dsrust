@@ -101,6 +101,31 @@ pub struct Step {
     pub demos_dropped: Vec<usize>,
     /// Each new candidate's average score on the same mini-batch.
     pub candidate_scores: Vec<f64>,
+    /// The candidates themselves, in the order they were built and registered.
+    ///
+    /// dspy registers all of them into its pool and keeps only the best in `winning_programs`, so
+    /// a candidate a strategy changed can be scored, kept in the pool, and never reach the final
+    /// slate. Held here because that is where the effect of a strategy is visible at all.
+    pub candidates: Vec<ProgramState>,
+}
+
+/// One of the final slate, scored on the whole trainset — dspy's `candidate_programs` entry.
+#[derive(Debug, Clone)]
+pub struct Candidate {
+    pub score: f64,
+    pub program: ProgramState,
+}
+
+/// What a run answers with: every step's decisions, and the scored slate.
+///
+/// dspy attaches `candidate_programs` and `trial_logs` to the compiled program. A Rust program is
+/// the caller's value and an optimizer writing attributes onto it would have to invent somewhere to
+/// put them, so they are returned — and the slate is *sorted by score, descending*, as upstream
+/// sorts `candidate_data`.
+#[derive(Debug, Clone, Default)]
+pub struct Compiled {
+    pub steps: Vec<Step>,
+    pub candidates: Vec<Candidate>,
 }
 
 /// dspy `SIMBA`: stochastic introspective mini-batch ascent.

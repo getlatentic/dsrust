@@ -9,7 +9,7 @@
 //! early on reward), and the losing attempts are what the feedback is built from rather than
 //! discarded outright.
 
-mod describe;
+pub(crate) mod describe;
 pub mod feedback;
 mod trajectory;
 

@@ -21,7 +21,7 @@ use crate::module::NamedPredictor;
 const SEPARATOR_WIDTH: usize = 80;
 
 /// Every predictor in a program, as the advising model reads them.
-pub(super) fn modules(predictors: &[NamedPredictor<'_>]) -> String {
+pub(crate) fn modules(predictors: &[NamedPredictor<'_>]) -> String {
     let separator = "-".repeat(SEPARATOR_WIDTH);
     let mut out = vec![separator.clone()];
     for predictor in predictors {

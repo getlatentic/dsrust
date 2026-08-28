@@ -243,3 +243,82 @@ fn the_buckets_are_worked_in_dspys_order() {
         );
     }
 }
+
+/// The gate `append_a_rule` sits behind, and the tie arm behind that.
+///
+/// Both ends: a best run at or below the batch's 10th percentile has nothing to teach, a worst at
+/// or above the 90th nothing to warn about. Read off the shapes dspy was actually run on.
+#[test]
+fn the_rule_gate_opens_where_dspys_does() {
+    let fixture: Value = serde_json::from_str(include_str!("conformance/optimize/simba_rule.json"))
+        .expect("the golden parses");
+
+    for case in fixture["cases"].as_array().expect("cases") {
+        let best = case["better_score"].as_f64().expect("a score");
+        let worst = case["worse_score"].as_f64().expect("a score");
+        let gates = case["gates"].as_array().expect("gates");
+        let (p10, p90) = (
+            gates[0].as_f64().expect("the 10th"),
+            gates[1].as_f64().expect("the 90th"),
+        );
+        let opens = !(best <= p10 || worst >= p90);
+        assert_eq!(
+            opens,
+            case["applied"].as_bool().expect("a verdict"),
+            "case {}: the gate",
+            case["name"]
+        );
+    }
+}
+
+/// dspy's second blanking arm cannot be reached, and the crate does not carry it.
+///
+/// Past the gate `bad < p90`; the arm needs `good <= bad` and `good > p90`, so
+/// `p90 < good <= bad < p90`. The golden records an exhaustive sweep rather than the argument, so
+/// this becomes a live question again the day upstream moves the gate.
+#[test]
+fn the_second_blanking_arm_is_unreachable_upstream() {
+    let fixture: Value = serde_json::from_str(include_str!("conformance/optimize/simba_rule.json"))
+        .expect("the golden parses");
+    assert!(
+        !fixture["worse_blanking_arm_reachable"]
+            .as_bool()
+            .expect("a verdict"),
+        "dspy's worse-blanking arm is reachable now; the crate omits it and must not"
+    );
+}
+
+/// And the advice is *appended*, after a blank line, rather than replacing the instruction.
+#[test]
+fn the_advice_is_appended_to_the_instruction() {
+    let fixture: Value = serde_json::from_str(include_str!("conformance/optimize/simba_rule.json"))
+        .expect("the golden parses");
+    let advice = fixture["advice"]["self"].as_str().expect("the advice");
+    let applied = fixture["cases"]
+        .as_array()
+        .expect("cases")
+        .iter()
+        .filter(|case| case["applied"].as_bool() == Some(true))
+        .count();
+    assert!(
+        applied >= 2,
+        "two shapes wrote a rule, or this proves nothing"
+    );
+
+    for case in fixture["cases"].as_array().expect("cases") {
+        let after = case["instructions_after"].as_str().expect("instructions");
+        match case["applied"].as_bool() == Some(true) {
+            true => assert_eq!(
+                after,
+                format!("Given the fields `question`, produce the fields `answer`.\n\n{advice}"),
+                "case {}: the advice follows a blank line",
+                case["name"]
+            ),
+            false => assert!(
+                !after.contains(advice),
+                "case {}: a declined rule still changed the instruction",
+                case["name"]
+            ),
+        }
+    }
+}
