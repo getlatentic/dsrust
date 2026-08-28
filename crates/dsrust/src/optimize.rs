@@ -23,6 +23,7 @@ mod labeled;
 mod mipro;
 mod random_search;
 mod rng;
+pub mod simba;
 
 #[cfg(test)]
 mod conformance;
