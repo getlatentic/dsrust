@@ -422,9 +422,45 @@ mod tests {
     }
     use crate::evaluate::exact_match;
     use crate::example;
-    use crate::optimize::scripted::{Answers, Lopsided, Pair, Solver, answers, trainset};
+    use crate::optimize::scripted::{Answers, Lopsided, Pair, Solver, TwoHop, answers, trainset};
     use crate::signature::{OutField, Signature};
     use serde_json::json;
+
+    /// A predictor called twice in one example earns two demos and keeps one, and which one is
+    /// dspy's seeded coin rather than the last.
+    ///
+    /// The unit test beside [`collapse`](crate::optimize::earned::collapse) holds the coin itself
+    /// to upstream's recorded answers. This holds the *wiring*: that `file` groups a repeated
+    /// predictor's demos in trace order and asks the coin, rather than keeping whichever arrived
+    /// last. With `hop` differing between the calls the two demos are distinguishable, so taking
+    /// the last would answer `"second answer"` every time.
+    #[tokio::test]
+    async fn a_predictor_called_twice_keeps_the_demo_the_coin_names() {
+        let metric = exact_match;
+        let mut student = TwoHop::new();
+        let optimizer = BootstrapFewShot {
+            max_bootstrapped_demos: 4,
+            max_labeled_demos: 0,
+            ..BootstrapFewShot::new(&metric)
+        };
+        optimizer
+            .compile(&mut student, &trainset()[..1])
+            .await
+            .expect("compiles");
+        assert_eq!(student.demos.len(), 1, "two traces collapse to one demo");
+        let kept = student.demos[0]
+            .get("hop")
+            .and_then(|hop| hop.as_str())
+            .expect("the demo records which hop earned it");
+        // Which hop the coin lands on is upstream's business; that the *choice* happened is this
+        // crate's. A collapse that ignored the coin would take the trace order's last.
+        assert_eq!(kept, "first", "the seeded coin picked the earlier hop here");
+        assert_eq!(
+            student.demos[0].get("augmented"),
+            Some(&json!(true)),
+            "the kept demo is still marked as earned"
+        );
+    }
 
     /// The two examples the capital table solves, in trainset order.
     const SOLVABLE: [&str; 2] = ["Paris", "Berlin"];

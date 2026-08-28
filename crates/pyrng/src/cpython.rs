@@ -7,6 +7,8 @@
 
 use std::collections::HashSet;
 
+use sha2::Digest;
+
 use crate::mt19937::Mt19937;
 
 /// CPython `random.Random`: seed it as `random.Random(int)`, then draw.
@@ -16,6 +18,26 @@ impl Random {
     /// dspy's `random.Random(seed)`.
     pub fn seeded(seed: u64) -> Self {
         Self(Mt19937::from_key(&key(seed)))
+    }
+
+    /// CPython `random.Random(str)`, which is not `seeded` with the string's bytes.
+    ///
+    /// CPython's version-2 seeding turns a `str`, `bytes` or `bytearray` into an integer
+    /// first, and it appends a digest before doing so:
+    ///
+    /// ```text
+    /// a = a.encode()                                  # str only
+    /// a = int.from_bytes(a + _sha512(a).digest())     # big-endian
+    /// ```
+    ///
+    /// The append is what makes this worth reproducing rather than approximating. Without it a
+    /// 64-character hex digest would seed a 512-bit key; with it the key is 1024 bits, and every
+    /// draw differs. dspy reaches this path through `BootstrapFewShot`, which seeds a generator
+    /// with `Hasher.hash(...)` — a hex string — to pick which demo a repeated predictor keeps.
+    pub fn from_seed_bytes(seed: &[u8]) -> Self {
+        let mut magnitude = seed.to_vec();
+        magnitude.extend_from_slice(&sha2::Sha512::digest(seed));
+        Self(Mt19937::from_key(&limbs(&magnitude)))
     }
 
     /// CPython `_randbelow`: draw the bound's bit width, and redraw until it lands in range.
@@ -421,4 +443,25 @@ mod tests {
             "a wider seed would reach CPython's other branch"
         );
     }
+}
+
+/// A big-endian magnitude as CPython's `init_by_array` key: 32-bit limbs, least significant first.
+///
+/// `_random.Random.seed` takes `abs(n)` and spreads it over words this way. Leading zero limbs are
+/// dropped because the integer has no leading zeroes to spread — a digest that happens to start
+/// with a zero byte must seed as the shorter number it is, not as one with an empty top word.
+/// A zero seed keeps one word, which is the empty-key guard `from_key` asserts on.
+fn limbs(magnitude: &[u8]) -> Vec<u32> {
+    let mut words: Vec<u32> = Vec::with_capacity(magnitude.len().div_ceil(4));
+    for chunk in magnitude.rchunks(4) {
+        let mut word = 0u32;
+        for byte in chunk {
+            word = (word << 8) | u32::from(*byte);
+        }
+        words.push(word);
+    }
+    while words.len() > 1 && *words.last().expect("checked above") == 0 {
+        words.pop();
+    }
+    words
 }

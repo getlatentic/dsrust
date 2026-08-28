@@ -7,7 +7,10 @@
 
 use std::collections::BTreeMap;
 
+use pyrng::Random;
+
 use crate::example::Example;
+use crate::hasher::Hasher;
 
 /// What one bootstrap pass produced.
 pub(super) struct Bootstrapped {
@@ -46,32 +49,30 @@ impl Bootstrapped {
 
     /// File one solved example's demos under the predictors that earned them.
     ///
-    /// dspy collapses a predictor that traced more than once for a single example down to one
-    /// demo, choosing evenly between its last trace and a random earlier one. This takes the last
-    /// trace, which agrees with upstream whenever its coin lands there — and a predictor called
-    /// once per example never reaches the branch at all.
-    ///
-    /// Not for want of the generator: [`rng`](super::rng) already reproduces the one upstream
-    /// draws with. The choice is seeded with `xxhash64(pickle.dumps(demos))`, and those bytes
-    /// embed the iteration order of `_input_keys`, a Python `set` — fixed within a process and
-    /// different between them, since CPython seeds string hashing per interpreter. Upstream's own
-    /// seed is therefore not reproducible, so there is no single answer to match.
-    ///
-    /// Taking the last trace is also the best available answer rather than a concession. Deriving
-    /// a seed here would flip a coin independent of upstream's, and two independent coins agree
-    /// less often than one fixed choice matching a coin: measured, 0.500 at any number of traces
-    /// against 0.376 at three and 0.287 at eight.
+    /// A predictor that traced more than once for a single example is collapsed to one demo by
+    /// [`collapse`], which is dspy's coin rather than a stand-in for it.
     pub(super) fn file(&mut self, solved: Solved) {
         if solved.per_predictor.is_empty() {
             self.program.push(solved.program);
             return;
         }
-        let mut last: BTreeMap<String, Example> = BTreeMap::new();
+        // First-seen order, not sorted: the demos of one predictor reach `collapse` in the order
+        // the trace recorded them, and it is the *last* of them the coin weighs against the rest.
+        let mut traced: Vec<(String, Vec<Example>)> = Vec::new();
         for (predictor, demo) in solved.per_predictor {
-            last.insert(predictor, demo);
+            match traced.iter_mut().find(|(name, _)| *name == predictor) {
+                Some((_, demos)) => demos.push(demo),
+                None => traced.push((predictor, vec![demo])),
+            }
         }
-        for (predictor, demo) in last {
-            self.per_predictor.entry(predictor).or_default().push(demo);
+        for (predictor, mut demos) in traced {
+            if demos.len() > 1 {
+                demos = vec![demos.swap_remove(collapse(&demos))];
+            }
+            self.per_predictor
+                .entry(predictor)
+                .or_default()
+                .append(&mut demos);
         }
     }
 
@@ -87,5 +88,99 @@ impl Bootstrapped {
             None => self.program.as_slice(),
         };
         &earned[..most.min(earned.len())]
+    }
+}
+
+/// Which of a predictor's demos survives when it answered more than once in one example.
+///
+/// dspy flips a coin seeded by the demos themselves:
+///
+/// ```text
+/// rng = random.Random(Hasher.hash(tuple(demos)))
+/// demos = [rng.choice(demos[:-1]) if rng.random() < 0.5 else demos[-1]]
+/// ```
+///
+/// Half the time the last trace, half the time a uniform draw from the earlier ones — and which
+/// half is decided by the sha256 of the pickled tuple, so it is a fixed function of the demos and
+/// not a coin this crate is free to flip its own way. Reproducing it needs the pickle bytes
+/// ([`Hasher`]) and CPython's string seeding (`Random::from_seed_bytes`); with both, the answer is
+/// upstream's answer.
+///
+/// This used to return the last demo unconditionally, justified in a comment that had two facts
+/// wrong: dspy replaced xxhash with `hashlib.sha256` on 2026-05-07, and the `_input_keys` whose
+/// set iteration order was said to make the seed unreproducible is `None` on this path — the demo
+/// is `Example(augmented=True, **inputs, **outputs)` with no `with_inputs` after it, so no set is
+/// ever pickled. Measured against upstream, the old answer differed on 8 of 24 recorded cases.
+pub(super) fn collapse(demos: &[Example]) -> usize {
+    debug_assert!(
+        demos.len() > 1,
+        "dspy reaches its coin only past a single trace"
+    );
+    let mut rng = Random::from_seed_bytes(Hasher::hash(demos).as_bytes());
+    if rng.random() < 0.5 {
+        rng.choice_index(demos.len() - 1)
+    } else {
+        demos.len() - 1
+    }
+}
+
+#[cfg(test)]
+mod collapse_tests {
+    use super::*;
+
+    /// Every recorded case, against the demo dspy's own coin kept.
+    #[test]
+    fn the_kept_demo_is_the_one_upstream_kept() {
+        let golden: serde_json::Value =
+            serde_json::from_str(include_str!("../../tests/conformance/optimize/hasher.json"))
+                .expect("the hasher golden is valid JSON");
+        let mut checked = 0;
+        let mut not_the_last = 0;
+        for case in golden["cases"].as_array().expect("cases") {
+            let Some(expected) = case["index"].as_u64() else {
+                continue; // a single demo never reaches the coin
+            };
+            let demos = rebuild(case);
+            let kept = collapse(&demos);
+            assert_eq!(
+                kept,
+                expected as usize,
+                "the demo kept for {}",
+                case["name"].as_str().expect("name")
+            );
+            checked += 1;
+            not_the_last += usize::from(kept + 1 != demos.len());
+        }
+        assert!(checked >= 12, "only {checked} cases reached the coin");
+        // Without this the suite would pass just as well against the last-demo answer this
+        // replaced, which is exactly how that answer survived.
+        assert!(
+            not_the_last >= 3,
+            "only {not_the_last} case(s) kept a demo other than the last"
+        );
+    }
+
+    fn rebuild(case: &serde_json::Value) -> Vec<Example> {
+        let keys: Vec<String> = case["input_keys"]
+            .as_array()
+            .expect("input_keys")
+            .iter()
+            .map(|key| key.as_str().expect("a key").to_owned())
+            .collect();
+        case["demos"]
+            .as_array()
+            .expect("demos")
+            .iter()
+            .map(|fields| {
+                Example::new(
+                    fields
+                        .as_object()
+                        .expect("a demo is an object")
+                        .iter()
+                        .map(|(name, value)| (name.clone(), value.clone())),
+                )
+                .with_inputs(keys.clone())
+            })
+            .collect()
     }
 }

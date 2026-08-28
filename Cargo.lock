@@ -1053,6 +1053,7 @@ dependencies = [
  "rand_core",
  "rand_pcg",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]

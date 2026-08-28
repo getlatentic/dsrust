@@ -34,6 +34,7 @@ OUT = (
     / "dsrust"
     / "tests"
     / "conformance"
+    / "api"
     / "upstream_dead_api.json"
 )
 

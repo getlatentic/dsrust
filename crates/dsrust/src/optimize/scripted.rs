@@ -15,6 +15,10 @@ use crate::module::{Module, NamedPredictor, TraceStep};
 use crate::signature::Signature;
 
 /// What a program was looking at when it was asked one question.
+mod two_hop;
+
+pub(crate) use two_hop::TwoHop;
+
 #[derive(Clone)]
 pub(crate) struct Call {
     pub(crate) question: String,

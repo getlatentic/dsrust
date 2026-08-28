@@ -138,6 +138,7 @@ PORTED_MODULES = [
     "utils/dummies.py",
     "primitives/python_interpreter.py",
     "utils/saving.py",
+    "utils/hasher.py",
     "utils/mcp.py",
     # streaming. Listed because this crate ports all three and cited them by name while doing it,
     # which is the tell: a module the source explains itself in terms of is ported in effect, and

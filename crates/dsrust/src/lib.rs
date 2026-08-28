@@ -39,6 +39,7 @@ pub mod callback;
 mod error;
 pub mod evaluate;
 pub mod example;
+pub mod hasher;
 pub mod interpreter;
 pub mod lm;
 mod mimetypes;
@@ -65,6 +66,7 @@ pub use callback::{CallId, Callback, Rendered, configure_callbacks};
 pub use dsrust_derive::Module;
 pub use evaluate::{Evaluate, Evaluation, Pass, Scored, exact_match};
 pub use example::{Completions, Example, Prediction};
+pub use hasher::Hasher;
 pub use lm::Capabilities;
 pub use module::{Ask, Forward, Module, NamedPredictor, PredictorState, ProgramState, TraceStep};
 pub use optimize::{

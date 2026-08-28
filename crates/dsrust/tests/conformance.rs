@@ -45,7 +45,13 @@ fn load(path: &std::path::Path) -> Fixture {
 
     let inputs: Vec<InField> = json["inputs"]
         .as_array()
-        .expect("inputs array")
+        .unwrap_or_else(|| {
+            panic!(
+                "{} has no `inputs` array. Every file directly in tests/conformance/ is an \
+                 adapter fixture; put a golden about anything else in a subdirectory.",
+                path.display()
+            )
+        })
         .iter()
         .map(|field| InField {
             name: field["name"].as_str().expect("input name").to_owned(),
@@ -149,6 +155,9 @@ fn fixtures() -> Vec<Fixture> {
         .expect("conformance directory exists")
         .filter_map(|entry| {
             let path = entry.expect("readable entry").path();
+            // Only the top level, and every file in it is an adapter fixture — a golden about
+            // anything else belongs in one of the subdirectories, which this walk does not
+            // descend into. Landing one here used to fail as `inputs array`.
             (path.extension()? == "json").then(|| load(&path))
         })
         .collect();
