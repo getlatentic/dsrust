@@ -125,6 +125,7 @@ PORTED_MODULES = [
     # Found by `check_cited_modules.py` on its first run — see `unlisted-2`. The usage tracker is
     # the one `check_coverage.py`'s docstring holds up as the lesson, whose *tests* were added when
     # that was found and whose module never was.
+    "propose/propose_base.py",
     "propose/grounded_proposer.py",
     "propose/dataset_summary_generator.py",
     "propose/utils.py",
@@ -142,6 +143,7 @@ PORTED_MODULES = [
     "utils/dummies.py",
     "primitives/python_interpreter.py",
     "utils/saving.py",
+    "utils/inspect_history.py",
     "utils/hasher.py",
     "utils/mcp.py",
     # streaming. Listed because this crate ports all three and cited them by name while doing it,

@@ -23,6 +23,11 @@
 # says nothing about what it takes, and that is where a port loses things without going red.
 
 [symbols]
+# propose/propose_base.py — the abstract base GroundedProposer inherits.
+"propose/propose_base.py::Proposer" = { status = "divergence", rust = "GroundedProposer", reason = "an ABC with one abstract method and one non-abstract stub, and exactly one implementation in the pinned tree: `GroundedProposer`. MIPROv2 constructs that class directly rather than accepting any `Proposer`, so the base is not a seam a caller can reach through — a trait here would be one nothing could be substituted into. The seam that *is* caller-facing is `InstructionProposer`, which GEPA takes and which upstream spells as `ProposalFn`" }
+
+# utils/inspect_history.py — the last few calls, rendered for reading.
+"utils/inspect_history.py::pretty_print_history" = { status = "mapped", rust = "inspect::pretty_print_history", reason = "the prompts and completions of the last `n` calls, ANSI-coloured or not. Answers with the text rather than printing it, which is upstream's own `file=` path — that argument exists to write somewhere other than stdout, and it is what turns the colour off. Every branch is bytes and every one is held: an image reduced to its base64 length, an audio block to its format and length, a file to three fields, a role capitalised, and a trailing completion count written without a newline of its own" }
 # teleprompt/infer_rules.py — bootstrap, then ask a model to write the task's rules down.
 "teleprompt/infer_rules.py::InferRules" = { status = "mapped", rust = "infer_rules::InferRules", reason = "the only optimizer here that changes a program by adding *prose* rather than by choosing what it is shown: a model reads the trainset and writes rules, which are appended to each predictor's instruction. The variation between candidates is the model's alone — every induction runs at temperature one with a fresh rollout id from one `random.Random(0)`" }
 "teleprompt/infer_rules.py::RulesInductionProgram" = { status = "divergence", rust = "InferRules::induction_signature", reason = "upstream's `dspy.Module` around the `ChainOfThought` that writes the rules, holding the generator and the teacher settings. Built inside `compile` here: it has no state a caller sets that the optimizer does not already carry, and the model it asks through is an argument rather than ambient settings" }
@@ -1304,6 +1309,9 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "LmFailure::issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+"utils/inspect_history.py::pretty_print_history.history" = { status = "mapped", rust = "inspect::pretty_print_history", reason = "the calls to render, as dspy records them — an OpenAI-shaped `messages` list, the `outputs`, and the time it was made. Taken as JSON rather than as `LmHistoryEntry`, because that is the shape upstream's `GLOBAL_HISTORY` holds and the one this function reads" }
+"utils/inspect_history.py::pretty_print_history.n" = { status = "mapped", rust = "inspect::pretty_print_history", reason = "how many of the most recent to render; one by default" }
+"utils/inspect_history.py::pretty_print_history.file" = { status = "divergence", rust = "inspect::pretty_print_history", reason = "where to write, and what decides whether colour is used — passing one turns it off. Answering with a `String` and a `colours` flag says the same thing without the library choosing a destination" }
 "teleprompt/infer_rules.py::InferRules.compile.student" = { status = "mapped", rust = "InferRules::compile", reason = "the program to teach, left holding the best candidate's instructions" }
 "teleprompt/infer_rules.py::InferRules.compile.teacher" = { status = "divergence", rust = "InferRules::compile", reason = "forwarded to the bootstrap. This crate bootstraps the student directly, as `BootstrapFewShot::compile` does; a separate teacher is `compile_with_teacher` there and would be the same seam here" }
 "teleprompt/infer_rules.py::InferRules.compile.trainset" = { status = "mapped", rust = "InferRules::compile", reason = "what the bootstrap walks and what the rules are written from. Halved when no validation set is given, and the *first* half is the training one" }

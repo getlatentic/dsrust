@@ -1,0 +1,355 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_inspect_history_fixture.py",
+  "note": "`plain` is what upstream writes through its `file=` argument, which disables colour; `coloured` is the same call to stdout.",
+  "cases": [
+    {
+      "name": "one_plain_exchange",
+      "n": 1,
+      "history": [
+        {
+          "messages": [
+            {
+              "role": "user",
+              "content": "  What is 2+2?  "
+            }
+          ],
+          "outputs": [
+            "  4  "
+          ],
+          "prompt": null,
+          "timestamp": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "plain": "\n\n\n\n[2026-01-01T00:00:00Z]\n\nUser message:\n\nWhat is 2+2?\n\n\nResponse:\n\n4\n\n\n\n\n\n",
+      "coloured": "\n\n\n\n\u001b[34m[2026-01-01T00:00:00Z]\u001b[0m\n\n\u001b[31mUser message:\u001b[0m\n\nWhat is 2+2?\n\n\n\u001b[31mResponse:\u001b[0m\n\n\u001b[32m4\u001b[0m\n\n\n\n\n\n"
+    },
+    {
+      "name": "a_system_turn_is_capitalised",
+      "n": 1,
+      "history": [
+        {
+          "messages": [
+            {
+              "role": "system",
+              "content": "Be terse."
+            },
+            {
+              "role": "user",
+              "content": "Hi"
+            }
+          ],
+          "outputs": [
+            "Hello"
+          ],
+          "prompt": null,
+          "timestamp": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "plain": "\n\n\n\n[2026-01-01T00:00:00Z]\n\nSystem message:\n\nBe terse.\n\n\nUser message:\n\nHi\n\n\nResponse:\n\nHello\n\n\n\n\n\n",
+      "coloured": "\n\n\n\n\u001b[34m[2026-01-01T00:00:00Z]\u001b[0m\n\n\u001b[31mSystem message:\u001b[0m\n\nBe terse.\n\n\n\u001b[31mUser message:\u001b[0m\n\nHi\n\n\n\u001b[31mResponse:\u001b[0m\n\n\u001b[32mHello\u001b[0m\n\n\n\n\n\n"
+    },
+    {
+      "name": "several_completions_end_with_a_count",
+      "n": 1,
+      "history": [
+        {
+          "messages": [
+            {
+              "role": "user",
+              "content": "pick"
+            }
+          ],
+          "outputs": [
+            "one",
+            "two",
+            "three"
+          ],
+          "prompt": null,
+          "timestamp": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "plain": "\n\n\n\n[2026-01-01T00:00:00Z]\n\nUser message:\n\npick\n\n\nResponse:\n\none\n\n \t (and 2 other completions)\n\n\n\n\n",
+      "coloured": "\n\n\n\n\u001b[34m[2026-01-01T00:00:00Z]\u001b[0m\n\n\u001b[31mUser message:\u001b[0m\n\npick\n\n\n\u001b[31mResponse:\u001b[0m\n\n\u001b[32mone\u001b[0m\n\n\u001b[31m \t (and 2 other completions)\u001b[0m\n\n\n\n\n"
+    },
+    {
+      "name": "a_dict_output_carries_text_and_tool_calls",
+      "n": 1,
+      "history": [
+        {
+          "messages": [
+            {
+              "role": "user",
+              "content": "call it"
+            }
+          ],
+          "outputs": [
+            {
+              "text": "  calling  ",
+              "tool_calls": [
+                {
+                  "function": {
+                    "name": "search",
+                    "arguments": "{\"q\": \"rust\"}"
+                  }
+                },
+                {
+                  "name": "lookup",
+                  "args": {
+                    "id": 7
+                  }
+                },
+                {
+                  "function": {},
+                  "arguments": "not json at all"
+                }
+              ]
+            }
+          ],
+          "prompt": null,
+          "timestamp": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "plain": "\n\n\n\n[2026-01-01T00:00:00Z]\n\nUser message:\n\ncall it\n\n\nResponse:\n\ncalling\n\nTool calls:\n\nsearch: {\"q\": \"rust\"}\n\nlookup: {\"id\": 7}\n\n<unknown>: not json at all\n\n\n\n\n\n",
+      "coloured": "\n\n\n\n\u001b[34m[2026-01-01T00:00:00Z]\u001b[0m\n\n\u001b[31mUser message:\u001b[0m\n\ncall it\n\n\n\u001b[31mResponse:\u001b[0m\n\n\u001b[32mcalling\u001b[0m\n\n\u001b[31mTool calls:\u001b[0m\n\n\u001b[32msearch: {\"q\": \"rust\"}\u001b[0m\n\n\u001b[32mlookup: {\"id\": 7}\u001b[0m\n\n\u001b[32m<unknown>: not json at all\u001b[0m\n\n\n\n\n\n"
+    },
+    {
+      "name": "a_dict_output_with_no_text_prints_no_response_line",
+      "n": 1,
+      "history": [
+        {
+          "messages": [
+            {
+              "role": "user",
+              "content": "quiet"
+            }
+          ],
+          "outputs": [
+            {
+              "tool_calls": [
+                {
+                  "name": "noop"
+                }
+              ]
+            }
+          ],
+          "prompt": null,
+          "timestamp": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "plain": "\n\n\n\n[2026-01-01T00:00:00Z]\n\nUser message:\n\nquiet\n\n\nTool calls:\n\nnoop: {}\n\n\n\n\n\n",
+      "coloured": "\n\n\n\n\u001b[34m[2026-01-01T00:00:00Z]\u001b[0m\n\n\u001b[31mUser message:\u001b[0m\n\nquiet\n\n\n\u001b[31mTool calls:\u001b[0m\n\n\u001b[32mnoop: {}\u001b[0m\n\n\n\n\n\n"
+    },
+    {
+      "name": "an_empty_text_is_skipped_like_an_absent_one",
+      "n": 1,
+      "history": [
+        {
+          "messages": [
+            {
+              "role": "user",
+              "content": "quiet"
+            }
+          ],
+          "outputs": [
+            {
+              "text": "",
+              "tool_calls": [
+                {
+                  "name": "noop"
+                }
+              ]
+            }
+          ],
+          "prompt": null,
+          "timestamp": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "plain": "\n\n\n\n[2026-01-01T00:00:00Z]\n\nUser message:\n\nquiet\n\n\nTool calls:\n\nnoop: {}\n\n\n\n\n\n",
+      "coloured": "\n\n\n\n\u001b[34m[2026-01-01T00:00:00Z]\u001b[0m\n\n\u001b[31mUser message:\u001b[0m\n\nquiet\n\n\n\u001b[31mTool calls:\u001b[0m\n\n\u001b[32mnoop: {}\u001b[0m\n\n\n\n\n\n"
+    },
+    {
+      "name": "content_blocks_of_every_kind",
+      "n": 1,
+      "history": [
+        {
+          "messages": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "  look  "
+                },
+                {
+                  "type": "image_url",
+                  "image_url": {
+                    "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg=="
+                  }
+                },
+                {
+                  "type": "image_url",
+                  "image_url": {
+                    "url": "https://example.invalid/a.png"
+                  }
+                },
+                {
+                  "type": "input_audio",
+                  "input_audio": {
+                    "format": "wav",
+                    "data": "AAAA"
+                  }
+                },
+                {
+                  "type": "file",
+                  "file": {
+                    "filename": "a.pdf",
+                    "file_id": "f1",
+                    "file_data": "abcd"
+                  }
+                },
+                {
+                  "type": "input_file",
+                  "input_file": {
+                    "filename": "b.pdf"
+                  }
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            "seen"
+          ],
+          "prompt": null,
+          "timestamp": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "plain": "\n\n\n\n[2026-01-01T00:00:00Z]\n\nUser message:\n\nlook\n<data:image/png;base64,<IMAGE BASE 64 ENCODED(24)>\n\n<image_url: https://example.invalid/a.png>\n\n<audio format='wav' base64-encoded, length=4>\n\n<file: name:a.pdf, id:f1, data_length:4>\n\n<file: name:b.pdf, id:, data_length:0>\n\n\n\nResponse:\n\nseen\n\n\n\n\n\n",
+      "coloured": "\n\n\n\n\u001b[34m[2026-01-01T00:00:00Z]\u001b[0m\n\n\u001b[31mUser message:\u001b[0m\n\nlook\n\u001b[34m<data:image/png;base64,<IMAGE BASE 64 ENCODED(24)>\u001b[0m\n\n\u001b[34m<image_url: https://example.invalid/a.png>\u001b[0m\n\n\u001b[34m<audio format='wav' base64-encoded, length=4>\u001b[0m\n\n\u001b[34m<file: name:a.pdf, id:f1, data_length:4>\u001b[0m\n\n\u001b[34m<file: name:b.pdf, id:, data_length:0>\u001b[0m\n\n\n\n\u001b[31mResponse:\u001b[0m\n\n\u001b[32mseen\u001b[0m\n\n\n\n\n\n"
+    },
+    {
+      "name": "a_message_carrying_tool_calls",
+      "n": 1,
+      "history": [
+        {
+          "messages": [
+            {
+              "role": "assistant",
+              "content": "thinking",
+              "tool_calls": [
+                {
+                  "function": {
+                    "name": "f",
+                    "arguments": "{\"a\": 1}"
+                  }
+                }
+              ]
+            }
+          ],
+          "outputs": [
+            "done"
+          ],
+          "prompt": null,
+          "timestamp": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "plain": "\n\n\n\n[2026-01-01T00:00:00Z]\n\nAssistant message:\n\nthinking\nTool calls:\n\nf: {\"a\": 1}\n\n\n\nResponse:\n\ndone\n\n\n\n\n\n",
+      "coloured": "\n\n\n\n\u001b[34m[2026-01-01T00:00:00Z]\u001b[0m\n\n\u001b[31mAssistant message:\u001b[0m\n\nthinking\n\u001b[31mTool calls:\u001b[0m\n\n\u001b[32mf: {\"a\": 1}\u001b[0m\n\n\n\n\u001b[31mResponse:\u001b[0m\n\n\u001b[32mdone\u001b[0m\n\n\n\n\n\n"
+    },
+    {
+      "name": "no_timestamp_reads_as_unknown",
+      "n": 1,
+      "history": [
+        {
+          "messages": [
+            {
+              "role": "user",
+              "content": "when?"
+            }
+          ],
+          "outputs": [
+            "now"
+          ],
+          "prompt": null
+        }
+      ],
+      "plain": "\n\n\n\n[Unknown time]\n\nUser message:\n\nwhen?\n\n\nResponse:\n\nnow\n\n\n\n\n\n",
+      "coloured": "\n\n\n\n\u001b[34m[Unknown time]\u001b[0m\n\n\u001b[31mUser message:\u001b[0m\n\nwhen?\n\n\n\u001b[31mResponse:\u001b[0m\n\n\u001b[32mnow\u001b[0m\n\n\n\n\n\n"
+    },
+    {
+      "name": "the_prompt_stands_in_for_absent_messages",
+      "n": 1,
+      "history": [
+        {
+          "messages": null,
+          "prompt": "bare prompt",
+          "outputs": [
+            "ok"
+          ],
+          "timestamp": "t"
+        }
+      ],
+      "plain": "\n\n\n\n[t]\n\nUser message:\n\nbare prompt\n\n\nResponse:\n\nok\n\n\n\n\n\n",
+      "coloured": "\n\n\n\n\u001b[34m[t]\u001b[0m\n\n\u001b[31mUser message:\u001b[0m\n\nbare prompt\n\n\n\u001b[31mResponse:\u001b[0m\n\n\u001b[32mok\u001b[0m\n\n\n\n\n\n"
+    },
+    {
+      "name": "only_the_last_n_are_printed",
+      "n": 2,
+      "history": [
+        {
+          "messages": [
+            {
+              "role": "user",
+              "content": "q0"
+            }
+          ],
+          "outputs": [
+            "a0"
+          ],
+          "prompt": null,
+          "timestamp": "2026-01-01T00:00:00Z"
+        },
+        {
+          "messages": [
+            {
+              "role": "user",
+              "content": "q1"
+            }
+          ],
+          "outputs": [
+            "a1"
+          ],
+          "prompt": null,
+          "timestamp": "2026-01-01T00:00:00Z"
+        },
+        {
+          "messages": [
+            {
+              "role": "user",
+              "content": "q2"
+            }
+          ],
+          "outputs": [
+            "a2"
+          ],
+          "prompt": null,
+          "timestamp": "2026-01-01T00:00:00Z"
+        },
+        {
+          "messages": [
+            {
+              "role": "user",
+              "content": "q3"
+            }
+          ],
+          "outputs": [
+            "a3"
+          ],
+          "prompt": null,
+          "timestamp": "2026-01-01T00:00:00Z"
+        }
+      ],
+      "plain": "\n\n\n\n[2026-01-01T00:00:00Z]\n\nUser message:\n\nq2\n\n\nResponse:\n\na2\n\n\n\n\n\n[2026-01-01T00:00:00Z]\n\nUser message:\n\nq3\n\n\nResponse:\n\na3\n\n\n\n\n\n",
+      "coloured": "\n\n\n\n\u001b[34m[2026-01-01T00:00:00Z]\u001b[0m\n\n\u001b[31mUser message:\u001b[0m\n\nq2\n\n\n\u001b[31mResponse:\u001b[0m\n\n\u001b[32ma2\u001b[0m\n\n\n\n\n\n\u001b[34m[2026-01-01T00:00:00Z]\u001b[0m\n\n\u001b[31mUser message:\u001b[0m\n\nq3\n\n\n\u001b[31mResponse:\u001b[0m\n\n\u001b[32ma3\u001b[0m\n\n\n\n\n\n"
+    }
+  ]
+}

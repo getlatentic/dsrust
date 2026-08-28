@@ -9,6 +9,7 @@ pub(crate) mod defaults;
 mod delta;
 mod event;
 mod history;
+mod inspect;
 mod items;
 mod legacy;
 mod legacy_request;
@@ -30,6 +31,7 @@ pub use config::{
 pub use delta::LmDelta;
 pub use event::LmStreamEvent;
 pub use history::LmHistoryEntry;
+pub use inspect::pretty_print_history;
 pub use items::{LmItem, messages_from_items};
 pub use legacy::part_of_block;
 pub use legacy_request::sanitized as sanitized_legacy_message;
