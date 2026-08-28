@@ -95,6 +95,8 @@ PORTED_MODULES = [
     "teleprompt/bettertogether.py",
     "teleprompt/ensemble.py",
     "teleprompt/random_search.py",
+    "teleprompt/simba.py",
+    "teleprompt/simba_utils.py",
     "teleprompt/gepa/gepa.py",
     # clients (the LM stack)
     "clients/base_lm.py",

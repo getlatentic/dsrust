@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1468
+rust_tests = 1481
 upstream_tests_passing = 1195
 upstream_tests_crossing = 705
 upstream_tests_deciding_signatures = 684
@@ -3798,7 +3798,7 @@ example: `serde_json::Value` cannot hold `inf`, so it crosses as a one-key objec
 
 [[backlog]]
 id = "b17"
-title = "SIMBA: the oracle is recorded, the search loop is not written"
+title = "SIMBA: the search is ported; `append_a_rule`'s model call is not wired"
 kind = "scoped"
 state = "next"
 detail = """
@@ -3838,6 +3838,29 @@ threshold. Its `inspect_modules` *is* byte-identical to refine's (the only diffe
 The arithmetic was written and then removed rather than landed without a consumer: the compiler's
 dead-code check, `check_surface_has_callers` and plain reading all said the same thing. It is in
 the history at `0270881` and comes back with the loop.
+
+**The loop is in, and both dspy modules are audited** — `teleprompt/simba.py` and `simba_utils.py`
+are in `PORTED_MODULES` now, which took 40 ledger rows for their symbols, signature fields and
+parameters. `Simba::compile_traced` runs the whole search: mini-batches with the reshuffle at the
+wrap, the softmax program picks at both temperatures, bucket construction by stride and dspy's
+three-key sort, the poisson demo-drop, strategy dispatch, candidate scoring and registration, and
+the final slate.
+
+The program pool is `ProgramState` rather than deep copies: dspy keeps live `dspy.Module`s and a
+Rust program is the caller's one value, so a pooled candidate is *loaded* into the student to run.
+
+**What remains: `append_a_rule`'s model call.** The gate is ported and correct — a best run at or
+below the batch's 10th percentile or a worst at or above the 90th declines — and
+`feedback::offer_feedback` is byte-verified against dspy's rendered prompt. What is not wired is
+building its thirteen inputs from the two trajectories and appending the returned advice to each
+predictor's instructions, so the strategy currently always declines. That is why the arm is visible
+in `Step::strategies` but never applies.
+
+Two controls that did not bite first time, and what fixed them: sorting buckets on the first key
+alone passed, because Rust's `sort_by` is stable and the fixture's stride order already matched the
+tie-break — the fixture now puts the lower-scoring tie first. And the golden's second shuffle is not
+replayable from a fresh generator, because dspy reshuffles at the wrap *after* that step's softmax
+and poisson draws have consumed the stream; asserting it would have been asserting a coincidence.
 """
 
 [[backlog]]
