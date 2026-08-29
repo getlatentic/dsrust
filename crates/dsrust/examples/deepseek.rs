@@ -1,4 +1,4 @@
-//! Five capabilities against a real provider: thinking, JSON, native tool calls, images, and one
+//! Six probes against a real provider: thinking, JSON, both tool channels, images, and one thing
 //! the provider refuses.
 //!
 //!     export OPENAI_BASE_URL=https://api.deepseek.com
@@ -10,16 +10,22 @@
 //! file is for is the layer above: whether the *features* a program actually uses survive a
 //! provider that is not OpenAI.
 //!
-//! Four do. The fifth is the interesting one:
+//! Most work. The last is the interesting one:
 //!
 //!   1. **Thinking.** `reasoning_effort` is the OpenAI-shaped control and DeepSeek honours it —
 //!      `"low"` thinks briefly, `"none"` not at all. Left unset, `deepseek-v4-flash` reasons
 //!      anyway, so the ceiling has to cover the thinking as well as the reply.
 //!   2. **JSON.** `JsonAdapter` asks for `{"type": "json_object"}`, which is the default here for
 //!      the reason below, and parses the reply into the signature's fields.
-//!   3. **Native tool calls.** `ReAct` drives a real loop: the model picks the tool, this process
-//!      runs it, and the observation goes back. Tool-call ids are opaque strings, so a provider
-//!      that spells them its own way passes through.
+//!   3. **Tool calls, over both channels** — and they are not the same thing. A tool *running* is
+//!      not a tool call *travelling natively*: `ReAct` parses the tool name out of the model's
+//!      prose, and the loop works either way, so watching a tool execute proves nothing about the
+//!      wire. Two gates decide, and both must open. The adapter's — `ChatAdapter` defaults native
+//!      **off** and `JsonAdapter` **on**, as upstream's do — and the model's, since `native_tools`
+//!      refuses when `capabilities.function_calling` is false. Those come from litellm's registry,
+//!      so a model that is not in it silently takes the text channel however it is asked. Verified
+//!      against a capturing server: `ReAct` sends no `tools` array, `ReActV2` with `JsonAdapter`
+//!      sends one.
 //!   4. **Images.** Built in memory and sent inline as base64. DeepSeek fetches a URL *server
 //!      side* and could not reach Wikipedia from its own network, which says nothing about the
 //!      caller — inline is the path a caller controls, and `Image::from_path`/`from_bytes` take it.
@@ -35,7 +41,7 @@ use dsrust::lm::JsonFormat;
 use dsrust::lm::api::{LmConfig, LmReasoningConfig};
 use dsrust::signature::{OutField, Signature};
 use dsrust::{
-    FnTool, Image, JsonAdapter, LM, Module, Predict, ReAct, Tool, configure_model, example,
+    FnTool, Image, JsonAdapter, LM, Module, Predict, ReAct, ReActV2, Tool, configure_model, example,
 };
 use serde_json::Value;
 
@@ -120,11 +126,18 @@ async fn main() -> anyhow::Result<()> {
             ..Default::default()
         }],
     );
-    let asked = ReAct::new(task, vec![weather()])
+    let asked = ReAct::new(task.clone(), vec![weather()])
         .max_iters(4)
         .forward(example! { request: "What is the weather in Paris?" }.with_inputs(["request"]))
         .await?;
-    println!("3 tool calls   {:?}", answer(&asked));
+    println!("3 tools (text) {:?}", answer(&asked));
+
+    let asked = ReActV2::new(task, vec![weather()])
+        .adapter(JsonAdapter::default())
+        .max_iters(4)
+        .forward(example! { request: "What is the weather in Berlin?" }.with_inputs(["request"]))
+        .await?;
+    println!("4 tools (wire) {:?}", answer(&asked));
 
     configure_model(http.clone(), Arc::new(model(VISION_MODEL, None)?));
     let asked = Predict!("question, photo: Image -> answer")
@@ -136,7 +149,7 @@ async fn main() -> anyhow::Result<()> {
             .with_inputs(["question", "photo"]),
         )
         .await?;
-    println!("4 image        {:?}", answer(&asked));
+    println!("5 image        {:?}", answer(&asked));
 
     let strict = model(CHAT_MODEL, None)?.openai_json_format(JsonFormat::Schema);
     configure_model(http, Arc::new(strict));
@@ -145,9 +158,9 @@ async fn main() -> anyhow::Result<()> {
         .forward(example! { question: "Name a city." }.with_inputs(["question"]))
         .await;
     match refused {
-        Ok(asked) => println!("5 json_schema  {:?}", asked.example.get("city")),
+        Ok(asked) => println!("6 json_schema  {:?}", asked.example.get("city")),
         Err(error) => println!(
-            "5 json_schema  refused: {}",
+            "6 json_schema  refused: {}",
             error.to_string().lines().next().unwrap_or_default()
         ),
     }
