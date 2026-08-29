@@ -1,3 +1,36 @@
+//! The language-model layer, which answers to **two** upstreams rather than one.
+//!
+//! The shape is dspy 3.3's: [`api`] is `dspy/core/types.py`'s normalized LM API, and every module
+//! above this one speaks it. That is the boundary 3.3 introduced — opt-in there, default at 3.5,
+//! the legacy types gone by 4.0 — and reproducing it is what makes a program written against this
+//! crate the same program dspy would run.
+//!
+//! Below that boundary dspy does not make requests. litellm does. dspy hands it a model string and
+//! a kwargs dict, and everything from there to the socket — which host, which credential variable,
+//! how a tool is spelled, what a timeout means, which of two ollama endpoints a prefix selects —
+//! is litellm's behaviour and nowhere in dspy's source. So **litellm is the oracle exactly where
+//! dspy delegates to it**, and reading only dspy would leave those questions unanswered rather
+//! than answered wrongly, which is worse: the gap is silent.
+//!
+//! That is not a compromise of faithfulness, it is a condition of it. A dspy user's observable
+//! behaviour *is* litellm's behaviour at that layer, so a port that matched dspy's source and not
+//! litellm's conduct would diverge from every program it claims to run.
+//!
+//! Worked example, and the reason this paragraph exists: `OPENAI_API_BASE`. dspy has no opinion
+//! about it — the string appears nowhere in dspy — while litellm falls back to it after
+//! `OPENAI_BASE_URL`. This crate read only the first for a year, so a shell configured by
+//! following litellm's own documentation silently reached `api.openai.com`. Nothing in dspy could
+//! have shown that; `state/openai_env_base.json` records litellm doing it.
+//!
+//! Which oracle governs which layer is not left to memory. Each golden names the library that
+//! produced it: `lm_api/litellm_chat.json` is the HTTP body litellm actually sent, `capabilities`
+//! is its model registry, and the two `state/` precedence goldens are its resolution order —
+//! against 77 dspy-produced goldens for everything above the boundary.
+//!
+//! Where a provider is not reached through litellm at all, the provider's own API is the oracle
+//! and the module says so: [`anthropic`](self) builds a request matching litellm byte for byte and
+//! reads the reply from Anthropic's own response shape.
+
 mod anthropic;
 pub mod api;
 pub mod builder;
