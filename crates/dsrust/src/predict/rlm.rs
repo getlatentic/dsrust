@@ -63,6 +63,9 @@ macro_rules! RLM {
     };
 }
 
+// `call!` on this module. See `Ask` for why the trait is written per type rather than blanket.
+crate::asks_with_a_prediction!(Rlm);
+
 #[cfg(test)]
 fn golden() -> Value {
     let path =

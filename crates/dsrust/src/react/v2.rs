@@ -433,6 +433,9 @@ fn ensure_ids(calls: ToolCalls, turn_index: usize) -> ToolCalls {
     ToolCalls::new(ensured)
 }
 
+// `call!` on this module. See `Ask` for why the trait is written per type rather than blanket.
+crate::asks_with_a_prediction!(ReActV2);
+
 #[cfg(test)]
 mod tests {
     use super::*;

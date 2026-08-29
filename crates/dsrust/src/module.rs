@@ -289,6 +289,14 @@ pub trait Module: Send + Sync {
 /// answers with the same dynamic `Prediction`. Rust need not give that up to match: the spelling
 /// is shared and the answer stays whatever the module promised, so a derived task still hands
 /// back its own outputs struct and `result.answer` still means the field.
+///
+/// Written per type rather than blanket over [`Module`] for that reason — one blanket impl would
+/// fix the answer as `Prediction` and put a derived task's own outputs struct out of reach. Which
+/// is an argument about *how* to supply it, not about which modules get it: upstream reaches every
+/// module through `Module.__call__` on the base class, so every module that answers with a
+/// `Prediction` implements this, through [`asks_with_a_prediction!`](crate::asks_with_a_prediction).
+/// It was `Predict` and `ChainOfThought` alone until 2026-08-29, found by a caller outside the
+/// crate reaching for `call!` on a `ReActV2` and having to write `forward` instead.
 pub trait Ask {
     type Answer;
 

@@ -317,6 +317,9 @@ fn string_field(prediction: &Prediction, name: &str) -> String {
     }
 }
 
+// `call!` on this module. See `Ask` for why the trait is written per type rather than blanket.
+crate::asks_with_a_prediction!(ReAct);
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -366,6 +366,9 @@ macro_rules! CodeAct {
     };
 }
 
+// `call!` on this module. See `Ask` for why the trait is written per type rather than blanket.
+crate::asks_with_a_prediction!(CodeAct);
+
 #[cfg(test)]
 mod tests {
     use super::*;
