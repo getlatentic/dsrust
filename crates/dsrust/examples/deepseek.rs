@@ -1,0 +1,155 @@
+//! Five capabilities against a real provider: thinking, JSON, native tool calls, images, and one
+//! the provider refuses.
+//!
+//!     export OPENAI_BASE_URL=https://api.deepseek.com
+//!     export OPENAI_API_KEY=sk-...
+//!     cargo run --example deepseek
+//!
+//! DeepSeek speaks OpenAI's chat-completions shape, so the standard variables reach it and no
+//! builder call is needed for host or key — see `bedrock.rs` for that argument in full. What this
+//! file is for is the layer above: whether the *features* a program actually uses survive a
+//! provider that is not OpenAI.
+//!
+//! Four do. The fifth is the interesting one:
+//!
+//!   1. **Thinking.** `reasoning_effort` is the OpenAI-shaped control and DeepSeek honours it —
+//!      `"low"` thinks briefly, `"none"` not at all. Left unset, `deepseek-v4-flash` reasons
+//!      anyway, so the ceiling has to cover the thinking as well as the reply.
+//!   2. **JSON.** `JsonAdapter` asks for `{"type": "json_object"}`, which is the default here for
+//!      the reason below, and parses the reply into the signature's fields.
+//!   3. **Native tool calls.** `ReAct` drives a real loop: the model picks the tool, this process
+//!      runs it, and the observation goes back. Tool-call ids are opaque strings, so a provider
+//!      that spells them its own way passes through.
+//!   4. **Images.** Built in memory and sent inline as base64. DeepSeek fetches a URL *server
+//!      side* and could not reach Wikipedia from its own network, which says nothing about the
+//!      caller — inline is the path a caller controls, and `Image::from_path`/`from_bytes` take it.
+//!   5. **Schema-constrained decoding is refused**, with `This response_format type is unavailable
+//!      now`. That is why [`JsonFormat::Object`] is the default and [`JsonFormat::Schema`] is
+//!      opt-in: strict mode is an OpenAI feature that OpenAI-shaped services need not implement,
+//!      and a port that assumed it would fail against most of them. Shown here rather than hidden,
+//!      because the error naming the model and quoting the provider is the useful behaviour.
+
+use std::sync::Arc;
+
+use dsrust::lm::JsonFormat;
+use dsrust::lm::api::{LmConfig, LmReasoningConfig};
+use dsrust::signature::{OutField, Signature};
+use dsrust::{
+    FnTool, Image, JsonAdapter, LM, Module, Predict, ReAct, Tool, configure_model, example,
+};
+use serde_json::Value;
+
+const CHAT_MODEL: &str = "deepseek-v4-flash";
+const VISION_MODEL: &str = "deepseek-v4-flash-vision-exp";
+
+fn model(name: &str, effort: Option<&str>) -> anyhow::Result<LM> {
+    let mut config = LmConfig {
+        // Room for the thinking as well as the answer.
+        max_tokens: Some(2048),
+        ..Default::default()
+    };
+    if let Some(effort) = effort {
+        config.reasoning = Some(LmReasoningConfig {
+            effort: Some(effort.to_owned()),
+            ..Default::default()
+        });
+    }
+    LM::builder(format!("openai/{name}"))
+        .config(config)
+        // Off so a second run asks the provider again rather than answering from `~/.dsrs_cache`,
+        // which is what a capability probe has to do to mean anything.
+        .cache(false)
+        .build()
+}
+
+fn answer(prediction: &dsrust::Prediction) -> Option<&str> {
+    prediction.example.get("answer").and_then(Value::as_str)
+}
+
+fn weather() -> Box<dyn Tool> {
+    Box::new(FnTool::new(
+        "get_weather",
+        "look up the weather for a city",
+        serde_json::json!({ "city": { "type": "string" } }),
+        |args: &Value| {
+            let city = args.get("city").and_then(Value::as_str).unwrap_or("?");
+            println!("      [this process ran get_weather({city})]");
+            Ok(format!("The weather in {city} is sunny, 21C."))
+        },
+    ))
+}
+
+/// A red square with one blue quadrant, so "what colours" has a checkable answer.
+fn two_colour_image() -> anyhow::Result<Image> {
+    let (width, height) = (64u32, 64u32);
+    let mut pixels = Vec::with_capacity((width * height * 3) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            let blue = x < width / 2 && y < height / 2;
+            pixels.extend_from_slice(if blue { &[0u8, 0, 255] } else { &[255u8, 0, 0] });
+        }
+    }
+    Image::from_rgb(width, height, &pixels)
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let http = reqwest::Client::new();
+
+    configure_model(http.clone(), Arc::new(model(CHAT_MODEL, Some("low"))?));
+    let asked = Predict!("question -> answer")
+        .forward(example! { question: "What is 17 * 23?" }.with_inputs(["question"]))
+        .await?;
+    println!("1 thinking     {:?}", answer(&asked));
+
+    let json = Predict!("question -> city, country").adapter(JsonAdapter::default());
+    let asked = json
+        .forward(example! { question: "Name a city in Peru." }.with_inputs(["question"]))
+        .await?;
+    println!(
+        "2 json         city={:?} country={:?}",
+        asked.example.get("city").and_then(Value::as_str),
+        asked.example.get("country").and_then(Value::as_str)
+    );
+
+    let task = Signature::single_input(
+        "Answer the question, using tools when they help.",
+        vec![OutField {
+            name: "answer".into(),
+            desc: "the answer".into(),
+            ..Default::default()
+        }],
+    );
+    let asked = ReAct::new(task, vec![weather()])
+        .max_iters(4)
+        .forward(example! { request: "What is the weather in Paris?" }.with_inputs(["request"]))
+        .await?;
+    println!("3 tool calls   {:?}", answer(&asked));
+
+    configure_model(http.clone(), Arc::new(model(VISION_MODEL, None)?));
+    let asked = Predict!("question, photo: Image -> answer")
+        .forward(
+            example! {
+                question: "What two colours are in this image? Answer in three words.",
+                photo: serde_json::to_value(two_colour_image()?)?
+            }
+            .with_inputs(["question", "photo"]),
+        )
+        .await?;
+    println!("4 image        {:?}", answer(&asked));
+
+    let strict = model(CHAT_MODEL, None)?.openai_json_format(JsonFormat::Schema);
+    configure_model(http, Arc::new(strict));
+    let refused = Predict!("question -> city")
+        .adapter(JsonAdapter::default())
+        .forward(example! { question: "Name a city." }.with_inputs(["question"]))
+        .await;
+    match refused {
+        Ok(asked) => println!("5 json_schema  {:?}", asked.example.get("city")),
+        Err(error) => println!(
+            "5 json_schema  refused: {}",
+            error.to_string().lines().next().unwrap_or_default()
+        ),
+    }
+    Ok(())
+}
