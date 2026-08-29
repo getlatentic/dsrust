@@ -30,6 +30,22 @@ impl ChainOfThought {
 
     /// A module for a signature held as field names, matching
     /// [`Predict::from_signature`](super::Predict::from_signature).
+    /// dspy `ChainOfThought("question -> answer")`: the task named by its fields.
+    ///
+    /// `ChainOfThought!("question -> answer")` is the same thing checked while the caller compiles;
+    /// this is the form for a signature that is only a string at run time.
+    ///
+    /// ```
+    /// # fn wrapper() -> anyhow::Result<()> {
+    /// let module = dsrust::ChainOfThought::parse("question -> answer")?;
+    /// # let _ = module;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn parse(signature: &str) -> anyhow::Result<Self> {
+        Ok(Self::from_signature(signature.parse()?))
+    }
+
     pub fn from_signature(signature: Signature) -> Self {
         Self::rationale(signature, OutField::default())
     }

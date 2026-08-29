@@ -40,6 +40,19 @@ pub struct CodeAct {
 
 impl CodeAct {
     /// dspy's `interpreter=None`: the Deno/Pyodide sandbox, which is what upstream defaults to.
+    /// dspy `CodeAct("question -> answer", tools=[...])`: the task named by its fields.
+    ///
+    /// ```
+    /// # fn wrapper() -> anyhow::Result<()> {
+    /// let module = dsrust::CodeAct::parse("question -> answer", Vec::new())?;
+    /// # let _ = module;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn parse(signature: &str, tools: Vec<Arc<dyn Tool>>) -> anyhow::Result<Self> {
+        Ok(Self::new(signature.parse()?, tools))
+    }
+
     pub fn new(signature: Signature, tools: Vec<Arc<dyn Tool>>) -> Self {
         Self::interpreter_factory(
             signature,

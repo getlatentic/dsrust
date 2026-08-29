@@ -49,6 +49,19 @@ impl MultiChainComparison {
     /// Fails on a signature with no output fields, where there is no last field for an attempt's
     /// prediction to be read from. Upstream fails here too, on the tuple unpacking that looks
     /// for one.
+    /// dspy `MultiChainComparison("question -> answer", M=3)`: the task named by its fields.
+    ///
+    /// ```
+    /// # fn wrapper() -> anyhow::Result<()> {
+    /// let module = dsrust::MultiChainComparison::parse("question -> answer", 3)?;
+    /// # let _ = module;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn parse(signature: &str, attempts: usize) -> Result<Self> {
+        Self::attempts(signature.parse()?, attempts)
+    }
+
     pub fn attempts(mut signature: Signature, attempts: usize) -> Result<Self> {
         let last_key = signature
             .outputs

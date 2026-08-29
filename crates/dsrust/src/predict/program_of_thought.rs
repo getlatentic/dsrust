@@ -57,6 +57,19 @@ impl ProgramOfThought {
     ///
     /// Ask for another with [`Self::interpreter_factory`] — a caller who wants their own kind of
     /// environment, or a test that scripts one.
+    /// dspy `ProgramOfThought("question -> answer")`: the task named by its fields.
+    ///
+    /// ```
+    /// # fn wrapper() -> anyhow::Result<()> {
+    /// let module = dsrust::ProgramOfThought::parse("question -> answer")?;
+    /// # let _ = module;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn parse(signature: &str) -> anyhow::Result<Self> {
+        Ok(Self::new(signature.parse()?))
+    }
+
     pub fn new(signature: Signature) -> Self {
         Self::interpreter_factory(signature, crate::interpreter::factory(DenoInterpreter::new))
     }

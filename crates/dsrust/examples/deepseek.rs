@@ -118,17 +118,18 @@ async fn main() -> anyhow::Result<()> {
         asked.example.get("country").and_then(Value::as_str)
     );
 
-    // dspy's string spelling, checked while this file compiles — `make_signature!` is the same
-    // name upstream uses, and leaves no `?` to write.
-    let task = make_signature!("request -> answer")
+    // Two spellings, both upstream's. `parse` takes the string `ReAct("request -> answer", ...)`
+    // takes; `new` takes a built `Signature`, which is the form to reach for when the task needs
+    // instructions, since those live on the signature rather than on the module.
+    let guided = make_signature!("request -> answer")
         .with_instructions("Answer the question, using tools when they help.");
-    let asked = ReAct::new(task.clone(), vec![weather()])
+    let asked = ReAct::parse("request -> answer", vec![weather()])?
         .max_iters(4)
         .forward(example! { request: "What is the weather in Paris?" }.with_inputs(["request"]))
         .await?;
     println!("3 tools (text) {:?}", answer(&asked));
 
-    let asked = ReActV2::new(task, vec![weather()])
+    let asked = ReActV2::new(guided, vec![weather()])
         .adapter(JsonAdapter::default())
         .max_iters(4)
         .forward(example! { request: "What is the weather in Berlin?" }.with_inputs(["request"]))

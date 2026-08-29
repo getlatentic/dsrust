@@ -62,6 +62,19 @@ const DEFAULT_PREDICTOR_CALLS: usize = 100;
 
 impl Flex {
     /// A `Flex` over this signature, holding the baseline source until an optimizer replaces it.
+    /// dspy `Flex("question -> answer")`: the task named by its fields.
+    ///
+    /// ```
+    /// # fn wrapper() -> anyhow::Result<()> {
+    /// let module = dsrust::predict::flex::Flex::parse("question -> answer")?;
+    /// # let _ = module;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn parse(signature: &str) -> anyhow::Result<Self> {
+        Ok(Self::new(signature.parse()?))
+    }
+
     pub fn new(signature: Signature) -> Self {
         let mut flex = Self {
             signature,

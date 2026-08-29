@@ -48,6 +48,20 @@ impl ReActV2 {
     ///
     /// A tool named `submit` collides with the reserved final-output tool, which upstream refuses;
     /// it is a construction-time misuse, not runtime data, so it panics with upstream's message.
+    /// dspy `ReActV2("question -> answer", tools=[...])`, as [`ReAct::parse`](crate::ReAct::parse)
+    /// is for the prompt-parsed loop.
+    ///
+    /// ```
+    /// # fn wrapper() -> anyhow::Result<()> {
+    /// let agent = dsrust::ReActV2::parse("question -> answer", Vec::new())?;
+    /// # let _ = agent;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn parse(signature: &str, tools: Vec<Box<dyn Tool>>) -> anyhow::Result<Self> {
+        Ok(Self::new(signature.parse()?, tools))
+    }
+
     pub fn new(signature: Signature, tools: Vec<Box<dyn Tool>>) -> Self {
         let mut ordered = as_dict(tools.into_iter());
         assert!(

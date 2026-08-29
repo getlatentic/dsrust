@@ -54,6 +54,22 @@ impl ReAct {
         &self.react.signature
     }
 
+    /// dspy `ReAct("question -> answer", tools=[...])`: the task named by its fields.
+    ///
+    /// Upstream's constructor takes a string or a signature and calls `ensure_signature` on it;
+    /// this is that acceptance, as a second constructor rather than a fallible `new`.
+    ///
+    /// ```
+    /// # fn wrapper() -> anyhow::Result<()> {
+    /// let agent = dsrust::ReAct::parse("question -> answer", Vec::new())?;
+    /// assert_eq!(agent.turn_signature().outputs.len(), 3);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn parse(signature: &str, tools: Vec<Box<dyn Tool>>) -> anyhow::Result<Self> {
+        Ok(Self::new(signature.parse()?, tools))
+    }
+
     pub fn new(signature: Signature, tools: Vec<Box<dyn Tool>>) -> Self {
         let finish = Finish::new(&backticked(
             signature.outputs.iter().map(|field| field.name.as_str()),

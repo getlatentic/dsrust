@@ -94,6 +94,19 @@ pub struct Rlm {
 
 impl Rlm {
     /// dspy's `interpreter=None`: the Deno/Pyodide sandbox, which is what upstream defaults to.
+    /// dspy `RLM("question -> answer")`: the task named by its fields.
+    ///
+    /// ```
+    /// # fn wrapper() -> anyhow::Result<()> {
+    /// let module = dsrust::Rlm::parse("question -> answer")?;
+    /// # let _ = module;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn parse(signature: &str) -> anyhow::Result<Self> {
+        Ok(Self::new(signature.parse()?))
+    }
+
     pub fn new(signature: Signature) -> Self {
         Self::interpreter_factory(signature, crate::interpreter::factory(DenoInterpreter::new))
     }
