@@ -5950,3 +5950,39 @@ acceptance = """
   `argsort`'s six and `truncnorm`'s three now have theirs.
 - `pyrng`'s floor drops by however many were real, and the note says which.
 """
+
+[[story]]
+id = "class-attributes-are-not-a-surface"
+sprint = "api"
+title = "The API gate reads methods and parameters, and no class attribute at all"
+state = "todo"
+size = "M"
+suites = []
+plan = """
+`api_surface.py::_methods` collects `FunctionDef` and `AsyncFunctionDef` and nothing else, so a
+public class *attribute* is not part of the surface the ledger is checked against. The gate prints
+"resolved 100%" over symbols, methods, constructor parameters and method parameters — four
+categories that were each added when a hole was found, and this is the fifth.
+
+Found by reading dspy 3.3's normalized-LM migration: `BaseLM.forward_contract` is the attribute a
+custom LM sets to declare which contract it implements — `"legacy"` or `"typed_lm"` — and the
+migration makes it required by 3.6/4.0. `dspy.LM` sets it to `"legacy"` at 3.3. It is not in
+`api_ledger.toml`, and it could not be: nothing extracts it, so nothing could report it missing.
+
+Roughly 379 public class attributes exist across the 90 ported modules. Most are pydantic model
+fields already held by the typed-API goldens, or signature fields held by the prompt goldens — but
+"most" is doing real work in that sentence, and three attempts to classify the residue mechanically
+each returned a different number (177, then 110, with `model_config` and re-exported classes
+misread both times). The size of the real gap is unknown, which is itself the finding.
+"""
+acceptance = """
+- `api_surface.py` extracts public class attributes, with the same care the parameter categories
+  got: pydantic model fields, enum members and `model_config` distinguished from behavioural ones,
+  by runtime type rather than by matching base-class names in source.
+- Every extracted attribute is mapped, justified or deferred in `api_ledger.toml`, and the gate
+  prints the new category beside the other four.
+- `forward_contract` specifically resolves. dsrust's `ChatModel` takes a typed request and has no
+  legacy contract to select between, so the honest entry is a divergence saying exactly that — not
+  a mapping to something that does not exist.
+- The count each category contributes is printed, so a future "100%" says what it is 100% of.
+"""
