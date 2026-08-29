@@ -39,7 +39,7 @@ use std::sync::Arc;
 
 use dsrust::lm::JsonFormat;
 use dsrust::lm::api::{LmConfig, LmReasoningConfig};
-use dsrust::signature::{OutField, Signature};
+use dsrust::make_signature;
 use dsrust::{
     FnTool, Image, JsonAdapter, LM, Module, Predict, ReAct, ReActV2, Tool, configure_model, example,
 };
@@ -118,14 +118,10 @@ async fn main() -> anyhow::Result<()> {
         asked.example.get("country").and_then(Value::as_str)
     );
 
-    let task = Signature::single_input(
-        "Answer the question, using tools when they help.",
-        vec![OutField {
-            name: "answer".into(),
-            desc: "the answer".into(),
-            ..Default::default()
-        }],
-    );
+    // dspy's string spelling, checked while this file compiles — `make_signature!` is the same
+    // name upstream uses, and leaves no `?` to write.
+    let task = make_signature!("request -> answer")
+        .with_instructions("Answer the question, using tools when they help.");
     let asked = ReAct::new(task.clone(), vec![weather()])
         .max_iters(4)
         .forward(example! { request: "What is the weather in Paris?" }.with_inputs(["request"]))
