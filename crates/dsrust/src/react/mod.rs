@@ -56,6 +56,9 @@ impl ReAct {
 
     /// dspy `ReAct("question -> answer", tools=[...])`: the task named by its fields.
     ///
+    /// `ReAct!` checks a spelling written in the source while the caller compiles;
+    /// this is for a signature that is only a string at run time.
+    ///
     /// Upstream's constructor takes a string or a signature and calls `ensure_signature` on it;
     /// this is that acceptance, as a second constructor rather than a fallible `new`.
     ///

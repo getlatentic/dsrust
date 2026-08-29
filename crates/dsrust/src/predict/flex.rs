@@ -64,6 +64,9 @@ impl Flex {
     /// A `Flex` over this signature, holding the baseline source until an optimizer replaces it.
     /// dspy `Flex("question -> answer")`: the task named by its fields.
     ///
+    /// `make_signature!` checks a spelling written in the source while the caller compiles;
+    /// this is for a signature that is only a string at run time.
+    ///
     /// ```
     /// # fn wrapper() -> anyhow::Result<()> {
     /// let module = dsrust::predict::flex::Flex::parse("question -> answer")?;

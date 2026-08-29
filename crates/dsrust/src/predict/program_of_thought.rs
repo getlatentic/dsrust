@@ -59,6 +59,9 @@ impl ProgramOfThought {
     /// environment, or a test that scripts one.
     /// dspy `ProgramOfThought("question -> answer")`: the task named by its fields.
     ///
+    /// `ProgramOfThought!` checks a spelling written in the source while the caller compiles;
+    /// this is for a signature that is only a string at run time.
+    ///
     /// ```
     /// # fn wrapper() -> anyhow::Result<()> {
     /// let module = dsrust::ProgramOfThought::parse("question -> answer")?;

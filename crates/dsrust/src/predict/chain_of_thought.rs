@@ -32,6 +32,9 @@ impl ChainOfThought {
     /// [`Predict::from_signature`](super::Predict::from_signature).
     /// dspy `ChainOfThought("question -> answer")`: the task named by its fields.
     ///
+    /// `ChainOfThought!` checks a spelling written in the source while the caller compiles;
+    /// this is for a signature that is only a string at run time.
+    ///
     /// `ChainOfThought!("question -> answer")` is the same thing checked while the caller compiles;
     /// this is the form for a signature that is only a string at run time.
     ///

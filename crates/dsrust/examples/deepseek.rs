@@ -118,13 +118,13 @@ async fn main() -> anyhow::Result<()> {
         asked.example.get("country").and_then(Value::as_str)
     );
 
-    // Two spellings, both upstream's. `parse` takes the string `ReAct("request -> answer", ...)`
-    // takes; `new` takes a built `Signature`, which is the form to reach for when the task needs
-    // instructions, since those live on the signature rather than on the module.
+    // `ReAct!` is the spelling to reach for: dspy's own `ReAct("request -> answer", tools=[..])`,
+    // with the signature checked while this file compiles rather than at run time. `new` takes a
+    // built `Signature`, which is what the second agent needs — instructions live on the signature,
+    // as they do upstream, where they are a signature class's docstring.
     let guided = make_signature!("request -> answer")
         .with_instructions("Answer the question, using tools when they help.");
-    let asked = ReAct::parse("request -> answer", vec![weather()])?
-        .max_iters(4)
+    let asked = ReAct!("request -> answer", vec![weather()], max_iters = 4)
         .forward(example! { request: "What is the weather in Paris?" }.with_inputs(["request"]))
         .await?;
     println!("3 tools (text) {:?}", answer(&asked));

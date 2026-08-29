@@ -42,6 +42,9 @@ impl CodeAct {
     /// dspy's `interpreter=None`: the Deno/Pyodide sandbox, which is what upstream defaults to.
     /// dspy `CodeAct("question -> answer", tools=[...])`: the task named by its fields.
     ///
+    /// `CodeAct!` checks a spelling written in the source while the caller compiles;
+    /// this is for a signature that is only a string at run time.
+    ///
     /// ```
     /// # fn wrapper() -> anyhow::Result<()> {
     /// let module = dsrust::CodeAct::parse("question -> answer", Vec::new())?;

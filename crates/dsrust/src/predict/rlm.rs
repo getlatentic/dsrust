@@ -96,6 +96,9 @@ impl Rlm {
     /// dspy's `interpreter=None`: the Deno/Pyodide sandbox, which is what upstream defaults to.
     /// dspy `RLM("question -> answer")`: the task named by its fields.
     ///
+    /// `RLM!` checks a spelling written in the source while the caller compiles;
+    /// this is for a signature that is only a string at run time.
+    ///
     /// ```
     /// # fn wrapper() -> anyhow::Result<()> {
     /// let module = dsrust::Rlm::parse("question -> answer")?;

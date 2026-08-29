@@ -58,6 +58,9 @@ impl ReActV2 {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// `ReActV2!` checks a spelling written in the source while the caller compiles;
+    /// this is for a signature that is only a string at run time.
     pub fn parse(signature: &str, tools: Vec<Box<dyn Tool>>) -> anyhow::Result<Self> {
         Ok(Self::new(signature.parse()?, tools))
     }

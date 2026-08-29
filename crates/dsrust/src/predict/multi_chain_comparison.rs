@@ -51,6 +51,9 @@ impl MultiChainComparison {
     /// for one.
     /// dspy `MultiChainComparison("question -> answer", M=3)`: the task named by its fields.
     ///
+    /// `make_signature!` checks a spelling written in the source while the caller compiles;
+    /// this is for a signature that is only a string at run time.
+    ///
     /// ```
     /// # fn wrapper() -> anyhow::Result<()> {
     /// let module = dsrust::MultiChainComparison::parse("question -> answer", 3)?;
