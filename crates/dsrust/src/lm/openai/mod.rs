@@ -46,6 +46,11 @@ pub const DEFAULT_OPENAI_KEY_VAR: &str = "OPENAI_API_KEY";
 /// usually pointed at.
 const BASE_URL_VAR: &str = "OPENAI_BASE_URL";
 
+/// litellm's own spelling of the same thing, and the one its documentation uses. `completion`
+/// falls back to it — `get_secret("OPENAI_BASE_URL") or get_secret("OPENAI_API_BASE")` — so a
+/// shell set up by following litellm rather than the OpenAI SDK names only this one.
+const API_BASE_VAR: &str = "OPENAI_API_BASE";
+
 const OPENROUTER_BASE_URL: &str = "https://openrouter.ai/api/v1";
 
 const OPENROUTER_KEY_VAR: &str = "OPENROUTER_API_KEY";
@@ -137,15 +142,26 @@ impl Default for OpenAiConfig {
 }
 
 impl OpenAiConfig {
-    /// The stock endpoint with OPENAI_BASE_URL and OPENAI_API_KEY laid over it.
+    /// The stock endpoint with the environment's base URL and OPENAI_API_KEY laid over it.
     pub(super) fn from_env() -> Self {
         let mut config = Self::default();
-        if let Some(base_url) = env_nonempty(BASE_URL_VAR) {
+        if let Some(base_url) =
+            base_url_from(env_nonempty(BASE_URL_VAR), env_nonempty(API_BASE_VAR))
+        {
             config.base_url = base_url;
         }
         config.api_key = env_nonempty(&config.key_var);
         config
     }
+}
+
+/// litellm's order for the two variables that name an endpoint: `OPENAI_BASE_URL`, then
+/// `OPENAI_API_BASE`, then neither and the stock host.
+///
+/// Taken as arguments rather than read here so the rule can be checked without a process-wide
+/// environment, which no two tests can share.
+fn base_url_from(base_url: Option<String>, api_base: Option<String>) -> Option<String> {
+    base_url.or(api_base)
 }
 
 /// One OpenAI-shaped service, resolved for a single call.
@@ -432,6 +448,36 @@ mod tests {
         }
         assert_eq!(config.base_url, "http://env-test:1234/v1");
         assert_eq!(config.api_key.as_deref(), Some("sk-env-test"));
+    }
+
+    /// litellm's order for the two variables that name an endpoint, against what litellm's own
+    /// OpenAI client was constructed with under each combination.
+    ///
+    /// Reading only `OPENAI_BASE_URL` looked complete: it is the OpenAI SDK's spelling and it is
+    /// what every test here sets. `OPENAI_API_BASE` is litellm's, the one its documentation uses,
+    /// and a shell set up from that documentation silently reached `api.openai.com` instead —
+    /// found by pointing this crate at a Bedrock endpoint the litellm way.
+    #[test]
+    fn the_endpoint_variables_are_read_in_litellms_order() {
+        let golden: Value = serde_json::from_str(include_str!(
+            "../../../tests/conformance/state/openai_env_base.json"
+        ))
+        .expect("the env-base golden is valid JSON");
+        let cases = golden["cases"].as_array().expect("cases");
+        assert_eq!(cases.len(), 4, "the golden lost a combination");
+        for case in cases {
+            let environment = case["environment"].as_object().expect("an environment");
+            let named = |var: &str| {
+                environment
+                    .get(var)
+                    .and_then(Value::as_str)
+                    .map(str::to_owned)
+            };
+            let expected = case["endpoint"].as_str().expect("an endpoint");
+            let chosen = base_url_from(named(BASE_URL_VAR), named(API_BASE_VAR))
+                .unwrap_or_else(|| DEFAULT_OPENAI_BASE_URL.to_owned());
+            assert_eq!(chosen, expected, "for {environment:?}");
+        }
     }
     use crate::lm::api::{LmMessage, request_of};
     use crate::lm::{DEFAULT_PROVIDER_TIMEOUT, OutputMode, Sampling};
