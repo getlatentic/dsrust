@@ -123,6 +123,11 @@ python3 "$ROOT/scripts/check_rust_surface.py"
 # And the reasons themselves, which nothing checked until a substitution claim was wrong twice —
 # `callbacks` and both `log_dir` entries each pointed at tracing spans that were not there.
 python3 "$ROOT/scripts/check_ledger_claims.py"
+
+# Whether litellm is still the only oracle for Anthropic and ollama. It is, at 3.3 — dspy ships
+# native wire code for OpenAI alone — and the day that changes, `lm_api/litellm_chat.json` is
+# grounded on the wrong upstream while still regenerating cleanly and still passing.
+"$VENV/bin/python" "$ROOT/scripts/check_litellm_grounding.py"
 # The same question for doc comments, which make the same claims and which nothing read: six were
 # wrong the day this landed, every one written while fixing something else.
 python3 "$ROOT/scripts/check_doc_citations.py"
