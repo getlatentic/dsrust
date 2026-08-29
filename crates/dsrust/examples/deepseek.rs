@@ -35,13 +35,11 @@
 //!      and a port that assumed it would fail against most of them. Shown here rather than hidden,
 //!      because the error naming the model and quoting the provider is the useful behaviour.
 
-use std::sync::Arc;
-
-use dsrust::lm::JsonFormat;
 use dsrust::lm::api::{LmConfig, LmReasoningConfig};
-use dsrust::make_signature;
+use dsrust::lm::{JsonFormat, configure};
 use dsrust::{
-    FnTool, Image, JsonAdapter, LM, Module, Predict, ReAct, ReActV2, Tool, configure_model, example,
+    FnTool, Image, JsonAdapter, LM, Module, Predict, Prediction, ReAct, ReActV2, Tool, call, input,
+    make_signature,
 };
 use serde_json::Value;
 
@@ -68,8 +66,8 @@ fn model(name: &str, effort: Option<&str>) -> anyhow::Result<LM> {
         .build()
 }
 
-fn answer(prediction: &dsrust::Prediction) -> Option<&str> {
-    prediction.example.get("answer").and_then(Value::as_str)
+fn answer(prediction: &Prediction) -> Option<&str> {
+    prediction.get("answer").and_then(Value::as_str)
 }
 
 fn weather() -> Box<dyn Tool> {
@@ -100,62 +98,54 @@ fn two_colour_image() -> anyhow::Result<Image> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let http = reqwest::Client::new();
-
-    configure_model(http.clone(), Arc::new(model(CHAT_MODEL, Some("low"))?));
-    let asked = Predict!("question -> answer")
-        .forward(example! { question: "What is 17 * 23?" }.with_inputs(["question"]))
-        .await?;
+    configure(model(CHAT_MODEL, Some("low"))?);
+    let asked = call!(
+        Predict!("question -> answer"),
+        question = "What is 17 * 23?"
+    )
+    .await?;
     println!("1 thinking     {:?}", answer(&asked));
 
     let json = Predict!("question -> city, country").adapter(JsonAdapter::default());
-    let asked = json
-        .forward(example! { question: "Name a city in Peru." }.with_inputs(["question"]))
-        .await?;
+    let asked = call!(json, question = "Name a city in Peru.").await?;
     println!(
         "2 json         city={:?} country={:?}",
-        asked.example.get("city").and_then(Value::as_str),
-        asked.example.get("country").and_then(Value::as_str)
+        asked.get("city").and_then(Value::as_str),
+        asked.get("country").and_then(Value::as_str)
     );
 
-    // `ReAct!` is the spelling to reach for: dspy's own `ReAct("request -> answer", tools=[..])`,
-    // with the signature checked while this file compiles rather than at run time. `new` takes a
-    // built `Signature`, which is what the second agent needs — instructions live on the signature,
-    // as they do upstream, where they are a signature class's docstring.
-    let guided = make_signature!("request -> answer")
-        .with_instructions("Answer the question, using tools when they help.");
-    let asked = ReAct!("request -> answer", vec![weather()], max_iters = 4)
-        .forward(example! { request: "What is the weather in Paris?" }.with_inputs(["request"]))
+    // `ReAct` answers through `Module::forward` rather than `call!`: `Ask` is written per module,
+    // and an agent is not one of the three that has it.
+    let agent = ReAct!("request -> answer", vec![weather()], max_iters = 4);
+    let asked = agent
+        .forward(input! { request: "What is the weather in Paris?" })
         .await?;
     println!("3 tools (text) {:?}", answer(&asked));
 
-    let asked = ReActV2::new(guided, vec![weather()])
-        .adapter(JsonAdapter::default())
-        .max_iters(4)
-        .forward(example! { request: "What is the weather in Berlin?" }.with_inputs(["request"]))
+    // Instructions live on the signature, as they do upstream where they are a signature class's
+    // docstring, so this one is built rather than named. `JsonAdapter` is what opens the native
+    // tool channel, since `ChatAdapter` defaults it off exactly as dspy's does.
+    let guided = make_signature!("request -> answer")
+        .with_instructions("Answer the question, using tools when they help.");
+    let agent = ReActV2::new(guided, vec![weather()]).adapter(JsonAdapter::default());
+    let asked = agent
+        .forward(input! { request: "What is the weather in Berlin?" })
         .await?;
     println!("4 tools (wire) {:?}", answer(&asked));
 
-    configure_model(http.clone(), Arc::new(model(VISION_MODEL, None)?));
-    let asked = Predict!("question, photo: Image -> answer")
-        .forward(
-            example! {
-                question: "What two colours are in this image? Answer in three words.",
-                photo: serde_json::to_value(two_colour_image()?)?
-            }
-            .with_inputs(["question", "photo"]),
-        )
-        .await?;
+    configure(model(VISION_MODEL, None)?);
+    let asked = call!(
+        Predict!("question, photo: Image -> answer"),
+        question = "What two colours are in this image? Answer in three words.",
+        photo = serde_json::to_value(two_colour_image()?)?
+    )
+    .await?;
     println!("5 image        {:?}", answer(&asked));
 
-    let strict = model(CHAT_MODEL, None)?.openai_json_format(JsonFormat::Schema);
-    configure_model(http, Arc::new(strict));
-    let refused = Predict!("question -> city")
-        .adapter(JsonAdapter::default())
-        .forward(example! { question: "Name a city." }.with_inputs(["question"]))
-        .await;
-    match refused {
-        Ok(asked) => println!("6 json_schema  {:?}", asked.example.get("city")),
+    configure(model(CHAT_MODEL, None)?.openai_json_format(JsonFormat::Schema));
+    let strict = Predict!("question -> city").adapter(JsonAdapter::default());
+    match call!(strict, question = "Name a city.").await {
+        Ok(asked) => println!("6 json_schema  {:?}", asked.get("city")),
         Err(error) => println!(
             "6 json_schema  refused: {}",
             error.to_string().lines().next().unwrap_or_default()
