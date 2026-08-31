@@ -102,6 +102,10 @@ EXTERNAL = {
     "chain_of_thought_n3",
 }
 EXTERNAL_FILES = {
+    # deno's `npm:` resolution rule, cited where the sandbox runner is staged in temp: deno walks up
+    # from the script for this file and switches to node_modules resolution on finding one, which is
+    # what would lose pyodide. It only ever exists in somebody else's directory.
+    "package.json",
     # Written by a fuzz campaign into `target/` and deliberately not committed: twenty thousand
     # random strings are evidence, not a golden.
     "target/parse_fuzz.json",

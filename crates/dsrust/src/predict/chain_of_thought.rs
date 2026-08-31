@@ -322,17 +322,26 @@ where
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
         Box::pin(async move {
             let lm = global::current()?;
+            let span = crate::observe::module_shown(
+                "ChainOfThought",
+                &inputs,
+                crate::Module::callbacks(&self.cot),
+            );
             let pairs: Vec<Input<'_>> = inputs
                 .fields()
                 .map(|(name, value)| Input::new(name, value.clone()))
                 .collect();
-            super::derived::typed_pairs::<S, _>(
-                &self.cot.predict,
-                lm.as_ref(),
-                pairs,
-                without_reasoning,
+            crate::observe::watching(
+                span,
+                super::derived::typed_prediction::<S, _>(
+                    &self.cot.predict,
+                    lm.as_ref(),
+                    pairs,
+                    without_reasoning,
+                ),
             )
-            .await
+            .await?
+            .typed::<S::Outputs>()
         })
     }
 }

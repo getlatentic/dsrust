@@ -352,17 +352,19 @@ macro_rules! CodeAct {
         $crate::CodeAct::new($crate::make_signature!($signature), $tools).max_iters($max)
     };
     ($task:ty, $tools:expr $(,)?) => {
-        $crate::CodeAct::new(
+        $crate::Typed::<$task, _>::new($crate::CodeAct::new(
             <$task as $crate::signature::SignatureSpec>::signature(),
             $tools,
-        )
+        ))
     };
     ($task:ty, $tools:expr, max_iters = $max:expr $(,)?) => {
-        $crate::CodeAct::new(
-            <$task as $crate::signature::SignatureSpec>::signature(),
-            $tools,
+        $crate::Typed::<$task, _>::new(
+            $crate::CodeAct::new(
+                <$task as $crate::signature::SignatureSpec>::signature(),
+                $tools,
+            )
+            .max_iters($max),
         )
-        .max_iters($max)
     };
 }
 

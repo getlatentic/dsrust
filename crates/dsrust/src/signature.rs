@@ -1,23 +1,37 @@
 use anyhow::{Result, anyhow};
 use serde_json::{Map, Value, json};
 
+mod annotation;
 mod coerce;
+mod declared;
+mod edit;
 mod equality;
 mod field_type;
+mod identifier;
+mod inline;
+mod instructions;
 mod parse;
 mod prefix;
+mod pydantic;
 mod reflect;
 mod side;
 
 pub(crate) use coerce::{coerce_literal, coerce_value};
+pub(crate) use declared::inlined_schema;
+pub use declared::{arguments_schema, declared_members, json_argument_schema, json_field_schema};
 use field_type::annotation_of;
 pub(crate) use field_type::wire_forms;
 pub use field_type::{FieldKind, JsonType, LiteralValue, TypeDescription, python_name};
+pub use parse::default_instructions;
 pub use parse::parse;
+pub(crate) use parse::split_top_level;
 pub use prefix::infer_prefix;
 pub use reflect::json_field_reflection;
 pub use side::{FieldEdit, Side};
 
+/// A tool written as a function: its doc comment is the description the model reads and its
+/// parameters are the argument schema, the way a Python tool's docstring and type hints are.
+pub use dsrust_derive::tool;
 /// The derive plus its call-site macros: `Predict!(Task { field: value, ... })` and the
 /// `ChainOfThought!` twin evaluate to one typed module call awaiting the caller's `?`.
 pub use dsrust_derive::{ChainOfThought, Predict, Signature, make_signature};
@@ -38,8 +52,12 @@ pub struct InField {
     /// `greater than or equal to: 0, less than or equal to: 10`.
     ///
     /// dspy computes this string when the signature is declared, so it crosses the bridge as
-    /// data and this crate only decides where in the prompt it reads. A signature declared in
-    /// Rust has no constraints to state and leaves it empty.
+    /// data and this crate only decides where in the prompt it reads. `#[derive(Signature)]`
+    /// declares one the same way — `#[output(ge = 0, le = 9)]` — and writes the prose itself.
+    ///
+    /// It said a Rust signature had none to state until `gepa_trusted_monitor` was ported, whose
+    /// only output field is `ge=0, le=9`: the claim was about where the string came from and read
+    /// as a claim about what could be declared.
     pub constraints: Option<String>,
     /// dspy's field prefix — `Question:` for a field named `question`. `None` means nobody set
     /// one and it is inferred from the name, which is what dspy does too; a saved program restores
@@ -114,22 +132,6 @@ impl OutField {
     }
 }
 
-/// The nested schema a derived `Json` output carries: fully inlined (no `$ref`) and free of
-/// root metadata, so it drops straight into a property slot and stays a one-liner in prompts.
-pub fn json_field_schema<T: schemars::JsonSchema>() -> Value {
-    let generator = schemars::generate::SchemaSettings::default()
-        .with(|settings| {
-            settings.inline_subschemas = true;
-            settings.meta_schema = None;
-        })
-        .into_generator();
-    let mut root = generator.into_root_schema_for::<T>().to_value();
-    if let Some(object) = root.as_object_mut() {
-        object.remove("title");
-    }
-    root
-}
-
 /// A DSPy-style signature: the task instructions plus the typed input and output fields.
 /// The signature owns WHAT the task is; the modules in [`mod@crate::predict`] own HOW the model
 /// is asked.
@@ -180,114 +182,39 @@ impl Signature {
         }
     }
 
-    /// dspy `Signature.delete`: this signature without the named field, from whichever side
-    /// holds it. A name that is not there leaves the signature unchanged, as upstream has it —
-    /// deleting a field an adapter only sometimes adds should not depend on whether it did.
-    pub fn delete(&self, name: &str) -> Self {
-        let mut without = self.clone();
-        without.inputs.retain(|field| field.name != name);
-        without.outputs.retain(|field| field.name != name);
-        without
-    }
-
-    /// dspy `Signature.insert`: this signature with a field added at `index` of its own side.
-    ///
-    /// Upstream takes one `field` and reads which side it belongs to off its
-    /// `__dspy_field_type`; a Rust field already *is* one side or the other, so
-    /// [`Side`] carries that and there is nothing to look up.
-    ///
-    /// A negative index counts from the end *past* the last field, not before it: `-1` appends
-    /// and `-2` inserts before the last. Upstream adds `len + 1` rather than Python's usual `len`,
-    /// which is what makes one-past-the-end reachable from either direction.
-    pub fn insert(&self, index: isize, field: Side) -> Result<Self, String> {
-        let mut edited = self.clone();
-        let length = match &field {
-            Side::Input(_) => edited.inputs.len(),
-            Side::Output(_) => edited.outputs.len(),
-        } as isize;
-        let at = match index < 0 {
-            true => index + length + 1,
-            false => index,
-        };
-        if at < 0 || at > length {
-            // Upstream builds this message *after* adjusting, so a rejected negative index is
-            // reported as what it became rather than as what was passed.
-            return Err(format!(
-                "Invalid index to insert: {at}, index must be in the range of [{}, {length}] for \
-                 {} fields, but received: {at}.",
-                length - 1,
-                field.side_name(),
-            ));
-        }
-        match field {
-            Side::Input(input) => edited.inputs.insert(at as usize, input),
-            Side::Output(output) => edited.outputs.insert(at as usize, output),
-        }
-        Ok(edited)
-    }
-
-    /// dspy `Signature.prepend`: the field first among its own side.
-    pub fn prepend(&self, field: Side) -> Self {
-        self.insert(0, field).expect("index 0 is always in range")
-    }
-
-    /// dspy `Signature.append`: the field last among its own side.
-    pub fn append(&self, field: Side) -> Self {
-        let end = match &field {
-            Side::Input(_) => self.inputs.len(),
-            Side::Output(_) => self.outputs.len(),
-        } as isize;
-        self.insert(end, field).expect("the end is always in range")
-    }
-
-    /// dspy `Signature.with_updated_fields`: one field's description or kind changed, the rest of
-    /// the signature untouched.
-    ///
-    /// Upstream takes arbitrary `**kwargs` into the field's `json_schema_extra`, which is a
-    /// Python dict; a Rust field is a struct, so the caller is handed the field to edit.
-    ///
-    /// A name on neither side is an error, not a no-op — upstream indexes `fields_copy[name]` and
-    /// raises `KeyError`. This is the opposite of [`delete`](Self::delete), where upstream is
-    /// deliberately forgiving, and the difference is worth keeping: deleting a field an adapter
-    /// only sometimes adds is reasonable, while editing one that was never there is a typo.
-    pub fn with_updated_fields(
-        &self,
-        name: &str,
-        edit: impl FnOnce(&mut FieldEdit<'_>),
-    ) -> Result<Self, String> {
-        let mut edited = self.clone();
-        if let Some(input) = edited.inputs.iter_mut().find(|field| field.name == name) {
-            edit(&mut FieldEdit::Input(input));
-        } else if let Some(output) = edited.outputs.iter_mut().find(|field| field.name == name) {
-            edit(&mut FieldEdit::Output(output));
-        } else {
-            return Err(format!("{name:?}"));
-        }
-        Ok(edited)
-    }
-
-    /// dspy `Signature.with_instructions`: the same fields under a different objective. What an
-    /// optimizer produces — every proposal it scores is this call.
-    pub fn with_instructions(&self, instructions: impl Into<String>) -> Self {
-        Self {
-            instructions: instructions.into(),
-            ..self.clone()
-        }
-    }
-
     /// JSON schema for providers with native structured output.
+    ///
+    /// Each field's definitions are lifted to the root. A `$ref` resolves against the *document*,
+    /// so `#/$defs/GiftIdea` left sitting under `properties.ideas` points at a root `$defs` that
+    /// does not exist — a schema a provider is right to reject. pydantic hoists for the same
+    /// reason, which is why this is what upstream sends.
     pub fn schema(&self) -> Value {
         let mut properties = Map::new();
+        let mut definitions = Map::new();
         for field in &self.outputs {
-            properties.insert(field.name.clone(), field.property_schema());
+            let mut property = field.property_schema();
+            if let Some(carried) = property
+                .as_object_mut()
+                .and_then(|object| object.remove("$defs"))
+                .and_then(|defs| defs.as_object().cloned())
+            {
+                definitions.extend(carried);
+            }
+            properties.insert(field.name.clone(), property);
         }
         let required: Vec<&str> = self.outputs.iter().map(|f| f.name.as_str()).collect();
-        json!({
+        let mut schema = json!({
             "type": "object",
             "properties": properties,
             "required": required,
             "additionalProperties": false,
-        })
+        });
+        if let Some(object) = schema.as_object_mut()
+            && !definitions.is_empty()
+        {
+            object.insert("$defs".to_owned(), Value::Object(definitions));
+        }
+        schema
     }
 
     /// Prompt clause carrying the same contract for providers without structured output.
@@ -790,8 +717,14 @@ mod tests {
         );
     }
 
+    /// The schema a prompt prints is pydantic's, because dspy prints pydantic's.
+    ///
+    /// This asserted the opposite until the two were rendered side by side: it required no `$ref`
+    /// and no titles, which is schemars' dialect and not upstream's. dspy hoists a named type into
+    /// `$defs` and points a `$ref` at it, titles every property and every model, and writes no
+    /// width-`format` — so a schema without those is a different prompt for the same program.
     #[test]
-    fn json_field_schema_inlines_subschemas_and_drops_root_metadata() {
+    fn json_field_schema_is_the_dialect_dspy_prints() {
         #[derive(schemars::JsonSchema)]
         #[allow(dead_code)]
         struct Idea {
@@ -800,15 +733,29 @@ mod tests {
         }
         let schema = json_field_schema::<Vec<Idea>>();
         assert_eq!(schema["type"], json!("array"));
+
+        // Hoisted, not inlined — and the reference points at the definition.
+        assert_eq!(schema["items"]["$ref"], json!("#/$defs/Idea"));
+        assert_eq!(schema["$defs"]["Idea"]["title"], json!("Idea"));
         assert_eq!(
-            schema["items"]["properties"]["why"]["type"],
-            json!("string")
+            schema["$defs"]["Idea"]["properties"]["why"]["title"],
+            json!("Why")
         );
-        assert_eq!(schema["items"]["required"], json!(["title", "why"]));
+        assert_eq!(schema["$defs"]["Idea"]["required"], json!(["title", "why"]));
+
         let rendered = schema.to_string();
-        assert!(!rendered.contains("$ref"), "got: {rendered}");
         assert!(!rendered.contains("$schema"), "got: {rendered}");
+        // No `format` on a string, because pydantic writes none for `str`. The rule is not that
+        // `format` never appears — a `datetime` carries `"date-time"` in both dialects — but that
+        // schemars' Rust widths do not.
+        assert!(!rendered.contains("format"), "got: {rendered}");
+        // A container is untitled upstream; schemars would have called this `Array_of_Idea`.
         assert_eq!(schema.get("title"), None);
+        // `type` leads every map, which is dspy's `move_type_to_front`.
+        assert!(
+            rendered.starts_with(r#"{"type":"array""#),
+            "got: {rendered}"
+        );
     }
 
     /// The derive is declaration data; the structs themselves are never built.

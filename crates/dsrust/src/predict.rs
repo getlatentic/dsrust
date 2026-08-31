@@ -981,11 +981,23 @@ impl<S: Send + Sync> Module for Predict<S> {
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
             let span = crate::observe::module_shown("Predict", &inputs, self.callbacks());
-            crate::observe::watching(
+            let prediction = crate::observe::watching(
                 span,
-                self.forward_with_steering(inputs, &Steering::default()),
+                self.forward_with_steering(inputs.clone(), &Steering::default()),
             )
-            .await
+            .await?;
+            // What upstream does on the way out of `Predict.__call__`: a predictor records its own
+            // call, so a program composed by hand is traced without its author threading anything.
+            crate::module::ambient::record(
+                crate::module::ambient::identity(&self.signature),
+                TraceStep {
+                    predictor: "self".to_owned(),
+                    inputs,
+                    outputs: crate::StepOutputs::Answered(prediction.example.clone()),
+                    signature: self.signature.clone(),
+                },
+            );
+            Ok(prediction)
         })
     }
 
@@ -1007,7 +1019,9 @@ impl<S: Send + Sync> Module for Predict<S> {
         trace: &'a mut Vec<TraceStep>,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
-            let prediction = self.forward(inputs.clone()).await?;
+            // Detached: this records the step its caller asked for, and the plain path below would
+            // otherwise record a second copy into an outer run's buffer.
+            let prediction = crate::module::ambient::detached(self.forward(inputs.clone())).await?;
             trace.push(TraceStep {
                 predictor: "self".to_owned(),
                 inputs,

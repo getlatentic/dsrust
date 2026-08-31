@@ -14,6 +14,7 @@ use crate::adapter::{Candidate, GepaAdapter};
 use crate::batch::BatchSampler;
 use crate::merge::{MergesPerformed, sample_and_attempt_merge, select_eval_subsample};
 use crate::pareto::{find_dominator_programs, select_candidate};
+use crate::progress::{Event, Progress};
 use crate::pyset::PyIntSet;
 
 /// Which candidate a strategy picks — gepa's `CandidateSelector.select_candidate_idx`.
@@ -158,6 +159,9 @@ pub struct GepaEngine<A: GepaAdapter> {
     /// [`GepaOutcome::best_outputs_valset`]. Off by default, as upstream's is — an adapter pays to
     /// carry the outputs and nothing reads them otherwise.
     pub track_best_outputs: bool,
+    /// Where this run reports its decisions — gepa's `logger`. [`Silent`](crate::progress::Silent) by default, so a run
+    /// nobody is watching costs nothing.
+    pub progress: std::sync::Arc<dyn Progress>,
 }
 
 /// gepa's `CandidateSelector`: which candidate an iteration mutates.
@@ -281,11 +285,19 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             merge.last_iter_found_new_program = false;
 
             let Some(proposal) = self.propose(&mut state, &mut rng, &mut sampler).await else {
+                self.progress.report(Event::ProposedNothing {
+                    iteration: state.i + 1,
+                });
                 continue;
             };
             let before: f64 = proposal.scores_before.iter().sum();
             let after: f64 = proposal.scores_after.iter().sum();
             if after <= before {
+                self.progress.report(Event::Rejected {
+                    iteration: state.i + 1,
+                    before,
+                    after,
+                });
                 continue;
             }
             self.accept(&mut state, proposal).await;
@@ -439,12 +451,25 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         let eval = self.adapter.evaluate_valset(&proposal.candidate).await;
         state.total_num_evals += self.valset_size;
         state.num_full_ds_evals += 1;
+        // The score gepa's "Found a better program" line prints, read before the state moves on.
+        let score = match eval.scores.is_empty() {
+            true => 0.0,
+            false => eval.scores.iter().sum::<f64>() / eval.scores.len() as f64,
+        };
+        let iteration = state.i + 1;
         state.add_program(
             &[proposal.parent],
             proposal.candidate,
             eval.scores,
             discovered_at,
         );
+        let candidate = state.candidates.len() - 1;
+        self.progress.report(Event::Accepted {
+            iteration,
+            candidate,
+            score,
+            is_best: state.best_program() == candidate,
+        });
     }
 
     /// Assemble the outcome: the best program is the highest mean valset score (dspy's `GEPAResult`).

@@ -47,9 +47,12 @@ where
             .into_iter()
             .map(|predictor| (predictor.name.clone(), predictor.signature.clone()))
             .collect();
+        // The same walk, kept as the map a running predictor recognises itself by, so a program
+        // that never implemented `forward_traced` still records which of its predictors ran.
+        let names = self.student.predictor_names();
         let mut running = Vec::with_capacity(examples.len());
         for example in examples {
-            running.push(self.run_one(example, &predictors, capture_traces));
+            running.push(self.run_one(example, &predictors, &names, capture_traces));
         }
         let ran: Vec<(Option<f64>, Option<Captured>, Option<Prediction>)> =
             futures_util::stream::iter(running)
@@ -90,14 +93,11 @@ where
         &self,
         example: &Example,
         predictors: &[(String, crate::signature::Signature)],
+        names: &crate::module::PredictorNames,
         capture_traces: bool,
     ) -> (Option<f64>, Option<Captured>, Option<Prediction>) {
         let inputs = example.inputs().expect("a dataset row declares its inputs");
-        let mut trace = Vec::new();
-        let ran = self
-            .student
-            .forward_traced(inputs.clone(), &mut trace)
-            .await;
+        let (ran, trace) = self.student.traced_with(names, inputs.clone()).await;
         let prediction = match ran {
             Ok(prediction) => prediction,
             Err(error) => {

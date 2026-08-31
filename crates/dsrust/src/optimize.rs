@@ -84,14 +84,14 @@ pub use ensemble::{Ensemble, Ensembled};
 // dataset it is handed without naming the type its entries are, and reaching for it would mean
 // depending on the engine crate directly.
 pub use gepa::{
-    Candidate, Feedback, GEPA, GepaOutcome, InstructionProposer, MetricContext,
-    MultiModalInstructionProposer, Reflective, ReflectiveDataset,
+    Candidate, Event, Feedback, GEPA, GepaOutcome, InstructionProposer, MetricContext,
+    MultiModalInstructionProposer, Progress, Reflective, ReflectiveDataset, Reported,
 };
 pub use infer_rules::{InferRules, RuleCandidate};
 pub use labeled::LabeledFewShot;
 // `Trial` travels beside it: `MIPROv2::compile_traced` answers with `Vec<Trial>`, and a type a
 // caller cannot name is one they cannot put in a signature, a field or a `let`.
-pub use mipro::{MIPROv2, Trial};
+pub use mipro::{Auto, MIPROv2, Trial};
 pub use optuna::{BootstrapFewShotWithOptuna, OptunaTrial};
 pub use random_search::{Attempt, BootstrapRandomSearch};
 

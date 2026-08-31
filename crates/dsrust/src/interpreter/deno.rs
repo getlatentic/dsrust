@@ -11,11 +11,14 @@
 //! whether it is there, so a program can say so itself rather than failing at the first ask.
 
 mod command;
+mod session;
+
+use session::Session;
 mod files;
 mod register;
 mod rpc;
 
-use std::process::{Child, Command, Stdio};
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Result, bail};
@@ -61,18 +64,6 @@ pub struct DenoInterpreter {
     /// session." This restarted, and a restart is not a recovery — the sandbox's variables are
     /// gone, so the next `execute` runs against an empty namespace and answers confidently.
     ended: std::sync::atomic::AtomicBool,
-}
-
-/// One live child and the pipes to it.
-struct Session {
-    child: Child,
-    rpc: Rpc,
-    /// Whether this child has been told about the tools and outputs. A restart clears it with the
-    /// rest of the session, which is what replays the registration upstream replays.
-    registered: bool,
-    /// Whether the host's files are in this child's filesystem. Pyodide's is in memory, so a new
-    /// child starts empty and the mounts replay with the registration.
-    mounted: bool,
 }
 
 impl Default for DenoInterpreter {
@@ -131,44 +122,6 @@ impl DenoInterpreter {
             .is_ok_and(|status| status.success())
     }
 
-    /// dspy's `_check_session_active`: refuse once the session has ended.
-    fn check_active(&self) -> Result<()> {
-        match self.ended.load(std::sync::atomic::Ordering::SeqCst) {
-            true => Err(anyhow::Error::new(InterpreterFailure::Session(
-                "PythonInterpreter session has ended; create a new interpreter for a fresh session."
-                    .to_owned(),
-            ))),
-            false => Ok(()),
-        }
-    }
-
-    /// End the session when the failure was the interpreter's, and pass the result through.
-    ///
-    /// The two error kinds are built where they happen — down in the RPC layer, which knows the
-    /// JSON-RPC code — and this is where the consequence is applied. Upstream's
-    /// `_raise_terminal_error` does both at once; here the sandbox conversation cannot reach the
-    /// flag, so the flag reaches out to it.
-    fn note_terminal<T>(&self, outcome: Result<T>) -> Result<T> {
-        if let Err(error) = &outcome
-            && matches!(
-                error.downcast_ref::<InterpreterFailure>(),
-                Some(InterpreterFailure::Session(_))
-            )
-        {
-            self.ended.store(true, std::sync::atomic::Ordering::SeqCst);
-        }
-        outcome
-    }
-
-    /// dspy's `_raise_terminal_error`: end the session and report why.
-    ///
-    /// Returns the error rather than raising, so a caller writes `return Err(self.end_session(…))`
-    /// and the compiler keeps the two halves together.
-    fn end_session(&self, why: String) -> anyhow::Error {
-        self.ended.store(true, std::sync::atomic::Ordering::SeqCst);
-        anyhow::Error::new(InterpreterFailure::Session(why))
-    }
-
     /// Start the child if there is not one yet, and answer with the session to talk to.
     ///
     /// A child that has *exited* ends the session rather than being replaced: see
@@ -205,9 +158,11 @@ impl DenoInterpreter {
             )?;
         let writer = child.stdin.take().expect("stdin was piped");
         let reader = child.stdout.take().expect("stdout was piped");
+        let errors = child.stderr.take();
         *session = Some(Session {
             child,
             rpc: Rpc::new(writer, reader),
+            errors,
             registered: false,
             mounted: false,
         });
@@ -284,7 +239,10 @@ impl DenoInterpreter {
     fn ask(&self, session: &mut Session, code: &str) -> Result<Executed> {
         let id = session.rpc.request("execute", json!({ "code": code }))?;
         loop {
-            let message = session.rpc.receive("during execution")?;
+            let message = match session.rpc.receive("during execution") {
+                Ok(message) => message,
+                Err(failure) => return Err(Self::explained(session, failure)),
+            };
             // A `method` is the sandbox asking *us* something, which is only ever a tool call.
             if message.get("method").and_then(Value::as_str) == Some("tool_call") {
                 self.answer_tool_call(session, &message)?;

@@ -17,7 +17,9 @@ It also found an export that was simply missing: `MIPROv2::compile_traced` answe
 name. rustdoc lists an item by where it is *defined*, which is what made that visible.
 
 Not part of the gate: it needs a nightly toolchain, and a gate every contributor cannot run is one
-that rots. Run it when the walk changes.
+that rots. Run it when the walk changes — alongside `check_public_types_are_nameable.py`, which
+asks rustdoc the other question about the same surface: not whether the walk found every public
+item, but whether a caller can *write* the types those items name.
 
     ./scripts/check_surface_against_rustdoc.py
 """

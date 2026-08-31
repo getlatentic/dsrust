@@ -56,10 +56,15 @@ macro_rules! RLM {
         $crate::Rlm::new($crate::make_signature!($signature)).max_iters($max)
     };
     ($task:ty $(,)?) => {
-        $crate::Rlm::new(<$task as $crate::signature::SignatureSpec>::signature())
+        $crate::Typed::<$task, _>::new($crate::Rlm::new(
+            <$task as $crate::signature::SignatureSpec>::signature(),
+        ))
     };
     ($task:ty, max_iters = $max:expr $(,)?) => {
-        $crate::Rlm::new(<$task as $crate::signature::SignatureSpec>::signature()).max_iters($max)
+        $crate::Typed::<$task, _>::new(
+            $crate::Rlm::new(<$task as $crate::signature::SignatureSpec>::signature())
+                .max_iters($max),
+        )
     };
 }
 

@@ -127,13 +127,23 @@ pub fn mcp_tool_result(result: &Value) -> Result<String> {
 ///
 /// The transport is synchronous because [`Tool::call`](super::Tool::call) is; a caller driving an
 /// async MCP client blocks on it (e.g. `Handle::current().block_on`, under a multi-threaded runtime).
-pub fn mcp_tool<T>(
-    name: impl Into<String>,
-    description: impl Into<String>,
+///
+/// `use<N, D, T>` on the return type, and it is load-bearing: an opaque return type captures every
+/// lifetime in scope by default, so without it the tool borrows `input_schema` — which it never
+/// holds, having copied the argument map out of it here. That made the one thing this function is
+/// for impossible: fetch a schema, build a tool, hand the tool to an agent that outlives the
+/// fetch. Every test in this crate built the tool and called it in one scope, so none of them
+/// could see it. The two string parameters are named rather than `impl Into<String>` only because
+/// a `use<...>` list has to name every type parameter in scope.
+pub fn mcp_tool<N, D, T>(
+    name: N,
+    description: D,
     input_schema: &Value,
     transport: T,
-) -> FnTool<impl Fn(&Value) -> Result<String> + Send + Sync>
+) -> FnTool<impl Fn(&Value) -> Result<String> + Send + Sync + use<N, D, T>>
 where
+    N: Into<String>,
+    D: Into<String>,
     T: Fn(&Value) -> Result<Value> + Send + Sync,
 {
     let args = mcp_tool_args(input_schema);
@@ -146,6 +156,26 @@ where
 mod tests {
     use super::*;
     use crate::react::Tool;
+
+    /// The tool outlives the schema it was built from, which is the only way it is ever used: a
+    /// caller fetches a schema, builds a tool, and hands the tool to an agent that outlives the
+    /// fetch.
+    ///
+    /// An opaque return type captures every lifetime in scope by default, so this did not compile
+    /// until the return type said `use<N, D, T>`. Nothing here could see it — every other test
+    /// builds the tool and calls it in one scope, where the borrow is still live.
+    #[test]
+    fn the_tool_outlives_the_schema_it_was_built_from() {
+        fn built() -> Box<dyn Tool> {
+            let schema = json!({ "properties": { "city": { "type": "string" } } });
+            Box::new(mcp_tool("forecast", "Look it up.", &schema, |_| {
+                Ok(json!("clear"))
+            }))
+        }
+        let tool = built();
+        assert_eq!(tool.name(), "forecast");
+        assert_eq!(tool.args()["city"]["type"], "string");
+    }
 
     /// Faithfulness to dspy's MCP support: our `mcp_tool_args` equals `convert_input_schema_to_tool_args`
     /// for the same input schema — properties under their names, `$ref`s resolved, `required` left off.

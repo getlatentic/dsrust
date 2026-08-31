@@ -39,7 +39,7 @@ cat > "$WORK/src/main.rs" <<'EOF'
 use dsrust::lm::{LM, configure};
 use dsrust::serde_json::json;
 use dsrust::signature::{FieldKind, InField, JsonType, OutField, Signature, SignatureSpec};
-use dsrust::{ChainOfThought, Predict, call};
+use dsrust::{ChainOfThought, Example, Forward, Module, Predict, Prediction, Tool, call, tool};
 
 #[derive(Signature)]
 /// Answer the question.
@@ -60,6 +60,50 @@ struct Steps {
     steps: Vec<String>,
 }
 
+// Both tool forms, in a crate whose manifest names neither `serde_json` nor `anyhow`: each states
+// a `Value` argument, parses its parameters out of one, and answers with an `anyhow::Result`.
+// Every one of those has to reach the caller through `dsrust`, so writing them here is what holds
+// that — and the return type is named, so the `anyhow` re-export is exercised too.
+#[tool]
+/// Greet one person by name.
+fn greet(name: String) -> dsrust::anyhow::Result<String> {
+    Ok(format!("Hello, {name}."))
+}
+
+#[derive(Default)]
+struct Notes {
+    lines: std::sync::Mutex<Vec<String>>,
+}
+
+#[tool]
+impl Notes {
+    /// Write one line down.
+    #[tool]
+    fn write(&self, line: String) -> dsrust::anyhow::Result<String> {
+        self.lines.lock().expect("not poisoned").push(line);
+        Ok("Written.".to_owned())
+    }
+}
+
+// A module of the caller's own, in a crate whose manifest names no `anyhow`: `#[derive(Module)]`
+// writes a `forward` answering with `anyhow::Result<Prediction>` and an `Ask` impl beside it, and
+// both have to reach the caller through `dsrust`. Writing one here is what holds that — it did not,
+// and a real consumer found it: the derive was unusable from any crate that had not added `anyhow`
+// of its own.
+#[derive(Module)]
+#[task(QA)]
+struct Twice {
+    first: Predict,
+    second: Predict,
+}
+
+impl Forward for Twice {
+    async fn forward(&self, inputs: Example) -> dsrust::anyhow::Result<Prediction> {
+        let draft = self.first.forward(inputs).await?;
+        self.second.forward(draft.example).await
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     configure(LM::new("openai/gpt-4o-mini")?);
@@ -73,6 +117,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let out = call!(Predict!(QA), question = "What is the capital of France?").await?;
         println!("{}", out.answer);
     }
+
+    assert_eq!(Greet.name(), "greet");
+    assert_eq!(Greet.description(), "Greet one person by name.");
+    assert_eq!(Greet.call(&json!({ "name": "Ada" }))?, "Hello, Ada.");
+    assert!(Greet.call(&json!({}))?.starts_with("Refused:"));
+
+    let notes = std::sync::Arc::new(Notes::default());
+    let roster = notes.tools();
+    assert_eq!(roster.len(), 1);
+    assert_eq!(roster[0].call(&json!({ "line": "first" }))?, "Written.");
+
+    // Declared and walked, not asked: `named_predictors` is the seam an optimizer works through,
+    // and the derive is what fills it.
+    let mut mine = Twice {
+        first: Predict::from_signature(QA::signature()),
+        second: Predict::from_signature(QA::signature()),
+    };
+    assert_eq!(dsrust::Module::named_predictors(&mut mine).len(), 2);
 
     assert_eq!(QA::signature().instructions, "Answer the question.");
     println!("{}", Steps::signature().outputs.len());

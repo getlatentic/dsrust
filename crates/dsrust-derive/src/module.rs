@@ -20,6 +20,33 @@ pub(crate) fn expand(item: &DeriveInput) -> Result<proc_macro2::TokenStream, syn
     let name = &item.ident;
     let label = name.to_string();
     let steps = steps(item)?;
+    let answering = match task(item)? {
+        // The task arms of the built-in module macros wrap in `Typed`, which is the same thing:
+        // the answer is read as the task's outputs rather than looked up in a `Prediction`.
+        Some(task) => quote! {
+            impl ::dsrust::Ask for #name {
+                type Answer = <#task as ::dsrust::signature::SignatureSpec>::Outputs;
+
+                fn ask<'a>(
+                    &'a self,
+                    inputs: ::dsrust::Example,
+                ) -> ::std::pin::Pin<
+                    ::std::boxed::Box<
+                        dyn ::std::future::Future<Output = ::dsrust::__macro_support::anyhow::Result<Self::Answer>>
+                            + Send
+                            + 'a,
+                    >,
+                > {
+                    ::std::boxed::Box::pin(async move {
+                        ::dsrust::Module::forward(self, inputs)
+                            .await?
+                            .typed::<Self::Answer>()
+                    })
+                }
+            }
+        },
+        None => quote! { ::dsrust::asks_with_a_prediction!(#name); },
+    };
 
     // Each child's predictors are renamed after the field holding it, so a demo says which step
     // of the program earned it rather than which predictor inside that step.
@@ -40,7 +67,7 @@ pub(crate) fn expand(item: &DeriveInput) -> Result<proc_macro2::TokenStream, syn
                 inputs: ::dsrust::Example,
             ) -> ::std::pin::Pin<
                 ::std::boxed::Box<
-                    dyn ::std::future::Future<Output = ::anyhow::Result<::dsrust::Prediction>>
+                    dyn ::std::future::Future<Output = ::dsrust::__macro_support::anyhow::Result<::dsrust::Prediction>>
                         + Send
                         + 'a,
                 >,
@@ -69,7 +96,23 @@ pub(crate) fn expand(item: &DeriveInput) -> Result<proc_macro2::TokenStream, syn
             }
         }
 
-        ::dsrust::asks_with_a_prediction!(#name);
+        #answering
+    })
+}
+
+/// The task this module answers with, if it names one: `#[task(QA)]` beside the derive.
+///
+/// Without it `call!` answers with a `Prediction`, which is what a program whose outputs are not
+/// one task's — a router, a pipeline ending in a different shape — has to answer with.
+fn task(item: &DeriveInput) -> Result<Option<syn::Path>, syn::Error> {
+    let Some(attribute) = item.attrs.iter().find(|a| a.path().is_ident("task")) else {
+        return Ok(None);
+    };
+    attribute.parse_args::<syn::Path>().map(Some).map_err(|_| {
+        syn::Error::new_spanned(
+            attribute,
+            "`#[task(..)]` names one signature type, as `#[task(QA)]`",
+        )
     })
 }
 

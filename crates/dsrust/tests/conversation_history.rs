@@ -61,7 +61,10 @@ fn agrees(ours: &[(String, String)], theirs: &Value, what: &str) {
 fn a_history_exchange_substitutes_pythons_none_for_what_it_never_recorded() {
     let fixture = fixture();
     let signature: Signature =
-        "question: str, history: History -> answer: str, tags: list[str], score: int"
+        // `dspy.History`, not `History`: upstream evaluates an annotation with `dspy` in scope and
+        // nothing else of its own, so the bare name is `ValueError: Unknown name: History`. This
+        // read `History` until the two parsers were diffed over thirty-five strings.
+        "question: str, history: dspy.History -> answer: str, tags: list[str], score: int"
             .parse()
             .expect("parses");
     let signature = signature.with_instructions("Answer the question.");

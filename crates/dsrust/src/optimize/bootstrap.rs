@@ -8,7 +8,7 @@ use crate::lm::Sampling;
 use crate::module::Module;
 
 use super::Optimizer;
-use super::earned::{Bootstrapped, Solved};
+use super::earned::{Bootstrapped, Solved, unattributable};
 use super::labeled::LabeledFewShot;
 use super::rng::Rng;
 
@@ -102,7 +102,7 @@ where
         trainset: &[Example],
     ) -> Result<usize> {
         let bootstrapped = self.bootstrap(student, trainset).await?;
-        Ok(self.train(student, bootstrapped))
+        self.train(student, bootstrapped)
     }
 
     /// dspy `compile(student, teacher=teacher, trainset=...)`: a separate program produces the
@@ -119,7 +119,7 @@ where
     {
         same_shape(student, teacher)?;
         let bootstrapped = self.bootstrap(teacher, trainset).await?;
-        Ok(self.train(student, bootstrapped))
+        self.train(student, bootstrapped)
     }
 
     /// dspy `_bootstrap`: walk the trainset until the budget is spent, keeping what solved.
@@ -200,8 +200,7 @@ where
     ) -> Result<Option<Solved>> {
         let inputs = example.inputs()?;
         let withheld = withhold(teacher, example);
-        let mut trace = Vec::new();
-        let prediction = teacher.forward_traced(inputs.clone(), &mut trace).await;
+        let (prediction, trace) = teacher.traced(inputs.clone()).await;
         // Unconditionally, before the failure is handed on. dspy's restore sits after the call
         // inside the same `try`, so a program that raises leaves the example struck out of the
         // teacher's demos for the whole rest of the compile. Nothing decides that; it leaks.
@@ -242,7 +241,12 @@ where
     }
 
     /// dspy `_train`: bootstrapped demos first, then labelled ones to fill the budget out.
-    fn train<S: Module + ?Sized>(&self, student: &mut S, mut bootstrapped: Bootstrapped) -> usize {
+    fn train<S: Module + ?Sized>(
+        &self,
+        student: &mut S,
+        mut bootstrapped: Bootstrapped,
+    ) -> Result<usize> {
+        unattributable(student, &bootstrapped)?;
         let mut rng = Rng::seeded(0);
         let mut raw = std::mem::take(&mut bootstrapped.validation);
         let mut widest = 0;
@@ -257,35 +261,7 @@ where
             raw = rng.sample(&raw, room);
             *predictor.demos = augmented.iter().chain(&raw).cloned().collect();
         }
-        widest
-    }
-}
-
-impl<M> Optimizer for BootstrapFewShot<M>
-where
-    M: crate::evaluate::Metric,
-{
-    async fn compile<'a>(
-        &'a self,
-        student: &'a mut dyn Module,
-        teacher: Option<&'a mut dyn Module>,
-        trainset: &'a [Example],
-        valset: Option<&'a [Example]>,
-    ) -> Result<()> {
-        if valset.is_some() {
-            return Err(anyhow!(
-                "BootstrapFewShot keeps the traces a teacher produced and never scores a \
-                 candidate, so it has no valset to score on"
-            ));
-        }
-        match teacher {
-            Some(teacher) => {
-                self.compile_with_teacher(student, teacher, trainset)
-                    .await?
-            }
-            None => BootstrapFewShot::compile(self, student, trainset).await?,
-        };
-        Ok(())
+        Ok(widest)
     }
 }
 
@@ -392,6 +368,34 @@ where
         }
     }
     Ok(())
+}
+
+impl<M> Optimizer for BootstrapFewShot<M>
+where
+    M: crate::evaluate::Metric,
+{
+    async fn compile<'a>(
+        &'a self,
+        student: &'a mut dyn Module,
+        teacher: Option<&'a mut dyn Module>,
+        trainset: &'a [Example],
+        valset: Option<&'a [Example]>,
+    ) -> Result<()> {
+        if valset.is_some() {
+            return Err(anyhow!(
+                "BootstrapFewShot keeps the traces a teacher produced and never scores a \
+                 candidate, so it has no valset to score on"
+            ));
+        }
+        match teacher {
+            Some(teacher) => {
+                self.compile_with_teacher(student, teacher, trainset)
+                    .await?
+            }
+            None => BootstrapFewShot::compile(self, student, trainset).await?,
+        };
+        Ok(())
+    }
 }
 
 #[cfg(test)]

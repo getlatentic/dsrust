@@ -114,7 +114,26 @@ impl File {
     }
 }
 
+impl File {
+    /// The schema dspy prints in a `File` output's field note.
+    ///
+    /// Recorded from upstream verbatim rather than generated. pydantic renders the model *and its
+    /// class docstring* — the `description` here is that docstring, wrapped exactly as Python wraps
+    /// it — so a schema derived from the Rust struct would agree about the fields and differ about
+    /// everything else. It is prompt text, and the bytes are what matter.
+    ///
+    /// The same shape as [`ToolCalls::output_schema`](crate::ToolCalls::output_schema), which the
+    /// crate already kept this way for the same reason.
+    pub fn output_schema() -> serde_json::Value {
+        serde_json::from_str(r#"{"type": "object", "additionalProperties": false, "description": "A file input type for DSPy.\nSee https://platform.openai.com/docs/api-reference/chat/create#chat_create-messages-user_message-content-array_of_content_parts-file_content_part-file for specification.\n\nThe file_data field should be a data URI with the format:\n    data:<mime_type>;base64,<base64_encoded_data>\n\nConstruct from in-memory values only: raw ``bytes``, a data URI string, a\n``{\"file_data\"|\"file_id\"|\"filename\"}`` dict, or another ``File``. Construction and adapter\nparsing never access the filesystem; use :meth:`from_path` to read a local file,\n:meth:`from_bytes` for raw bytes, or :meth:`from_file_id` to reference a preuploaded file.\n\nExamples:\n    ```python\n    import dspy\n\n    class QA(dspy.Signature):\n        file: dspy.File = dspy.InputField()\n        summary = dspy.OutputField()\n    program = dspy.Predict(QA)\n    result = program(file=dspy.File.from_path(\"./research.pdf\"))\n    print(result.summary)\n    ```", "properties": {"file_data": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": null, "title": "File Data"}, "file_id": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": null, "title": "File Id"}, "filename": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": null, "title": "Filename"}}, "title": "File"}"#).expect("upstream's own schema, recorded verbatim")
+    }
+}
+
 impl Type for File {
+    fn output_schema() -> Option<serde_json::Value> {
+        Some(Self::output_schema())
+    }
+
     /// dspy `File.format`: one `file` block carrying only the fields that are set, in dspy's order.
     fn format(&self) -> Formatted {
         let mut file = Map::new();

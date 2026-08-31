@@ -123,10 +123,14 @@ macro_rules! ProgramOfThought {
         $crate::ProgramOfThought::new($crate::make_signature!($signature)).max_iters($max)
     };
     ($task:ty $(,)?) => {
-        $crate::ProgramOfThought::new(<$task as $crate::signature::SignatureSpec>::signature())
+        $crate::Typed::<$task, _>::new($crate::ProgramOfThought::new(
+            <$task as $crate::signature::SignatureSpec>::signature(),
+        ))
     };
     ($task:ty, max_iters = $max:expr $(,)?) => {
-        $crate::ProgramOfThought::new(<$task as $crate::signature::SignatureSpec>::signature())
-            .max_iters($max)
+        $crate::Typed::<$task, _>::new(
+            $crate::ProgramOfThought::new(<$task as $crate::signature::SignatureSpec>::signature())
+                .max_iters($max),
+        )
     };
 }

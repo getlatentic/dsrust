@@ -143,14 +143,37 @@ fn derive_spells_complex_field_types_the_way_dspy_prints_them() {
     let ideas_schema = json_field_schema::<Vec<GiftIdea>>();
     assert_eq!(signature.outputs[0].schema.as_ref(), Some(&ideas_schema));
     assert_eq!(ideas_schema["type"], json!("array"));
-    assert_eq!(ideas_schema["items"]["required"], json!(["title", "why"]));
+    // Hoisted, as pydantic hoists: the item is a reference and the model is a definition.
+    assert_eq!(ideas_schema["items"]["$ref"], json!("#/$defs/GiftIdea"));
+    assert_eq!(
+        ideas_schema["$defs"]["GiftIdea"]["required"],
+        json!(["title", "why"])
+    );
 
     let schema = signature.schema();
-    assert_eq!(schema["properties"]["ideas"], ideas_schema);
+    // The property is the field's schema with its definitions lifted out — same reference, one
+    // `$defs` block for the document rather than one per field.
+    assert_eq!(schema["properties"]["ideas"]["type"], ideas_schema["type"]);
+    assert_eq!(
+        schema["properties"]["ideas"]["items"],
+        ideas_schema["items"]
+    );
     assert_eq!(schema["properties"]["tip"], json!({ "type": "string" }));
-    let rendered = schema.to_string();
-    assert!(!rendered.contains("$ref"), "got: {rendered}");
-    assert!(!rendered.contains("$schema"), "got: {rendered}");
+    // The definitions are lifted to the root, so every `$ref` resolves against the document. Left
+    // under the property that carried them, `#/$defs/GiftIdea` would point at nothing — a schema a
+    // provider is right to reject, and one this assertion previously could not have caught because
+    // nothing was hoisted at all.
+    assert_eq!(
+        schema["$defs"]["GiftIdea"]["title"],
+        json!("GiftIdea"),
+        "got: {schema}"
+    );
+    assert_eq!(
+        schema["properties"]["ideas"]["items"]["$ref"],
+        json!("#/$defs/GiftIdea")
+    );
+    assert_eq!(schema["properties"]["ideas"].get("$defs"), None);
+    assert!(!schema.to_string().contains("$schema"), "got: {schema}");
 }
 
 #[test]
@@ -211,14 +234,18 @@ async fn prompts_annotate_json_fields_and_a_marker_reply_deserializes() {
         system.contains("1. `ideas` (list[GiftIdea]): three concrete ideas\n"),
         "got: {system}"
     );
-    // The schema reaches the model through the slot note alone, spaced as `json.dumps` writes
-    // it. Its shape is this crate's own — inlined where upstream would emit `$defs`/`$ref`.
+    // The schema reaches the model through the slot note alone, spaced as `json.dumps` writes it —
+    // and in pydantic's dialect, because dspy prints what pydantic produced. This assertion carried
+    // the inlined, untitled shape until the two were rendered side by side; the comment beside it
+    // said so, and nothing acted on it. Verified against `_get_json_schema(list[GiftIdea])`.
     assert!(
         system.contains(
             "{ideas}        # note: the value you produce must adhere to the JSON schema: \
-             {\"type\": \"array\", \"items\": {\"type\": \"object\", \"properties\": \
-             {\"title\": {\"type\": \"string\"}, \"why\": {\"type\": \"string\"}}, \
-             \"required\": [\"title\", \"why\"]}}"
+             {\"type\": \"array\", \"$defs\": {\"GiftIdea\": {\"type\": \"object\", \
+             \"properties\": {\"title\": {\"type\": \"string\", \"title\": \"Title\"}, \
+             \"why\": {\"type\": \"string\", \"title\": \"Why\"}}, \"required\": \
+             [\"title\", \"why\"], \"title\": \"GiftIdea\"}}, \"items\": \
+             {\"$ref\": \"#/$defs/GiftIdea\"}}"
         ),
         "got: {system}"
     );

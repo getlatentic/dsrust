@@ -966,3 +966,119 @@ mod failed_parse_tests {
         }
     }
 }
+
+/// GEPA on a program that implements no `forward_traced` of its own.
+///
+/// The reflective dataset is built by filtering a run's trace to the predictor being reflected on,
+/// so a program that recorded nothing produced an empty dataset for every predictor — GEPA would
+/// run the whole trainset, propose nothing, and report a search that improved nothing. Nothing said
+/// why, and nothing failed.
+#[cfg(test)]
+mod untraced_student {
+    use super::*;
+
+    use crate::signature::{FieldKind, InField, OutField, Signature};
+    use crate::{DummyLM, NamedPredictor, Predict, Prediction, example};
+
+    fn signature(input: &str, output: &str, instructions: &str) -> Signature {
+        Signature {
+            instructions: instructions.to_owned(),
+            inputs: vec![InField {
+                name: input.to_owned(),
+                kind: FieldKind::Str,
+                ..Default::default()
+            }],
+            outputs: vec![OutField {
+                name: output.to_owned(),
+                kind: FieldKind::Str,
+                ..Default::default()
+            }],
+        }
+    }
+
+    /// Two predictors, reached through plain `forward` — what `#[derive(Module)]` produces.
+    struct Pipeline {
+        drafting: Predict,
+        polishing: Predict,
+    }
+
+    impl Module for Pipeline {
+        fn forward<'a>(
+            &'a self,
+            inputs: Example,
+        ) -> std::pin::Pin<Box<dyn Future<Output = anyhow::Result<Prediction>> + Send + 'a>>
+        {
+            Box::pin(async move {
+                let drafted = self.drafting.forward(inputs).await?;
+                let mut next = Example::default();
+                next.set("note", drafted.get("note").cloned().unwrap_or_default());
+                self.polishing.forward(next).await
+            })
+        }
+
+        fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
+            let mut all = Vec::new();
+            for (name, predictor) in [
+                ("drafting", &mut self.drafting),
+                ("polishing", &mut self.polishing),
+            ] {
+                for mut inner in predictor.named_predictors() {
+                    inner.name = name.to_owned();
+                    all.push(inner);
+                }
+            }
+            all
+        }
+    }
+
+    #[tokio::test]
+    async fn each_predictor_has_something_to_reflect_on() {
+        let answering = |field: &'static str, value: &'static str| {
+            std::sync::Arc::new(DummyLM::new(std::iter::repeat_n(
+                Example::new([(field, serde_json::json!(value))]),
+                4,
+            ))) as Arc<dyn DynChatModel>
+        };
+        let mut student = Pipeline {
+            drafting: Predict::from_signature(signature("question", "note", "Draft."))
+                .set_lm(answering("note", "a note")),
+            polishing: Predict::from_signature(signature("note", "answer", "Polish."))
+                .set_lm(answering("answer", "Paris")),
+        };
+        let metric =
+            |_: &Example, _: &crate::Prediction, _: &MetricContext<'_>| Feedback::score_only(1.0);
+        let examples = [example! { question: "capital of France?" }.with_inputs(["question"])];
+        let mut adapter = Adapter::new(
+            &mut student,
+            &metric,
+            Arc::new(DummyLM::new([])),
+            &examples,
+            &[],
+            Settings {
+                failure_score: 0.0,
+                num_threads: 1,
+                proposer: None,
+                seed: 0,
+            },
+        );
+
+        let candidate: Candidate = [
+            ("drafting".to_owned(), "Draft.".to_owned()),
+            ("polishing".to_owned(), "Polish.".to_owned()),
+        ]
+        .into_iter()
+        .collect();
+        adapter.evaluate(&examples, &candidate, true).await;
+
+        for (name, input, output, instructions) in [
+            ("drafting", "question", "note", "Draft."),
+            ("polishing", "note", "answer", "Polish."),
+        ] {
+            let dataset = adapter.reflective_dataset(name, &signature(input, output, instructions));
+            assert!(
+                !dataset.is_empty(),
+                "{name} had nothing to reflect on, so GEPA would propose nothing for it"
+            );
+        }
+    }
+}

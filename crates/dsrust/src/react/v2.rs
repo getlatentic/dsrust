@@ -163,7 +163,7 @@ impl ReActV2 {
             }
 
             let calls = ensure_ids(calls, turn_index);
-            let (results, final_outputs) = self.execute_tool_calls(&calls);
+            let (results, final_outputs) = self.execute_tool_calls(&calls).await;
             let event = self.history_event(&pending, &pred, calls, results, final_outputs.as_ref());
             record(&mut history, event);
             pending = Example::default();
@@ -218,7 +218,7 @@ impl ReActV2 {
     /// dspy `_execute_tool_calls`: run each call, turning an unknown tool or a raised error into an
     /// observation the model reads rather than an abort. `submit` returning a mapping is the task's
     /// final output.
-    fn execute_tool_calls(
+    async fn execute_tool_calls(
         &self,
         calls: &ToolCalls,
     ) -> (ToolCallResults, Option<Map<String, Value>>) {
@@ -232,7 +232,7 @@ impl ReActV2 {
                 is_errors.push(true);
                 continue;
             };
-            match crate::observe::tool_call(tool, &Value::Object(call.args.clone())) {
+            match crate::observe::tool_acall(tool, &Value::Object(call.args.clone())).await {
                 Ok(value) => {
                     if call.name == SUBMIT && value.is_object() {
                         final_outputs = value.as_object().cloned();
@@ -321,7 +321,7 @@ impl ReActV2 {
             return Ok(failed(&history, break_reason));
         }
 
-        let (results, final_outputs) = self.execute_tool_calls(&submit_calls);
+        let (results, final_outputs) = self.execute_tool_calls(&submit_calls).await;
         let event = self.history_event(
             &pending,
             &pred,

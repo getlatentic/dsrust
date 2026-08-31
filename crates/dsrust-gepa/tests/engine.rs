@@ -8,6 +8,7 @@
 //! full-valset re-evaluation, the metric-call budget, and the state bookkeeping (parents, discovery
 //! eval-counts, per-candidate mean valset score, and the best index).
 
+use gepa::progress::Silent;
 use gepa::{Candidate, EvalBatch, GepaAdapter, GepaEngine};
 use gepa::{CandidateSelection, ComponentSelection};
 use serde_json::Value;
@@ -156,6 +157,7 @@ async fn reproduces_the_runs_gepa_produces() {
             // change of default from silently re-pointing this at another strategy.
             candidate_selection_strategy: CandidateSelection::Pareto,
             track_best_outputs: false,
+            progress: std::sync::Arc::new(Silent),
             component_selector: ComponentSelection::RoundRobin,
         };
         let outcome = engine.optimize(candidate_of(&case["seed_candidate"])).await;

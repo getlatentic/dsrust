@@ -18,6 +18,7 @@ mod metric;
 mod multimodal;
 mod proposer;
 mod reflecting;
+mod reported;
 
 #[cfg(test)]
 mod conformance;
@@ -25,6 +26,7 @@ mod conformance;
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
+use gepa::progress::Silent;
 use gepa::{CandidateSelection, ComponentSelection, GepaEngine};
 
 /// gepa's `Candidate`, re-exported so a caller writing an `InstructionProposer` can name the type it
@@ -33,9 +35,11 @@ pub use gepa::Candidate;
 
 pub use gepa::GepaOutcome;
 pub use gepa::Reflective;
+pub use gepa::progress::{Event, Progress};
 pub use metric::{Feedback, MetricContext};
 pub use multimodal::MultiModalInstructionProposer;
 pub use proposer::{InstructionProposer, ReflectiveDataset};
+pub use reported::Reported;
 
 use adapter::Adapter;
 use binding::set_instructions;
@@ -70,6 +74,9 @@ pub struct GEPA<M> {
     /// dspy `candidate_selection_strategy`. See [`CandidateSelection`].
     candidate_selection_strategy: CandidateSelection,
     track_best_outputs: bool,
+    /// Where a run reports its decisions as it makes them — dspy's `logger`, which upstream fills
+    /// with formatted lines and this fills with the values those lines format.
+    progress: Arc<dyn Progress>,
     add_format_failure_as_feedback: bool,
     /// dspy `component_selector`. See [`ComponentSelection`].
     component_selector: ComponentSelection,
@@ -99,6 +106,7 @@ where
             candidate_selection_strategy: CandidateSelection::default(),
             component_selector: ComponentSelection::default(),
             track_best_outputs: false,
+            progress: Arc::new(Silent),
             add_format_failure_as_feedback: false,
             proposer: None,
         }
@@ -258,6 +266,31 @@ where
     }
 
     /// Whether the merge step runs at all (dspy default true).
+    /// Where this run reports each decision as it makes it — dspy's `logger`, and the seam a
+    /// caller streaming a run to a user interface subscribes to.
+    ///
+    /// Upstream formats a line and hands it to Python's `logging`; this hands over the values that
+    /// line formats, so a subscriber can act on the score without parsing prose. [`Reported`] is
+    /// the one that prints, for a caller that only wants what upstream printed.
+    ///
+    /// ```
+    /// use dsrust::optimize::{Feedback, GEPA, MetricContext, Reported};
+    /// use dsrust::lm::DynChatModel;
+    /// use dsrust::{DummyLM, Example, Prediction};
+    /// use std::sync::Arc;
+    ///
+    /// fn scored(_: &Example, _: &Prediction, _: &MetricContext<'_>) -> Feedback {
+    ///     Feedback::new(1.0, "fine")
+    /// }
+    ///
+    /// let reflection = Arc::new(DummyLM::new([])) as Arc<dyn DynChatModel>;
+    /// let gepa = GEPA::new(scored, reflection).progress(Arc::new(Reported));
+    /// ```
+    pub fn progress(mut self, progress: Arc<dyn Progress>) -> Self {
+        self.progress = progress;
+        self
+    }
+
     pub fn use_merge(mut self, use_merge: bool) -> Self {
         self.use_merge = use_merge;
         self
@@ -347,6 +380,7 @@ where
             candidate_selection_strategy: self.candidate_selection_strategy,
             component_selector: self.component_selector,
             track_best_outputs: self.track_best_outputs,
+            progress: Arc::clone(&self.progress),
         };
         let outcome = engine.optimize(seed_candidate).await;
         set_instructions(student, &outcome.best);

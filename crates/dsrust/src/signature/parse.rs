@@ -11,6 +11,7 @@
 //! and so does this.
 
 use anyhow::{Result, anyhow};
+use serde_json::Value;
 
 use super::{FieldKind, InField, LiteralValue, OutField, Signature};
 use crate::signature::field_type::JsonType;
@@ -25,12 +26,12 @@ pub fn parse(signature: &str) -> Result<Signature> {
         ));
     }
     let (before, after) = signature.split_once("->").expect("one arrow, just counted");
-    let inputs = declarations(before)?;
-    let outputs = declarations(after)?;
+    let inputs = collapsed(declarations(before, "input")?);
+    let outputs = collapsed(declarations(after, "output")?);
     refuse_duplicates(&inputs, &outputs)?;
 
     Ok(Signature {
-        instructions: default_instructions(&inputs, &outputs),
+        instructions: declared_instructions(&inputs, &outputs),
         inputs: inputs
             .iter()
             .map(|declared| InField {
@@ -46,6 +47,7 @@ pub fn parse(signature: &str) -> Result<Signature> {
                 name: declared.name.clone(),
                 kind: declared.kind.clone(),
                 values: declared.values.clone(),
+                schema: declared.schema.clone(),
                 ..Default::default()
             })
             .collect(),
@@ -53,11 +55,15 @@ pub fn parse(signature: &str) -> Result<Signature> {
 }
 
 /// dspy's `_default_instructions`, which stands in for a docstring nobody wrote.
-fn default_instructions(inputs: &[Declared], outputs: &[Declared]) -> String {
-    let quoted = |fields: &[Declared]| {
+///
+/// Public because the derive needs it too: a `dspy.Signature` subclass with no docstring is
+/// ordinary — the `conversation_history` tutorial writes one — and it gets these instructions, not
+/// an error. Reachable rather than reimplemented, so the two spellings cannot drift.
+pub fn default_instructions(inputs: &[&str], outputs: &[&str]) -> String {
+    let quoted = |fields: &[&str]| {
         fields
             .iter()
-            .map(|declared| format!("`{}`", declared.name))
+            .map(|name| format!("`{name}`"))
             .collect::<Vec<_>>()
             .join(", ")
     };
@@ -66,6 +72,42 @@ fn default_instructions(inputs: &[Declared], outputs: &[Declared]) -> String {
         quoted(inputs),
         quoted(outputs)
     )
+}
+
+fn declared_instructions(inputs: &[Declared], outputs: &[Declared]) -> String {
+    fn names(fields: &[Declared]) -> Vec<&str> {
+        fields
+            .iter()
+            .map(|declared| declared.name.as_str())
+            .collect()
+    }
+    default_instructions(&names(inputs), &names(outputs))
+}
+
+/// One name declared twice on the same side is one field — Python's dict semantics, which are
+/// upstream's whole implementation here.
+///
+/// dspy collects each side into a `dict` keyed by name, so a repeat *overwrites* rather than adding:
+/// `"q: int, ctx: str, q: str -> a"` is two inputs, `q` still first and now a `str`. **First
+/// position, last value**, measured on 3.3.0.
+///
+/// A `Vec` keeps both, and the field then appears twice in the prompt — the adapter asks the model
+/// to answer it once per copy and rejects a reply that answered it once. Nothing here is reachable
+/// from a well-formed hand-written string; it is reachable the moment a signature is *generated*,
+/// which is what a graph builder does.
+fn collapsed(declared: Vec<Declared>) -> Vec<Declared> {
+    let mut order: Vec<String> = Vec::new();
+    let mut latest: std::collections::HashMap<String, Declared> = std::collections::HashMap::new();
+    for field in declared {
+        if !latest.contains_key(&field.name) {
+            order.push(field.name.clone());
+        }
+        latest.insert(field.name.clone(), field);
+    }
+    order
+        .into_iter()
+        .filter_map(|name| latest.remove(&name))
+        .collect()
 }
 
 /// dspy sorts the names it found on both sides, so the message does not depend on which side
@@ -88,11 +130,16 @@ fn refuse_duplicates(inputs: &[Declared], outputs: &[Declared]) -> Result<()> {
 }
 
 /// One side of the arrow: `name`, or `name: annotation`, separated by commas.
-fn declarations(side: &str) -> Result<Vec<Declared>> {
-    split_top_level(side, ',')
+fn declarations(text: &str, side: &str) -> Result<Vec<Declared>> {
+    let parts = split_top_level(text, ',');
+    // An empty part is a stray comma — `q,, x` — which upstream's `ast.parse` refuses. Skipping it
+    // silently made `q,, x -> a` a two-input signature that Python would not have built at all.
+    let trailing = parts.len().saturating_sub(1);
+    parts
         .into_iter()
-        .filter(|part| !part.trim().is_empty())
-        .map(|part| declaration(part.trim()))
+        .enumerate()
+        .filter(|(at, part)| !(*at == trailing && part.trim().is_empty()))
+        .map(|(_, part)| declaration(part.trim(), side))
         .collect()
 }
 
@@ -102,44 +149,76 @@ struct Declared {
     kind: FieldKind,
     /// The members, when the annotation is a `Literal`. Nothing else closes a field's set.
     values: Option<Vec<LiteralValue>>,
+    /// What the annotation names, as a schema — the note an output prints. A struct hands this to
+    /// schemars; a string signature has no Rust type, so the annotation is resolved instead.
+    schema: Option<Value>,
 }
 
-fn declaration(part: &str) -> Result<Declared> {
+fn declaration(part: &str, side: &str) -> Result<Declared> {
     let (name, annotation) = match part.split_once(':') {
         // An unannotated field is a string, which upstream notes it would rather be explicit
         // about and cannot be without breaking programs that leave the type off.
         None => (part.trim(), None),
         Some((name, annotation)) => (name.trim(), Some(annotation.trim())),
     };
-    if name.is_empty() {
-        return Err(anyhow!("Invalid signature format: a field has no name."));
-    }
-    let (kind, values) = kind_of(annotation);
+    super::identifier::refuse_unless_identifier(name, side)?;
+    let (kind, values) = kind_of(annotation, name)?;
+    // Only a `Json` field prints a schema; a scalar states its shape in the field line itself.
+    let schema = match &kind {
+        FieldKind::Json(_) => annotation.and_then(|text| {
+            // One of dspy's own types prints its type's schema, which no annotation string can
+            // build; everything else prints the schema its annotation stands for.
+            super::annotation::custom_type(text)
+                .and_then(super::annotation::custom_schema)
+                .or_else(|| super::annotation::schema_for(text))
+        }),
+        _ => None,
+    };
     Ok(Declared {
         name: name.to_owned(),
         kind,
         values,
+        schema,
     })
 }
 
 /// The scalar kinds name themselves; everything else travels as the annotation dspy would print.
-fn kind_of(annotation: Option<&str>) -> (FieldKind, Option<Vec<LiteralValue>>) {
-    match annotation {
-        None | Some("str") => (FieldKind::Str, None),
+fn kind_of(annotation: Option<&str>, name: &str) -> Result<(FieldKind, Option<Vec<LiteralValue>>)> {
+    Ok(match annotation {
+        // A bare `None` is not a type a field can hold, and upstream renders the field as a
+        // plain `str` — the same as leaving the annotation off.
+        None | Some("str") | Some("None") => (FieldKind::Str, None),
         Some("int") => (FieldKind::Int, None),
         Some("float") => (FieldKind::Float, None),
         Some("bool") => (FieldKind::Bool, None),
         Some(other) => match literal_members(other) {
             Some(values) => (FieldKind::Str, Some(values)),
-            None => (
-                FieldKind::Json(JsonType {
-                    annotation: canonical(other),
-                    ..Default::default()
-                }),
-                None,
-            ),
+            // An annotation this cannot resolve is one upstream cannot resolve either. dspy
+            // evaluates it against builtins and `typing` and nothing else — `Image` is
+            // `ValueError: Unknown name: Image` — and a Rust program has no namespace to add to,
+            // so the resolvable set is closed and an unknown name is a mistake rather than a type
+            // this port has not learned.
+            //
+            // Carried as an opaque field until then, which put `1. `a` (unknown_type):` in a
+            // prompt and asked the model for a type that does not exist.
+            None => {
+                super::annotation::refuse_unless_resolvable(other, name)?;
+                match super::annotation::custom_type(other) {
+                    // A custom type renders under its class name — `dspy.History` is the only
+                    // spelling that resolves, and `get_annotation_name` prints `History` — and it
+                    // carries whatever prose the type says about itself.
+                    Some(custom) => super::annotation::custom_field(custom),
+                    None => (
+                        FieldKind::Json(JsonType {
+                            annotation: canonical(other),
+                            ..Default::default()
+                        }),
+                        None,
+                    ),
+                }
+            }
         },
-    }
+    })
 }
 
 /// The members of a `Literal[...]`, under either spelling upstream resolves — `Literal[…]` and
@@ -185,10 +264,17 @@ fn literal_member(member: &str) -> Option<LiteralValue> {
 
 /// The spelling Python prints for an annotation, which is not always the one it was given.
 ///
-/// Upstream resolves an annotation into a `typing` object and prints that object afterwards, so
-/// a PEP 604 union comes back as the older spelling: `int | None` reads `Optional[int]`, and
-/// anything else reads `Union[...]` with `None` written `NoneType`. It applies at every depth,
-/// because the members are resolved before the type around them is built.
+/// Upstream resolves an annotation into a `typing` object and prints *that object* — so every
+/// optional, however it was spelled, comes back as `Union[T, NoneType]`. `Optional[str]`,
+/// `str | None` and `Union[str, None]` are three ways of writing one type and one way of printing
+/// it. This claimed the reverse, that a union collapses *to* `Optional`, which is the spelling no
+/// annotation ever reaches a prompt under. Measured over fifteen annotations, ten read differently
+/// here than upstream; the derive had it right the whole time and only the string form did not.
+///
+/// A module-qualified name loses its module: `list[dspy.Tool]` reads `list[Tool]`, because what is
+/// printed is the class, not the path that reached it.
+///
+/// All of it applies at every depth, because the members are resolved before the type around them.
 fn canonical(annotation: &str) -> String {
     let annotation = annotation.trim();
     let members = split_top_level(annotation, '|');
@@ -196,33 +282,79 @@ fn canonical(annotation: &str) -> String {
         return canonical_union(&members);
     }
     let Some((head, rest)) = annotation.split_once('[') else {
-        return annotation.to_owned();
+        return leaf(annotation);
     };
-    let arguments: Vec<String> = split_top_level(rest.strip_suffix(']').unwrap_or(rest), ',')
+    let head = head.trim();
+    let arguments = split_top_level(rest.strip_suffix(']').unwrap_or(rest), ',');
+    // `Optional[T]` *is* a union, and prints as one.
+    if head == "Optional" || head == "typing.Optional" {
+        return canonical_union(&[arguments.first().copied().unwrap_or(""), "None"]);
+    }
+    if head == "Union" || head == "typing.Union" {
+        return canonical_union(&arguments);
+    }
+    // A `Literal`'s members are values, not types: they are printed back rather than resolved,
+    // with `typing`'s own spacing.
+    if head == "Literal" || head == "typing.Literal" {
+        let members: Vec<&str> = arguments.iter().map(|member| member.trim()).collect();
+        return format!("Literal[{}]", members.join(", "));
+    }
+    let arguments: Vec<String> = arguments
         .iter()
         .map(|argument| canonical(argument))
         .collect();
-    format!("{}[{}]", head.trim(), arguments.join(", "))
+    format!("{head}[{}]", arguments.join(", "))
 }
 
-fn canonical_union(members: &[&str]) -> String {
-    let members: Vec<String> = members.iter().map(|member| canonical(member)).collect();
-    // Exactly two, one of them `None`, is the shape `Optional` exists to spell.
-    if members.len() == 2
-        && let Some(at) = members.iter().position(|member| member == "None")
-    {
-        return format!("Optional[{}]", members[1 - at]);
+/// One name as Python prints it: `None` is the type `NoneType`, and one of dspy's own types is
+/// printed without the module that reached it.
+fn leaf(annotation: &str) -> String {
+    match annotation {
+        "None" | "NoneType" => "NoneType".to_owned(),
+        other => super::annotation::custom_type(other)
+            .unwrap_or(other)
+            .to_owned(),
     }
-    let spelled: Vec<&str> = members
-        .iter()
-        .map(|member| if member == "None" { "NoneType" } else { member })
-        .collect();
-    format!("Union[{}]", spelled.join(", "))
+}
+
+/// A union as `typing` builds one: nested unions flattened into it, repeats dropped, and a union
+/// of one collapsed to the member itself.
+///
+/// All three are `typing`'s doing rather than dspy's — `Union[str]` *is* `str`,
+/// `Optional[Optional[str]]` *is* `Optional[str]` — and printing the object is what dspy does. A
+/// union kept as written prints a type Python cannot construct.
+fn canonical_union(members: &[&str]) -> String {
+    let mut flattened: Vec<String> = Vec::new();
+    for member in members {
+        let spelled = canonical(member);
+        match spelled
+            .strip_prefix("Union[")
+            .and_then(|rest| rest.strip_suffix(']'))
+        {
+            Some(nested) => flattened.extend(
+                split_top_level(nested, ',')
+                    .iter()
+                    .map(|part| part.trim().to_owned()),
+            ),
+            None => flattened.push(spelled),
+        }
+    }
+    flattened.dedup_by(|a, b| a == b);
+    let mut seen: Vec<String> = Vec::new();
+    for member in flattened {
+        if !seen.contains(&member) {
+            seen.push(member);
+        }
+    }
+    match seen.as_slice() {
+        [only] => only.clone(),
+        _ => format!("Union[{}]", seen.join(", ")),
+    }
 }
 
 /// Split on the separators outside every bracket: `dict[str, int]` is one field, not two, and
 /// the `|` in `dict[str, int | None]` belongs to the dict's value rather than to the field.
-fn split_top_level(text: &str, separator: char) -> Vec<&str> {
+pub(crate) fn split_top_level(text: &str, separator: char) -> Vec<&str> {
     let mut parts = Vec::new();
     let mut depth = 0usize;
     let mut start = 0;
@@ -273,6 +405,34 @@ mod tests {
         assert_eq!(
             names(&signature),
             (vec!["question", "context"], vec!["reasoning", "answer"])
+        );
+    }
+
+    /// A name declared twice on one side is one field: Python collects each side into a `dict`,
+    /// so the repeat overwrites rather than adding. **First position, last value** — measured.
+    ///
+    /// A `Vec` kept both, and the field then appeared twice in the prompt: the adapter asked the
+    /// model to answer it once per copy and rejected a reply that answered it once. Unreachable
+    /// from a well-formed hand-written string, and reachable the moment a signature is generated —
+    /// a graph builder deriving one output field per outgoing edge hits it on any fan-out.
+    #[test]
+    fn a_name_declared_twice_on_one_side_is_one_field() {
+        let signature = parse("q, q -> answer, answer").expect("parses");
+        let (inputs, outputs) = names(&signature);
+        assert_eq!(inputs, ["q"]);
+        assert_eq!(outputs, ["answer"]);
+    }
+
+    /// The survivor keeps the first declaration's *place* and the last one's *type*.
+    #[test]
+    fn the_repeat_keeps_its_place_and_takes_the_later_type() {
+        let signature = parse("q: int, ctx: str, q: str -> a").expect("parses");
+        let (inputs, _) = names(&signature);
+        assert_eq!(inputs, ["q", "ctx"], "the first declaration's place");
+        assert_eq!(
+            signature.inputs[0].kind,
+            FieldKind::Str,
+            "the last declaration's type"
         );
     }
 

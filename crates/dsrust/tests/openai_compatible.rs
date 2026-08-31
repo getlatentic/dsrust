@@ -623,7 +623,8 @@ async fn an_audio_value_rides_the_wire_as_the_block_dspy_sends() {
         "the constructor writes libsndfile's bytes"
     );
 
-    let qa = Predict!("clip: Audio -> transcript").set_lm(std::sync::Arc::new(probe_lm(&stub)));
+    let qa =
+        Predict!("clip: dspy.Audio -> transcript").set_lm(std::sync::Arc::new(probe_lm(&stub)));
     let out = call!(qa, clip = audio).await.expect("the stub answers");
     assert_eq!(
         out.get("transcript").and_then(Value::as_str),

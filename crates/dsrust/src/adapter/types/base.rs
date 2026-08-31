@@ -42,6 +42,22 @@ pub trait Type {
         None
     }
 
+    /// The schema this type prints in an output field's note, when it prints one.
+    ///
+    /// pydantic renders a custom type's model *and its class docstring*, so upstream's schema for
+    /// one is not a shape a Rust struct produces — the crate records each verbatim. Most types
+    /// print none: `Code` states its contract in prose instead, and an input never carries a note
+    /// at all.
+    ///
+    /// On the trait rather than beside each type because `#[derive(Signature)]` has to ask it of a
+    /// field's declared type without knowing which type that is.
+    fn output_schema() -> Option<Value>
+    where
+        Self: Sized,
+    {
+        None
+    }
+
     /// dspy `Type.parse_lm_response`: read this type out of a reply that carried it on its own
     /// channel rather than as a rendered field — the way reasoning content comes back beside the
     /// answer. A type that only ever renders returns `None`.

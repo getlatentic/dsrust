@@ -13,6 +13,8 @@ pub struct Model {
 
 pub struct Field {
     pub ident: syn::Ident,
+    /// The bounds this field declared, already in dspy's prose.
+    pub constraints: Option<String>,
     /// The declared Rust type, kept verbatim for the companion structs.
     pub ty: syn::Type,
     pub kind: Kind,
@@ -81,21 +83,19 @@ fn ensure_both_directions(item: &DeriveInput, inputs: &[Field], outputs: &[Field
     Ok(())
 }
 
-/// Instructions: the `#[signature(instructions = "...")]` attribute wins, the struct's doc
-/// comment is the fallback, and having neither is an error because the model would get an
-/// empty objective.
+/// Instructions: the `#[signature(instructions = "...")]` attribute wins and the struct's doc
+/// comment is the fallback.
+///
+/// Having neither is not an error. `class QA(dspy.Signature)` with no docstring is ordinary DSPy —
+/// the `conversation_history` tutorial writes exactly that — and upstream fills in
+/// `_default_instructions` from the field names. Refusing meant the tutorial could not be ported
+/// at all.
 fn instructions(item: &DeriveInput) -> Result<String> {
     let attribute = signature_attribute(&item.attrs)?;
     let text = match attribute {
         Some(text) => text,
         None => doc_text(&item.attrs),
     };
-    if text.is_empty() {
-        return Err(Error::new(
-            item.ident.span(),
-            "missing instructions: add #[signature(instructions = \"...\")] or a doc comment",
-        ));
-    }
     Ok(text)
 }
 
@@ -120,7 +120,34 @@ fn signature_attribute(attrs: &[Attribute]) -> Result<Option<String>> {
 
 /// Doc-comment text: one `#[doc = " line"]` per `///` line, each with rustdoc's leading
 /// space stripped, joined by newlines.
-fn doc_text(attrs: &[Attribute]) -> String {
+/// The same lines as [`doc_text`], for a tool rather than a signature.
+///
+/// dspy normalises the two differently, so this crate has to as well: a signature's instructions
+/// are read back through `inspect.cleandoc`, and a tool's description is `func.__doc__` exactly as
+/// written. Running `cleandoc` over a doc comment would remove the indentation *the author wrote*,
+/// because a Rust doc comment carries no enclosing block's indent for it to find instead — where a
+/// Python docstring always does, and where removing it is the whole point.
+///
+/// So the only thing taken off is rustdoc's one space after `///`, which is the boundary Python
+/// spells `"""` and puts no character at.
+pub(crate) fn tool_doc_text(attrs: &[Attribute]) -> String {
+    let lines: Vec<String> = attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("doc"))
+        .filter_map(doc_line)
+        .map(|line| line.strip_prefix(' ').unwrap_or(&line).to_owned())
+        .collect();
+    let mut lines = lines;
+    while lines.last().is_some_and(String::is_empty) {
+        lines.pop();
+    }
+    while lines.first().is_some_and(String::is_empty) {
+        lines.remove(0);
+    }
+    lines.join("\n")
+}
+
+pub(crate) fn doc_text(attrs: &[Attribute]) -> String {
     let lines: Vec<String> = attrs
         .iter()
         .filter(|attr| attr.path().is_ident("doc"))
@@ -224,11 +251,17 @@ fn parse_field(field: &syn::Field) -> Result<(Field, Direction)> {
     } else {
         Direction::Output
     };
-    let (desc, values) = marker_body(marker)?;
-    if values.is_some() && kind != Kind::Str {
+    let MarkerBody {
+        desc,
+        values,
+        constraints,
+    } = marker_body(marker)?;
+    // A closed set constrains a string, or each element of a list of them — dspy's `Literal[...]`
+    // and `list[Literal[...]]`, both of which a tutorial writes.
+    if values.is_some() && kind != Kind::Str && !crate::annotate::is_list_of_strings(&field.ty) {
         return Err(Error::new_spanned(
             marker,
-            "values(...) is only allowed on String fields",
+            "values(...) is only allowed on a String field or a list of them",
         ));
     }
     // A field that says nothing about itself describes itself with nothing. dspy stores the
@@ -246,22 +279,44 @@ fn parse_field(field: &syn::Field) -> Result<(Field, Direction)> {
             kind,
             desc,
             values,
+            constraints,
         },
         direction,
     ))
 }
 
-/// The body of one `#[input(...)]` / `#[output(...)]`: an optional `desc = "..."` and an
-/// optional `values("a", "b")` closed set. dspy renders a `Literal` annotation on either
-/// direction, so a closed set is legal on either here too.
-fn marker_body(attr: &Attribute) -> Result<(Option<String>, Option<Vec<String>>)> {
+/// What one `#[input(...)]` / `#[output(...)]` declared.
+#[derive(Default)]
+struct MarkerBody {
+    desc: Option<String>,
+    values: Option<Vec<String>>,
+    /// The bounds, already in the prose dspy prints. See [`crate::constraints`].
+    constraints: Option<String>,
+}
+
+/// The body of one `#[input(...)]` / `#[output(...)]`: an optional `desc = "..."`, an optional
+/// `values("a", "b")` closed set, and any of pydantic's constraints. dspy renders a `Literal`
+/// annotation on either direction, so a closed set is legal on either here too, and it renders a
+/// `Constraints:` line for a bound on either as well.
+fn marker_body(attr: &Attribute) -> Result<MarkerBody> {
     let mut desc = None;
     let mut values = None;
+    let mut clauses: Vec<String> = Vec::new();
     if matches!(attr.meta, syn::Meta::Path(_)) {
-        return Ok((desc, values));
+        return Ok(MarkerBody::default());
     }
     attr.parse_nested_meta(|meta| {
-        if meta.path.is_ident("desc") {
+        let key = meta
+            .path
+            .get_ident()
+            .map(ToString::to_string)
+            .unwrap_or_default();
+        if crate::constraints::is_constraint(&key) {
+            // Walked in the order written, because upstream walks its keyword arguments that way
+            // and the rendered order is prompt text.
+            clauses.push(crate::constraints::clause(&key, &meta.value()?.parse()?)?);
+            Ok(())
+        } else if meta.path.is_ident("desc") {
             let lit: LitStr = meta.value()?.parse()?;
             desc = Some(lit.value());
             Ok(())
@@ -275,10 +330,17 @@ fn marker_body(attr: &Attribute) -> Result<(Option<String>, Option<Vec<String>>)
             values = Some(list.iter().map(LitStr::value).collect());
             Ok(())
         } else {
-            Err(meta.error("unknown key; expected desc = \"...\" or values(...)"))
+            Err(meta.error(
+                "unknown key; expected desc = \"...\", values(...), or a constraint \
+                 (gt, ge, lt, le, min_length, max_length, multiple_of, allow_inf_nan)",
+            ))
         }
     })?;
-    Ok((desc, values))
+    Ok(MarkerBody {
+        desc,
+        values,
+        constraints: crate::constraints::joined(&clauses),
+    })
 }
 
 const INT_TYPES: [&str; 10] = [
@@ -290,7 +352,7 @@ const INT_TYPES: [&str; 10] = [
 /// serialized JSON. The trait bounds that requires live in the generated code, so a missing
 /// impl surfaces as a rustc error at the derive site.
 fn field_kind(field: &syn::Field) -> Kind {
-    if let syn::Type::Path(path) = &field.ty
+    if let syn::Type::Path(path) = crate::ty::peeled(&field.ty)
         && let Some(last) = path.path.segments.last()
         && last.arguments.is_none()
     {
@@ -321,7 +383,7 @@ fn field_kind(field: &syn::Field) -> Kind {
 /// the scalars. `Option<T>` is unwrapped first — dspy sees whatever is inside, and a `None`
 /// serializes to `null`, which is not an object and so is laid out inline regardless.
 pub fn is_record(ty: &syn::Type) -> bool {
-    let syn::Type::Path(path) = unwrap_option(ty) else {
+    let syn::Type::Path(path) = crate::ty::peeled(unwrap_option(ty)) else {
         return false;
     };
     let Some(last) = path.path.segments.last() else {
@@ -340,7 +402,9 @@ pub fn is_record(ty: &syn::Type) -> bool {
 
 /// `Option<T>` seen through to its `T`, and anything else unchanged.
 fn unwrap_option(ty: &syn::Type) -> &syn::Type {
-    let syn::Type::Path(path) = ty else { return ty };
+    let syn::Type::Path(path) = crate::ty::peeled(ty) else {
+        return ty;
+    };
     let Some(last) = path.path.segments.last() else {
         return ty;
     };
@@ -421,9 +485,16 @@ mod tests {
 
     #[test]
     fn rejects_values_on_typed_and_json_fields_in_either_direction() {
+        // `Vec<String>` was here until the shape it stands for was checked against upstream:
+        // `List[Literal[...]]` is ordinary DSPy, and a tutorial writes one. What is left is what
+        // Python cannot spell as a closed set either.
         for (bad, name) in [
             (quote::quote!(bool), "bool"),
-            (quote::quote!(Vec<String>), "Vec<String>"),
+            (quote::quote!(Vec<i64>), "Vec<i64>"),
+            (
+                quote::quote!(HashMap<String, String>),
+                "HashMap<String, String>",
+            ),
         ] {
             let outputs = parse_quote! {
                 #[signature(instructions = "Do the task.")]
@@ -449,10 +520,30 @@ mod tests {
                 };
                 assert_eq!(
                     error.to_string(),
-                    "values(...) is only allowed on String fields"
+                    "values(...) is only allowed on a String field or a list of them"
                 );
             }
         }
+    }
+
+    /// A list of strings takes one, because `List[Literal[...]]` is what the annotation becomes.
+    #[test]
+    fn accepts_a_closed_set_on_a_list_of_strings() {
+        let model = model(&parse_quote! {
+            #[signature(instructions = "Do the task.")]
+            struct Task {
+                #[input]
+                message: String,
+                #[output(values("a", "b"))]
+                categories: Vec<String>,
+            }
+        })
+        .expect("parses");
+        assert_eq!(model.outputs[0].kind, Kind::Json);
+        assert_eq!(
+            model.outputs[0].values.as_deref(),
+            Some(["a".to_owned(), "b".to_owned()].as_slice())
+        );
     }
 
     #[test]

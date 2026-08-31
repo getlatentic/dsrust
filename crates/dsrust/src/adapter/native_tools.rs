@@ -115,9 +115,10 @@ fn specs(value: &Value) -> Vec<LmToolSpec> {
 
 /// dspy `Tool.format_as_litellm_function_call`: what one tool looks like on the request.
 ///
-/// Every argument is required. That is upstream's rule rather than an inference from the schema —
-/// `required` is `list(self.args.keys())` — and it matters, because an argument dspy marks
-/// required is one the provider will not omit.
+/// An argument is required unless its schema carries a `default`, which is a test for the key
+/// rather than for a useful value: a `default` of `null` exempts an argument as surely as a
+/// `default` of `""`. Being optional in *type* exempts nothing — a nullable argument with no
+/// default is still one the provider must send.
 fn spec(tool: &Value) -> Option<LmToolSpec> {
     let name = tool.get("name")?.as_str()?;
     let args = tool
@@ -126,8 +127,9 @@ fn spec(tool: &Value) -> Option<LmToolSpec> {
         .cloned()
         .unwrap_or_default();
     let required: Vec<Value> = args
-        .keys()
-        .map(|name| Value::String(name.clone()))
+        .iter()
+        .filter(|(_, schema)| schema.get("default").is_none())
+        .map(|(name, _)| Value::String(name.clone()))
         .collect();
     let parameters = serde_json::json!({
         "type": "object",
@@ -268,5 +270,46 @@ mod tests {
             .expect("native");
         assert_eq!(planned.tools.len(), 1);
         assert_eq!(planned.tools[0].name, "search");
+    }
+}
+
+#[cfg(test)]
+mod conformance {
+    use super::*;
+
+    /// Six tools as dspy formatted them, recorded by running it. Regenerate with
+    /// `scripts/generate_tool_spec_fixture.py`.
+    fn golden() -> Value {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/conformance/react/tool_spec.json");
+        let text = std::fs::read_to_string(&path).expect("the tool-spec golden is committed");
+        serde_json::from_str(&text).expect("the golden parses")
+    }
+
+    /// What the provider is told about each tool, against what dspy tells it.
+    ///
+    /// The corpus separates the two ways an argument can look optional: `by_type` is nullable and
+    /// has no default, so it stays required, while `by_default` is exempt. A rule that reads the
+    /// type rather than the default agrees with upstream on neither.
+    #[test]
+    fn states_the_tools_dspy_states() {
+        let recorded = golden();
+        let tools = recorded["tools"].as_array().expect("tools").clone();
+        assert!(!tools.is_empty(), "the golden records no tools");
+        for tool in tools {
+            let name = tool["name"].as_str().expect("name");
+            let ours = spec(&tool).expect("a spec for every recorded tool");
+            let theirs = &tool["native"]["function"];
+            assert_eq!(
+                ours.description.as_deref(),
+                theirs["description"].as_str(),
+                "{name} describes itself differently"
+            );
+            assert_eq!(
+                serde_json::to_string(&Value::Object(ours.parameters)).unwrap(),
+                serde_json::to_string(&theirs["parameters"]).unwrap(),
+                "{name} states different parameters"
+            );
+        }
     }
 }

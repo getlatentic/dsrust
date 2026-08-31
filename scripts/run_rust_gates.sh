@@ -163,6 +163,8 @@ echo "==> file sizes"
 # *outside* the workspace — the only place a leaked dependency is visible.
 ./scripts/check_external_consumer.sh
 ./scripts/check_docs.py
+./scripts/check_guides_name_every_macro.py
+./scripts/check_macros_route_their_paths.py
 
 # The parity ledgers, which need the pinned Python packages and so need the environment.
 #

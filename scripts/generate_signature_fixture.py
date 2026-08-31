@@ -20,6 +20,7 @@ import pathlib
 import sys
 
 import dspy
+from dspy.adapters.utils import get_annotation_name
 from dspy.signatures.signature import infer_prefix
 
 OUT = pathlib.Path(__file__).parent.parent / "crates" / "dsrust" / "tests" / "conformance" / "signature"
@@ -142,16 +143,61 @@ def parsed(spelling: str) -> dict:
 
 
 def _annotation(field) -> str:
-    """The annotation as dspy holds it, which is a resolved type rather than the source text.
+    """The annotation as the *prompt* spells it.
 
-    That resolution is why `int | None` comes back as `Optional[int]`: upstream parses the
-    annotation into a Python type and the spelling it prints afterwards is that type's own. A
-    port owns the structure around the annotation, not the type system that canonicalises it.
+    `dspy.adapters.utils.get_annotation_name` is the function the adapters call, and it is not
+    `str(annotation)`. The two disagree on every optional: `str()` gives `Optional[int]`, which is
+    Python's repr of the type object, and the prompt says `Union[int, NoneType]`.
+
+    This recorded `str()` for a while and the port was held against it, so `Optional[int]` looked
+    verified against real dspy. It was — against a function no prompt calls. Ten annotations of
+    fifteen were wrong before the two were compared.
     """
-    annotation = field.annotation
-    if annotation in (str, int, float, bool):
-        return annotation.__name__
-    return str(annotation).replace("typing.", "")
+    return get_annotation_name(field.annotation)
+
+
+INSTRUCTIONS = [
+    # Flush-left and already clean: the common case, which must survive untouched.
+    "Answer the question.",
+    "Answer the question.\nBe brief.\n\nNever guess.",
+    # What a Python docstring looks like before `cleandoc` sees it: a first line flush against the
+    # quotes and every later line carrying the class body's indent.
+    "Answer the question.\n\n    Be brief.\n    Never guess.\n    ",
+    # Leading and trailing blank lines, which is what a constant appended to a docstring adds.
+    "\n\nWrite the section by calling the tools.\n",
+    "\n\n\n",
+    "",
+    "   ",
+    # An uneven margin: `cleandoc` removes the *common* indent, not each line's own.
+    "First.\n        deep\n    shallow\n        deep again",
+    # The first line is stripped whatever its indent, and later lines keep their relative shape.
+    "    indented first line.\n    second line.",
+    # A blank line inside must not count toward the margin, and a tab expands to eight columns.
+    "First.\n    second.\n\n    third.",
+    "First.\n\tTabbed.\n        eight spaces.",
+    # A tab advances to the next multiple of eight *columns*, so what it expands to depends on
+    # what precedes it on the line. With every tab at column zero the rule is indistinguishable
+    # from "a tab is eight spaces", and these are the cases that tell them apart.
+    "First.\nab\tc\nd",
+    "First.\n  ab\tc\n  d",
+    "\tone\n\t\ttwo\nab\tc",
+    # Trailing whitespace on a line is not a blank line: only wholly empty lines are dropped.
+    "First.\nSecond.\n   \n",
+]
+
+
+def instructions_recorded(text: str) -> dict:
+    """What `Signature.instructions` answers for text a caller set.
+
+    dspy has no field: `instructions` is a property reading `__doc__` through `inspect.cleandoc`,
+    so the normalisation happens on every read and there is no way to store text that escapes it.
+    A port that keeps the string it was handed diverges wherever anything *composes* the
+    instructions further — `ReActV2` appends four lines to them, and the seam shows there.
+    """
+    return {
+        "given": text,
+        "instructions": dspy.Signature("q -> a").with_instructions(text).instructions,
+    }
 
 
 def main() -> None:
@@ -163,6 +209,7 @@ def main() -> None:
         "dspy_version": PINNED,
         "infer_prefix": [{"name": name, "prefix": infer_prefix(name)} for name in NAMES],
         "parse": [parsed(spelling) for spelling in SIGNATURES],
+        "instructions": [instructions_recorded(text) for text in INSTRUCTIONS],
     }
 
     OUT.mkdir(parents=True, exist_ok=True)
@@ -170,6 +217,7 @@ def main() -> None:
     path.write_text(json.dumps(fixture, indent=2, ensure_ascii=False) + "\n")
     print(f"  wrote {path.relative_to(OUT.parent.parent.parent)}", file=sys.stderr)
     print(f"  infer_prefix: {len(NAMES)} names", file=sys.stderr)
+    print(f"  instructions: {len(INSTRUCTIONS)} strings", file=sys.stderr)
 
 
 if __name__ == "__main__":

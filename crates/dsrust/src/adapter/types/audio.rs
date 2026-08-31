@@ -342,7 +342,26 @@ fn normalized_format(media_type: &str) -> String {
     subtype.strip_prefix("x-").unwrap_or(subtype).to_owned()
 }
 
+impl Audio {
+    /// The schema dspy prints in an `Audio` output's field note.
+    ///
+    /// Recorded from upstream verbatim rather than generated. pydantic renders the model *and its
+    /// class docstring* — the `description` here is that docstring, wrapped exactly as Python wraps
+    /// it — so a schema derived from the Rust struct would agree about the fields and differ about
+    /// everything else. It is prompt text, and the bytes are what matter.
+    ///
+    /// The same shape as [`ToolCalls::output_schema`](crate::ToolCalls::output_schema), which the
+    /// crate already kept this way for the same reason.
+    pub fn output_schema() -> serde_json::Value {
+        serde_json::from_str(r#"{"type": "object", "additionalProperties": false, "description": "An audio input type for DSPy.\n\nConstruct from in-memory values only: a data URI string, raw ``bytes`` (with\n``audio_format=``), a numpy-like array, a ``{\"data\", \"audio_format\"}`` dict, or another\n``Audio``. Raw base64 is passed as ``Audio(data=..., audio_format=...)``. Construction and\nadapter parsing never access the filesystem or network; use :meth:`from_path` to read a local\nfile, :meth:`from_url` to download a remote resource, or :meth:`from_array` for array data.", "properties": {"audio_format": {"type": "string", "title": "Audio Format"}, "data": {"type": "string", "title": "Data"}}, "required": ["data", "audio_format"], "title": "Audio"}"#).expect("upstream's own schema, recorded verbatim")
+    }
+}
+
 impl Type for Audio {
+    fn output_schema() -> Option<serde_json::Value> {
+        Some(Self::output_schema())
+    }
+
     /// dspy `Audio.format`: one `input_audio` block carrying the data and its format.
     fn format(&self) -> Formatted {
         Formatted::Blocks(vec![json!({

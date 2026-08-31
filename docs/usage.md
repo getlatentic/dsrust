@@ -104,6 +104,35 @@ BootstrapFewShot::new(exact_match).compile(&mut program, &trainset).await?;
 let out = call!(program, question = "…").await?;   // the same line, now compiled
 ```
 
+A trainset is a list of `Example`s, and `example!` is dspy's `dspy.Example(question=…, answer=…)` —
+a macro because Python takes keyword arguments and Rust does not. `with_inputs` says which fields
+the model is given; the rest are what it is scored against:
+
+```rust
+let trainset = vec![
+    example! { question: "capital of France?", answer: "Paris" }.with_inputs(["question"]),
+    example! { question: "capital of Japan?", answer: "Tokyo" }.with_inputs(["question"]),
+];
+```
+
+## Naming one of DSPy's own types in a string
+
+A signature string names Python's types, and dspy resolves the annotation against builtins and
+`typing` — plus `dspy` itself, and nothing else. So its own types are reached **through the
+module**:
+
+```rust
+let transcribe = Predict!("clip: dspy.Audio -> transcript");
+let chat = Predict!("question: str, history: dspy.History -> answer");
+```
+
+The bare name is not a name upstream knows: `dspy.Signature("q -> a: History")` raises
+`ValueError: Unknown name: History`, and so does this. The dotted spelling is what makes the same
+string mean the same thing in both languages — which is the point of a signature being a string.
+
+A type of your own is not reachable this way in either language. Declare it with
+`#[derive(Signature)]`, where the Rust type is named directly.
+
 ## Field names in a string
 
 ### One in, one out
@@ -125,6 +154,18 @@ let answer = out.get("answer").unwrap();
 let qa = Predict!("question -> answer");
 let out = call!(qa, question = "capital of France?").await?;
 ```
+
+`parse()` reads the string when the program runs, so a typo in it is a runtime error — which is
+what dspy does. Where the string is written in your source, `make_signature!` reads it while the
+crate compiles instead, and a bad one fails the build:
+
+```rust
+let signature = make_signature!("question -> answer");
+```
+
+That is what `Predict!("question -> answer")` uses internally. Reach for it directly when you need
+the `Signature` itself rather than a module around it — `ReActV2::new` takes one, where
+`ReActV2!` takes the literal.
 
 ### Two in, two out
 
@@ -292,9 +333,47 @@ that field list. The derive renames each child's predictors after the field hold
 says which step earned it. A field that is not a step carries `#[not_a_step]`. The derive also makes
 the module callable through `call!`.
 
+`call!` reaches it because the derive writes the `Ask` impl — the trait `call!` goes through, whose
+`Answer` is what decides how the result reads. Left alone that is a `Prediction`, so `out.get(..)`;
+name the task the program answers with and it becomes that task's own struct:
+
+```rust
+#[derive(Module)]
+#[task(Haiku)]
+struct Outlined {
+    plan: Predict,
+    write: Predict,
+}
+
+impl Forward for Outlined {
+    async fn forward(&self, inputs: Example) -> Result<Prediction> {
+        self.write.forward(self.plan.forward(inputs).await?.example).await
+    }
+}
+```
+
+Then `call!(mine, subject = "winter mornings").await?.haiku` is checked when it compiles, the same
+line `Predict!(Haiku)` and `ReActV2!(Haiku, tools)` answer with. Leave it off for a program whose
+outputs are not one task's.
+
 `Forward` exists so an author is not writing `Pin<Box<dyn Future>>` by hand. `Module` keeps that
 shape because it must be object-safe for a composed program to hold `Box<dyn Module>`; the derive
 does the boxing in between.
+
+**Use the derive.** Implementing `Module` by hand compiles, and quietly costs two things the
+derive writes: `named_predictors` takes the trait's empty default, so an optimizer walks no
+predictors, rewrites nothing and reports success; and no point is opened, so the module is
+invisible to every callback and shows in a trace as its children with nothing above them. Measured,
+one call each:
+
+| | `on_module_start` | `named_predictors` |
+|---|---|---|
+| `#[derive(Module)]` + `Forward` | fires, named after the struct | 2 |
+| hand-written `impl Module` | **silent** | **0** |
+
+Neither failure says anything at the time, which is why this is a recommendation rather than a
+choice. Write the impl by hand only for a module with no predictors under it and nothing to watch —
+otherwise write those two members as well.
 
 ## Reaching a provider, and adding your own
 
@@ -633,6 +712,223 @@ Evaluate::new(devset, |inputs| program.forward(inputs), exact_match)
 The program is a closure rather than the module itself, because what is scored need not be a
 `Module` at all — a metric run over anything that answers an `Example` is still an evaluation.
 
+### A tool is a function
+
+dspy reads a tool off a plain callable: the docstring becomes the description the model is shown,
+and the type hints become the argument schema. There is no decorator — `dspy.Tool(fn)` inspects the
+function it is handed, at run time. Rust erases a doc comment long before the program runs, so
+`#[tool]` reads the same two things while the code is still source:
+
+```rust
+#[tool]
+/// Look one term up in the index and return what it says.
+///
+/// Give a single term, not a sentence.
+fn search(term: String) -> anyhow::Result<String> {
+    Ok(format!("nothing on {term}"))
+}
+```
+
+The function stays callable as itself, and the tool is a type of the same name in PascalCase —
+`vec![Box::new(Search)]` — while the name on the wire is still `search`. The doc comment **is
+prompt text**: it reaches the model as `search, whose description is <desc>Look one term up in the
+index and return what it says. ...</desc>`, normalised by the same `inspect.cleandoc` Python
+applies to a docstring, so an indented second paragraph reads the same in both languages. The
+parameters become the schema `{"term": {"type": "string"}}` — an `Option<T>` is one the model may
+leave out.
+
+**A wrong argument is answered, not raised.** Sending `{"term": 7}` gets back ``Refused: `term` is
+not the type this tool takes (invalid type: integer `7`, expected a string).`` — a string the loop
+can read and retry from, where an error would end the turn. dspy's tools answer the same way.
+
+### A tool that needs state
+
+Python captures a draft in a closure and hands six closures to `dspy.ReAct`. A Rust `fn` captures
+nothing, so the state is the receiver instead: mark a method and you get a tool beside it, named
+for the method.
+
+```rust
+struct Composition {
+    draft: Mutex<String>,
+}
+
+impl Composition {
+    /// Append one paragraph to the draft.
+    ///
+    /// Write the paragraph itself, not a description of it.
+    #[tool]
+    fn append(&self, text: String, heading: Option<String>) -> anyhow::Result<String> {
+        let mut draft = self.draft.lock().expect("the draft outlives the roster");
+        if let Some(heading) = heading {
+            draft.push_str(&format!("## {heading}\n"));
+        }
+        draft.push_str(&text);
+        Ok(format!("Added {} characters.", text.len()))
+    }
+}
+```
+
+```rust
+let composition = Arc::new(Composition { draft: Mutex::new(String::new()) });
+let agent = ReActV2!("brief -> written: bool", vec![composition.append_tool()]);
+```
+
+`append` stays an ordinary method you can call and test directly; `append_tool()` is the same thing
+as something `ReAct` can hold. Interior mutability is yours, exactly as it is in Python: the tool
+outlives any one call, so the draft is behind a `Mutex`.
+
+**Put the attribute on the impl block too and you get the whole roster at once** — every marked
+method, in declaration order, as `tools()`. That is all it adds, and with six tools it is the
+difference between one call and six:
+
+```rust
+struct Section {
+    draft: Mutex<String>,
+}
+
+#[tool]
+impl Section {
+    pub fn new() -> Self { Section { draft: Mutex::new(String::new()) } }
+
+    // Unmarked: an ordinary method, not something the model can call.
+    fn len(&self) -> usize {
+        self.draft.lock().expect("the draft outlives the roster").len()
+    }
+
+    /// Append one paragraph to the section.
+    #[tool]
+    fn write(&self, text: String) -> anyhow::Result<String> {
+        self.draft.lock().expect("the draft outlives the roster").push_str(&text);
+        Ok(format!("Added {} characters.", text.len()))
+    }
+
+    /// Read the section back as written so far.
+    #[tool]
+    fn read(&self) -> anyhow::Result<String> {
+        Ok(self.draft.lock().expect("the draft outlives the roster").clone())
+    }
+}
+```
+
+```rust
+let section = Arc::new(Section::new());
+let agent = ReActV2!("brief -> written: bool", section.tools());
+```
+
+### A tool that has to wait
+
+A tool that reaches a network, a database or a subprocess is a future. Write it `async` and the
+attribute does the rest — dspy's `Tool.acall`, which awaits a tool whose callable is a coroutine:
+
+```rust
+#[tool]
+/// Fetch what one URL says.
+async fn fetch(url: String) -> anyhow::Result<String> {
+    // Your HTTP client goes here. What matters is that the body awaits.
+    tokio::task::yield_now().await;
+    Ok(format!("whatever {url} answered"))
+}
+```
+
+Every agent awaits every tool, so a roster can mix the two freely: a synchronous tool answers on
+the awaited path unchanged, which is upstream's own "allow calling a sync tool in the async path".
+An `async` tool answers only there — calling it synchronously says so rather than blocking a
+runtime thread.
+
+### Without the attribute at all
+
+`#[tool]` exists for one reason: a Rust doc comment is erased before the program runs, so nothing
+can read it later. But that is only true of a comment on a *function*. On a **type**, the
+`JsonSchema` derive records it — and records the fields, their types, and their own doc comments
+with it. So a tool can be built out of derives this crate did not write:
+
+```rust
+/// Append one instructional block to the draft and return its id.
+#[derive(Deserialize, JsonSchema)]
+struct AddBlock {
+    /// One of: explanation, worked_example.
+    block_type: String,
+    text: String,
+}
+
+let add_block = typed_tool(move |args: AddBlock| held.add_block(args.block_type, args.text));
+```
+
+`typed_tool` reads all four off the type: the name from `AddBlock`, the description from its doc
+comment, the arguments from its fields, and each argument's prose from that field's doc comment.
+The closure captures, so a roster of these shares one state the way Python's closures do.
+
+It costs a struct per tool and buys **prose per argument** — dspy's `Tool.arg_desc`, which
+`#[tool]` on a function cannot give you, because a Rust parameter takes no doc comment. Reach for
+it when an argument needs explaining; reach for `#[tool]` when the tool's own description is
+enough.
+
+For a tool whose schema is only known at run time — one built from an MCP server, say — `FnTool::new`
+takes the name, description and schema as values and skips the reflection entirely.
+
+**Name a task and the answer is that task's own struct** — the same line whichever module wrote
+it, which is what dspy gets from `Prediction.__getattr__` and this gets from the type:
+
+```rust
+let out = call!(Predict!(QA), question = "capital of France?").await?;
+let out = call!(ChainOfThought!(QA), question = "capital of France?").await?;
+let out = call!(ReActV2!(QA, tools), question = "capital of France?").await?;
+let answer = out.answer;                                  // checked when this compiles
+```
+
+Name a *string* signature instead and there is no type to answer with, so it stays a `Prediction`
+and `out.get("answer")` reads it — as does `out.typed::<QAOutputs>()?`, which checks the whole
+answer at once and ignores fields the task never declared.
+
+A module of your own says which task it answers with beside the derive, and then reads the same
+way — there is nothing to add at the call site:
+
+```rust
+#[derive(Module)]
+#[task(QA)]
+struct AskTwice {
+    first: Predict,
+    second: Predict,
+}
+
+impl Forward for AskTwice {
+    async fn forward(&self, inputs: Example) -> Result<Prediction> {
+        let draft = self.first.forward(inputs).await?;
+        self.second.forward(draft.example).await
+    }
+}
+```
+
+```rust
+let twice = AskTwice {
+    first: Predict!("question -> answer"),
+    second: Predict!("question -> answer"),
+};
+let out = call!(twice, question = "capital of France?").await?;
+let answer = out.answer;
+```
+
+Leave `#[task(..)]` off and it answers with a `Prediction`, which is what a program whose outputs
+are not one task's has to answer with. An already-built module takes the same step by hand —
+`program.task::<QA>()` — which is exactly what the macros above call for you.
+
+The module underneath is still there: `agent.max_iters` reads through, and `into_module()` hands it
+back when you want the `Prediction` an agent's `trajectory` and `history` live in. A builder
+consumes the module, so it goes through `map`:
+
+```rust
+let agent = ReActV2!(QA, tools).map(|agent| agent.max_iters(8));
+```
+
+**An agent can finish with nothing**, which is the case `Predict` never reaches: it ran out of
+turns, or answered in prose instead of calling `submit`. That is a successful loop with no outputs
+in it, so the call fails and names what happened rather than the missing field:
+
+    the loop ended without producing the outputs (max_iters)
+
+dspy raises `AttributeError` at the moment `out.answer` is touched, which says the same thing later
+and with less in it.
+
 Every signature-taking macro accepts **either spelling** — a string, or a task declared with
 `#[derive(Signature)]`:
 
@@ -728,7 +1024,7 @@ through to the predictors inside it.
 |---|---|---|
 | Constructor | `dspy.Predict(x)` | `Predict!(x)` — a string or a task |
 | Call | `m(field=…)` | `call!(m, field = …)` |
-| Reading a result | `out.answer` | `out.answer` typed, `out.get("answer")` from a string signature |
+| Reading a result | `out.answer` | `out.answer` from any module named on a task; `out.get("answer")` from a string signature |
 | Asking the model directly | `lm(dspy.User("…"))` | `lm.call(items![User(["…"])])` |
 | A turn | `dspy.User(…)` | `User([…])`, or `LmMessage::user([…])` |
 | One module type | ✅ | ✅ `Predict<S = Dynamic>` |

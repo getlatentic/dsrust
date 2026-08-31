@@ -154,3 +154,23 @@ macro_rules! call {
         )
     };
 }
+
+/// A run and what it recorded, borrowed for as long as the program is.
+///
+/// The trace comes back beside the answer rather than through an out-parameter because a run that
+/// *failed* still has one, and a caller that has to remember to read a buffer after an error is a
+/// caller that will not.
+pub(crate) type Traced<'a> = std::pin::Pin<
+    Box<
+        dyn Future<Output = (anyhow::Result<crate::example::Prediction>, Vec<TraceStep>)>
+            + Send
+            + 'a,
+    >,
+>;
+
+/// What each predictor in a program is called, keyed by the identity it records under.
+///
+/// Opaque on purpose: the key is an address, which is an implementation detail of how a running
+/// predictor recognises itself, and nothing outside this crate can usefully make one.
+#[derive(Debug, Clone, Default)]
+pub struct PredictorNames(pub(crate) std::sync::Arc<std::collections::HashMap<usize, String>>);

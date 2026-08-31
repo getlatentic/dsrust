@@ -1,11 +1,13 @@
 //! Items the derive macro expands into, referenced through `::dsrust::__macro_support::…`. Not a
 //! public API — hidden from docs and exempt from semver.
 //!
-//! The two crates below are re-exported because the derive builds companion structs of its own and
-//! has to derive `Serialize`/`Deserialize` on them. Naming `::serde` there would resolve in the
-//! *caller's* crate root, so a caller who depends only on `dsrust` could not use the derive at all
-//! — reported from a real project, and reproduced as a crate depending on nothing else.
+//! The crates below are re-exported because a macro expands into them. Naming `::serde` there
+//! would resolve in the *caller's* crate root, so a caller who depends only on `dsrust` could not
+//! use the derive at all — reported from a real project, and reproduced as a crate depending on
+//! nothing else. `tool!` is held to the same rule: it names a `Value`, parses each argument out of
+//! one, and gives a body with no stated return type an `anyhow::Result<String>`.
 
+pub use anyhow;
 pub use serde;
 pub use serde_json;
 pub use serde_json::json;
@@ -50,6 +52,59 @@ pub trait DescribeFallback {
 }
 
 impl<T> DescribeFallback for TypeProbe<T> {}
+
+/// The schema a derived output field states, found the same way its prose is.
+///
+/// Three answers rather than two, because there are three cases and conflating any pair loses one:
+///
+/// 1. **One of dspy's own types.** Its schema is upstream's, recorded verbatim — pydantic renders
+///    the model *and its class docstring*, which no Rust struct produces. `Code` also implements no
+///    `JsonSchema` at all, which made it unusable as a derived output while `q -> out: dspy.Code`
+///    worked: two spellings of one program, one of which did not compile.
+/// 2. **A caller's own [`Type`].** It states prose *and* keeps the schema its Rust shape gives —
+///    the seam carries a description, it does not silence the note. Collapsing this into (1) made
+///    every caller's custom type lose its schema, which a test caught.
+/// 3. **Any other field type**, schema'd from its shape as it always was.
+///
+/// Two receiver levels, not three. Autoref tries `Self` then `&Self` and stops, so a third would
+/// never be reached — the first attempt put the fallback at `&&self` and every plain `JsonSchema`
+/// field failed to resolve a method at all.
+///
+/// (2) and (3) therefore share `&self`, which is sound because they never both apply: a type that
+/// is a `Type` *and* `JsonSchema` is answered by (1) at the by-value level before either is
+/// consulted, and a type that is only one of them satisfies only one bound. A type that is neither
+/// resolves no method, which is the error a caller should get.
+pub trait SchemaViaType {
+    fn field_schema(self) -> Option<serde_json::Value>;
+}
+
+impl<T: Type + schemars::JsonSchema> SchemaViaType for TypeProbe<T> {
+    fn field_schema(self) -> Option<serde_json::Value> {
+        <T as Type>::output_schema().or_else(|| Some(crate::signature::json_field_schema::<T>()))
+    }
+}
+
+/// A [`Type`] with no `JsonSchema` — one of dspy's own, whose schema is recorded or absent.
+pub trait SchemaViaTypeOnly {
+    fn field_schema(&self) -> Option<serde_json::Value>;
+}
+
+impl<T: Type> SchemaViaTypeOnly for TypeProbe<T> {
+    fn field_schema(&self) -> Option<serde_json::Value> {
+        <T as Type>::output_schema()
+    }
+}
+
+/// Every other field type: the schema its Rust shape gives, in pydantic's dialect.
+pub trait SchemaFallback {
+    fn field_schema(&self) -> Option<serde_json::Value>;
+}
+
+impl<T: schemars::JsonSchema> SchemaFallback for TypeProbe<T> {
+    fn field_schema(&self) -> Option<serde_json::Value> {
+        Some(crate::signature::json_field_schema::<T>())
+    }
+}
 
 #[cfg(test)]
 mod tests {

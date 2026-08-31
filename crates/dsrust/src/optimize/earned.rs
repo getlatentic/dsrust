@@ -7,10 +7,12 @@
 
 use std::collections::BTreeMap;
 
+use anyhow::{Result, bail};
 use pyrng::Random;
 
 use crate::example::Example;
 use crate::hasher::Hasher;
+use crate::module::Module;
 
 /// What one bootstrap pass produced.
 pub(super) struct Bootstrapped {
@@ -20,11 +22,14 @@ pub(super) struct Bootstrapped {
     /// A predictor that never ran gets nothing, which is dspy initialising every name to an
     /// empty list rather than to the program's demos.
     pub(super) per_predictor: BTreeMap<String, Vec<Example>>,
-    /// Demos for a program that recorded no trace at all, which every predictor then receives.
+    /// Demos for a program that recorded no trace at all.
     ///
     /// [`Module::forward_traced`](crate::Module::forward_traced) may record nothing, and then
-    /// there is no attribution to make. For a program with one predictor the two are the same
-    /// list anyway.
+    /// there is no attribution to make. For a program with one predictor these are that
+    /// predictor's demos under another name, which is why the shortcut exists. For more than one
+    /// they are nobody's, and `BootstrapFewShot` refuses the program rather than handing the same
+    /// list to every predictor — a step is otherwise taught the program's fields, which its own
+    /// signature may not have.
     pub(super) program: Vec<Example>,
     /// dspy's `validation`: the trainset examples no round solved, shuffled.
     pub(super) validation: Vec<Example>,
@@ -89,6 +94,36 @@ impl Bootstrapped {
         };
         &earned[..most.min(earned.len())]
     }
+}
+
+/// Refuse to teach a program whose demos cannot be attributed to the predictor that earned them.
+///
+/// [`Module::forward_traced`] records nothing by default, and a program that records nothing files
+/// its demos under the whole program instead. For one predictor that is the same list under
+/// another name. For more than one it is wrong in a way nothing downstream can see: every
+/// predictor is taught the *program's* inputs and outputs, which for a pipeline are not even
+/// fields its signature has — a `polish(note -> answer)` step taught `question` and never shown a
+/// `note`.
+///
+/// The condition was documented as safe and never checked. `#[derive(Module)]` writes
+/// `named_predictors` and deliberately leaves `forward_traced` alone, because relabelling a trace
+/// needs the order the steps run and only the author knows it — so a module written the way the
+/// guide writes one is optimizable and unattributable at the same time, and this is the only place
+/// that shows.
+pub(super) fn unattributable<S: Module + ?Sized>(
+    student: &mut S,
+    bootstrapped: &Bootstrapped,
+) -> Result<()> {
+    let predictors = student.named_predictors().len();
+    if bootstrapped.program.is_empty() || predictors < 2 {
+        return Ok(());
+    }
+    bail!(
+        "this program has {predictors} predictors and recorded no trace, so nothing says which of \
+         them earned a demo and every one would be taught the program's own inputs and outputs. \
+         Implement `Module::forward_traced` so each predictor's calls are attributed to it — the \
+         default records nothing, which only a program with one predictor can afford."
+    )
 }
 
 /// Which of a predictor's demos survives when it answered more than once in one example.

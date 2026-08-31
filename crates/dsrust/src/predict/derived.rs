@@ -8,11 +8,11 @@ use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use super::{Dynamic, Feedback, Predict, Validated};
+use super::{Dynamic, Feedback, Predict};
 use crate::adapter::Input;
 use crate::error::Explained;
-use crate::example::Example;
-use crate::lm::DynChatModel;
+use crate::example::{Example, Prediction};
+use crate::lm::{DynChatModel, LmUsage};
 use crate::module::Ask;
 use crate::signature::SignatureSpec;
 
@@ -68,29 +68,58 @@ pub(crate) async fn typed_pairs<S: SignatureSpec, P>(
     pairs: Vec<Input<'_>>,
     shape: fn(Value) -> Value,
 ) -> Result<S::Outputs> {
-    // A typed call answers with the caller's own struct, so there is nowhere here for what it
-    // cost to go. LmUsage is readable on the value-level paths, which answer with a `Prediction`.
-    let Validated {
-        siblings: _,
-        raw,
-        value,
-        usage: _,
-    } = predict
+    typed_prediction::<S, _>(predict, lm, pairs, shape)
+        .await
+        .and_then(|answered| answered.typed::<S::Outputs>())
+}
+
+/// The same reply, as the `Prediction` the module point closes with.
+///
+/// A typed call answers with the caller's own struct, and `on_module_end` takes a `Prediction` —
+/// so a typed path that converted here and threw the rest away could not be watched at all, and
+/// two spellings of `Predict` were invisible to every callback until this split them.
+pub(crate) async fn typed_prediction<S: SignatureSpec, P>(
+    predict: &Predict<P>,
+    lm: &dyn DynChatModel,
+    pairs: Vec<Input<'_>>,
+    shape: fn(Value) -> Value,
+) -> Result<Prediction> {
+    let validated = predict
         .call_with_inputs(lm, &pairs, &super::Steering::default())
         .await?;
-    let error = match typed::<S::Outputs>(shape(value)) {
-        Ok(outputs) => return Ok(outputs),
+    let shaped = shape(validated.value);
+    let error = match typed::<S::Outputs>(shaped.clone()) {
+        Ok(_) => {
+            return answered(shaped, validated.raw, validated.siblings, validated.usage);
+        }
         Err(error) => error,
     };
     tracing::warn!(%error, "retrying with shape feedback");
     let feedback = Feedback {
-        previous: raw,
+        previous: validated.raw,
         error: format!("{error:#}"),
     };
-    let (_, value, _) = predict
+    let (raw, value, usage) = predict
         .feedback_ask(lm, &pairs, &feedback, &super::Steering::default())
         .await?;
-    typed(shape(value))
+    let shaped = shape(value);
+    // Checked here rather than left to the caller, so a second bad shape carries the same
+    // explained error it always did — and stops, rather than asking a third time.
+    typed::<S::Outputs>(shaped.clone())?;
+    answered(shaped, raw, Vec::new(), usage)
+}
+
+/// The same shape [`Predict::forward_with_steering`] answers with, so a typed call and a value-level
+/// one close their point with the same thing.
+fn answered(
+    value: Value,
+    raw: String,
+    siblings: Vec<Example>,
+    usage: Option<LmUsage>,
+) -> Result<Prediction> {
+    let mut candidates = vec![super::prediction_example(&value)];
+    candidates.extend(siblings);
+    Ok(Prediction::from_candidates(&candidates, raw)?.set_lm_usage(usage))
 }
 
 pub(crate) fn typed<T: DeserializeOwned>(value: Value) -> Result<T> {
@@ -110,11 +139,20 @@ where
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<S::Outputs>> + Send + 'a>> {
         Box::pin(async move {
             let lm = self.asking()?;
+            // The point, as the value-level path opens it: dspy decorates `Module.__call__` for
+            // every module, so a typed spelling that skipped this was a module no callback saw.
+            let span =
+                crate::observe::module_shown("Predict", &inputs, crate::Module::callbacks(self));
             let pairs: Vec<Input<'_>> = inputs
                 .fields()
                 .map(|(name, value)| Input::new(name, value.clone()))
                 .collect();
-            typed_pairs::<S, _>(self, lm.as_ref(), pairs, std::convert::identity).await
+            crate::observe::watching(
+                span,
+                typed_prediction::<S, _>(self, lm.as_ref(), pairs, std::convert::identity),
+            )
+            .await?
+            .typed::<S::Outputs>()
         })
     }
 }

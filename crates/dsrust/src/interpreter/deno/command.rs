@@ -55,6 +55,16 @@ fn deno_dir() -> Option<PathBuf> {
 ///
 /// The directory carries the process id because the write is a truncate: a second process sharing
 /// the path could hand deno an empty runner to execute.
+///
+/// **Temp is load-bearing, not merely convenient.** Deno resolves a `npm:` import by walking *up*
+/// from the script for a `package.json`, and switches to node_modules resolution the moment it
+/// finds one — whatever that file is for. Pyodide lives in deno's global cache and not in that
+/// `node_modules`, so the sandbox dies at startup with "Could not find a matching package for
+/// 'npm:pyodide'". Staging here puts the runner under a path with no `package.json` above it,
+/// which is why this crate's sandbox runs where dspy's own does not on the same machine: dspy runs
+/// its runner from inside the installed package, and a `package.json` in a home directory two
+/// levels up is enough to break it. Moving the runner back beside the source would reintroduce
+/// that, silently, and only for callers whose parents happen to hold one.
 pub fn runner_path() -> Result<PathBuf> {
     let directory = std::env::temp_dir().join(format!("dsrust-sandbox-{}", std::process::id()));
     std::fs::create_dir_all(&directory).explain("making a place for the sandbox runner")?;

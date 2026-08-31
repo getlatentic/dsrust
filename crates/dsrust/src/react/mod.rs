@@ -9,6 +9,7 @@ pub mod mcp;
 mod signature;
 mod tool;
 mod trajectory;
+mod typed;
 mod v2;
 
 use anyhow::{Result, bail};
@@ -25,8 +26,9 @@ use signature::{Finish, extract_signature, react_signature};
 const TRUNCATION_ATTEMPTS: usize = 3;
 
 pub use mcp::{mcp_tool, mcp_tool_args, mcp_tool_result};
-pub use tool::{FINISH, FnTool, Tool, arg_str, tool_args};
+pub use tool::{AsyncFnTool, FINISH, FnTool, Tool, arg_str, tool_args};
 pub use trajectory::{Step, Trajectory};
+pub use typed::typed_tool;
 pub use v2::ReActV2;
 
 /// An agent that interleaves reasoning with tool calls over any signature.
@@ -119,10 +121,10 @@ impl ReAct {
     /// dspy does the same: a tool that raises reports its error into the trajectory so the
     /// model can try something else. Aborting the episode would throw away the reasoning that
     /// got this far.
-    fn observe(&self, name: &str, args: &Value) -> Value {
+    async fn observe(&self, name: &str, args: &Value) -> Value {
         match self.tool(name) {
             None => json!(format!("Execution error in {name}: no such tool")),
-            Some(tool) => match crate::observe::tool_call(tool, args) {
+            Some(tool) => match crate::observe::tool_acall(tool, args).await {
                 Ok(observation) => observation,
                 Err(error) => json!(format!("Execution error in {name}: {error:#}")),
             },
@@ -205,7 +207,7 @@ impl ReAct {
                     .cloned()
                     .unwrap_or(Value::Object(Default::default()));
 
-                let observation = self.observe(&tool, &args);
+                let observation = self.observe(&tool, &args).await;
                 let finished = tool == FINISH;
                 trajectory.steps.push(Step {
                     thought,
@@ -295,17 +297,19 @@ macro_rules! ReAct {
         $crate::ReAct::new($crate::make_signature!($signature), $tools).max_iters($max)
     };
     ($task:ty, $tools:expr $(,)?) => {
-        $crate::ReAct::new(
+        $crate::Typed::<$task, _>::new($crate::ReAct::new(
             <$task as $crate::signature::SignatureSpec>::signature(),
             $tools,
-        )
+        ))
     };
     ($task:ty, $tools:expr, max_iters = $max:expr $(,)?) => {
-        $crate::ReAct::new(
-            <$task as $crate::signature::SignatureSpec>::signature(),
-            $tools,
+        $crate::Typed::<$task, _>::new(
+            $crate::ReAct::new(
+                <$task as $crate::signature::SignatureSpec>::signature(),
+                $tools,
+            )
+            .max_iters($max),
         )
-        .max_iters($max)
     };
 }
 
@@ -379,12 +383,12 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn finish_refuses_arguments_it_never_declared() {
+    #[tokio::test]
+    async fn finish_refuses_arguments_it_never_declared() {
         let react = ReAct::new(task(), vec![weather()]);
-        assert_eq!(react.observe(FINISH, &json!({})), json!("Completed."));
+        assert_eq!(react.observe(FINISH, &json!({})).await, json!("Completed."));
         assert_eq!(
-            react.observe(FINISH, &json!({ "answer": "sunny" })),
+            react.observe(FINISH, &json!({ "answer": "sunny" })).await,
             json!("Execution error in finish: finish takes no arguments")
         );
     }
@@ -438,33 +442,35 @@ mod tests {
         assert_eq!(react.extract.signature.instructions, "Answer the question.");
     }
 
-    #[test]
-    fn a_tool_error_becomes_an_observation_rather_than_ending_the_episode() {
+    #[tokio::test]
+    async fn a_tool_error_becomes_an_observation_rather_than_ending_the_episode() {
         // dspy reports the error into the trajectory so the model can recover; aborting would
         // throw away the reasoning that got this far.
         let react = ReAct::new(task(), vec![weather()]);
-        let observation = react.observe("get_weather", &json!({}));
+        let observation = react.observe("get_weather", &json!({})).await;
         let observation = observation.as_str().expect("an error observation");
         assert!(observation.starts_with("Execution error in get_weather"));
         assert!(observation.contains("missing string argument `city`"));
     }
 
-    #[test]
-    fn an_unknown_tool_is_reported_the_same_way() {
+    #[tokio::test]
+    async fn an_unknown_tool_is_reported_the_same_way() {
         // dspy indexes its tool dict and lets the KeyError land in the same `Execution error
         // in {name}:` shape every other tool failure takes.
         let react = ReAct::new(task(), vec![weather()]);
         assert_eq!(
-            react.observe("teleport", &json!({})),
+            react.observe("teleport", &json!({})).await,
             json!("Execution error in teleport: no such tool")
         );
     }
 
-    #[test]
-    fn a_working_tool_returns_its_observation() {
+    #[tokio::test]
+    async fn a_working_tool_returns_its_observation() {
         let react = ReAct::new(task(), vec![weather()]);
         assert_eq!(
-            react.observe("get_weather", &json!({ "city": "Tokyo" })),
+            react
+                .observe("get_weather", &json!({ "city": "Tokyo" }))
+                .await,
             "The weather in Tokyo is sunny."
         );
     }

@@ -30,6 +30,9 @@ impl<M: Metric> Simba<M> {
         if trainset.len() < self.bsize {
             bail!("Trainset too small: {} < {}", trainset.len(), self.bsize);
         }
+        // Taken once, as dspy takes `predictor2name` once: the search loads and reloads candidate
+        // programs into the same predictors, which changes what they say and not which they are.
+        let names = student.predictor_names();
         // Both generators take the same seed, and they are different generators: `Random` is
         // CPython's Mersenne Twister and `Pcg64` is numpy's `default_rng`.
         let mut rng = Random::seeded(self.seed);
@@ -75,7 +78,7 @@ impl<M: Metric> Simba<M> {
                     for predictor in student.named_predictors() {
                         *predictor.config = config.clone();
                     }
-                    runs.push(self.run_one(student, example).await);
+                    runs.push(self.run_one(student, &names, example).await);
                 }
             }
             step.percentiles = search::gates(&runs);
@@ -124,7 +127,7 @@ impl<M: Metric> Simba<M> {
 
             for candidate in &candidates {
                 student.load_state(candidate)?;
-                let scores = self.score_over(student, &batch).await;
+                let scores = self.score_over(student, &names, &batch).await;
                 let average = mean(&scores);
                 step.candidate_scores.push(average);
                 step.candidates.push(candidate.clone());
@@ -141,7 +144,7 @@ impl<M: Metric> Simba<M> {
         let mut scored = Vec::new();
         for index in &slate {
             student.load_state(&winners[*index])?;
-            scored.push(mean(&self.score_over(student, trainset).await));
+            scored.push(mean(&self.score_over(student, &names, trainset).await));
         }
         let best = best_index(&scored).unwrap_or(0);
         student.load_state(&winners[slate[best]])?;
@@ -167,13 +170,20 @@ impl<M: Metric> Simba<M> {
 
     /// One example under the loaded program — dspy's `wrap_program`, whose whole job is that a
     /// program that raises scores zero rather than ending the run.
-    async fn run_one(&self, student: &dyn Module, example: &Example) -> Run {
-        let mut trace = Vec::new();
+    async fn run_one(
+        &self,
+        student: &dyn Module,
+        names: &crate::module::PredictorNames,
+        example: &Example,
+    ) -> Run {
         // dspy runs the program inside a `try` and logs a failure rather than raising: an example
         // the program cannot answer scores zero and the search carries on with the rest.
-        let prediction = match example.inputs() {
-            Ok(inputs) => student.forward_traced(inputs, &mut trace).await.ok(),
-            Err(_) => None,
+        let (prediction, trace) = match example.inputs() {
+            Ok(inputs) => {
+                let (answered, trace) = student.traced_with(names, inputs).await;
+                (answered.ok(), trace)
+            }
+            Err(_) => (None, Vec::new()),
         };
         let score = match &prediction {
             Some(prediction) => self.metric.score(example, prediction).await,
@@ -187,10 +197,15 @@ impl<M: Metric> Simba<M> {
         }
     }
 
-    async fn score_over(&self, student: &dyn Module, examples: &[Example]) -> Vec<f64> {
+    async fn score_over(
+        &self,
+        student: &dyn Module,
+        names: &crate::module::PredictorNames,
+        examples: &[Example],
+    ) -> Vec<f64> {
         let mut scores = Vec::new();
         for example in examples {
-            scores.push(self.run_one(student, example).await.score);
+            scores.push(self.run_one(student, names, example).await.score);
         }
         scores
     }

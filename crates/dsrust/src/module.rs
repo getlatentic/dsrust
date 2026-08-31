@@ -17,11 +17,15 @@ use crate::example::{Example, Prediction};
 use crate::lm::Sampling;
 use crate::signature::Signature;
 
+pub(crate) mod ambient;
 mod state;
 mod trace;
 mod trust;
+mod typed;
 
-pub use trace::{FailedPrediction, StepOutputs, TraceStep, relabel};
+use trace::Traced;
+pub use trace::{FailedPrediction, PredictorNames, StepOutputs, TraceStep, relabel};
+pub use typed::Typed;
 
 use state::demo_from_fields;
 pub use state::{
@@ -106,6 +110,42 @@ pub trait Module: Send + Sync {
         &'a self,
         inputs: Example,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>>;
+
+    /// The same module, asked through a task — so `call!` answers with that task's outputs struct
+    /// rather than a `Prediction`, exactly as it does for `Predict!(QA)` and `ReActV2!(QA, tools)`.
+    ///
+    /// A module of your own reaches the same spelling this way; the built-in macros call it for
+    /// you when a task is what they were given. `Self: Sized` keeps it off the vtable, so a
+    /// `dyn Module` is still a `dyn Module`.
+    ///
+    /// ```
+    /// # use dsrust::{Module, Signature, Predict, call, configure_model, DummyLM, example};
+    /// # use dsrust::signature::SignatureSpec;
+    /// # use dsrust::lm::DynChatModel;
+    /// # use std::sync::Arc;
+    /// #[derive(Signature)]
+    /// /// Answer the question.
+    /// struct QA {
+    ///     #[input] question: String,
+    ///     #[output] answer: String,
+    /// }
+    ///
+    /// # #[tokio::main(flavor = "current_thread")]
+    /// # async fn main() -> anyhow::Result<()> {
+    /// # configure_model(reqwest::Client::new(),
+    /// #     Arc::new(DummyLM::new([example! { answer: "Paris" }])) as Arc<dyn DynChatModel>);
+    /// let program = Predict::from_signature(QA::signature()).task::<QA>();
+    /// let out = call!(program, question = "capital of France?").await?;
+    /// assert_eq!(out.answer, "Paris");
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn task<S: crate::signature::SignatureSpec>(self) -> Typed<S, Self>
+    where
+        Self: Sized,
+    {
+        Typed::new(self)
+    }
 
     /// The callbacks this module carries, beyond the process-wide ones — dspy's third registration
     /// path, `dspy.Predict("q -> a", callbacks=[cb])`.
@@ -270,9 +310,12 @@ pub trait Module: Send + Sync {
     /// module passes the trace down and relabels what its children recorded, the same way
     /// [`Self::named_predictors`] relabels theirs, so a step's name always matches a predictor's.
     ///
-    /// Recording nothing is allowed and means the program cannot be attributed, so every
-    /// predictor in it receives the same program-level demo. That costs nothing for a program
-    /// with one predictor, where the two are the same list.
+    /// Implementing this is how a composed module says what ran in what order, and a module that
+    /// does not is still traced: each predictor records its own call on the way out, which is what
+    /// upstream's `Predict.__call__` does. Write one to name a step something other than the
+    /// predictor's own name, or to record a step no predictor made.
+    ///
+    /// Recording is only live under [`Self::traced`], which is where the names come from.
     fn forward_traced<'a>(
         &'a self,
         inputs: Example,
@@ -280,6 +323,53 @@ pub trait Module: Send + Sync {
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         let _ = trace;
         self.forward(inputs)
+    }
+
+    /// Run the program and answer with what it did, whether or not it implements
+    /// [`Self::forward_traced`].
+    ///
+    /// This is what an optimizer asks, and the only place a predictor's name is known: the walk
+    /// that produces names needs `&mut self`, and a running predictor holds `&self`. So the names
+    /// are resolved here, installed for the run, and each predictor records under its own —
+    /// upstream builds the same map at the same moment, `predictor2name` from `named_predictors()`.
+    ///
+    /// A module that implements `forward_traced` fills `trace` itself and records nothing
+    /// ambiently, because [`Predict`](struct@crate::Predict) detaches while writing the step its caller
+    /// asked for. One that does not gets the ambient steps in call order. A module that does both
+    /// — implements `forward_traced` and reaches some child through plain `forward` — gets its
+    /// explicit steps first and the ambient ones after.
+    /// The trace comes back whether the run answered or failed: a run that ended in a completion
+    /// nobody could read is the one a reflection has most to say about, and the steps before it are
+    /// what say it.
+    fn traced<'a>(&'a mut self, inputs: Example) -> Traced<'a> {
+        let names = self.predictor_names();
+        Box::pin(async move { self.traced_with(&names, inputs).await })
+    }
+
+    /// What each of this program's predictors is called, ready to run against.
+    ///
+    /// dspy's `predictor2name`, built once from `named_predictors()` and read for the rest of a
+    /// compile. Held separately here for the same reason it is there and one more: naming needs
+    /// `&mut self` and running needs `&self`, so an optimizer that runs a program many times takes
+    /// this once and hands it to each run.
+    fn predictor_names(&mut self) -> PredictorNames {
+        PredictorNames(std::sync::Arc::new(
+            self.named_predictors()
+                .into_iter()
+                .map(|predictor| (ambient::identity(predictor.signature), predictor.name))
+                .collect(),
+        ))
+    }
+
+    /// [`Self::traced`] against names already taken.
+    fn traced_with<'a>(&'a self, names: &'a PredictorNames, inputs: Example) -> Traced<'a> {
+        Box::pin(async move {
+            let mut trace = Vec::new();
+            let (answered, ambient) =
+                ambient::recording(&names.0, self.forward_traced(inputs, &mut trace)).await;
+            trace.extend(ambient);
+            (answered, trace)
+        })
     }
 }
 
@@ -323,8 +413,9 @@ macro_rules! asks_with_a_prediction {
                 inputs: $crate::Example,
             ) -> ::std::pin::Pin<
                 ::std::boxed::Box<
-                    dyn ::std::future::Future<Output = ::anyhow::Result<$crate::Prediction>>
-                        + Send
+                    dyn ::std::future::Future<
+                            Output = $crate::__macro_support::anyhow::Result<$crate::Prediction>,
+                        > + Send
                         + 'a,
                 >,
             > {

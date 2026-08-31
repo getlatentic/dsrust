@@ -12,6 +12,7 @@ pub mod engine;
 pub mod instruction_proposal;
 pub mod merge;
 pub mod pareto;
+pub mod progress;
 pub mod pyset;
 pub mod state;
 

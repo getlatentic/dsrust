@@ -442,6 +442,37 @@ async fn a_tool_call_is_watched() {
     assert_eq!(recording.tree(), "on_tool_start\non_tool_end");
 }
 
+/// The awaited twin fires the same two handlers, which is what says a tool that suspends is still
+/// watched: the point has to open before the future is polled and close after it resolves, and a
+/// span guard held across an await would report the wrong parent or none.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
+#[tokio::test]
+async fn an_awaited_tool_call_is_watched() {
+    let recording = Arc::new(Recording::default());
+    let lm = Arc::new(DummyLM::new([example! { answer: "unused" }]));
+    let _serial = install(lm, recording.clone());
+
+    let tool = dsrust::AsyncFnTool::new(
+        "weather",
+        "the weather",
+        serde_json::json!({ "type": "object", "properties": { "city": { "type": "string" } } }),
+        |args: Value| async move {
+            tokio::task::yield_now().await;
+            Ok(format!(
+                "sunny in {}",
+                args["city"].as_str().unwrap_or_default()
+            ))
+        },
+    );
+    let answered = dsrust::observe::tool_acall(&tool, &serde_json::json!({ "city": "Paris" }))
+        .await
+        .expect("the tool answers");
+    configure_callbacks([]);
+
+    assert_eq!(answered, serde_json::json!("sunny in Paris"));
+    assert_eq!(recording.tree(), "on_tool_start\non_tool_end");
+}
+
 /// `lm.call([…])` is dspy's `BaseLM.__call__`, which is the method upstream decorates — so asking a
 /// model directly fires the lm point exactly as asking it through a module does.
 ///

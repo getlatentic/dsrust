@@ -225,7 +225,26 @@ fn sniffed(bytes: &[u8]) -> Option<&'static str> {
         .map(|format| format.to_mime_type())
 }
 
+impl Image {
+    /// The schema dspy prints in an `Image` output's field note.
+    ///
+    /// Recorded from upstream verbatim rather than generated. pydantic renders the model *and its
+    /// class docstring* — the `description` here is that docstring, wrapped exactly as Python wraps
+    /// it — so a schema derived from the Rust struct would agree about the fields and differ about
+    /// everything else. It is prompt text, and the bytes are what matter.
+    ///
+    /// The same shape as [`ToolCalls::output_schema`](crate::ToolCalls::output_schema), which the
+    /// crate already kept this way for the same reason.
+    pub fn output_schema() -> serde_json::Value {
+        serde_json::from_str(r#"{"type": "object", "additionalProperties": false, "properties": {"url": {"type": "string", "title": "Url"}}, "required": ["url"], "title": "Image"}"#).expect("upstream's own schema, recorded verbatim")
+    }
+}
+
 impl Type for Image {
+    fn output_schema() -> Option<serde_json::Value> {
+        Some(Self::output_schema())
+    }
+
     /// dspy `Image.format`: one `image_url` block carrying the URL.
     fn format(&self) -> Formatted {
         Formatted::Blocks(vec![

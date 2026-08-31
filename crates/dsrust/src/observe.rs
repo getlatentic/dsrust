@@ -220,31 +220,16 @@ where
 /// dspy `on_tool_start`/`on_tool_end`: one tool call an agent made, with its arguments and either
 /// what the tool returned or why it refused.
 ///
-/// Synchronous, unlike the other points, because [`Tool::call_value`](crate::Tool::call_value) is —
-/// a tool is a Rust closure, not a network call. So this runs the call rather than wrapping a
-/// future, and the point opens and closes around it.
+/// Awaited, because a tool may be: [`Tool::acall_value`](crate::Tool::acall_value) is dspy's
+/// `Tool.acall`, and its default answers with the synchronous call for a tool with nothing to
+/// await.
 ///
 /// Every agent goes through here rather than through the trait, and that is deliberate:
 /// `call_value` is defaulted and two tools in the tree override it, so a point in the default body
 /// would miss exactly the tools most worth watching — ReActV2's `submit` and RLM's.
 pub fn tool_call(tool: &dyn crate::Tool, args: &Value) -> Result<Value> {
-    let watch = opening(tracing::info_span!(
-        target: TARGET,
-        "tool",
-        tool = tool.name(),
-        inputs = field::Empty,
-        outputs = field::Empty,
-        error = field::Empty,
-    ));
+    let watch = tool_opening(tool, args);
     let _entered = watch.span.enter();
-    watch.shown(|| args.to_string());
-    let named = tool.name();
-    if callback::watching(&watch.instance) {
-        callback::tell(&watch.instance, |callback| {
-            callback.on_tool_start(&watch.call, named, args)
-        });
-    }
-
     let _under = callback::entered(&watch.call);
     let answered = tool.call_value(args);
     watch.finished(answered.as_ref(), Value::to_string);
@@ -254,6 +239,36 @@ pub fn tool_call(tool: &dyn crate::Tool, args: &Value) -> Result<Value> {
         });
     }
     answered
+}
+
+/// The same point, awaited — dspy's `Tool.acall` beside its `__call__`.
+///
+/// Every agent goes through this one: the loops are futures already, and a tool that reaches a
+/// network has to be able to say so. [`tool_call`] stays for the one caller that cannot await —
+/// the sandbox host callback, which answers a synchronous RPC while holding the tool list.
+pub async fn tool_acall(tool: &dyn crate::Tool, args: &Value) -> Result<Value> {
+    let watch = tool_opening(tool, args);
+    watching(watch, tool.acall_value(args)).await
+}
+
+/// The open half both share: the span, and `on_tool_start`.
+fn tool_opening(tool: &dyn crate::Tool, args: &Value) -> Watch {
+    let watch = opening(tracing::info_span!(
+        target: TARGET,
+        "tool",
+        tool = tool.name(),
+        inputs = field::Empty,
+        outputs = field::Empty,
+        error = field::Empty,
+    ));
+    watch.shown(|| args.to_string());
+    if callback::watching(&watch.instance) {
+        let named = tool.name();
+        callback::tell(&watch.instance, |callback| {
+            callback.on_tool_start(&watch.call, named, args)
+        });
+    }
+    watch
 }
 
 /// dspy `on_adapter_format_start`/`on_adapter_format_end`: rendering the prompt.

@@ -135,24 +135,43 @@ fn coerce_json(name: &str, annotation: &str, value: &mut Value) -> Result<()> {
     }
 }
 
-/// Annotations whose Python type validates a bare, non-JSON string, so such a value is its own
-/// form rather than malformed JSON. dspy's `TypeAdapter` accepts the string for each of these.
+/// Whether this annotation's Python type can hold a bare, non-JSON string at all.
 ///
-/// The four temporal types accept a *well-formed* one — `"2024-01-01"` and not `"print('hi')"` —
-/// and are here anyway: what refuses a bad one is the caller's typing, one layer on. `Code` accepts
-/// any string at all, its `validate_input` taking `isinstance(data, str)` and running `_filter_code`
-/// over it, which is how a model that answered with a markdown block is understood.
-/// `dspy.Code["java"]` builds a distinct class named `Code_java`, so the subscripted spelling is
-/// matched by prefix rather than by naming every language.
+/// After a JSON parse fails, that is the only question worth asking: a value the type could never
+/// hold is malformed, and one it could is a value in its own string form for the caller's typing
+/// (or, across the bridge, `parse_value`) to read. dspy asks it by handing the string to
+/// `TypeAdapter().validate_python` and seeing what happens.
 ///
-/// `Reasoning` belongs to this set too and is not in it: `get_annotation_name` gives it `str`, so a
-/// field of that type never reaches here. Which annotations have a string form is measured — see
-/// `tests/string_form.rs` — rather than read off the type list, because being one short is exactly
-/// what this was, and the two upstream tests that said so were not in any gate.
+/// The set was a list of the cases somebody had hit — `datetime`, `date`, `time`, `timedelta`,
+/// `Code` — and it was five of eleven. Measured against pydantic instead: a union with a string
+/// arm holds one (`Optional[str]` and `Union[str, int]` both do), `Any` and `bytes` hold one, and
+/// so does every scalar whose serialization *is* a string. A container never does, whatever it
+/// holds: `list[Optional[str]]` rejects a bare string even though its element would take it.
+///
+/// Found by comparing the `parse` direction, which nothing had compared: `JsonAdapter` and
+/// `BamlAdapter` both refused `{"note": "seen"}` for an `Optional[str]` output that dspy reads.
 fn accepts_string_form(annotation: &str) -> bool {
-    matches!(annotation, "datetime" | "date" | "time" | "timedelta")
-        || annotation == "Code"
+    let annotation = annotation.trim();
+    if matches!(
+        annotation,
+        "str" | "Any" | "bytes" | "datetime" | "date" | "time" | "timedelta" | "UUID"
+    ) || annotation == "Code"
         || annotation.starts_with("Code_")
+        || annotation.starts_with("Literal[")
+    {
+        return true;
+    }
+    // A union holds a string when any arm does. A container never does, whatever it holds.
+    union_arms(annotation).is_some_and(|arms| arms.iter().any(|arm| accepts_string_form(arm)))
+}
+
+/// The arms of `Union[...]`, and nothing for any other container.
+fn union_arms(annotation: &str) -> Option<Vec<&str>> {
+    let inside = annotation
+        .strip_prefix("Union[")
+        .or_else(|| annotation.strip_prefix("Optional["))?
+        .strip_suffix(']')?;
+    Some(crate::signature::split_top_level(inside, ','))
 }
 
 /// The content of a ```json ... ``` (or bare ```) block, when the whole text is one fence.
@@ -181,4 +200,65 @@ fn coerce_float(name: &str, value: &mut Value) -> Result<()> {
         return Ok(());
     }
     Err(anyhow!("{name} must be a number, got {value}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A bare string is kept exactly where pydantic can hold one.
+    ///
+    /// The set was a list of the cases somebody had hit — `datetime`, `date`, `time`, `timedelta`,
+    /// `Code` — five of eleven, and it refused `{"note": "seen"}` for an `Optional[str]` output
+    /// that dspy reads. Measured against pydantic instead, the rule is: a union with a string arm
+    /// holds one, `Any` and `bytes` hold one, and so does every scalar whose serialization *is* a
+    /// string. A container never does, whatever its element would take.
+    ///
+    /// Found by comparing the `parse` direction, which nothing had ever compared.
+    #[test]
+    fn a_bare_string_is_kept_where_a_string_can_live() {
+        for holds in [
+            "str",
+            "Any",
+            "bytes",
+            "datetime",
+            "date",
+            "time",
+            "timedelta",
+            "UUID",
+            "Code",
+            "Union[str, NoneType]",
+            "Union[str, int]",
+            "Optional[str]",
+            "Literal['low', 'high']",
+        ] {
+            assert!(accepts_string_form(holds), "{holds} can hold a string");
+        }
+        // Measured: `list[Optional[str]]` rejects a bare string even though its element takes one.
+        for refuses in [
+            "int",
+            "float",
+            "bool",
+            "list[str]",
+            "dict[str, int]",
+            "tuple[str, int]",
+            "set[str]",
+            "Union[int, NoneType]",
+            "list[Union[str, NoneType]]",
+        ] {
+            assert!(!accepts_string_form(refuses), "{refuses} cannot");
+        }
+    }
+
+    /// The whole point at the call site: an optional string output reads a bare value.
+    #[test]
+    fn an_optional_string_output_reads_a_bare_value() {
+        let mut value = Value::from("seen");
+        coerce_json("note", "Union[str, NoneType]", &mut value).expect("kept");
+        assert_eq!(value, Value::from("seen"));
+
+        let mut malformed = Value::from("seen");
+        coerce_json("tags", "list[str]", &mut malformed)
+            .expect_err("a list cannot hold a bare string");
+    }
 }

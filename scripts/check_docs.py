@@ -41,6 +41,10 @@ anyhow = "1"
 # it. `tracing-subscriber` is docs/usage.md's "Watching a run"; adding one without the guide printing
 # it is how a snippet compiles here and not for anyone else.
 tracing-subscriber = {{ version = "0.3", features = ["env-filter"] }}
+# `typed_tool` reads a tool off a type the *caller* derives `JsonSchema` on, so these two are
+# written in the reader's own crate. README.md names them as that path's one exception.
+schemars = "1"
+serde = {{ version = "1", features = ["derive"] }}
 
 # Its own workspace, so this repository's does not lend it what it never declared.
 [workspace]

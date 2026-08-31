@@ -378,7 +378,7 @@
       "inputs": [
         {
           "name": "x",
-          "annotation": "Optional[int]"
+          "annotation": "Union[int, NoneType]"
         }
       ],
       "outputs": [
@@ -394,7 +394,7 @@
       "inputs": [
         {
           "name": "x",
-          "annotation": "Optional[int]"
+          "annotation": "Union[int, NoneType]"
         }
       ],
       "outputs": [
@@ -442,7 +442,7 @@
       "inputs": [
         {
           "name": "x",
-          "annotation": "Optional[list[int]]"
+          "annotation": "Union[list[int], NoneType]"
         }
       ],
       "outputs": [
@@ -458,7 +458,7 @@
       "inputs": [
         {
           "name": "x",
-          "annotation": "dict[str, Optional[int]]"
+          "annotation": "dict[str, Union[int, NoneType]]"
         }
       ],
       "outputs": [
@@ -490,7 +490,7 @@
       "inputs": [
         {
           "name": "x",
-          "annotation": "tuple[Optional[int], str]"
+          "annotation": "tuple[Union[int, NoneType], str]"
         }
       ],
       "outputs": [
@@ -522,7 +522,7 @@
       "inputs": [
         {
           "name": "x",
-          "annotation": "Optional[list[str]]"
+          "annotation": "Union[list[str], NoneType]"
         }
       ],
       "outputs": [
@@ -551,6 +551,68 @@
     {
       "signature": "a -> a",
       "error": "Input and output fields must have distinct names, but found duplicates: 'a'."
+    }
+  ],
+  "instructions": [
+    {
+      "given": "Answer the question.",
+      "instructions": "Answer the question."
+    },
+    {
+      "given": "Answer the question.\nBe brief.\n\nNever guess.",
+      "instructions": "Answer the question.\nBe brief.\n\nNever guess."
+    },
+    {
+      "given": "Answer the question.\n\n    Be brief.\n    Never guess.\n    ",
+      "instructions": "Answer the question.\n\nBe brief.\nNever guess."
+    },
+    {
+      "given": "\n\nWrite the section by calling the tools.\n",
+      "instructions": "Write the section by calling the tools."
+    },
+    {
+      "given": "\n\n\n",
+      "instructions": ""
+    },
+    {
+      "given": "",
+      "instructions": "Given the fields `q`, produce the fields `a`."
+    },
+    {
+      "given": "   ",
+      "instructions": ""
+    },
+    {
+      "given": "First.\n        deep\n    shallow\n        deep again",
+      "instructions": "First.\n    deep\nshallow\n    deep again"
+    },
+    {
+      "given": "    indented first line.\n    second line.",
+      "instructions": "indented first line.\nsecond line."
+    },
+    {
+      "given": "First.\n    second.\n\n    third.",
+      "instructions": "First.\nsecond.\n\nthird."
+    },
+    {
+      "given": "First.\n\tTabbed.\n        eight spaces.",
+      "instructions": "First.\nTabbed.\neight spaces."
+    },
+    {
+      "given": "First.\nab\tc\nd",
+      "instructions": "First.\nab      c\nd"
+    },
+    {
+      "given": "First.\n  ab\tc\n  d",
+      "instructions": "First.\nab    c\nd"
+    },
+    {
+      "given": "\tone\n\t\ttwo\nab\tc",
+      "instructions": "one\n                two\nab      c"
+    },
+    {
+      "given": "First.\nSecond.\n   \n",
+      "instructions": "First.\nSecond.\n   "
     }
   ]
 }

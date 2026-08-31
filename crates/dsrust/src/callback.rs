@@ -312,6 +312,17 @@ impl Ends for Prediction {
     }
 }
 
+/// One tool call's observation, so an awaited tool closes its point the way the other two do.
+impl Ends for Value {
+    fn describe(&self) -> String {
+        self.to_string()
+    }
+
+    fn ended(call: &CallId, instance: &[Arc<dyn Callback>], answered: Result<&Self, &Error>) {
+        tell(instance, |callback| callback.on_tool_end(call, answered));
+    }
+}
+
 impl Ends for api::LmResponse {
     /// The text, whether it was replayed, and what it cost — not the whole response.
     ///

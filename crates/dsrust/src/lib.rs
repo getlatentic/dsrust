@@ -34,6 +34,21 @@ pub use reqwest;
 /// [`Input`]: crate::adapter::Input
 pub use serde_json;
 
+/// The error crate `Tool::call` answers with, re-exported so a tool can be written by a crate that
+/// depends on nothing but this one. Naming the return type is unavoidable — `#[tool]` reads the
+/// function you wrote rather than rewriting it — and `anyhow::Result<String>` is what it has to be.
+///
+/// ```
+/// # use dsrust::{Tool, tool};
+/// #[tool]
+/// /// Greet one person by name.
+/// fn greet(name: String) -> dsrust::anyhow::Result<String> {
+///     Ok(format!("Hello, {name}."))
+/// }
+/// assert_eq!(Greet.name(), "greet");
+/// ```
+pub use anyhow;
+
 pub mod adapter;
 pub mod callback;
 mod error;
@@ -70,14 +85,15 @@ pub use hasher::Hasher;
 pub use lm::Capabilities;
 pub use module::{
     Ask, FailedPrediction, Forward, Module, NamedPredictor, PredictorState, ProgramState,
-    StepOutputs, TraceStep,
+    StepOutputs, TraceStep, Typed,
 };
 pub use optimize::{
     Attempt, BootstrapFewShot, BootstrapRandomSearch, COPRO, DynOptimizer, Ensemble, Ensembled,
     Feedback, GEPA, GepaOutcome, LabeledFewShot, MIPROv2, MetricContext, Optimizer,
 };
 pub use react::{
-    FnTool, ReAct, ReActV2, Tool, Trajectory, mcp_tool, mcp_tool_args, mcp_tool_result,
+    AsyncFnTool, FnTool, ReAct, ReActV2, Tool, Trajectory, mcp_tool, mcp_tool_args,
+    mcp_tool_result, typed_tool,
 };
 
 /// Items the macros expand into so a caller does not have to depend on them directly.
@@ -101,5 +117,5 @@ pub use predict::{
 };
 pub use signature::{
     ChainOfThought, FieldEdit, FieldKind, InField, LiteralValue, OutField, Predict, Side,
-    Signature, SignatureSpec, json_field_schema, make_signature,
+    Signature, SignatureSpec, json_field_schema, make_signature, tool,
 };

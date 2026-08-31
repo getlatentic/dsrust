@@ -364,3 +364,109 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod restore_conformance {
+    use super::*;
+    use crate::signature::infer_prefix;
+
+    use serde_json::Value;
+
+    /// What dspy's `Signature.load_state` answered, recorded by running it. Regenerate with
+    /// `scripts/generate_signature_state_fixture.py`.
+    fn golden() -> Value {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/conformance/state/signature_state.json");
+        let text = std::fs::read_to_string(&path).expect("the state golden is committed");
+        serde_json::from_str(&text).expect("the golden parses")
+    }
+
+    /// The prefix a field renders with: its own, or the one inferred from its name.
+    ///
+    /// dspy's uncovered fields keep the defaults their signature was built with, which are the
+    /// inferred ones. Comparing the stored `Option` instead would call a field restored when it
+    /// was only left alone.
+    fn effective(name: &str, prefix: Option<&str>) -> String {
+        prefix.map_or_else(|| format!("{}:", infer_prefix(name)), str::to_owned)
+    }
+
+    /// The description a field renders with, on either side's spelling of "none".
+    ///
+    /// dspy has no empty description: an undescribed field's `desc` is the placeholder `${name}`,
+    /// which its adapters print as nothing — `1. `answer` (str):` with no text after the colon.
+    /// This crate spells the same state `""`, and [`FieldState::of`] writes the placeholder back
+    /// when saving. Comparing the two literally reports a divergence that no prompt has.
+    fn described(name: &str, desc: &str) -> String {
+        match desc == format!("${{{name}}}") {
+            true => String::new(),
+            false => desc.to_owned(),
+        }
+    }
+
+    /// Restoring a state whose shape no longer fits, against what dspy does with the same one.
+    ///
+    /// This is not a lenience the port chose. Upstream zips the saved fields onto the live ones
+    /// with `strict=False`, so a signature that has since gained a field restores what lines up
+    /// and reports nothing — and the case that matters is a node that became a `ChainOfThought`,
+    /// where the new leading output takes the *next* field's prefix and the rest slide one place.
+    /// A caller who needs that to be loud has to compare the shapes itself; the port's job is to
+    /// keep doing what upstream does.
+    #[test]
+    fn restores_what_dspy_restores_when_the_shape_moved() {
+        let recorded = golden();
+        let cases = recorded["cases"].as_array().expect("cases").clone();
+        assert!(!cases.is_empty(), "the golden records no cases");
+        for case in cases {
+            let what = case["what"].as_str().expect("a description");
+            let mut signature: Signature = case["live"]
+                .as_str()
+                .expect("a spelling")
+                .parse()
+                .expect("the spelling parses");
+            let saved: SignatureState =
+                serde_json::from_value(case["state"].clone()).expect("the state deserialises");
+
+            saved.restore(&mut signature);
+
+            assert_eq!(
+                signature.instructions,
+                case["restored"]["instructions"].as_str().expect("them"),
+                "instructions differ when {what}"
+            );
+            let ours: Vec<(String, String, String)> = signature
+                .inputs
+                .iter()
+                .map(|field| (&field.name, &field.desc, &field.prefix))
+                .chain(
+                    signature
+                        .outputs
+                        .iter()
+                        .map(|field| (&field.name, &field.desc, &field.prefix)),
+                )
+                .map(|(name, desc, prefix)| {
+                    (
+                        name.clone(),
+                        effective(name, prefix.as_deref()),
+                        desc.clone(),
+                    )
+                })
+                .collect();
+            let theirs: Vec<(String, String, String)> = case["restored"]["fields"]
+                .as_array()
+                .expect("fields")
+                .iter()
+                .map(|field| {
+                    (
+                        field["name"].as_str().expect("a name").to_owned(),
+                        field["prefix"].as_str().expect("a prefix").to_owned(),
+                        described(
+                            field["name"].as_str().expect("a name"),
+                            field["description"].as_str().expect("a desc"),
+                        ),
+                    )
+                })
+                .collect();
+            assert_eq!(ours, theirs, "fields land differently when {what}");
+        }
+    }
+}

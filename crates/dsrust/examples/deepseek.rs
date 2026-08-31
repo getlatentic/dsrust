@@ -135,7 +135,7 @@ async fn main() -> anyhow::Result<()> {
 
     configure(model(VISION_MODEL, None)?);
     let asked = call!(
-        Predict!("question, photo: Image -> answer"),
+        Predict!("question, photo: dspy.Image -> answer"),
         question = "What two colours are in this image? Answer in three words.",
         photo = serde_json::to_value(two_colour_image()?)?
     )

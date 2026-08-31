@@ -1,0 +1,212 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_signature_state_fixture.py",
+  "dspy_version": "3.3.0",
+  "cases": [
+    {
+      "what": "the shape it was saved from",
+      "live": "question -> answer",
+      "state": {
+        "instructions": "Answer it.",
+        "fields": [
+          {
+            "prefix": "Q:",
+            "description": "the question"
+          },
+          {
+            "prefix": "A:",
+            "description": "the answer"
+          }
+        ]
+      },
+      "restored": {
+        "instructions": "Answer it.",
+        "fields": [
+          {
+            "name": "question",
+            "prefix": "Q:",
+            "description": "the question"
+          },
+          {
+            "name": "answer",
+            "prefix": "A:",
+            "description": "the answer"
+          }
+        ]
+      }
+    },
+    {
+      "what": "the program gained a leading output since it was saved",
+      "live": "question -> reasoning, answer",
+      "state": {
+        "instructions": "Answer it.",
+        "fields": [
+          {
+            "prefix": "Q:",
+            "description": "the question"
+          },
+          {
+            "prefix": "A:",
+            "description": "the answer"
+          }
+        ]
+      },
+      "restored": {
+        "instructions": "Answer it.",
+        "fields": [
+          {
+            "name": "question",
+            "prefix": "Q:",
+            "description": "the question"
+          },
+          {
+            "name": "reasoning",
+            "prefix": "A:",
+            "description": "the answer"
+          },
+          {
+            "name": "answer",
+            "prefix": "Answer:",
+            "description": "${answer}"
+          }
+        ]
+      }
+    },
+    {
+      "what": "the program gained an input since it was saved",
+      "live": "question, context -> answer",
+      "state": {
+        "instructions": "Answer it.",
+        "fields": [
+          {
+            "prefix": "Q:",
+            "description": "the question"
+          },
+          {
+            "prefix": "A:",
+            "description": "the answer"
+          }
+        ]
+      },
+      "restored": {
+        "instructions": "Answer it.",
+        "fields": [
+          {
+            "name": "question",
+            "prefix": "Q:",
+            "description": "the question"
+          },
+          {
+            "name": "context",
+            "prefix": "A:",
+            "description": "the answer"
+          },
+          {
+            "name": "answer",
+            "prefix": "Answer:",
+            "description": "${answer}"
+          }
+        ]
+      }
+    },
+    {
+      "what": "the program lost a field since it was saved",
+      "live": "question -> answer",
+      "state": {
+        "instructions": "Answer it.",
+        "fields": [
+          {
+            "prefix": "Q:",
+            "description": "the question"
+          },
+          {
+            "prefix": "A:",
+            "description": "the answer"
+          },
+          {
+            "prefix": "E:",
+            "description": "the evidence"
+          }
+        ]
+      },
+      "restored": {
+        "instructions": "Answer it.",
+        "fields": [
+          {
+            "name": "question",
+            "prefix": "Q:",
+            "description": "the question"
+          },
+          {
+            "name": "answer",
+            "prefix": "A:",
+            "description": "the answer"
+          }
+        ]
+      }
+    },
+    {
+      "what": "the saved state has no fields at all",
+      "live": "question -> answer",
+      "state": {
+        "instructions": "Only the instructions survived.",
+        "fields": []
+      },
+      "restored": {
+        "instructions": "Only the instructions survived.",
+        "fields": [
+          {
+            "name": "question",
+            "prefix": "Question:",
+            "description": "${question}"
+          },
+          {
+            "name": "answer",
+            "prefix": "Answer:",
+            "description": "${answer}"
+          }
+        ]
+      }
+    },
+    {
+      "what": "every field is restored onto a signature of inputs alone",
+      "live": "question, context -> answer",
+      "state": {
+        "instructions": "Answer it.",
+        "fields": [
+          {
+            "prefix": "Q:",
+            "description": "the question"
+          },
+          {
+            "prefix": "C:",
+            "description": "the context"
+          },
+          {
+            "prefix": "A:",
+            "description": "the answer"
+          }
+        ]
+      },
+      "restored": {
+        "instructions": "Answer it.",
+        "fields": [
+          {
+            "name": "question",
+            "prefix": "Q:",
+            "description": "the question"
+          },
+          {
+            "name": "context",
+            "prefix": "C:",
+            "description": "the context"
+          },
+          {
+            "name": "answer",
+            "prefix": "A:",
+            "description": "the answer"
+          }
+        ]
+      }
+    }
+  ]
+}

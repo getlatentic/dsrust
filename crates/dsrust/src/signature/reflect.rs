@@ -15,11 +15,11 @@
 
 use serde_json::{Value, json};
 
-use super::json_field_schema;
+use super::inlined_schema;
 
 /// The structure of `T`, in the form an adapter that states types can render.
 pub fn json_field_reflection<T: schemars::JsonSchema>() -> Value {
-    from_schema(&json_field_schema::<T>())
+    from_schema(&inlined_schema::<T>())
 }
 
 /// The same, for a schema already in hand.

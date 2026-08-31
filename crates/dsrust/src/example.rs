@@ -230,6 +230,51 @@ impl Prediction {
     pub fn get(&self, name: &str) -> Option<&Value> {
         self.example.get(name)
     }
+
+    /// The answer as the task's own outputs struct, so a field is checked rather than looked up.
+    ///
+    /// `Predict` and `ChainOfThought` are generic over the task and hand back `S::Outputs`
+    /// already. Every other module decides its outputs as it runs — an agent's come from whatever
+    /// `submit` carried — so it answers with a `Prediction` however its signature was spelled, and
+    /// this is how that becomes a struct. Fields the task does not declare, like an agent's
+    /// `trajectory`, are ignored.
+    ///
+    /// dspy needs no equivalent: its `Prediction` answers any attribute at run time, and a field
+    /// the agent never produced reads as an `AttributeError` when it is touched. Here the whole
+    /// answer is checked at once, and a loop that ended without producing the outputs is named
+    /// rather than reported as a missing field.
+    ///
+    /// ```
+    /// # use dsrust::{Example, Prediction};
+    /// # use serde::Deserialize;
+    /// #[derive(Deserialize)]
+    /// struct QAOutputs {
+    ///     answer: String,
+    /// }
+    ///
+    /// let prediction = Prediction::new(
+    ///     Example::new([("answer", serde_json::json!("Paris"))]),
+    ///     "",
+    /// );
+    /// assert_eq!(prediction.typed::<QAOutputs>().unwrap().answer, "Paris");
+    /// ```
+    pub fn typed<T: serde::de::DeserializeOwned>(&self) -> Result<T> {
+        let named: serde_json::Map<String, Value> = self
+            .example
+            .fields()
+            .map(|(name, value)| (name.to_owned(), value.clone()))
+            .collect();
+        serde_json::from_value(Value::Object(named)).map_err(|error| {
+            match self.get("termination_reason") {
+                // The agent finished, but with nothing to read: it ran out of turns, or answered in
+                // prose instead of calling `submit`. Saying which beats naming the absent field.
+                Some(Value::String(reason)) if reason != "submit" && reason != "forced_submit" => {
+                    anyhow!("the loop ended without producing the outputs ({reason})")
+                }
+                _ => anyhow!("{error}"),
+            }
+        })
+    }
 }
 
 #[cfg(test)]
