@@ -6,6 +6,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use gepa::Candidate;
 use gepa::progress::{Event, Progress, Silent};
 
 #[derive(Default)]
@@ -42,6 +43,11 @@ fn decision(event: &Event<'_>) -> &'static str {
 /// caller renders.
 #[test]
 fn a_subscriber_receives_every_decision() {
+    // The winning candidate the event borrows, declared so it outlives the event.
+    let won: Candidate = [("step".to_owned(), "Answer it.".to_owned())]
+        .into_iter()
+        .collect();
+
     let collected = Arc::new(Collected::default());
     let progress: Arc<dyn Progress> = collected.clone();
     for event in [
@@ -67,6 +73,7 @@ fn a_subscriber_receives_every_decision() {
             candidate: 1,
             score: 0.9,
             is_best: true,
+            program: &won,
         },
         Event::Merged {
             iteration: 6,
@@ -97,6 +104,11 @@ fn a_subscriber_receives_every_decision() {
 /// The default says nothing and costs nothing — gepa's `logger=None`.
 #[test]
 fn the_default_reports_nothing() {
+    // The winning candidate the event borrows, declared so it outlives the event.
+    let won: Candidate = [("step".to_owned(), "Answer it.".to_owned())]
+        .into_iter()
+        .collect();
+
     // Nothing to assert but that it accepts every variant without panicking: a `Silent` that
     // errored would take down a run nobody asked to watch.
     Silent.report(Event::ProposedNothing { iteration: 1 });
@@ -105,6 +117,7 @@ fn the_default_reports_nothing() {
         candidate: 0,
         score: 1.0,
         is_best: false,
+        program: &won,
     });
 }
 

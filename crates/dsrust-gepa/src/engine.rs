@@ -504,6 +504,7 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             candidate,
             score,
             is_best: state.best_program() == candidate,
+            program: &state.candidates[candidate],
         });
     }
 

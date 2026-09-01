@@ -12,10 +12,19 @@
 //! Nothing is reported unless a caller asks: the default is a no-op, and this crate takes no
 //! logging dependency to provide it.
 
+use crate::Candidate;
+
 /// One decision, as it is made.
 ///
-/// Every variant corresponds to a `logger.log` upstream reaches, and carries what that line
-/// formats — so a subscriber can act on the numbers and still print the sentence.
+/// Every variant corresponds to something upstream *does*, and `message` renders the sentence
+/// upstream would have logged — so a subscriber can act on the numbers and still print the line.
+///
+/// Not every variant is a transcription, and it was never only that. `Rejected` has no line
+/// upstream at all: the decision is the one a caller watching a run most wants to see, and its
+/// absence is why a run looks stalled. `is_best` is what upstream's better-program line *means*
+/// rather than what it prints. And `program` on `Accepted` is what upstream's `new_program_idx`
+/// refers to — an index into a structure no subscriber can see is a reference with no referent.
+/// A field that completes the report belongs here; one that invents a decision does not.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event<'a> {
     /// The reflection proposed replacement text for one component. gepa: *"Iteration {i}: Proposed
@@ -57,6 +66,16 @@ pub enum Event<'a> {
         candidate: usize,
         score: f64,
         is_best: bool,
+        /// What the winning candidate *says*, not just where it sits.
+        ///
+        /// gepa's line prints `new_program_idx`, an index into `state.program_candidates` — a
+        /// structure a subscriber cannot see, so the index alone is a reference with no referent.
+        /// A caller checkpointing the best program so far has the text only on [`Self::Proposed`],
+        /// and pairing the two by iteration is inference rather than a record.
+        ///
+        /// Borrowed, like `error` and `text` on the other variants: a subscriber that ignores it
+        /// pays nothing, and one that persists clones at the moment it decides to.
+        program: &'a Candidate,
     },
     /// Two candidates were merged through a common ancestor. gepa: *"Iteration {i}: Merged
     /// programs {id1} and {id2} via ancestor {ancestor}"*.
@@ -104,6 +123,7 @@ impl Event<'_> {
                  and was dropped."
             ),
             Event::Accepted {
+                program: _,
                 iteration,
                 candidate,
                 score,
@@ -165,12 +185,18 @@ mod tests {
     /// The lines are gepa's, so a caller printing them gets what upstream's log would have said.
     #[test]
     fn the_message_is_upstreams_line() {
+        // The winning candidate the event borrows; the sentence upstream logs names the index, not
+        // the text, so it does not appear below.
+        let won: Candidate = [("step".to_owned(), "Answer it.".to_owned())]
+            .into_iter()
+            .collect();
         assert_eq!(
             Event::Accepted {
                 iteration: 3,
                 candidate: 7,
                 score: 0.8,
                 is_best: true,
+                program: &won,
             }
             .message(),
             "Iteration 3: Found a better program on the valset with score 0.8."

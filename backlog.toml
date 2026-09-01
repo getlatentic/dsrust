@@ -36,7 +36,7 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1642
+rust_tests = 1643
 upstream_tests_passing = 1201
 upstream_tests_crossing = 711
 upstream_tests_deciding_signatures = 687

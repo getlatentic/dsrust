@@ -479,3 +479,80 @@ mod nothing_to_reflect_on {
         );
     }
 }
+
+/// An acceptance hands over what the winning program *says*, not only where it sits.
+///
+/// gepa's line prints `new_program_idx`, an index into `state.program_candidates` — which a
+/// subscriber cannot see, so on its own it is a reference with no referent. A caller checkpointing
+/// the best program so far had the text only on `Proposed`, and pairing the two by iteration is
+/// inference rather than a record.
+mod the_winner_is_named {
+    use super::*;
+
+    use std::sync::{Arc, Mutex};
+
+    use gepa::progress::{Event, Progress};
+
+    #[derive(Default)]
+    struct Winners {
+        seen: Mutex<Vec<Candidate>>,
+    }
+
+    impl Progress for Winners {
+        fn report(&self, event: Event<'_>) {
+            if let Event::Accepted { program, .. } = event {
+                // What a checkpointing subscriber does: clone out of the borrow, at the moment it
+                // decides to keep one.
+                self.seen
+                    .lock()
+                    .expect("not poisoned")
+                    .push(program.clone());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn an_accepted_program_reaches_a_subscriber_as_text() {
+        let watching = Arc::new(Winners::default());
+        let engine = GepaEngine {
+            adapter: MirrorAdapter {
+                cap: 3,
+                weight: 1.0,
+                valset_size: 4,
+                merge_mode: false,
+            },
+            trainset_size: 4,
+            valset_size: 4,
+            minibatch_size: 2,
+            max_metric_calls: 40,
+            perfect_score: 1.0,
+            skip_perfect_score: true,
+            use_merge: false,
+            max_merge_invocations: 5,
+            seed: 0,
+            candidate_selection_strategy: CandidateSelection::Pareto,
+            track_best_outputs: false,
+            progress: watching.clone(),
+            component_selector: ComponentSelection::RoundRobin,
+        };
+        let mut seed = Candidate::new();
+        seed.insert("step".to_owned(), "v0".to_owned());
+        let outcome = engine.optimize(seed).await;
+
+        let seen = watching.seen.lock().expect("not poisoned").clone();
+        assert!(!seen.is_empty(), "no acceptance reached the subscriber");
+        for accepted in &seen {
+            assert!(
+                accepted.contains_key("step"),
+                "an accepted program arrived without its component: {accepted:?}"
+            );
+        }
+        // The last acceptance is the program the run finished with, which is what a checkpoint
+        // written on every improvement would hold when a crash arrives.
+        assert_eq!(
+            seen.last(),
+            Some(&outcome.best),
+            "the last accepted program is not the one the run answered with"
+        );
+    }
+}
