@@ -429,10 +429,20 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             ComponentSelection::RoundRobin => vec![state.select_component(parent)],
             ComponentSelection::All => parent_candidate.keys().cloned().collect(),
         };
-        let new_texts = self
+        // `None` is upstream raising out of `make_reflective_dataset`, which gepa catches: the
+        // iteration ends here rather than scoring a candidate identical to its parent, and the
+        // minibatch evaluation below is the one that is not spent.
+        let Some(new_texts) = self
             .adapter
             .propose_new_texts(&parent_candidate, &components, &eval_parent)
-            .await;
+            .await
+        else {
+            self.progress.report(Event::ReflectionFailed {
+                iteration: state.i + 1,
+                error: "No valid predictions found for any module.",
+            });
+            return None;
+        };
         let mut candidate = parent_candidate;
         candidate.extend(new_texts);
 

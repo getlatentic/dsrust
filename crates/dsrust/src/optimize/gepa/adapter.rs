@@ -303,7 +303,7 @@ where
         candidate: &Candidate,
         components: &[String],
         _captured: &EvalBatch<Prediction>,
-    ) -> Candidate {
+    ) -> Option<Candidate> {
         // A component whose runs produced nothing is left out of both paths: upstream skips it
         // rather than proposing against an empty dataset, and a caller's proposer is not handed one
         // it cannot use either.
@@ -343,11 +343,21 @@ where
 
         // dspy: when a custom proposer is given it "overrides everything" — the reflection tree is
         // not consulted at all, only the components it was asked about.
+        // dspy raises `"No valid predictions found for any module."` when every component's
+        // reflective dataset came back empty, and gepa catches it into a skipped iteration. The
+        // code components are checked with them: a run optimizing only a `Flex` has no dataset by
+        // construction and is not the failure this reports.
+        if datasets.is_empty() && code.is_empty() {
+            return None;
+        }
+
         if let Some(proposer) = &self.proposer {
             let asked: Vec<String> = datasets.keys().cloned().collect();
-            return proposer
-                .propose(&self.reflection, candidate, &asked, &datasets)
-                .await;
+            return Some(
+                proposer
+                    .propose(&self.reflection, candidate, &asked, &datasets)
+                    .await,
+            );
         }
 
         let mut new_texts = Candidate::new();
@@ -360,7 +370,7 @@ where
         if !code.is_empty() {
             new_texts.extend(self.propose_code_for(&code, candidate).await);
         }
-        new_texts
+        Some(new_texts)
     }
 }
 

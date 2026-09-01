@@ -86,14 +86,16 @@ impl GepaAdapter for MirrorAdapter {
         candidate: &Candidate,
         components: &[String],
         _captured: &EvalBatch<Self::Output>,
-    ) -> Candidate {
-        components
-            .iter()
-            .map(|name| {
-                let version: usize = candidate[name][1..].parse().expect("a vN component text");
-                (name.clone(), format!("v{}", (version + 1).min(self.cap)))
-            })
-            .collect()
+    ) -> Option<Candidate> {
+        Some(
+            components
+                .iter()
+                .map(|name| {
+                    let version: usize = candidate[name][1..].parse().expect("a vN component text");
+                    (name.clone(), format!("v{}", (version + 1).min(self.cap)))
+                })
+                .collect(),
+        )
     }
 }
 
@@ -300,8 +302,8 @@ mod why_nothing_was_proposed {
             candidate: &Candidate,
             _components: &[String],
             _eval: &EvalBatch<Self::Output>,
-        ) -> Candidate {
-            candidate.clone()
+        ) -> Option<Candidate> {
+            Some(candidate.clone())
         }
     }
 
@@ -354,6 +356,128 @@ mod why_nothing_was_proposed {
             seen.iter()
                 .any(|line| line.contains("All subsample scores perfect")),
             "a run with nothing to learn from reported {seen:?}"
+        );
+    }
+}
+
+/// Nothing to reflect on ends the iteration, and does not pay to score the parent twice.
+///
+/// dspy raises `"No valid predictions found for any module."` when every component's reflective
+/// dataset came back empty, and gepa catches it into a skipped iteration. This port answered with
+/// an empty proposal instead, so the engine built a candidate identical to its parent, spent a
+/// second minibatch evaluation scoring it, and reported it *rejected* — a different event and
+/// twice the metric calls, which matters because `max_metric_calls` is what ends the run.
+mod nothing_to_reflect_on {
+    use super::*;
+
+    use std::sync::{Arc, Mutex};
+
+    use gepa::progress::{Event, Progress};
+
+    #[derive(Default)]
+    struct Recording {
+        seen: Mutex<Vec<String>>,
+    }
+
+    impl Progress for Recording {
+        fn report(&self, event: Event<'_>) {
+            self.seen
+                .lock()
+                .expect("not poisoned")
+                .push(event.message());
+        }
+    }
+
+    /// Every reflective dataset came back empty, which upstream raises on.
+    struct NothingToLearn {
+        evaluated: Arc<Mutex<usize>>,
+    }
+
+    impl GepaAdapter for NothingToLearn {
+        type Output = ();
+
+        async fn evaluate_minibatch(
+            &mut self,
+            ids: &[usize],
+            _candidate: &Candidate,
+            capture_traces: bool,
+        ) -> EvalBatch<Self::Output> {
+            *self.evaluated.lock().expect("not poisoned") += 1;
+            let scores: Vec<f64> = ids.iter().map(|_| 0.5).collect();
+            match capture_traces {
+                true => EvalBatch::traced(scores),
+                false => EvalBatch::scored(scores),
+            }
+        }
+
+        async fn evaluate_valset(&mut self, _candidate: &Candidate) -> EvalBatch<Self::Output> {
+            EvalBatch::scored(vec![0.5; 4])
+        }
+
+        async fn evaluate_valset_ids(
+            &mut self,
+            ids: &[usize],
+            _candidate: &Candidate,
+        ) -> EvalBatch<Self::Output> {
+            EvalBatch::scored(ids.iter().map(|_| 0.5).collect())
+        }
+
+        async fn propose_new_texts(
+            &mut self,
+            _candidate: &Candidate,
+            _components: &[String],
+            _eval: &EvalBatch<Self::Output>,
+        ) -> Option<Candidate> {
+            None
+        }
+    }
+
+    #[tokio::test]
+    async fn the_iteration_ends_rather_than_scoring_the_parent_again() {
+        let watching = Arc::new(Recording::default());
+        let evaluated = Arc::new(Mutex::new(0usize));
+        let engine = GepaEngine {
+            adapter: NothingToLearn {
+                evaluated: evaluated.clone(),
+            },
+            trainset_size: 4,
+            valset_size: 4,
+            minibatch_size: 2,
+            max_metric_calls: 12,
+            perfect_score: 1.0,
+            skip_perfect_score: true,
+            use_merge: false,
+            max_merge_invocations: 5,
+            seed: 0,
+            candidate_selection_strategy: CandidateSelection::Pareto,
+            track_best_outputs: false,
+            progress: watching.clone(),
+            component_selector: ComponentSelection::RoundRobin,
+        };
+        let mut seed = Candidate::new();
+        seed.insert("step".to_owned(), "Answer it.".to_owned());
+        engine.optimize(seed).await;
+
+        let seen = watching.seen.lock().expect("not poisoned").clone();
+        assert!(
+            seen.iter()
+                .any(|line| line.contains("Exception during reflection/proposal")),
+            "the run reported {seen:?}"
+        );
+        assert!(
+            !seen.iter().any(|line| line.contains("was dropped")),
+            "a candidate identical to its parent was scored and rejected: {seen:?}"
+        );
+        // At most one minibatch evaluation per iteration — the parent's. The second, on a
+        // candidate identical to it, is the one upstream never spends; before this it was spent
+        // every time, so the count ran to twice the iterations and `max_metric_calls` bought half
+        // as many.
+        let spent = *evaluated.lock().expect("not poisoned");
+        let iterations = seen.len();
+        assert!(
+            spent <= iterations,
+            "{spent} minibatch evaluations across {iterations} iterations, so a candidate \
+             identical to its parent was scored"
         );
     }
 }

@@ -38,6 +38,10 @@ pub enum Event<'a> {
     /// A program that records no trace produces this on every iteration, and a caller seeing only
     /// [`Event::ProposedNothing`] cannot tell that from a reflection that ran and declined.
     NoTrajectories { iteration: i64 },
+    /// The reflection could not run at all — dspy raises when no module has a valid prediction to
+    /// learn from, and gepa catches it. gepa: *"Iteration {i}: Exception during
+    /// reflection/proposal: {e}"*.
+    ReflectionFailed { iteration: i64, error: &'a str },
     /// The proposal scored no better than its parent on the minibatch and was dropped before it
     /// cost a validation pass. Upstream logs no line here; the decision is the one a caller
     /// watching a run most wants to see, and its absence upstream is why a run looks stalled.
@@ -85,6 +89,9 @@ impl Event<'_> {
             Event::NoTrajectories { iteration } => {
                 format!("Iteration {iteration}: No trajectories captured. Skipping.")
             }
+            Event::ReflectionFailed { iteration, error } => {
+                format!("Iteration {iteration}: Exception during reflection/proposal: {error}")
+            }
             Event::NothingToLearnFrom { iteration } => {
                 format!("Iteration {iteration}: All subsample scores perfect. Skipping.")
             }
@@ -129,6 +136,7 @@ impl Event<'_> {
             | Event::ProposedNothing { iteration }
             | Event::NothingToLearnFrom { iteration }
             | Event::NoTrajectories { iteration }
+            | Event::ReflectionFailed { iteration, .. }
             | Event::Rejected { iteration, .. }
             | Event::Accepted { iteration, .. }
             | Event::Merged { iteration, .. }

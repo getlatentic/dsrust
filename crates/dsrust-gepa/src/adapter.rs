@@ -74,10 +74,19 @@ pub trait GepaAdapter {
         candidate: &Candidate,
     ) -> impl Future<Output = EvalBatch<Self::Output>> + Send;
 
+    /// Replacement text for the components named, or `None` when there was nothing to reflect on
+    /// at all.
+    ///
+    /// `None` is dspy raising `"No valid predictions found for any module."` from
+    /// `make_reflective_dataset`, which gepa catches and turns into a skipped iteration. It is not
+    /// the same as answering with an empty map: an empty map is a reflection that ran and proposed
+    /// nothing for the components it was asked about, and upstream scores the unchanged candidate
+    /// for it. Answering `None` where the map is merely empty spends an extra minibatch evaluation
+    /// on a candidate identical to its parent, and `max_metric_calls` is what pays for it.
     fn propose_new_texts(
         &mut self,
         candidate: &Candidate,
         components: &[String],
         captured: &EvalBatch<Self::Output>,
-    ) -> impl Future<Output = Candidate> + Send;
+    ) -> impl Future<Output = Option<Candidate>> + Send;
 }

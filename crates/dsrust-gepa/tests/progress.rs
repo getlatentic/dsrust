@@ -29,6 +29,7 @@ fn decision(event: &Event<'_>) -> &'static str {
         Event::ProposedNothing { .. } => "proposed_nothing",
         Event::NothingToLearnFrom { .. } => "nothing_to_learn_from",
         Event::NoTrajectories { .. } => "no_trajectories",
+        Event::ReflectionFailed { .. } => "reflection_failed",
         Event::Rejected { .. } => "rejected",
         Event::Accepted { is_best: true, .. } => "accepted_best",
         Event::Accepted { .. } => "accepted",
@@ -52,6 +53,10 @@ fn a_subscriber_receives_every_decision() {
         Event::ProposedNothing { iteration: 2 },
         Event::NothingToLearnFrom { iteration: 3 },
         Event::NoTrajectories { iteration: 4 },
+        Event::ReflectionFailed {
+            iteration: 4,
+            error: "No valid predictions found for any module.",
+        },
         Event::Rejected {
             iteration: 4,
             before: 2.0,
@@ -80,6 +85,7 @@ fn a_subscriber_receives_every_decision() {
             "proposed_nothing@2",
             "nothing_to_learn_from@3",
             "no_trajectories@4",
+            "reflection_failed@4",
             "rejected@4",
             "accepted_best@5",
             "merged@6",
