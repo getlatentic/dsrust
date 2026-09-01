@@ -1,0 +1,26 @@
+{
+  "source": "generated from dspy==3.3.0 via scripts/generate_predictor_names_fixture.py",
+  "dspy_version": "3.3.0",
+  "cases": [
+    {
+      "what": "a bare Predict",
+      "names": [
+        "self"
+      ]
+    },
+    {
+      "what": "a bare ChainOfThought",
+      "names": [
+        "predict"
+      ]
+    },
+    {
+      "what": "a composed module",
+      "names": [
+        "flat",
+        "cot.predict",
+        "nested.step.predict"
+      ]
+    }
+  ]
+}

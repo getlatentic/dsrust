@@ -48,13 +48,22 @@ pub(crate) fn expand(item: &DeriveInput) -> Result<proc_macro2::TokenStream, syn
         None => quote! { ::dsrust::asks_with_a_prediction!(#name); },
     };
 
-    // Each child's predictors are renamed after the field holding it, so a demo says which step
-    // of the program earned it rather than which predictor inside that step.
+    // dspy names a predictor by its path from the root — `flat`, `cot.predict`,
+    // `nested.step.predict` — built by `named_parameters` walking attribute names. A leaf `Predict`
+    // calls itself `self`, which the field name replaces; anything with a name of its own is
+    // *prefixed*, so a `ChainOfThought` held in `answer_generator` is `answer_generator.predict`.
+    //
+    // This replaced in both cases, which agrees for a leaf and differs the moment a step is itself
+    // composed. The name is what `load_state` indexes, so a program saved by dspy could not be
+    // loaded here and a program saved here could not be loaded there.
     let walk = steps.iter().map(|field| {
         let label = field.to_string();
         quote! {
             for mut inner in ::dsrust::Module::named_predictors(&mut self.#field) {
-                inner.name = #label.to_owned();
+                inner.name = match inner.name.as_str() {
+                    "self" => #label.to_owned(),
+                    nested => ::std::format!("{}.{}", #label, nested),
+                };
                 found.push(inner);
             }
         }
