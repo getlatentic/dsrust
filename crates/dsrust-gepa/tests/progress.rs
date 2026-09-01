@@ -121,3 +121,56 @@ fn the_message_is_the_upstream_line() {
         "Iteration 9: Proposed new text for reasoning: be brief"
     );
 }
+
+/// Every event this crate defines is one the engine can actually report.
+///
+/// Four of nine were not. `NothingToLearnFrom`, `Proposed`, `Merged` and `NoMergeCandidates` were
+/// each defined, rendered by `message()`, matched in this file and in dsrust's `reported.rs` — and
+/// never passed to `report`. They could not occur, and a subscriber waiting on one waited forever.
+/// Nothing caught it because every test constructed the events instead of running the engine, and
+/// a match arm reads exactly the same whether or not the arm is reachable.
+///
+/// This reads the source rather than driving a run, deliberately: reaching all nine through the
+/// engine needs a merge, a rejection and an acceptance in one run, and a test that elaborate would
+/// be the thing that rots. What it costs is that a variant reported from dead code would still pass
+/// — so it is a floor, not a proof.
+#[test]
+fn every_event_the_crate_defines_is_reported_somewhere() {
+    let progress = include_str!("../src/progress.rs");
+    let engine = include_str!("../src/engine.rs");
+
+    let defined: Vec<&str> = progress
+        .lines()
+        .skip_while(|line| !line.starts_with("pub enum Event"))
+        .filter_map(|line| {
+            let name = line.strip_prefix("    ")?;
+            let name = name.split([' ', '{', '(', ',']).next()?;
+            match name.starts_with(|c: char| c.is_ascii_uppercase()) {
+                true => Some(name),
+                false => None,
+            }
+        })
+        .collect();
+    assert!(
+        defined.len() >= 9,
+        "only found {defined:?} — the parse of the enum has drifted"
+    );
+
+    for variant in defined {
+        // `Event::Proposed` is a prefix of `Event::ProposedNothing`, so a substring test reports a
+        // variant as reachable because a *different* one is — which is how the first version of
+        // this test passed while `Proposed` was still unreachable.
+        let reported = engine
+            .match_indices(&format!("Event::{variant}"))
+            .any(|(at, matched)| {
+                engine[at + matched.len()..]
+                    .chars()
+                    .next()
+                    .is_none_or(|next| !next.is_alphanumeric() && next != '_')
+            });
+        assert!(
+            reported,
+            "`Event::{variant}` is defined and the engine never reports it, so it cannot occur"
+        );
+    }
+}

@@ -303,7 +303,7 @@ where
         candidate: &Candidate,
         components: &[String],
         _captured: &EvalBatch<Prediction>,
-    ) -> Option<Candidate> {
+    ) -> Result<Candidate, String> {
         // A component whose runs produced nothing is left out of both paths: upstream skips it
         // rather than proposing against an empty dataset, and a caller's proposer is not handed one
         // it cannot use either.
@@ -348,29 +348,32 @@ where
         // code components are checked with them: a run optimizing only a `Flex` has no dataset by
         // construction and is not the failure this reports.
         if datasets.is_empty() && code.is_empty() {
-            return None;
+            return Err("No valid predictions found for any module.".to_owned());
         }
 
         if let Some(proposer) = &self.proposer {
             let asked: Vec<String> = datasets.keys().cloned().collect();
-            return Some(
-                proposer
-                    .propose(&self.reflection, candidate, &asked, &datasets)
-                    .await,
-            );
+            return Ok(proposer
+                .propose(&self.reflection, candidate, &asked, &datasets)
+                .await);
         }
 
         let mut new_texts = Candidate::new();
         for (name, dataset) in &datasets {
             let prompt = render_prompt(&candidate[name], dataset, None);
-            if let Some(raw) = self.reflect(&prompt).await {
-                new_texts.insert(name.clone(), extract_new_instruction(&raw));
-            }
+            // Upstream's `try` wraps the whole proposal, so a reflection that fails ends the
+            // iteration rather than the component: the ones already proposed for go with it. This
+            // used to skip the component and carry on, which proposed for some of them and — when
+            // every one failed — handed back an empty map the engine then paid to score.
+            let Some(raw) = self.reflect(&prompt).await else {
+                return Err(format!("the reflection model did not answer for {name}"));
+            };
+            new_texts.insert(name.clone(), extract_new_instruction(&raw));
         }
         if !code.is_empty() {
             new_texts.extend(self.propose_code_for(&code, candidate).await);
         }
-        Some(new_texts)
+        Ok(new_texts)
     }
 }
 

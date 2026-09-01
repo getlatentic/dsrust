@@ -74,19 +74,23 @@ pub trait GepaAdapter {
         candidate: &Candidate,
     ) -> impl Future<Output = EvalBatch<Self::Output>> + Send;
 
-    /// Replacement text for the components named, or `None` when there was nothing to reflect on
-    /// at all.
+    /// Replacement text for the components named, or the reason there is none.
     ///
-    /// `None` is dspy raising `"No valid predictions found for any module."` from
-    /// `make_reflective_dataset`, which gepa catches and turns into a skipped iteration. It is not
-    /// the same as answering with an empty map: an empty map is a reflection that ran and proposed
-    /// nothing for the components it was asked about, and upstream scores the unchanged candidate
-    /// for it. Answering `None` where the map is merely empty spends an extra minibatch evaluation
-    /// on a candidate identical to its parent, and `max_metric_calls` is what pays for it.
+    /// `Err` is an exception out of dspy's proposal, which gepa catches and turns into a skipped
+    /// iteration — its message is the `{e}` upstream formats into the line. Two reach it:
+    /// `make_reflective_dataset` raising `"No valid predictions found for any module."`, and the
+    /// reflection model failing partway through. Upstream's `try` wraps the whole proposal, so the
+    /// *first* failure ends it — a second component is not attempted, and the components already
+    /// proposed for are discarded with the rest.
+    ///
+    /// An empty map is not a failure: it is a reflection that ran and proposed nothing for the
+    /// components it was asked about, and upstream scores the unchanged candidate for it.
+    /// Conflating the two spends an extra minibatch evaluation on a candidate identical to its
+    /// parent, and `max_metric_calls` is what pays for it.
     fn propose_new_texts(
         &mut self,
         candidate: &Candidate,
         components: &[String],
         captured: &EvalBatch<Self::Output>,
-    ) -> impl Future<Output = Option<Candidate>> + Send;
+    ) -> impl Future<Output = Result<Candidate, String>> + Send;
 }

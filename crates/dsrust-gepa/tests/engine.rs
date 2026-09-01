@@ -86,16 +86,14 @@ impl GepaAdapter for MirrorAdapter {
         candidate: &Candidate,
         components: &[String],
         _captured: &EvalBatch<Self::Output>,
-    ) -> Option<Candidate> {
-        Some(
-            components
-                .iter()
-                .map(|name| {
-                    let version: usize = candidate[name][1..].parse().expect("a vN component text");
-                    (name.clone(), format!("v{}", (version + 1).min(self.cap)))
-                })
-                .collect(),
-        )
+    ) -> Result<Candidate, String> {
+        Ok(components
+            .iter()
+            .map(|name| {
+                let version: usize = candidate[name][1..].parse().expect("a vN component text");
+                (name.clone(), format!("v{}", (version + 1).min(self.cap)))
+            })
+            .collect())
     }
 }
 
@@ -302,8 +300,8 @@ mod why_nothing_was_proposed {
             candidate: &Candidate,
             _components: &[String],
             _eval: &EvalBatch<Self::Output>,
-        ) -> Option<Candidate> {
-            Some(candidate.clone())
+        ) -> Result<Candidate, String> {
+            Ok(candidate.clone())
         }
     }
 
@@ -427,8 +425,8 @@ mod nothing_to_reflect_on {
             _candidate: &Candidate,
             _components: &[String],
             _eval: &EvalBatch<Self::Output>,
-        ) -> Option<Candidate> {
-            None
+        ) -> Result<Candidate, String> {
+            Err("No valid predictions found for any module.".to_owned())
         }
     }
 

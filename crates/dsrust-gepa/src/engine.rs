@@ -336,6 +336,9 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             overlap,
             10,
         ) else {
+            self.progress.report(Event::NoMergeCandidates {
+                iteration: state.i + 1,
+            });
             return MergeOutcome::NoMerge;
         };
         performed.record_triple(attempt.id1, attempt.id2, attempt.ancestor);
@@ -375,6 +378,12 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         let full = self.adapter.evaluate_valset(&attempt.candidate).await;
         state.total_num_evals += self.valset_size;
         state.num_full_ds_evals += 1;
+        self.progress.report(Event::Merged {
+            iteration: state.i + 1,
+            first: attempt.id1,
+            second: attempt.id2,
+            ancestor: attempt.ancestor,
+        });
         state.add_program(
             &[attempt.id1, attempt.id2],
             attempt.candidate,
@@ -429,20 +438,30 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             ComponentSelection::RoundRobin => vec![state.select_component(parent)],
             ComponentSelection::All => parent_candidate.keys().cloned().collect(),
         };
-        // `None` is upstream raising out of `make_reflective_dataset`, which gepa catches: the
-        // iteration ends here rather than scoring a candidate identical to its parent, and the
-        // minibatch evaluation below is the one that is not spent.
-        let Some(new_texts) = self
+        // An error is upstream raising out of the proposal, which gepa catches: the iteration ends
+        // here rather than scoring a candidate identical to its parent, and the minibatch
+        // evaluation below is the one that is not spent.
+        let proposed = self
             .adapter
             .propose_new_texts(&parent_candidate, &components, &eval_parent)
-            .await
-        else {
-            self.progress.report(Event::ReflectionFailed {
-                iteration: state.i + 1,
-                error: "No valid predictions found for any module.",
-            });
-            return None;
+            .await;
+        let new_texts = match proposed {
+            Ok(new_texts) => new_texts,
+            Err(error) => {
+                self.progress.report(Event::ReflectionFailed {
+                    iteration: state.i + 1,
+                    error: &error,
+                });
+                return None;
+            }
         };
+        for (component, text) in &new_texts {
+            self.progress.report(Event::Proposed {
+                iteration: state.i + 1,
+                component,
+                text,
+            });
+        }
         let mut candidate = parent_candidate;
         candidate.extend(new_texts);
 
