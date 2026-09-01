@@ -59,13 +59,10 @@ pub(crate) fn expand(item: &DeriveInput) -> Result<proc_macro2::TokenStream, syn
     let walk = steps.iter().map(|field| {
         let label = field.to_string();
         quote! {
-            for mut inner in ::dsrust::Module::named_predictors(&mut self.#field) {
-                inner.name = match inner.name.as_str() {
-                    "self" => #label.to_owned(),
-                    nested => ::std::format!("{}.{}", #label, nested),
-                };
-                found.push(inner);
-            }
+            found.extend(::dsrust::module::under(
+                #label,
+                ::dsrust::Module::named_predictors(&mut self.#field),
+            ));
         }
     });
 

@@ -294,7 +294,7 @@ where
     /// The wrapped module's predictors, so a compile reaches through the wrapper — the advisor is
     /// not among them, matching dspy, whose advisor is never a parameter.
     fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
-        self.module.get_mut().named_predictors()
+        crate::module::under("module", self.module.get_mut().named_predictors())
     }
 
     /// The winning attempt's trace, not all `n` — a compile learns from the answer that won.
@@ -605,7 +605,7 @@ mod tests {
                 .iter()
                 .map(|predictor| predictor.name.clone())
                 .collect::<Vec<_>>(),
-            ["self"]
+            ["module"]
         );
     }
 

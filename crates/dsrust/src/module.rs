@@ -24,7 +24,7 @@ mod trust;
 mod typed;
 
 use trace::Traced;
-pub use trace::{FailedPrediction, PredictorNames, StepOutputs, TraceStep, relabel};
+pub use trace::{FailedPrediction, PredictorNames, StepOutputs, TraceStep, relabel, under};
 pub use typed::Typed;
 
 use state::demo_from_fields;

@@ -78,7 +78,9 @@ fn extract_signature(react: &mut ReAct) -> &mut Signature {
     react
         .named_predictors()
         .into_iter()
-        .find(|predictor| predictor.name == "extract")
+        // `extract.predict`: upstream holds a `ChainOfThought` there, so the name is the path
+        // through it rather than the field alone.
+        .find(|predictor| predictor.name == "extract.predict")
         .expect("the extract predictor is named")
         .signature
 }

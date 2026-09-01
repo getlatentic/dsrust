@@ -214,7 +214,7 @@ impl Module for MultiChainComparison {
     }
 
     fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
-        self.predict.named_predictors()
+        crate::module::under("predict", self.predict.named_predictors())
     }
 }
 

@@ -175,7 +175,7 @@ where
     /// `get_mut` rather than a lock: a walk holds `&mut self`, which is proof no call is in
     /// flight, so there is nothing to wait for.
     fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
-        self.module.get_mut().named_predictors()
+        crate::module::under("module", self.module.get_mut().named_predictors())
     }
 
     /// One attempt's trace, not all `n`.
@@ -517,13 +517,16 @@ mod tests {
             .expect("an answer");
         assert_eq!(answered.get("answer").unwrap(), "Paris");
 
-        // A compile reaches straight through the wrapper to the predictors inside it.
+        // A compile reaches straight through the wrapper to the predictors inside it — under the
+        // field holding them, which is `module` here and `module.predict` upstream once the thing
+        // held is itself composed. This asserted the unprefixed name for a while, which is this
+        // crate's own answer rather than dspy's.
         assert_eq!(
             best.named_predictors()
                 .iter()
                 .map(|predictor| predictor.name.clone())
                 .collect::<Vec<_>>(),
-            ["self"]
+            ["module"]
         );
     }
 

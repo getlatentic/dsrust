@@ -61,6 +61,21 @@ def main() -> None:
             {"what": "a bare Predict", "names": named(dspy.Predict("a -> b"))},
             {"what": "a bare ChainOfThought", "names": named(dspy.ChainOfThought("a -> b"))},
             {"what": "a composed module", "names": named(Composed())},
+            # Every built-in that holds predictors of its own. `ReAct` is the one that matters:
+            # its `extract` is a ChainOfThought, so upstream calls it `extract.predict` and a
+            # module that replaces rather than prefixes says `extract`.
+            {"what": "ReAct", "names": named(dspy.ReAct("a -> b", tools=[]))},
+            {
+                "what": "MultiChainComparison",
+                "names": named(dspy.MultiChainComparison("a -> b", M=2)),
+            },
+            {"what": "BestOfN", "names": named(dspy.BestOfN(
+                module=dspy.ChainOfThought("a -> b"), N=2, reward_fn=lambda *_: 1.0, threshold=1.0
+            ))},
+            {"what": "Refine", "names": named(dspy.Refine(
+                module=dspy.ChainOfThought("a -> b"), N=2, reward_fn=lambda *_: 1.0, threshold=1.0
+            ))},
+            {"what": "ProgramOfThought", "names": named(dspy.ProgramOfThought("a -> b"))},
         ],
     }
     OUT.mkdir(parents=True, exist_ok=True)

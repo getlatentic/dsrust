@@ -90,3 +90,51 @@ fn a_composed_program_is_named_as_dspy_names_it() {
     };
     assert_eq!(names(&mut program), recorded("a composed module"));
 }
+
+/// Every built-in that holds predictors, against the names dspy gives the same module.
+///
+/// One check rather than one per module, because the bug is a *rule* applied in each of them by
+/// hand: a step that replaces a child's name instead of prefixing it agrees with upstream until
+/// the child is itself composed. `ReAct` holds a `ChainOfThought` in `extract` and said `extract`
+/// where dspy says `extract.predict`.
+#[test]
+fn every_built_in_names_its_predictors_as_dspy_does() {
+    use dsrust::{BestOfN, MultiChainComparison, ProgramOfThought, ReAct, Refine};
+
+    let mut react = ReAct!("a -> b", vec![]);
+    let mut mcc = MultiChainComparison::parse("a -> b", 2).expect("parses");
+    let mut best = BestOfN::new(
+        ChainOfThought!("a -> b"),
+        2,
+        |_: &Example, _: &Prediction| 1.0,
+        1.0,
+    );
+    let mut refine = Refine::new(
+        ChainOfThought!("a -> b"),
+        2,
+        |_: &Example, _: &Prediction| 1.0,
+        1.0,
+    );
+    let mut pot = ProgramOfThought!("a -> b");
+
+    let cases: Vec<(&str, &mut dyn Module)> = vec![
+        ("ReAct", &mut react),
+        ("MultiChainComparison", &mut mcc),
+        ("BestOfN", &mut best),
+        ("Refine", &mut refine),
+        ("ProgramOfThought", &mut pot),
+    ];
+    let mut wrong = Vec::new();
+    for (what, program) in cases {
+        let ours = names(program);
+        let theirs = recorded(what);
+        if ours != theirs {
+            wrong.push(format!("  {what}: {ours:?} where dspy says {theirs:?}"));
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "modules name their predictors differently than dspy does:\n{}",
+        wrong.join("\n")
+    );
+}

@@ -261,13 +261,16 @@ impl Module for ReAct {
     /// Both predictors are visible to a compiler: the per-turn one decides which tools get
     /// called, and demos for it are what teach a model to use them well.
     fn named_predictors(&mut self) -> Vec<NamedPredictor<'_>> {
-        let mut found = Vec::new();
-        for (name, predictor) in [("react", &mut self.react), ("extract", &mut self.extract)] {
-            for mut inner in predictor.named_predictors() {
-                inner.name = name.to_owned();
-                found.push(inner);
-            }
-        }
+        // `extract` is nested twice on purpose. Upstream holds a `ChainOfThought` there, whose
+        // own predictor is `predict`, so the name a saved state is keyed by is `extract.predict`.
+        // Here it is a flat `Predict` over a signature `extract_signature` has already given a
+        // leading `reasoning` — the prompt is the same either way and is held to a golden, so the
+        // structure was flattened and only the name has to say so.
+        let mut found = crate::module::under("react", self.react.named_predictors());
+        found.extend(crate::module::under(
+            "extract",
+            crate::module::under("predict", self.extract.named_predictors()),
+        ));
         found
     }
 }
@@ -498,7 +501,10 @@ mod tests {
             .into_iter()
             .map(|predictor| predictor.name)
             .collect();
-        assert_eq!(names, ["react", "extract"]);
+        // `extract.predict`, not `extract`: upstream holds a `ChainOfThought` there and the name
+        // a saved state is keyed by is the path through it. This asserted `extract` — dsrust's own
+        // answer rather than dspy's — until `tests/predictor_names.rs` compared the two.
+        assert_eq!(names, ["react", "extract.predict"]);
     }
 }
 

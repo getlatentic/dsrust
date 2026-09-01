@@ -21,6 +21,39 @@
         "cot.predict",
         "nested.step.predict"
       ]
+    },
+    {
+      "what": "ReAct",
+      "names": [
+        "react",
+        "extract.predict"
+      ]
+    },
+    {
+      "what": "MultiChainComparison",
+      "names": [
+        "predict"
+      ]
+    },
+    {
+      "what": "BestOfN",
+      "names": [
+        "module.predict"
+      ]
+    },
+    {
+      "what": "Refine",
+      "names": [
+        "module.predict"
+      ]
+    },
+    {
+      "what": "ProgramOfThought",
+      "names": [
+        "code_generate.predict",
+        "code_regenerate.predict",
+        "generate_output.predict"
+      ]
     }
   ]
 }

@@ -155,6 +155,41 @@ macro_rules! call {
     };
 }
 
+/// Name a step's predictors by their path from here, the way dspy's `named_parameters` does.
+///
+/// A leaf `Predict` calls itself `self` and the field name replaces that; anything carrying a name
+/// of its own is *prefixed*, so a `ChainOfThought` held in `answer_generator` is
+/// `answer_generator.predict`. The distinction only shows once a step is itself composed, and
+/// getting it wrong is not cosmetic: the name is what
+/// [`load_state`](crate::Module::load_state) indexes and what a GEPA candidate is keyed by, so two
+/// programs of the same shape that disagree cannot exchange a saved state in either direction.
+///
+/// Written once and called from both the derive and every hand-written
+/// [`named_predictors`](crate::Module::named_predictors), because it was written twice before and
+/// the two disagreed.
+///
+/// ```
+/// # use dsrust::module::{NamedPredictor, under};
+/// # fn example(inner: Vec<NamedPredictor<'_>>) {
+/// let named = under("answer_generator", inner);
+/// # }
+/// ```
+pub fn under<'a>(
+    field: &str,
+    predictors: Vec<super::NamedPredictor<'a>>,
+) -> Vec<super::NamedPredictor<'a>> {
+    predictors
+        .into_iter()
+        .map(|mut predictor| {
+            predictor.name = match predictor.name.as_str() {
+                "self" => field.to_owned(),
+                nested => format!("{field}.{nested}"),
+            };
+            predictor
+        })
+        .collect()
+}
+
 /// A run and what it recorded, borrowed for as long as the program is.
 ///
 /// The trace comes back beside the answer rather than through an out-parameter because a run that
