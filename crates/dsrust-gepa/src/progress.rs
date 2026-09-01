@@ -31,6 +31,13 @@ pub enum Event<'a> {
     /// Every sampled score was already perfect, so there was nothing to reflect on. gepa:
     /// *"Iteration {i}: All subsample scores perfect. Skipping."*
     NothingToLearnFrom { iteration: i64 },
+    /// The parent was run and recorded no trajectory, so there was nothing to reflect *on* —
+    /// distinct from reflecting and finding nothing to say. gepa: *"Iteration {i}: No trajectories
+    /// captured. Skipping."*
+    ///
+    /// A program that records no trace produces this on every iteration, and a caller seeing only
+    /// [`Event::ProposedNothing`] cannot tell that from a reflection that ran and declined.
+    NoTrajectories { iteration: i64 },
     /// The proposal scored no better than its parent on the minibatch and was dropped before it
     /// cost a validation pass. Upstream logs no line here; the decision is the one a caller
     /// watching a run most wants to see, and its absence upstream is why a run looks stalled.
@@ -75,6 +82,9 @@ impl Event<'_> {
                     "Iteration {iteration}: Reflective mutation did not propose a new candidate"
                 )
             }
+            Event::NoTrajectories { iteration } => {
+                format!("Iteration {iteration}: No trajectories captured. Skipping.")
+            }
             Event::NothingToLearnFrom { iteration } => {
                 format!("Iteration {iteration}: All subsample scores perfect. Skipping.")
             }
@@ -118,6 +128,7 @@ impl Event<'_> {
             Event::Proposed { iteration, .. }
             | Event::ProposedNothing { iteration }
             | Event::NothingToLearnFrom { iteration }
+            | Event::NoTrajectories { iteration }
             | Event::Rejected { iteration, .. }
             | Event::Accepted { iteration, .. }
             | Event::Merged { iteration, .. }

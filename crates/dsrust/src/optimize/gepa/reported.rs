@@ -34,6 +34,7 @@ fn decision(event: &Event<'_>) -> &'static str {
         Event::Proposed { .. } => "proposed",
         Event::ProposedNothing { .. } => "proposed_nothing",
         Event::NothingToLearnFrom { .. } => "nothing_to_learn_from",
+        Event::NoTrajectories { .. } => "no_trajectories",
         Event::Rejected { .. } => "rejected",
         Event::Accepted { is_best: true, .. } => "accepted_best",
         Event::Accepted { .. } => "accepted",

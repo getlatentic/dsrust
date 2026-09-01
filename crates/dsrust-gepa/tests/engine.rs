@@ -228,3 +228,132 @@ async fn reproduces_the_runs_gepa_produces() {
         }
     }
 }
+
+/// A run says *why* it proposed nothing, not only that it did.
+///
+/// gepa logs three distinct lines where the reflective proposer gives up, and a caller watching a
+/// run needs them apart: "no trajectories captured" is a program that recorded nothing, which no
+/// amount of reflection will fix, while "all subsample scores perfect" is a metric with no headroom
+/// left. Collapsed into one event they look identical, and a column of `proposed_nothing` says
+/// nothing about which to go and fix.
+///
+/// `NothingToLearnFrom` was defined, rendered, matched in two crates — and never emitted by the
+/// engine, so it could not occur. This drives the engine rather than constructing the events,
+/// because constructing them is what let that go unnoticed.
+mod why_nothing_was_proposed {
+    use super::*;
+
+    use std::sync::{Arc, Mutex};
+
+    use gepa::progress::{Event, Progress};
+
+    #[derive(Default)]
+    struct Recording {
+        seen: Mutex<Vec<String>>,
+    }
+
+    impl Progress for Recording {
+        fn report(&self, event: Event<'_>) {
+            self.seen
+                .lock()
+                .expect("not poisoned")
+                .push(event.message());
+        }
+    }
+
+    /// Scores what it is told to, and records a trajectory only when asked to.
+    struct Stubborn {
+        score: f64,
+        traced: bool,
+    }
+
+    impl GepaAdapter for Stubborn {
+        type Output = ();
+
+        async fn evaluate_minibatch(
+            &mut self,
+            ids: &[usize],
+            _candidate: &Candidate,
+            capture_traces: bool,
+        ) -> EvalBatch<Self::Output> {
+            let scores: Vec<f64> = ids.iter().map(|_| self.score).collect();
+            match capture_traces && self.traced {
+                true => EvalBatch::traced(scores),
+                false => EvalBatch::scored(scores),
+            }
+        }
+
+        async fn evaluate_valset(&mut self, _candidate: &Candidate) -> EvalBatch<Self::Output> {
+            EvalBatch::scored(vec![self.score; 4])
+        }
+
+        async fn evaluate_valset_ids(
+            &mut self,
+            ids: &[usize],
+            _candidate: &Candidate,
+        ) -> EvalBatch<Self::Output> {
+            EvalBatch::scored(ids.iter().map(|_| self.score).collect())
+        }
+
+        async fn propose_new_texts(
+            &mut self,
+            candidate: &Candidate,
+            _components: &[String],
+            _eval: &EvalBatch<Self::Output>,
+        ) -> Candidate {
+            candidate.clone()
+        }
+    }
+
+    async fn run(adapter: Stubborn) -> Vec<String> {
+        let watching = Arc::new(Recording::default());
+        let engine = GepaEngine {
+            adapter,
+            trainset_size: 4,
+            valset_size: 4,
+            minibatch_size: 2,
+            max_metric_calls: 24,
+            perfect_score: 1.0,
+            skip_perfect_score: true,
+            use_merge: false,
+            max_merge_invocations: 5,
+            seed: 0,
+            candidate_selection_strategy: CandidateSelection::Pareto,
+            track_best_outputs: false,
+            progress: watching.clone(),
+            component_selector: ComponentSelection::RoundRobin,
+        };
+        let mut seed = Candidate::new();
+        seed.insert("step".to_owned(), "Answer it.".to_owned());
+        engine.optimize(seed).await;
+        watching.seen.lock().expect("not poisoned").clone()
+    }
+
+    #[tokio::test]
+    async fn a_program_that_records_no_trajectory_says_so() {
+        let seen = run(Stubborn {
+            score: 0.5,
+            traced: false,
+        })
+        .await;
+        assert!(
+            seen.iter()
+                .any(|line| line.contains("No trajectories captured")),
+            "a run that captured nothing reported {seen:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_metric_with_no_headroom_says_so() {
+        let seen = run(Stubborn {
+            score: 1.0,
+            traced: true,
+        })
+        .await;
+        assert!(
+            seen.iter()
+                .any(|line| line.contains("All subsample scores perfect")),
+            "a run with nothing to learn from reported {seen:?}"
+        );
+    }
+}

@@ -28,6 +28,7 @@ fn decision(event: &Event<'_>) -> &'static str {
         Event::Proposed { .. } => "proposed",
         Event::ProposedNothing { .. } => "proposed_nothing",
         Event::NothingToLearnFrom { .. } => "nothing_to_learn_from",
+        Event::NoTrajectories { .. } => "no_trajectories",
         Event::Rejected { .. } => "rejected",
         Event::Accepted { is_best: true, .. } => "accepted_best",
         Event::Accepted { .. } => "accepted",
@@ -50,6 +51,7 @@ fn a_subscriber_receives_every_decision() {
         },
         Event::ProposedNothing { iteration: 2 },
         Event::NothingToLearnFrom { iteration: 3 },
+        Event::NoTrajectories { iteration: 4 },
         Event::Rejected {
             iteration: 4,
             before: 2.0,
@@ -77,6 +79,7 @@ fn a_subscriber_receives_every_decision() {
             "proposed@1",
             "proposed_nothing@2",
             "nothing_to_learn_from@3",
+            "no_trajectories@4",
             "rejected@4",
             "accepted_best@5",
             "merged@6",

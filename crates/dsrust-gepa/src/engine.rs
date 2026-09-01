@@ -413,9 +413,15 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             .await;
         state.total_num_evals += subsample.len();
         if !eval_parent.captured_traces {
+            self.progress.report(Event::NoTrajectories {
+                iteration: state.i + 1,
+            });
             return None;
         }
         if self.skip_perfect_score && eval_parent.scores.iter().all(|&s| s >= self.perfect_score) {
+            self.progress.report(Event::NothingToLearnFrom {
+                iteration: state.i + 1,
+            });
             return None;
         }
 
