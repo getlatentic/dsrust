@@ -41,6 +41,13 @@ pub(crate) fn identity(signature: &crate::signature::Signature) -> usize {
     std::ptr::from_ref(signature) as usize
 }
 
+/// Whether this task is recording — the run is under [`Module::traced`](crate::Module::traced).
+pub(crate) fn listening() -> bool {
+    AMBIENT
+        .try_with(|ambient| ambient.is_some())
+        .unwrap_or(false)
+}
+
 /// Record one call, if this task is recording. Nothing installed means nothing to do.
 pub(crate) fn record(identity: usize, mut step: TraceStep) {
     let _ = AMBIENT.try_with(|ambient| {
@@ -67,14 +74,4 @@ pub(crate) async fn recording<T>(
     let answered = AMBIENT.scope(Some(ambient), work).await;
     let recorded = steps.lock().map(|held| held.clone()).unwrap_or_default();
     (answered, recorded)
-}
-
-/// Run `work` with no ambient recording, so a predictor that records its own step does not also
-/// record one here.
-///
-/// [`Predict::forward_traced`](struct@crate::Predict) writes the step its caller asked for and then calls
-/// its own `forward`, which would otherwise record a second copy into whatever buffer an outer
-/// run had installed.
-pub(crate) async fn detached<T>(work: impl Future<Output = T>) -> T {
-    AMBIENT.scope(None, work).await
 }

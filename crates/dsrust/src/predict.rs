@@ -1019,9 +1019,15 @@ impl<S: Send + Sync> Module for Predict<S> {
         trace: &'a mut Vec<TraceStep>,
     ) -> std::pin::Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
-            // Detached: this records the step its caller asked for, and the plain path below would
-            // otherwise record a second copy into an outer run's buffer.
-            let prediction = crate::module::ambient::detached(self.forward(inputs.clone())).await?;
+            // Under a run that is listening, the plain call below records this step ambiently
+            // under the name the run resolved for this predictor, and that is the only record:
+            // pushing a second into the caller's buffer would file the same call twice, under two
+            // names. The explicit push serves a module tracing for its own purposes — picking a
+            // winning attempt, say — where nothing is listening and nothing looks a name up.
+            let prediction = self.forward(inputs.clone()).await?;
+            if crate::module::ambient::listening() {
+                return Ok(prediction);
+            }
             trace.push(TraceStep {
                 predictor: "self".to_owned(),
                 inputs,
