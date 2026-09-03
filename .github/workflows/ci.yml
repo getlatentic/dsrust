@@ -83,8 +83,12 @@ jobs:
           # The sandbox gate runs Pyodide through deno's npm cache. Without this every run
           # re-downloads it before the ten sandbox tests can start.
           cache: true
-      - name: install ast-grep
-        run: cargo install ast-grep --locked
+      - name: install ast-grep and cargo-deny
+        # Both are gates the script runs, and a missing one is an exit 127 the gate reports as a
+        # failure without saying which check never ran.
+        run: |
+          cargo install ast-grep --locked
+          cargo install cargo-deny --locked
       - name: python environment, pinned
         run: uv sync
       - name: gates
