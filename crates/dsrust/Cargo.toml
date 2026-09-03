@@ -1,6 +1,6 @@
 [package]
 name = "dsrust"
-version = "0.1.0"
+version = "0.1.0-alpha.3"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A faithful, byte-for-byte Rust port of DSPy: signatures, adapters, modules, providers, and optimizers, tested against DSPy itself."
@@ -19,10 +19,10 @@ path = "src/lib.rs"
 regex = "1"
 anyhow = "1"
 base64 = "0.22.1"
-dsrust-derive = { version = "0.1.0", path = "../dsrust-derive" }
-gepa = { version = "0.1.0", path = "../dsrust-gepa", package = "dsrust-gepa" }
-json_repair = { version = "0.1.0", path = "../dsrust-json-repair", package = "dsrust-json-repair", features = ["serde"] }
-pyrng = { version = "0.1.0", path = "../pyrng" }
+dsrust-derive = { version = "0.1.0-alpha.3", path = "../dsrust-derive" }
+gepa = { version = "0.1.0-alpha.3", path = "../dsrust-gepa", package = "dsrust-gepa" }
+json_repair = { version = "0.1.0-alpha.3", path = "../dsrust-json-repair", package = "dsrust-json-repair", features = ["serde"] }
+pyrng = { version = "0.1.0-alpha.3", path = "../pyrng" }
 bytes = "1"
 futures-channel = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
 futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
@@ -39,7 +39,7 @@ sha2 = "0.11.0"
 # `time` on, so this adds nothing a caller was not already compiling — and, unlike `rt-multi-thread`,
 # it hands nobody a scheduler they did not ask for. A program still brings its own runtime.
 tokio = { version = "1", default-features = false, features = ["time"] }
-tpe = { version = "0.1.0", path = "../dsrust-tpe", package = "dsrust-tpe" }
+tpe = { version = "0.1.0-alpha.3", path = "../dsrust-tpe", package = "dsrust-tpe" }
 tracing = "0.1"
 unicode-general-category = "1.1.0"
 unicode-normalization = "0.1.25"

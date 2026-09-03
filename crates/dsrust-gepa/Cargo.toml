@@ -1,6 +1,6 @@
 [package]
 name = "dsrust-gepa"
-version = "0.1.0"
+version = "0.1.0-alpha.3"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/getlatentic/dsrust"
@@ -12,7 +12,7 @@ description = "A Rust reproduction of GEPA's reflective prompt-evolution engine 
 name = "gepa"
 
 [dependencies]
-pyrng = { version = "0.1.0", path = "../pyrng" }
+pyrng = { version = "0.1.0-alpha.3", path = "../pyrng" }
 serde_json = { version = "1", features = ["float_roundtrip", "preserve_order"] }
 
 [dev-dependencies]

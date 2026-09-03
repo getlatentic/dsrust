@@ -22,19 +22,19 @@ println!("{}", out.get("answer").unwrap());
 Add it with Cargo:
 
 ```bash
-cargo add dsrust
+cargo add dsrust@0.1.0-alpha.3
 ```
 
-or in `Cargo.toml`:
+or in `Cargo.toml` (the explicit version is needed while it is a pre-release):
 
 ```toml
 [dependencies]
-dsrust = "0.1"
+dsrust = "0.1.0-alpha.3"
 ```
 
-> **Status: 0.1.0**, pinned to `dspy==3.3.0`. The core (byte-level rendering and parsing, the
+> **Status: alpha**, pinned to `dspy==3.3.0`. The core (byte-level rendering and parsing, the
 > optimizers, the RNG) is solid and tested against DSPy's own suite. The API is real and growing
-> toward full parity ([Roadmap](#roadmap)).
+> toward full parity ([Roadmap](#roadmap)); pin an exact version while it fills in.
 
 ---
 
