@@ -12,17 +12,16 @@ use super::field_type::{FieldKind, LiteralValue};
 /// One value, cast to the kind its field declares.
 pub(crate) fn coerce_value(kind: &FieldKind, name: &str, value: &mut Value) -> Result<()> {
     match kind {
-        // `Reasoning` carries its content as text, exactly as a `Str` does.
-        //
         // A value that is not already text becomes text the way Python's `str()` does, which is
         // what `parse_value(v, str)` calls: a JSON adapter can hand a `str` field a whole object,
         // and dspy renders it `{'why': 'Because.'}` — single quotes, `None`, `True` — not as JSON.
-        FieldKind::Str | FieldKind::Reasoning => {
+        FieldKind::Str => {
             if !value.is_string() {
                 *value = Value::String(crate::python::repr(value));
             }
             Ok(())
         }
+        FieldKind::Reasoning => coerce_reasoning(name, value),
         FieldKind::Bool => coerce_bool(name, value),
         FieldKind::Int => coerce_int(name, value),
         FieldKind::Float => coerce_float(name, value),
@@ -30,6 +29,26 @@ pub(crate) fn coerce_value(kind: &FieldKind, name: &str, value: &mut Value) -> R
         // A member reaches the marker path as the text of its value, which is what the model
         // was asked for; naming the member it belongs to is the declared type's job.
         FieldKind::Enum(_) => Ok(()),
+    }
+}
+
+/// `parse_value(v, Reasoning)`: `Reasoning` is a model with one `content: str` member that also
+/// validates from a bare string, so text is kept and a mapping is read for its `content` — every
+/// other key ignored, as pydantic ignores it. Anything else is what pydantic refuses, measured: a
+/// list, a number, a bool, `None`, a mapping without a string `content`.
+fn coerce_reasoning(name: &str, value: &mut Value) -> Result<()> {
+    if value.is_string() {
+        return Ok(());
+    }
+    match value.get("content").filter(|content| content.is_string()) {
+        Some(content) => {
+            *value = content.clone();
+            Ok(())
+        }
+        None => Err(anyhow!(
+            "{name} must be reasoning text or a mapping with string `content`, got {}",
+            crate::python::repr(value)
+        )),
     }
 }
 
@@ -152,6 +171,7 @@ fn coerce_json(name: &str, annotation: &str, value: &mut Value) -> Result<()> {
 /// `BamlAdapter` both refused `{"note": "seen"}` for an `Optional[str]` output that dspy reads.
 fn accepts_string_form(annotation: &str) -> bool {
     let annotation = annotation.trim();
+    let annotation = annotation.strip_prefix("typing.").unwrap_or(annotation);
     if matches!(
         annotation,
         "str" | "Any" | "bytes" | "datetime" | "date" | "time" | "timedelta" | "UUID"
@@ -260,5 +280,36 @@ mod tests {
         let mut malformed = Value::from("seen");
         coerce_json("tags", "list[str]", &mut malformed)
             .expect_err("a list cannot hold a bare string");
+    }
+
+    /// `dspy.adapters.utils.parse_value(v, dspy.Reasoning)` on dspy 3.3.1, each shape measured.
+    #[test]
+    fn a_reasoning_field_takes_what_pydantic_takes() {
+        let read = |value: serde_json::Value| {
+            let mut value = value;
+            coerce_value(&FieldKind::Reasoning, "reasoning", &mut value).map(|()| value)
+        };
+        assert_eq!(
+            read(serde_json::json!("plain")).unwrap(),
+            serde_json::json!("plain")
+        );
+        assert_eq!(
+            read(serde_json::json!({"content": "x"})).unwrap(),
+            serde_json::json!("x")
+        );
+        assert_eq!(
+            read(serde_json::json!({"content": "x", "extra": 1})).unwrap(),
+            serde_json::json!("x")
+        );
+        for refused in [
+            serde_json::json!(["a"]),
+            serde_json::json!(1),
+            serde_json::json!(null),
+            serde_json::json!(true),
+            serde_json::json!({"other": "y"}),
+            serde_json::json!({"content": 5}),
+        ] {
+            assert!(read(refused.clone()).is_err(), "{refused}");
+        }
     }
 }

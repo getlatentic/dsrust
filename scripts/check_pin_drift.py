@@ -14,7 +14,7 @@ is what says so now.
 Two things it is deliberately not. It does not fail a build — main moves, and a red gate that tracks
 someone else's branch is a gate people learn to ignore. And it does not say to port anything: where
 main is ahead, the answer is to move the pin when a release lands, not to build without an oracle.
-See HANDOFF's "Check main, not only the pin".
+The pin is the oracle for every gate; main is read when porting a surface, never held to.
 
 **A surface is not a behaviour, and the surface half cannot see one.** A function whose signature is
 untouched and whose body changed is invisible to it, and one of those was found by hand:

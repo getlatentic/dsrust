@@ -58,12 +58,13 @@ where
     /// Takes the programs rather than a student, which is why this is not [`Optimizer`](super::Optimizer). Upstream's
     /// signature differs from every other teleprompter's in exactly the same way.
     pub fn compile(self, programs: Vec<Box<dyn Module>>) -> Ensembled<R> {
-        Ensembled {
+        let instance = &self as *const Self as *const () as usize;
+        crate::observe::compiling_sync("Ensemble", instance, &[], None, move || Ensembled {
             programs,
             reduce: self.reduce,
             size: self.size,
             rng: Mutex::new(Random::seeded(self.seed)),
-        }
+        })
     }
 }
 

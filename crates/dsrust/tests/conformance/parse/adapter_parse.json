@@ -1,8 +1,49 @@
 {
-  "source": "generated from dspy==3.3.0 via scripts/generate_parse_fixture.py",
-  "dspy_version": "3.3.0",
+  "source": "generated from dspy==3.3.1 via scripts/generate_parse_fixture.py",
+  "dspy_version": "3.3.1",
   "note": "What each adapter's parse returns for a reply, and which it refuses. The refusals matter as much as the successes: a reply the crate accepts where dspy raises reaches the caller as a wrong value rather than an error.",
   "cases": [
+    {
+      "name": "nullable_omitted",
+      "signature": "question -> answer: str | None, note: str",
+      "completion": "[[ ## note ## ]]\nfine\n\n[[ ## completed ## ]]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": null,
+          "note": "fine"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "required_omitted",
+      "signature": "question -> answer: str | None, note: str",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter ChatAdapter failed to parse the LM response. \n\nLM Response: [[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]] \n\nExpected to find output fields in the LM response: [answer, note] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "nullable_present",
+      "signature": "question -> answer: str | None, note: str",
+      "completion": "[[ ## answer ## ]]\nParis\n\n[[ ## note ## ]]\nfine\n\n[[ ## completed ## ]]",
+      "adapter": "chat",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "note": "fine"
+        }
+      },
+      "diverges": false
+    },
     {
       "name": "literal_member",
       "signature": "question -> colour: typing.Literal['red', 'blue']",
@@ -184,8 +225,8 @@
       "dspy": {
         "ok": true,
         "fields": {
-          "answer": "Paris",
-          "reasoning": "Because."
+          "reasoning": "Because.",
+          "answer": "Paris"
         }
       },
       "diverges": false
@@ -541,6 +582,33 @@
       "diverges": false
     },
     {
+      "name": "xml_nullable_omitted",
+      "signature": "question -> answer: str | None, note: str",
+      "completion": "<note>fine</note>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": null,
+          "note": "fine"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_required_omitted",
+      "signature": "question -> answer: str | None, note: str",
+      "completion": "<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <answer>Paris</answer> \n\nExpected to find output fields in the LM response: [answer, note] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
       "name": "xml_plain",
       "signature": "question -> reasoning: str, answer: str",
       "completion": "<reasoning>Because.</reasoning>\n<answer>Paris</answer>",
@@ -560,11 +628,10 @@
       "completion": "<reasoning>Because.</reasoning><answer>Paris</answer>extra</answer>",
       "adapter": "xml",
       "dspy": {
-        "ok": true,
-        "fields": {
-          "reasoning": "Because.",
-          "answer": "Paris"
-        }
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse XML: mismatched tag: line 1, column 71\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>Because.</reasoning><answer>Paris</answer>extra</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -576,7 +643,7 @@
       "dspy": {
         "ok": true,
         "fields": {
-          "reasoning": "<reasoning>inner",
+          "reasoning": "<reasoning>inner</reasoning>",
           "answer": "Paris"
         }
       },
@@ -602,11 +669,10 @@
       "completion": "<xְ><reasoning>Because.</reasoning></xְ>\n<answer>Paris</answer>",
       "adapter": "xml",
       "dspy": {
-        "ok": true,
-        "fields": {
-          "reasoning": "Because.",
-          "answer": "Paris"
-        }
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <xְ><reasoning>Because.</reasoning></xְ>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -630,10 +696,11 @@
       "completion": "<reasoning id=\"1\">Because.</reasoning>\n<answer>Paris</answer>",
       "adapter": "xml",
       "dspy": {
-        "ok": false,
-        "error": "AdapterParseError",
-        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning id=\"1\">Because.</reasoning>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
-        "message_diverges": null
+        "ok": true,
+        "fields": {
+          "reasoning": "Because.",
+          "answer": "Paris"
+        }
       },
       "diverges": false
     },
@@ -645,7 +712,7 @@
       "dspy": {
         "ok": true,
         "fields": {
-          "reasoning": "first",
+          "reasoning": "['first', 'second']",
           "answer": "Paris"
         }
       },
@@ -686,7 +753,7 @@
       "dspy": {
         "ok": false,
         "error": "AdapterParseError",
-        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>Because.\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message": "Failed to parse XML: mismatched tag: line 2, column 24\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>Because.\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
         "message_diverges": null
       },
       "diverges": false
@@ -699,7 +766,7 @@
       "dspy": {
         "ok": false,
         "error": "AdapterParseError",
-        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>Because.</thinking>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message": "Failed to parse XML: mismatched tag: line 1, column 32\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>Because.</thinking>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
         "message_diverges": null
       },
       "diverges": false
@@ -778,11 +845,10 @@
       "completion": "<my-wrapper><reasoning>Because.</reasoning></my-wrapper>\n<answer>Paris</answer>",
       "adapter": "xml",
       "dspy": {
-        "ok": true,
-        "fields": {
-          "reasoning": "Because.",
-          "answer": "Paris"
-        }
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <my-wrapper><reasoning>Because.</reasoning></my-wrapper>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },
@@ -814,6 +880,457 @@
         "error": "AdapterParseError",
         "message": "Failed to parse field annotation=int required=True json_schema_extra={'__dspy_field_type': 'output', 'prefix': 'Score:', 'desc': '${score}'} with value very high: 1 validation error for int\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='very high', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <answer>Paris</answer>\n<score>very high</score>\n<tags>[\"a\"]</tags> \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
         "message_diverges": "pydantic-error-text"
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_nested_list_items",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "<answer>Paris</answer>\n<score>7</score>\n<tags><item>a</item><item>b</item></tags>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_repeated_tag_as_list",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "<answer>Paris</answer>\n<score>7</score>\n<tags>a</tags>\n<tags>b</tags>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": [
+            "a",
+            "b"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_empty_list_tag",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "<answer>Paris</answer>\n<score>7</score>\n<tags></tags>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": []
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_self_closed_list",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "<answer>Paris</answer>\n<score>7</score>\n<tags/>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": []
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_list_plain_text",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "<answer>Paris</answer>\n<score>7</score>\n<tags>not a list</tags>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": [
+            "not a list"
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_scalar_padded",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "<answer>Paris</answer>\n<score> 7 </score>\n<tags>[]</tags>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": "Paris",
+          "score": 7,
+          "tags": []
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_repeated_scalar_refused",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "<answer>Paris</answer>\n<score>1</score>\n<score>2</score>\n<tags>[]</tags>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse field annotation=int required=True json_schema_extra={'__dspy_field_type': 'output', 'prefix': 'Score:', 'desc': '${score}'} with value ['1', '2']: 1 validation error for int\n  Input should be a valid integer [type=int_type, input_value=['1', '2'], input_type=list]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_type\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <answer>Paris</answer>\n<score>1</score>\n<score>2</score>\n<tags>[]</tags> \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
+        "message_diverges": "pydantic-error-text"
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_scalar_with_children_refused",
+      "signature": "question -> answer: str, score: int, tags: list[str]",
+      "completion": "<answer>Paris</answer>\n<score><x>1</x></score>\n<tags>[]</tags>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse field annotation=int required=True json_schema_extra={'__dspy_field_type': 'output', 'prefix': 'Score:', 'desc': '${score}'} with value {'x': '1'}: 1 validation error for int\n  Input should be a valid integer [type=int_type, input_value={'x': '1'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_type\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <answer>Paris</answer>\n<score><x>1</x></score>\n<tags>[]</tags> \n\nExpected to find output fields in the LM response: [answer, score, tags] \n\n",
+        "message_diverges": "pydantic-error-text"
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_typed_list_items",
+      "signature": "question -> counts: list[int]",
+      "completion": "<counts><item>1</item><item>2</item></counts>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "counts": [
+            1,
+            2
+          ]
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_typed_list_bad_item_refused",
+      "signature": "question -> counts: list[int]",
+      "completion": "<counts><item>x</item></counts>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse field annotation=list[int] required=True json_schema_extra={'__dspy_field_type': 'output', 'prefix': 'Counts:', 'desc': '${counts}'} with value ['x']: 1 validation error for list[int]\n0\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='x', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <counts><item>x</item></counts> \n\nExpected to find output fields in the LM response: [counts] \n\n",
+        "message_diverges": "pydantic-error-text"
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_dict_entries",
+      "signature": "question -> pairs: dict[str, int]",
+      "completion": "<pairs><a>1</a><entry key=\"two words\">2</entry></pairs>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "pairs": {
+            "a": 1,
+            "two words": 2
+          }
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_dict_empty",
+      "signature": "question -> pairs: dict[str, int]",
+      "completion": "<pairs></pairs>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "pairs": {}
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_dict_bad_value_refused",
+      "signature": "question -> pairs: dict[str, int]",
+      "completion": "<pairs><a>x</a></pairs>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse field annotation=dict[str, int] required=True json_schema_extra={'__dspy_field_type': 'output', 'prefix': 'Pairs:', 'desc': '${pairs}'} with value {'a': 'x'}: 1 validation error for dict[str,int]\na\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='x', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <pairs><a>x</a></pairs> \n\nExpected to find output fields in the LM response: [pairs] \n\n",
+        "message_diverges": "pydantic-error-text"
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_nullable_empty",
+      "signature": "question -> answer: str | None, note: str",
+      "completion": "<answer></answer>\n<note>fine</note>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": null,
+          "note": "fine"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_nullable_whitespace",
+      "signature": "question -> answer: str | None, note: str",
+      "completion": "<answer>  </answer>\n<note>fine</note>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": null,
+          "note": "fine"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_optional_int_empty",
+      "signature": "question -> count: typing.Optional[int]",
+      "completion": "<count></count>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "count": null
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_optional_int_bad_refused",
+      "signature": "question -> count: typing.Optional[int]",
+      "completion": "<count>x</count>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse field annotation=Union[int, NoneType] required=True json_schema_extra={'__dspy_field_type': 'output', 'prefix': 'Count:', 'desc': '${count}'} with value x: 1 validation error for nullable[int]\n  Input should be a valid integer, unable to parse string as an integer [type=int_parsing, input_value='x', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.13/v/int_parsing\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <count>x</count> \n\nExpected to find output fields in the LM response: [count] \n\n",
+        "message_diverges": "pydantic-error-text"
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_comment_and_cdata",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<!-- note --><reasoning><![CDATA[a < b]]></reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "a < b",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_entities",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>a &lt; b &amp; c &#65;&#x42;</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "a < b & c AB",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_bare_ampersand_refused",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>a & b</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse XML: not well-formed (invalid token): line 1, column 25\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>a & b</reasoning>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_undefined_entity_refused",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>a&nbsp;b</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse XML: undefined entity: line 1, column 23\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>a&nbsp;b</reasoning>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_bad_character_reference_refused",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>&#0;</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse XML: reference to invalid character number: line 1, column 22\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning>&#0;</reasoning>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_namespaced_tag_is_not_the_field",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning xmlns=\"u\">R</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter XMLAdapter failed to parse the LM response. \n\nLM Response: <reasoning xmlns=\"u\">R</reasoning>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_unbound_prefix_refused",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<p:reasoning>R</p:reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse XML: unbound prefix: line 1, column 11\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <p:reasoning>R</p:reasoning>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_processing_instruction_skipped",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<?note x?><reasoning>R</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "R",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_declaration_refused",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<?xml version=\"1.0\"?>\n<reasoning>R</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse XML: XML or text declaration not at start of entity: line 1, column 11\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <?xml version=\"1.0\"?>\n<reasoning>R</reasoning>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_doctype_refused",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<!DOCTYPE x><reasoning>R</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Failed to parse XML: not well-formed (invalid token): line 1, column 13\n\nAdapter XMLAdapter failed to parse the LM response. \n\nLM Response: <!DOCTYPE x><reasoning>R</reasoning>\n<answer>Paris</answer> \n\nExpected to find output fields in the LM response: [reasoning, answer] \n\n",
+        "message_diverges": null
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_str_keeps_child_markup",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>a<b/>tail</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "a<b />tail",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_str_child_in_a_namespace",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>a<b xmlns=\"u\"/></reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "a<ns0:b xmlns:ns0=\"u\" />",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "xml_crlf_normalised",
+      "signature": "question -> reasoning: str, answer: str",
+      "completion": "<reasoning>a\r\nb\rc</reasoning>\n<answer>Paris</answer>",
+      "adapter": "xml",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "reasoning": "a\nb\nc",
+          "answer": "Paris"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_nullable_omitted",
+      "signature": "question -> answer: str | None, note: str",
+      "completion": "{\"note\": \"fine\"}",
+      "adapter": "json",
+      "dspy": {
+        "ok": true,
+        "fields": {
+          "answer": null,
+          "note": "fine"
+        }
+      },
+      "diverges": false
+    },
+    {
+      "name": "json_required_omitted",
+      "signature": "question -> answer: str | None, note: str",
+      "completion": "{\"answer\": \"Paris\"}",
+      "adapter": "json",
+      "dspy": {
+        "ok": false,
+        "error": "AdapterParseError",
+        "message": "Adapter JSONAdapter failed to parse the LM response. \n\nLM Response: {\"answer\": \"Paris\"} \n\nExpected to find output fields in the LM response: [answer, note] \n\nActual output fields parsed from the LM response: [answer] \n\n",
+        "message_diverges": null
       },
       "diverges": false
     },

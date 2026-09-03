@@ -15,14 +15,13 @@ const ACTION_INSTRUCTIONS: &str = "You are tasked with producing the following o
 {output_fields}
 
 You have access to a Python REPL environment. Write Python code and it will be executed. You will see the output, then write more code based on what you learned. This is an iterative process.
-
+{interpreter_rules}
 Available:
 - Variables: {inputs} (your input data)
 - `llm_query(prompt)` - query a sub-LLM (~500K char capacity) for semantic analysis
 - `llm_query_batched(prompts)` - query multiple prompts concurrently (much faster for multiple queries)
 - `print()` - ALWAYS print to see results
 - `SUBMIT({final_output_names})` - submit final output when done
-- Standard libraries: re, json, collections, math, etc.
 
 IMPORTANT: This is ITERATIVE. Each code block you write will execute, you'll see the output, then you decide what to do next. Do NOT try to solve everything in one step.
 
@@ -48,7 +47,13 @@ pub(crate) fn signatures(
     signature: &Signature,
     tools: &[Arc<dyn Tool>],
     max_llm_calls: usize,
+    execution_instructions: &str,
 ) -> (Signature, Signature) {
+    // dspy 3.3.1: the runtime's own description, under a heading, or nothing at all.
+    let interpreter_rules = match execution_instructions.is_empty() {
+        true => String::new(),
+        false => format!("\nExecution environment:\n{execution_instructions}\n"),
+    };
     // dspy appends two newlines to the task's own instructions wherever it has any, and every
     // signature has some — a string signature carries the default dspy writes for it.
     let task = match signature.instructions.is_empty() {
@@ -76,7 +81,8 @@ pub(crate) fn signatures(
             .replace("{inputs}", &inputs)
             .replace("{output_fields}", &output_fields)
             .replace("{final_output_names}", &submits.join(", "))
-            .replace("{max_llm_calls}", &max_llm_calls.to_string()),
+            .replace("{max_llm_calls}", &max_llm_calls.to_string())
+            .replace("{interpreter_rules}", &interpreter_rules),
         tool_docs(tools),
     );
 
@@ -276,8 +282,10 @@ mod conformance {
                 })
                 .collect();
             let calls = case["max_llm_calls"].as_u64().expect("max_llm_calls") as usize;
-
-            let (action, extract) = signatures(&task, &tools, calls);
+            // What the factory says about its runtime: dspy's `PythonInterpreter` carries a
+            // description, the fixture's placeholder factory none.
+            let execution_instructions = case["execution_instructions"].as_str().unwrap_or("");
+            let (action, extract) = signatures(&task, &tools, calls, execution_instructions);
             assert_eq!(
                 action.instructions,
                 case["action"]["instructions"]

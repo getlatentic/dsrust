@@ -10,6 +10,7 @@
 //! `answer_generator.predict` upstream. Nothing caught it because no test held a derived module
 //! containing a composed one — the shape is the whole difference.
 
+#![allow(deprecated)]
 use dsrust::{ChainOfThought, Example, Module, Predict, Prediction};
 use serde_json::Value;
 

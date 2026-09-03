@@ -31,7 +31,41 @@ use super::CodeInterpreter;
 ///
 /// `Send + Sync` because upstream says the callable "may be invoked concurrently", and a module is
 /// shared across a `Parallel`'s threads.
-pub type InterpreterFactory = Arc<dyn Fn() -> Result<Arc<dyn CodeInterpreter>> + Send + Sync>;
+#[derive(Clone)]
+pub struct InterpreterFactory {
+    build: Arc<dyn Fn() -> Result<Arc<dyn CodeInterpreter>> + Send + Sync>,
+    /// dspy's `interpreter_factory.execution_instructions`: what the runtime is like, which `RLM`
+    /// prints in its action instructions. Absent unless the factory says — `PythonInterpreter`
+    /// carries it as a class attribute, and dspy reads it with `getattr(..., "")`.
+    execution_instructions: String,
+}
+
+impl InterpreterFactory {
+    pub fn new<F>(build: F) -> Self
+    where
+        F: Fn() -> Result<Arc<dyn CodeInterpreter>> + Send + Sync + 'static,
+    {
+        Self {
+            build: Arc::new(build),
+            execution_instructions: String::new(),
+        }
+    }
+
+    /// The runtime description `RLM` renders under `Execution environment:`.
+    pub fn with_execution_instructions(mut self, text: impl Into<String>) -> Self {
+        self.execution_instructions = text.into();
+        self
+    }
+
+    pub fn execution_instructions(&self) -> &str {
+        &self.execution_instructions
+    }
+
+    /// One interpreter for one forward pass.
+    pub fn build(&self) -> Result<Arc<dyn CodeInterpreter>> {
+        (self.build)()
+    }
+}
 
 /// A factory that builds one of these each time it is called.
 pub fn factory<I, F>(build: F) -> InterpreterFactory
@@ -39,7 +73,7 @@ where
     I: CodeInterpreter + 'static,
     F: Fn() -> I + Send + Sync + 'static,
 {
-    Arc::new(move || Ok(Arc::new(build()) as Arc<dyn CodeInterpreter>))
+    InterpreterFactory::new(move || Ok(Arc::new(build()) as Arc<dyn CodeInterpreter>))
 }
 
 /// A factory that hands back the same interpreter every time.
@@ -50,7 +84,9 @@ where
 /// exists to remove. A caller who wants one interpreter across several passes hands it to the
 /// module's `ask_in` instead, where the lease is borrowed and nothing shuts it down.
 pub fn handing_back(interpreter: Arc<dyn CodeInterpreter>) -> InterpreterFactory {
-    Arc::new(move || Ok(interpreter.clone()))
+    let instructions = interpreter.execution_instructions().to_owned();
+    InterpreterFactory::new(move || Ok(interpreter.clone()))
+        .with_execution_instructions(instructions)
 }
 
 /// An interpreter for the duration of one forward pass, and whether this pass has to close it.
@@ -100,7 +136,7 @@ impl Lease {
     /// So each module keeps its own `start`, where upstream keeps it.
     pub fn created(factory: &InterpreterFactory) -> Result<Self> {
         Ok(Self {
-            interpreter: factory()?,
+            interpreter: factory.build()?,
             owned: true,
         })
     }
@@ -160,8 +196,7 @@ mod tests {
     fn counting() -> (InterpreterFactory, Arc<Counting>) {
         let built = Arc::new(Counting::default());
         let handed = built.clone();
-        let make: InterpreterFactory =
-            Arc::new(move || Ok(handed.clone() as Arc<dyn CodeInterpreter>));
+        let make = InterpreterFactory::new(move || Ok(handed.clone() as Arc<dyn CodeInterpreter>));
         (make, built)
     }
 
@@ -226,7 +261,7 @@ mod tests {
     fn two_passes_do_not_share_one_interpreter() {
         let built = Arc::new(AtomicUsize::new(0));
         let counted = built.clone();
-        let make: InterpreterFactory = Arc::new(move || {
+        let make = InterpreterFactory::new(move || {
             counted.fetch_add(1, Ordering::SeqCst);
             Ok(Arc::new(Counting::default()) as Arc<dyn CodeInterpreter>)
         });

@@ -17,6 +17,11 @@ pub struct BatchSampler {
     /// dspy starts the epoch at `-1` so the first call always refreshes.
     epoch: i64,
     last_trainset_size: usize,
+    /// gepa 0.1.4: which iteration the last call was for, and how many calls it has made — a
+    /// multi-proposal iteration asks once per task and each ask advances one chunk, so the tasks
+    /// get distinct minibatches while the first ask of an iteration is what it always was.
+    current_iteration: Option<usize>,
+    calls_in_iteration: usize,
 }
 
 impl BatchSampler {
@@ -26,6 +31,8 @@ impl BatchSampler {
             shuffled_ids: Vec::new(),
             epoch: -1,
             last_trainset_size: 0,
+            current_iteration: None,
+            calls_in_iteration: 0,
         }
     }
 
@@ -41,6 +48,12 @@ impl BatchSampler {
             trainset_size > 0,
             "cannot sample a minibatch from an empty trainset"
         );
+        if self.current_iteration == Some(iteration) {
+            self.calls_in_iteration += 1;
+        } else {
+            self.current_iteration = Some(iteration);
+            self.calls_in_iteration = 0;
+        }
         let base = iteration * self.minibatch_size;
         let current_epoch = if self.epoch == -1 {
             0
@@ -55,7 +68,9 @@ impl BatchSampler {
             self.update_shuffled(trainset_size, rng);
         }
 
-        let base = base % self.shuffled_ids.len();
+        // The epoch bookkeeping above uses the un-offset base, constant within an iteration, so a
+        // repeat call never reshuffles and the shuffle sequence stays the single-call one.
+        let base = (base + self.calls_in_iteration * self.minibatch_size) % self.shuffled_ids.len();
         self.shuffled_ids[base..base + self.minibatch_size].to_vec()
     }
 
@@ -115,6 +130,32 @@ mod tests {
         BatchSampler::new(2).next_minibatch_ids(0, 0, &mut Random::seeded(0));
     }
 
+    /// gepa 0.1.4: a call repeated within one iteration hands out the next chunk, and the next
+    /// iteration starts from its own base regardless of how many calls the last one made.
+    /// Measured on `EpochShuffledBatchSampler(minibatch_size=2, rng=random.Random(0))` over six
+    /// ids, calling for iterations 0, 0, 0, 0, 1, 1, 2 in turn.
+    #[test]
+    fn a_repeat_call_within_an_iteration_advances_one_chunk() {
+        let mut sampler = BatchSampler::new(2);
+        let mut rng = Random::seeded(0);
+        let drawn: Vec<Vec<usize>> = [0, 0, 0, 0, 1, 1, 2]
+            .into_iter()
+            .map(|iteration| sampler.next_minibatch_ids(6, iteration, &mut rng))
+            .collect();
+        assert_eq!(
+            drawn,
+            [
+                vec![4, 2],
+                vec![1, 0],
+                vec![5, 3],
+                vec![4, 2],
+                vec![1, 0],
+                vec![5, 3],
+                vec![5, 3]
+            ]
+        );
+    }
+
     /// The three reasons to reshuffle are alternatives, not conjuncts: no ids yet, a trainset that
     /// changed size, or an epoch that rolled over. The `&&` mutant demanded all three at once, so
     /// the very first call — which has no ids but the same size and epoch — would sample from an
@@ -126,13 +167,17 @@ mod tests {
         let first = sampler.next_minibatch_ids(4, 0, &mut Random::seeded(0));
         assert_eq!(first.len(), 2, "the first call sampled from an empty pool");
 
-        // A changed trainset size, at the same iteration and epoch.
+        // A changed trainset size, at the same iteration and epoch. The pool is what grows; the
+        // ids handed back are the iteration's *second* chunk, since gepa 0.1.4 advances a chunk
+        // per call within an iteration.
         let mut sampler = BatchSampler::new(2);
         sampler.next_minibatch_ids(4, 0, &mut Random::seeded(0));
-        let widened = sampler.next_minibatch_ids(9, 0, &mut Random::seeded(0));
-        assert!(
-            widened.iter().any(|&id| id >= 4),
-            "the pool did not grow with the trainset: {widened:?}"
+        sampler.next_minibatch_ids(9, 0, &mut Random::seeded(0));
+        assert_eq!(
+            sampler.shuffled_ids.len(),
+            10,
+            "the pool did not grow with the trainset: {:?}",
+            sampler.shuffled_ids
         );
 
         // An epoch rollover, at the same size: iteration 2 at minibatch 2 over 4 ids is epoch 1.

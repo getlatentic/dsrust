@@ -1,5 +1,5 @@
 {
-  "_source": "dspy 3.3.0 streaming/streaming_listener.py, via generate_streaming_fixture.py",
+  "_source": "dspy 3.3.1 streaming/streaming_listener.py, via generate_streaming_fixture.py",
   "cases": [
     {
       "name": "recorded_gpt_4o_mini",

@@ -65,10 +65,13 @@ impl Trajectory {
     /// the same way, three times over.
     pub fn truncate_oldest(&mut self) -> anyhow::Result<()> {
         if self.steps.len() < 2 {
-            anyhow::bail!(
-                "The trajectory is too long so your prompt exceeded the context window, but the \
-                 trajectory cannot be truncated because it only has one tool call."
-            );
+            return Err(crate::lm::ContextWindowExceeded {
+                model: String::new(),
+                message: "The trajectory is too long so your prompt exceeded the context window, \
+                          but the trajectory cannot be truncated because it only has one tool call."
+                    .to_owned(),
+            }
+            .into());
         }
         self.steps.remove(0);
         Ok(())

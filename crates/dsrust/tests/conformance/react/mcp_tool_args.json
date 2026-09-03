@@ -1,6 +1,6 @@
 {
-  "source": "dspy==3.3.0 adapters/types/tool.convert_input_schema_to_tool_args",
-  "dspy_version": "3.3.0",
+  "source": "dspy==3.3.1 adapters/types/tool.convert_input_schema_to_tool_args and utils/mcp._convert_mcp_tool_result",
+  "dspy_version": "3.3.1",
   "cases": [
     {
       "name": "flat",
@@ -122,6 +122,238 @@
             }
           }
         }
+      }
+    }
+  ],
+  "results": [
+    {
+      "name": "one_text_block",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Paris"
+          }
+        ]
+      },
+      "text": {
+        "ok": true,
+        "value": "Paris"
+      },
+      "structured": {
+        "ok": true,
+        "value": "Paris"
+      }
+    },
+    {
+      "name": "several_text_blocks",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "a"
+          },
+          {
+            "type": "text",
+            "text": "b"
+          }
+        ]
+      },
+      "text": {
+        "ok": true,
+        "value": [
+          "a",
+          "b"
+        ]
+      },
+      "structured": {
+        "ok": true,
+        "value": [
+          "a",
+          "b"
+        ]
+      }
+    },
+    {
+      "name": "no_text_blocks",
+      "result": {
+        "content": [
+          {
+            "type": "image",
+            "data": "…",
+            "mime_type": "image/png"
+          }
+        ]
+      },
+      "text": {
+        "ok": true,
+        "value": [
+          {
+            "type": "image",
+            "data": "…",
+            "mime_type": "image/png"
+          }
+        ]
+      },
+      "structured": {
+        "ok": true,
+        "value": [
+          {
+            "type": "image",
+            "data": "…",
+            "mime_type": "image/png"
+          }
+        ]
+      }
+    },
+    {
+      "name": "error_camel",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "no such place"
+          }
+        ],
+        "isError": true
+      },
+      "text": {
+        "ok": false,
+        "error": "Failed to call a MCP tool: no such place"
+      },
+      "structured": {
+        "ok": false,
+        "error": "Failed to call a MCP tool: no such place"
+      }
+    },
+    {
+      "name": "error_snake",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "no such place"
+          }
+        ],
+        "is_error": true
+      },
+      "text": {
+        "ok": false,
+        "error": "Failed to call a MCP tool: no such place"
+      },
+      "structured": {
+        "ok": false,
+        "error": "Failed to call a MCP tool: no such place"
+      }
+    },
+    {
+      "name": "structured_camel",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"temp\": 22}"
+          }
+        ],
+        "structuredContent": {
+          "temp": 22
+        }
+      },
+      "text": {
+        "ok": true,
+        "value": "{\"temp\": 22}"
+      },
+      "structured": {
+        "ok": true,
+        "value": {
+          "temp": 22
+        }
+      }
+    },
+    {
+      "name": "structured_snake",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"temp\": 22}"
+          }
+        ],
+        "structured_content": {
+          "temp": 22
+        }
+      },
+      "text": {
+        "ok": true,
+        "value": "{\"temp\": 22}"
+      },
+      "structured": {
+        "ok": true,
+        "value": {
+          "temp": 22
+        }
+      }
+    },
+    {
+      "name": "structured_null",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "t"
+          }
+        ],
+        "structuredContent": null
+      },
+      "text": {
+        "ok": true,
+        "value": "t"
+      },
+      "structured": {
+        "ok": true,
+        "value": null
+      }
+    },
+    {
+      "name": "structured_unset",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "t"
+          }
+        ]
+      },
+      "text": {
+        "ok": true,
+        "value": "t"
+      },
+      "structured": {
+        "ok": true,
+        "value": "t"
+      }
+    },
+    {
+      "name": "error_with_structured",
+      "result": {
+        "content": [
+          {
+            "type": "text",
+            "text": "boom"
+          }
+        ],
+        "is_error": true,
+        "structured_content": {
+          "x": 1
+        }
+      },
+      "text": {
+        "ok": false,
+        "error": "Failed to call a MCP tool: boom"
+      },
+      "structured": {
+        "ok": false,
+        "error": "Failed to call a MCP tool: boom"
       }
     }
   ]

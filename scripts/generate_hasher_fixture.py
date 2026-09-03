@@ -49,12 +49,15 @@ OUT = (
 
 
 def fresh(text: str) -> str:
-    """A string CPython has not interned, as one parsed out of a completion is.
+    """A string CPython has not interned, as a value parsed out of a completion is.
 
     Identity is what the pickle memo keys on, so a case that used a literal here would record a
-    back-reference the real path never produces. Every adapter was checked: `ChatAdapter`,
-    `JSONAdapter` and `XMLAdapter` all return output names and values that are new objects, shared
-    with neither the signature nor the previous parse nor each other.
+    back-reference the real path never produces. Output *values* are new objects on every parse.
+    Output *names* are not, since 3.3.1: every adapter's `parse` ends in
+    `apply_output_field_defaults`, which rebuilds the fields from `signature.output_fields`, so a
+    name is the signature's own object and back-references its first appearance. `case` hands every
+    demo the same name objects for that reason; `_from_a_real_compile` checks the shape against a
+    compile nothing here wrote.
     """
     return "".join(list(text))
 
@@ -71,7 +74,9 @@ def demo(inputs: dict, outputs: dict) -> dspy.Example:
 
 
 def case(name: str, inputs: list[dict], outputs: list[dict]) -> tuple[str, tuple, list[str]]:
-    demos = tuple(demo(i, {fresh(k): v for k, v in o.items()}) for i, o in zip(inputs, outputs))
+    # One object per output name for the whole case — the signature's, which every parse reuses.
+    names = {k: fresh(k) for o in outputs for k in o}
+    demos = tuple(demo(i, {names[k]: v for k, v in o.items()}) for i, o in zip(inputs, outputs))
     return name, demos, sorted({k for i in inputs for k in i})
 
 

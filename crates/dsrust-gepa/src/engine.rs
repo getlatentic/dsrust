@@ -10,11 +10,11 @@
 
 use pyrng::Random;
 
-use crate::adapter::{Candidate, GepaAdapter};
+use crate::adapter::{Candidate, GepaAdapter, ProposalFailure};
 use crate::batch::BatchSampler;
 use crate::merge::{MergesPerformed, sample_and_attempt_merge, select_eval_subsample};
 use crate::pareto::{find_dominator_programs, select_candidate};
-use crate::progress::{Event, Progress};
+use crate::progress::{Event, Progress, Rejection};
 use crate::pyset::PyIntSet;
 
 /// Which candidate a strategy picks — gepa's `CandidateSelector.select_candidate_idx`.
@@ -102,12 +102,29 @@ struct MergeSchedule {
 }
 
 /// A reflective-mutation proposal: a mutated candidate and the minibatch scores of its parent and of
-/// itself, whose sums the engine compares to decide acceptance.
+/// itself, whose sums the acceptance criterion compares.
 struct Proposal {
     candidate: Candidate,
     parent: usize,
     scores_before: Vec<f64>,
     scores_after: Vec<f64>,
+}
+
+impl Proposal {
+    fn before(&self) -> f64 {
+        self.scores_before.iter().sum()
+    }
+
+    fn after(&self) -> f64 {
+        self.scores_after.iter().sum()
+    }
+}
+
+/// gepa 0.1.4's `ProposalTask`: one (parent, minibatch) pair to propose from.
+struct Task {
+    parent: usize,
+    candidate: Candidate,
+    ids: Vec<usize>,
 }
 
 /// What a completed run reports — the fields of dspy's `GEPAResult` the engine determines.
@@ -120,6 +137,9 @@ pub struct GepaOutcome<O> {
     pub total_num_evals: usize,
     pub num_full_ds_evals: usize,
     pub num_metric_calls_by_discovery: Vec<usize>,
+    /// gepa's `state.i`: the zero-based index of the last iteration run, which gepa logs as
+    /// `state.i + 1`. One completed iteration leaves it at 0; a search that never entered the loop
+    /// leaves it at -1.
     pub iterations: i64,
     /// gepa's `prog_candidate_val_subscores`, dspy's `val_subscores`: every candidate's score on
     /// every validation example, in candidate order. `val_aggregate_scores` is the mean of each.
@@ -155,6 +175,13 @@ pub struct GepaEngine<A: GepaAdapter> {
     pub candidate_selection_strategy: CandidateSelection,
     /// Which of a candidate's components a reflection rewrites. See [`ComponentSelection`].
     pub component_selector: ComponentSelection,
+    /// gepa 0.1.4's `acceptance_criterion`: what a proposal must do on its minibatch to be kept.
+    pub acceptance: Acceptance,
+    /// gepa 0.1.4's `selection_strategy`: which of an iteration's accepted proposals enter the pool.
+    pub selection: Selection,
+    /// gepa 0.1.4's `sampling_strategy`: how many (parent, minibatch) tasks an iteration proposes
+    /// from.
+    pub sampling: Sampling,
     /// gepa's `track_best_outputs`: keep what each front's programs answered, reported on
     /// [`GepaOutcome::best_outputs_valset`]. Off by default, as upstream's is — an adapter pays to
     /// carry the outputs and nothing reads them otherwise.
@@ -205,6 +232,67 @@ pub enum ComponentSelection {
     All,
 }
 
+/// gepa 0.1.4's `AcceptanceCriterion`: the two it ships, over the minibatch score sums.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Acceptance {
+    /// `StrictImprovementAcceptance`: the child's sum must beat the parent's. gepa's default.
+    #[default]
+    StrictImprovement,
+    /// `ImprovementOrEqualAcceptance`: equal is enough — a lateral move that explores.
+    ImprovementOrEqual,
+}
+
+impl Acceptance {
+    fn accepts(self, proposal: &Proposal) -> bool {
+        match self {
+            Self::StrictImprovement => proposal.after() > proposal.before(),
+            Self::ImprovementOrEqual => proposal.after() >= proposal.before(),
+        }
+    }
+}
+
+/// gepa 0.1.4's `SelectionStrategy`: which of an iteration's accepted proposals enter the pool.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Selection {
+    /// `AllImprovements`: every proposal the criterion accepts. gepa's default, and what a single
+    /// proposal per iteration always reduces to.
+    #[default]
+    AllImprovements,
+    /// `BestImprovement`: the one accepted proposal with the largest improvement, the earliest on a
+    /// tie.
+    BestImprovement,
+    /// `TopKImprovements(k)`: the `k` accepted proposals with the largest improvements, ties kept in
+    /// proposal order.
+    TopKImprovements { k: usize },
+}
+
+impl Selection {
+    /// `type(self.selection_strategy).__name__`, which the rejection line prints.
+    fn name(self) -> &'static str {
+        match self {
+            Self::AllImprovements => "AllImprovements",
+            Self::BestImprovement => "BestImprovement",
+            Self::TopKImprovements { .. } => "TopKImprovements",
+        }
+    }
+}
+
+/// gepa 0.1.4's `SamplingStrategy`: how many (parent, minibatch) tasks an iteration proposes from.
+/// Every draw comes off the shared generator in the order the strategy makes it, so the strategies
+/// are not the same run with more tasks — they are different runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Sampling {
+    /// `SingleMutationSampling`: one parent, one minibatch. gepa's default.
+    #[default]
+    SingleMutation,
+    /// `SameParentSampling(n)`: one parent, `n` minibatches.
+    SameParent { n: usize },
+    /// `IndependentSampling(n)`: `n` parents drawn in turn, each with its own minibatch.
+    Independent { n: usize },
+    /// `PxNSampling(p, n)`: `p` parents, `n` minibatches each.
+    PxN { parents: usize, mutations: usize },
+}
+
 /// The number of validation ids a merged candidate is scored on before the full re-evaluation, and
 /// the floor of shared support below which two candidates are not compared — dspy's
 /// `num_subsample_ids` and `val_overlap_floor`.
@@ -240,7 +328,7 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         let mut merge = MergeSchedule::default();
 
         // The loop ends when the budget is spent, so it ends only if every iteration spends some
-        // of it. Nothing enforced that. `propose` counts a minibatch before each of its two early
+        // of it. Nothing enforced that. `propose` counts a minibatch before each of its early
         // returns, so the one way through without spending is an *empty* minibatch — which an
         // empty trainset produces, and which then spins here forever on a real run rather than on
         // a mutated one. Upstream asserts the sampler has enough ids; this checks the effect
@@ -284,31 +372,15 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             }
             merge.last_iter_found_new_program = false;
 
-            let Some(proposal) = self.propose(&mut state, &mut rng, &mut sampler).await else {
+            let proposals = self.propose(&mut state, &mut rng, &mut sampler).await;
+            if proposals.is_empty() {
                 self.progress.report(Event::ProposedNothing {
                     iteration: state.i + 1,
                 });
                 continue;
-            };
-            let before: f64 = proposal.scores_before.iter().sum();
-            let after: f64 = proposal.scores_after.iter().sum();
-            if after <= before {
-                self.progress.report(Event::Rejected {
-                    iteration: state.i + 1,
-                    before,
-                    after,
-                });
-                continue;
             }
-            self.accept(&mut state, proposal).await;
-
-            // A program was added, so a merge becomes due — capped at the run's invocation budget.
-            if self.use_merge {
-                merge.last_iter_found_new_program = true;
-                if merge.total_tested < self.max_merge_invocations {
-                    merge.due += 1;
-                }
-            }
+            self.run_reflective_batch(&mut state, proposals, &mut merge)
+                .await;
         }
         self.finish(state)
     }
@@ -359,7 +431,7 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
             .adapter
             .evaluate_valset_ids(&subsample, &attempt.candidate)
             .await;
-        state.total_num_evals += subsample.len();
+        state.total_num_evals += eval.num_metric_calls.unwrap_or(subsample.len());
 
         // dspy compares the merged candidate's subsample sum against the better parent's over the
         // same ids: it is accepted only if it is at least as good as both.
@@ -376,7 +448,7 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
 
         let discovered_at = state.total_num_evals;
         let full = self.adapter.evaluate_valset(&attempt.candidate).await;
-        state.total_num_evals += self.valset_size;
+        state.total_num_evals += full.num_metric_calls.unwrap_or(self.valset_size);
         state.num_full_ds_evals += 1;
         self.progress.report(Event::Merged {
             iteration: state.i + 1,
@@ -393,119 +465,342 @@ impl<A: GepaAdapter + Send> GepaEngine<A> {
         MergeOutcome::Accepted
     }
 
-    /// dspy `ReflectiveMutationProposer.propose`: select a candidate, sample a minibatch, evaluate it
-    /// with traces, reflect on a round-robin component to mutate it, and evaluate the mutant on the
-    /// same minibatch. Returns `None` on the skip paths (no traces, or an already-perfect minibatch),
-    /// each of which still spends the parent's minibatch evaluation.
+    /// gepa 0.1.4's `SamplingStrategy.sample_tasks`: the iteration's (parent, minibatch) pairs, each
+    /// parent through [`select_with`] and each minibatch off the sampler, in the strategy's order.
+    fn sample_tasks(
+        &self,
+        state: &GepaState<A::Output>,
+        rng: &mut Random,
+        sampler: &mut BatchSampler,
+    ) -> Vec<Task> {
+        let scores = state.mean_scores();
+        let mut tasks = Vec::new();
+        let select = |rng: &mut Random| {
+            select_with(
+                self.candidate_selection_strategy,
+                state.fronts(),
+                &scores,
+                rng,
+            )
+        };
+        let task = |parent: usize, rng: &mut Random, sampler: &mut BatchSampler| Task {
+            parent,
+            candidate: state.candidates[parent].clone(),
+            ids: sampler.next_minibatch_ids(self.trainset_size, state.i as usize, rng),
+        };
+        match self.sampling {
+            Sampling::SingleMutation => {
+                let parent = select(rng);
+                tasks.push(task(parent, rng, sampler));
+            }
+            Sampling::SameParent { n } => {
+                let parent = select(rng);
+                for _ in 0..n {
+                    tasks.push(task(parent, rng, sampler));
+                }
+            }
+            Sampling::Independent { n } => {
+                for _ in 0..n {
+                    let parent = select(rng);
+                    tasks.push(task(parent, rng, sampler));
+                }
+            }
+            Sampling::PxN { parents, mutations } => {
+                for _ in 0..parents {
+                    let parent = select(rng);
+                    for _ in 0..mutations {
+                        tasks.push(task(parent, rng, sampler));
+                    }
+                }
+            }
+        }
+        tasks
+    }
+
+    /// dspy `ReflectiveMutationProposer.propose` as gepa 0.1.4 runs it: every task's parent scored
+    /// with traces — once per distinct parent-and-minibatch — each task reflected on, every child
+    /// scored on its task's minibatch, and all of them handed back for the engine to judge. Which
+    /// to keep is the engine's decision, not the proposer's.
     async fn propose(
         &mut self,
         state: &mut GepaState<A::Output>,
         rng: &mut Random,
         sampler: &mut BatchSampler,
-    ) -> Option<Proposal> {
-        // Through `select_with`, which is the function `tests/selectors.rs` drives against the
-        // gepa package. This match was written out again here, so the arm production took was a
-        // copy of the arm the conformance test checked — two bodies that agree until one is
-        // edited, with a golden that would keep passing either way.
-        let parent = select_with(
-            self.candidate_selection_strategy,
-            state.fronts(),
-            &state.mean_scores(),
-            rng,
-        );
-        let subsample = sampler.next_minibatch_ids(self.trainset_size, state.i as usize, rng);
-        let parent_candidate = state.candidates[parent].clone();
+    ) -> Vec<Proposal> {
+        let iteration = state.i + 1;
+        let tasks = self.sample_tasks(state, rng, sampler);
 
-        let eval_parent = self
-            .adapter
-            .evaluate_minibatch(&subsample, &parent_candidate, true)
-            .await;
-        state.total_num_evals += subsample.len();
-        if !eval_parent.captured_traces {
-            self.progress.report(Event::NoTrajectories {
-                iteration: state.i + 1,
-            });
-            return None;
+        // Parents, each distinct (candidate, minibatch) evaluated once.
+        let mut keys: Vec<(&Candidate, &[usize])> = Vec::new();
+        let mut task_key: Vec<usize> = Vec::new();
+        for task in &tasks {
+            let key = (&task.candidate, task.ids.as_slice());
+            let at = match keys.iter().position(|known| *known == key) {
+                Some(at) => at,
+                None => {
+                    keys.push(key);
+                    keys.len() - 1
+                }
+            };
+            task_key.push(at);
         }
-        if self.skip_perfect_score && eval_parent.scores.iter().all(|&s| s >= self.perfect_score) {
-            self.progress.report(Event::NothingToLearnFrom {
-                iteration: state.i + 1,
-            });
-            return None;
+        let mut parent_evals = Vec::with_capacity(keys.len());
+        for (candidate, ids) in &keys {
+            parent_evals.push(self.adapter.evaluate_minibatch(ids, candidate, true).await);
         }
+        state.total_num_evals += keys
+            .iter()
+            .zip(&parent_evals)
+            .map(|((_, ids), eval)| eval.num_metric_calls.unwrap_or(ids.len()))
+            .sum::<usize>();
+        let first = &tasks[0];
+        self.progress.report(Event::Selected {
+            iteration,
+            candidate: first.parent,
+            score: state.mean_scores()[first.parent],
+        });
 
-        let components = match self.component_selector {
-            ComponentSelection::RoundRobin => vec![state.select_component(parent)],
-            ComponentSelection::All => parent_candidate.keys().cloned().collect(),
-        };
-        // An error is upstream raising out of the proposal, which gepa catches: the iteration ends
-        // here rather than scoring a candidate identical to its parent, and the minibatch
-        // evaluation below is the one that is not spent.
-        let proposed = self
-            .adapter
-            .propose_new_texts(&parent_candidate, &components, &eval_parent)
-            .await;
-        let new_texts = match proposed {
-            Ok(new_texts) => new_texts,
-            Err(error) => {
-                self.progress.report(Event::ReflectionFailed {
-                    iteration: state.i + 1,
-                    error: &error,
+        // Which tasks reflect, and on which components.
+        let mut components: Vec<Option<Vec<String>>> = Vec::with_capacity(tasks.len());
+        for (index, task) in tasks.iter().enumerate() {
+            let eval = &parent_evals[task_key[index]];
+            if !eval.captured_traces {
+                self.progress.report(Event::NoTrajectories {
+                    iteration,
+                    parent: task.parent,
                 });
-                return None;
+                components.push(None);
+                continue;
             }
-        };
-        for (component, text) in &new_texts {
-            self.progress.report(Event::Proposed {
-                iteration: state.i + 1,
-                component,
-                text,
+            if self.skip_perfect_score && eval.scores.iter().all(|&s| s >= self.perfect_score) {
+                self.progress.report(Event::NothingToLearnFrom {
+                    iteration,
+                    parent: task.parent,
+                });
+                components.push(None);
+                continue;
+            }
+            components.push(Some(match self.component_selector {
+                ComponentSelection::RoundRobin => vec![state.select_component(task.parent)],
+                ComponentSelection::All => task.candidate.keys().cloned().collect(),
+            }));
+        }
+
+        // Reflection over every task, then — when the reflection model failed on any of them —
+        // once more task by task, as gepa 0.1.4 retries a failed batch. A reflective dataset that
+        // cannot be built drops its task on the spot.
+        let mut texts: Vec<Option<Candidate>> = (0..tasks.len()).map(|_| None).collect();
+        let mut batch_failure: Option<String> = None;
+        for index in 0..tasks.len() {
+            let Some(chosen) = &components[index] else {
+                continue;
+            };
+            let task = &tasks[index];
+            let eval = &parent_evals[task_key[index]];
+            match self
+                .adapter
+                .propose_new_texts(&task.candidate, chosen, eval)
+                .await
+            {
+                Ok(new_texts) => texts[index] = Some(new_texts),
+                Err(ProposalFailure::ReflectiveDataset(error)) => {
+                    self.progress.report(Event::ReflectiveDatasetFailed {
+                        iteration,
+                        error: &error,
+                    });
+                    components[index] = None;
+                }
+                Err(ProposalFailure::Reflection(error)) => {
+                    batch_failure.get_or_insert(error);
+                }
+            }
+        }
+        if let Some(error) = batch_failure {
+            self.progress.report(Event::BatchedReflectionFailed {
+                iteration,
+                error: &error,
+            });
+            for index in 0..tasks.len() {
+                let Some(chosen) = &components[index] else {
+                    continue;
+                };
+                let task = &tasks[index];
+                let eval = &parent_evals[task_key[index]];
+                texts[index] = match self
+                    .adapter
+                    .propose_new_texts(&task.candidate, chosen, eval)
+                    .await
+                {
+                    Ok(new_texts) => Some(new_texts),
+                    Err(failure) => {
+                        self.progress.report(Event::ReflectionFailed {
+                            iteration,
+                            error: failure.message(),
+                        });
+                        None
+                    }
+                };
+            }
+        }
+
+        // Children, built from the proposed texts and scored on their task's minibatch.
+        let mut children: Vec<(usize, Candidate)> = Vec::new();
+        for (index, proposed) in texts.into_iter().enumerate() {
+            let Some(new_texts) = proposed else {
+                continue;
+            };
+            if new_texts.is_empty() {
+                self.progress.report(Event::NoTextUpdates { iteration });
+                continue;
+            }
+            for (component, text) in &new_texts {
+                self.progress.report(Event::Proposed {
+                    iteration,
+                    component,
+                    text,
+                });
+            }
+            let mut child = tasks[index].candidate.clone();
+            child.extend(new_texts);
+            children.push((index, child));
+        }
+        let mut proposals = Vec::with_capacity(children.len());
+        let mut spent = 0;
+        for (index, child) in children {
+            let task = &tasks[index];
+            let eval = self
+                .adapter
+                .evaluate_minibatch(&task.ids, &child, true)
+                .await;
+            spent += eval.num_metric_calls.unwrap_or(task.ids.len());
+            proposals.push(Proposal {
+                candidate: child,
+                parent: task.parent,
+                scores_before: parent_evals[task_key[index]].scores.clone(),
+                scores_after: eval.scores,
             });
         }
-        let mut candidate = parent_candidate;
-        candidate.extend(new_texts);
-
-        let eval_new = self
-            .adapter
-            .evaluate_minibatch(&subsample, &candidate, false)
-            .await;
-        state.total_num_evals += subsample.len();
-
-        Some(Proposal {
-            candidate,
-            parent,
-            scores_before: eval_parent.scores,
-            scores_after: eval_new.scores,
-        })
+        state.total_num_evals += spent;
+        proposals
     }
 
-    /// dspy `_run_full_eval_and_add`: an accepted proposal is re-scored on the whole valset (recording
-    /// the eval total at discovery first) and folded into the state.
-    async fn accept(&mut self, state: &mut GepaState<A::Output>, proposal: Proposal) {
-        let discovered_at = state.total_num_evals;
-        let eval = self.adapter.evaluate_valset(&proposal.candidate).await;
-        state.total_num_evals += self.valset_size;
-        state.num_full_ds_evals += 1;
-        // The score gepa's "Found a better program" line prints, read before the state moves on.
-        let score = match eval.scores.is_empty() {
-            true => 0.0,
-            false => eval.scores.iter().sum::<f64>() / eval.scores.len() as f64,
-        };
+    /// gepa 0.1.4's `_run_reflective_batch`: the selection strategy decides which accepted
+    /// proposals go on, identical candidates are kept once, everything else is reported rejected
+    /// with its reason, and the survivors are scored on the whole valset and folded in, in order.
+    async fn run_reflective_batch(
+        &mut self,
+        state: &mut GepaState<A::Output>,
+        proposals: Vec<Proposal>,
+        merge: &mut MergeSchedule,
+    ) {
         let iteration = state.i + 1;
-        state.add_program(
-            &[proposal.parent],
-            proposal.candidate,
-            eval.scores,
-            discovered_at,
-        );
-        let candidate = state.candidates.len() - 1;
-        self.progress.report(Event::Accepted {
-            iteration,
-            candidate,
-            score,
-            is_best: state.best_program() == candidate,
-            program: &state.candidates[candidate],
-        });
+        let accepted: Vec<bool> = proposals
+            .iter()
+            .map(|proposal| self.acceptance.accepts(proposal))
+            .collect();
+        let improvement = |index: usize| proposals[index].after() - proposals[index].before();
+        let passing = || (0..proposals.len()).filter(|&index| accepted[index]);
+        let selected: Vec<usize> = match self.selection {
+            Selection::AllImprovements => passing().collect(),
+            Selection::BestImprovement => {
+                let mut best: Option<(usize, f64)> = None;
+                for index in passing() {
+                    let gain = improvement(index);
+                    if best.is_none_or(|(_, held)| gain > held) {
+                        best = Some((index, gain));
+                    }
+                }
+                best.map(|(index, _)| vec![index]).unwrap_or_default()
+            }
+            Selection::TopKImprovements { k } => {
+                let mut ranked: Vec<(f64, usize)> =
+                    passing().map(|index| (improvement(index), index)).collect();
+                ranked.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+                ranked.into_iter().take(k).map(|(_, index)| index).collect()
+            }
+        };
+        let mut kept: Vec<usize> = Vec::new();
+        let mut duplicates: Vec<usize> = Vec::new();
+        for index in selected {
+            match kept
+                .iter()
+                .any(|&earlier| proposals[earlier].candidate == proposals[index].candidate)
+            {
+                true => duplicates.push(index),
+                false => kept.push(index),
+            }
+        }
+        for (index, proposal) in proposals.iter().enumerate() {
+            if kept.contains(&index) {
+                continue;
+            }
+            let reason = if duplicates.contains(&index) {
+                Rejection::Duplicate
+            } else if accepted[index] {
+                Rejection::NotSelected(self.selection.name())
+            } else {
+                Rejection::NotBetter
+            };
+            self.progress.report(Event::Rejected {
+                iteration,
+                before: proposal.before(),
+                after: proposal.after(),
+                reason,
+            });
+        }
+        if kept.is_empty() {
+            return;
+        }
+
+        let mut evals = Vec::with_capacity(kept.len());
+        for &index in &kept {
+            evals.push(
+                self.adapter
+                    .evaluate_valset(&proposals[index].candidate)
+                    .await,
+            );
+        }
+        let mut proposals: Vec<Option<Proposal>> = proposals.into_iter().map(Some).collect();
+        for (&index, eval) in kept.iter().zip(evals) {
+            let proposal = proposals[index].take().expect("kept once");
+            self.progress.report(Event::AcceptedOnMinibatch {
+                iteration,
+                before: proposal.before(),
+                after: proposal.after(),
+            });
+            // dspy `_add_evaluated_program`: the eval total at discovery is read before this
+            // program's own valset evaluation is charged, so candidates added in one batch record
+            // what the serial path would have.
+            let discovered_at = state.total_num_evals;
+            state.total_num_evals += eval.num_metric_calls.unwrap_or(self.valset_size);
+            state.num_full_ds_evals += 1;
+            // The score gepa's "Found a better program" line prints, read before the state moves on.
+            let score = match eval.scores.is_empty() {
+                true => 0.0,
+                false => eval.scores.iter().sum::<f64>() / eval.scores.len() as f64,
+            };
+            state.add_program(
+                &[proposal.parent],
+                proposal.candidate,
+                eval.scores,
+                discovered_at,
+            );
+            let candidate = state.candidates.len() - 1;
+            self.progress.report(Event::Accepted {
+                iteration,
+                candidate,
+                score,
+                is_best: state.best_program() == candidate,
+                program: &state.candidates[candidate],
+            });
+            // A program was added, so a merge becomes due — capped at the run's invocation budget.
+            if self.use_merge {
+                merge.last_iter_found_new_program = true;
+                if merge.total_tested < self.max_merge_invocations {
+                    merge.due += 1;
+                }
+            }
+        }
     }
 
     /// Assemble the outcome: the best program is the highest mean valset score (dspy's `GEPAResult`).

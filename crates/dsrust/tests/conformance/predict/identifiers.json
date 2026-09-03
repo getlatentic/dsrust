@@ -1,6 +1,6 @@
 {
-  "source": "CPython 3.14.5, via scripts/generate_python_text_fixtures.py",
-  "python_version": "3.14.5",
+  "source": "CPython 3.13.5, via scripts/generate_python_text_fixtures.py",
+  "python_version": "3.13.5",
   "note": "`str.isidentifier`, which is Unicode's XID_Start/XID_Continue rather than ASCII. It decides whether a `Flex` tool's name can be written into generated code. Keyword-ness is *not* part of it: `class` is an identifier by this test and refused later.",
   "python": {
     "ok": true,

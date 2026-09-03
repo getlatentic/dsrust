@@ -20,13 +20,16 @@ HERE = pathlib.Path(__file__).parent
 #: because the upstream-test runner reads it from shell too.
 PINS = {
     "dspy": (HERE / "DSPY_VERSION").read_text().strip(),
-    # dspy 3.3.0 requires `gepa[dspy]==0.1.1`, so this pin follows dspy's.
-    "gepa": "0.1.1",
+    # dspy 3.3.1 requires `gepa[dspy]==0.1.4`, so this pin follows dspy's.
+    "gepa": "0.1.4",
     # dspy asks for `json-repair>=0.54.2`; this is what resolved, and what the port reproduces.
     "json_repair": "0.61.7",
     # dspy names optuna only as an extra (`dspy[optuna]`), unversioned. This is what resolved, and
     # what the `tpe` crate is verified against — MIPROv2's search is this sampler's decisions.
     "optuna": "4.9.0",
+    # dspy names `mcp` as an extra too, unversioned; `utils/mcp.py` imports `mcp.types.TextContent`
+    # to read a tool result, so recording that conversion needs it installed. This is what resolved.
+    "mcp": "2.1.1",
 }
 
 

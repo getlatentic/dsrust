@@ -10,6 +10,7 @@
 //! RLM the two predictors arrive already dressed as LMs Python-side, since upstream mocks at the
 //! predictor level rather than the LM level.
 
+#![allow(deprecated)]
 use std::sync::Arc;
 
 use dsrust::interpreter::InterpreterFailure;
@@ -572,7 +573,7 @@ pub(crate) fn merge_usage(left: &str, right: &str) -> PyResult<String> {
 /// the pool's next `_pool_reset()` raised "session has ended" — 26 teardown errors whose cause was
 /// one wrong arm in this file.
 fn refusing_factory() -> dsrust::interpreter::InterpreterFactory {
-    std::sync::Arc::new(|| {
+    dsrust::interpreter::InterpreterFactory::new(|| {
         anyhow::bail!(
             "the bridge always passes a caller-owned interpreter; this factory must not fire"
         )

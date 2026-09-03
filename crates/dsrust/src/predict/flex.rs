@@ -84,7 +84,8 @@ impl Flex {
             name: STRING_SIGNATURE.to_owned(),
             tools: Vec::new(),
             module_src: String::new(),
-            interpreter_factory: factory(DenoInterpreter::new),
+            interpreter_factory: factory(DenoInterpreter::new)
+                .with_execution_instructions(DenoInterpreter::EXECUTION_INSTRUCTIONS),
             max_predictor_calls: Some(DEFAULT_PREDICTOR_CALLS),
         };
         flex.module_src = flex.baseline_src();

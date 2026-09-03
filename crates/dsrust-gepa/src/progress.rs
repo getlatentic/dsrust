@@ -27,6 +27,14 @@ use crate::Candidate;
 /// A field that completes the report belongs here; one that invents a decision does not.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Event<'a> {
+    /// The parent an iteration reflects on, once its minibatch has been scored. gepa 0.1.4:
+    /// *"Iteration {i}: Selected program {idx} score: {score}"* — logged after the parent
+    /// evaluations, where 0.1.1 logged it before.
+    Selected {
+        iteration: i64,
+        candidate: usize,
+        score: f64,
+    },
     /// The reflection proposed replacement text for one component. gepa: *"Iteration {i}: Proposed
     /// new text for {name}: {text}"*.
     Proposed {
@@ -34,27 +42,44 @@ pub enum Event<'a> {
         component: &'a str,
         text: &'a str,
     },
-    /// The reflection ran and produced nothing. gepa: *"Iteration {i}: Reflective mutation did not
-    /// propose a new candidate"*.
+    /// No task produced a proposal this iteration. gepa: *"Iteration {i}: Reflective mutation did
+    /// not propose a new candidate"*.
     ProposedNothing { iteration: i64 },
-    /// Every sampled score was already perfect, so there was nothing to reflect on. gepa:
-    /// *"Iteration {i}: All subsample scores perfect. Skipping."*
-    NothingToLearnFrom { iteration: i64 },
+    /// The reflection ran and rewrote nothing, so the child would equal its parent and is not
+    /// scored. gepa 0.1.4: *"Iteration {i}: Reflection returned no text updates; skipping proposal
+    /// for this task."*
+    NoTextUpdates { iteration: i64 },
+    /// Every sampled score was already perfect, so there was nothing to reflect on. gepa 0.1.4:
+    /// *"Iteration {i}: All subsample scores perfect for parent {idx}. Skipping."*
+    NothingToLearnFrom { iteration: i64, parent: usize },
     /// The parent was run and recorded no trajectory, so there was nothing to reflect *on* —
-    /// distinct from reflecting and finding nothing to say. gepa: *"Iteration {i}: No trajectories
-    /// captured. Skipping."*
+    /// distinct from reflecting and finding nothing to say. gepa 0.1.4: *"Iteration {i}: No
+    /// trajectories for parent {idx}. Skipping."*
     ///
     /// A program that records no trace produces this on every iteration, and a caller seeing only
     /// [`Event::ProposedNothing`] cannot tell that from a reflection that ran and declined.
-    NoTrajectories { iteration: i64 },
-    /// The reflection could not run at all — dspy raises when no module has a valid prediction to
-    /// learn from, and gepa catches it. gepa: *"Iteration {i}: Exception during
-    /// reflection/proposal: {e}"*.
+    NoTrajectories { iteration: i64, parent: usize },
+    /// The reflective dataset could not be built — dspy raises when no module has a valid
+    /// prediction to learn from, and gepa catches it. gepa 0.1.4: *"Iteration {i}: Exception
+    /// building reflective dataset: {e}"*.
+    ReflectiveDatasetFailed { iteration: i64, error: &'a str },
+    /// The reflection model failed over the iteration's tasks, and each is about to be tried on
+    /// its own. gepa 0.1.4: *"Batched reflection failed ({e}); retrying per task."*
+    BatchedReflectionFailed { iteration: i64, error: &'a str },
+    /// The reflection model failed for one task on its own, which ends that task. gepa 0.1.4:
+    /// *"Per-task reflection failed: {e}"*.
     ReflectionFailed { iteration: i64, error: &'a str },
-    /// The proposal scored no better than its parent on the minibatch and was dropped before it
-    /// cost a validation pass. Upstream logs no line here; the decision is the one a caller
-    /// watching a run most wants to see, and its absence upstream is why a run looks stalled.
+    /// A proposal was not kept, and why. gepa 0.1.4 logs each kind in its own words.
     Rejected {
+        iteration: i64,
+        before: f64,
+        after: f64,
+        reason: Rejection,
+    },
+    /// A proposal passed the minibatch test and is about to be scored on the validation set. gepa
+    /// 0.1.4: *"Iteration {i}: Accepted candidate (subsample score {before} -> {after}); running
+    /// full eval."*
+    AcceptedOnMinibatch {
         iteration: i64,
         before: f64,
         after: f64,
@@ -90,11 +115,33 @@ pub enum Event<'a> {
     NoMergeCandidates { iteration: i64 },
 }
 
+/// Why gepa 0.1.4 did not keep a proposal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rejection {
+    /// The acceptance criterion refused it: *"New subsample score {after} is not better than old
+    /// score {before}, skipping"*.
+    NotBetter,
+    /// It passed the criterion and the selection strategy left it out — `BestImprovement` or
+    /// `TopKImprovements`: *"Passed acceptance (score {before} -> {after}) but was not selected by
+    /// the selection strategy ({strategy}), skipping"*.
+    NotSelected(&'static str),
+    /// An identical candidate was selected earlier in the same iteration.
+    Duplicate,
+}
+
 impl Event<'_> {
     /// gepa's own line for this decision, for a caller that wants the sentence rather than the
-    /// numbers. `Rejected` has no upstream line, so it reads in the same voice as the others.
+    /// numbers.
     pub fn message(&self) -> String {
         match self {
+            Event::Selected {
+                iteration,
+                candidate,
+                score,
+            } => format!(
+                "Iteration {iteration}: Selected program {candidate} score: {}",
+                py_float(*score)
+            ),
             Event::Proposed {
                 iteration,
                 component,
@@ -105,22 +152,56 @@ impl Event<'_> {
                     "Iteration {iteration}: Reflective mutation did not propose a new candidate"
                 )
             }
-            Event::NoTrajectories { iteration } => {
-                format!("Iteration {iteration}: No trajectories captured. Skipping.")
+            Event::NoTextUpdates { iteration } => format!(
+                "Iteration {iteration}: Reflection returned no text updates; skipping proposal for \
+                 this task."
+            ),
+            Event::NoTrajectories { iteration, parent } => {
+                format!("Iteration {iteration}: No trajectories for parent {parent}. Skipping.")
             }
-            Event::ReflectionFailed { iteration, error } => {
-                format!("Iteration {iteration}: Exception during reflection/proposal: {error}")
+            Event::ReflectiveDatasetFailed { iteration, error } => {
+                format!("Iteration {iteration}: Exception building reflective dataset: {error}")
             }
-            Event::NothingToLearnFrom { iteration } => {
-                format!("Iteration {iteration}: All subsample scores perfect. Skipping.")
+            Event::BatchedReflectionFailed { error, .. } => {
+                format!("Batched reflection failed ({error}); retrying per task.")
             }
+            Event::ReflectionFailed { error, .. } => {
+                format!("Per-task reflection failed: {error}")
+            }
+            Event::NothingToLearnFrom { iteration, parent } => format!(
+                "Iteration {iteration}: All subsample scores perfect for parent {parent}. Skipping."
+            ),
             Event::Rejected {
                 iteration,
                 before,
                 after,
+                reason,
+            } => {
+                let (before, after) = (py_float(*before), py_float(*after));
+                match reason {
+                    Rejection::NotBetter => format!(
+                        "Iteration {iteration}: New subsample score {after} is not better than old \
+                         score {before}, skipping"
+                    ),
+                    Rejection::NotSelected(strategy) => format!(
+                        "Iteration {iteration}: Passed acceptance (score {before} -> {after}) but \
+                         was not selected by the selection strategy ({strategy}), skipping"
+                    ),
+                    Rejection::Duplicate => format!(
+                        "Iteration {iteration}: Duplicate of another candidate selected this \
+                         iteration, skipping"
+                    ),
+                }
+            }
+            Event::AcceptedOnMinibatch {
+                iteration,
+                before,
+                after,
             } => format!(
-                "Iteration {iteration}: Proposal scored {after} against {before} on the minibatch \
-                 and was dropped."
+                "Iteration {iteration}: Accepted candidate (subsample score {} -> {}); running full \
+                 eval.",
+                py_float(*before),
+                py_float(*after)
             ),
             Event::Accepted {
                 program: _,
@@ -152,16 +233,30 @@ impl Event<'_> {
 
     pub fn iteration(&self) -> i64 {
         match self {
-            Event::Proposed { iteration, .. }
+            Event::Selected { iteration, .. }
+            | Event::Proposed { iteration, .. }
             | Event::ProposedNothing { iteration }
-            | Event::NothingToLearnFrom { iteration }
-            | Event::NoTrajectories { iteration }
+            | Event::NoTextUpdates { iteration }
+            | Event::NothingToLearnFrom { iteration, .. }
+            | Event::NoTrajectories { iteration, .. }
+            | Event::ReflectiveDatasetFailed { iteration, .. }
+            | Event::BatchedReflectionFailed { iteration, .. }
             | Event::ReflectionFailed { iteration, .. }
             | Event::Rejected { iteration, .. }
+            | Event::AcceptedOnMinibatch { iteration, .. }
             | Event::Accepted { iteration, .. }
             | Event::Merged { iteration, .. }
             | Event::NoMergeCandidates { iteration } => *iteration,
         }
+    }
+}
+
+/// A float as Python's f-string prints one — `2.0` for a whole number, where Rust prints `2`.
+fn py_float(value: f64) -> String {
+    let spelled = format!("{value}");
+    match value.is_finite() && !spelled.contains(['.', 'e']) {
+        true => format!("{spelled}.0"),
+        false => spelled,
     }
 }
 
@@ -218,11 +313,15 @@ mod tests {
     fn every_event_carries_its_iteration() {
         for event in [
             Event::ProposedNothing { iteration: 1 },
-            Event::NothingToLearnFrom { iteration: 2 },
+            Event::NothingToLearnFrom {
+                iteration: 2,
+                parent: 0,
+            },
             Event::Rejected {
                 iteration: 3,
                 before: 1.0,
                 after: 0.5,
+                reason: Rejection::NotBetter,
             },
             Event::NoMergeCandidates { iteration: 4 },
         ] {

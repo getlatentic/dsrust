@@ -171,83 +171,92 @@ where
         trainset: &[Example],
         valset: Option<&[Example]>,
     ) -> Result<Vec<Trial>> {
-        let predictors: Vec<Signature> = student
-            .named_predictors()
-            .iter()
-            .map(|predictor| predictor.signature.clone())
-            .collect();
-        if predictors.is_empty() {
-            return Ok(Vec::new());
-        }
-        let zeroshot = self.zeroshot();
-        let (trainset, valset) = self.datasets(trainset, valset)?;
+        crate::observe::compiling(
+            "MIPROv2",
+            self as *const Self as *const () as usize,
+            trainset,
+            valset,
+            async move {
+                let predictors: Vec<Signature> = student
+                    .named_predictors()
+                    .iter()
+                    .map(|predictor| predictor.signature.clone())
+                    .collect();
+                if predictors.is_empty() {
+                    return Ok(Vec::new());
+                }
+                let zeroshot = self.zeroshot();
+                let (trainset, valset) = self.datasets(trainset, valset)?;
 
-        let mut rng = Rng::seeded(self.seed);
-        // `auto` draws before anything else does — the valset subsample is the first thing off this
-        // generator, ahead of Step 1 — so a preset moves every later draw, not only the counts.
-        let mode = self.run_mode(predictors.len(), zeroshot, valset, &mut rng);
+                let mut rng = Rng::seeded(self.seed);
+                // `auto` draws before anything else does — the valset subsample is the first thing off this
+                // generator, ahead of Step 1 — so a preset moves every later draw, not only the counts.
+                let mode = self.run_mode(predictors.len(), zeroshot, valset, &mut rng);
 
-        // Step 1: bootstrap demo sets. A zero-shot run still builds them — they ground the proposer,
-        // and building them advances the shared RNG that Step 2's proposal reads — but it builds them
-        // at dspy's in-context constants rather than at the caller's counts, and never searches them.
-        let demo_sets = self
-            .on_task_model(demos::create_demo_sets(
-                student,
-                &trainset,
-                &self.metric,
-                &mut rng,
-                &demos::Bounds {
-                    num_candidate_sets: mode.fewshot_candidates,
-                    max_labeled: if zeroshot {
-                        ZEROSHOT_LABELED
-                    } else {
-                        self.max_labeled_demos
-                    },
-                    max_bootstrapped: if zeroshot {
-                        ZEROSHOT_BOOTSTRAPPED
-                    } else {
-                        self.max_bootstrapped_demos
-                    },
-                    metric_threshold: self.metric_threshold,
-                },
-            ))
-            .await?;
+                // Step 1: bootstrap demo sets. A zero-shot run still builds them — they ground the proposer,
+                // and building them advances the shared RNG that Step 2's proposal reads — but it builds them
+                // at dspy's in-context constants rather than at the caller's counts, and never searches them.
+                let demo_sets = self
+                    .on_task_model(demos::create_demo_sets(
+                        student,
+                        &trainset,
+                        &self.metric,
+                        &mut rng,
+                        &demos::Bounds {
+                            num_candidate_sets: mode.fewshot_candidates,
+                            max_labeled: if zeroshot {
+                                ZEROSHOT_LABELED
+                            } else {
+                                self.max_labeled_demos
+                            },
+                            max_bootstrapped: if zeroshot {
+                                ZEROSHOT_BOOTSTRAPPED
+                            } else {
+                                self.max_bootstrapped_demos
+                            },
+                            metric_threshold: self.metric_threshold,
+                        },
+                    ))
+                    .await?;
 
-        // Step 2: propose instruction candidates, off the RNG Step 1 advanced.
-        // Upstream summarises in `GroundedProposer.__init__`, before any tip is drawn, and takes no
-        // draw of its own — so this sits here rather than inside the proposal loop.
-        let dataset_summary = match self.data_aware_proposer {
-            true => dataset_summary::create_dataset_summary(
-                &trainset,
-                self.view_data_batch_size,
-                &self.prompt_model,
-            )
-            .await
-            .ok(),
-            false => None,
-        };
-        let proposer = GroundedProposer {
-            dataset_summary,
-            program_code: self.program_code.clone(),
-            tip_aware: self.tip_aware,
-            prompt_model: self.prompt_model.clone(),
-            init_temperature: self.init_temperature,
-            fewshot_aware: self.fewshot_aware_proposer,
-        };
-        let candidates = proposer
-            .propose(
-                &predictors,
-                mode.instruction_candidates,
-                (!zeroshot).then_some(demo_sets.as_slice()),
-                &mut rng,
-            )
-            .await?;
+                // Step 2: propose instruction candidates, off the RNG Step 1 advanced.
+                // Upstream summarises in `GroundedProposer.__init__`, before any tip is drawn, and takes no
+                // draw of its own — so this sits here rather than inside the proposal loop.
+                let dataset_summary = match self.data_aware_proposer {
+                    true => dataset_summary::create_dataset_summary(
+                        &trainset,
+                        self.view_data_batch_size,
+                        &self.prompt_model,
+                    )
+                    .await
+                    .ok(),
+                    false => None,
+                };
+                let proposer = GroundedProposer {
+                    dataset_summary,
+                    program_code: self.program_code.clone(),
+                    tip_aware: self.tip_aware,
+                    prompt_model: self.prompt_model.clone(),
+                    init_temperature: self.init_temperature,
+                    fewshot_aware: self.fewshot_aware_proposer,
+                };
+                let candidates = proposer
+                    .propose(
+                        &predictors,
+                        mode.instruction_candidates,
+                        (!zeroshot).then_some(demo_sets.as_slice()),
+                        &mut rng,
+                    )
+                    .await?;
 
-        // Step 3: search the combinations. A zero-shot run hands the search no demo sets, which is
-        // upstream passing `demo_candidates=None` and suggesting no demo parameter at all.
-        let searched = (!zeroshot).then_some(demo_sets.as_slice());
-        self.on_task_model(self.search(student, &candidates, searched, &mode, &mut rng))
-            .await
+                // Step 3: search the combinations. A zero-shot run hands the search no demo sets, which is
+                // upstream passing `demo_candidates=None` and suggesting no demo parameter at all.
+                let searched = (!zeroshot).then_some(demo_sets.as_slice());
+                self.on_task_model(self.search(student, &candidates, searched, &mode, &mut rng))
+                    .await
+            },
+        )
+        .await
     }
 
     /// dspy `_set_and_validate_datasets`: what a run bootstraps from and what it scores on.

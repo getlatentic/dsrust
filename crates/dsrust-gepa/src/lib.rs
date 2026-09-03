@@ -16,8 +16,11 @@ pub mod progress;
 pub mod pyset;
 pub mod state;
 
-pub use adapter::{Candidate, EvalBatch, GepaAdapter};
-pub use engine::{CandidateSelection, ComponentSelection, GepaEngine, GepaOutcome, select_with};
+pub use adapter::{Candidate, EvalBatch, GepaAdapter, ProposalFailure};
+pub use engine::{
+    Acceptance, CandidateSelection, ComponentSelection, GepaEngine, GepaOutcome, Sampling,
+    Selection, select_with,
+};
 pub use instruction_proposal::{
     Reflective, ReflectiveSample, extract_new_instruction, render_prompt,
 };

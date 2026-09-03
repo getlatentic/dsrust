@@ -35,25 +35,27 @@ fn the_sandbox_resolves_pyodide_and_says_so_when_it_cannot() {
         );
     }
 
-    // Plant exactly what the staging exists to avoid, and the sandbox should fail — which is the
-    // proof that the staging is load-bearing rather than merely tidy.
+    // Plant exactly what the staging exists to avoid. dspy 3.3.1 stopped depending on the runner's
+    // location for this: `DENO_NO_PACKAGE_JSON=1` and `--node-modules-dir=false` turn ambient
+    // discovery off outright, so a `package.json` beside the runner no longer decides anything —
+    // and the staging above stays because it is still what keeps two processes from handing each
+    // other a half-written runner.
     let planted = staged.join("package.json");
     std::fs::write(&planted, r#"{"name":"planted","devDependencies":{}}"#).expect("writes");
-    let failed = DenoInterpreter::new()
-        .execute("1 + 1", &Map::new())
-        .expect_err("a package.json beside the runner breaks pyodide resolution");
+    let ran = DenoInterpreter::new().execute("1 + 1", &Map::new());
     std::fs::remove_file(&planted).ok();
-
-    // And it should explain itself. The RPC layer sees only a closed pipe; deno's reason is on its
-    // stderr, and a caller told "the sandbox closed its output" has nothing to act on where dspy
-    // names the missing package.
-    let said = failed.to_string();
-    assert!(said.contains("Deno said:"), "dropped deno's reason: {said}");
-    assert!(said.contains("pyodide"), "should name what failed: {said}");
-
-    // The sandbox works again once the plant is gone, so the test leaves nothing behind.
-    assert!(
-        DenoInterpreter::new().execute("1 + 1", &Map::new()).is_ok(),
-        "removing the plant should restore the sandbox"
+    assert_eq!(
+        ran.expect("a package.json no longer reaches the sandbox's resolution"),
+        dsrust::interpreter::Executed::Printed(serde_json::json!(2)),
     );
+
+    // And the argv says so, rather than the run merely happening to work: the three flags dspy
+    // 3.3.1 added are what make the plant above inert.
+    let argv = DenoInterpreter::new().argv();
+    for flag in ["--no-config", "--no-lock", "--node-modules-dir=false"] {
+        assert!(
+            argv.iter().any(|arg| arg == flag),
+            "{flag} missing: {argv:?}"
+        );
+    }
 }

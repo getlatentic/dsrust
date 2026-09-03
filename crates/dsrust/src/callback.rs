@@ -1,9 +1,10 @@
-//! dspy's `BaseCallback`: the twelve handlers a caller implements to watch a run.
+//! dspy's `BaseCallback`: the handlers a caller implements to watch a run.
 //!
 //! Upstream is a base class whose methods are no-ops, subclassed and registered through
 //! `dspy.configure(callbacks=[…])`. A base class of no-ops is a Rust trait with defaulted methods,
-//! so this is close to a transcription — [`Callback`] has upstream's twelve handlers, each
-//! defaulted, and [`configure_callbacks`] is upstream's registration.
+//! so this is close to a transcription — [`Callback`] has upstream's handlers, each defaulted, and
+//! [`configure_callbacks`] is upstream's registration. dspy 3.3.1 added the interpreter's four
+//! points and the optimizer's compile to the original six.
 //!
 //! Each handler is typed to the value its point carries rather than to `Any`, which is the only
 //! difference that changes a signature: upstream's `inputs` is a dict assembled by
@@ -146,6 +147,59 @@ pub trait Callback: Send + Sync {
     /// raises out of `Evaluate.__call__` and reports here with `outputs=None`.
     fn on_evaluate_end(&self, call: &CallId, evaluated: Result<&Evaluation, &Error>) {
         let _ = (call, evaluated);
+    }
+    /// A sandbox is about to run code — dspy 3.3.1's `on_interpreter_execute_start`. `interpreter`
+    /// is the type, as `module` is for a module.
+    fn on_interpreter_execute_start(&self, call: &CallId, interpreter: &str, code: &str) {
+        let _ = (call, interpreter, code);
+    }
+    /// The sandbox finished running code, with what it produced or why it could not.
+    fn on_interpreter_execute_end(
+        &self,
+        call: &CallId,
+        answered: Result<&crate::interpreter::Executed, &Error>,
+    ) {
+        let _ = (call, answered);
+    }
+    /// Sandboxed code called back into one of the interpreter's tools — dspy 3.3.1's
+    /// `on_interpreter_tool_call_start`, which encloses the tool's own point.
+    fn on_interpreter_tool_call_start(&self, call: &CallId, tool: &str, args: &Value) {
+        let _ = (call, tool, args);
+    }
+    /// The tool the sandbox called answered, or refused.
+    fn on_interpreter_tool_call_end(&self, call: &CallId, answered: Result<&Value, &Error>) {
+        let _ = (call, answered);
+    }
+    /// The interpreter is starting its sandbox, or making sure one is running — dspy's `start`,
+    /// which every execution reaches.
+    fn on_interpreter_startup_start(&self, call: &CallId, interpreter: &str) {
+        let _ = (call, interpreter);
+    }
+    fn on_interpreter_startup_end(&self, call: &CallId, answered: Result<(), &Error>) {
+        let _ = (call, answered);
+    }
+    /// The interpreter is shutting its sandbox down.
+    fn on_interpreter_shutdown_start(&self, call: &CallId, interpreter: &str) {
+        let _ = (call, interpreter);
+    }
+    fn on_interpreter_shutdown_end(&self, call: &CallId, answered: Result<(), &Error>) {
+        let _ = (call, answered);
+    }
+    /// An optimizer's `compile` was entered — dspy 3.3.1's `on_compile_start`. `optimizer` is the
+    /// type — `BootstrapFewShot`, `GEPA` — and the sets are what it was handed; a compile an
+    /// optimizer runs on itself from inside its own compile is not reported again.
+    fn on_compile_start(
+        &self,
+        call: &CallId,
+        optimizer: &str,
+        trainset: &[Example],
+        valset: Option<&[Example]>,
+    ) {
+        let _ = (call, optimizer, trainset, valset);
+    }
+    /// The compile returned, or failed.
+    fn on_compile_end(&self, call: &CallId, compiled: Result<(), &Error>) {
+        let _ = (call, compiled);
     }
 }
 

@@ -16,6 +16,7 @@ use serde::de::DeserializeOwned;
 use serde_json::{Map, Value, json};
 
 use super::tool::{FnTool, Tool};
+use super::tool_call::parsed_args;
 
 /// A tool whose name, description and argument schema are all its argument type's.
 ///
@@ -46,18 +47,34 @@ where
     F: Fn(T) -> Result<String> + Send + Sync,
 {
     let schema = described_schema::<T>();
+    let name = snake(text_at(&schema, "title"));
+    let declared = schema
+        .get("properties")
+        .cloned()
+        .unwrap_or_else(|| json!({}));
+    let required: Vec<String> = schema
+        .get("required")
+        .and_then(Value::as_array)
+        .map(|names| {
+            names
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+    let called = name.clone();
+    let checked = declared.clone();
     FnTool::new(
-        snake(text_at(&schema, "title")),
+        name,
         text_at(&schema, "description"),
-        schema
-            .get("properties")
-            .cloned()
-            .unwrap_or_else(|| json!({})),
-        // A wrong or missing argument is answered, not raised: the loop can read a refusal and try
-        // again, where an error ends the turn. dspy's tools answer the same way.
-        move |args: &Value| match serde_json::from_value::<T>(args.clone()) {
-            Ok(parsed) => call(parsed),
-            Err(error) => Ok(format!("Refused: {error}.")),
+        declared,
+        // What dspy's `Tool.__call__` raises for a wrong or missing argument, raised here too: the
+        // loop records it as `Execution error in …`, which is what the model reads and retries from.
+        move |args: &Value| {
+            let names: Vec<&str> = required.iter().map(String::as_str).collect();
+            let parsed = parsed_args(&called, args, &checked, &names)?;
+            call(serde_json::from_value::<T>(Value::Object(parsed))?)
         },
     )
 }
@@ -137,19 +154,25 @@ mod tests {
         );
     }
 
-    /// An optional argument may be left out; a required one that is missing is answered, not raised.
+    /// An optional argument may be left out; a required one that is missing, or one of the wrong
+    /// type, raises what dspy raises.
     #[test]
-    fn a_bad_argument_is_answered_rather_than_raised() {
+    fn a_bad_argument_raises_what_dspy_raises() {
         let tool = typed_tool(|args: SetTitle| Ok(args.heading.unwrap_or(args.title)));
         assert_eq!(
             tool.call(&json!({ "title": "Fractions" }))
                 .expect("answers"),
             "Fractions"
         );
-        let missing = tool.call(&json!({})).expect("answers");
-        assert!(
-            missing.starts_with("Refused: missing field `title`"),
-            "{missing}"
+        let missing = tool.call(&json!({})).expect_err("raises");
+        assert_eq!(
+            format!("{missing:#}"),
+            "TypeError: set_title() missing 1 required positional argument: 'title'"
+        );
+        let wrong = tool.call(&json!({ "title": 7 })).expect_err("raises");
+        assert_eq!(
+            format!("{wrong:#}"),
+            "ValueError: Arg title is invalid: 7 is not of type 'string'"
         );
     }
 

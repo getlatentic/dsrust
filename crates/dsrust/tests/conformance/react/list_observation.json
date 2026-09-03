@@ -1,0 +1,19 @@
+{
+  "source": "generated from dspy==3.3.0 by the inline recorder in tests/react_list_observation.rs's doc",
+  "trajectory": {
+    "thought_0": "search",
+    "tool_name_0": "wikipedia_search",
+    "tool_args_0": {
+      "query": "haiku"
+    },
+    "observation_0": [
+      "Page about haiku",
+      "Another page"
+    ],
+    "thought_1": "done",
+    "tool_name_1": "finish",
+    "tool_args_1": {},
+    "observation_1": "Completed."
+  },
+  "rendered_trajectory_block": "[[ ## trajectory ## ]]\n[[ ## thought_0 ## ]]\nsearch\n\n[[ ## tool_name_0 ## ]]\nwikipedia_search\n\n[[ ## tool_args_0 ## ]]\n{\"query\": \"haiku\"}\n\n[[ ## observation_0 ## ]]\n[1] \u00abPage about haiku\u00bb\n[2] \u00abAnother page\u00bb"
+}

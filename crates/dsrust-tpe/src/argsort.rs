@@ -23,7 +23,7 @@ fn lt(a: f64, b: f64) -> bool {
 }
 
 /// `np.argsort(values)` — the indices that would sort `values`, numpy's own permutation.
-pub(crate) fn argsort(values: &[f64]) -> Vec<usize> {
+pub fn argsort(values: &[f64]) -> Vec<usize> {
     let num = values.len();
     let mut order: Vec<usize> = (0..num).collect();
     if num < 2 {

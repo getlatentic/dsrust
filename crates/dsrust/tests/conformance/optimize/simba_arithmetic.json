@@ -1,7 +1,7 @@
 {
   "source": "numpy 2.5.1 percentile and CPython's round, via scripts/generate_simba_arithmetic_fixture.py",
   "numpy_version": "2.5.1",
-  "note": "`np.percentile` at the linear default, and Python's banker's `round`. Rust's `f64::round` disagrees with the second on every half. Recorded ahead of the port: SIMBA's search loop is not written yet, and these are the two pieces of arithmetic a Rust re-implementation gets wrong by writing the obvious thing.",
+  "note": "`np.percentile` at the linear default, and Python's banker's `round`. Rust's `f64::round` disagrees with the second on every half.",
   "percentile": [
     {
       "sample": [

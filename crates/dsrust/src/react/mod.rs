@@ -6,13 +6,15 @@
 //! reads the trajectory and produces the signature's real outputs.
 
 pub mod mcp;
+mod schema_check;
 mod signature;
 mod tool;
+pub(crate) mod tool_call;
 mod trajectory;
 mod typed;
 mod v2;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use serde_json::{Value, json};
 
 use crate::example::{Example, Prediction};
@@ -25,7 +27,9 @@ use signature::{Finish, extract_signature, react_signature};
 /// dspy tries three times before giving up on a trajectory that will not fit.
 const TRUNCATION_ATTEMPTS: usize = 3;
 
-pub use mcp::{mcp_tool, mcp_tool_args, mcp_tool_result};
+pub use mcp::{
+    McpResultMode, mcp_tool, mcp_tool_args, mcp_tool_in, mcp_tool_result, mcp_tool_result_in,
+};
 pub use tool::{AsyncFnTool, FINISH, FnTool, Tool, arg_str, tool_args};
 pub use trajectory::{Step, Trajectory};
 pub use typed::typed_tool;
@@ -169,6 +173,7 @@ impl ReAct {
         trajectory: &mut Trajectory,
         trace: &mut Vec<TraceStep>,
     ) -> Result<Prediction> {
+        let mut last_error: Option<anyhow::Error> = None;
         for _ in 0..TRUNCATION_ATTEMPTS {
             let mut asking = inputs.clone();
             asking.set("trajectory", Value::String(trajectory.rendered()));
@@ -179,11 +184,23 @@ impl ReAct {
                         "Trajectory exceeded the context window, truncating the oldest tool call information."
                     );
                     trajectory.truncate_oldest()?;
+                    last_error = Some(error);
                 }
                 Err(error) => return Err(error),
             }
         }
-        bail!("The context window was exceeded even after 3 attempts to truncate the trajectory.")
+        // dspy raises `ContextWindowExceededError(...) from last_error`: the typed error on top,
+        // the attempt that exhausted it underneath.
+        let exhausted = ContextWindowExceeded {
+            model: String::new(),
+            message: "The context window was exceeded even after 3 attempts to truncate the \
+                      trajectory."
+                .to_owned(),
+        };
+        Err(match last_error {
+            Some(cause) => cause.context(exhausted),
+            None => exhausted.into(),
+        })
     }
 
     /// The episode itself, written once because [`Module::forward`] and
@@ -196,9 +213,20 @@ impl ReAct {
                 turn_inputs.set("trajectory", Value::String(trajectory.rendered()));
 
                 let mark = trace.len();
-                let step = self
+                // dspy 3.3.1 ends the trajectory where the context window is exceeded even after
+                // truncation — or cannot be truncated at all — and goes on to extract from what
+                // the agent has; every other failure of the turn is the episode's.
+                let step = match self
                     .asked(&self.react, turn_inputs, &mut trajectory, trace)
-                    .await?;
+                    .await
+                {
+                    Ok(step) => step,
+                    Err(error) if error.is::<ContextWindowExceeded>() => {
+                        tracing::warn!("Ending the trajectory: {error:#}");
+                        break;
+                    }
+                    Err(error) => return Err(error),
+                };
                 relabel(trace, mark, "react");
                 let thought = string_field(&step, "next_thought");
                 let tool = string_field(&step, "next_tool_name");
@@ -678,6 +706,58 @@ mod truncation_tests {
             *model.refusals.lock().expect("refusals"),
             3,
             "three tries, not more"
+        );
+    }
+
+    /// A model that refuses the agent's turn while the trajectory cannot be trimmed ends the
+    /// trajectory rather than the episode: dspy 3.3.1 catches `ContextWindowExceededError` in its
+    /// loop, logs, and extracts from what it has.
+    #[tokio::test]
+    async fn a_window_exceeded_on_the_agents_turn_ends_the_trajectory_not_the_episode() {
+        struct RefusesTheTurn;
+        impl DynChatModel for RefusesTheTurn {
+            fn forward_dyn<'a>(
+                &'a self,
+                request: &'a LmRequest,
+            ) -> std::pin::Pin<Box<dyn Future<Output = Result<LmResponse>> + Send + 'a>>
+            {
+                let asked: String = request.messages.iter().filter_map(|m| m.text()).collect();
+                Box::pin(std::future::ready(match asked.contains("next_tool_name") {
+                    true => Err(crate::lm::ContextWindowExceeded {
+                        model: "test".to_owned(),
+                        message: "maximum context length is 8192 tokens".to_owned(),
+                    }
+                    .into()),
+                    false => Ok(LmResponse::completions(vec![
+                        "[[ ## reasoning ## ]]\nnothing was learned\n\n[[ ## answer ## ]]\nunknown\n\n[[ ## completed ## ]]".to_owned(),
+                    ])),
+                }))
+            }
+            fn capabilities_dyn<'a>(
+                &'a self,
+            ) -> std::pin::Pin<Box<dyn Future<Output = Capabilities> + Send + 'a>> {
+                Box::pin(std::future::ready(Capabilities::default()))
+            }
+            fn native_reasoning_usable_dyn(&self) -> bool {
+                false
+            }
+            fn native_citations_usable_dyn(&self) -> bool {
+                false
+            }
+            fn dump_state_dyn(&self) -> Option<serde_json::Map<String, serde_json::Value>> {
+                None
+            }
+        }
+        let react = ReAct::new(task(), vec![weather()]).set_lm(std::sync::Arc::new(RefusesTheTurn));
+        let answered = react
+            .forward(crate::example! { question: "weather?" })
+            .await
+            .expect("the episode still answers from the extract step");
+        assert_eq!(answered.get("answer"), Some(&json!("unknown")));
+        assert_eq!(
+            answered.get("trajectory"),
+            Some(&json!({})),
+            "no turn was taken"
         );
     }
 

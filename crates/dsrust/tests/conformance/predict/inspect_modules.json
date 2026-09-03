@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0 via scripts/generate_inspect_modules_fixture.py",
-  "dspy_version": "3.3.0",
+  "source": "generated from dspy==3.3.1 via scripts/generate_inspect_modules_fixture.py",
+  "dspy_version": "3.3.1",
   "note": "`inspect_modules` output per program shape — the text `Refine`'s feedback ask carries as `modules_defn`. Compared exactly: tabs, the trailing space after an undescribed field's colon, and the rule width are all bytes a model reads.",
   "cases": [
     {

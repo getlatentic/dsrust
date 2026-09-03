@@ -1,5 +1,5 @@
 {
-  "source": "generated from dspy==3.3.0 and optuna==4.9.0 via scripts/generate_optuna_bootstrap_fixture.py",
+  "source": "generated from dspy==3.3.1 and optuna==4.9.0 via scripts/generate_optuna_bootstrap_fixture.py",
   "note": "dspy creates its study with no sampler, so upstream's own runs are entropy-seeded and none of them agree. This run injected `TPESampler(seed=0)`; nothing else was changed.",
   "parameter_names": [
     "demo_index_for_self"

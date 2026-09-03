@@ -19,6 +19,7 @@ mod multimodal;
 mod proposer;
 mod reflecting;
 mod reported;
+mod strategies;
 
 #[cfg(test)]
 mod conformance;
@@ -27,6 +28,7 @@ use std::sync::Arc;
 
 use anyhow::{Result, bail};
 use gepa::progress::Silent;
+pub use gepa::{Acceptance, Sampling, Selection};
 use gepa::{CandidateSelection, ComponentSelection, GepaEngine};
 
 /// gepa's `Candidate`, re-exported so a caller writing an `InstructionProposer` can name the type it
@@ -35,7 +37,7 @@ pub use gepa::Candidate;
 
 pub use gepa::GepaOutcome;
 pub use gepa::Reflective;
-pub use gepa::progress::{Event, Progress};
+pub use gepa::progress::{Event, Progress, Rejection};
 pub use metric::{Feedback, MetricContext};
 pub use multimodal::MultiModalInstructionProposer;
 pub use proposer::{InstructionProposer, ReflectiveDataset};
@@ -73,6 +75,11 @@ pub struct GEPA<M> {
     num_threads: usize,
     /// dspy `candidate_selection_strategy`. See [`CandidateSelection`].
     candidate_selection_strategy: CandidateSelection,
+    /// gepa 0.1.4's `acceptance_criterion`, `selection_strategy` and `sampling_strategy`, which
+    /// dspy 3.3.1 passes through `gepa_kwargs`.
+    acceptance: Acceptance,
+    selection: Selection,
+    sampling: Sampling,
     track_best_outputs: bool,
     /// Where a run reports its decisions as it makes them — dspy's `logger`, which upstream fills
     /// with formatted lines and this fills with the values those lines format.
@@ -104,6 +111,9 @@ where
             max_merge_invocations: 5,
             num_threads: 1,
             candidate_selection_strategy: CandidateSelection::default(),
+            acceptance: Acceptance::default(),
+            selection: Selection::default(),
+            sampling: Sampling::default(),
             component_selector: ComponentSelection::default(),
             track_best_outputs: false,
             progress: Arc::new(Silent),
@@ -319,6 +329,7 @@ where
         trainset: &[Example],
         valset: &[Example],
     ) -> Result<GepaOutcome<Prediction>> {
+        crate::observe::compiling("GEPA", self as *const Self as *const () as usize, trainset, Some(valset), async move {
         assert!(
             self.max_metric_calls > 0,
             "GEPA needs a metric-call budget; set it with max_metric_calls"
@@ -379,12 +390,18 @@ where
             max_merge_invocations: self.max_merge_invocations,
             candidate_selection_strategy: self.candidate_selection_strategy,
             component_selector: self.component_selector,
+            acceptance: self.acceptance,
+            selection: self.selection,
+            sampling: self.sampling,
             track_best_outputs: self.track_best_outputs,
             progress: Arc::clone(&self.progress),
         };
         let outcome = engine.optimize(seed_candidate).await;
         set_instructions(student, &outcome.best);
         Ok(outcome)
+
+        })
+        .await
     }
 }
 

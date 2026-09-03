@@ -40,9 +40,15 @@ use crate::adapter::Input;
 use crate::callback::{self, CallId, Callback, Ends, Rendered, Under};
 use crate::example::Example;
 
+mod compile;
 mod evaluating;
+mod interpreter;
 
+pub use compile::{compiling, compiling_sync};
 pub use evaluating::{evaluated_within, evaluating, scored};
+pub use interpreter::{
+    InterpreterLifecycle, executing, interpreter_lifecycle, interpreter_tool_call,
+};
 
 /// The target every span here carries, so `RUST_LOG=dsrust::observe=info` is the whole of what a
 /// caller needs to watch a run — and so a subscriber can select these without matching on names.

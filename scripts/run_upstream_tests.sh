@@ -73,6 +73,7 @@ SUITES=(
   evaluate/test_metrics.py evaluate/test_evaluate.py
   teleprompt/test_teleprompt.py teleprompt/test_copro_optimizer.py
   core/test_types.py clients/test_cache.py
+  predict/test_knn.py teleprompt/test_knn_fewshot.py clients/test_embedding.py retrievers/test_embeddings.py
   primitives/test_module.py primitives/test_base_module.py
   teleprompt/test_gepa.py teleprompt/test_bettertogether.py
   clients/test_lm.py teleprompt/test_ensemble.py teleprompt/test_random_search.py
@@ -233,7 +234,7 @@ DENO_NO_PACKAGE_JSON=1 PYTHONPATH="$WORK:$SRC" bounded "$VENV/bin/python" -m pyt
 STATUS=$?
 set -e
 cat "$WORK/last-run.txt"
-# backlog.toml's [status] block was hand-written and stale. It is generated from the run now, so a
+# The observed counts were hand-written and stale. `scripts/status.toml` is generated from the run now, so a
 # number in the plan cannot part company with the evidence for it.
 python3 "$ROOT/scripts/record_status.py" --suites "${#SUITES[@]}" --status "$STATUS" < "$WORK/last-run.txt"
 exit "$STATUS"

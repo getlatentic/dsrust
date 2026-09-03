@@ -27,6 +27,7 @@ use super::rng::Rng;
 /// Whichever program teaches is first primed with labelled demos by [`LabeledFewShot`], out of
 /// the same [`max_labeled_demos`](Self::max_labeled_demos) budget the student's own labelled
 /// demos come from.
+#[derive(Clone)]
 pub struct BootstrapFewShot<M> {
     /// Scores one attempt against the example it came from. dspy allows no metric at all,
     /// meaning every attempt that ran is kept; that is [`Self::without_metric`].
@@ -101,8 +102,17 @@ where
         student: &mut S,
         trainset: &[Example],
     ) -> Result<usize> {
-        let bootstrapped = self.bootstrap(student, trainset).await?;
-        self.train(student, bootstrapped)
+        crate::observe::compiling(
+            "BootstrapFewShot",
+            self as *const Self as *const () as usize,
+            trainset,
+            None,
+            async move {
+                let bootstrapped = self.bootstrap(student, trainset).await?;
+                self.train(student, bootstrapped)
+            },
+        )
+        .await
     }
 
     /// dspy `compile(student, teacher=teacher, trainset=...)`: a separate program produces the
@@ -117,9 +127,18 @@ where
         S: Module + ?Sized,
         T: Module + ?Sized,
     {
-        same_shape(student, teacher)?;
-        let bootstrapped = self.bootstrap(teacher, trainset).await?;
-        self.train(student, bootstrapped)
+        crate::observe::compiling(
+            "BootstrapFewShot",
+            self as *const Self as *const () as usize,
+            trainset,
+            None,
+            async move {
+                same_shape(student, teacher)?;
+                let bootstrapped = self.bootstrap(teacher, trainset).await?;
+                self.train(student, bootstrapped)
+            },
+        )
+        .await
     }
 
     /// dspy `_bootstrap`: walk the trainset until the budget is spent, keeping what solved.
@@ -456,7 +475,7 @@ mod tests {
             ..BootstrapFewShot::new(&metric)
         };
         optimizer
-            .compile(&mut student, &trainset()[..1])
+            .compile(&mut student, &trainset()[1..2])
             .await
             .expect("compiles");
         assert_eq!(student.demos.len(), 1, "two traces collapse to one demo");
@@ -465,7 +484,10 @@ mod tests {
             .and_then(|hop| hop.as_str())
             .expect("the demo records which hop earned it");
         // Which hop the coin lands on is upstream's business; that the *choice* happened is this
-        // crate's. A collapse that ignored the coin would take the trace order's last.
+        // crate's. A collapse that ignored the coin would take the trace order's last, so the
+        // example is one whose coin lands on the earlier hop: `random.Random(Hasher.hash(tuple(
+        // demos))).random()` is 0.4500 for "capital of Germany?" on dspy 3.3.1 (`dspy.utils.hasher`),
+        // and 0.7404 for "capital of France?", which the test could not tell from ignoring the coin.
         assert_eq!(kept, "first", "the seeded coin picked the earlier hop here");
         assert_eq!(
             student.demos[0].get("augmented"),

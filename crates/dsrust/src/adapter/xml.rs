@@ -5,6 +5,14 @@
 //! history and the objective all come from the shared assembly, and only the wrapper differs.
 //! It exists because some models follow tags more reliably than they follow marker sections.
 
+mod cursor;
+mod decode;
+mod format;
+mod names;
+mod namespaces;
+mod tokenizer;
+mod tree;
+
 use anyhow::Result;
 use serde_json::Value;
 
@@ -17,6 +25,7 @@ use crate::signature::Signature;
 use super::Input;
 use super::exchange::{Style, plain};
 use super::{blocks, conversation, live_inputs, output_slot, python_json::format_field_value};
+use format::{escape, uses_nested_xml, value_to_xml, xml_schema};
 
 /// One field as a tag pair. dspy puts the value on its own line between the tags.
 fn wrap(name: &str, value: &str) -> String {
@@ -24,20 +33,33 @@ fn wrap(name: &str, value: &str) -> String {
 }
 
 /// The assistant turn an example produced, in tags. Unlike the chat adapter's there is no
-/// closing marker: a reply ends where its last tag closes.
+/// closing marker: a reply ends where its last tag closes. A structured value of a field written
+/// as nested XML is its elements; a `str` field's text has its `&` and `<` escaped, as the
+/// reader will unescape them.
 fn answer(signature: &Signature, example: &Example, missing: Option<&str>) -> ChatTurn {
     let sections: Vec<String> = signature
         .outputs
         .iter()
         .filter_map(|field| {
-            let value = match example.get(&field.name) {
+            let value = example.get(&field.name);
+            if let Some(value) = value
+                && uses_nested_xml(field)
+                && (value.is_object() || value.is_array())
+            {
+                return Some(value_to_xml(value, &field.name, None));
+            }
+            let formatted = match value {
                 Some(value) => format_field_value(&field.kind, value),
                 None => missing?.to_owned(),
             };
-            Some(wrap(&field.name, &value))
+            let formatted = match field.annotation() == "str" {
+                true => escape(&formatted),
+                false => formatted,
+            };
+            Some(wrap(&field.name, &formatted))
         })
         .collect();
-    ChatTurn::assistant(sections.join("\n\n"))
+    ChatTurn::assistant(sections.join("\n\n").trim().to_owned())
 }
 
 const STYLE: Style = Style {
@@ -105,8 +127,12 @@ impl super::Adapter for XmlAdapter {
                 signature
                     .outputs
                     .iter()
-                    // The slot carries whatever note the field earns, inside the tags.
-                    .map(|field| wrap(&field.name, &output_slot(field))),
+                    .map(|field| match uses_nested_xml(field) {
+                        // A structured field shows the elements it is answered in.
+                        true => xml_schema(&field.name, field),
+                        // The slot carries whatever note the field earns, inside the tags.
+                        false => wrap(&field.name, &output_slot(field)),
+                    }),
             )
             .collect::<Vec<_>>()
             .join("\n\n");
@@ -141,7 +167,7 @@ impl super::Adapter for XmlAdapter {
     }
 
     fn parse(&self, signature: &Signature, raw: &str) -> Result<Value> {
-        super::parse::parse_tags(signature, raw)
+        decode::parse_xml(signature, raw)
     }
 
     fn native_function_calling(&self) -> super::NativeFunctionCalling {
@@ -173,15 +199,26 @@ fn user_message(signature: &Signature, inputs: &[Input<'_>]) -> String {
     parts.join("\n\n").trim().to_owned()
 }
 
-/// dspy `user_message_output_requirements` for XML: the tags, in order.
+/// dspy `user_message_output_requirements` for XML: the tags, in order, and the elements each
+/// structured field is answered in.
 fn output_requirements(signature: &Signature) -> String {
     let tags: Vec<String> = signature
         .outputs
         .iter()
         .map(|field| format!("`<{}>`", field.name))
         .collect();
+    let schemas: Vec<String> = signature
+        .outputs
+        .iter()
+        .filter(|field| uses_nested_xml(field))
+        .map(|field| xml_schema(&field.name, field))
+        .collect();
+    let nested = match schemas.is_empty() {
+        true => String::new(),
+        false => format!(" Use this nested XML structure: {}", schemas.join(" ")),
+    };
     format!(
-        "Respond with the corresponding output fields wrapped in XML tags {}.",
+        "Respond with the corresponding output fields wrapped in XML tags {}.{nested}",
         tags.join(", then ")
     )
 }

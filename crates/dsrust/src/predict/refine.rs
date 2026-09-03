@@ -191,8 +191,20 @@ where
     ) -> Result<Outcome> {
         apply(module, &Sampling::rollout(attempt as u64), advice);
 
-        let mut trace = Vec::new();
-        let answered = module.forward_traced(inputs.clone(), &mut trace).await?;
+        // Traced by path, so a predictor nested in the module is named as dspy's trajectory names
+        // it — `predict` inside a `ChainOfThought`. That recording shadows an enclosing one for
+        // its duration, so each step is recorded again for whoever was listening, under the name
+        // the enclosing program gives the same predictor.
+        let names = module.predictor_names();
+        let (answered, trace) = module.traced_with(&names, inputs.clone()).await;
+        if crate::module::ambient::listening() {
+            for step in &trace {
+                if let Some(identity) = names.identity_of(&step.predictor) {
+                    crate::module::ambient::record(identity, step.clone());
+                }
+            }
+        }
+        let answered = answered?;
         let reward = (self.reward)(inputs, &answered);
         if best.as_ref().is_none_or(|(high, _, _)| reward > *high) {
             *best = Some((reward, answered.clone(), trace.clone()));
@@ -305,7 +317,10 @@ where
     ) -> Pin<Box<dyn Future<Output = Result<Prediction>> + Send + 'a>> {
         Box::pin(async move {
             let (prediction, best_trace) = self.run_capturing(inputs).await?;
-            trace.extend(best_trace);
+            // A listener already has the winning attempt's steps, recorded as they happened.
+            if !crate::module::ambient::listening() {
+                trace.extend(best_trace);
+            }
             Ok(prediction)
         })
     }

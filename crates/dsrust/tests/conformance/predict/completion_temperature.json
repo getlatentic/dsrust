@@ -1,6 +1,6 @@
 {
-  "source": "dspy==3.3.0 predict/predict.py::Predict._forward_preprocess",
-  "dspy_version": "3.3.0",
+  "source": "dspy==3.3.1 predict/predict.py::Predict._forward_preprocess",
+  "dspy_version": "3.3.1",
   "note": "Per (model kwargs, module config): the config dspy resolved. `temperature` appears in the result only where the module set one or the rule wrote 0.7, since the model's own kwargs merge later at the LM rather than here. `merges` adds the per-call `config=`, which upstream lays over the module's as `{**self.config, **config}` before the rule above runs.",
   "cases": [
     {

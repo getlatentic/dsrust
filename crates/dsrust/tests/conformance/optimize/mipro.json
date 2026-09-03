@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0 + optuna==4.9.0 via scripts/generate_mipro_fixture.py",
-  "dspy_version": "3.3.0",
+  "source": "generated from dspy==3.3.1 + optuna==4.9.0 via scripts/generate_mipro_fixture.py",
+  "dspy_version": "3.3.1",
   "optuna_version": "4.9.0",
   "trainset": [
     {

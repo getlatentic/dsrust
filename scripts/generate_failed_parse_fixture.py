@@ -158,6 +158,34 @@ def _reflective(add_format_failure_as_feedback: bool) -> dict:
     return out
 
 
+def _untraced(reply: str, failure_score: float) -> dict:
+    """The valset path: `DspyAdapter.evaluate` without traces goes through `Evaluate`, which
+    scores a row it cannot parse at `failure_score` and never drops it — the batch keeps the
+    valset's length, which the per-testcase Pareto front indexes by."""
+    from dspy.teleprompt.gepa.gepa_utils import DspyAdapter
+
+    dspy.settings.configure(lm=ScriptedLM(reply), adapter=dspy.ChatAdapter())
+    student = OneStep()
+    adapter = DspyAdapter(
+        student_module=student,
+        metric_fn=lambda example, pred, trace=None, pred_name=None, pred_trace=None: 1.0,
+        feedback_map={
+            name: (lambda **kwargs: {"score": 0.0, "feedback": "unused"})
+            for name, _ in student.named_predictors()
+        },
+        failure_score=failure_score,
+    )
+    candidate = {name: p.signature.instructions for name, p in student.named_predictors()}
+    batch = _batch(3)
+    evaluated = adapter.evaluate(batch, candidate, capture_traces=False)
+    return {
+        "batch_size": len(batch),
+        "failure_score": failure_score,
+        "kept": len(evaluated.scores),
+        "scores": [float(score) for score in evaluated.scores],
+    }
+
+
 def main() -> None:
     arms = {
         "no_declared_field_parsed": _collect(NO_FIELDS, 0.0, -1.0),
@@ -180,12 +208,19 @@ def main() -> None:
                     "`Evaluate` swallows and `bootstrap_trace_data` cannot unpack."
                 ),
                 "arms": arms,
+                "untraced": {
+                    "some_declared_field_parsed": _untraced(SOME_FIELDS, 0.0),
+                    "no_declared_field_parsed": _untraced(NO_FIELDS, 0.0),
+                    "a_parsing_run_for_contrast": _untraced(GOOD, 0.0),
+                },
                 "reflective": [_reflective(False), _reflective(True)],
             },
             indent=2,
         )
         + "\n"
     )
+    for name, arm in json.loads(OUT.read_text())["untraced"].items():
+        print(f"  untraced {name:32s} kept {arm['kept']}/{arm['batch_size']}  scores {arm['scores']}")
     for name, arm in arms.items():
         print(f"  {name:32s} kept {arm['kept']}/{arm['batch_size']}  scores "
               f"{[row['score'] for row in arm['trajectories']]}")

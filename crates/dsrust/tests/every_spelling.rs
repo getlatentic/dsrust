@@ -7,6 +7,7 @@
 //! Whether the guides say the same thing is `scripts/check_docs.py`'s job: it compiles their blocks
 //! as written. This file answers the other half — that a shape does what the page says it does.
 
+#![allow(deprecated)]
 use std::sync::Arc;
 
 use dsrust::{

@@ -9,6 +9,7 @@
 //! What runs the code is the caller's [`CodeInterpreter`]; see that trait for why the crate ships
 //! no sandbox of its own.
 
+#![allow(deprecated)]
 use std::sync::Arc;
 
 use anyhow::{Result, bail};
@@ -36,6 +37,9 @@ enum Mode {
 }
 
 /// dspy's `ProgramOfThought`: write a program, run it, and read the answer out of what it printed.
+#[deprecated(
+    note = "ProgramOfThought is deprecated and will be removed in 3.5. RLM is the preferred replacement."
+)]
 pub struct ProgramOfThought {
     /// The task's real signature: what the caller asked for.
     pub signature: Signature,
@@ -76,7 +80,11 @@ impl ProgramOfThought {
     }
 
     pub fn new(signature: Signature) -> Self {
-        Self::interpreter_factory(signature, crate::interpreter::factory(DenoInterpreter::new))
+        Self::interpreter_factory(
+            signature,
+            crate::interpreter::factory(DenoInterpreter::new)
+                .with_execution_instructions(DenoInterpreter::EXECUTION_INSTRUCTIONS),
+        )
     }
 
     /// The same, building the caller's own kind of sandbox for each pass.

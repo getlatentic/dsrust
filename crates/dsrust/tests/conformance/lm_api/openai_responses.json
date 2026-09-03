@@ -1,6 +1,6 @@
 {
-  "source": "dspy==3.3.0 clients/openai_format to_openai_responses_request + responses_to_lm_response",
-  "dspy_version": "3.3.0",
+  "source": "dspy==3.3.1 clients/openai_format to_openai_responses_request + responses_to_lm_response",
+  "dspy_version": "3.3.1",
   "request_cases": [
     {
       "name": "assistant_turn_carries_text",

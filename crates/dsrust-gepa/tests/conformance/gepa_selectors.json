@@ -1,6 +1,6 @@
 {
-  "source": "generated from gepa==0.1.1 via scripts/generate_gepa_selector_fixture.py",
-  "gepa_version": "0.1.1",
+  "source": "generated from gepa==0.1.4 via scripts/generate_gepa_selector_fixture.py",
+  "gepa_version": "0.1.4",
   "note": "All four candidate selectors gepa's factory map holds, two of which dspy names in its Literal and two of which its string passthrough still reaches. `advanced` is how far the generator moved, which is what a later round inherits \u2014 epsilon-greedy takes one draw or two depending on the coin.",
   "seeds": [
     0,

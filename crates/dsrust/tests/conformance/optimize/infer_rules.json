@@ -1,5 +1,5 @@
 {
-  "source": "generated from dspy==3.3.0 via scripts/generate_infer_rules_fixture.py",
+  "source": "generated from dspy==3.3.1 via scripts/generate_infer_rules_fixture.py",
   "demos": [
     {
       "question": "capital of France?",

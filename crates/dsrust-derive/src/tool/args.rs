@@ -113,53 +113,50 @@ pub(crate) fn schema(arguments: &[Argument]) -> TokenStream {
 /// One `let` per parameter, read out of what the model sent.
 ///
 /// A wrong or missing argument is answered, not raised: the loop can read a refusal and try again,
-/// where an error ends the turn. dspy's tools answer the same way.
-pub(crate) fn bindings(arguments: &[Argument]) -> TokenStream {
+/// The arguments a tool declares with no default: what Python refuses to call the function
+/// without.
+pub(crate) fn required(arguments: &[Argument]) -> TokenStream {
+    let names = arguments
+        .iter()
+        .filter(|argument| argument.default.is_none())
+        .map(|argument| &argument.name);
+    quote! { &[#(#names),*] }
+}
+
+/// What the body runs with: every given argument checked as dspy's `Tool.__call__` checks it,
+/// then each parameter parsed from what was given or from its declared default.
+///
+/// `declared` is an expression for the tool's `args` schema, borrowed.
+pub(crate) fn bindings(arguments: &[Argument], tool: &str, declared: &TokenStream) -> TokenStream {
+    let required = required(arguments);
     let each = arguments.iter().map(|argument| {
         let key = &argument.name;
         let binding = &argument.binding;
         let ty = &argument.ty;
-        // A declared default stands in through the same JSON the schema states it as, so the value
-        // the body binds and the value the model was promised cannot drift apart.
         let stated = match &argument.default {
             None => quote! { ::dsrust::__macro_support::serde_json::Value::Null },
             Some(default) => quote! {
                 ::dsrust::__macro_support::serde_json::json!(#default)
             },
         };
-        let absent = quote! {
-            match ::dsrust::__macro_support::serde_json::from_value::<#ty>(#stated) {
-                ::std::result::Result::Ok(__parsed) => __parsed,
-                ::std::result::Result::Err(_) => {
-                    return ::std::result::Result::Ok(::std::format!(
-                        "Refused: this tool needs `{}`.", #key
-                    ));
-                }
-            }
-        };
         quote! {
-            let #binding: #ty = match __args.get(#key) {
-                ::std::option::Option::Some(__value) => {
-                    match ::dsrust::__macro_support::serde_json::from_value::<#ty>(
-                        __value.clone(),
-                    ) {
-                        ::std::result::Result::Ok(__parsed) => __parsed,
-                        ::std::result::Result::Err(__error) => {
-                            return ::std::result::Result::Ok(::std::format!(
-                                "Refused: `{}` is not the type this tool takes ({}).",
-                                #key, __error
-                            ));
-                        }
-                    }
-                }
-                ::std::option::Option::None => #absent,
+            let #binding: #ty = {
+                let __given = match __parsed.get(#key) {
+                    ::std::option::Option::Some(__value) => __value.clone(),
+                    ::std::option::Option::None => #stated,
+                };
+                ::dsrust::__macro_support::serde_json::from_value::<#ty>(__given).map_err(
+                    |__reason| ::dsrust::__macro_support::invalid_argument(#key, __reason),
+                )?
             };
         }
     });
-    quote! { #(#each)* }
+    quote! {
+        let __parsed = ::dsrust::__macro_support::parsed_args(#tool, __args, #declared, #required)?;
+        #(#each)*
+    }
 }
 
-/// The names the bindings introduced, in the order the parameters were declared.
 pub(crate) fn names(arguments: &[Argument]) -> Vec<&syn::Ident> {
     arguments.iter().map(|argument| &argument.binding).collect()
 }

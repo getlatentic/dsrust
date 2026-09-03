@@ -1,6 +1,6 @@
 {
-  "source": "generated from dspy==3.3.0 via scripts/generate_gepa_reflective_fixture.py",
-  "dspy_version": "3.3.0",
+  "source": "generated from dspy==3.3.1 via scripts/generate_gepa_reflective_fixture.py",
+  "dspy_version": "3.3.1",
   "note": "dspy's DspyAdapter.make_reflective_dataset over a two-hop program: one predictor, two trace instances per example. Which instance is reflected on comes from rng.choice(trace_instances), so it moves with the seed.",
   "answers": {
     "capital of France?": "Paris",

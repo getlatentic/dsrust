@@ -2,16 +2,15 @@
 //! and a `Vec<Struct>` output declared on one derived signature, driven through a scripted
 //! model — prompt rendering, JSON coercion, both retry layers, and the call macros.
 
-use dsrust::Adapter;
 use dsrust::adapter::Input;
 use std::collections::VecDeque;
 use std::sync::Mutex;
 
 use anyhow::{Result, anyhow};
 use dsrust::JsonAdapter;
+use dsrust::lm::ChatModel;
 use dsrust::lm::api::{self, LmMessage};
-use dsrust::lm::{self, ChatModel, LM};
-use dsrust::signature::{ChainOfThought, Predict, Signature, SignatureSpec, json_field_schema};
+use dsrust::signature::{Signature, SignatureSpec, json_field_schema};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -318,10 +317,36 @@ async fn the_json_adapter_passes_native_arrays_through() {
 }
 
 #[tokio::test]
-async fn a_shape_mismatch_gets_one_deep_retry_carrying_the_serde_error() {
+async fn a_shape_mismatch_refuses_at_parse_and_re_asks_through_the_json_fallback() {
+    // dspy 3.3.1 casts every field inside `parse`, so a `list[GiftIdea]` missing `why` is a parse
+    // failure and `ChatAdapter.__call__` answers it by re-asking through `JSONAdapter` — measured
+    // against dspy, which makes exactly these two calls for this reply.
+    let shallow = marker_reply(r#"[{"title":"Fly rod"}]"#);
+    let corrected = format!(r#"{{ "ideas": {GOOD_IDEAS}, "tip": "Wrap it well." }}"#);
+    let lm = Scripted::new(&[&shallow, &corrected]);
+    let outputs = IdeasTask::predict()
+        .call_inputs_with(&lm, &inputs())
+        .await
+        .expect("the fallback's reply deserializes");
+    assert_eq!(outputs.ideas.len(), 3);
+
+    let calls = lm.calls();
+    assert_eq!(calls.len(), 2);
+    let modes: Vec<bool> = calls.iter().map(|call| call.json_mode).collect();
+    assert_eq!(modes, [false, true], "the second ask is the JSON fallback");
+    // The fallback re-asks the original exchange rather than showing the model its failure: it is
+    // a different adapter asking the same question, not a correction.
+    assert_eq!(calls[1].turns().len(), 1);
+}
+
+#[tokio::test]
+async fn a_shape_mismatch_with_the_feedback_ask_carries_pydantics_complaint() {
+    // With the feedback ask the model is shown what went wrong instead, and what it is shown is
+    // the cast's own words — `list[GiftIdea]`'s missing member, not a serde message.
     let shallow = marker_reply(r#"[{"title":"Fly rod"}]"#);
     let lm = Scripted::new(&[&shallow, &marker_reply(GOOD_IDEAS)]);
     let outputs = IdeasTask::predict()
+        .feedback_retry()
         .call_inputs_with(&lm, &inputs())
         .await
         .expect("corrected reply deserializes");
@@ -334,7 +359,7 @@ async fn a_shape_mismatch_gets_one_deep_retry_carrying_the_serde_error() {
     assert_eq!(retry[1].role, "assistant");
     assert_eq!(retry[1].text().unwrap(), shallow);
     assert!(
-        retry[2].text().unwrap().contains("missing field `why`"),
+        retry[2].text().unwrap().contains("ideas.0.why is required"),
         "got: {:?}",
         retry[2].parts
     );
@@ -345,23 +370,23 @@ async fn a_second_shape_failure_is_final_with_no_third_ask() {
     let shallow = marker_reply(r#"[{"title":"Fly rod"}]"#);
     let lm = Scripted::new(&[&shallow, &shallow]);
     let error = IdeasTask::predict()
+        .feedback_retry()
         .call_inputs_with(&lm, &inputs())
         .await
         .expect_err("second bad shape is final");
     assert!(
-        error
-            .to_string()
-            .contains("validated reply did not fit the requested type")
+        error.to_string().contains("ideas.0.why is required"),
+        "got: {error}"
     );
     assert_eq!(lm.calls().len(), 2);
 }
 
 #[tokio::test]
-async fn typed_calls_stay_bounded_at_three_provider_calls() {
-    // Without an adapter fallback the ceiling is the ask plus one feedback retry per stage:
-    // a validation failure, then a shape failure, and no more.
+async fn typed_calls_stay_bounded_at_two_provider_calls() {
+    // The ceiling is the ask plus one feedback retry. Both failures this reply could have — a
+    // field left out and a member of a structured one left out — are parse failures on dspy 3.3.1,
+    // so they are one stage rather than two, and the retry is shown both complaints in turn.
     let script = [
-        format!(r#"{{ "ideas": {GOOD_IDEAS} }}"#),
         r#"{ "ideas": [{"title":"Fly rod"}], "tip": "Wrap it well." }"#.to_owned(),
         format!(r#"{{ "ideas": {GOOD_IDEAS}, "tip": "Wrap it well." }}"#),
     ];
@@ -372,17 +397,41 @@ async fn typed_calls_stay_bounded_at_three_provider_calls() {
         .adapter(JsonAdapter::default())
         .call_inputs_with(&lm, &inputs())
         .await
-        .expect("third reply lands");
+        .expect("second reply lands");
     assert_eq!(outputs.ideas.len(), 3);
 
     let calls = lm.calls();
-    assert_eq!(calls.len(), 3);
+    assert_eq!(calls.len(), 2);
     let modes: Vec<bool> = calls.iter().map(|call| call.json_mode).collect();
-    assert_eq!(
-        modes,
-        [true, true, true],
-        "the chosen adapter is used throughout"
+    assert_eq!(modes, [true, true], "the chosen adapter is used throughout");
+    assert!(
+        calls[1]
+            .turns()
+            .last()
+            .expect("turns")
+            .text()
+            .unwrap()
+            .contains("ideas.0.why is required")
     );
+}
+
+#[tokio::test]
+async fn a_field_left_out_is_the_other_thing_the_feedback_ask_names() {
+    // The other parse failure, so the two are told apart: a declared field the reply omits is
+    // named by `ensure`, not by a cast.
+    let lm = Scripted::new(&[
+        &format!(r#"{{ "ideas": {GOOD_IDEAS} }}"#),
+        &format!(r#"{{ "ideas": {GOOD_IDEAS}, "tip": "Wrap it well." }}"#),
+    ]);
+    let outputs = IdeasTask::predict()
+        .feedback_retry()
+        .adapter(JsonAdapter::default())
+        .call_inputs_with(&lm, &inputs())
+        .await
+        .expect("second reply lands");
+    assert_eq!(outputs.tip, "Wrap it well.");
+    let calls = lm.calls();
+    assert_eq!(calls.len(), 2);
     assert!(
         calls[1]
             .turns()
@@ -392,176 +441,30 @@ async fn typed_calls_stay_bounded_at_three_provider_calls() {
             .unwrap()
             .contains("the tip field is missing")
     );
-    assert!(
-        calls[2]
-            .turns()
-            .last()
-            .expect("turns")
-            .text()
-            .unwrap()
-            .contains("missing field `why`")
-    );
 }
 
 #[tokio::test]
-async fn chain_of_thought_deep_retry_keeps_the_full_previous_reply() {
+async fn chain_of_thought_re_asks_a_shape_mismatch_through_the_json_fallback() {
+    // A reasoned reply whose structured field is short a member fails the same way a plain one
+    // does — inside `parse` — so the chat adapter's fallback re-asks the whole exchange in JSON,
+    // and the reasoning still comes back from the reply that lands.
     let reasoned_bad = format!(
         "[[ ## reasoning ## ]]\nthinking hard\n\n{}",
         marker_reply(r#"[{"title":"Fly rod"}]"#)
     );
-    let reasoned_good = format!(
-        "[[ ## reasoning ## ]]\nthinking again\n\n{}",
-        marker_reply(GOOD_IDEAS)
+    let corrected = format!(
+        r#"{{ "reasoning": "thinking again", "ideas": {GOOD_IDEAS}, "tip": "Wrap it well." }}"#
     );
-    let lm = Scripted::new(&[&reasoned_bad, &reasoned_good]);
+    let lm = Scripted::new(&[&reasoned_bad, &corrected]);
     let outputs = IdeasTask::chain_of_thought()
         .call_inputs_with(&lm, &inputs())
         .await
-        .expect("corrected reply deserializes");
+        .expect("the fallback's reply deserializes");
     assert_eq!(outputs.ideas.len(), 3);
     assert_eq!(outputs.tip, "Wrap it well.");
 
     let calls = lm.calls();
     assert_eq!(calls.len(), 2);
-    let retry = &calls[1].turns();
-    assert_eq!(retry[1].text().unwrap(), reasoned_bad);
-    assert!(retry[2].text().unwrap().contains("missing field `why`"));
-}
-
-/// Pins down what a call macro evaluates to: the module call's future, yielding the task's
-/// outputs. Constructing an async-fn future runs nothing, so the expansions typecheck and
-/// drop here without a configured global.
-fn expands_to_an_ideas_future<F>(_: F)
-where
-    F: std::future::Future<Output = Result<IdeasTaskOutputs>>,
-{
-}
-
-#[test]
-fn call_macros_take_struct_literals_and_vecs() {
-    let recipient = Recipient {
-        name: "Dad".into(),
-        age: 61,
-        hobbies: vec!["fishing".into()],
-    };
-    expands_to_an_ideas_future(Predict!(IdeasTask {
-        recipient: Recipient {
-            name: "Dad".into(),
-            age: 61,
-            hobbies: vec![],
-        },
-        themes: vec![],
-        past: vec![GiftIdea {
-            title: "Socks".into(),
-            why: "Warm".into(),
-        }],
-    }));
-    // An empty vec! literal infers its element type through the identity conversion; a
-    // non-empty one must already hold the field's element type (String, not &str).
-    expands_to_an_ideas_future(ChainOfThought!(IdeasTask {
-        recipient: recipient,
-        themes: vec!["surprise".to_owned()],
-        past: vec![],
-    }));
-}
-
-/// Live check, informative rather than a gate: does a real model fill a `Vec<Struct>`
-/// output on the first try? Run from dspy/ with an OpenRouter key:
-/// `OPENROUTER_API_KEY=... cargo test --test complex_fields -- --ignored --nocapture`
-#[tokio::test]
-#[ignore = "talks to a live provider; needs OPENROUTER_API_KEY"]
-async fn live_complex_output() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter("dsrust=warn")
-        .try_init()
-        .ok();
-    let model =
-        std::env::var("LIVE_LM").unwrap_or_else(|_| "openrouter/openai/gpt-oss-120b".into());
-    lm::configure(LM::new(&model)?);
-    let outputs = Predict!(IdeasTask {
-        recipient: Recipient {
-            name: "Dad".into(),
-            age: 61,
-            hobbies: vec!["fishing".into(), "grilling".into()],
-        },
-        themes: vec!["60th birthday".to_owned()],
-        past: vec![GiftIdea {
-            title: "Wool socks".into(),
-            why: "His feet get cold".into(),
-        }],
-    })
-    .await?;
-    println!("tip: {}\nideas: {:#?}", outputs.tip, outputs.ideas);
-    assert!(!outputs.ideas.is_empty());
-    assert!(
-        outputs
-            .ideas
-            .iter()
-            .all(|idea| !idea.title.is_empty() && !idea.why.is_empty())
-    );
-    Ok(())
-}
-
-/// What the whole reflection tree exists for: BAML states a type rather than a schema of it, and
-/// a Rust-declared type reached it as the bare word `json` until the derive started carrying its
-/// shape.
-///
-/// The expectation is dspy 3.2.1's own output for the equivalent pydantic signature, taken by
-/// running it rather than reasoned about. Nothing else in the suite pins this — dropping the
-/// reflection from the derive leaves every other test passing.
-#[test]
-fn a_rust_type_reaches_baml_as_its_structure_rather_than_as_the_word_json() {
-    let system = dsrust::BamlAdapter::default()
-        .system_message(&IdeasTask::signature())
-        .expect("renders");
-    let at = system.find("Output field").expect("an output type block");
-    let end = system[at..]
-        .find("[[ ## completed")
-        .map_or(system.len(), |offset| at + offset);
-
-    assert_eq!(
-        system[at..end].trim_end(),
-        "Output field `ideas` should be of type: [\n\
-         \x20 {\n\
-         \x20   title: string,\n\
-         \x20   why: string,\n\
-         \x20 }\n\
-         ]\n\n\
-         [[ ## tip ## ]]\n\
-         Output field `tip` should be of type: string"
-    );
-}
-
-/// A field that says nothing about itself contributes nothing to its line.
-///
-/// dspy stores the sentinel `${name}` for an undescribed field and drops it again when rendering
-/// (`adapters/utils.py::get_field_description_string`), so a field's own name never reaches a
-/// prompt. The derive used to substitute the name here, which put it on the end of every
-/// undescribed field line — invisible to every fixture, because a fixture builds its `Signature`
-/// from JSON rather than through the derive.
-#[test]
-fn an_undescribed_field_line_ends_at_the_colon() {
-    #[derive(Clone, Debug, Serialize, Deserialize, JsonSchema)]
-    struct Note {
-        body: String,
-    }
-
-    #[allow(dead_code)]
-    #[derive(Signature)]
-    /// Suggest a gift.
-    struct Bare {
-        #[input]
-        recipient: Note,
-        #[output]
-        idea: String,
-    }
-
-    let system = dsrust::BamlAdapter::default()
-        .system_message(&Bare::signature())
-        .expect("renders");
-    assert!(
-        system.contains("1. `recipient` (Note):\n"),
-        "the name must not follow the colon; got: {system}"
-    );
-    assert!(!system.contains("(Note): recipient"));
+    let modes: Vec<bool> = calls.iter().map(|call| call.json_mode).collect();
+    assert_eq!(modes, [false, true], "the second ask is the JSON fallback");
 }

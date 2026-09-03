@@ -48,17 +48,25 @@ impl LabeledFewShot {
     /// reset copy before writing anything at all. Compiling in place, that same decision reads
     /// as clearing the demos rather than leaving the program untouched.
     pub fn compile<M: Module + ?Sized>(&self, student: &mut M, trainset: &[Example]) {
-        let mut rng = Rng::seeded(self.seed);
-        let k = self.k.min(trainset.len());
-        for predictor in student.named_predictors() {
-            *predictor.demos = match (trainset.is_empty(), self.sample) {
-                (true, _) => Vec::new(),
-                // dspy draws from one generator for the whole walk, so the second predictor
-                // gets a sample of its own rather than a copy of the first's.
-                (false, true) => rng.sample(trainset, k),
-                (false, false) => trainset[..k].to_vec(),
-            };
-        }
+        crate::observe::compiling_sync(
+            "LabeledFewShot",
+            self as *const Self as *const () as usize,
+            trainset,
+            None,
+            || {
+                let mut rng = Rng::seeded(self.seed);
+                let k = self.k.min(trainset.len());
+                for predictor in student.named_predictors() {
+                    *predictor.demos = match (trainset.is_empty(), self.sample) {
+                        (true, _) => Vec::new(),
+                        // dspy draws from one generator for the whole walk, so the second predictor
+                        // gets a sample of its own rather than a copy of the first's.
+                        (false, true) => rng.sample(trainset, k),
+                        (false, false) => trainset[..k].to_vec(),
+                    };
+                }
+            },
+        )
     }
 }
 

@@ -158,11 +158,17 @@ fn pair_input(field: &Field) -> TokenStream {
     }
 }
 
-/// The prose a field's declared type states about itself, asked of the type through the host
-/// crate's autoref probe: a custom [`Type`](dsrust::Type)'s `description()`, or nothing for a
+/// The prose a field's declared type states about itself — dspy's `Code["java"]` when the field
+/// states a language — otherwise asked of the type through the host crate's autoref probe: a custom [`Type`](dsrust::Type)'s `description()`, or nothing for a
 /// plain structure that says nothing about itself. The derive cannot see whether a Rust type is a
 /// custom type, so it asks rather than branching on the type's name.
-fn type_descriptions(ty: &syn::Type) -> TokenStream {
+fn type_descriptions(field: &Field) -> TokenStream {
+    if let Some(language) = &field.language {
+        return quote! {
+            ::std::vec![::dsrust::adapter::types::Code::description_for(#language)]
+        };
+    }
+    let ty = &field.ty;
     quote! {
         {
             use ::dsrust::__macro_support::{DescribeFallback as _, DescribeViaType as _};
@@ -199,7 +205,7 @@ fn kind(field: &Field) -> TokenStream {
         Kind::Reasoning => quote! { Reasoning },
         Kind::Json => {
             let annotation = json_annotation(field);
-            let descriptions = type_descriptions(&field.ty);
+            let descriptions = type_descriptions(field);
             return quote! {
                 ::dsrust::signature::FieldKind::Json(
                     ::dsrust::signature::JsonType::plain(#annotation)
@@ -226,7 +232,7 @@ fn out_kind(field: &Field) -> TokenStream {
     };
     let ty = &field.ty;
     let annotation = json_annotation(field);
-    let descriptions = type_descriptions(ty);
+    let descriptions = type_descriptions(field);
     quote! {
         ::dsrust::signature::FieldKind::Json(
             ::dsrust::signature::JsonType::reflected(
@@ -308,6 +314,9 @@ fn enum_members(field: &Field, otherwise: TokenStream) -> TokenStream {
 /// constraint: Python has no field-level closed set, so the members live in the annotation and in
 /// the schema, and nowhere else.
 fn json_annotation(field: &Field) -> String {
+    if let Some(language) = &field.language {
+        return format!("Code_{language}");
+    }
     let spelled = crate::annotate::python_spelling(&field.ty);
     match &field.values {
         Some(members) => {

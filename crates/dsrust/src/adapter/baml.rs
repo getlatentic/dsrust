@@ -79,10 +79,11 @@ impl BamlAdapter {
     /// A type the notation refuses — a model that reaches itself — is an error here, as it is
     /// upstream, because the alternative is a prompt confidently describing a different type.
     pub fn field_structure(&self, signature: &Signature) -> Result<String> {
-        let mut sections = vec![format!(
+        let mut sections = vec![
             "All interactions will be structured in the following way, with the appropriate \
              values filled in.\n"
-        )];
+                .to_owned(),
+        ];
         for field in &signature.inputs {
             sections.extend([
                 marker(&field.name),

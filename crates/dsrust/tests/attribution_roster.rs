@@ -16,6 +16,7 @@
 //! module tracing for its own purposes, where nothing looks a name up. This test walks the roster
 //! so a built-in added later is covered without anyone deciding to cover it.
 
+#![allow(deprecated)]
 use std::collections::BTreeSet;
 use std::future::Future;
 use std::pin::Pin;

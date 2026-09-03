@@ -30,7 +30,7 @@ which is worse than the reverse.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Optional, Any
 import pathlib
 import sys
 
@@ -123,7 +123,39 @@ class Tagged(dspy.Signature):
 #: The XML adapter scans with `<(?P<name>\w+)>(.*?)</\1>` under DOTALL — a *global* find, a
 #: non-greedy body, a backreferenced closing name, and `\w+` for the name. Every case below is one
 #: of those properties, and none of them is a shape a well-behaved model emits.
+class NullableNote(dspy.Signature):
+    """dspy 3.3.1's `apply_output_field_defaults`: a nullable output a reply leaves out reads as
+    `None`; a required one left out is still a refusal."""
+
+    question: str = dspy.InputField()
+    answer: str | None = dspy.OutputField()
+    note: str = dspy.OutputField()
+
+
+class Counted(dspy.Signature):
+    """dspy 3.3.1's nested XML: a typed list reads its `<item>` children and pydantic casts each."""
+
+    question: str = dspy.InputField()
+    counts: list[int] = dspy.OutputField()
+
+
+class Mapped(dspy.Signature):
+    """A mapping reads its named children, an `<entry key="…">` under its key."""
+
+    question: str = dspy.InputField()
+    pairs: dict[str, int] = dspy.OutputField()
+
+
+class MaybeCount(dspy.Signature):
+    """An optional scalar: an empty element is `None`, a bad one is a refusal."""
+
+    question: str = dspy.InputField()
+    count: Optional[int] = dspy.OutputField()
+
+
 XML_CASES = [
+    ("xml_nullable_omitted", NullableNote, "<note>fine</note>"),
+    ("xml_required_omitted", NullableNote, "<answer>Paris</answer>"),
     ("xml_plain", QA, "<reasoning>Because.</reasoning>\n<answer>Paris</answer>"),
     # Non-greedy: the body stops at the *first* close, and the trailing one is left as text.
     ("xml_non_greedy", QA, "<reasoning>Because.</reasoning><answer>Paris</answer>extra</answer>"),
@@ -172,12 +204,46 @@ XML_CASES = [
         Typed,
         "<answer>Paris</answer>\n<score>very high</score>\n<tags>[\"a\"]</tags>",
     ),
+    # dspy 3.3.1 reads the reply with ElementTree rather than a regex: nested elements, entities,
+    # comments, CDATA, namespaces and every expat refusal. Each case below is one of those.
+    ("xml_nested_list_items", Typed, "<answer>Paris</answer>\n<score>7</score>\n<tags><item>a</item><item>b</item></tags>"),
+    ("xml_repeated_tag_as_list", Typed, "<answer>Paris</answer>\n<score>7</score>\n<tags>a</tags>\n<tags>b</tags>"),
+    ("xml_empty_list_tag", Typed, "<answer>Paris</answer>\n<score>7</score>\n<tags></tags>"),
+    ("xml_self_closed_list", Typed, "<answer>Paris</answer>\n<score>7</score>\n<tags/>"),
+    ("xml_list_plain_text", Typed, "<answer>Paris</answer>\n<score>7</score>\n<tags>not a list</tags>"),
+    ("xml_scalar_padded", Typed, "<answer>Paris</answer>\n<score> 7 </score>\n<tags>[]</tags>"),
+    ("xml_repeated_scalar_refused", Typed, "<answer>Paris</answer>\n<score>1</score>\n<score>2</score>\n<tags>[]</tags>"),
+    ("xml_scalar_with_children_refused", Typed, "<answer>Paris</answer>\n<score><x>1</x></score>\n<tags>[]</tags>"),
+    ("xml_typed_list_items", Counted, "<counts><item>1</item><item>2</item></counts>"),
+    ("xml_typed_list_bad_item_refused", Counted, "<counts><item>x</item></counts>"),
+    ("xml_dict_entries", Mapped, '<pairs><a>1</a><entry key="two words">2</entry></pairs>'),
+    ("xml_dict_empty", Mapped, "<pairs></pairs>"),
+    ("xml_dict_bad_value_refused", Mapped, "<pairs><a>x</a></pairs>"),
+    ("xml_nullable_empty", NullableNote, "<answer></answer>\n<note>fine</note>"),
+    ("xml_nullable_whitespace", NullableNote, "<answer>  </answer>\n<note>fine</note>"),
+    ("xml_optional_int_empty", MaybeCount, "<count></count>"),
+    ("xml_optional_int_bad_refused", MaybeCount, "<count>x</count>"),
+    ("xml_comment_and_cdata", QA, "<!-- note --><reasoning><![CDATA[a < b]]></reasoning>\n<answer>Paris</answer>"),
+    ("xml_entities", QA, "<reasoning>a &lt; b &amp; c &#65;&#x42;</reasoning>\n<answer>Paris</answer>"),
+    ("xml_bare_ampersand_refused", QA, "<reasoning>a & b</reasoning>\n<answer>Paris</answer>"),
+    ("xml_undefined_entity_refused", QA, "<reasoning>a&nbsp;b</reasoning>\n<answer>Paris</answer>"),
+    ("xml_bad_character_reference_refused", QA, "<reasoning>&#0;</reasoning>\n<answer>Paris</answer>"),
+    ("xml_namespaced_tag_is_not_the_field", QA, '<reasoning xmlns="u">R</reasoning>\n<answer>Paris</answer>'),
+    ("xml_unbound_prefix_refused", QA, "<p:reasoning>R</p:reasoning>\n<answer>Paris</answer>"),
+    ("xml_processing_instruction_skipped", QA, "<?note x?><reasoning>R</reasoning>\n<answer>Paris</answer>"),
+    ("xml_declaration_refused", QA, '<?xml version="1.0"?>\n<reasoning>R</reasoning>\n<answer>Paris</answer>'),
+    ("xml_doctype_refused", QA, "<!DOCTYPE x><reasoning>R</reasoning>\n<answer>Paris</answer>"),
+    ("xml_str_keeps_child_markup", QA, "<reasoning>a<b/>tail</reasoning>\n<answer>Paris</answer>"),
+    ("xml_str_child_in_a_namespace", QA, '<reasoning>a<b xmlns="u"/></reasoning>\n<answer>Paris</answer>'),
+    ("xml_crlf_normalised", QA, "<reasoning>a\r\nb\rc</reasoning>\n<answer>Paris</answer>"),
 ]
 
 #: `JSONAdapter.parse` is `json_repair.loads`, then — if that did not yield a dict — a *recursive*
 #: brace regex to pull the outermost object out of surrounding text and repair that, then a filter to
 #: the declared fields, then a cast. Each case below is one of those steps.
 JSON_CASES = [
+    ("json_nullable_omitted", NullableNote, '{"note": "fine"}'),
+    ("json_required_omitted", NullableNote, '{"answer": "Paris"}'),
     ("json_plain", QA, '{"reasoning": "Because.", "answer": "Paris"}'),
     # Not a dict at the top: the brace regex has to find the object inside.
     ("json_in_prose", QA, 'Sure! {"reasoning": "Because.", "answer": "Paris"} there you go.'),
@@ -239,6 +305,11 @@ JSON_CASES = [
 
 #: (name, signature, completion). Each is a branch of `parse`, not a plausible reply.
 CASES = [
+    # 3.3.1: an omitted nullable field is filled with None, in signature order; an omitted required
+    # field still refuses.
+    ("nullable_omitted", NullableNote, "[[ ## note ## ]]\nfine\n\n[[ ## completed ## ]]"),
+    ("required_omitted", NullableNote, "[[ ## answer ## ]]\nParis\n\n[[ ## completed ## ]]"),
+    ("nullable_present", NullableNote, "[[ ## answer ## ]]\nParis\n\n[[ ## note ## ]]\nfine\n\n[[ ## completed ## ]]"),
     # `parse_value`'s Literal branch: a member as it stands, the three wrappings upstream unwraps,
     # and the two refusals. Case matters — a member is matched exactly, never folded.
     ("literal_member", Chosen, "[[ ## colour ## ]]\nred"),

@@ -1,0 +1,547 @@
+{
+  "version": "2",
+  "target": "dspy",
+  "nodes": [
+    {
+      "id": "start",
+      "kind": "Start",
+      "label": "Start",
+      "position": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "config": {},
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "output",
+          "dataType": "control"
+        }
+      ]
+    },
+    {
+      "id": "input-report",
+      "kind": "InputField",
+      "label": "report",
+      "position": {
+        "x": 0.0,
+        "y": 140.0
+      },
+      "config": {
+        "defaultValue": "At 02:14 UTC checkout latency spiked to 30s. Deploy 4f2a went out at 02:05. Error rate on payments-api hit 12%. Rolled back at 02:41, recovered by 02:50. On-call was paged twice.",
+        "name": "report",
+        "type": "str"
+      },
+      "ports": [
+        {
+          "id": "value",
+          "label": "value",
+          "direction": "output",
+          "dataType": "field_value"
+        }
+      ]
+    },
+    {
+      "id": "triage",
+      "kind": "Predict",
+      "label": "triage",
+      "position": {
+        "x": 260.0,
+        "y": 100.0
+      },
+      "config": {},
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "input",
+          "dataType": "control"
+        },
+        {
+          "id": "field_in",
+          "label": "field_in",
+          "direction": "input",
+          "dataType": "field_value"
+        },
+        {
+          "id": "field_out",
+          "label": "field_out",
+          "direction": "output",
+          "dataType": "field_value"
+        },
+        {
+          "id": "prediction",
+          "label": "prediction",
+          "direction": "output",
+          "dataType": "prediction"
+        }
+      ],
+      "signatureId": "sig-triage"
+    },
+    {
+      "id": "timeline",
+      "kind": "Predict",
+      "label": "timeline",
+      "position": {
+        "x": 260.0,
+        "y": 260.0
+      },
+      "config": {},
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "input",
+          "dataType": "control"
+        },
+        {
+          "id": "field_in",
+          "label": "field_in",
+          "direction": "input",
+          "dataType": "field_value"
+        },
+        {
+          "id": "field_out",
+          "label": "field_out",
+          "direction": "output",
+          "dataType": "field_value"
+        },
+        {
+          "id": "prediction",
+          "label": "prediction",
+          "direction": "output",
+          "dataType": "prediction"
+        }
+      ],
+      "signatureId": "sig-timeline"
+    },
+    {
+      "id": "correlate",
+      "kind": "ChainOfThought",
+      "label": "correlate",
+      "position": {
+        "x": 520.0,
+        "y": 100.0
+      },
+      "config": {},
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "input",
+          "dataType": "control"
+        },
+        {
+          "id": "field_in",
+          "label": "field_in",
+          "direction": "input",
+          "dataType": "field_value"
+        },
+        {
+          "id": "field_out",
+          "label": "field_out",
+          "direction": "output",
+          "dataType": "field_value"
+        },
+        {
+          "id": "prediction",
+          "label": "prediction",
+          "direction": "output",
+          "dataType": "prediction"
+        }
+      ],
+      "signatureId": "sig-correlate"
+    },
+    {
+      "id": "investigate",
+      "kind": "ChainOfThought",
+      "label": "investigate",
+      "position": {
+        "x": 780.0,
+        "y": 100.0
+      },
+      "config": {},
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "input",
+          "dataType": "control"
+        },
+        {
+          "id": "field_in",
+          "label": "field_in",
+          "direction": "input",
+          "dataType": "field_value"
+        },
+        {
+          "id": "field_out",
+          "label": "field_out",
+          "direction": "output",
+          "dataType": "field_value"
+        },
+        {
+          "id": "prediction",
+          "label": "prediction",
+          "direction": "output",
+          "dataType": "prediction"
+        }
+      ],
+      "signatureId": "sig-investigate"
+    },
+    {
+      "id": "postmortem",
+      "kind": "ChainOfThought",
+      "label": "postmortem",
+      "position": {
+        "x": 1040.0,
+        "y": 100.0
+      },
+      "config": {},
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "input",
+          "dataType": "control"
+        },
+        {
+          "id": "field_in",
+          "label": "field_in",
+          "direction": "input",
+          "dataType": "field_value"
+        },
+        {
+          "id": "field_out",
+          "label": "field_out",
+          "direction": "output",
+          "dataType": "field_value"
+        },
+        {
+          "id": "prediction",
+          "label": "prediction",
+          "direction": "output",
+          "dataType": "prediction"
+        }
+      ],
+      "signatureId": "sig-postmortem"
+    },
+    {
+      "id": "actions",
+      "kind": "Predict",
+      "label": "actions",
+      "position": {
+        "x": 1300.0,
+        "y": 100.0
+      },
+      "config": {},
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "input",
+          "dataType": "control"
+        },
+        {
+          "id": "field_in",
+          "label": "field_in",
+          "direction": "input",
+          "dataType": "field_value"
+        },
+        {
+          "id": "field_out",
+          "label": "field_out",
+          "direction": "output",
+          "dataType": "field_value"
+        },
+        {
+          "id": "prediction",
+          "label": "prediction",
+          "direction": "output",
+          "dataType": "prediction"
+        }
+      ],
+      "signatureId": "sig-actions"
+    },
+    {
+      "id": "out-draft",
+      "kind": "OutputField",
+      "label": "draft",
+      "position": {
+        "x": 1560.0,
+        "y": 100.0
+      },
+      "config": {
+        "name": "draft",
+        "type": "str"
+      },
+      "ports": [
+        {
+          "id": "value",
+          "label": "value",
+          "direction": "input",
+          "dataType": "field_value"
+        }
+      ]
+    },
+    {
+      "id": "out-items",
+      "kind": "OutputField",
+      "label": "items",
+      "position": {
+        "x": 1560.0,
+        "y": 260.0
+      },
+      "config": {
+        "name": "items",
+        "type": "str"
+      },
+      "ports": [
+        {
+          "id": "value",
+          "label": "value",
+          "direction": "input",
+          "dataType": "field_value"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "e0",
+      "from": {
+        "nodeId": "start",
+        "portId": "control"
+      },
+      "to": {
+        "nodeId": "triage",
+        "portId": "control"
+      },
+      "edgeKind": "control"
+    },
+    {
+      "id": "e1",
+      "from": {
+        "nodeId": "input-report",
+        "portId": "value"
+      },
+      "to": {
+        "nodeId": "triage",
+        "portId": "field_in",
+        "fieldName": "report"
+      },
+      "edgeKind": "data"
+    },
+    {
+      "id": "e3",
+      "from": {
+        "nodeId": "input-report",
+        "portId": "value"
+      },
+      "to": {
+        "nodeId": "timeline",
+        "portId": "field_in",
+        "fieldName": "report"
+      },
+      "edgeKind": "data"
+    },
+    {
+      "id": "e5",
+      "from": {
+        "nodeId": "triage",
+        "portId": "field_out",
+        "fieldName": "severity"
+      },
+      "to": {
+        "nodeId": "correlate",
+        "portId": "field_in",
+        "fieldName": "severity"
+      },
+      "edgeKind": "data"
+    },
+    {
+      "id": "e6",
+      "from": {
+        "nodeId": "timeline",
+        "portId": "field_out",
+        "fieldName": "events"
+      },
+      "to": {
+        "nodeId": "correlate",
+        "portId": "field_in",
+        "fieldName": "events"
+      },
+      "edgeKind": "data"
+    },
+    {
+      "id": "e8",
+      "from": {
+        "nodeId": "correlate",
+        "portId": "field_out",
+        "fieldName": "hypotheses"
+      },
+      "to": {
+        "nodeId": "investigate",
+        "portId": "field_in",
+        "fieldName": "hypotheses"
+      },
+      "edgeKind": "data"
+    },
+    {
+      "id": "e9",
+      "from": {
+        "nodeId": "timeline",
+        "portId": "field_out",
+        "fieldName": "events"
+      },
+      "to": {
+        "nodeId": "investigate",
+        "portId": "field_in",
+        "fieldName": "events"
+      },
+      "edgeKind": "data"
+    },
+    {
+      "id": "e11",
+      "from": {
+        "nodeId": "investigate",
+        "portId": "field_out",
+        "fieldName": "root_cause"
+      },
+      "to": {
+        "nodeId": "postmortem",
+        "portId": "field_in",
+        "fieldName": "cause"
+      },
+      "edgeKind": "data"
+    },
+    {
+      "id": "e12",
+      "from": {
+        "nodeId": "timeline",
+        "portId": "field_out",
+        "fieldName": "events"
+      },
+      "to": {
+        "nodeId": "postmortem",
+        "portId": "field_in",
+        "fieldName": "events"
+      },
+      "edgeKind": "data"
+    },
+    {
+      "id": "e14",
+      "from": {
+        "nodeId": "postmortem",
+        "portId": "field_out",
+        "fieldName": "draft"
+      },
+      "to": {
+        "nodeId": "actions",
+        "portId": "field_in",
+        "fieldName": "draft"
+      },
+      "edgeKind": "data"
+    },
+    {
+      "id": "e10",
+      "from": {
+        "nodeId": "postmortem",
+        "portId": "field_out",
+        "fieldName": "draft"
+      },
+      "to": {
+        "nodeId": "out-draft",
+        "portId": "value"
+      },
+      "edgeKind": "data"
+    },
+    {
+      "id": "e11",
+      "from": {
+        "nodeId": "actions",
+        "portId": "field_out",
+        "fieldName": "items"
+      },
+      "to": {
+        "nodeId": "out-items",
+        "portId": "value"
+      },
+      "edgeKind": "data"
+    }
+  ],
+  "settings": {
+    "projectName": "incident_review",
+    "providerProfile": {
+      "provider": "bedrock_mantle",
+      "model": "bedrock_mantle/openai.gpt-oss-120b",
+      "apiKeyEnvVar": "BEDROCK_MANTLE_API_KEY"
+    },
+    "defaultEntryNodeId": "start",
+    "description": "Turns a raw incident report into a root-cause hypothesis, a postmortem draft, and action items."
+  },
+  "tests": [],
+  "signatures": [
+    {
+      "id": "sig-triage",
+      "name": "triageSignature",
+      "docstring": "Rate the incident severity as exactly one of sev1, sev2, sev3, from customer impact and duration.",
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "id": "sig-timeline",
+      "name": "timelineSignature",
+      "docstring": "Extract a chronological timeline of events with timestamps, one per line.",
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "id": "sig-correlate",
+      "name": "correlateSignature",
+      "docstring": "Propose the two or three most plausible root-cause hypotheses that fit the timeline. Number them.",
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "id": "sig-investigate",
+      "name": "investigateSignature",
+      "docstring": "Pick the single best-supported hypothesis and state the root cause in one sentence, citing the timeline evidence.",
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "id": "sig-postmortem",
+      "name": "postmortemSignature",
+      "docstring": "Write a blameless postmortem draft — impact, timeline summary, root cause, what went well, what went poorly.",
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "id": "sig-actions",
+      "name": "actionsSignature",
+      "docstring": "List three to five concrete, owned action items from the postmortem, one per line, each starting with a verb.",
+      "inputs": [],
+      "outputs": []
+    }
+  ],
+  "scorers": [
+    {
+      "id": "scorer-judge",
+      "name": "Judge",
+      "description": "",
+      "mode": "judge",
+      "judgeCriteria": "The draft must name the root cause with timeline evidence, and every action item must be concrete and start with a verb."
+    }
+  ],
+  "exampleSets": [],
+  "optimizers": [
+    {
+      "id": "opt-1",
+      "programNodeId": "postmortem",
+      "scorerId": "scorer-judge",
+      "strategy": "gepa"
+    }
+  ]
+}

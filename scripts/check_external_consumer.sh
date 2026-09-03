@@ -121,7 +121,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(Greet.name(), "greet");
     assert_eq!(Greet.description(), "Greet one person by name.");
     assert_eq!(Greet.call(&json!({ "name": "Ada" }))?, "Hello, Ada.");
-    assert!(Greet.call(&json!({}))?.starts_with("Refused:"));
+    let missing = Greet.call(&json!({})).expect_err("a missing argument raises, as dspy raises");
+    assert_eq!(
+        format!("{missing:#}"),
+        "TypeError: greet() missing 1 required positional argument: 'name'"
+    );
 
     let notes = std::sync::Arc::new(Notes::default());
     let roster = notes.tools();

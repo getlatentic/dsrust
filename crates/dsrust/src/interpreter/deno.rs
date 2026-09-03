@@ -12,6 +12,7 @@
 
 mod command;
 mod session;
+mod tools;
 
 use session::Session;
 mod files;
@@ -56,6 +57,9 @@ pub struct DenoInterpreter {
     /// dspy's `sync_files`, and its default: a writable file's sandbox copy is written back to the
     /// host after each run. Off means the sandbox may write and the host never sees it.
     write_back: bool,
+    /// dspy 3.3.1's `_handling_tool_call`: set while a tool the sandbox called is running, so a
+    /// tool that reaches back into the interpreter is refused rather than deadlocked.
+    handling_tool_call: std::sync::atomic::AtomicBool,
     /// Whether this session is over — dspy 3.3.0's `_session_ended`.
     ///
     /// A process or protocol failure ends the session for good. Upstream's protocol asks for
@@ -73,6 +77,10 @@ impl Default for DenoInterpreter {
 }
 
 impl DenoInterpreter {
+    /// dspy 3.3.1's `PythonInterpreter.execution_instructions`, verbatim: the runtime description
+    /// `RLM` prints so generated code uses the sandbox correctly.
+    pub const EXECUTION_INSTRUCTIONS: &'static str = "Python runs in Pyodide/WebAssembly. State persists across executions, but subprocesses and native extensions are unavailable. Python standard libraries such as re, json, collections, and math are available. Host filesystem, environment, and network access require explicit permission.";
+
     /// A sandbox that may read only what it must: the runner and Pyodide's cache. No network, no
     /// writes, no environment — upstream's defaults, which are the point of a sandbox.
     pub fn new() -> Self {
@@ -83,6 +91,7 @@ impl DenoInterpreter {
     pub fn permissions(permissions: Permissions) -> Self {
         Self {
             ended: std::sync::atomic::AtomicBool::new(false),
+            handling_tool_call: std::sync::atomic::AtomicBool::new(false),
             permissions,
             session: Mutex::new(None),
             tools: Mutex::new(Vec::new()),
@@ -109,6 +118,15 @@ impl DenoInterpreter {
         self
     }
 
+    /// The `deno run …` argv this sandbox would be started with, so a caller — or a test — can
+    /// see what it grants rather than infer it from a run that happened to work.
+    pub fn argv(&self) -> Vec<String> {
+        match command::runner_path() {
+            Ok(runner) => command::argv(&runner, &self.permissions),
+            Err(_) => Vec::new(),
+        }
+    }
+
     /// Whether `deno` is on the path, so a program can refuse early and say why.
     ///
     /// dspy answers the same question by failing the first `execute` with install instructions.
@@ -127,6 +145,15 @@ impl DenoInterpreter {
     /// A child that has *exited* ends the session rather than being replaced: see
     /// [`DenoInterpreter::ended`].
     fn started(&self, session: &mut Option<Session>) -> Result<()> {
+        crate::observe::interpreter_lifecycle(
+            crate::observe::InterpreterLifecycle::Startup,
+            "DenoInterpreter",
+            || self.spawned(session),
+        )
+    }
+
+    /// dspy's `start` after its callbacks: the child if there is not one yet.
+    fn spawned(&self, session: &mut Option<Session>) -> Result<()> {
         self.check_active()?;
         if let Some(live) = session {
             match live.child.try_wait() {
@@ -146,7 +173,15 @@ impl DenoInterpreter {
             }
         }
         let runner = command::runner_path()?;
-        let mut child = Command::new("deno")
+        // dspy 3.3.1 validates the deno it is about to run and refuses a writable path over the
+        // runtime, both before spawning anything; either refusal ends the session, as upstream's
+        // `CodeInterpreterError` out of `_spawn_process` leaves it unusable.
+        if let Err(refusal) = command::validate_version(command::installed_version())
+            .and_then(|()| command::refuse_overlapping_writes(&runner, &self.permissions))
+        {
+            return Err(self.end_session(refusal.to_string()));
+        }
+        let mut child = command::deno_env(&mut Command::new("deno"))
             .args(command::argv(&runner, &self.permissions))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -182,7 +217,7 @@ impl DenoInterpreter {
         if let Some(params) = register::params(&tools, &outputs) {
             let id = session.rpc.request("register", params)?;
             let answer = session.rpc.receive("while registering tools and outputs")?;
-            rpc::answered(&answer, id, "while registering tools and outputs")?;
+            rpc::answered(&answer, &id, "while registering tools and outputs")?;
         }
         session.registered = true;
         Ok(())
@@ -200,7 +235,7 @@ impl DenoInterpreter {
                 .rpc
                 .request("mount_file", files::mount_request(&host, &virtual_at))?;
             let answer = session.rpc.receive("while mounting files")?;
-            rpc::answered(&answer, id, "while mounting files")?;
+            rpc::answered(&answer, &id, "while mounting files")?;
         }
         session.mounted = true;
         Ok(())
@@ -230,7 +265,7 @@ impl DenoInterpreter {
                 .rpc
                 .request("inject_var", json!({ "name": name, "value": payload }))?;
             let answer = session.rpc.receive("while injecting a large variable")?;
-            rpc::answered(&answer, id, "while injecting a large variable")?;
+            rpc::answered(&answer, &id, "while injecting a large variable")?;
         }
         Ok(())
     }
@@ -248,7 +283,7 @@ impl DenoInterpreter {
                 self.answer_tool_call(session, &message)?;
                 continue;
             }
-            let result = rpc::answered(&message, id, "during execution")?;
+            let result = rpc::answered(&message, &id, "during execution")?;
             // Upstream syncs before reading `final`, so a run that submitted still writes its
             // files back — the answer and the side effects are not either/or.
             self.sync(session)?;
@@ -260,63 +295,31 @@ impl DenoInterpreter {
             });
         }
     }
-
-    /// Run one tool the sandboxed code called, and hand the answer back through the pipe.
-    fn answer_tool_call(&self, session: &mut Session, request: &Value) -> Result<()> {
-        let id = request.get("id").cloned().unwrap_or(Value::Null);
-        let params = request.get("params").cloned().unwrap_or(Value::Null);
-        let name = params
-            .get("name")
-            .and_then(Value::as_str)
-            .unwrap_or_default();
-        let arguments = params.get("kwargs").cloned().unwrap_or_else(|| json!({}));
-
-        match self.run_tool(name, &arguments) {
-            Ok(value) => session.rpc.reply(&id, value),
-            Err(error) => session
-                .rpc
-                .reply_error(&id, UNKNOWN_ERROR, &format!("{error:#}")),
-        }
-    }
-
-    /// What one tool answered, in the shape `runner.js` reads: a JSON value carries its type so the
-    /// sandbox can decode it, and anything else crosses as a string.
-    fn run_tool(&self, name: &str, arguments: &Value) -> Result<Value> {
-        let tools = self.tools.lock().expect("the tool list");
-        let Some(tool) = tools.iter().find(|tool| tool.name() == name) else {
-            bail!("Unknown tool: {name}");
-        };
-        let answered = crate::observe::tool_call(tool.as_ref(), arguments)?;
-        // dspy's rule, and the whole of it: `None` and `str` cross as `"string"`; *everything
-        // else* crosses as `"json"`, so the sandbox decodes it back to its own type. Only a value
-        // JSON cannot hold falls back to its string form — upstream reaches that through
-        // `json.dumps(..., allow_nan=False)` raising on a non-finite float.
-        //
-        // This kept `"json"` for arrays and objects alone, so a tool returning `4` arrived in the
-        // sandbox as the string `"4"` and `n + 1` failed with "can only concatenate str".
-        Ok(match &answered {
-            Value::Null => json!({ "value": "", "type": "string" }),
-            Value::String(text) => json!({ "value": text, "type": "string" }),
-            Value::Number(number) if number.as_f64().is_some_and(|n| !n.is_finite()) => {
-                json!({ "value": answered.to_string(), "type": "string" })
-            }
-            _ => json!({ "value": answered.to_string(), "type": "json" }),
-        })
-    }
 }
 
 impl CodeInterpreter for DenoInterpreter {
+    fn execution_instructions(&self) -> &str {
+        Self::EXECUTION_INSTRUCTIONS
+    }
     fn execute(&self, code: &str, variables: &Map<String, Value>) -> Result<Executed> {
-        let prepared = super::variables::prepared(code, variables)?;
-        let mut session = self.session.lock().expect("the sandbox session");
-        self.started(&mut session)?;
-        let live = session.as_mut().expect("a session was started");
-        let ran = self
-            .register(live)
-            .and_then(|()| self.mount(live))
-            .and_then(|()| self.inject(live, &prepared.large))
-            .and_then(|()| self.ask(live, &prepared.code));
-        self.note_terminal(ran)
+        crate::observe::executing("DenoInterpreter", code, || {
+            if self
+                .handling_tool_call
+                .load(std::sync::atomic::Ordering::SeqCst)
+            {
+                bail!("PythonInterpreter cannot execute recursively from one of its tools.");
+            }
+            let prepared = super::variables::prepared(code, variables)?;
+            let mut session = self.session.lock().expect("the sandbox session");
+            self.started(&mut session)?;
+            let live = session.as_mut().expect("a session was started");
+            let ran = self
+                .register(live)
+                .and_then(|()| self.mount(live))
+                .and_then(|()| self.inject(live, &prepared.large))
+                .and_then(|()| self.ask(live, &prepared.code));
+            self.note_terminal(ran)
+        })
     }
 
     /// Upstream's interpreter dispatches host functions the sandboxed code calls back into. Holding
@@ -342,6 +345,20 @@ impl CodeInterpreter for DenoInterpreter {
     }
 
     fn shutdown(&self) {
+        let _ = crate::observe::interpreter_lifecycle(
+            crate::observe::InterpreterLifecycle::Shutdown,
+            "DenoInterpreter",
+            || {
+                self.stop();
+                Ok(())
+            },
+        );
+    }
+}
+
+impl DenoInterpreter {
+    /// dspy's `shutdown` inside its callbacks.
+    fn stop(&self) {
         // dspy's `session_was_active = not self._session_ended`, read *before* ending it: a session
         // already ended by a process or protocol failure gets no graceful `shutdown` notification,
         // because there is nothing on the other end to read it. Ending the session here too is
@@ -408,6 +425,28 @@ mod session_lifetime {
             refused.to_string().contains("session has ended"),
             "and it should say so: {refused}"
         );
+    }
+
+    /// dspy 3.3.1: a tool that calls `execute` on the interpreter running it is refused in
+    /// upstream's words, and the session stays usable — the refusal is not a session failure.
+    #[test]
+    fn a_tool_cannot_execute_on_the_interpreter_running_it() {
+        let interpreter = DenoInterpreter::new();
+        interpreter
+            .handling_tool_call
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        let refused = interpreter
+            .execute("1 + 1", &Map::new())
+            .expect_err("refused while a tool call is being handled");
+        assert_eq!(
+            refused.to_string(),
+            "PythonInterpreter cannot execute recursively from one of its tools."
+        );
+        assert!(
+            refused.downcast_ref::<InterpreterFailure>().is_none(),
+            "not the session's failure, nor the code's"
+        );
+        assert!(!interpreter.ended.load(std::sync::atomic::Ordering::SeqCst));
     }
 
     /// The two failures are different types, because a module answers them differently: an

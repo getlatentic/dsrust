@@ -1,6 +1,6 @@
 {
-  "source": "dspy==3.3.0 clients/openai_format.to_openai_text_request",
-  "dspy_version": "3.3.0",
+  "source": "dspy==3.3.1 clients/openai_format.to_openai_text_request",
+  "dspy_version": "3.3.1",
   "note": "The legacy completions body dspy builds for a typed request. `prompt` is `messages_to_text_prompt`, whose rule is dspy's own; the rest is `text_config_kwargs`, whose key order is the order it writes them in.",
   "cases": [
     {

@@ -8,6 +8,7 @@
 //! cargo test --test live_sandbox_modules -- --ignored --nocapture --test-threads=1
 //! ```
 
+#![allow(deprecated)]
 use std::sync::Arc;
 
 use dsrust::interpreter::DenoInterpreter;

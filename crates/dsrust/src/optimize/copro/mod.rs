@@ -131,70 +131,88 @@ where
         student: &mut S,
         trainset: &[Example],
     ) -> Result<CoproStats> {
-        if self.breadth <= 1 {
-            bail!("COPRO breadth must be greater than 1");
-        }
-        let predictors = student.named_predictors().len();
-        if predictors == 0 {
-            return Ok(CoproStats::default());
-        }
+        crate::observe::compiling(
+            "COPRO",
+            self as *const Self as *const () as usize,
+            trainset,
+            None,
+            async move {
+                if self.breadth <= 1 {
+                    bail!("COPRO breadth must be greater than 1");
+                }
+                let predictors = student.named_predictors().len();
+                if predictors == 0 {
+                    return Ok(CoproStats::default());
+                }
 
-        let originals = originals(student);
-        let mut latest = self.seed(&originals).await?;
-        let mut all = latest.clone();
-        let mut evaluated: Vec<Evaluations> =
-            (0..predictors).map(|_| Evaluations::default()).collect();
-        let mut current: Vec<String> = originals.iter().map(|o| o.instruction.clone()).collect();
+                let originals = originals(student);
+                let mut latest = self.seed(&originals).await?;
+                let mut all = latest.clone();
+                let mut evaluated: Vec<Evaluations> =
+                    (0..predictors).map(|_| Evaluations::default()).collect();
+                let mut current: Vec<String> =
+                    originals.iter().map(|o| o.instruction.clone()).collect();
 
-        let mut stats = CoproStats::for_predictors(predictors);
-        for round in 0..self.depth {
-            for predictor in 0..predictors {
-                let pool = if predictors > 1 {
-                    &all[predictor]
-                } else {
-                    &latest[predictor]
-                };
-                // dspy's `latest_scores`: the tail of the pool, `breadth` long — the candidates
-                // this round's proposal produced, rather than every one seen so far.
-                let newest = pool.len().saturating_sub(self.breadth);
-                let mut latest_scores = Vec::new();
-                for (at, candidate) in pool.iter().enumerate() {
-                    let outcome = self
-                        .try_candidate(student, predictor, candidate, trainset, &mut current)
-                        .await?;
-                    stats.total_calls += 1;
-                    if at >= newest {
-                        latest_scores.push(outcome.score);
+                let mut stats = CoproStats::for_predictors(predictors);
+                for round in 0..self.depth {
+                    for predictor in 0..predictors {
+                        let pool = if predictors > 1 {
+                            &all[predictor]
+                        } else {
+                            &latest[predictor]
+                        };
+                        // dspy's `latest_scores`: the tail of the pool, `breadth` long — the candidates
+                        // this round's proposal produced, rather than every one seen so far.
+                        let newest = pool.len().saturating_sub(self.breadth);
+                        let mut latest_scores = Vec::new();
+                        for (at, candidate) in pool.iter().enumerate() {
+                            let outcome = self
+                                .try_candidate(
+                                    student,
+                                    predictor,
+                                    candidate,
+                                    trainset,
+                                    &mut current,
+                                )
+                                .await?;
+                            stats.total_calls += 1;
+                            if at >= newest {
+                                latest_scores.push(outcome.score);
+                            }
+                            evaluated[predictor].record(outcome);
+                        }
+                        if let Some(summary) = DepthScores::of(round, &latest_scores) {
+                            stats.latest[predictor].push(summary);
+                        }
+                        let mut seen = evaluated[predictor].scores();
+                        if let Some(summary) =
+                            DepthScores::of(round, CoproStats::top_ten(&mut seen))
+                        {
+                            stats.best[predictor].push(summary);
+                        }
+                        let best = evaluated[predictor].best().instruction.clone();
+                        set_instruction(student, predictor, &best);
+                        current[predictor] = best;
                     }
-                    evaluated[predictor].record(outcome);
+                    if round == self.depth - 1 {
+                        break;
+                    }
+                    let next = self.propose_next(&evaluated).await?;
+                    for (predictor, proposals) in next.iter().enumerate() {
+                        all[predictor].extend(proposals.iter().cloned());
+                    }
+                    latest = next;
                 }
-                if let Some(summary) = DepthScores::of(round, &latest_scores) {
-                    stats.latest[predictor].push(summary);
-                }
-                let mut seen = evaluated[predictor].scores();
-                if let Some(summary) = DepthScores::of(round, CoproStats::top_ten(&mut seen)) {
-                    stats.best[predictor].push(summary);
-                }
-                let best = evaluated[predictor].best().instruction.clone();
-                set_instruction(student, predictor, &best);
-                current[predictor] = best;
-            }
-            if round == self.depth - 1 {
-                break;
-            }
-            let next = self.propose_next(&evaluated).await?;
-            for (predictor, proposals) in next.iter().enumerate() {
-                all[predictor].extend(proposals.iter().cloned());
-            }
-            latest = next;
-        }
 
-        if let Some(program) = best_program(&evaluated) {
-            for (predictor, instruction) in program.iter().enumerate() {
-                set_instruction(student, predictor, instruction);
-            }
-        }
-        Ok(stats)
+                if let Some(program) = best_program(&evaluated) {
+                    for (predictor, instruction) in program.iter().enumerate() {
+                        set_instruction(student, predictor, instruction);
+                    }
+                }
+                Ok(stats)
+            },
+        )
+        .await
     }
 
     /// Set one predictor to one candidate's instruction, score the whole program, and package the

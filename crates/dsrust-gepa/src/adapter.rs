@@ -18,6 +18,10 @@ pub struct EvalBatch<O> {
     /// in. `None` unless the caller asked for `track_best_outputs` — an adapter pays to keep these
     /// and nothing reads them otherwise.
     pub outputs: Option<Vec<O>>,
+    /// gepa 0.1.4's `num_metric_calls`: how many metric calls the evaluation actually made, where
+    /// an adapter counts them — a cached example costs none. `None` charges one per example, as
+    /// the engine always did.
+    pub num_metric_calls: Option<usize>,
 }
 
 impl<O> EvalBatch<O> {
@@ -27,6 +31,7 @@ impl<O> EvalBatch<O> {
             scores,
             captured_traces: true,
             outputs: None,
+            num_metric_calls: None,
         }
     }
 
@@ -36,6 +41,27 @@ impl<O> EvalBatch<O> {
             scores,
             captured_traces: false,
             outputs: None,
+            num_metric_calls: None,
+        }
+    }
+}
+
+/// Why a reflective proposal produced nothing — the two stages gepa 0.1.4 tells apart, since it
+/// answers them differently: a reflective dataset that could not be built skips the task, while a
+/// reflection that failed is tried once more, task by task.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProposalFailure {
+    /// dspy's `make_reflective_dataset` raised — *"No valid predictions found for any module."*
+    /// among them. gepa: *"Iteration {i}: Exception building reflective dataset: {e}"*.
+    ReflectiveDataset(String),
+    /// The reflection model failed partway through.
+    Reflection(String),
+}
+
+impl ProposalFailure {
+    pub fn message(&self) -> &str {
+        match self {
+            Self::ReflectiveDataset(message) | Self::Reflection(message) => message,
         }
     }
 }
@@ -74,23 +100,21 @@ pub trait GepaAdapter {
         candidate: &Candidate,
     ) -> impl Future<Output = EvalBatch<Self::Output>> + Send;
 
-    /// Replacement text for the components named, or the reason there is none.
+    /// Replacement text for the components named, or which stage failed and why.
     ///
-    /// `Err` is an exception out of dspy's proposal, which gepa catches and turns into a skipped
-    /// iteration — its message is the `{e}` upstream formats into the line. Two reach it:
-    /// `make_reflective_dataset` raising `"No valid predictions found for any module."`, and the
-    /// reflection model failing partway through. Upstream's `try` wraps the whole proposal, so the
-    /// *first* failure ends it — a second component is not attempted, and the components already
-    /// proposed for are discarded with the rest.
+    /// `Err` is an exception out of dspy's proposal, which gepa catches — its message is the `{e}`
+    /// upstream formats into its line. Two reach it: `make_reflective_dataset` raising `"No valid
+    /// predictions found for any module."`, and the reflection model failing partway through.
+    /// Upstream's `try` wraps each stage whole, so the *first* failure ends it — a second component
+    /// is not attempted, and the components already proposed for are discarded with the rest.
     ///
     /// An empty map is not a failure: it is a reflection that ran and proposed nothing for the
-    /// components it was asked about, and upstream scores the unchanged candidate for it.
-    /// Conflating the two spends an extra minibatch evaluation on a candidate identical to its
-    /// parent, and `max_metric_calls` is what pays for it.
+    /// components it was asked about. gepa 0.1.4 skips the task on it rather than scoring a
+    /// candidate identical to its parent.
     fn propose_new_texts(
         &mut self,
         candidate: &Candidate,
         components: &[String],
         captured: &EvalBatch<Self::Output>,
-    ) -> impl Future<Output = Result<Candidate, String>> + Send;
+    ) -> impl Future<Output = Result<Candidate, ProposalFailure>> + Send;
 }

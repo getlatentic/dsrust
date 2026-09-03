@@ -88,6 +88,11 @@ from rust_module import (  # noqa: E402
     RustPythonInterpreter,
     RustReAct,
     RustRLM,
+    RustEmbedder,
+    RustEmbeddings,
+    RustEmbeddingsWithScores,
+    RustKNN,
+    RustKNNFewShot,
 )
 from rust_adapter import (  # noqa: E402
     RustBAMLAdapter,
@@ -142,6 +147,20 @@ for _name, _rust in RUST_BACKED.items():
     setattr(dspy.adapters, _name, _rust)
 
 dspy.adapters.base._provider_tool_call_to_tool_call_dict = _rust_provider_tool_call
+# The KNN family, at every path the tests import it from: the package, the subpackage, the module.
+import dspy.clients.embedding  # noqa: E402
+import dspy.predict.knn  # noqa: E402
+import dspy.retrievers.embeddings  # noqa: E402
+import dspy.teleprompt.knn_fewshot  # noqa: E402
+
+for _holder, _name, _rust in [
+    (dspy, "KNN", RustKNN), (dspy.predict, "KNN", RustKNN), (dspy.predict.knn, "KNN", RustKNN),
+    (dspy, "KNNFewShot", RustKNNFewShot), (dspy.teleprompt, "KNNFewShot", RustKNNFewShot), (dspy.teleprompt.knn_fewshot, "KNNFewShot", RustKNNFewShot),
+    (dspy, "Embedder", RustEmbedder), (dspy.clients, "Embedder", RustEmbedder), (dspy.clients.embedding, "Embedder", RustEmbedder),
+    (dspy.retrievers, "Embeddings", RustEmbeddings), (dspy.retrievers.embeddings, "Embeddings", RustEmbeddings),
+    (dspy.retrievers.embeddings, "EmbeddingsWithScores", RustEmbeddingsWithScores),
+]:
+    setattr(_holder, _name, _rust)
 
 # Upstream tests whose features this crate has not written yet, with the reason. Delete a line
 # once Rust renders that case; the strict xfail will fail the run if you forget.
@@ -149,6 +168,15 @@ dspy.adapters.base._provider_tool_call_to_tool_call_dict = _rust_provider_tool_c
 # A run may report xfails this list is empty of: dspy marks two of its own image cases xfail
 # inside the test body, for a gap upstream has rather than one this port has.
 NOT_YET_IMPLEMENTED = {
+    # `Embedder` tests that mock `litellm.embedding`/`aembedding`. The crate does not go through
+    # litellm: it posts the `/embeddings` request itself, held to litellm's own wire in
+    # tests/embedding_wire.rs. Under the mock nothing answers the crate's request, so these fail.
+    "test_litellm_embedding": "mocks litellm.embedding, which the crate does not call",
+    "test_async_embedding": "mocks litellm.aembedding, which the crate does not call",
+    "test_call_caching_false_overrides_instance_true": "mocks litellm.embedding, which the crate does not call",
+    "test_call_caching_true_overrides_instance_false": "mocks litellm.embedding, which the crate does not call",
+    "test_acall_caching_false_overrides_instance_true": "mocks litellm.aembedding, which the crate does not call",
+    "test_acall_caching_true_overrides_instance_false": "mocks litellm.aembedding, which the crate does not call",
     # Four tests that reach for `interpreter.deno_process` or `_read_response_line`. Those are
     # dspy's own internals: `RustPythonInterpreter` replaces `execute` and nothing else, so the
     # child they kill or the reader they patch is dspy's — unused — while the Rust sandbox talks to
@@ -189,6 +217,9 @@ NOT_YET_IMPLEMENTED = {
 # would read as green whatever this crate did. Naming them keeps the passing count honest, and
 # anything not named here must cross into Rust or the run fails.
 DOES_NOT_EXERCISE_RUST = {
+    # `Embedder(123)`: the shim raises upstream's own `ValueError` at the first call, as upstream
+    # does, before anything crosses.
+    "test_invalid_model_type": "the embedder's own model-type check",
     # The interpreter's own constructor and its reflection over Python callables. These reach no
     # sandbox at all: they assert on what `PythonInterpreter.__init__` stored and on what
     # `inspect.signature` reports, both of which stay dspy's own code under the shim.

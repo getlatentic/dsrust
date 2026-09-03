@@ -8,6 +8,7 @@
 
 use turn::{printed_output, string_field};
 
+mod builder;
 mod fences;
 mod signatures;
 mod submission;
@@ -119,7 +120,11 @@ impl Rlm {
     }
 
     pub fn new(signature: Signature) -> Self {
-        Self::interpreter_factory(signature, crate::interpreter::factory(DenoInterpreter::new))
+        Self::interpreter_factory(
+            signature,
+            crate::interpreter::factory(DenoInterpreter::new)
+                .with_execution_instructions(DenoInterpreter::EXECUTION_INSTRUCTIONS),
+        )
     }
 
     /// The same, building the caller's own kind of sandbox for each pass — dspy's
@@ -136,7 +141,12 @@ impl Rlm {
         tools: Vec<Arc<dyn Tool>>,
         interpreter_factory: InterpreterFactory,
     ) -> Self {
-        let (action, extract) = signatures(&signature, &tools, DEFAULT_MAX_LLM_CALLS);
+        let (action, extract) = signatures(
+            &signature,
+            &tools,
+            DEFAULT_MAX_LLM_CALLS,
+            interpreter_factory.execution_instructions(),
+        );
         Self {
             signature,
             max_iters: 20,
@@ -178,47 +188,10 @@ impl Rlm {
             .collect()
     }
 
-    pub fn max_iters(mut self, max_iters: usize) -> Self {
-        self.max_iters = max_iters;
-        self
-    }
-
-    /// The budget the model is told about, which is stated in the action instructions — so
-    /// changing it rebuilds them.
-    pub fn max_llm_calls(mut self, max_llm_calls: usize) -> Self {
-        self.max_llm_calls = max_llm_calls;
-        let (action, _) = signatures(&self.signature, &self.tools, max_llm_calls);
-        self.generate_action = Predict::from_signature(action);
-        self
-    }
-
     /// The signature each REPL turn is asked with. dspy reaches the same thing as
     /// `rlm.generate_action.signature`.
     pub fn action_signature(&self) -> &Signature {
         &self.generate_action.signature
-    }
-
-    /// Ask both steps of this model.
-    pub fn set_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
-        self.generate_action = self.generate_action.set_lm(lm.clone());
-        self.extract = self.extract.set_lm(lm);
-        self
-    }
-
-    /// Ask the REPL turns of this model, leaving the extract step on whatever it had.
-    ///
-    /// The two steps are separable because upstream's are: `rlm.generate_action` and `rlm.extract`
-    /// are attributes its own tests replace one at a time, and a caller wanting a cheaper model to
-    /// read back a finished session wants the same seam.
-    pub fn action_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
-        self.generate_action = self.generate_action.set_lm(lm);
-        self
-    }
-
-    /// Ask the extract step of this model. See [`Self::action_lm`].
-    pub fn extract_lm(mut self, lm: Arc<dyn crate::lm::DynChatModel>) -> Self {
-        self.extract = self.extract.set_lm(lm);
-        self
     }
 
     async fn run(&self, inputs: Example, trace: &mut Vec<TraceStep>) -> Result<Prediction> {

@@ -155,7 +155,7 @@ pub(super) async fn run(
     inputs: Map<String, Value>,
     budget: Option<usize>,
 ) -> Result<Value> {
-    let interpreter = interpreter_factory()?;
+    let interpreter = interpreter_factory.build()?;
     // The generated code names its tools; the host resolves those names, so a copy stays here while
     // the originals go to the sandbox to be callable from it.
     let for_host = tools.clone();

@@ -34,10 +34,18 @@ fn host_path(path: &Path) -> String {
 /// should not have to check first. A *readable* path that does not exist is an error — the caller
 /// named a file they meant to supply.
 pub(super) fn to_mount(read: &[PathBuf], write: &[PathBuf]) -> Result<Vec<(String, String)>> {
-    let mut mounted = Vec::new();
+    let mut mounted: Vec<(String, String)> = Vec::new();
     for path in read.iter().chain(write) {
         if path.as_os_str().is_empty() {
             continue;
+        }
+        // dspy 3.3.1: two host files sharing a basename would land on one sandbox path, and the
+        // second would silently replace the first.
+        let collides = mounted
+            .iter()
+            .any(|(host, at)| *at == virtual_path(path) && *host != host_path(path));
+        if collides {
+            bail!("Mounted files must have unique basenames inside the sandbox.");
         }
         if !path.exists() {
             if !write.contains(path) {
@@ -119,5 +127,30 @@ mod tests {
         assert!(to_sync(&[]).is_empty());
         let asked = to_sync(&[PathBuf::from("/tmp/out.txt")]);
         assert_eq!(asked[0]["virtual_path"], json!("/sandbox/out.txt"));
+    }
+
+    /// Two host files with one basename cannot both be `/sandbox/<name>`.
+    #[test]
+    fn two_files_sharing_a_basename_are_refused() {
+        let root = std::env::temp_dir().join(format!("dsrust-basenames-{}", std::process::id()));
+        let (a, b) = (root.join("a"), root.join("b"));
+        std::fs::create_dir_all(&a).expect("dir");
+        std::fs::create_dir_all(&b).expect("dir");
+        std::fs::write(a.join("data.txt"), "1").expect("written");
+        std::fs::write(b.join("data.txt"), "2").expect("written");
+        let refused =
+            to_mount(&[a.join("data.txt"), b.join("data.txt")], &[]).expect_err("refused");
+        assert_eq!(
+            refused.to_string(),
+            "Mounted files must have unique basenames inside the sandbox."
+        );
+        // The same file named twice is one path mounted twice, not a collision.
+        assert_eq!(
+            to_mount(&[a.join("data.txt")], &[a.join("data.txt")])
+                .expect("mounts")
+                .len(),
+            2
+        );
+        let _ = std::fs::remove_dir_all(root);
     }
 }

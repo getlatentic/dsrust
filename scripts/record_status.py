@@ -1,4 +1,4 @@
-"""Write what the last upstream run observed into `backlog.toml`'s `[status]` block.
+"""Write what the last upstream run observed into `scripts/status.toml` block.
 
 Those numbers were prose: hand-written, never checked, and stale — 452 passing where the suite
 reported 645. A plan that misreports its own evidence is worse than one that reports none, because

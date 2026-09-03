@@ -12,7 +12,7 @@
 use serde_json::Value;
 
 /// Python's `repr` of a JSON value.
-pub(crate) fn repr(value: &Value) -> String {
+pub fn repr(value: &Value) -> String {
     match value {
         Value::Null => "None".to_owned(),
         Value::Bool(true) => "True".to_owned(),

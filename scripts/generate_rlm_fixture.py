@@ -91,10 +91,13 @@ class Typed(dspy.Signature):
 #: (label, signature, tools, max_llm_calls) — the template interpolates the input names, the
 #: output-field list, the SUBMIT() names and the call cap, and tool docs are appended after it.
 SIGNATURE_CASES = [
-    ("plain", "context, query -> answer", [], 50),
-    ("described", Described, [], 50),
-    ("typed", Typed, [], 7),
-    ("tools", "context -> answer", [factorial], 50),
+    ("plain", "context, query -> answer", [], 50, Unused),
+    ("described", Described, [], 50, Unused),
+    ("typed", Typed, [], 7, Unused),
+    ("tools", "context -> answer", [factorial], 50, Unused),
+    # dspy 3.3.1 reads `execution_instructions` off the factory: `PythonInterpreter` carries one as
+    # a class attribute, and the action instructions grow an `Execution environment:` block.
+    ("pyodide", "context -> answer", [], 50, dspy.PythonInterpreter),
 ]
 
 
@@ -124,18 +127,19 @@ def main() -> None:
         except SyntaxError as error:
             cases.append({"written": written, "code": None, "error": str(error)})
     signatures = []
-    for label, signature, tools, max_llm_calls in SIGNATURE_CASES:
+    for label, signature, tools, max_llm_calls, factory in SIGNATURE_CASES:
         # dspy 3.3.0 takes a zero-argument *factory* rather than an interpreter: one is built per
         # forward pass and shut down after, where 3.3.0b1 held one for the module's lifetime.
         # The fixture never runs code, so `Unused` stands in either way — but it has to be passed
         # as the callable now, which is `Unused` itself rather than `Unused()`.
-        rlm = RLM(signature, tools=tools or None, max_llm_calls=max_llm_calls, interpreter_factory=Unused)
+        rlm = RLM(signature, tools=tools or None, max_llm_calls=max_llm_calls, interpreter_factory=factory)
         signatures.append(
             {
                 "label": label,
                 "task": signature if isinstance(signature, str) else signature.__name__,
                 "task_instructions": rlm.signature.instructions,
                 "max_llm_calls": max_llm_calls,
+                "execution_instructions": getattr(factory, "execution_instructions", ""),
                 "tools": [str(tool) for tool in rlm._user_tools.values()],
                 "action": described_signature(rlm.generate_action.signature),
                 "extract": described_signature(rlm.extract.signature),

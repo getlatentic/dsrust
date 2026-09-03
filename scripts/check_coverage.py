@@ -63,16 +63,10 @@ EXCUSED = {
 
     # Providers and features outside the port's ceiling.
     "tests/clients/test_databricks.py": "a provider this crate does not speak",
-    "tests/clients/test_embedding.py": "embeddings, which the port does not cover",
     "tests/retrievers/test_colbertv2.py": "a retriever, out of scope",
-    "tests/retrievers/test_embeddings.py": "a retriever, out of scope",
     "tests/teleprompt/test_finetune.py": "finetuning, deferred past 1.0",
     "tests/teleprompt/test_bootstrap_finetune.py": "finetuning, deferred past 1.0",
     "tests/teleprompt/test_grpo.py": "RL, deferred past 1.0",
-    # The optimizers deliberately deferred past 1.0 (#9). Both need the KNN retriever rather than
-    # anything the optimizer work builds, which is why they sit with retrieval in s10.
-    "tests/teleprompt/test_knn_fewshot.py": "KNNFewShot is deferred (#9)",
-    "tests/predict/test_knn.py": "KNN is deferred (#9)",
     # Python-runtime machinery with no Rust counterpart to reach.
     "tests/utils/test_asyncify.py": "Python's sync/async bridging",
     "tests/utils/test_syncify.py": "Python's sync/async bridging",
@@ -82,18 +76,53 @@ EXCUSED = {
     "tests/utils/test_annotation.py": "Python decorators",
     "tests/utils/test_unbatchify.py": "a Python batching helper",
     "tests/utils/test_langchain_tool.py": "a LangChain adapter",
+    "tests/callback/test_interpreter_callback.py": (
+        "dspy 3.3.1's four interpreter points, and they are ported — `Callback`'s "
+        "on_interpreter_{execute,tool_call,startup,shutdown}_{start,end}, fired by "
+        "observe::{executing,interpreter_tool_call,interpreter_lifecycle} around "
+        "DenoInterpreter. Six of these eight tests drive Python machinery with no Rust surface: "
+        "four decorate a hand-rolled protocol implementation with `@with_callbacks` and assert on "
+        "inspect.getcallargs, one monkeypatches `_write_message` to raise inside the JSON-RPC "
+        "handler, and one asserts an unknown tool's `CodeInterpreterError` reaches the end "
+        "handler — which here is an `anyhow::Error` in the same `Result`, held by "
+        "interpreter::deno's `Unknown tool:` refusal. The two that assert something portable — "
+        "the lazy startup, the tool nesting inside an execute, and an execute error reported and "
+        "propagated — are held by tests/deno_sandbox.rs and the recursion-guard test beside it"
+    ),
+    "tests/callback/test_optimizer_callback.py": (
+        "dspy 3.3.1's compile point, ported: `Callback::on_compile_start` and its `on_compile_end`, fired by "
+        "observe::{compiling,compiling_sync} from every optimizer's own compile, with the "
+        "re-entrancy guard upstream spells `_ACTIVE_COMPILES`. Eight of these ten tests reach "
+        "Python-only machinery — cloudpickle round-trips, `super()` from an async override, a "
+        "subclass whose inherited `compile` must not be wrapped twice (Rust has no metaclass to "
+        "wrap it in, so a method is instrumented where it is written), and asyncio child tasks. "
+        "The two portable ones — a compile's handlers enclosing the module runs it makes, and "
+        "BetterTogether nesting a child compile inside the outer one — are held by "
+        "tests/callback.rs::a_compile_encloses_the_runs_it_makes"
+    ),
+    "tests/primitives/test_code_interpreter.py": (
+        "two tests asserting `CodeInterpreterError` and `CodeExecutionError` are subclasses of "
+        "`DSPyError`, which dspy 3.3.1 added so a caller can catch the taxonomy's root. The "
+        "taxonomy is a divergence here and says so in the ledger: `anyhow::Error` is this "
+        "crate's root, and the one distinction anything branches on — the code's own failure "
+        "against the interpreter's — is `InterpreterFailure`'s two variants, held by "
+        "interpreter::deno's session-lifetime tests"
+    ),
     "tests/callback/test_callback.py": (
-        "the protocol is ported — `Callback` in src/callback.rs, twelve defaulted methods, "
-        "registered by configure_callbacks or LM::callbacks — but five of these nine tests "
-        "drive Python machinery with no Rust surface to reach: four put `@with_callbacks` on a "
-        "plain method and assert on inspect.getcallargs reading a call's arguments back and an "
-        "attribute list on a Python object, and the fifth resets a ContextVar token. The other "
-        "four assert something portable and all four are held by tests/callback.rs against "
-        "sequences recorded from this same dspy by scripts/generate_callback_fixture.py: the "
-        "handler sequence one ChainOfThought(n=3) call fires (test_callback_complex_module and "
-        "its async twin), the tool handlers (test_tool_calls), and the call-id parent chain "
-        "(test_active_id). This said eight tests and named two as portable, both written when "
-        "there were eight; `miscounts` checks the total now"
+        "the protocol is ported — `Callback` in src/callback.rs, upstream's handlers each "
+        "defaulted, registered by configure_callbacks or LM::callbacks — but eight of these "
+        "twelve tests drive Python machinery with no Rust surface to reach: four put "
+        "`@with_callbacks` on a plain method and assert on inspect.getcallargs reading a call's "
+        "arguments back and an attribute list on a Python object, one resets a ContextVar token, "
+        "one round-trips a wrapper through cloudpickle, and two assert that a `BaseException` — a "
+        "KeyboardInterrupt, an asyncio cancellation — reaches the end handler and propagates, "
+        "which in Rust is a panic and a dropped future rather than a value a handler is passed. "
+        "The other four assert something portable and all four are held by tests/callback.rs "
+        "against sequences recorded from this same dspy by scripts/generate_callback_fixture.py: "
+        "the handler sequence one ChainOfThought(n=3) call fires (test_callback_complex_module "
+        "and its async twin), the tool handlers (test_tool_calls), and the call-id parent chain "
+        "(test_active_id). This said nine tests, written when there were nine; `miscounts` "
+        "checks the total now, and caught the 3.3.1 additions"
     ),
     # The taxonomy stayed small on purpose: upstream branches on error *identity* in one place,
     # and that one — ContextWindowExceeded, which ReAct catches to truncate — is built and tested.

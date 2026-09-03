@@ -15,6 +15,26 @@ pub(crate) mod repair;
 /// DSPy ChatAdapter's parser: split the reply into sections at `[[ ## name ## ]]` headers,
 /// keep the first section seen for each declared output field, ignore prose outside any
 /// section and unknown headers (`completed` among them).
+/// dspy 3.3.1's `apply_output_field_defaults`: the parsed fields in signature order, with a field
+/// the reply left out filled in when the signature lets it be — `None` for an annotation that
+/// admits it. A field with no such fallback stays missing, and the caller refuses the reply as
+/// before. Every adapter's `parse` ends here, so a `Prediction` carries its fields in the order the
+/// signature declares them rather than the order the model wrote them.
+pub(crate) fn apply_output_field_defaults(
+    signature: &Signature,
+    fields: Map<String, Value>,
+) -> Map<String, Value> {
+    let mut completed = Map::new();
+    for field in &signature.outputs {
+        if let Some(value) = fields.get(&field.name) {
+            completed.insert(field.name.clone(), value.clone());
+        } else if field.allows_none() {
+            completed.insert(field.name.clone(), Value::Null);
+        }
+    }
+    completed
+}
+
 pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
     let mut sections: Vec<(&str, Vec<&str>)> = Vec::new();
     for line in raw.lines() {
@@ -36,6 +56,7 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
         let joined = lines.join("\n");
         fields.insert(name.to_owned(), section_value(field, joined.trim()));
     }
+    let fields = apply_output_field_defaults(signature, fields);
     // dspy's `ChatAdapter.parse` ends on `if fields.keys() != signature.output_fields.keys():
     // raise AdapterParseError`, so a reply short of a field is a *parse* failure and
     // `ChatAdapter.__call__` answers it by re-asking through `JSONAdapter`. Letting it through to
@@ -62,7 +83,7 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
     // in `message`. The partial travels with it, so a caller who asked for the feedback ask still
     // gets the fields that did read.
     let mut parsed = Value::Object(fields);
-    if let Err(error) = signature.coerce_scalars(&mut parsed) {
+    if let Err(error) = signature.coerce(&mut parsed) {
         return Err(anyhow::Error::new(FieldMismatch {
             parsed,
             adapter_name: "ChatAdapter".to_owned(),
@@ -81,23 +102,40 @@ pub(super) fn parse_markers(signature: &Signature, raw: &str) -> Result<Value> {
 /// before validating it, so a `Json` field answered in Python's literal syntax — single
 /// quotes, `True`/`False`/`None`, digit-group underscores — lands as its declared type
 /// rather than as the text that spells it. Every other section stays text here and is cast by
-/// `coerce_scalars` on the way out of [`parse_markers`], which is where a value that will not fit
-/// its declared type becomes a parse failure as upstream's does.
-fn section_value(field: &OutField, text: &str) -> Value {
+/// `Signature::coerce` on the way out of [`parse_markers`], which is where a value that will not
+/// fit its declared type becomes a parse failure as upstream's does.
+pub(super) fn section_value(field: &OutField, text: &str) -> Value {
     match field.kind {
         // `parse_value`'s order for a non-`str` annotation, and the order matters: json-repair
         // first, and Python's own literal syntax only where json-repair answered with the empty
         // string — which is how it reports having found nothing. `'a'` is the case that separates
         // them, since a bare quoted string at the top level is a literal and not a JSON value.
-        FieldKind::Json(_) => {
+        FieldKind::Json(ref json) => {
             let candidate = repair::loads(text).unwrap_or_else(|_| Value::from(""));
-            match candidate == "" && !text.is_empty() {
+            let candidate = match candidate == "" && !text.is_empty() {
                 true => repair::python_literal(text).unwrap_or_else(|| Value::from(text)),
+                false => candidate,
+            };
+            // dspy retries a `dspy.Type` from the original text when the repaired candidate does
+            // not validate. `Code` takes a string or a `{"code": ...}` mapping and nothing else,
+            // so `int[] a = {1, 9};` — which json-repair reads as `[1, 9]` — stays the code it is.
+            match is_code(&json.annotation) && !code_mapping(&candidate) {
+                true => Value::from(text),
                 false => candidate,
             }
         }
         _ => Value::from(text),
     }
+}
+
+/// The annotation of a `Code` field: `Code`, or `Code_java` for dspy's `Code["java"]`.
+fn is_code(annotation: &str) -> bool {
+    annotation == "Code" || annotation.starts_with("Code_")
+}
+
+/// The one repaired shape `Code` accepts: a mapping whose `code` is a string.
+fn code_mapping(candidate: &Value) -> bool {
+    candidate.get("code").is_some_and(Value::is_string)
 }
 
 /// Python's `\w`: what `str.isalnum()` accepts, plus `_`.
@@ -133,71 +171,6 @@ fn split_header(line: &str) -> Option<(&str, &str)> {
         None => "",
     };
     Some((name, rest.trim()))
-}
-
-/// A JSON object anywhere in the reply. Providers in JSON mode return the bare object;
-/// models that ignore the mode wrap it in prose or code fences, so the outermost braces
-/// are the recovery path (DSPy's JSONAdapter recovers with a regex the same way).
-/// Read a reply written as tag pairs.
-///
-/// dspy scans for `<name>…</name>` over the whole reply and keeps the first occurrence of each
-/// declared field, ignoring any tag the signature never asked for. The same mismatch rule as
-/// the JSON adapter then applies: a reply missing a declared field is a failure carrying
-/// whatever it did say.
-pub(super) fn parse_tags(signature: &Signature, raw: &str) -> Result<Value> {
-    let mut found = serde_json::Map::new();
-    let mut rest = raw;
-    while let Some((name, content, after)) = next_tag(rest) {
-        if let Some(field) = signature.outputs.iter().find(|field| field.name == name)
-            && !found.contains_key(name)
-        {
-            // Through `section_value` for the same reason the marker path is: dspy hands the body
-            // to the field's own Python type, so a structured field written as strict JSON is read
-            // as the value it spells rather than kept as the text spelling it.
-            found.insert(name.to_owned(), section_value(field, content.trim()));
-        }
-        // The loop advances only because `next_tag` hands back a suffix of what it was given —
-        // which it does, and which nothing else enforced. A parser reading model output is reading
-        // input nobody wrote, and one that spins instead of answering hangs the caller's process
-        // rather than returning a wrong value it could notice. Twelve mutations of `next_tag` hung
-        // the whole suite for three minutes each until this was here; now each one terminates and
-        // answers wrongly, which the goldens catch.
-        if after.len() >= rest.len() {
-            break;
-        }
-        rest = after;
-    }
-    let mut value = declared_fields(signature, Value::Object(found), "XMLAdapter", raw)?;
-    // dspy casts each field inside `XMLAdapter.parse` and reports a value that will not fit as
-    // a parse failure, rather than handing a caller a string where a number was declared.
-    signature
-        .coerce_scalars(&mut value)
-        .map_err(|error| anyhow!("Failed to parse field in {raw}: {error}"))?;
-    Ok(value)
-}
-
-/// The next `<name>…</name>` pair: its name, what it wraps, and what follows it.
-///
-/// A tag name is a word, matching upstream's `\w+`, so punctuation or a space rules a `<`
-/// out as an opening tag and the scan moves past it.
-///
-/// Over `match_indices` rather than a cursor it advances itself. The cursor version was correct and
-/// its termination rested on one `cursor = open + 1` at the bottom of a `loop`: mutating that line
-/// hung the whole test suite instead of failing it, and no assertion can catch a function that
-/// never returns. The iterator makes the progress structural.
-fn next_tag(text: &str) -> Option<(&str, &str, &str)> {
-    for (open, _) in text.match_indices('<') {
-        // No `>` after this `<` means none after any later one either — they are all further right.
-        let shut = text[open..].find('>').map(|at| at + open)?;
-        let name = &text[open + 1..shut];
-        if !name.is_empty() && name.chars().all(is_word) {
-            let closing = format!("</{name}>");
-            if let Some(end) = text[shut + 1..].find(&closing).map(|at| at + shut + 1) {
-                return Some((name, &text[shut + 1..end], &text[end + closing.len()..]));
-            }
-        }
-    }
-    None
 }
 
 /// A reply that read as JSON but did not carry the fields the signature declared.
@@ -297,6 +270,7 @@ pub(super) fn declared_fields(
             Some((field.name.clone(), value.clone()))
         })
         .collect();
+    let kept = apply_output_field_defaults(signature, kept);
     match kept.len() == signature.outputs.len() {
         true => Ok(Value::Object(kept)),
         false => Err(anyhow::Error::new(FieldMismatch {
@@ -450,26 +424,6 @@ mod tests {
         assert!(parse_markers(&signature(), "red, because it is calm").is_err());
     }
 
-    /// The other direction of the same predicate, and it loses a field rather than a marker.
-    ///
-    /// A `<…>` the scan calls a tag is consumed whole, so the scan resumes *after* its closing tag
-    /// and never looks inside. `char::is_alphanumeric` follows `Alphabetic` and accepts a combining
-    /// mark that `str.isalnum()` refuses, which makes `<xֺ>` a tag here and not in dspy — and the
-    /// `<answer>` it wraps is skipped with it. Measured: `dspy.XMLAdapter().parse` returns Paris.
-    #[test]
-    fn a_tag_python_would_not_call_a_tag_does_not_swallow_the_one_inside_it() {
-        let signature = Signature::single_input(
-            "Answer.",
-            vec![OutField {
-                name: "answer".into(),
-                ..Default::default()
-            }],
-        );
-        let raw = "<x\u{5b0}><answer>Paris</answer></x\u{5b0}>";
-        let value = parse_tags(&signature, raw).expect("dspy reads the inner tag");
-        assert_eq!(value, json!({ "answer": "Paris" }));
-    }
-
     /// Upstream's header pattern is `\[\[ ## (\w+) ## \]\]`, and Python's `\w` is every code point
     /// `str.isalnum()` accepts plus `_` — not ASCII. A Python identifier may be non-ASCII, so
     /// `réponse` and `答え` are field names dspy renders markers for and parses back, measured
@@ -519,10 +473,21 @@ mod tests {
 
     #[test]
     fn parse_markers_reads_a_json_field_written_as_a_python_literal() {
-        let raw = "[[ ## ideas ## ]]\n{'score': 123_456.789}\n[[ ## completed ## ]]";
-        let value = parse_markers(&json_signature(), raw).expect("parses");
-        assert_eq!(value["ideas"], json!({ "score": 123_456.789 }));
-        assert_eq!(value["ideas"]["score"], json!(123456.789));
+        let signature = Signature::single_input(
+            "Score it.",
+            vec![OutField {
+                name: "scores".into(),
+                kind: FieldKind::opaque_json(),
+                schema: Some(
+                    json!({ "type": "object", "additionalProperties": { "type": "number" } }),
+                ),
+                ..Default::default()
+            }],
+        );
+        let raw = "[[ ## scores ## ]]\n{'score': 123_456.789}\n[[ ## completed ## ]]";
+        let value = parse_markers(&signature, raw).expect("parses");
+        assert_eq!(value["scores"], json!({ "score": 123_456.789 }));
+        assert_eq!(value["scores"]["score"], json!(123456.789));
     }
 
     #[test]
@@ -572,6 +537,44 @@ mod tests {
             "LM response cannot be serialized to a JSON object.\n\nAdapter JSONAdapter failed to \
              parse the LM response. \n\nLM Response: [1, 2] \n\nExpected to find output fields in \
              the LM response: [color, why] \n\n"
+        );
+    }
+}
+
+#[cfg(test)]
+mod code_sections {
+    use serde_json::json;
+
+    use super::section_value;
+    use crate::signature::{FieldKind, JsonType, OutField};
+
+    fn code_field(annotation: &str) -> OutField {
+        OutField {
+            name: "code".to_owned(),
+            kind: FieldKind::Json(JsonType::plain(annotation)),
+            ..OutField::default()
+        }
+    }
+
+    /// Recorded from `adapters/types/code.py`'s docstring example in dsrust-examples: dspy answers
+    /// the Java line as code, where json-repair alone answers `[1, 9]`.
+    #[test]
+    fn a_code_section_json_repair_misreads_stays_text() {
+        assert_eq!(
+            section_value(&code_field("Code_java"), "int[] a = {1, 9};"),
+            json!("int[] a = {1, 9};")
+        );
+        assert_eq!(
+            section_value(&code_field("Code"), "x = [1, 2]"),
+            json!("x = [1, 2]")
+        );
+    }
+
+    #[test]
+    fn a_code_mapping_is_still_read_as_one() {
+        assert_eq!(
+            section_value(&code_field("Code"), r#"{"code": "x = 1"}"#),
+            json!({ "code": "x = 1" })
         );
     }
 }

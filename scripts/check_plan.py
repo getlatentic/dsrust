@@ -10,6 +10,10 @@ under-reports reads as a to-do list with work still ahead of it, which is a clai
 as much as an over-report is.
 
 Run by the upstream runner before the suite, so a claim and its evidence cannot part company.
+
+`backlog.toml` is untracked — an internal working note that lives on a developer's machine and not
+in a clone — so this reports and passes where the file is absent rather than failing a checkout that
+was never meant to carry it. On the machine that has the plan, it is held exactly as before.
 """
 
 from __future__ import annotations
@@ -154,6 +158,9 @@ def complaints() -> list[str]:
 
 
 def main() -> None:
+    if not BACKLOG.exists():
+        print(f"  no {BACKLOG.name} in this checkout; the plan is untracked, so nothing to hold")
+        return
     found = complaints()
     for complaint in found:
         print(f"  {complaint}", file=sys.stderr)

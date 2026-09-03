@@ -36,6 +36,8 @@ DSPY = ROOT / "third_party" / "dspy" / "dspy"
 #: disjoint. That table replaced a parenthesis in this comment, which named the avatar and SIMBA
 #: optimizers as unported and went on saying so after SIMBA was ported.
 PORTED_MODULES = [
+    "retrievers/embeddings.py",
+    "clients/embedding.py",
     # adapters
     "adapters/base.py",
     "adapters/chat_adapter.py",
@@ -70,6 +72,7 @@ PORTED_MODULES = [
     "predict/program_of_thought.py",
     "predict/code_act.py",
     "predict/rlm.py",
+    "predict/knn.py",
     # dspy.Flex. The deterministic half is ported — the signature rendering, the baseline source,
     # the vendored guest shim — and the sandbox bridge is the todo row beside it.
     "predict/flex/flex.py",
@@ -92,6 +95,7 @@ PORTED_MODULES = [
     # teleprompt
     "teleprompt/teleprompt.py",
     "teleprompt/bootstrap.py",
+    "teleprompt/knn_fewshot.py",
     "teleprompt/vanilla.py",
     "teleprompt/copro_optimizer.py",
     "teleprompt/mipro_optimizer_v2.py",

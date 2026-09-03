@@ -139,6 +139,12 @@ pub trait CodeInterpreter: Send + Sync {
     /// feeds it back to the model as the error to correct, so it reaches a prompt and should read
     /// the way upstream's does.
     fn execute(&self, code: &str, variables: &Map<String, Value>) -> Result<Executed>;
+    /// dspy 3.3.1's `execution_instructions`: what this runtime is like, in the words `RLM`
+    /// prints under `Execution environment:`. Empty for an interpreter with nothing to say, which
+    /// is what dspy's `getattr(factory, "execution_instructions", "")` reads for one.
+    fn execution_instructions(&self) -> &str {
+        ""
+    }
 
     /// Make these tools callable from generated code, by the names they carry.
     ///

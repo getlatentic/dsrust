@@ -1,4 +1,4 @@
-# dspy 3.3.0: every test file upstream ships.
+# dspy 3.3.1: every test file upstream ships.
 tests/adapters/test_adapter_utils.py
 tests/adapters/test_audio.py
 tests/adapters/test_baml_adapter.py
@@ -14,6 +14,8 @@ tests/adapters/test_tool.py
 tests/adapters/test_two_step_adapter.py
 tests/adapters/test_xml_adapter.py
 tests/callback/test_callback.py
+tests/callback/test_interpreter_callback.py
+tests/callback/test_optimizer_callback.py
 tests/clients/test_cache.py
 tests/clients/test_databricks.py
 tests/clients/test_disk_serialization.py
@@ -52,6 +54,7 @@ tests/predict/test_refine.py
 tests/predict/test_retry.py
 tests/predict/test_rlm.py
 tests/primitives/test_base_module.py
+tests/primitives/test_code_interpreter.py
 tests/primitives/test_example.py
 tests/primitives/test_module.py
 tests/primitives/test_python_interpreter.py

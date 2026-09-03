@@ -1,7 +1,7 @@
 use anyhow::{Result, anyhow};
 use serde_json::{Map, Value, json};
 
-mod annotation;
+pub(crate) mod annotation;
 mod coerce;
 mod declared;
 mod edit;
@@ -10,6 +10,7 @@ mod field_type;
 mod identifier;
 mod inline;
 mod instructions;
+mod lax;
 mod parse;
 mod prefix;
 mod pydantic;
@@ -97,6 +98,12 @@ pub struct OutField {
 }
 
 impl OutField {
+    /// dspy's `annotation_allows_none` on this field: whether a reply may leave it out and have it
+    /// read as `None` — `Optional[T]`, `T | None`, or `None` itself.
+    pub fn allows_none(&self) -> bool {
+        annotation::allows_none(&self.annotation())
+    }
+
     /// The Python type prompts print for this field, a closed set standing in for the kind.
     pub fn annotation(&self) -> String {
         annotation_of(self.values.as_ref(), &self.kind)
@@ -105,7 +112,7 @@ impl OutField {
     /// The property this field contributes to [`Signature::schema`]: scalar kinds map to
     /// their type name plus any closed set; a `Json` field drops in its real nested schema
     /// so structured-output providers enforce the shape, or accepts anything without one.
-    fn property_schema(&self) -> Value {
+    pub(crate) fn property_schema(&self) -> Value {
         let Some(type_name) = self.kind.schema_type() else {
             return self.schema.clone().unwrap_or_else(|| json!({}));
         };
@@ -243,30 +250,12 @@ impl Signature {
         clause
     }
 
-    /// Coerce every declared output to its kind, before [`Self::ensure`] checks the reply.
-    /// The chat adapter always hands strings; JSON-mode models return native values or
-    /// strings depending on the provider, so both spellings parse the same way. A failure
-    /// reads as retry feedback the model can act on, like ensure's own errors. Missing
-    /// fields are skipped so ensure reports them as missing.
-    /// Coerce only the fields whose wire form this crate can read on its own.
-    ///
-    /// A scalar's is unambiguous: `int` means the text is a number or the reply is wrong, and an
-    /// adapter that casts while parsing can say so there. A structured field's is not — the text
-    /// may be JSON, or it may be the form its own type accepts, and dspy tells them apart by
-    /// handing the value to that Python type. This crate has no such type at parse time, so a
-    /// structured field is left for the caller's own typing to judge rather than guessed at.
-    pub(crate) fn coerce_scalars(&self, value: &mut Value) -> Result<()> {
-        for field in &self.outputs {
-            if matches!(field.kind, FieldKind::Json(_)) && field.values.is_none() {
-                continue;
-            }
-            if let Some(entry) = value.get_mut(&field.name) {
-                coerce_field(field, entry)?;
-            }
-        }
-        Ok(())
-    }
-
+    /// dspy's `parse_value` over every declared output: a scalar cast from its text, a `Literal`
+    /// held to its members, and a structured field's text read as JSON — unless its type holds a
+    /// string form, when the text is left for that type to read — and then its leaves cast by the
+    /// field's schema as pydantic casts them. Every adapter's `parse` runs this, so a value that
+    /// will not fit is a parse failure there, as it is upstream; `Predict` runs it again before
+    /// validation, which changes nothing a parse already settled.
     pub(crate) fn coerce(&self, value: &mut Value) -> Result<()> {
         for field in &self.outputs {
             if let Some(entry) = value.get_mut(&field.name) {
@@ -318,6 +307,12 @@ fn coerce_field(field: &OutField, value: &mut Value) -> Result<()> {
         // refusing it would refuse what upstream accepts.
         (FieldKind::Enum(_), _) => coerce_value(&field.kind, &field.name, value),
         (_, Some(values)) => coerce_literal(values, value),
+        (FieldKind::Json(_), None) => {
+            coerce_value(&field.kind, &field.name, value).and_then(|()| match value.is_string() {
+                true => Ok(()),
+                false => lax::cast(field, value),
+            })
+        }
         (_, None) => coerce_value(&field.kind, &field.name, value),
     };
     coerced.map_err(|error| {
@@ -691,16 +686,19 @@ mod tests {
                 json!({ "ideas": "```json\n[{\"title\": \"a\"}]\n```" }),
                 json!([{ "title": "a" }]),
             ),
-            (
-                json!({ "ideas": "```\n{\"title\": \"a\"}\n```" }),
-                json!({ "title": "a" }),
-            ),
         ] {
             let mut value = reply;
             sig.coerce(&mut value).expect("coerces");
             assert_eq!(value["ideas"], parsed);
             assert!(sig.ensure(&value).is_ok());
         }
+        // A shape the schema does not hold is refused as pydantic refuses it: `list[Idea]` given
+        // one idea is not a list of them, fenced or not.
+        let mut object = json!({ "ideas": "```\n{\"title\": \"a\"}\n```" });
+        let refusal = sig
+            .coerce(&mut object)
+            .expect_err("an object is not a list");
+        assert!(refusal.to_string().contains("must be a list"), "{refusal}");
     }
 
     #[test]

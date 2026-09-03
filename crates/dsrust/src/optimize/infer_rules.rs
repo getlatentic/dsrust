@@ -106,58 +106,67 @@ where
         trainset: &[Example],
         valset: Option<&[Example]>,
     ) -> Result<Vec<RuleCandidate>> {
-        let (trainset, valset) = match valset {
-            Some(valset) => (trainset, valset),
-            None => trainset.split_at(train_size(trainset.len())),
-        };
-        let mut bootstrap = BootstrapFewShot::new(crate::evaluate::MetricRef(&self.metric));
-        bootstrap.max_bootstrapped_demos = self.max_bootstrapped_demos;
-        bootstrap.max_labeled_demos = self.max_labeled_demos;
-        bootstrap.compile(student, trainset).await?;
+        crate::observe::compiling(
+            "InferRules",
+            self as *const Self as *const () as usize,
+            trainset,
+            valset,
+            async move {
+                let (trainset, valset) = match valset {
+                    Some(valset) => (trainset, valset),
+                    None => trainset.split_at(train_size(trainset.len())),
+                };
+                let mut bootstrap = BootstrapFewShot::new(crate::evaluate::MetricRef(&self.metric));
+                bootstrap.max_bootstrapped_demos = self.max_bootstrapped_demos;
+                bootstrap.max_labeled_demos = self.max_labeled_demos;
+                bootstrap.compile(student, trainset).await?;
 
-        let bootstrapped = student.dump_state();
-        let instructions: Vec<String> = student
-            .named_predictors()
-            .into_iter()
-            .map(|predictor| predictor.signature.instructions.clone())
-            .collect();
-        if instructions.is_empty() {
-            bail!("a program with no predictors has no instructions to add rules to");
-        }
-        // One generator for the whole compile, as upstream holds one on the induction program and
-        // reuses it across every candidate and every predictor.
-        let mut rng = Random::seeded(0);
-        // Upstream builds this itself, as a `ChainOfThought` over a signature whose docstring
-        // names the rule count. The model is the caller's, because dspy takes it from ambient
-        // settings and there is none here.
-        let mut induction =
-            ChainOfThought::from_signature(self.induction_signature()).set_lm(writing_rules);
+                let bootstrapped = student.dump_state();
+                let instructions: Vec<String> = student
+                    .named_predictors()
+                    .into_iter()
+                    .map(|predictor| predictor.signature.instructions.clone())
+                    .collect();
+                if instructions.is_empty() {
+                    bail!("a program with no predictors has no instructions to add rules to");
+                }
+                // One generator for the whole compile, as upstream holds one on the induction program and
+                // reuses it across every candidate and every predictor.
+                let mut rng = Random::seeded(0);
+                // Upstream builds this itself, as a `ChainOfThought` over a signature whose docstring
+                // names the rule count. The model is the caller's, because dspy takes it from ambient
+                // settings and there is none here.
+                let mut induction = ChainOfThought::from_signature(self.induction_signature())
+                    .set_lm(writing_rules);
 
-        let mut candidates = Vec::with_capacity(self.num_candidates);
-        let mut best: Option<(f64, ProgramState)> = None;
-        for _ in 0..self.num_candidates {
-            student.load_state(&bootstrapped)?;
-            let mut rules = Vec::with_capacity(instructions.len());
-            for (position, instruction) in instructions.iter().enumerate() {
-                let asked = self.examples_text(student, trainset, position);
-                let written = self.induce(&mut induction, &asked, &mut rng).await?;
-                let predictor = student.named_predictors().swap_remove(position);
-                // Appended to the *original* instruction rather than to whatever the last candidate
-                // left, which is what upstream's two resets amount to.
-                predictor.signature.instructions = with_rules(instruction, &written);
-                rules.push(written);
-            }
-            let score = self.score(student, valset).await?;
-            if best.as_ref().is_none_or(|(seen, _)| score > *seen) {
-                best = Some((score, student.dump_state()));
-            }
-            candidates.push(RuleCandidate { rules, score });
-        }
-        match best {
-            Some((_, state)) => student.load_state(&state)?,
-            None => student.load_state(&bootstrapped)?,
-        }
-        Ok(candidates)
+                let mut candidates = Vec::with_capacity(self.num_candidates);
+                let mut best: Option<(f64, ProgramState)> = None;
+                for _ in 0..self.num_candidates {
+                    student.load_state(&bootstrapped)?;
+                    let mut rules = Vec::with_capacity(instructions.len());
+                    for (position, instruction) in instructions.iter().enumerate() {
+                        let asked = self.examples_text(student, trainset, position);
+                        let written = self.induce(&mut induction, &asked, &mut rng).await?;
+                        let predictor = student.named_predictors().swap_remove(position);
+                        // Appended to the *original* instruction rather than to whatever the last candidate
+                        // left, which is what upstream's two resets amount to.
+                        predictor.signature.instructions = with_rules(instruction, &written);
+                        rules.push(written);
+                    }
+                    let score = self.score(student, valset).await?;
+                    if best.as_ref().is_none_or(|(seen, _)| score > *seen) {
+                        best = Some((score, student.dump_state()));
+                    }
+                    candidates.push(RuleCandidate { rules, score });
+                }
+                match best {
+                    Some((_, state)) => student.load_state(&state)?,
+                    None => student.load_state(&bootstrapped)?,
+                }
+                Ok(candidates)
+            },
+        )
+        .await
     }
 
     /// dspy `format_examples` over `get_predictor_demos`: every trainset row, narrowed to the

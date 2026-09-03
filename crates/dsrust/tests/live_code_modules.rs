@@ -34,6 +34,7 @@
 //!   provider parses for tool calls cannot be used to *write* code through it. That message is only
 //!   legible because the ollama client surfaces the body.
 
+#![allow(deprecated)]
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 

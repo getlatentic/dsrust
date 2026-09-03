@@ -37,6 +37,30 @@ pub enum Reflective {
     List(Vec<Reflective>),
 }
 
+impl Reflective {
+    /// This value as JSON: text as a string, a map as an object in its recorded order, a list as
+    /// an array.
+    ///
+    /// What a caller's own proposer needs. dspy hands `propose_new_texts` plain dicts and lists, and
+    /// a proposer built from a module — the GEPA advanced page's `RAGInstructionImprover` — passes
+    /// them straight into a signature field. This is the same data in the same shape; the order of
+    /// a map's keys is the order dspy renders them in, and is kept.
+    pub fn to_value(&self) -> serde_json::Value {
+        match self {
+            Reflective::Text(text) => serde_json::Value::String(text.clone()),
+            Reflective::Map(entries) => serde_json::Value::Object(
+                entries
+                    .iter()
+                    .map(|(name, value)| (name.clone(), value.to_value()))
+                    .collect(),
+            ),
+            Reflective::List(items) => {
+                serde_json::Value::Array(items.iter().map(Reflective::to_value).collect())
+            }
+        }
+    }
+}
+
 /// One reflective example: an ordered map of section name to value (dspy's `{Inputs, Generated
 /// Outputs, Feedback}`), rendered as a `# Example N` block.
 pub type ReflectiveSample = Vec<(String, Reflective)>;

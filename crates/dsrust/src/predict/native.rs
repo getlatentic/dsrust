@@ -125,16 +125,26 @@ impl<S> Predict<S> {
         }
 
         let text = reply.response.first_text();
-        let mut value = match !text.is_empty() && !reply.rendered.outputs.is_empty() {
+        let value = match !text.is_empty() && !reply.rendered.outputs.is_empty() {
             true => self
                 .adapter
                 .parse(&reply.rendered, &text)
                 .unwrap_or_else(|_| Value::Object(Map::new())),
             false => Value::Object(Map::new()),
         };
-        let object = value
-            .as_object_mut()
+        let parsed = value
+            .as_object()
+            .cloned()
             .ok_or_else(|| anyhow!("a parsed reply is an object"))?;
+        // dspy 3.3.1: the defaults every adapter applies first, which puts what parsed in
+        // signature order and reads a nullable field the model left out as `None`; then every
+        // field still missing — the ones removed for a native feature — is set to `None` after
+        // them, which is upstream's `setdefault` loop.
+        let mut value = Value::Object(crate::adapter::parse::apply_output_field_defaults(
+            &self.signature,
+            parsed,
+        ));
+        let object = value.as_object_mut().expect("built as an object");
         for field in &self.signature.outputs {
             object.entry(field.name.clone()).or_insert(Value::Null);
         }

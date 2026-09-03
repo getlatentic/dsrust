@@ -4,6 +4,7 @@
 //! generate, re-generate or answer, and this decides *what each of those asks look like*. dspy
 //! keeps both in one file, which is a fact about Python's file sizes rather than about the code.
 
+#![allow(deprecated)]
 use crate::signature::{FieldKind, InField, OutField, Signature};
 
 use super::Mode;
@@ -115,6 +116,9 @@ fn backticked<'a>(names: impl Iterator<Item = &'a str>) -> String {
 /// macro does; the declared form carries its doc comment as the signature's instructions.
 /// `max_iters = N` caps the loop.
 #[macro_export]
+#[deprecated(
+    note = "ProgramOfThought is deprecated and will be removed in 3.5. RLM is the preferred replacement."
+)]
 macro_rules! ProgramOfThought {
     ($signature:literal $(,)?) => {
         $crate::ProgramOfThought::new($crate::make_signature!($signature))

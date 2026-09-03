@@ -39,6 +39,8 @@ mod call;
 mod capabilities;
 mod dispatch;
 pub mod dummy;
+pub mod dummy_vectorizer;
+pub mod embedding;
 mod error;
 pub mod global;
 mod model;

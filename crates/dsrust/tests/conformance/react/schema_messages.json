@@ -1,0 +1,1207 @@
+{
+  "source": "generated from jsonschema==4.26.0 via scripts/generate_schema_message_fixture.py",
+  "jsonschema_version": "4.26.0",
+  "cases": [
+    {
+      "label": "string_given_int",
+      "schema": {
+        "type": "string"
+      },
+      "instance": 3,
+      "message": "3 is not of type 'string'",
+      "rust_type": "String"
+    },
+    {
+      "label": "bool_given_string",
+      "schema": {
+        "type": "boolean"
+      },
+      "instance": "true",
+      "message": "'true' is not of type 'boolean'",
+      "rust_type": "bool"
+    },
+    {
+      "label": "number_given_string",
+      "schema": {
+        "type": "number"
+      },
+      "instance": "1.5",
+      "message": "'1.5' is not of type 'number'",
+      "rust_type": "f64"
+    },
+    {
+      "label": "integer_given_string",
+      "schema": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "instance": "three",
+      "message": "'three' is not of type 'integer'",
+      "rust_type": "u32"
+    },
+    {
+      "label": "integer_given_null",
+      "schema": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "instance": null,
+      "message": "None is not of type 'integer'",
+      "rust_type": "u32"
+    },
+    {
+      "label": "integer_given_bool",
+      "schema": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "instance": true,
+      "message": "True is not of type 'integer'",
+      "rust_type": "u32"
+    },
+    {
+      "label": "integer_given_fraction",
+      "schema": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "instance": 3.5,
+      "message": "3.5 is not of type 'integer'",
+      "rust_type": "u32"
+    },
+    {
+      "label": "integer_given_integral_float",
+      "schema": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "instance": 3.0,
+      "message": null,
+      "rust_type": "u32"
+    },
+    {
+      "label": "integer_below_minimum",
+      "schema": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "instance": -1,
+      "message": "-1 is less than the minimum of 0",
+      "rust_type": "u32"
+    },
+    {
+      "label": "integer_above_maximum",
+      "schema": {
+        "maximum": 255,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "instance": 300,
+      "message": "300 is greater than the maximum of 255",
+      "rust_type": "u8"
+    },
+    {
+      "label": "integer_valid",
+      "schema": {
+        "maximum": 255,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "instance": 7,
+      "message": null,
+      "rust_type": "u8"
+    },
+    {
+      "label": "option_given_string",
+      "schema": {
+        "anyOf": [
+          {
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "instance": "x",
+      "message": "'x' is not valid under any of the given schemas",
+      "rust_type": "Option<u32>"
+    },
+    {
+      "label": "option_given_negative",
+      "schema": {
+        "anyOf": [
+          {
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "instance": -1,
+      "message": "-1 is less than the minimum of 0",
+      "rust_type": "Option<u32>"
+    },
+    {
+      "label": "option_given_null",
+      "schema": {
+        "anyOf": [
+          {
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "instance": null,
+      "message": null,
+      "rust_type": "Option<u32>"
+    },
+    {
+      "label": "array_given_object",
+      "schema": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "instance": {
+        "a": 1
+      },
+      "message": "{'a': 1} is not of type 'array'",
+      "rust_type": "Vec<String>"
+    },
+    {
+      "label": "array_item_wrong",
+      "schema": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "instance": [
+        "a",
+        2,
+        "c"
+      ],
+      "message": "2 is not of type 'string'",
+      "rust_type": "Vec<String>"
+    },
+    {
+      "label": "array_two_items_wrong",
+      "schema": {
+        "items": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "type": "array"
+      },
+      "instance": [
+        1,
+        "a",
+        -1
+      ],
+      "message": "-1 is less than the minimum of 0",
+      "rust_type": "Vec<u32>"
+    },
+    {
+      "label": "object_missing_required",
+      "schema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "count": {
+            "maximum": 255,
+            "minimum": 0,
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "count"
+        ],
+        "title": "Inner",
+        "type": "object"
+      },
+      "instance": {
+        "count": 1
+      },
+      "message": "'name' is a required property",
+      "rust_type": "Inner"
+    },
+    {
+      "label": "object_missing_and_wrong",
+      "schema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "count": {
+            "maximum": 255,
+            "minimum": 0,
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "count"
+        ],
+        "title": "Inner",
+        "type": "object"
+      },
+      "instance": {
+        "count": 300
+      },
+      "message": "'name' is a required property",
+      "rust_type": "Inner"
+    },
+    {
+      "label": "object_field_wrong",
+      "schema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "count": {
+            "maximum": 255,
+            "minimum": 0,
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "count"
+        ],
+        "title": "Inner",
+        "type": "object"
+      },
+      "instance": {
+        "name": "a",
+        "count": "x"
+      },
+      "message": "'x' is not of type 'integer'",
+      "rust_type": "Inner"
+    },
+    {
+      "label": "object_two_fields_wrong",
+      "schema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "count": {
+            "maximum": 255,
+            "minimum": 0,
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "count"
+        ],
+        "title": "Inner",
+        "type": "object"
+      },
+      "instance": {
+        "name": 1,
+        "count": "x"
+      },
+      "message": "1 is not of type 'string'",
+      "rust_type": "Inner"
+    },
+    {
+      "label": "object_valid",
+      "schema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "count": {
+            "maximum": 255,
+            "minimum": 0,
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "count"
+        ],
+        "title": "Inner",
+        "type": "object"
+      },
+      "instance": {
+        "name": "a",
+        "count": 1
+      },
+      "message": null,
+      "rust_type": "Inner"
+    },
+    {
+      "label": "nested_item_missing_field",
+      "schema": {
+        "items": {
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string"
+            },
+            "count": {
+              "maximum": 255,
+              "minimum": 0,
+              "title": "Count",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "name",
+            "count"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "instance": [
+        {
+          "name": "a",
+          "count": 1
+        },
+        {
+          "name": "b"
+        }
+      ],
+      "message": "'count' is a required property",
+      "rust_type": "Vec<Inner>"
+    },
+    {
+      "label": "option_object_wrong_field",
+      "schema": {
+        "anyOf": [
+          {
+            "properties": {
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "count": {
+                "maximum": 255,
+                "minimum": 0,
+                "title": "Count",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "count"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "instance": {
+        "name": "a",
+        "count": "x"
+      },
+      "message": "'x' is not of type 'integer'",
+      "rust_type": "Option<Inner>"
+    },
+    {
+      "label": "option_object_missing_field",
+      "schema": {
+        "anyOf": [
+          {
+            "properties": {
+              "name": {
+                "title": "Name",
+                "type": "string"
+              },
+              "count": {
+                "maximum": 255,
+                "minimum": 0,
+                "title": "Count",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "count"
+            ],
+            "type": "object"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "instance": {
+        "count": 1
+      },
+      "message": "'name' is a required property",
+      "rust_type": "Option<Inner>"
+    },
+    {
+      "label": "enum_not_a_member",
+      "schema": {
+        "enum": [
+          "Red",
+          "Green"
+        ],
+        "title": "Colour",
+        "type": "string"
+      },
+      "instance": "Blue",
+      "message": "'Blue' is not one of ['Red', 'Green']",
+      "rust_type": "Colour"
+    },
+    {
+      "label": "enum_wrong_type",
+      "schema": {
+        "enum": [
+          "Red",
+          "Green"
+        ],
+        "title": "Colour",
+        "type": "string"
+      },
+      "instance": 1,
+      "message": "1 is not one of ['Red', 'Green']",
+      "rust_type": "Colour"
+    },
+    {
+      "label": "one_of_neither",
+      "schema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "Circle": {
+                "properties": {
+                  "radius": {
+                    "title": "Radius",
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "radius"
+                ],
+                "title": "Circle",
+                "type": "object"
+              }
+            },
+            "required": [
+              "Circle"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "Square": {
+                "minimum": 0,
+                "title": "Square",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "Square"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "instance": {
+        "Triangle": 1
+      },
+      "message": "{'Triangle': 1} is not valid under any of the given schemas",
+      "rust_type": "Shape"
+    },
+    {
+      "label": "one_of_inner_missing",
+      "schema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "Circle": {
+                "properties": {
+                  "radius": {
+                    "title": "Radius",
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "radius"
+                ],
+                "title": "Circle",
+                "type": "object"
+              }
+            },
+            "required": [
+              "Circle"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "Square": {
+                "minimum": 0,
+                "title": "Square",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "Square"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "instance": {
+        "Circle": {}
+      },
+      "message": "'radius' is a required property",
+      "rust_type": "Shape"
+    },
+    {
+      "label": "one_of_valid",
+      "schema": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "Circle": {
+                "properties": {
+                  "radius": {
+                    "title": "Radius",
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "radius"
+                ],
+                "title": "Circle",
+                "type": "object"
+              }
+            },
+            "required": [
+              "Circle"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "Square": {
+                "minimum": 0,
+                "title": "Square",
+                "type": "integer"
+              }
+            },
+            "required": [
+              "Square"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "instance": {
+        "Square": 2
+      },
+      "message": null,
+      "rust_type": "Shape"
+    },
+    {
+      "label": "tuple_too_short",
+      "schema": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "type": "array"
+      },
+      "instance": [
+        1
+      ],
+      "message": "[1] is too short",
+      "rust_type": "(u32, String)"
+    },
+    {
+      "label": "tuple_too_long",
+      "schema": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "type": "array"
+      },
+      "instance": [
+        1,
+        "a",
+        2
+      ],
+      "message": "[1, 'a', 2] is too long",
+      "rust_type": "(u32, String)"
+    },
+    {
+      "label": "tuple_both_wrong",
+      "schema": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "minimum": 0,
+            "type": "integer"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "type": "array"
+      },
+      "instance": [
+        "a",
+        1
+      ],
+      "message": "1 is not of type 'string'",
+      "rust_type": "(u32, String)"
+    },
+    {
+      "label": "map_value_wrong",
+      "schema": {
+        "additionalProperties": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "type": "object"
+      },
+      "instance": {
+        "a": "x"
+      },
+      "message": "'x' is not of type 'integer'",
+      "rust_type": "HashMap<String, u32>"
+    },
+    {
+      "label": "map_two_values_wrong",
+      "schema": {
+        "additionalProperties": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "type": "object"
+      },
+      "instance": {
+        "b": "x",
+        "a": -1
+      },
+      "message": "'x' is not of type 'integer'",
+      "rust_type": "HashMap<String, u32>"
+    },
+    {
+      "label": "const_wrong",
+      "schema": {
+        "const": "fixed"
+      },
+      "instance": "other",
+      "message": "'fixed' was expected"
+    },
+    {
+      "label": "const_bool_vs_int",
+      "schema": {
+        "const": 1
+      },
+      "instance": true,
+      "message": "1 was expected"
+    },
+    {
+      "label": "enum_bool_vs_int",
+      "schema": {
+        "enum": [
+          0,
+          1
+        ]
+      },
+      "instance": false,
+      "message": "False is not one of [0, 1]"
+    },
+    {
+      "label": "enum_int_vs_float",
+      "schema": {
+        "enum": [
+          1,
+          2
+        ]
+      },
+      "instance": 2.0,
+      "message": null
+    },
+    {
+      "label": "multiple_of_int",
+      "schema": {
+        "multipleOf": 3
+      },
+      "instance": 7,
+      "message": "7 is not a multiple of 3"
+    },
+    {
+      "label": "multiple_of_float",
+      "schema": {
+        "multipleOf": 0.5
+      },
+      "instance": 0.75,
+      "message": "0.75 is not a multiple of 0.5"
+    },
+    {
+      "label": "exclusive_minimum",
+      "schema": {
+        "exclusiveMinimum": 0
+      },
+      "instance": 0,
+      "message": "0 is less than or equal to the minimum of 0"
+    },
+    {
+      "label": "exclusive_maximum",
+      "schema": {
+        "exclusiveMaximum": 10
+      },
+      "instance": 10.5,
+      "message": "10.5 is greater than or equal to the maximum of 10"
+    },
+    {
+      "label": "min_length_one",
+      "schema": {
+        "minLength": 1
+      },
+      "instance": "",
+      "message": "'' should be non-empty"
+    },
+    {
+      "label": "min_length_more",
+      "schema": {
+        "minLength": 3
+      },
+      "instance": "ab",
+      "message": "'ab' is too short"
+    },
+    {
+      "label": "max_length_zero",
+      "schema": {
+        "maxLength": 0
+      },
+      "instance": "a",
+      "message": "'a' is expected to be empty"
+    },
+    {
+      "label": "max_length_more",
+      "schema": {
+        "maxLength": 2
+      },
+      "instance": "abc",
+      "message": "'abc' is too long"
+    },
+    {
+      "label": "min_items_one",
+      "schema": {
+        "minItems": 1
+      },
+      "instance": [],
+      "message": "[] should be non-empty"
+    },
+    {
+      "label": "max_items_zero",
+      "schema": {
+        "maxItems": 0
+      },
+      "instance": [
+        1
+      ],
+      "message": "[1] is expected to be empty"
+    },
+    {
+      "label": "unique_items",
+      "schema": {
+        "uniqueItems": true
+      },
+      "instance": [
+        1,
+        2,
+        1
+      ],
+      "message": "[1, 2, 1] has non-unique elements"
+    },
+    {
+      "label": "unique_items_bool_vs_int",
+      "schema": {
+        "uniqueItems": true
+      },
+      "instance": [
+        1,
+        true
+      ],
+      "message": null
+    },
+    {
+      "label": "pattern",
+      "schema": {
+        "pattern": "^[a-z]+$"
+      },
+      "instance": "ABC",
+      "message": "'ABC' does not match '^[a-z]+$'"
+    },
+    {
+      "label": "items_false",
+      "schema": {
+        "prefixItems": [
+          {
+            "type": "integer"
+          }
+        ],
+        "items": false
+      },
+      "instance": [
+        1,
+        2,
+        3
+      ],
+      "message": "Expected at most 1 item but found 2 extra: [2, 3]"
+    },
+    {
+      "label": "items_false_one_extra",
+      "schema": {
+        "prefixItems": [
+          {
+            "type": "integer"
+          }
+        ],
+        "items": false
+      },
+      "instance": [
+        1,
+        "x"
+      ],
+      "message": "Expected at most 1 item but found 1 extra: 'x'"
+    },
+    {
+      "label": "additional_false",
+      "schema": {
+        "properties": {
+          "a": {}
+        },
+        "additionalProperties": false
+      },
+      "instance": {
+        "a": 1,
+        "c": 2,
+        "b": 3
+      },
+      "message": "Additional properties are not allowed ('b', 'c' were unexpected)"
+    },
+    {
+      "label": "additional_false_one",
+      "schema": {
+        "properties": {
+          "a": {}
+        },
+        "additionalProperties": false
+      },
+      "instance": {
+        "a": 1,
+        "z": 2
+      },
+      "message": "Additional properties are not allowed ('z' was unexpected)"
+    },
+    {
+      "label": "additional_with_patterns",
+      "schema": {
+        "patternProperties": {
+          "^x": {}
+        },
+        "additionalProperties": false
+      },
+      "instance": {
+        "xa": 1,
+        "b": 2
+      },
+      "message": "'b' does not match any of the regexes: '^x'"
+    },
+    {
+      "label": "pattern_property_wrong",
+      "schema": {
+        "patternProperties": {
+          "^x": {
+            "type": "integer"
+          }
+        }
+      },
+      "instance": {
+        "xa": "s"
+      },
+      "message": "'s' is not of type 'integer'"
+    },
+    {
+      "label": "property_names",
+      "schema": {
+        "propertyNames": {
+          "maxLength": 1
+        }
+      },
+      "instance": {
+        "ab": 1
+      },
+      "message": "'ab' is too long"
+    },
+    {
+      "label": "min_properties",
+      "schema": {
+        "minProperties": 1
+      },
+      "instance": {},
+      "message": "{} should be non-empty"
+    },
+    {
+      "label": "min_properties_more",
+      "schema": {
+        "minProperties": 2
+      },
+      "instance": {
+        "a": 1
+      },
+      "message": "{'a': 1} does not have enough properties"
+    },
+    {
+      "label": "max_properties_zero",
+      "schema": {
+        "maxProperties": 0
+      },
+      "instance": {
+        "a": 1
+      },
+      "message": "{'a': 1} is expected to be empty"
+    },
+    {
+      "label": "max_properties_more",
+      "schema": {
+        "maxProperties": 1
+      },
+      "instance": {
+        "a": 1,
+        "b": 2
+      },
+      "message": "{'a': 1, 'b': 2} has too many properties"
+    },
+    {
+      "label": "dependent_required",
+      "schema": {
+        "dependentRequired": {
+          "a": [
+            "b",
+            "c"
+          ]
+        }
+      },
+      "instance": {
+        "a": 1
+      },
+      "message": "'b' is a dependency of 'a'"
+    },
+    {
+      "label": "dependent_schemas",
+      "schema": {
+        "dependentSchemas": {
+          "a": {
+            "required": [
+              "b"
+            ]
+          }
+        }
+      },
+      "instance": {
+        "a": 1
+      },
+      "message": "'b' is a required property"
+    },
+    {
+      "label": "all_of",
+      "schema": {
+        "allOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "minimum": 5
+          }
+        ]
+      },
+      "instance": 2,
+      "message": "2 is less than the minimum of 5"
+    },
+    {
+      "label": "not",
+      "schema": {
+        "not": {
+          "type": "string"
+        }
+      },
+      "instance": "s",
+      "message": "'s' should not be valid under {'type': 'string'}"
+    },
+    {
+      "label": "if_then",
+      "schema": {
+        "if": {
+          "type": "integer"
+        },
+        "then": {
+          "minimum": 5
+        }
+      },
+      "instance": 2,
+      "message": "2 is less than the minimum of 5"
+    },
+    {
+      "label": "if_else",
+      "schema": {
+        "if": {
+          "type": "integer"
+        },
+        "else": {
+          "type": "null"
+        }
+      },
+      "instance": "s",
+      "message": "'s' is not of type 'null'"
+    },
+    {
+      "label": "contains_none",
+      "schema": {
+        "contains": {
+          "type": "string"
+        }
+      },
+      "instance": [
+        1,
+        2
+      ],
+      "message": "[1, 2] does not contain items matching the given schema"
+    },
+    {
+      "label": "contains_too_few",
+      "schema": {
+        "contains": {
+          "type": "string"
+        },
+        "minContains": 2
+      },
+      "instance": [
+        "a",
+        1
+      ],
+      "message": "Too few items match the given schema (expected at least 2 but only 1 matched)"
+    },
+    {
+      "label": "contains_too_many",
+      "schema": {
+        "contains": {
+          "type": "string"
+        },
+        "maxContains": 1
+      },
+      "instance": [
+        "a",
+        "b"
+      ],
+      "message": "Too many items match the given schema (expected at most 1)"
+    },
+    {
+      "label": "ref_to_defs",
+      "schema": {
+        "$defs": {
+          "n": {
+            "type": "integer"
+          }
+        },
+        "$ref": "#/$defs/n"
+      },
+      "instance": "s",
+      "message": "'s' is not of type 'integer'"
+    },
+    {
+      "label": "false_schema",
+      "schema": false,
+      "instance": 1,
+      "message": "False schema does not allow 1"
+    },
+    {
+      "label": "type_list",
+      "schema": {
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "instance": "s",
+      "message": "'s' is not of type 'integer', 'null'"
+    },
+    {
+      "label": "float_repr",
+      "schema": {
+        "maximum": 0.5
+      },
+      "instance": 1e+16,
+      "message": "1e+16 is greater than the maximum of 0.5"
+    },
+    {
+      "label": "nested_repr",
+      "schema": {
+        "enum": [
+          {
+            "a": [
+              1,
+              null,
+              true
+            ]
+          }
+        ]
+      },
+      "instance": {
+        "a": [
+          1.5,
+          "x"
+        ]
+      },
+      "message": "{'a': [1.5, 'x']} is not one of [{'a': [1, None, True]}]"
+    }
+  ]
+}

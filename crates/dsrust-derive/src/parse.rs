@@ -20,6 +20,8 @@ pub struct Field {
     pub kind: Kind,
     pub desc: String,
     pub values: Option<Vec<String>>,
+    /// dspy's `Code["java"]`: the language a `Code` field states, when it states one.
+    pub language: Option<String>,
 }
 
 /// The wire type a field maps to; mirrors the host crate's `FieldKind`.
@@ -123,13 +125,12 @@ fn signature_attribute(attrs: &[Attribute]) -> Result<Option<String>> {
 /// The same lines as [`doc_text`], for a tool rather than a signature.
 ///
 /// dspy normalises the two differently, so this crate has to as well: a signature's instructions
-/// are read back through `inspect.cleandoc`, and a tool's description is `func.__doc__` exactly as
-/// written. Running `cleandoc` over a doc comment would remove the indentation *the author wrote*,
-/// because a Rust doc comment carries no enclosing block's indent for it to find instead — where a
-/// Python docstring always does, and where removing it is the whole point.
-///
-/// So the only thing taken off is rustdoc's one space after `///`, which is the boundary Python
-/// spells `"""` and puts no character at.
+/// are read back through `inspect.cleandoc`, and a tool's description is `func.__doc__` as the
+/// interpreter stores it. Python 3.13 dedents a docstring at compile time — the indentation common
+/// to every non-blank line after the first comes off, deeper indentation stays, blank lines stay,
+/// and the newline a closing `"""` on its own line leaves is kept — and that is the shape the
+/// pinned dspy sends, held in `tests/conformance/react/tool_spec.json`. Rustdoc's one space after
+/// `///` is the boundary Python spells `"""`, so it is the only other thing taken off.
 pub(crate) fn tool_doc_text(attrs: &[Attribute]) -> String {
     let lines: Vec<String> = attrs
         .iter()
@@ -137,14 +138,30 @@ pub(crate) fn tool_doc_text(attrs: &[Attribute]) -> String {
         .filter_map(doc_line)
         .map(|line| line.strip_prefix(' ').unwrap_or(&line).to_owned())
         .collect();
-    let mut lines = lines;
-    while lines.last().is_some_and(String::is_empty) {
-        lines.pop();
+    let common = lines
+        .iter()
+        .skip(1)
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| line.len() - line.trim_start().len())
+        .min()
+        .unwrap_or(0);
+    let mut dedented: Vec<String> = lines
+        .iter()
+        .enumerate()
+        .map(|(at, line)| match at == 0 || line.trim().is_empty() {
+            true => line.trim_end().to_owned(),
+            false => line[common..].to_owned(),
+        })
+        .collect();
+    // The line rustdoc adds for a doc comment's final `///` is the newline the closing quotes
+    // leave; a docstring that ends on its text has none.
+    while dedented.len() > 1
+        && dedented[dedented.len() - 1].is_empty()
+        && dedented[dedented.len() - 2].is_empty()
+    {
+        dedented.pop();
     }
-    while lines.first().is_some_and(String::is_empty) {
-        lines.remove(0);
-    }
-    lines.join("\n")
+    dedented.join("\n")
 }
 
 pub(crate) fn doc_text(attrs: &[Attribute]) -> String {
@@ -254,6 +271,7 @@ fn parse_field(field: &syn::Field) -> Result<(Field, Direction)> {
     let MarkerBody {
         desc,
         values,
+        language,
         constraints,
     } = marker_body(marker)?;
     // A closed set constrains a string, or each element of a list of them — dspy's `Literal[...]`
@@ -280,6 +298,8 @@ fn parse_field(field: &syn::Field) -> Result<(Field, Direction)> {
             desc,
             values,
             constraints,
+
+            language,
         },
         direction,
     ))
@@ -290,6 +310,8 @@ fn parse_field(field: &syn::Field) -> Result<(Field, Direction)> {
 struct MarkerBody {
     desc: Option<String>,
     values: Option<Vec<String>>,
+    /// `language = "java"` on a `Code` field: dspy's `Code["java"]`, a distinct type per language.
+    language: Option<String>,
     /// The bounds, already in the prose dspy prints. See [`crate::constraints`].
     constraints: Option<String>,
 }
@@ -301,6 +323,7 @@ struct MarkerBody {
 fn marker_body(attr: &Attribute) -> Result<MarkerBody> {
     let mut desc = None;
     let mut values = None;
+    let mut language = None;
     let mut clauses: Vec<String> = Vec::new();
     if matches!(attr.meta, syn::Meta::Path(_)) {
         return Ok(MarkerBody::default());
@@ -320,6 +343,10 @@ fn marker_body(attr: &Attribute) -> Result<MarkerBody> {
             let lit: LitStr = meta.value()?.parse()?;
             desc = Some(lit.value());
             Ok(())
+        } else if meta.path.is_ident("language") {
+            let lit: LitStr = meta.value()?.parse()?;
+            language = Some(lit.value());
+            Ok(())
         } else if meta.path.is_ident("values") {
             let content;
             syn::parenthesized!(content in meta.input);
@@ -331,14 +358,15 @@ fn marker_body(attr: &Attribute) -> Result<MarkerBody> {
             Ok(())
         } else {
             Err(meta.error(
-                "unknown key; expected desc = \"...\", values(...), or a constraint \
-                 (gt, ge, lt, le, min_length, max_length, multiple_of, allow_inf_nan)",
+                "unknown key; expected desc = \"...\", values(...), language = \"...\", or a \
+                 constraint (gt, ge, lt, le, min_length, max_length, multiple_of, allow_inf_nan)",
             ))
         }
     })?;
     Ok(MarkerBody {
         desc,
         values,
+        language,
         constraints: crate::constraints::joined(&clauses),
     })
 }

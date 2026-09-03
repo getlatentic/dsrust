@@ -330,6 +330,11 @@ mod tests {
         // A budget of two entries, measured rather than guessed. A magic byte count would be
         // tuned to whatever `LmResponse` happened to serialize to that week, and would fail the
         // day a field was added to it — which is exactly what happened when `LmUsage` grew.
+        //
+        // Three replies of one length, so two entries' worth is exactly two of them: replies of
+        // *different* lengths leave the budget a byte short of holding two, the prune drops a
+        // second entry, and which one it takes is decided by the mtime tie below. That failed on
+        // one Linux runner and passed everywhere else.
         let measuring = Scratch::new("prune-measure");
         let sizer = DiskCache::new(&measuring.0, DEFAULT_SIZE_LIMIT);
         sizer.put("aa0000", &reply("first"));
@@ -337,15 +342,19 @@ mod tests {
 
         let cache = DiskCache::new(&scratch.0, budget);
 
+        // mtime has whole-second resolution on some filesystems, so without the waits the sort has
+        // no order to find and the test would pass or fail on how fast the machine is. Between
+        // *every* pair, not only the first: a tie among the survivors is as unordered as a tie
+        // with the entry being pruned.
         cache.put("aa0000", &reply("first"));
-        // mtime has whole-second resolution on some filesystems, so without this the sort has
-        // no order to find and the test would pass or fail on how fast the machine is.
         std::thread::sleep(std::time::Duration::from_millis(1100));
-        cache.put("bb1111", &reply("second"));
+        cache.put("bb1111", &reply("secnd"));
+        std::thread::sleep(std::time::Duration::from_millis(1100));
         cache.put("cc2222", &reply("third"));
 
         assert!(cache.size() <= budget, "pruned back inside the budget");
         assert_eq!(cache.get("aa0000"), None, "the oldest entry went first");
+        assert!(cache.get("bb1111").is_some(), "and only the oldest went");
         assert!(cache.get("cc2222").is_some(), "the newest survived");
     }
 

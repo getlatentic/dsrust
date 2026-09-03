@@ -74,10 +74,11 @@ fn resolve_refs(value: &Value, defs: &Value) -> Value {
     }
 }
 
-/// dspy's `_convert_mcp_tool_result`: an MCP `CallToolResult` — `{content: [...], isError}` on the
-/// wire — as the observation a tool hands back. A lone text block is its bare string; several are
-/// their list; content with no text is returned as it stands. An error result is an `Err` carrying
-/// the same message dspy raises.
+/// dspy's `_convert_mcp_tool_result` in its default `"text"` mode: an MCP `CallToolResult` —
+/// `{content: [...], isError}` on the wire, `is_error` under the v2 SDK's Python names — as the
+/// observation a tool hands back. A lone text block is its bare string; several are their list;
+/// content with no text is returned as it stands. An error result is an `Err` carrying the same
+/// message dspy raises.
 ///
 /// ```
 /// use dsrust::mcp_tool_result;
@@ -95,16 +96,100 @@ fn resolve_refs(value: &Value, defs: &Value) -> Value {
 /// assert!(mcp_tool_result(&failed).is_err());
 /// ```
 pub fn mcp_tool_result(result: &Value) -> Result<String> {
-    let content = result["content"]
+    let observation = text_observation(result);
+    match field(result, "is_error", "isError").and_then(Value::as_bool) {
+        Some(true) => Err(anyhow!("Failed to call a MCP tool: {observation}")),
+        _ => Ok(observation),
+    }
+}
+
+/// How a tool's result is read back — dspy 3.3.1's `result_mode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum McpResultMode {
+    /// The text conversion [`mcp_tool_result`] performs; the default, as upstream's.
+    #[default]
+    Text,
+    /// The result's structured content, exactly as the server sent it, whenever the server set
+    /// it — set to `null` included — and the text conversion otherwise.
+    Structured,
+}
+
+/// dspy's `_convert_mcp_tool_result` in either mode, and the *value* it answers with: a lone text
+/// block is its bare string, several are their list of strings, content with no text is the blocks
+/// as they arrived, and structured mode hands back structured content whenever the server set it —
+/// `null` included.
+///
+/// [`mcp_tool_result`] is the same reading rendered as one string, which is what a tool hands a
+/// model; this is what dspy's own function returns.
+///
+/// ```
+/// use dsrust::{McpResultMode, mcp_tool_result_in};
+///
+/// let result = serde_json::json!({
+///     "content": [{ "type": "text", "text": "{\"temp\": 22}" }],
+///     "structuredContent": { "temp": 22 },
+/// });
+/// assert_eq!(
+///     mcp_tool_result_in(&result, McpResultMode::Structured).unwrap(),
+///     serde_json::json!({ "temp": 22 })
+/// );
+/// assert_eq!(
+///     mcp_tool_result_in(&result, McpResultMode::Text).unwrap(),
+///     serde_json::json!("{\"temp\": 22}")
+/// );
+/// ```
+pub fn mcp_tool_result_in(result: &Value, mode: McpResultMode) -> Result<Value> {
+    if field(result, "is_error", "isError").and_then(Value::as_bool) == Some(true) {
+        return Err(anyhow!(
+            "Failed to call a MCP tool: {}",
+            text_observation(result)
+        ));
+    }
+    if mode == McpResultMode::Structured
+        && let Some(structured) = field(result, "structured_content", "structuredContent")
+    {
+        return Ok(structured.clone());
+    }
+    let content = blocks(result);
+    let texts: Vec<&Value> = content
+        .iter()
+        .filter(|item| item["type"] == "text")
+        .map(|item| &item["text"])
+        .collect();
+    Ok(match texts.as_slice() {
+        [only] => (*only).clone(),
+        [] => Value::Array(
+            content
+                .iter()
+                .filter(|item| item["type"] != "text")
+                .map(|item| (*item).clone())
+                .collect(),
+        ),
+        many => Value::Array(many.iter().map(|text| (*text).clone()).collect()),
+    })
+}
+
+/// A field under either of the names the Python SDK has given it: v2's snake case first, v1's
+/// camel case second, as dspy reads them.
+fn field<'a>(result: &'a Value, snake: &str, camel: &str) -> Option<&'a Value> {
+    result.get(snake).or_else(|| result.get(camel))
+}
+
+fn blocks(result: &Value) -> &[Value] {
+    result["content"]
         .as_array()
         .map(Vec::as_slice)
-        .unwrap_or_default();
+        .unwrap_or_default()
+}
+
+fn text_observation(result: &Value) -> String {
+    let content = blocks(result);
     let texts: Vec<&str> = content
         .iter()
         .filter(|item| item["type"] == "text")
         .filter_map(|item| item["text"].as_str())
         .collect();
-    let observation = match texts.as_slice() {
+    match texts.as_slice() {
         [only] => (*only).to_owned(),
         [] => {
             let non_text: Vec<&Value> = content
@@ -114,10 +199,6 @@ pub fn mcp_tool_result(result: &Value) -> Result<String> {
             serde_json::to_string(&non_text).unwrap_or_default()
         }
         many => serde_json::to_string(many).unwrap_or_default(),
-    };
-    match result["isError"].as_bool() {
-        Some(true) => Err(anyhow!("Failed to call a MCP tool: {observation}")),
-        _ => Ok(observation),
     }
 }
 
@@ -150,6 +231,33 @@ where
     FnTool::new(name, description, args, move |args| {
         mcp_tool_result(&transport(args)?)
     })
+}
+
+/// [`mcp_tool`] reading its results in `mode` — dspy 3.3.1's `Tool.from_mcp_tool(..., result_mode=)`.
+/// In `Structured` mode the observation is the structured content's JSON text when the server
+/// set it, so a model reads the object the server meant rather than its text rendering.
+pub fn mcp_tool_in<N, D, T>(
+    name: N,
+    description: D,
+    input_schema: &Value,
+    mode: McpResultMode,
+    transport: T,
+) -> FnTool<impl Fn(&Value) -> Result<String> + Send + Sync + use<N, D, T>>
+where
+    N: Into<String>,
+    D: Into<String>,
+    T: Fn(&Value) -> Result<Value> + Send + Sync,
+{
+    let args = mcp_tool_args(input_schema);
+    FnTool::new(
+        name,
+        description,
+        args,
+        move |args| match mcp_tool_result_in(&transport(args)?, mode)? {
+            Value::String(text) => Ok(text),
+            structured => Ok(serde_json::to_string(&structured).unwrap_or_default()),
+        },
+    )
 }
 
 #[cfg(test)]
@@ -195,6 +303,81 @@ mod tests {
                 "{name}: our mcp_tool_args diverges from dspy's"
             );
         }
+    }
+
+    /// Every recorded case of `_convert_mcp_tool_result`, in both modes, against dspy 3.3.1 —
+    /// which is where the v2 SDK's snake-case names, the structured fallback and the error text
+    /// are all decided. Recorded by `scripts/generate_mcp_fixture.py` with the real `mcp` types,
+    /// because upstream tells a text block from a non-text one with `isinstance(TextContent)` and
+    /// a look-alike lands in the wrong arm.
+    #[test]
+    fn every_result_reads_as_dspys_does_in_both_modes() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/conformance/react/mcp_tool_args.json");
+        let fixture: Value =
+            serde_json::from_str(&std::fs::read_to_string(path).expect("fixture is readable"))
+                .expect("fixture is valid json");
+        let results = fixture["results"].as_array().expect("results");
+        assert!(!results.is_empty(), "the golden records no result cases");
+        for case in results {
+            let name = case["name"].as_str().expect("a case name");
+            for (mode, key) in [
+                (McpResultMode::Text, "text"),
+                (McpResultMode::Structured, "structured"),
+            ] {
+                let expected = &case[key];
+                let ours = mcp_tool_result_in(&case["result"], mode);
+                match expected["ok"].as_bool().expect("ok") {
+                    true => assert_eq!(
+                        ours.unwrap_or_else(|error| panic!(
+                            "{name} [{key}]: dspy read this, we refused it: {error}"
+                        )),
+                        expected["value"],
+                        "{name} [{key}]"
+                    ),
+                    false => assert_eq!(
+                        ours.expect_err("dspy refused this").to_string(),
+                        expected["error"].as_str().expect("an error"),
+                        "{name} [{key}]"
+                    ),
+                }
+            }
+        }
+    }
+
+    /// The same rules spelled out, so a fixture that stopped being regenerated cannot make the
+    /// test above vacuous: the v2 SDK's snake-case names read as v1's, and `"structured"` mode
+    /// hands back `structuredContent` whenever the server set it — `null` included — else the text.
+    #[test]
+    fn structured_mode_and_the_v2_field_names_read_as_dspy_reads_them() {
+        let both = json!({
+            "content": [{ "type": "text", "text": "{\"temp\": 22}" }],
+            "structured_content": { "temp": 22 },
+        });
+        assert_eq!(
+            mcp_tool_result_in(&both, McpResultMode::Structured).unwrap(),
+            json!({ "temp": 22 })
+        );
+        assert_eq!(
+            mcp_tool_result_in(&both, McpResultMode::Text).unwrap(),
+            json!("{\"temp\": 22}")
+        );
+        let null_set =
+            json!({ "content": [{ "type": "text", "text": "t" }], "structuredContent": null });
+        assert_eq!(
+            mcp_tool_result_in(&null_set, McpResultMode::Structured).unwrap(),
+            Value::Null
+        );
+        let unset = json!({ "content": [{ "type": "text", "text": "t" }] });
+        assert_eq!(
+            mcp_tool_result_in(&unset, McpResultMode::Structured).unwrap(),
+            json!("t")
+        );
+        let failed = json!({ "content": [{ "type": "text", "text": "boom" }], "is_error": true, "structured_content": { "x": 1 } });
+        assert!(
+            mcp_tool_result_in(&failed, McpResultMode::Structured).is_err(),
+            "an error is an error in either mode"
+        );
     }
 
     #[test]

@@ -1,0 +1,345 @@
+{
+  "version": "2",
+  "target": "dspy",
+  "settings": {
+    "projectName": "support_triage",
+    "defaultEntryNodeId": "start",
+    "description": "Triages a support ticket: classifies it, extracts the facts, and drafts a prioritised reply.",
+    "providerProfile": {
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "apiKeyEnvVar": "OPENAI_API_KEY"
+    }
+  },
+  "nodes": [
+    {
+      "id": "start",
+      "kind": "Start",
+      "label": "Start",
+      "position": {
+        "x": 0,
+        "y": 220
+      },
+      "config": {},
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "output",
+          "dataType": "control"
+        }
+      ]
+    },
+    {
+      "id": "input-ticket",
+      "kind": "InputField",
+      "label": "ticket",
+      "position": {
+        "x": 0,
+        "y": 360
+      },
+      "config": {
+        "name": "ticket",
+        "type": "str",
+        "defaultValue": "Subject: Charged twice this month. I upgraded to Pro on the 3rd and my card shows two charges. I already tried removing my card and re-adding it. Please fix and refund one charge."
+      },
+      "ports": [
+        {
+          "id": "value",
+          "label": "value",
+          "direction": "output",
+          "dataType": "field_value"
+        }
+      ]
+    },
+    {
+      "id": "classify",
+      "kind": "Predict",
+      "label": "Classify",
+      "position": {
+        "x": 260,
+        "y": 140
+      },
+      "config": {},
+      "signatureId": "sig-classify",
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "input",
+          "dataType": "control"
+        },
+        {
+          "id": "field_in",
+          "label": "field_in",
+          "direction": "input",
+          "dataType": "field_value"
+        },
+        {
+          "id": "field_out",
+          "label": "field_out",
+          "direction": "output",
+          "dataType": "field_value"
+        },
+        {
+          "id": "prediction",
+          "label": "prediction",
+          "direction": "output",
+          "dataType": "prediction"
+        }
+      ]
+    },
+    {
+      "id": "extract",
+      "kind": "Predict",
+      "label": "Extract facts",
+      "position": {
+        "x": 260,
+        "y": 420
+      },
+      "config": {},
+      "signatureId": "sig-extract",
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "input",
+          "dataType": "control"
+        },
+        {
+          "id": "field_in",
+          "label": "field_in",
+          "direction": "input",
+          "dataType": "field_value"
+        },
+        {
+          "id": "field_out",
+          "label": "field_out",
+          "direction": "output",
+          "dataType": "field_value"
+        },
+        {
+          "id": "prediction",
+          "label": "prediction",
+          "direction": "output",
+          "dataType": "prediction"
+        }
+      ]
+    },
+    {
+      "id": "compose",
+      "kind": "ChainOfThought",
+      "label": "Compose reply",
+      "position": {
+        "x": 560,
+        "y": 280
+      },
+      "config": {},
+      "signatureId": "sig-compose",
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "input",
+          "dataType": "control"
+        },
+        {
+          "id": "field_in",
+          "label": "field_in",
+          "direction": "input",
+          "dataType": "field_value"
+        },
+        {
+          "id": "field_out",
+          "label": "field_out",
+          "direction": "output",
+          "dataType": "field_value"
+        },
+        {
+          "id": "prediction",
+          "label": "prediction",
+          "direction": "output",
+          "dataType": "prediction"
+        }
+      ]
+    },
+    {
+      "id": "out-reply",
+      "kind": "OutputField",
+      "label": "reply",
+      "position": {
+        "x": 860,
+        "y": 200
+      },
+      "config": {
+        "name": "reply",
+        "type": "str"
+      },
+      "ports": [
+        {
+          "id": "value",
+          "label": "value",
+          "direction": "input",
+          "dataType": "field_value"
+        }
+      ]
+    },
+    {
+      "id": "out-priority",
+      "kind": "OutputField",
+      "label": "priority",
+      "position": {
+        "x": 860,
+        "y": 400
+      },
+      "config": {
+        "name": "priority",
+        "type": "str"
+      },
+      "ports": [
+        {
+          "id": "value",
+          "label": "value",
+          "direction": "input",
+          "dataType": "field_value"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "c1",
+      "edgeKind": "control",
+      "from": {
+        "nodeId": "start",
+        "portId": "control"
+      },
+      "to": {
+        "nodeId": "classify",
+        "portId": "control"
+      }
+    },
+    {
+      "id": "d1",
+      "edgeKind": "data",
+      "from": {
+        "nodeId": "input-ticket",
+        "portId": "value"
+      },
+      "to": {
+        "nodeId": "classify",
+        "portId": "field_in"
+      }
+    },
+    {
+      "id": "d2",
+      "edgeKind": "data",
+      "from": {
+        "nodeId": "input-ticket",
+        "portId": "value"
+      },
+      "to": {
+        "nodeId": "extract",
+        "portId": "field_in"
+      }
+    },
+    {
+      "id": "d3",
+      "edgeKind": "data",
+      "from": {
+        "nodeId": "classify",
+        "portId": "field_out",
+        "fieldName": "category"
+      },
+      "to": {
+        "nodeId": "compose",
+        "portId": "field_in",
+        "fieldName": "category",
+        "description": "The ticket's category, from the classifier."
+      }
+    },
+    {
+      "id": "d4",
+      "edgeKind": "data",
+      "from": {
+        "nodeId": "extract",
+        "portId": "field_out",
+        "fieldName": "key_points"
+      },
+      "to": {
+        "nodeId": "compose",
+        "portId": "field_in",
+        "fieldName": "key_points",
+        "description": "The concrete facts an agent needs, from the extractor."
+      }
+    },
+    {
+      "id": "d5",
+      "edgeKind": "data",
+      "from": {
+        "nodeId": "compose",
+        "portId": "field_out",
+        "fieldName": "reply"
+      },
+      "to": {
+        "nodeId": "out-reply",
+        "portId": "value"
+      }
+    },
+    {
+      "id": "d6",
+      "edgeKind": "data",
+      "from": {
+        "nodeId": "compose",
+        "portId": "field_out",
+        "fieldName": "priority"
+      },
+      "to": {
+        "nodeId": "out-priority",
+        "portId": "value"
+      }
+    }
+  ],
+  "signatures": [
+    {
+      "id": "sig-classify",
+      "name": "ClassifyTicket",
+      "docstring": "Classify the support ticket into exactly one of: billing, bug, how-to, feature-request. Answer with the category word only.",
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "id": "sig-extract",
+      "name": "ExtractFacts",
+      "docstring": "Pull out the concrete facts a support agent needs: the product area, any error or charge details, and what the user already tried. Short bullet-like phrases, no advice.",
+      "inputs": [],
+      "outputs": []
+    },
+    {
+      "id": "sig-compose",
+      "name": "ComposeReply",
+      "docstring": "Write a short, empathetic support reply that resolves the ticket: acknowledge the category, address every key point, and state the next step. Then set priority to exactly one of: low, normal, urgent.",
+      "inputs": [],
+      "outputs": []
+    }
+  ],
+  "scorers": [
+    {
+      "id": "scorer-judge",
+      "name": "Reply quality",
+      "description": "",
+      "mode": "judge",
+      "judgeCriteria": "The reply must address every key point, match the ticket's category, state a concrete next step, and stay under 120 words. The priority must be one of low/normal/urgent and fit the situation."
+    }
+  ],
+  "exampleSets": [],
+  "optimizers": [
+    {
+      "id": "opt-gepa",
+      "programNodeId": "compose",
+      "scorerId": "scorer-judge",
+      "strategy": "gepa"
+    }
+  ],
+  "tests": []
+}

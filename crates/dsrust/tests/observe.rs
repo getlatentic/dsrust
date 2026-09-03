@@ -383,7 +383,9 @@ fn a_refusing_tool_records_its_error() {
             "always_fails",
             "a tool that refuses",
             serde_json::json!({}),
-            |_: &serde_json::Value| anyhow::bail!("the service is down"),
+            |_: &serde_json::Value| -> anyhow::Result<String> {
+                anyhow::bail!("the service is down")
+            },
         ))];
         let agent =
             dsrust::ReAct!("question -> answer", tools, max_iters = 2).set_lm(scripted(vec![

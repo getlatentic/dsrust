@@ -1,5 +1,5 @@
 {
-  "source": "generated from dspy==3.3.0 via scripts/generate_inspect_history_fixture.py",
+  "source": "generated from dspy==3.3.1 via scripts/generate_inspect_history_fixture.py",
   "note": "`plain` is what upstream writes through its `file=` argument, which disables colour; `coloured` is the same call to stdout.",
   "cases": [
     {

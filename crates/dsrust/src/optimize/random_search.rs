@@ -200,81 +200,90 @@ where
         trainset: &[Example],
         valset: &[Example],
     ) -> Result<Vec<Attempt>> {
-        // dspy's own guard, before any attempt is made: a `restrict` naming no seed in range leaves
-        // nothing to evaluate, and the loop below would simply not run. Answering with an empty
-        // list would hand the caller back their unchanged student as though the search had been
-        // done and found nothing worth keeping — a typo'd seed and an exhausted search are not the
-        // same answer, and only one of them is the caller's mistake.
-        if let Some(only) = &self.restrict
-            && self.seeds().next().is_none()
-        {
-            bail!(
-                "`restrict` {only:?} does not match any candidate seed in \
+        crate::observe::compiling(
+            "BootstrapFewShotWithRandomSearch",
+            self as *const Self as *const () as usize,
+            trainset,
+            Some(valset),
+            async move {
+                // dspy's own guard, before any attempt is made: a `restrict` naming no seed in range leaves
+                // nothing to evaluate, and the loop below would simply not run. Answering with an empty
+                // list would hand the caller back their unchanged student as though the search had been
+                // done and found nothing worth keeping — a typo'd seed and an exhausted search are not the
+                // same answer, and only one of them is the caller's mistake.
+                if let Some(only) = &self.restrict
+                    && self.seeds().next().is_none()
+                {
+                    bail!(
+                        "`restrict` {only:?} does not match any candidate seed in \
                  -3..{}; no candidate programs would be evaluated.",
-                self.num_candidate_programs
-            );
-        }
-        // The state the student arrived in, so every attempt starts from the same program rather
-        // than from whatever the previous one left behind — dspy gets that from `reset_copy`.
-        let start = student.dump_state();
-        let mut attempts: Vec<Attempt> = Vec::new();
-
-        for seed in self.seeds() {
-            student.load_state(&start)?;
-            match seed {
-                // Zero-shot: the student as it came, with no demos at all.
-                -3 => {}
-                -2 => LabeledFewShot {
-                    sample: self.labeled_sample,
-                    ..LabeledFewShot::new(self.max_labeled_demos)
+                        self.num_candidate_programs
+                    );
                 }
-                .compile(student, trainset),
-                // The unshuffled bootstrap, asking for the full demo budget rather than a draw.
-                -1 => {
-                    self.bootstrap(self.max_bootstrapped_demos)
-                        .compile(student, trainset)
-                        .await?;
+                // The state the student arrived in, so every attempt starts from the same program rather
+                // than from whatever the previous one left behind — dspy gets that from `reset_copy`.
+                let start = student.dump_state();
+                let mut attempts: Vec<Attempt> = Vec::new();
+
+                for seed in self.seeds() {
+                    student.load_state(&start)?;
+                    match seed {
+                        // Zero-shot: the student as it came, with no demos at all.
+                        -3 => {}
+                        -2 => LabeledFewShot {
+                            sample: self.labeled_sample,
+                            ..LabeledFewShot::new(self.max_labeled_demos)
+                        }
+                        .compile(student, trainset),
+                        // The unshuffled bootstrap, asking for the full demo budget rather than a draw.
+                        -1 => {
+                            self.bootstrap(self.max_bootstrapped_demos)
+                                .compile(student, trainset)
+                                .await?;
+                        }
+                        _ => {
+                            let (shuffled, demos) = self.shuffled(seed, trainset);
+                            self.bootstrap(demos).compile(student, &shuffled).await?;
+                        }
+                    }
+
+                    let state = student.dump_state();
+                    let scored = self
+                        .scoring
+                        .apply(crate::evaluate::Evaluate::new(
+                            valset.to_vec(),
+                            |example| student.forward(example),
+                            crate::evaluate::MetricRef(&self.metric),
+                        ))
+                        .run()
+                        .await?
+                        .score;
+                    attempts.push(Attempt {
+                        seed,
+                        score: scored,
+                        state,
+                    });
+                    if self.stop_at_score.is_some_and(|bar| scored >= bar) {
+                        break;
+                    }
                 }
-                _ => {
-                    let (shuffled, demos) = self.shuffled(seed, trainset);
-                    self.bootstrap(demos).compile(student, &shuffled).await?;
+
+                if let Some((at, _)) = winner(&attempts) {
+                    student.load_state(&attempts[at].state)?;
                 }
-            }
 
-            let state = student.dump_state();
-            let scored = self
-                .scoring
-                .apply(crate::evaluate::Evaluate::new(
-                    valset.to_vec(),
-                    |example| student.forward(example),
-                    crate::evaluate::MetricRef(&self.metric),
-                ))
-                .run()
-                .await?
-                .score;
-            attempts.push(Attempt {
-                seed,
-                score: scored,
-                state,
-            });
-            if self.stop_at_score.is_some_and(|bar| scored >= bar) {
-                break;
-            }
-        }
-
-        if let Some((at, _)) = winner(&attempts) {
-            student.load_state(&attempts[at].state)?;
-        }
-
-        let mut ranked = attempts;
-        // dspy sorts by score descending; a stable sort keeps ties in the order they were tried.
-        ranked.sort_by(|left, right| {
-            right
-                .score
-                .partial_cmp(&left.score)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-        Ok(ranked)
+                let mut ranked = attempts;
+                // dspy sorts by score descending; a stable sort keeps ties in the order they were tried.
+                ranked.sort_by(|left, right| {
+                    right
+                        .score
+                        .partial_cmp(&left.score)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+                Ok(ranked)
+            },
+        )
+        .await
     }
 }
 

@@ -64,6 +64,7 @@ pub(crate) fn resolvable(annotation: &str) -> bool {
             .iter()
             .any(|member| !member.trim().is_empty()),
         Some((name, inside)) => {
+            let name = name.strip_prefix("typing.").unwrap_or(name);
             let parameters = super::parse::split_top_level(inside, ',');
             let arity = matches!(
                 (name, parameters.len()),
@@ -187,7 +188,7 @@ pub(crate) fn custom_type(annotation: &str) -> Option<&str> {
 }
 
 fn scalar(annotation: &str) -> Option<Value> {
-    match annotation {
+    match annotation.strip_prefix("typing.").unwrap_or(annotation) {
         "str" => Some(json!({ "type": "string" })),
         "int" => Some(json!({ "type": "integer" })),
         "float" => Some(json!({ "type": "number" })),
@@ -211,6 +212,7 @@ fn scalar(annotation: &str) -> Option<Value> {
 
 fn container(annotation: &str) -> Option<Value> {
     let (name, inside) = split_generic(annotation)?;
+    let name = name.strip_prefix("typing.").unwrap_or(name);
     let parameters = super::parse::split_top_level(inside, ',');
     let resolved: Option<Vec<Value>> = parameters.iter().map(|part| shaped(part)).collect();
     let resolved = resolved?;
@@ -264,6 +266,76 @@ fn split_generic(annotation: &str) -> Option<(&str, &str)> {
     Some((annotation[..open].trim(), inside))
 }
 
+/// dspy 3.3.1's `XMLAdapter._uses_nested_xml`, as far as the spelling decides it: a parametrised
+/// `list` or `dict` is nested — a `list` of one of dspy's own types is not — and a builtin, a
+/// `Literal`, a tuple, a set, a union of two types or one of dspy's own types is not. One `None`
+/// arm is looked through first, as upstream looks through it. A bare name that is none of these is
+/// a class the spelling cannot classify, and the answer is `None`: the field's schema decides.
+pub(crate) fn nested_xml_shape(annotation: &str) -> Option<bool> {
+    let annotation = annotation.trim();
+    let annotation = single_non_none_arm(annotation).unwrap_or(annotation);
+    if union_parts(annotation).is_some() {
+        return Some(false);
+    }
+    match split_generic(annotation) {
+        Some(("list" | "List" | "typing.List", item)) => Some(!is_dspy_type(item.trim())),
+        Some(("dict" | "Dict" | "typing.Dict", _)) => Some(true),
+        Some(_) => Some(false),
+        None if scalar(annotation).is_some() || is_dspy_type(annotation) => Some(false),
+        None => None,
+    }
+}
+
+/// The one arm of a union that is not `None`, however the union was spelled — `T | None`,
+/// `Optional[T]`, `Union[T, None]` — or nothing when there is not exactly one.
+fn single_non_none_arm(annotation: &str) -> Option<&str> {
+    let arms: Vec<&str> = match split_generic(annotation) {
+        Some(("Optional" | "typing.Optional" | "Union" | "typing.Union", inside)) => {
+            super::parse::split_top_level(inside, ',')
+        }
+        _ => union_parts(annotation)?,
+    };
+    let typed: Vec<&str> = arms
+        .iter()
+        .map(|arm| arm.trim())
+        .filter(|arm| !matches!(*arm, "None" | "NoneType"))
+        .collect();
+    match typed.as_slice() {
+        [only] => Some(only),
+        _ => None,
+    }
+}
+
+/// One of dspy's own types, named bare or through the module.
+pub(crate) fn is_dspy_type(annotation: &str) -> bool {
+    custom_type(annotation).is_some() || CUSTOM.contains(&annotation)
+}
+
+/// dspy's `annotation_allows_none`: `None` itself, `Optional[T]`, a union with a `None` arm, or an
+/// `Annotated[T, ...]` whose `T` does. Read off the spelling, as the crate reads every annotation.
+pub(crate) fn allows_none(annotation: &str) -> bool {
+    let annotation = annotation.trim();
+    if matches!(annotation, "None" | "NoneType" | "type(None)") {
+        return true;
+    }
+    let arms = super::parse::split_top_level(annotation, '|');
+    if arms.len() > 1 {
+        return arms.iter().any(|arm| allows_none(arm));
+    }
+    match split_generic(annotation) {
+        Some(("Optional" | "typing.Optional", _)) => true,
+        Some(("Union" | "typing.Union", inside)) => super::parse::split_top_level(inside, ',')
+            .iter()
+            .any(|arm| allows_none(arm)),
+        Some(("Annotated" | "typing.Annotated", inside)) => {
+            super::parse::split_top_level(inside, ',')
+                .first()
+                .is_some_and(|first| allows_none(first))
+        }
+        _ => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,6 +383,16 @@ mod tests {
                 "str | None",
                 r#"{"anyOf":[{"type":"string"},{"type":"null"}]}"#,
             ),
+            // `str(typing.Optional[int])`, which is how a reflected annotation spells itself, and
+            // upstream evaluates it against `typing` like the bare name.
+            (
+                "typing.Optional[int]",
+                r#"{"anyOf":[{"type":"integer"},{"type":"null"}]}"#,
+            ),
+            (
+                "typing.List[typing.Dict[str, int]]",
+                r#"{"type":"array","items":{"type":"object","additionalProperties":{"type":"integer"}}}"#,
+            ),
         ];
         for (annotation, expected) in cases {
             let schema = schema_for(annotation).unwrap_or_else(|| panic!("{annotation}"));
@@ -342,5 +424,53 @@ mod tests {
             "the bare name is a ValueError upstream"
         );
         assert_eq!(custom_type("dspy.Nonesuch"), None);
+    }
+
+    /// Measured on dspy 3.3.1 over each annotation the string form can spell.
+    #[test]
+    fn the_spelling_decides_nesting_where_it_can() {
+        for nested in [
+            "list[str]",
+            "dict[str, int]",
+            "dict[str, Any]",
+            "Optional[list[str]]",
+            "list[str] | None",
+            "Union[list[str], NoneType]",
+            "List[str]",
+            "Dict[str, int]",
+            "list[list[int]]",
+            "list[MyModel]",
+        ] {
+            assert_eq!(nested_xml_shape(nested), Some(true), "{nested}");
+        }
+        for text in [
+            "str",
+            "int",
+            "float",
+            "bool",
+            "list",
+            "dict",
+            "Any",
+            "tuple[int, int]",
+            "set[str]",
+            "Literal['a', 'b']",
+            "dspy.Image",
+            "Image",
+            "Code",
+            "ToolCalls",
+            "list[dspy.Image]",
+            "list[Image]",
+            "int | str",
+            "list[int] | dict[str, int]",
+            "Optional[int | str]",
+        ] {
+            assert_eq!(nested_xml_shape(text), Some(false), "{text}");
+        }
+        assert_eq!(
+            nested_xml_shape("MyModel"),
+            None,
+            "a bare class is the schema's to decide"
+        );
+        assert_eq!(nested_xml_shape("Optional[MyModel]"), None);
     }
 }

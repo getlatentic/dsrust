@@ -31,12 +31,17 @@ impl Progress for Reported {
 /// The decision, as one word a subscriber can match on without reading the sentence.
 fn decision(event: &Event<'_>) -> &'static str {
     match event {
+        Event::Selected { .. } => "selected",
         Event::Proposed { .. } => "proposed",
         Event::ProposedNothing { .. } => "proposed_nothing",
+        Event::NoTextUpdates { .. } => "no_text_updates",
         Event::NothingToLearnFrom { .. } => "nothing_to_learn_from",
         Event::NoTrajectories { .. } => "no_trajectories",
+        Event::ReflectiveDatasetFailed { .. } => "reflective_dataset_failed",
+        Event::BatchedReflectionFailed { .. } => "batched_reflection_failed",
         Event::ReflectionFailed { .. } => "reflection_failed",
         Event::Rejected { .. } => "rejected",
+        Event::AcceptedOnMinibatch { .. } => "accepted_on_minibatch",
         Event::Accepted { is_best: true, .. } => "accepted_best",
         Event::Accepted { .. } => "accepted",
         Event::Merged { .. } => "merged",

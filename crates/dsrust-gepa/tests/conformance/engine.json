@@ -1,10 +1,13 @@
 {
-  "source": "generated from gepa==0.1.1 via scripts/generate_gepa_engine_fixture.py",
-  "gepa_version": "0.1.1",
+  "source": "generated from gepa==0.1.4 via scripts/generate_gepa_engine_fixture.py",
+  "gepa_version": "0.1.4",
   "weight": 0.125,
   "cases": [
     {
       "label": "single_seed0",
+      "acceptance": "strict_improvement",
+      "selection": null,
+      "sampling": null,
       "components": [
         "instruction"
       ],
@@ -77,6 +80,9 @@
     },
     {
       "label": "single_small_budget",
+      "acceptance": "strict_improvement",
+      "selection": null,
+      "sampling": null,
       "components": [
         "instruction"
       ],
@@ -125,6 +131,9 @@
     },
     {
       "label": "skip_perfect",
+      "acceptance": "strict_improvement",
+      "selection": null,
+      "sampling": null,
       "components": [
         "instruction"
       ],
@@ -165,6 +174,9 @@
     },
     {
       "label": "two_components_seed1",
+      "acceptance": "strict_improvement",
+      "selection": null,
+      "sampling": null,
       "components": [
         "instr_a",
         "instr_b"
@@ -235,6 +247,9 @@
     },
     {
       "label": "two_components_seed5",
+      "acceptance": "strict_improvement",
+      "selection": null,
+      "sampling": null,
       "components": [
         "instr_a",
         "instr_b"
@@ -305,6 +320,9 @@
     },
     {
       "label": "merge_seed1",
+      "acceptance": "strict_improvement",
+      "selection": null,
+      "sampling": null,
       "components": [
         "a",
         "b"
@@ -467,6 +485,9 @@
     },
     {
       "label": "merge_seed3",
+      "acceptance": "strict_improvement",
+      "selection": null,
+      "sampling": null,
       "components": [
         "a",
         "b"
@@ -647,6 +668,9 @@
     },
     {
       "label": "merge_capped",
+      "acceptance": "strict_improvement",
+      "selection": null,
+      "sampling": null,
       "components": [
         "a",
         "b",
@@ -805,6 +829,9 @@
     },
     {
       "label": "merge_uncapped_three",
+      "acceptance": "strict_improvement",
+      "selection": null,
+      "sampling": null,
       "components": [
         "a",
         "b",
@@ -985,6 +1012,9 @@
     },
     {
       "label": "merge_forbidden",
+      "acceptance": "strict_improvement",
+      "selection": null,
+      "sampling": null,
       "components": [
         "a",
         "b",
@@ -1186,6 +1216,392 @@
           264,
           288,
           300
+        ]
+      }
+    },
+    {
+      "label": "accept_or_equal",
+      "acceptance": "improvement_or_equal",
+      "selection": null,
+      "sampling": null,
+      "components": [
+        "instruction"
+      ],
+      "cap": 3,
+      "trainset_size": 5,
+      "valset_size": 6,
+      "minibatch_size": 2,
+      "max_metric_calls": 40,
+      "perfect_score": 1.0,
+      "seed": 0,
+      "use_merge": false,
+      "max_merge_invocations": 5,
+      "mode": "tradeoff",
+      "seed_candidate": {
+        "instruction": "v0"
+      },
+      "result": {
+        "candidates": [
+          {
+            "instruction": "v0"
+          },
+          {
+            "instruction": "v1"
+          },
+          {
+            "instruction": "v2"
+          },
+          {
+            "instruction": "v3"
+          },
+          {
+            "instruction": "v3"
+          }
+        ],
+        "parents": [
+          [
+            null
+          ],
+          [
+            0
+          ],
+          [
+            1
+          ],
+          [
+            2
+          ],
+          [
+            3
+          ]
+        ],
+        "val_aggregate_scores": [
+          0.0,
+          0.125,
+          0.25,
+          0.375,
+          0.375
+        ],
+        "best_idx": 3,
+        "total_metric_calls": 46,
+        "num_full_val_evals": 5,
+        "discovery_eval_counts": [
+          0,
+          10,
+          20,
+          30,
+          40
+        ]
+      }
+    },
+    {
+      "label": "same_parent_best_of_three",
+      "acceptance": "strict_improvement",
+      "selection": "best",
+      "sampling": [
+        "same_parent",
+        3
+      ],
+      "components": [
+        "instr_a",
+        "instr_b"
+      ],
+      "cap": 3,
+      "trainset_size": 6,
+      "valset_size": 4,
+      "minibatch_size": 2,
+      "max_metric_calls": 60,
+      "perfect_score": 1.0,
+      "seed": 1,
+      "use_merge": false,
+      "max_merge_invocations": 5,
+      "mode": "tradeoff",
+      "seed_candidate": {
+        "instr_a": "v0",
+        "instr_b": "v0"
+      },
+      "result": {
+        "candidates": [
+          {
+            "instr_a": "v0",
+            "instr_b": "v0"
+          },
+          {
+            "instr_a": "v1",
+            "instr_b": "v0"
+          },
+          {
+            "instr_a": "v1",
+            "instr_b": "v0"
+          },
+          {
+            "instr_a": "v1",
+            "instr_b": "v0"
+          }
+        ],
+        "parents": [
+          [
+            null
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ]
+        ],
+        "val_aggregate_scores": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "best_idx": 0,
+        "total_metric_calls": 64,
+        "num_full_val_evals": 4,
+        "discovery_eval_counts": [
+          0,
+          16,
+          32,
+          48
+        ]
+      }
+    },
+    {
+      "label": "independent_two_top_one",
+      "acceptance": "strict_improvement",
+      "selection": [
+        "top_k",
+        1
+      ],
+      "sampling": [
+        "independent",
+        2
+      ],
+      "components": [
+        "instr_a",
+        "instr_b"
+      ],
+      "cap": 4,
+      "trainset_size": 5,
+      "valset_size": 4,
+      "minibatch_size": 3,
+      "max_metric_calls": 60,
+      "perfect_score": 1.0,
+      "seed": 5,
+      "use_merge": false,
+      "max_merge_invocations": 5,
+      "mode": "tradeoff",
+      "seed_candidate": {
+        "instr_a": "v0",
+        "instr_b": "v0"
+      },
+      "result": {
+        "candidates": [
+          {
+            "instr_a": "v0",
+            "instr_b": "v0"
+          },
+          {
+            "instr_a": "v1",
+            "instr_b": "v0"
+          },
+          {
+            "instr_a": "v1",
+            "instr_b": "v0"
+          },
+          {
+            "instr_a": "v1",
+            "instr_b": "v1"
+          }
+        ],
+        "parents": [
+          [
+            null
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            2
+          ]
+        ],
+        "val_aggregate_scores": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "best_idx": 0,
+        "total_metric_calls": 64,
+        "num_full_val_evals": 4,
+        "discovery_eval_counts": [
+          0,
+          28,
+          44,
+          60
+        ]
+      }
+    },
+    {
+      "label": "pxn_two_by_two_all",
+      "acceptance": "strict_improvement",
+      "selection": null,
+      "sampling": [
+        "pxn",
+        2,
+        2
+      ],
+      "components": [
+        "instr_a",
+        "instr_b"
+      ],
+      "cap": 3,
+      "trainset_size": 6,
+      "valset_size": 4,
+      "minibatch_size": 2,
+      "max_metric_calls": 60,
+      "perfect_score": 1.0,
+      "seed": 1,
+      "use_merge": false,
+      "max_merge_invocations": 5,
+      "mode": "tradeoff",
+      "seed_candidate": {
+        "instr_a": "v0",
+        "instr_b": "v0"
+      },
+      "result": {
+        "candidates": [
+          {
+            "instr_a": "v0",
+            "instr_b": "v0"
+          },
+          {
+            "instr_a": "v1",
+            "instr_b": "v0"
+          },
+          {
+            "instr_a": "v0",
+            "instr_b": "v1"
+          },
+          {
+            "instr_a": "v2",
+            "instr_b": "v0"
+          },
+          {
+            "instr_a": "v1",
+            "instr_b": "v1"
+          }
+        ],
+        "parents": [
+          [
+            null
+          ],
+          [
+            0
+          ],
+          [
+            0
+          ],
+          [
+            1
+          ],
+          [
+            1
+          ]
+        ],
+        "val_aggregate_scores": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "best_idx": 0,
+        "total_metric_calls": 62,
+        "num_full_val_evals": 5,
+        "discovery_eval_counts": [
+          0,
+          18,
+          22,
+          54,
+          58
+        ]
+      }
+    },
+    {
+      "label": "independent_two_all_or_equal",
+      "acceptance": "improvement_or_equal",
+      "selection": null,
+      "sampling": [
+        "independent",
+        2
+      ],
+      "components": [
+        "instruction"
+      ],
+      "cap": 3,
+      "trainset_size": 5,
+      "valset_size": 6,
+      "minibatch_size": 2,
+      "max_metric_calls": 40,
+      "perfect_score": 1.0,
+      "seed": 0,
+      "use_merge": false,
+      "max_merge_invocations": 5,
+      "mode": "tradeoff",
+      "seed_candidate": {
+        "instruction": "v0"
+      },
+      "result": {
+        "candidates": [
+          {
+            "instruction": "v0"
+          },
+          {
+            "instruction": "v1"
+          },
+          {
+            "instruction": "v2"
+          },
+          {
+            "instruction": "v3"
+          }
+        ],
+        "parents": [
+          [
+            null
+          ],
+          [
+            0
+          ],
+          [
+            1
+          ],
+          [
+            2
+          ]
+        ],
+        "val_aggregate_scores": [
+          0.0,
+          0.125,
+          0.25,
+          0.375
+        ],
+        "best_idx": 3,
+        "total_metric_calls": 48,
+        "num_full_val_evals": 4,
+        "discovery_eval_counts": [
+          0,
+          14,
+          28,
+          42
         ]
       }
     }

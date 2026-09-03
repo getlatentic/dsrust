@@ -5,6 +5,7 @@
 //! a place a hand-written matcher parts company with the regex it stands for. The golden beside
 //! them (`generate_pot_fixture.py`) chooses its inputs there deliberately.
 
+#![allow(deprecated)]
 use serde_json::Value;
 
 use crate::example::Example;

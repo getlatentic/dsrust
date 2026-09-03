@@ -8,7 +8,10 @@ use std::future::Future;
 use std::pin::Pin;
 
 use anyhow::{Result, anyhow};
+use serde::Serialize;
 use serde_json::{Value, json};
+
+use super::tool_call::observation_text;
 
 /// Something the agent can call. dspy derives these from a callable's signature; declaring
 /// them keeps the argument contract visible to both the model and the compiler.
@@ -82,9 +85,10 @@ pub struct FnTool<F> {
     pub call: F,
 }
 
-impl<F> FnTool<F>
+impl<F, V> FnTool<F>
 where
-    F: Fn(&Value) -> Result<String> + Send + Sync,
+    F: Fn(&Value) -> Result<V> + Send + Sync,
+    V: Serialize,
 {
     pub fn new(
         name: impl Into<String>,
@@ -101,9 +105,10 @@ where
     }
 }
 
-impl<F> Tool for FnTool<F>
+impl<F, V> Tool for FnTool<F>
 where
-    F: Fn(&Value) -> Result<String> + Send + Sync,
+    F: Fn(&Value) -> Result<V> + Send + Sync,
+    V: Serialize,
 {
     fn name(&self) -> &str {
         &self.name
@@ -118,7 +123,11 @@ where
     }
 
     fn call(&self, args: &Value) -> Result<String> {
-        (self.call)(args)
+        self.call_value(args).map(observation_text)
+    }
+
+    fn call_value(&self, args: &Value) -> Result<Value> {
+        (self.call)(args).and_then(|answer| serde_json::to_value(answer).map_err(Into::into))
     }
 }
 
@@ -135,10 +144,11 @@ pub struct AsyncFnTool<F> {
     pub call: F,
 }
 
-impl<F, Answering> AsyncFnTool<F>
+impl<F, Answering, V> AsyncFnTool<F>
 where
     F: Fn(Value) -> Answering + Send + Sync,
-    Answering: Future<Output = Result<String>> + Send,
+    Answering: Future<Output = Result<V>> + Send,
+    V: Serialize,
 {
     pub fn new(
         name: impl Into<String>,
@@ -155,10 +165,11 @@ where
     }
 }
 
-impl<F, Answering> Tool for AsyncFnTool<F>
+impl<F, Answering, V> Tool for AsyncFnTool<F>
 where
     F: Fn(Value) -> Answering + Send + Sync,
-    Answering: Future<Output = Result<String>> + Send,
+    Answering: Future<Output = Result<V>> + Send,
+    V: Serialize,
 {
     fn name(&self) -> &str {
         &self.name
@@ -184,7 +195,11 @@ where
         &'a self,
         args: &'a Value,
     ) -> Pin<Box<dyn Future<Output = Result<Value>> + Send + 'a>> {
-        Box::pin(async move { (self.call)(args.clone()).await.map(Value::String) })
+        Box::pin(async move {
+            (self.call)(args.clone())
+                .await
+                .and_then(|answer| serde_json::to_value(answer).map_err(Into::into))
+        })
     }
 }
 

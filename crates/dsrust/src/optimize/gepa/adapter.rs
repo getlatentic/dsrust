@@ -14,8 +14,8 @@ use super::reflecting::{
     unparsed_feedback, unparsed_outputs,
 };
 use gepa::{
-    Candidate, EvalBatch, GepaAdapter, Reflective, ReflectiveSample, extract_new_instruction,
-    render_prompt,
+    Candidate, EvalBatch, GepaAdapter, ProposalFailure, Reflective, ReflectiveSample,
+    extract_new_instruction, render_prompt,
 };
 
 use super::metric::{Feedback, MetricContext};
@@ -303,7 +303,7 @@ where
         candidate: &Candidate,
         components: &[String],
         _captured: &EvalBatch<Prediction>,
-    ) -> Result<Candidate, String> {
+    ) -> Result<Candidate, ProposalFailure> {
         // A component whose runs produced nothing is left out of both paths: upstream skips it
         // rather than proposing against an empty dataset, and a caller's proposer is not handed one
         // it cannot use either.
@@ -348,7 +348,9 @@ where
         // code components are checked with them: a run optimizing only a `Flex` has no dataset by
         // construction and is not the failure this reports.
         if datasets.is_empty() && code.is_empty() {
-            return Err("No valid predictions found for any module.".to_owned());
+            return Err(ProposalFailure::ReflectiveDataset(
+                "No valid predictions found for any module.".to_owned(),
+            ));
         }
 
         if let Some(proposer) = &self.proposer {
@@ -366,7 +368,9 @@ where
             // used to skip the component and carry on, which proposed for some of them and — when
             // every one failed — handed back an empty map the engine then paid to score.
             let Some(raw) = self.reflect(&prompt).await else {
-                return Err(format!("the reflection model did not answer for {name}"));
+                return Err(ProposalFailure::Reflection(format!(
+                    "the reflection model did not answer for {name}"
+                )));
             };
             new_texts.insert(name.clone(), extract_new_instruction(&raw));
         }
@@ -820,6 +824,66 @@ mod failed_parse_tests {
             .evaluate(&examples, &Candidate::new(), true)
             .await
             .scores
+    }
+
+    async fn untraced<M>(
+        student: &mut Unparsed,
+        metric: &M,
+        size: usize,
+        failure_score: f64,
+    ) -> Vec<f64>
+    where
+        M: Fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback + Send + Sync,
+    {
+        let examples = batch(size);
+        let mut adapter = Adapter::new(
+            student,
+            metric,
+            std::sync::Arc::new(crate::DummyLM::new([])),
+            &[],
+            &[],
+            Settings {
+                failure_score,
+                num_threads: 1,
+                proposer: None,
+                seed: 0,
+            },
+        );
+        adapter
+            .evaluate(&examples, &Candidate::new(), false)
+            .await
+            .scores
+    }
+
+    /// The valset path drops nothing: upstream's `Evaluate` scores a row it cannot parse at
+    /// `failure_score`, so the batch keeps the valset's length — which the per-testcase Pareto
+    /// front indexes by. The traced path below drops the same row, so the two arms differ.
+    #[tokio::test]
+    async fn an_untraced_batch_keeps_every_example_at_the_failure_score() {
+        let arm = golden()["untraced"]["some_declared_field_parsed"].clone();
+        let expected: Vec<f64> = arm["scores"]
+            .as_array()
+            .expect("scores")
+            .iter()
+            .map(|score| score.as_f64().expect("a score"))
+            .collect();
+        assert_eq!(
+            arm["kept"], arm["batch_size"],
+            "dspy kept every example on the valset path"
+        );
+        let mut student = Unparsed::reading_one_field(r#"{"answer": "half"}"#);
+        let metric = scoring();
+        let scores = untraced(
+            &mut student,
+            &metric,
+            arm["batch_size"].as_u64().expect("a size") as usize,
+            arm["failure_score"].as_f64().expect("a score"),
+        )
+        .await;
+        assert_eq!(
+            scores, expected,
+            "one score per example, each the failure score"
+        );
     }
 
     /// Every example whose completion parsed *nothing* survives, each scoring the format reward.

@@ -1,5 +1,5 @@
 {
-  "source": "generated from dspy==3.3.0 via scripts/generate_upstream_dead_api_fixture.py",
+  "source": "generated from dspy==3.3.1 via scripts/generate_upstream_dead_api_fixture.py",
   "note": "Each entry was constructed, not read. A null `raises` means upstream repaired the name and the module is a port backlog item again.",
   "entries": [
     {

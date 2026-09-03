@@ -1,0 +1,222 @@
+{
+  "source": "generated from dspy==3.3.1 via scripts/generate_xml_format_fixture.py",
+  "dspy_version": "3.3.1",
+  "cases": [
+    {
+      "name": "nested_outputs",
+      "signature": "question -> answer: str, tags: list[str], counts: dict[str, int], maybe: Optional[list[str]], score: int",
+      "demos": [
+        {
+          "question": "first?",
+          "answer": "a < b & c > d",
+          "tags": [
+            "x",
+            "y & z"
+          ],
+          "counts": {
+            "k": 1,
+            "two words": 2,
+            "a-b": 3,
+            "1x": 4,
+            "": 5
+          },
+          "maybe": null,
+          "score": 7
+        }
+      ],
+      "inputs": {
+        "question": "second?"
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `answer` (str): \n2. `tags` (list[str]): \n3. `counts` (dict[str, int]): \n4. `maybe` (Union[list[str], NoneType]): \n5. `score` (int):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n<question>\n{question}\n</question>\n\n<answer>\n{answer}\n</answer>\n\n<tags><item>...</item></tags>\n\n<counts>...</counts>\n\n<maybe><item>...</item></maybe>\n\n<score>\n{score}        # note: the value you produce must be a single int value\n</score>\nIn adhering to this structure, your objective is: \n        Given the fields `question`, produce the fields `answer`, `tags`, `counts`, `maybe`, `score`."
+        },
+        {
+          "role": "user",
+          "content": "This is an example of the task, though some input or output fields are not supplied.\n\n<question>\nfirst?\n</question>"
+        },
+        {
+          "role": "assistant",
+          "content": "<answer>\na &lt; b &amp; c > d\n</answer>\n\n<tags><item>x</item><item>y &amp; z</item></tags>\n\n<counts><k>1</k><entry key=\"two words\">2</entry><a-b>3</a-b><entry key=\"1x\">4</entry><entry key=\"\">5</entry></counts>\n\n<maybe>\nNone\n</maybe>\n\n<score>\n7\n</score>"
+        },
+        {
+          "role": "user",
+          "content": "<question>\nsecond?\n</question>\n\nRespond with the corresponding output fields wrapped in XML tags `<answer>`, then `<tags>`, then `<counts>`, then `<maybe>`, then `<score>`. Use this nested XML structure: <tags><item>...</item></tags> <counts>...</counts> <maybe><item>...</item></maybe>"
+        }
+      ]
+    },
+    {
+      "name": "empty_containers",
+      "signature": "question -> answer: str, tags: list[str], counts: dict[str, int], maybe: Optional[list[str]], score: int",
+      "demos": [
+        {
+          "question": "q",
+          "answer": "plain",
+          "tags": [],
+          "counts": {},
+          "maybe": [
+            "a"
+          ],
+          "score": 1
+        }
+      ],
+      "inputs": {
+        "question": "second?"
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `answer` (str): \n2. `tags` (list[str]): \n3. `counts` (dict[str, int]): \n4. `maybe` (Union[list[str], NoneType]): \n5. `score` (int):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n<question>\n{question}\n</question>\n\n<answer>\n{answer}\n</answer>\n\n<tags><item>...</item></tags>\n\n<counts>...</counts>\n\n<maybe><item>...</item></maybe>\n\n<score>\n{score}        # note: the value you produce must be a single int value\n</score>\nIn adhering to this structure, your objective is: \n        Given the fields `question`, produce the fields `answer`, `tags`, `counts`, `maybe`, `score`."
+        },
+        {
+          "role": "user",
+          "content": "<question>\nq\n</question>"
+        },
+        {
+          "role": "assistant",
+          "content": "<answer>\nplain\n</answer>\n\n<tags />\n\n<counts></counts>\n\n<maybe><item>a</item></maybe>\n\n<score>\n1\n</score>"
+        },
+        {
+          "role": "user",
+          "content": "<question>\nsecond?\n</question>\n\nRespond with the corresponding output fields wrapped in XML tags `<answer>`, then `<tags>`, then `<counts>`, then `<maybe>`, then `<score>`. Use this nested XML structure: <tags><item>...</item></tags> <counts>...</counts> <maybe><item>...</item></maybe>"
+        }
+      ]
+    },
+    {
+      "name": "missing_outputs_in_a_demo",
+      "signature": "question -> answer: str, tags: list[str], counts: dict[str, int], maybe: Optional[list[str]], score: int",
+      "demos": [
+        {
+          "question": "q",
+          "answer": "only"
+        }
+      ],
+      "inputs": {
+        "question": "second?"
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `answer` (str): \n2. `tags` (list[str]): \n3. `counts` (dict[str, int]): \n4. `maybe` (Union[list[str], NoneType]): \n5. `score` (int):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n<question>\n{question}\n</question>\n\n<answer>\n{answer}\n</answer>\n\n<tags><item>...</item></tags>\n\n<counts>...</counts>\n\n<maybe><item>...</item></maybe>\n\n<score>\n{score}        # note: the value you produce must be a single int value\n</score>\nIn adhering to this structure, your objective is: \n        Given the fields `question`, produce the fields `answer`, `tags`, `counts`, `maybe`, `score`."
+        },
+        {
+          "role": "user",
+          "content": "This is an example of the task, though some input or output fields are not supplied.\n\n<question>\nq\n</question>"
+        },
+        {
+          "role": "assistant",
+          "content": "<answer>\nonly\n</answer>\n\n<tags>\nNot supplied for this particular example. \n</tags>\n\n<counts>\nNot supplied for this particular example. \n</counts>\n\n<maybe>\nNot supplied for this particular example. \n</maybe>\n\n<score>\nNot supplied for this particular example. \n</score>"
+        },
+        {
+          "role": "user",
+          "content": "<question>\nsecond?\n</question>\n\nRespond with the corresponding output fields wrapped in XML tags `<answer>`, then `<tags>`, then `<counts>`, then `<maybe>`, then `<score>`. Use this nested XML structure: <tags><item>...</item></tags> <counts>...</counts> <maybe><item>...</item></maybe>"
+        }
+      ]
+    },
+    {
+      "name": "plain_outputs",
+      "signature": "question -> answer: str, score: int",
+      "demos": [
+        {
+          "question": "q",
+          "answer": "a & b",
+          "score": 2
+        }
+      ],
+      "inputs": {
+        "question": "second?"
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `answer` (str): \n2. `score` (int):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n<question>\n{question}\n</question>\n\n<answer>\n{answer}\n</answer>\n\n<score>\n{score}        # note: the value you produce must be a single int value\n</score>\nIn adhering to this structure, your objective is: \n        Given the fields `question`, produce the fields `answer`, `score`."
+        },
+        {
+          "role": "user",
+          "content": "<question>\nq\n</question>"
+        },
+        {
+          "role": "assistant",
+          "content": "<answer>\na &amp; b\n</answer>\n\n<score>\n2\n</score>"
+        },
+        {
+          "role": "user",
+          "content": "<question>\nsecond?\n</question>\n\nRespond with the corresponding output fields wrapped in XML tags `<answer>`, then `<score>`."
+        }
+      ]
+    },
+    {
+      "name": "list_input_is_text",
+      "signature": "items: list[str], question -> out: list[str]",
+      "demos": [],
+      "inputs": {
+        "items": [
+          "a",
+          "b & c"
+        ],
+        "question": "which?"
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Your input fields are:\n1. `items` (list[str]): \n2. `question` (str):\nYour output fields are:\n1. `out` (list[str]):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n<items>\n{items}\n</items>\n\n<question>\n{question}\n</question>\n\n<out><item>...</item></out>\nIn adhering to this structure, your objective is: \n        Given the fields `items`, `question`, produce the fields `out`."
+        },
+        {
+          "role": "user",
+          "content": "<items>\n[\"a\", \"b & c\"]\n</items>\n\n<question>\nwhich?\n</question>\n\nRespond with the corresponding output fields wrapped in XML tags `<out>`. Use this nested XML structure: <out><item>...</item></out>"
+        }
+      ]
+    },
+    {
+      "name": "nested_values_of_every_scalar",
+      "signature": "question -> ratios: dict[str, float], flags: list[bool], notes: dict[str, Optional[int]], grid: list[list[int]]",
+      "demos": [
+        {
+          "question": "q",
+          "ratios": {
+            "k": 1.0,
+            "j": 2.5e-07,
+            "i": 1e+21
+          },
+          "flags": [
+            true,
+            false
+          ],
+          "notes": {
+            "k": null,
+            "j": 3
+          },
+          "grid": [
+            [
+              1,
+              2
+            ],
+            []
+          ]
+        }
+      ],
+      "inputs": {
+        "question": "second?"
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Your input fields are:\n1. `question` (str):\nYour output fields are:\n1. `ratios` (dict[str, float]): \n2. `flags` (list[bool]): \n3. `notes` (dict[str, Union[int, NoneType]]): \n4. `grid` (list[list[int]]):\nAll interactions will be structured in the following way, with the appropriate values filled in.\n\n<question>\n{question}\n</question>\n\n<ratios>...</ratios>\n\n<flags><item>...</item></flags>\n\n<notes>...</notes>\n\n<grid><item><item>...</item></item></grid>\nIn adhering to this structure, your objective is: \n        Given the fields `question`, produce the fields `ratios`, `flags`, `notes`, `grid`."
+        },
+        {
+          "role": "user",
+          "content": "<question>\nq\n</question>"
+        },
+        {
+          "role": "assistant",
+          "content": "<ratios><k>1.0</k><j>2.5e-07</j><i>1e+21</i></ratios>\n\n<flags><item>True</item><item>False</item></flags>\n\n<notes><k /><j>3</j></notes>\n\n<grid><item><item>1</item><item>2</item></item><item /></grid>"
+        },
+        {
+          "role": "user",
+          "content": "<question>\nsecond?\n</question>\n\nRespond with the corresponding output fields wrapped in XML tags `<ratios>`, then `<flags>`, then `<notes>`, then `<grid>`. Use this nested XML structure: <ratios>...</ratios> <flags><item>...</item></flags> <notes>...</notes> <grid><item><item>...</item></item></grid>"
+        }
+      ]
+    }
+  ]
+}

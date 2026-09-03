@@ -35,13 +35,39 @@ fn number(value: &Value) -> f64 {
 
 /// Exact, including both non-finite spellings — two NaNs are never `==`, and the golden records
 /// where optuna answers with one.
+/// Exact on both non-finite spellings — two NaNs are never `==`, and the golden records where
+/// optuna answers with one — and exact on a finite answer too, on the platform the golden was
+/// recorded on.
+///
+/// Every function here ends in the platform's `erf`, `exp` or `log`, and that is optuna's own
+/// arrangement: CPython's `math.erf` is the system's, so optuna's answers move with the libm under
+/// it. The golden was recorded on macOS/arm64, where Apple's answers; glibc's and Windows' CRT
+/// differ from it in the last bits, and `ndtri_exp`'s Newton iteration and `ppf`'s inversion
+/// amplify that — measured at 128 ulps on `ndtr(-2.856)` under glibc and a relative 1e-10 on
+/// `ppf(0.000001, 0, 10)` under the Windows CRT, which is 578,109 ulps of a number that small.
+/// So elsewhere the comparison allows a relative 1e-9, far under what changes a Newton step or a
+/// density ratio, and optuna on those platforms would differ from this golden by the same amount.
+/// On the recording platform it allows nothing, and the sampler's own golden — which compares the
+/// trials optuna proposes — is exact on all three.
 #[track_caller]
 fn same(ours: f64, expected: f64, what: &str) {
-    match expected.is_nan() {
-        true => assert!(ours.is_nan(), "{what}: expected NaN, got {ours}"),
-        false => assert_eq!(ours, expected, "{what}"),
+    if expected.is_nan() {
+        assert!(ours.is_nan(), "{what}: expected NaN, got {ours}");
+        return;
     }
+    if RECORDING_PLATFORM || expected.is_infinite() || ours.is_infinite() || expected == 0.0 {
+        assert_eq!(ours, expected, "{what}");
+        return;
+    }
+    let apart = ((ours - expected) / expected).abs();
+    assert!(
+        apart <= 1e-9,
+        "{what}: {ours} is {apart:e} away from {expected}, relatively"
+    );
 }
+
+/// Where `tests/conformance/truncnorm.json` was recorded, and the platform libm it carries.
+const RECORDING_PLATFORM: bool = cfg!(all(target_os = "macos", target_arch = "aarch64"));
 
 #[test]
 fn the_normal_cdf_and_its_log_match_across_every_branch() {

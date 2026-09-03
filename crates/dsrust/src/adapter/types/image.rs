@@ -20,6 +20,9 @@ pub struct Image {
     pub url: String,
 }
 
+/// dspy's default `timeout=30.0` on `from_url`, in seconds.
+const DOWNLOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
 impl Image {
     /// dspy `encode_image`, string branch: a remote reference, or an already-encoded data URI.
     ///
@@ -175,21 +178,36 @@ impl Image {
     /// The media type is what the server said; where it said nothing, the URL's suffix, and a URL
     /// whose suffix names nothing is an error rather than a guess.
     pub async fn from_url(url: impl AsRef<str>) -> anyhow::Result<Self> {
-        Self::downloaded(url.as_ref(), true).await
+        Self::from_url_with(url, true, Some(DOWNLOAD_TIMEOUT)).await
     }
 
     /// The same, without checking the TLS certificate — upstream's `verify=False`, for a host with
     /// a self-signed one. Named rather than a `bool`, because a `false` at a call site says nothing
     /// about what it switches off.
     pub async fn from_url_unverified(url: impl AsRef<str>) -> anyhow::Result<Self> {
-        Self::downloaded(url.as_ref(), false).await
+        Self::from_url_with(url, false, Some(DOWNLOAD_TIMEOUT)).await
     }
 
-    async fn downloaded(url: &str, verify: bool) -> anyhow::Result<Self> {
+    /// dspy's `from_url(url, verify=True, timeout=30.0)` with both switches spelled out: `verify`
+    /// is the TLS check and `timeout` bounds the whole download, `None` waiting as long as the
+    /// server takes.
+    pub async fn from_url_with(
+        url: impl AsRef<str>,
+        verify: bool,
+        timeout: Option<std::time::Duration>,
+    ) -> anyhow::Result<Self> {
+        Self::downloaded(url.as_ref(), verify, timeout).await
+    }
+
+    async fn downloaded(
+        url: &str,
+        verify: bool,
+        timeout: Option<std::time::Duration>,
+    ) -> anyhow::Result<Self> {
         if !crate::resource::is_http_url(url) {
             anyhow::bail!("Image.from_url requires an HTTP(S) URL, received: {url}");
         }
-        let (content_type, encoded) = crate::resource::fetch_base64(url, verify).await?;
+        let (content_type, encoded) = crate::resource::fetch_base64(url, verify, timeout).await?;
         let media_type = content_type
             .or_else(|| crate::mimetypes::guess(url).map(str::to_owned))
             .ok_or_else(|| anyhow::anyhow!("Could not determine MIME type for URL: {url}"))?;

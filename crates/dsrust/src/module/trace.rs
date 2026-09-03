@@ -209,3 +209,14 @@ pub(crate) type Traced<'a> = std::pin::Pin<
 /// predictor recognises itself, and nothing outside this crate can usefully make one.
 #[derive(Debug, Clone, Default)]
 pub struct PredictorNames(pub(crate) std::sync::Arc<std::collections::HashMap<usize, String>>);
+
+impl PredictorNames {
+    /// The identity a name was given to, for a step recorded under this map to be recorded again
+    /// under an enclosing one.
+    pub(crate) fn identity_of(&self, name: &str) -> Option<usize> {
+        self.0
+            .iter()
+            .find(|(_, named)| named.as_str() == name)
+            .map(|(identity, _)| *identity)
+    }
+}

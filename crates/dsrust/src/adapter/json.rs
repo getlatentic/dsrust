@@ -95,15 +95,26 @@ impl Adapter for JsonAdapter {
         let (parsed, named) = super::parse::parse_json(signature, raw)?;
         let mut value = super::parse::declared_fields(signature, parsed, "JSONAdapter", named)?;
         // dspy casts *every* field here with `parse_value(v, annotation)` — structured ones
-        // included, and unwrapped, so a value that will not fit raises rather than becoming an
-        // `AdapterParseError`. Two consequences worth naming: a `str` field handed an object comes
-        // back as Python's `str()` of it, `{'why': 'Because.'}` rather than JSON; and a `list[str]`
+        // included, so a `list[Idea]` missing a member of `Idea` is a *parse* failure, measured on
+        // dspy 3.3.1. Two more consequences worth naming: a `str` field handed an object comes back
+        // as Python's `str()` of it, `{'why': 'Because.'}` rather than JSON; and a `list[str]`
         // handed the *text* that spells a list is read as the list.
         //
-        // The full `coerce` rather than `coerce_scalars`, unlike the marker and tag paths: those
-        // two receive every field as text and cannot tell JSON from a type's own spelling, while a
-        // JSON reply has already told them apart.
-        signature.coerce(&mut value)?;
+        // Reported as the same `AdapterParseError` a missing field is, which is what upstream
+        // raises out of `JSONAdapter.parse` here — and what lets a caller who asked for the
+        // feedback ask push the cast's complaint back to the model.
+        if let Err(error) = signature.coerce(&mut value) {
+            return Err(anyhow::Error::new(super::parse::FieldMismatch {
+                parsed: value,
+                adapter_name: "JSONAdapter".to_owned(),
+                lm_response: raw.to_owned(),
+                expected_fields: signature.outputs.iter().map(|f| f.name.clone()).collect(),
+                signature: signature.clone(),
+                message: Some(error.to_string()),
+                // Upstream raises inside its cast loop, before `parsed_result` exists.
+                reports_parsed: false,
+            }));
+        }
         Ok(value)
     }
 

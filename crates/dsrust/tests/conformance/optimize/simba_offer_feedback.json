@@ -1,6 +1,6 @@
 {
-  "source": "dspy==3.3.0 teleprompt/simba_utils.py::OfferFeedback",
-  "dspy_version": "3.3.0",
+  "source": "dspy==3.3.1 teleprompt/simba_utils.py::OfferFeedback",
+  "dspy_version": "3.3.1",
   "note": "SIMBA's `OfferFeedback`, which shares a name with `refine.py`'s and is a different signature. Recorded ahead of the port, with the rendered prompt so the field order and every description are compared as bytes.",
   "signature": {
     "instructions": "You will be given two trajectories of an LLM-driven program's execution. Your goal is to help the program's modules\nbuild up experience on how to maximize the reward value assigned to the program's outputs if it were to receive\nsimilar inputs in the future.\n\nThe module won't see its own history. It will rely on your advice balancing being concrete and being generalizable.\n\nIn your advice:\n- Avoid boilerplate. Offer advice that would change the module's behavior for the better in the future.\n- Ensure that advice offered to a module M is specific to that M's specific sub-task, not the overall program.\n- Rely on contrasting the behavior of the worse trajectory against the better trajectory in making recommendations.\n- Ensure each unique module name appears exactly once as a key in the advice dictionary.",

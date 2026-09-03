@@ -1,6 +1,6 @@
 {
-  "source": "dspy==3.3.0 clients/openai_format.py and clients/lm.py",
-  "dspy_version": "3.3.0",
+  "source": "dspy==3.3.1 clients/openai_format.py and clients/lm.py",
+  "dspy_version": "3.3.1",
   "note": "Per model name: the token key `to_openai_chat_request` emits, whether `_validate_openai_reasoning_temperature` refuses a reasoning effort at temperature 0.5, and the ordered keys of `LM.dump_state`. The first two follow openai_format's predicate and the third follows lm.py's, which is why `max_tokens` moves to the end of the block for some names and not others.",
   "constructed_with": {
     "temperature": 1.0,

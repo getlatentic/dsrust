@@ -123,65 +123,74 @@ where
         trainset: &[Example],
         valset: &[Example],
     ) -> Result<Vec<OptunaTrial>> {
-        let start = student.dump_state();
-        let mut bootstrap = BootstrapFewShot::new(crate::evaluate::MetricRef(&self.metric));
-        bootstrap.max_bootstrapped_demos = max_demos;
-        bootstrap.max_labeled_demos = self.max_labeled_demos;
-        bootstrap.max_rounds = self.max_rounds;
-        bootstrap.compile(student, trainset).await?;
+        crate::observe::compiling(
+            "BootstrapFewShotWithOptuna",
+            self as *const Self as *const () as usize,
+            trainset,
+            Some(valset),
+            async move {
+                let start = student.dump_state();
+                let mut bootstrap = BootstrapFewShot::new(crate::evaluate::MetricRef(&self.metric));
+                bootstrap.max_bootstrapped_demos = max_demos;
+                bootstrap.max_labeled_demos = self.max_labeled_demos;
+                bootstrap.max_rounds = self.max_rounds;
+                bootstrap.compile(student, trainset).await?;
 
-        // The demos each predictor may choose from, and the range optuna searches per predictor.
-        let offered: Vec<Vec<Example>> = student
-            .named_predictors()
-            .into_iter()
-            .map(|predictor| predictor.demos.clone())
-            .collect();
-        let ranges: Vec<(i64, i64)> = offered
-            .iter()
-            .map(|demos| (0, demos.len() as i64 - 1))
-            .collect();
-        // Upstream reaches `suggest_int(name, 0, -1)` for a predictor the bootstrap taught nothing,
-        // and optuna refuses a range whose high is below its low. Refusing here says which
-        // predictor, which upstream's `ValueError` does not.
-        if let Some(position) = ranges.iter().position(|&(_, high)| high < 0) {
-            let names = student.named_predictors();
-            anyhow::bail!(
-                "predictor {:?} earned no demos to choose between; optuna cannot search an empty \
+                // The demos each predictor may choose from, and the range optuna searches per predictor.
+                let offered: Vec<Vec<Example>> = student
+                    .named_predictors()
+                    .into_iter()
+                    .map(|predictor| predictor.demos.clone())
+                    .collect();
+                let ranges: Vec<(i64, i64)> = offered
+                    .iter()
+                    .map(|demos| (0, demos.len() as i64 - 1))
+                    .collect();
+                // Upstream reaches `suggest_int(name, 0, -1)` for a predictor the bootstrap taught nothing,
+                // and optuna refuses a range whose high is below its low. Refusing here says which
+                // predictor, which upstream's `ValueError` does not.
+                if let Some(position) = ranges.iter().position(|&(_, high)| high < 0) {
+                    let names = student.named_predictors();
+                    anyhow::bail!(
+                "predictor {:?} earned no demos to choose between; optuna cannot search an empty
                  range. Raise `max_demos`, or give the bootstrap a trainset it can solve.",
                 names[position].name
             );
-        }
+                }
 
-        let compiled = student.dump_state();
-        let mut sampler = IntTpeSampler::new(self.seed, ranges);
-        let mut trials: Vec<OptunaTrial> = Vec::new();
-        let mut best: Option<(f64, ProgramState)> = None;
-        for _ in 0..self.num_candidate_programs {
-            let indices: Vec<usize> = sampler.ask().iter().map(|&i| i as usize).collect();
-            // Each trial starts from the *pre-bootstrap* program, as `reset_copy` does, and is
-            // taught the one demo it drew — not the whole earned set narrowed.
-            student.load_state(&start)?;
-            for (position, (predictor, &index)) in student
-                .named_predictors()
-                .into_iter()
-                .zip(&indices)
-                .enumerate()
-            {
-                *predictor.demos = vec![offered[position][index].clone()];
-            }
-            let score = self.score(student, valset).await?;
-            sampler.tell(indices.iter().map(|&i| i as i64).collect(), score);
-            if best.as_ref().is_none_or(|(seen, _)| score > *seen) {
-                best = Some((score, student.dump_state()));
-            }
-            trials.push(OptunaTrial { indices, score });
-        }
+                let compiled = student.dump_state();
+                let mut sampler = IntTpeSampler::new(self.seed, ranges);
+                let mut trials: Vec<OptunaTrial> = Vec::new();
+                let mut best: Option<(f64, ProgramState)> = None;
+                for _ in 0..self.num_candidate_programs {
+                    let indices: Vec<usize> = sampler.ask().iter().map(|&i| i as usize).collect();
+                    // Each trial starts from the *pre-bootstrap* program, as `reset_copy` does, and is
+                    // taught the one demo it drew — not the whole earned set narrowed.
+                    student.load_state(&start)?;
+                    for (position, (predictor, &index)) in student
+                        .named_predictors()
+                        .into_iter()
+                        .zip(&indices)
+                        .enumerate()
+                    {
+                        *predictor.demos = vec![offered[position][index].clone()];
+                    }
+                    let score = self.score(student, valset).await?;
+                    sampler.tell(indices.iter().map(|&i| i as i64).collect(), score);
+                    if best.as_ref().is_none_or(|(seen, _)| score > *seen) {
+                        best = Some((score, student.dump_state()));
+                    }
+                    trials.push(OptunaTrial { indices, score });
+                }
 
-        match best {
-            Some((_, state)) => student.load_state(&state)?,
-            None => student.load_state(&compiled)?,
-        }
-        Ok(trials)
+                match best {
+                    Some((_, state)) => student.load_state(&state)?,
+                    None => student.load_state(&compiled)?,
+                }
+                Ok(trials)
+            },
+        )
+        .await
     }
 
     async fn score<S: Module + ?Sized>(&self, student: &S, valset: &[Example]) -> Result<f64> {

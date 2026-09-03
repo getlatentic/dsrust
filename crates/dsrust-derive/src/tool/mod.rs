@@ -48,7 +48,7 @@ fn function(mut item: ItemFn, declared: Option<String>) -> Result<TokenStream> {
         return Ok(quote! { #item #accessor });
     }
     let name = item.sig.ident.to_string();
-    let description = description(&item.attrs, &item.sig, declared)?;
+    let description = description(&item.attrs, declared)?;
     let arguments = args::take(&mut item.sig.inputs)?;
     let called = &item.sig.ident;
     let bound = args::names(&arguments);
@@ -155,40 +155,53 @@ fn accessor(
     declared: Option<String>,
 ) -> Result<TokenStream> {
     let name = signature.ident.to_string();
-    let description = description(attributes, signature, declared)?;
+    let description = description(attributes, declared)?;
     let arguments = args::take(&mut signature.inputs)?;
     let schema = args::value(&arguments);
-    let bindings = args::bindings(&arguments);
+    let bindings = args::bindings(&arguments, &name, &quote! { &__declared });
     let bound = args::names(&arguments);
     let called = &signature.ident;
     let declared = accessor_name(called);
     let held = match signature.asyncness.is_some() {
         false => quote! {
-            ::dsrust::FnTool::new(
-                #name,
-                #description,
-                #schema,
-                move |__args: &::dsrust::__macro_support::serde_json::Value|
-                    -> ::dsrust::__macro_support::anyhow::Result<::std::string::String> {
-                    #bindings
-                    ::std::result::Result::Ok(__held.#called(#(#bound),*)?)
-                },
-            )
+            {
+                let __declared = #schema;
+                ::dsrust::FnTool::new(
+                    #name,
+                    #description,
+                    __declared.clone(),
+                    move |__args: &::dsrust::__macro_support::serde_json::Value| {
+                        let __answered: ::dsrust::__macro_support::anyhow::Result<_> = (|| {
+                            #bindings
+                            ::std::result::Result::Ok(__held.#called(#(#bound),*)?)
+                        })();
+                        __answered
+                    },
+                )
+            }
         },
         true => quote! {
-            ::dsrust::AsyncFnTool::new(
-                #name,
-                #description,
-                #schema,
-                move |__args: ::dsrust::__macro_support::serde_json::Value| {
-                    let __held = ::std::sync::Arc::clone(&__held);
-                    async move {
-                        let __args = &__args;
-                        #bindings
-                        ::std::result::Result::Ok(__held.#called(#(#bound),*).await?)
-                    }
-                },
-            )
+            {
+                let __declared = #schema;
+                ::dsrust::AsyncFnTool::new(
+                    #name,
+                    #description,
+                    __declared.clone(),
+                    move |__args: ::dsrust::__macro_support::serde_json::Value| {
+                        let __held = ::std::sync::Arc::clone(&__held);
+                        let __declared = __declared.clone();
+                        async move {
+                            let __args = &__args;
+                            let __answered: ::dsrust::__macro_support::anyhow::Result<_> = async {
+                                #bindings
+                                ::std::result::Result::Ok(__held.#called(#(#bound),*).await?)
+                            }
+                            .await;
+                            __answered
+                        }
+                    },
+                )
+            }
         },
     };
     let documented = documented(&name);
@@ -221,15 +234,34 @@ fn implementation(
     awaited: bool,
 ) -> TokenStream {
     let schema = args::schema(arguments);
-    let bindings = args::bindings(arguments);
+    let bindings = args::bindings(arguments, name, &quote! { ::dsrust::Tool::args(self) });
     let answering = match awaited {
         false => quote! {
+            // The value is the answer — dspy's `Tool.__call__` returns whatever the tool produced,
+            // and an agent observes it as such. `call` is its text form, for a caller that asked
+            // for text.
+            fn call_value(
+                &self,
+                __args: &::dsrust::__macro_support::serde_json::Value,
+            ) -> ::dsrust::__macro_support::anyhow::Result<
+                ::dsrust::__macro_support::serde_json::Value,
+            > {
+                let __answered: ::dsrust::__macro_support::anyhow::Result<_> = (|| {
+                    #bindings
+                    ::std::result::Result::Ok(#body?)
+                })();
+                __answered.and_then(|__value| {
+                    ::dsrust::__macro_support::serde_json::to_value(__value)
+                        .map_err(::std::convert::Into::into)
+                })
+            }
+
             fn call(
                 &self,
                 __args: &::dsrust::__macro_support::serde_json::Value,
             ) -> ::dsrust::__macro_support::anyhow::Result<::std::string::String> {
-                #bindings
-                ::std::result::Result::Ok(#body?)
+                ::dsrust::Tool::call_value(self, __args)
+                    .map(::dsrust::__macro_support::observation_text)
             }
         },
         true => quote! {
@@ -255,14 +287,15 @@ fn implementation(
                 > + ::std::marker::Send + '__a,
             >> {
                 ::std::boxed::Box::pin(async move {
-                    let __answered: ::dsrust::__macro_support::anyhow::Result<
-                        ::std::string::String,
-                    > = async {
+                    let __answered: ::dsrust::__macro_support::anyhow::Result<_> = async {
                         #bindings
                         ::std::result::Result::Ok(#body.await?)
                     }
                     .await;
-                    __answered.map(::dsrust::__macro_support::serde_json::Value::String)
+                    __answered.and_then(|__value| {
+                        ::dsrust::__macro_support::serde_json::to_value(__value)
+                            .map_err(::std::convert::Into::into)
+                    })
                 })
             }
         },
@@ -323,23 +356,13 @@ fn declared_description(attribute: TokenStream) -> Result<Option<String>> {
     }
 }
 
-/// The description the model reads: what `desc` states, or the doc comment, and never nothing.
-fn description(
-    attributes: &[syn::Attribute],
-    signature: &Signature,
-    declared: Option<String>,
-) -> Result<String> {
-    if let Some(declared) = declared {
-        return Ok(declared);
-    }
-    let text = tool_doc_text(attributes);
-    match text.is_empty() {
-        true => Err(Error::new(
-            signature.ident.span(),
-            "a tool needs a doc comment, or `#[tool(desc = \"...\")]`: it is the description the \
-             model is shown, the way a Python tool's docstring is",
-        )),
-        false => Ok(text),
+/// The description the model reads: what `desc` states, or the doc comment, or nothing — an
+/// undocumented Python function makes a tool with no description, shown to the model by its name
+/// and arguments alone, and so does an undocumented function here.
+fn description(attributes: &[syn::Attribute], declared: Option<String>) -> Result<String> {
+    match declared {
+        Some(declared) => Ok(declared),
+        None => Ok(tool_doc_text(attributes)),
     }
 }
 

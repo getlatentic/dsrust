@@ -9,8 +9,8 @@
 //! eval-counts, per-candidate mean valset score, and the best index).
 
 use gepa::progress::Silent;
-use gepa::{Candidate, EvalBatch, GepaAdapter, GepaEngine};
-use gepa::{CandidateSelection, ComponentSelection};
+use gepa::{Acceptance, CandidateSelection, ComponentSelection, Sampling, Selection};
+use gepa::{Candidate, EvalBatch, GepaAdapter, GepaEngine, ProposalFailure};
 use serde_json::Value;
 
 /// The Rust mirror of the fixture's scripted adapter: a component text is "vN", a candidate's versions
@@ -86,7 +86,7 @@ impl GepaAdapter for MirrorAdapter {
         candidate: &Candidate,
         components: &[String],
         _captured: &EvalBatch<Self::Output>,
-    ) -> Result<Candidate, String> {
+    ) -> Result<Candidate, ProposalFailure> {
         Ok(components
             .iter()
             .map(|name| {
@@ -109,6 +109,42 @@ fn candidate_of(value: &Value) -> Candidate {
             )
         })
         .collect()
+}
+
+/// gepa 0.1.4's proposal controls, as the fixture spells them; absent means the default.
+fn acceptance_of(case: &Value) -> Acceptance {
+    match case["acceptance"].as_str() {
+        Some("improvement_or_equal") => Acceptance::ImprovementOrEqual,
+        _ => Acceptance::StrictImprovement,
+    }
+}
+
+fn selection_of(case: &Value) -> Selection {
+    match &case["selection"] {
+        Value::String(name) if name == "best" => Selection::BestImprovement,
+        Value::Array(spec) if spec.first().and_then(Value::as_str) == Some("top_k") => {
+            Selection::TopKImprovements {
+                k: spec[1].as_u64().expect("k") as usize,
+            }
+        }
+        _ => Selection::AllImprovements,
+    }
+}
+
+fn sampling_of(case: &Value) -> Sampling {
+    let Some(spec) = case["sampling"].as_array() else {
+        return Sampling::SingleMutation;
+    };
+    let count = |at: usize| spec[at].as_u64().expect("a count") as usize;
+    match spec.first().and_then(Value::as_str) {
+        Some("same_parent") => Sampling::SameParent { n: count(1) },
+        Some("independent") => Sampling::Independent { n: count(1) },
+        Some("pxn") => Sampling::PxN {
+            parents: count(1),
+            mutations: count(2),
+        },
+        _ => Sampling::SingleMutation,
+    }
 }
 
 /// A fixture parent list `[null]` (the seed) maps to no parents; `[0]`, `[1]`, ... to those indices.
@@ -157,6 +193,9 @@ async fn reproduces_the_runs_gepa_produces() {
             // change of default from silently re-pointing this at another strategy.
             candidate_selection_strategy: CandidateSelection::Pareto,
             track_best_outputs: false,
+            acceptance: acceptance_of(case),
+            selection: selection_of(case),
+            sampling: sampling_of(case),
             progress: std::sync::Arc::new(Silent),
             component_selector: ComponentSelection::RoundRobin,
         };
@@ -300,7 +339,7 @@ mod why_nothing_was_proposed {
             candidate: &Candidate,
             _components: &[String],
             _eval: &EvalBatch<Self::Output>,
-        ) -> Result<Candidate, String> {
+        ) -> Result<Candidate, ProposalFailure> {
             Ok(candidate.clone())
         }
     }
@@ -320,6 +359,9 @@ mod why_nothing_was_proposed {
             seed: 0,
             candidate_selection_strategy: CandidateSelection::Pareto,
             track_best_outputs: false,
+            acceptance: Default::default(),
+            selection: Default::default(),
+            sampling: Default::default(),
             progress: watching.clone(),
             component_selector: ComponentSelection::RoundRobin,
         };
@@ -338,7 +380,7 @@ mod why_nothing_was_proposed {
         .await;
         assert!(
             seen.iter()
-                .any(|line| line.contains("No trajectories captured")),
+                .any(|line| line.contains("No trajectories for parent 0. Skipping.")),
             "a run that captured nothing reported {seen:?}"
         );
     }
@@ -425,8 +467,10 @@ mod nothing_to_reflect_on {
             _candidate: &Candidate,
             _components: &[String],
             _eval: &EvalBatch<Self::Output>,
-        ) -> Result<Candidate, String> {
-            Err("No valid predictions found for any module.".to_owned())
+        ) -> Result<Candidate, ProposalFailure> {
+            Err(ProposalFailure::ReflectiveDataset(
+                "No valid predictions found for any module.".to_owned(),
+            ))
         }
     }
 
@@ -449,6 +493,9 @@ mod nothing_to_reflect_on {
             seed: 0,
             candidate_selection_strategy: CandidateSelection::Pareto,
             track_best_outputs: false,
+            acceptance: Default::default(),
+            selection: Default::default(),
+            sampling: Default::default(),
             progress: watching.clone(),
             component_selector: ComponentSelection::RoundRobin,
         };
@@ -458,8 +505,9 @@ mod nothing_to_reflect_on {
 
         let seen = watching.seen.lock().expect("not poisoned").clone();
         assert!(
-            seen.iter()
-                .any(|line| line.contains("Exception during reflection/proposal")),
+            seen.iter().any(|line| line.contains(
+                "Exception building reflective dataset: No valid predictions found for any module."
+            )),
             "the run reported {seen:?}"
         );
         assert!(
@@ -532,6 +580,9 @@ mod the_winner_is_named {
             seed: 0,
             candidate_selection_strategy: CandidateSelection::Pareto,
             track_best_outputs: false,
+            acceptance: Default::default(),
+            selection: Default::default(),
+            sampling: Default::default(),
             progress: watching.clone(),
             component_selector: ComponentSelection::RoundRobin,
         };

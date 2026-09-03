@@ -56,6 +56,9 @@ impl<'de> Deserialize<'de> for Audio {
     }
 }
 
+/// dspy's default `timeout=30.0` on `from_url`, in seconds.
+const DOWNLOAD_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
 impl Audio {
     /// Already-encoded base64 and the format it is in — upstream's `Audio(data=…, audio_format=…)`.
     ///
@@ -172,19 +175,34 @@ impl Audio {
     /// The format is what the server said, defaulting to `audio/wav` where it said nothing —
     /// upstream's default, and its refusal when what it said is not audio.
     pub async fn from_url(url: impl AsRef<str>) -> anyhow::Result<Self> {
-        Self::downloaded(url.as_ref(), true).await
+        Self::from_url_with(url, true, Some(DOWNLOAD_TIMEOUT)).await
     }
 
     /// The same, without checking the TLS certificate — upstream's `verify=False`.
     pub async fn from_url_unverified(url: impl AsRef<str>) -> anyhow::Result<Self> {
-        Self::downloaded(url.as_ref(), false).await
+        Self::from_url_with(url, false, Some(DOWNLOAD_TIMEOUT)).await
     }
 
-    async fn downloaded(url: &str, verify: bool) -> anyhow::Result<Self> {
+    /// dspy's `from_url(url, verify=True, timeout=30.0)` with both switches spelled out: `verify`
+    /// is the TLS check and `timeout` bounds the whole download, `None` waiting as long as the
+    /// server takes.
+    pub async fn from_url_with(
+        url: impl AsRef<str>,
+        verify: bool,
+        timeout: Option<std::time::Duration>,
+    ) -> anyhow::Result<Self> {
+        Self::downloaded(url.as_ref(), verify, timeout).await
+    }
+
+    async fn downloaded(
+        url: &str,
+        verify: bool,
+        timeout: Option<std::time::Duration>,
+    ) -> anyhow::Result<Self> {
         if !crate::resource::is_http_url(url) {
             anyhow::bail!("Audio.from_url requires an HTTP(S) URL, received: {url}");
         }
-        let (content_type, encoded) = crate::resource::fetch_base64(url, verify).await?;
+        let (content_type, encoded) = crate::resource::fetch_base64(url, verify, timeout).await?;
         let media_type = content_type.unwrap_or_else(|| "audio/wav".to_owned());
         if !media_type.starts_with("audio/") {
             anyhow::bail!("Unsupported MIME type for audio: {media_type}");

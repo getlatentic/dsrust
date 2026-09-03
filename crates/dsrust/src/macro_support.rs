@@ -43,6 +43,20 @@ impl<T: Type> DescribeViaType for TypeProbe<T> {
     }
 }
 
+/// dspy walks a field's annotation for custom types, so `list[Document]` describes `Document`.
+impl<T: Type> DescribeViaType for TypeProbe<Vec<T>> {
+    fn field_descriptions(self) -> Vec<TypeDescription> {
+        <T as Type>::description().into_iter().collect()
+    }
+}
+
+/// As for a list: `Optional[Document]` describes `Document`.
+impl<T: Type> DescribeViaType for TypeProbe<Option<T>> {
+    fn field_descriptions(self) -> Vec<TypeDescription> {
+        <T as Type>::description().into_iter().collect()
+    }
+}
+
 /// The answer for every other field type. `&self`, so it is reached only when the by-value
 /// [`DescribeViaType`] does not apply — i.e. when the type is not a [`Type`].
 pub trait DescribeFallback {
@@ -105,6 +119,8 @@ impl<T: schemars::JsonSchema> SchemaFallback for TypeProbe<T> {
         Some(crate::signature::json_field_schema::<T>())
     }
 }
+
+pub use crate::react::tool_call::{invalid_argument, observation_text, parsed_args};
 
 #[cfg(test)]
 mod tests {

@@ -1,5 +1,5 @@
 {
-  "source": "generated from dspy==3.3.0 via scripts/generate_failed_parse_fixture.py",
+  "source": "generated from dspy==3.3.1 via scripts/generate_failed_parse_fixture.py",
   "note": "`kept` below `batch_size` means dspy dropped examples: the graded arm raises `TypeError: unsupported operand type(s) for /: 'list' and 'list'`, which `Evaluate` swallows and `bootstrap_trace_data` cannot unpack.",
   "arms": {
     "no_declared_field_parsed": {
@@ -130,6 +130,38 @@
             }
           ]
         }
+      ]
+    }
+  },
+  "untraced": {
+    "some_declared_field_parsed": {
+      "batch_size": 3,
+      "failure_score": 0.0,
+      "kept": 3,
+      "scores": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "no_declared_field_parsed": {
+      "batch_size": 3,
+      "failure_score": 0.0,
+      "kept": 3,
+      "scores": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "a_parsing_run_for_contrast": {
+      "batch_size": 3,
+      "failure_score": 0.0,
+      "kept": 3,
+      "scores": [
+        1.0,
+        1.0,
+        1.0
       ]
     }
   },

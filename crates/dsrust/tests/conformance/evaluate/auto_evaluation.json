@@ -1,6 +1,6 @@
 {
-  "source": "dspy==3.3.0 evaluate/auto_evaluation.py",
-  "dspy_version": "3.3.0",
+  "source": "dspy==3.3.1 evaluate/auto_evaluation.py",
+  "dspy_version": "3.3.1",
   "note": "The four judge signatures as dspy declares them, the prompt a `ChainOfThought` over each renders, and `f1_score` over a grid that crosses both clamp arms and the zero guard.",
   "signatures": [
     {

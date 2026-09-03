@@ -119,14 +119,48 @@ CASES = [
     ("merge_forbidden", ["a", "b", "c"], 6, 8, 6, 3, 300, 99.0, 3, True, "merge", 0),
 ]
 
+# gepa 0.1.4's proposal controls, each in the regime where it changes the run: a lateral move the
+# strict criterion refuses and the or-equal one keeps (the capped bump ties); several tasks per
+# iteration, so the sampler hands out distinct minibatches and the selection strategy has more than
+# one accepted proposal to choose among; and a `PxN` draw, which spends the shared generator on
+# several parents before any minibatch. (label, acceptance, selection, sampling, base case).
+STRATEGY_CASES = [
+    ("accept_or_equal", "improvement_or_equal", None, None, ("single_seed0", ["instruction"], 3, 5, 6, 2, 40, 1.0, 0, False, "tradeoff", 5)),
+    ("same_parent_best_of_three", "strict_improvement", "best", ("same_parent", 3), ("two_components_seed1", ["instr_a", "instr_b"], 3, 6, 4, 2, 60, 1.0, 1, False, "tradeoff", 5)),
+    ("independent_two_top_one", "strict_improvement", ("top_k", 1), ("independent", 2), ("two_components_seed5", ["instr_a", "instr_b"], 4, 5, 4, 3, 60, 1.0, 5, False, "tradeoff", 5)),
+    ("pxn_two_by_two_all", "strict_improvement", None, ("pxn", 2, 2), ("two_components_seed1", ["instr_a", "instr_b"], 3, 6, 4, 2, 60, 1.0, 1, False, "tradeoff", 5)),
+    ("independent_two_all_or_equal", "improvement_or_equal", None, ("independent", 2), ("single_seed0", ["instruction"], 3, 5, 6, 2, 40, 1.0, 0, False, "tradeoff", 5)),
+]
+
+
+def strategies(selection, sampling):
+    from gepa.strategies.proposal_sampling import IndependentSampling, PxNSampling, SameParentSampling
+    from gepa.strategies.proposal_selection import BestImprovement, TopKImprovements
+
+    selected = None
+    if selection == "best":
+        selected = BestImprovement()
+    elif isinstance(selection, tuple):
+        selected = TopKImprovements(selection[1])
+    sampled = None
+    if isinstance(sampling, tuple) and sampling[0] == "same_parent":
+        sampled = SameParentSampling(sampling[1])
+    elif isinstance(sampling, tuple) and sampling[0] == "independent":
+        sampled = IndependentSampling(sampling[1])
+    elif isinstance(sampling, tuple) and sampling[0] == "pxn":
+        sampled = PxNSampling(sampling[1], sampling[2])
+    return selected, sampled
+
 
 def build_once(
     label, components, cap, trainset_size, valset_size, minibatch_size,
     max_metric_calls, perfect, seed, use_merge, mode, max_merge_invocations,
+    acceptance="strict_improvement", selection=None, sampling=None,
 ) -> dict:
     trainset = list(range(trainset_size))
     valset = list(range(valset_size))
     seed_candidate = {name: "v0" for name in components}
+    selection_strategy, sampling_strategy = strategies(selection, sampling)
 
     result = optimize(
         seed_candidate=seed_candidate,
@@ -140,10 +174,16 @@ def build_once(
         use_merge=use_merge,
         max_merge_invocations=max_merge_invocations,
         raise_on_exception=True,
+        acceptance_criterion=acceptance,
+        selection_strategy=selection_strategy,
+        sampling_strategy=sampling_strategy,
     )
 
     return {
         "label": label,
+        "acceptance": acceptance,
+        "selection": selection,
+        "sampling": sampling,
         "components": components,
         "cap": cap,
         "trainset_size": trainset_size,
@@ -173,7 +213,11 @@ def main() -> None:
         "source": f"generated from gepa=={PINNED} via scripts/generate_gepa_engine_fixture.py",
         "gepa_version": PINNED,
         "weight": WEIGHT,
-        "cases": [build_once(*case) for case in CASES],
+        "cases": [build_once(*case) for case in CASES]
+        + [
+            build_once(label, *base[1:], acceptance=acceptance, selection=selection, sampling=sampling)
+            for label, acceptance, selection, sampling, base in STRATEGY_CASES
+        ],
     }
     OUT.mkdir(parents=True, exist_ok=True)
     path = OUT / "engine.json"

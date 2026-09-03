@@ -464,6 +464,9 @@ lm.call(items![User!["Describe this.", LmPart::image_url(url)]]).await?;
 
 // A named speaker, which is how two `user` turns stay apart.
 lm.call(items![User!["hello"].name("alice"), Assistant!["hi"].name("bot")]).await?;
+
+// A system turn leads, as it does in any chat request.
+lm.call(items![System!["Answer in one word."], User!["Capital of France?"]]).await?;
 ```
 
 `User`, `Assistant`, `System` and `Developer` are DSPy's own names for the four role constructors —
@@ -606,6 +609,34 @@ happened inside — so `ChainOfThought` encloses its `Predict`, which encloses t
 DSPy's `call_id` and `ACTIVE_CALL_ID`, without the second lookup. A handler that panics is caught and
 logged rather than allowed to end the run, as DSPy wraps each of its own in `try/except`.
 
+#### From a module of your own
+
+DSPy decorates every `Adapter` subclass on its way into existence, so a renderer written outside the
+library still fires the points. Rust has no metaclass, so the points are functions a caller goes
+through instead, and they are public for exactly that: `observe::module_shown`, `observe::lm_shown`,
+`observe::formatting`, `observe::parsing`, `observe::tool_acall`, `observe::executing` and
+`observe::compiling`. Each opens a [`Watch`](https://docs.rs/dsrust/latest/dsrust/observe/struct.Watch.html)
+— the span, the call id and the instance's own handler list in one value — and closes it however the
+work ends, so a point cannot be started and left unfinished by an early `?`.
+
+```rust
+use dsrust::lm::api::LmRequest;
+
+let request = LmRequest::new("openai/gpt-4o-mini", Vec::new());
+let watching = dsrust::observe::lm_shown(&request, &[]);
+// ... your own call to a provider ...
+drop(watching);
+```
+
+A tool crosses the same boundary as a value rather than an object: `native_tools::manifest(tool)` is
+what DSPy's `Tool` serialises to — `{name, desc, args}` — which is what a `list[Tool]` input field
+carries and what a provider's function-calling spec is built from.
+
+Two more values a caller reaches for when writing their own module: a `ChatTurn` is one turn of the
+conversation an adapter renders, and a `Trajectory` is what a `ReAct` episode did — the thoughts,
+the tool calls and the observations, in order, which is the value the agent hands back beside its
+answer.
+
 #### As spans
 
 The same six points open a `tracing` span, which is the shape a Rust program already collects. A
@@ -732,14 +763,22 @@ fn search(term: String) -> anyhow::Result<String> {
 The function stays callable as itself, and the tool is a type of the same name in PascalCase —
 `vec![Box::new(Search)]` — while the name on the wire is still `search`. The doc comment **is
 prompt text**: it reaches the model as `search, whose description is <desc>Look one term up in the
-index and return what it says. ...</desc>`, normalised by the same `inspect.cleandoc` Python
-applies to a docstring, so an indented second paragraph reads the same in both languages. The
-parameters become the schema `{"term": {"type": "string"}}` — an `Option<T>` is one the model may
-leave out.
+index and return what it says. ...</desc>`, shaped as the pinned Python stores a docstring —
+dedented at compile time by the indentation common to the lines after the first, blank lines and
+the newline a closing line leaves kept. A function with no doc comment makes a tool with no
+description, shown to the model by its name and arguments alone, as an undocumented Python
+function is. The
+parameters become the schema `{"term": {"type": "string"}}`. An `Option<T>` accepts `null`; what
+lets the model leave a parameter out is `#[tool(default = ...)]`, as a Python default does — dspy
+exempts an argument from `required` for carrying a default, never for being nullable.
 
-**A wrong argument is answered, not raised.** Sending `{"term": 7}` gets back ``Refused: `term` is
-not the type this tool takes (invalid type: integer `7`, expected a string).`` — a string the loop
-can read and retry from, where an error would end the turn. dspy's tools answer the same way.
+**A wrong argument is raised, as dspy raises it.** Sending `{"term": 7}` fails with
+``ValueError: Arg term is invalid: 7 is not of type 'string'``, leaving `term` out with
+``TypeError: search() missing 1 required positional argument: 'term'``, and sending an argument the
+tool does not declare with ``ValueError: Arg topic is not in the tool's args.`` — the lines dspy's
+own validation and Python produce, checked with a port of python-jsonschema's `validate`. ReAct
+records any of them as `Execution error in search: …`, which is what the model reads and retries
+from.
 
 ### A tool that needs state
 
@@ -944,6 +983,9 @@ Every module spells its cap `max_iters`, as DSPy 3.3.0 does. It did not until th
 name neither side had. The pin moved and so did this.
 
 ### Code-writing modules run real Python
+
+DSPy 3.3.1 deprecates `ProgramOfThought` and `CodeAct` in favour of `RLM`, which will remove them in
+3.5; both carry the same deprecation here, so a build that uses one says so.
 
 `ProgramOfThought`, `CodeAct` and `RLM` default to a Deno/Pyodide sandbox running DSPy's own
 `runner.js`, exactly as `dspy.ProgramOfThought(...)` defaults to `PythonInterpreter()`. **`deno`

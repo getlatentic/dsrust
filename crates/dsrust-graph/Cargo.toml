@@ -1,0 +1,25 @@
+[package]
+name = "dsrust-graph"
+version = "0.1.0-alpha.3"
+edition = "2024"
+# Not published yet. It is a worked reference for a program whose shape comes from a document
+# rather than from a Rust struct, and its README tells a reader to copy `src/graph.rs` — two
+# methods. It moved into this workspace so a change to dsrust's API breaks it on the commit that
+# causes it rather than whenever someone next builds the other repository, which is how a
+# `Reasoning`-typed field went a day looking like a GEPA regression.
+publish = false
+license = "MIT OR Apache-2.0"
+description = "Building a dsrust program from a graph a user wired at run time."
+
+[dependencies]
+dsrust = { version = "0.1.0-alpha.3", path = "../dsrust" }
+# The document type is this crate's own, so its derives are this crate's to depend on. `serde_json`
+# is not here for the same reason it is not in a caller's manifest: every reach is through
+# `dsrust::serde_json`, which is what dsrust re-exports it for.
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+# Only the tests and `examples/run.rs` await anything — `src/` names no tokio type. As a normal
+# dependency this handed every consumer a runtime and a scheduler, which is the choice dsrust
+# deliberately leaves to its caller.
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

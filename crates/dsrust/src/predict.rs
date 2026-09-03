@@ -84,6 +84,7 @@ mod completions;
 mod derived;
 pub mod flex;
 mod hint;
+pub mod knn;
 mod multi_chain_comparison;
 mod native;
 mod parallel;
@@ -97,12 +98,14 @@ mod validate;
 pub use aggregation::{Normalize, majority, normalize_text};
 pub use best_of_n::BestOfN;
 pub use chain_of_thought::{ChainOfThought, TypedChainOfThought};
+#[allow(deprecated)]
 pub use code_act::CodeAct;
 pub use derived::TypedPredict;
 use derived::typed;
 pub use multi_chain_comparison::MultiChainComparison;
 use native::{ask_for_parallel_calls, force_tool};
 pub use parallel::{Answered, Parallel};
+#[allow(deprecated)]
 pub use program_of_thought::ProgramOfThought;
 pub use refine::Refine;
 pub use rlm::Rlm;

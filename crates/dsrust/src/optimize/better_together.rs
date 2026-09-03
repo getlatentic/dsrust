@@ -120,6 +120,7 @@ where
         valset: Option<&[Example]>,
         strategy: &str,
     ) -> Result<Vec<StepResult>> {
+        crate::observe::compiling("BetterTogether", self as *const Self as *const () as usize, trainset, valset, async move {
         let steps = self.parse_strategy(strategy)?;
         let (mut trainset, valset) = self.split(trainset, valset)?;
 
@@ -164,6 +165,9 @@ where
             student.load_state(&best.state)?;
         }
         Ok(ranked.into_iter().map(|(_, candidate)| candidate).collect())
+
+        })
+        .await
     }
 
     /// Score the student as it stands and record it under the strategy that got it there.

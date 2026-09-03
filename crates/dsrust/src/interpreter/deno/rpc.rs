@@ -3,10 +3,12 @@
 //! One line per message, which is what upstream's `runner.js` reads and writes. Pyodide prints
 //! package-loading chatter on the same stream, so a line that does not begin `{` is skipped rather
 //! than treated as an answer — up to a bound, since skipping forever is how a dead child looks like
-//! a slow one.
+//! a slow one. dspy 3.3.1 also skips what the sandbox says *out of band* — a notification such as
+//! `unhandled_error`, or an error naming no request — keeping the last of them to explain a later
+//! silence, and treats a protocol error naming no request as the end of the session.
 
 use crate::interpreter::InterpreterFailure;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{ChildStdin, ChildStdout};
 
 use anyhow::Result;
@@ -15,26 +17,38 @@ use serde_json::{Value, json};
 /// dspy's `_MAX_SKIP_LINES`: how much non-JSON the sandbox may print before a read gives up.
 const MAX_SKIPPED: usize = 100;
 
-/// The two sides of one sandbox process, and the request counter they share.
-pub(super) struct Rpc {
-    writer: ChildStdin,
-    reader: BufReader<ChildStdout>,
-    next_id: u64,
+/// dspy's `JSONRPC_PROTOCOL_ERRORS`: the codes that mean the conversation itself broke.
+const PROTOCOL_ERRORS: [i64; 3] = [-32700, -32600, -32601];
+
+/// The sandbox's own pipes.
+pub(super) type Rpc = Conversation<ChildStdin, ChildStdout>;
+
+/// The two sides of one JSON-RPC conversation, and what the other end last said out of band.
+///
+/// Generic over the pipes rather than over `Child`'s: nothing here is about a subprocess, and a
+/// conversation held to its protocol in a test should not have to spawn one.
+pub(super) struct Conversation<W: Write, R: Read> {
+    writer: W,
+    reader: BufReader<R>,
+    last_diagnostic: Option<String>,
 }
 
-impl Rpc {
-    pub(super) fn new(writer: ChildStdin, reader: ChildStdout) -> Self {
+impl<W: Write, R: Read> Conversation<W, R> {
+    pub(super) fn new(writer: W, reader: R) -> Self {
         Self {
             writer,
             reader: BufReader::new(reader),
-            next_id: 0,
+            last_diagnostic: None,
         }
     }
 
     /// Send a request and answer with the id it went out under, so the caller can match the reply.
-    pub(super) fn request(&mut self, method: &str, params: Value) -> Result<u64> {
-        self.next_id += 1;
-        let id = self.next_id;
+    ///
+    /// dspy 3.3.1 draws the id at random — `secrets.token_hex(16)` — rather than counting, so
+    /// sandboxed code that prints a line shaped like a reply cannot guess which request it answers.
+    pub(super) fn request(&mut self, method: &str, params: Value) -> Result<String> {
+        let id = request_id();
+        self.last_diagnostic = None;
         self.send(json!({ "jsonrpc": "2.0", "method": method, "params": params, "id": id }))?;
         Ok(id)
     }
@@ -71,30 +85,96 @@ impl Rpc {
         Ok(())
     }
 
-    /// The next JSON message the sandbox sends, skipping whatever else it printed.
+    /// The next message the sandbox sends *to this side*, skipping whatever else it printed and
+    /// whatever it said out of band.
     pub(super) fn receive(&mut self, context: &str) -> Result<Value> {
+        // Bounded by the range rather than by a counter the body maintains: a `+= 1` a mutation
+        // could drop is a read that never ends, which is the one failure no assertion reports.
         for _ in 0..=MAX_SKIPPED {
             let mut line = String::new();
             if self.reader.read_line(&mut line)? == 0 {
-                return Err(anyhow::Error::new(InterpreterFailure::Session(format!(
-                    "the sandbox closed its output {context}"
-                ))));
+                return Err(self.session_failure(format!(
+                    "the sandbox closed its output {context}{}",
+                    self.diagnostic()
+                )));
             }
             let line = line.trim();
-            if !line.starts_with('{') {
+            let message = match line.starts_with('{') {
+                true => serde_json::from_str::<Value>(line).ok(),
+                false => None,
+            };
+            // Malformed JSON is Pyodide's chatter that happened to start with a brace, not a
+            // message; upstream skips it on the same reasoning.
+            let Some(message) = message else {
+                continue;
+            };
+            if self.out_of_band(&message, context)? {
                 continue;
             }
-            match serde_json::from_str(line) {
-                Ok(message) => return Ok(message),
-                // Malformed JSON is Pyodide's chatter that happened to start with a brace, not a
-                // message; upstream skips it on the same reasoning.
-                Err(_) => continue,
-            }
+            return Ok(message);
         }
-        Err(anyhow::Error::new(InterpreterFailure::Session(format!(
-            "the sandbox printed {MAX_SKIPPED} lines of non-JSON {context}"
-        ))))
+        // dspy's own count: its `while skipped <= _MAX_SKIP_LINES` leaves the loop having skipped
+        // one more than the bound.
+        Err(self.session_failure(format!(
+            "Too many skipped lines ({}) {context}",
+            MAX_SKIPPED + 1
+        )))
     }
+
+    /// dspy 3.3.1's `_handle_out_of_band_message`: a notification, or an error naming no request,
+    /// is consumed and remembered; a *protocol* error naming no request ends the session.
+    fn out_of_band(&mut self, message: &Value, context: &str) -> Result<bool> {
+        let payload = match (
+            message.get("method"),
+            message.get("id"),
+            message.get("error"),
+        ) {
+            (Some(_), None, _) => message.get("params").cloned().unwrap_or(Value::Null),
+            (_, id, Some(error)) if id.is_none_or(Value::is_null) => {
+                let code = error.get("code").and_then(Value::as_i64);
+                if code.is_some_and(|code| PROTOCOL_ERRORS.contains(&code)) {
+                    let said = error
+                        .get("message")
+                        .and_then(Value::as_str)
+                        .map_or_else(|| message.to_string(), str::to_owned);
+                    return Err(self.session_failure(format!("Protocol error {context}: {said}")));
+                }
+                error.clone()
+            }
+            _ => return Ok(false),
+        };
+        let said = payload
+            .get("message")
+            .and_then(Value::as_str)
+            .map_or_else(|| message.to_string(), str::to_owned);
+        tracing::debug!("Skipping out-of-band sandbox message {context}: {said}");
+        self.last_diagnostic = Some(said);
+        Ok(true)
+    }
+
+    /// dspy 3.3.1's ` (last sandbox diagnostic: …)` suffix, where there is one.
+    fn diagnostic(&self) -> String {
+        self.last_diagnostic
+            .as_ref()
+            .map(|said| format!(" (last sandbox diagnostic: {said})"))
+            .unwrap_or_default()
+    }
+
+    fn session_failure(&self, why: String) -> anyhow::Error {
+        anyhow::Error::new(InterpreterFailure::Session(why))
+    }
+}
+
+/// 32 hex characters drawn from the process's own randomness — the shape of `secrets.token_hex(16)`.
+fn request_id() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    let mut id = String::with_capacity(32);
+    for salt in 0..2u64 {
+        let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+        hasher.write_u64(salt);
+        id.push_str(&format!("{:016x}", hasher.finish()));
+    }
+    id
 }
 
 /// dspy's `JSONRPC_APP_ERRORS["SyntaxError"]`, the one code it reads differently from the rest.
@@ -143,8 +223,18 @@ fn said(error: &Value) -> String {
 }
 
 /// One reply's result, checked against the request it answers.
-pub(super) fn answered(message: &Value, id: u64, context: &str) -> Result<Value> {
+///
+/// An error naming another request is not this request's failure: dspy 3.3.1 ends the session on
+/// it, where before it would read an error carrying no id as the current request's.
+pub(super) fn answered(message: &Value, id: &str, context: &str) -> Result<Value> {
+    let answers = message.get("id").and_then(Value::as_str) == Some(id);
     if let Some(error) = message.get("error") {
+        if !answers {
+            return Err(anyhow::Error::new(InterpreterFailure::Session(format!(
+                "Response ID mismatch: expected {id}, got {}",
+                message.get("id").cloned().unwrap_or(Value::Null)
+            ))));
+        }
         // dspy's split: an application code is the code's failure and a module feeds it back to the
         // model; anything else is the protocol's, and upstream makes that terminal.
         let code = error.get("code").and_then(Value::as_i64);
@@ -154,14 +244,12 @@ pub(super) fn answered(message: &Value, id: u64, context: &str) -> Result<Value>
         };
         return Err(anyhow::Error::new(failure));
     }
-    match message.get("id").and_then(Value::as_u64) {
-        Some(answered) if answered == id => {
-            Ok(message.get("result").cloned().unwrap_or(Value::Null))
-        }
+    match answers {
+        true => Ok(message.get("result").cloned().unwrap_or(Value::Null)),
         // A reply that answers a different request means the stream is out of step, which no
         // rewrite of the submitted code repairs — upstream's `_raise_terminal_error`.
-        other => Err(anyhow::Error::new(InterpreterFailure::Session(format!(
-            "the sandbox answered {other:?} where {id} was asked, {context}"
+        false => Err(anyhow::Error::new(InterpreterFailure::Session(format!(
+            "Unexpected response {context}: {message}"
         )))),
     }
 }
@@ -174,13 +262,23 @@ mod tests {
     /// caller the result of something else entirely.
     #[test]
     fn a_reply_to_another_request_is_refused() {
-        let refused =
-            answered(&json!({ "result": 1, "id": 7 }), 8, "while testing").expect_err("refused");
+        let refused = answered(&json!({ "result": 1, "id": "7" }), "8", "while testing")
+            .expect_err("refused");
         assert!(
             refused
                 .to_string()
-                .contains("answered Some(7) where 8 was asked"),
+                .starts_with("Unexpected response while testing:"),
             "{refused}"
+        );
+        let mismatched = answered(
+            &json!({ "error": { "code": -32001 }, "id": "7" }),
+            "8",
+            "while testing",
+        )
+        .expect_err("refused");
+        assert_eq!(
+            mismatched.to_string(),
+            "Response ID mismatch: expected 8, got \"7\""
         );
     }
 
@@ -195,9 +293,9 @@ mod tests {
                     "message": "",
                     "data": { "type": "NameError", "args": ["name 'x' is not defined"] },
                 },
-                "id": 1,
+                "id": "1",
             }),
-            1,
+            "1",
             "while testing",
         )
         .expect_err("refused");
@@ -212,8 +310,8 @@ mod tests {
     #[test]
     fn a_syntax_error_takes_dspys_own_wording() {
         let refused = answered(
-            &json!({ "error": { "code": -32000, "message": "bad token" }, "id": 1 }),
-            1,
+            &json!({ "error": { "code": -32000, "message": "bad token" }, "id": "1" }),
+            "1",
             "while testing",
         )
         .expect_err("refused");
@@ -221,5 +319,48 @@ mod tests {
             refused.to_string(),
             "Invalid Python syntax. message: bad token"
         );
+    }
+
+    #[test]
+    fn a_request_id_is_thirty_two_hex_characters_and_fresh_each_time() {
+        let first = request_id();
+        let second = request_id();
+        assert_eq!(first.len(), 32);
+        assert!(first.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_ne!(first, second);
+    }
+
+    /// The out-of-band rules, over a pipe scripted with each kind of line.
+    #[test]
+    fn out_of_band_messages_are_skipped_and_remembered_and_a_protocol_error_ends_the_session() {
+        let mut rpc = scripted(concat!(
+            "not json\n",
+            "{\"jsonrpc\":\"2.0\",\"method\":\"unhandled_error\",\"params\":{\"message\":\"boom\"}}\n",
+            "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32099,\"message\":\"late\"},\"id\":null}\n",
+            "{\"jsonrpc\":\"2.0\",\"result\":1,\"id\":\"a\"}\n",
+            "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32700,\"message\":\"parse\"}}\n",
+        ));
+        let answer = rpc.receive("during a test").expect("the real reply");
+        assert_eq!(answer["id"], "a");
+        assert_eq!(
+            rpc.last_diagnostic.as_deref(),
+            Some("late"),
+            "the last out-of-band message is kept"
+        );
+        let ended = rpc
+            .receive("during a test")
+            .expect_err("a protocol error is terminal");
+        assert_eq!(ended.to_string(), "Protocol error during a test: parse");
+        let closed = rpc.receive("during a test").expect_err("the pipe is spent");
+        assert_eq!(
+            closed.to_string(),
+            "the sandbox closed its output during a test (last sandbox diagnostic: late)"
+        );
+    }
+
+    /// A conversation over a scripted transcript, which needs no process at all: the reader is the
+    /// bytes the sandbox would have written and the writer is a sink.
+    fn scripted(lines: &str) -> Conversation<Vec<u8>, std::io::Cursor<Vec<u8>>> {
+        Conversation::new(Vec::new(), std::io::Cursor::new(lines.as_bytes().to_vec()))
     }
 }

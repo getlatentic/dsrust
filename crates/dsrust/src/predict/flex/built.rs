@@ -4,6 +4,7 @@
 //! is the crossing — a thread, a channel, and a question answered — and this is *what* is being
 //! asked for. A new kind lands here; a change to how the sandbox is driven lands there.
 
+#![allow(deprecated)]
 use std::sync::Arc;
 
 use anyhow::{Result, anyhow, bail};

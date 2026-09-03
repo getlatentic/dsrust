@@ -20,6 +20,7 @@ mod earned;
 mod ensemble;
 mod gepa;
 mod infer_rules;
+pub mod knn_fewshot;
 mod labeled;
 mod mipro;
 mod optuna;
@@ -84,8 +85,9 @@ pub use ensemble::{Ensemble, Ensembled};
 // dataset it is handed without naming the type its entries are, and reaching for it would mean
 // depending on the engine crate directly.
 pub use gepa::{
-    Candidate, Event, Feedback, GEPA, GepaOutcome, InstructionProposer, MetricContext,
-    MultiModalInstructionProposer, Progress, Reflective, ReflectiveDataset, Reported,
+    Acceptance, Candidate, Event, Feedback, GEPA, GepaOutcome, InstructionProposer, MetricContext,
+    MultiModalInstructionProposer, Progress, Reflective, ReflectiveDataset, Rejection, Reported,
+    Sampling, Selection,
 };
 pub use infer_rules::{InferRules, RuleCandidate};
 pub use labeled::LabeledFewShot;

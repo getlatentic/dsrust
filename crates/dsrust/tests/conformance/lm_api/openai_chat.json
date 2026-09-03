@@ -1,6 +1,6 @@
 {
-  "source": "dspy==3.3.0 clients/openai_format.to_openai_chat_request",
-  "dspy_version": "3.3.0",
+  "source": "dspy==3.3.1 clients/openai_format.to_openai_chat_request",
+  "dspy_version": "3.3.1",
   "cases": [
     {
       "name": "minimal",

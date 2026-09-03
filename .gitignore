@@ -38,3 +38,11 @@ __pycache__/
 # cargo-mutants scratch trees and logs
 mutants.out/
 mutants.out.old/
+
+# The internal working notes: the plan and the handoff. Kept on a developer's machine, out of the
+# repository — a reader of this project should meet it through README.md and docs/, and neither of
+# these had stayed true enough to publish. What they carry that *is* published — the observed test
+# counts — lives in `scripts/status.toml`, which is tracked, so nothing a reader sees goes stale
+# because a note nobody could see went stale.
+/backlog.toml
+/HANDOFF.md

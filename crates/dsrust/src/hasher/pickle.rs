@@ -92,13 +92,15 @@ struct Pickler {
     /// * The **inputs** are the caller's own objects. A program that calls one predictor twice
     ///   passes the same question variable to both, so the name *and* the value repeat as
     ///   back-references — `'question'` and `'what is up?'` alike.
-    /// * The **outputs** were parsed out of a completion and are new objects every time. Two
-    ///   equal ones are written twice, even inside a single demo.
+    /// * The **output values** were parsed out of a completion and are new objects every time. Two
+    ///   equal ones are written twice, even inside a single demo. The output **names** are the
+    ///   signature's own field-name objects: every adapter's `parse` runs
+    ///   `apply_output_field_defaults`, which rebuilds the fields from `signature.output_fields`,
+    ///   so a name back-references its first appearance exactly as an input name does.
     ///
-    /// Measured rather than reasoned: `ChatAdapter`, `JSONAdapter` and `XMLAdapter` were each
-    /// asked, and all three return output names and values sharing with neither the signature nor
-    /// a previous parse nor each other. `optimize/hasher.json` pins both sides, and one of its cases
-    /// is the tuple an actual compile passed to `Hasher.hash`, captured rather than written.
+    /// Measured rather than reasoned, on dspy 3.3.1: `optimize/hasher.json` pins both sides, and
+    /// one of its cases is the tuple an actual compile passed to `Hasher.hash`, captured rather
+    /// than written — its second demo writes `BINGET` for `answer` and `note`.
     ///
     /// The residue is equality standing in for identity: two *equal* inputs that were separate
     /// objects back-reference here and would not upstream. Nothing in a program that reaches this
@@ -168,7 +170,7 @@ impl Pickler {
                 self.shared_value(value);
             }
             Side::Output => {
-                self.fresh_str(name);
+                self.interned(name);
                 self.value(value);
             }
         }

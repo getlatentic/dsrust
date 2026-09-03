@@ -173,6 +173,89 @@ impl Callback for Recording {
     fn on_evaluate_end(&self, call: &CallId, _evaluated: Result<&Evaluation, &Error>) {
         self.ended("on_evaluate_end", call);
     }
+    fn on_interpreter_execute_start(&self, call: &CallId, _interpreter: &str, _code: &str) {
+        self.started("on_interpreter_execute_start", call);
+    }
+    fn on_interpreter_execute_end(
+        &self,
+        call: &CallId,
+        _answered: Result<&dsrust::interpreter::Executed, &Error>,
+    ) {
+        self.ended("on_interpreter_execute_end", call);
+    }
+    fn on_interpreter_tool_call_start(&self, call: &CallId, _tool: &str, _args: &Value) {
+        self.started("on_interpreter_tool_call_start", call);
+    }
+    fn on_interpreter_tool_call_end(&self, call: &CallId, _answered: Result<&Value, &Error>) {
+        self.ended("on_interpreter_tool_call_end", call);
+    }
+    fn on_interpreter_startup_start(&self, call: &CallId, _interpreter: &str) {
+        self.started("on_interpreter_startup_start", call);
+    }
+    fn on_interpreter_startup_end(&self, call: &CallId, _answered: Result<(), &Error>) {
+        self.ended("on_interpreter_startup_end", call);
+    }
+    fn on_interpreter_shutdown_start(&self, call: &CallId, _interpreter: &str) {
+        self.started("on_interpreter_shutdown_start", call);
+    }
+    fn on_interpreter_shutdown_end(&self, call: &CallId, _answered: Result<(), &Error>) {
+        self.ended("on_interpreter_shutdown_end", call);
+    }
+    fn on_compile_start(
+        &self,
+        call: &CallId,
+        _optimizer: &str,
+        _trainset: &[Example],
+        _valset: Option<&[Example]>,
+    ) {
+        self.started("on_compile_start", call);
+    }
+    fn on_compile_end(&self, call: &CallId, _compiled: Result<(), &Error>) {
+        self.ended("on_compile_end", call);
+    }
+}
+
+/// dspy 3.3.1's compile point: an optimizer's `compile` opens a call that every module run inside
+/// it is a child of, and closes it whatever happened — upstream's `test_optimizer_callback`.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
+#[tokio::test]
+async fn a_compile_encloses_the_runs_it_makes() {
+    let recording = Arc::new(Recording::default());
+    let lm: Arc<dyn dsrust::lm::DynChatModel> = Arc::new(DummyLM::new(std::iter::repeat_n(
+        example! { answer: "fine" },
+        8,
+    )));
+    let _serial = install(lm, recording.clone());
+    let mut student = dsrust::Predict::from_signature(signature());
+    let trainset =
+        vec![example! { question: "How are you?", answer: "fine" }.with_inputs(["question"])];
+    let metric = dsrust::evaluate::exact_match;
+    dsrust::optimize::BootstrapFewShot::new(&metric)
+        .compile(&mut student, &trainset)
+        .await
+        .expect("compiles");
+    let tree = recording.tree();
+    let lines: Vec<&str> = tree.lines().collect();
+    assert_eq!(lines.first().copied(), Some("on_compile_start"), "{tree}");
+    assert_eq!(lines.last().copied(), Some("on_compile_end"), "{tree}");
+    assert!(
+        lines.contains(&"  on_module_start"),
+        "the teacher's runs are children of the compile:\n{tree}"
+    );
+    assert_eq!(
+        lines
+            .iter()
+            .filter(|line| **line == "on_compile_start")
+            .count(),
+        1,
+        "the trait's compile delegating to the inherent one is one compile, not two:\n{tree}"
+    );
+    // dspy's `BootstrapFewShot` compiles a `LabeledFewShot` for its teacher, and that compile is
+    // its own point, one level down.
+    assert!(
+        lines.contains(&"  on_compile_start"),
+        "the teacher's LabeledFewShot compile is a child compile:\n{tree}"
+    );
 }
 
 /// One case out of the fixture, as the same indented tree [`Recording::tree`] renders.
@@ -493,4 +576,68 @@ async fn asking_a_model_directly_fires_the_lm_point() {
     configure_callbacks([]);
 
     assert_eq!(recording.tree(), "on_lm_start\non_lm_end");
+}
+
+/// dspy 3.3.1's interpreter points, driven the way a module outside this crate would: `observe`'s
+/// helpers are public so a caller's own interpreter lands on the same callback tree as this one's,
+/// and nothing but this says a caller can reach them.
+///
+/// The nesting is upstream's — a tool the sandboxed code called happens *inside* the execution,
+/// and the sandbox coming up is its own point — so the tree is what the handlers are given.
+#[allow(clippy::await_holding_lock)] // the installer's own note: `SERIAL` is a test token, taken by nothing under test
+#[tokio::test]
+async fn a_callers_own_interpreter_reaches_the_interpreter_points() {
+    use dsrust::observe::{
+        InterpreterLifecycle, executing, interpreter_lifecycle, interpreter_tool_call,
+    };
+
+    let recording = Arc::new(Recording::default());
+    let lm: Arc<dyn dsrust::lm::DynChatModel> = Arc::new(DummyLM::new([example! { answer: "x" }]));
+    let _serial = install(lm, recording.clone());
+
+    interpreter_lifecycle(InterpreterLifecycle::Startup, "OwnInterpreter", || Ok(()))
+        .expect("starts");
+    executing("OwnInterpreter", "lookup('cats')", || {
+        let observed =
+            interpreter_tool_call("lookup", &serde_json::json!({ "q": "cats" }), || {
+                Ok(Value::String("found".to_owned()))
+            })?;
+        assert_eq!(observed, Value::String("found".to_owned()));
+        Ok(dsrust::interpreter::Executed::Printed(Value::String(
+            "done".to_owned(),
+        )))
+    })
+    .expect("runs");
+    interpreter_lifecycle(InterpreterLifecycle::Shutdown, "OwnInterpreter", || Ok(()))
+        .expect("stops");
+
+    assert_eq!(
+        recording.tree(),
+        "on_interpreter_startup_start\n\
+         on_interpreter_startup_end\n\
+         on_interpreter_execute_start\n\
+         \u{20}\u{20}on_interpreter_tool_call_start\n\
+         \u{20}\u{20}on_interpreter_tool_call_end\n\
+         on_interpreter_execute_end\n\
+         on_interpreter_shutdown_start\n\
+         on_interpreter_shutdown_end"
+    );
+}
+
+/// The compile point for an optimizer that neither awaits nor fails — dspy wraps every
+/// `Teleprompter.compile` the same way, and `compiling_sync` is the half for the ones that answer
+/// without a `Result`.
+#[allow(clippy::await_holding_lock)] // as above
+#[tokio::test]
+async fn a_synchronous_compile_fires_the_same_pair() {
+    let recording = Arc::new(Recording::default());
+    let lm: Arc<dyn dsrust::lm::DynChatModel> = Arc::new(DummyLM::new([example! { answer: "x" }]));
+    let _serial = install(lm, recording.clone());
+
+    let trainset =
+        vec![example! { question: "How are you?", answer: "fine" }.with_inputs(["question"])];
+    let mut student = dsrust::Predict::from_signature(signature());
+    dsrust::optimize::LabeledFewShot::new(1).compile(&mut student, &trainset);
+
+    assert_eq!(recording.tree(), "on_compile_start\non_compile_end");
 }

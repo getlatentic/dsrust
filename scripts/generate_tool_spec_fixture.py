@@ -59,7 +59,22 @@ def a_container_with_a_default(names: list[str], tags: dict = {}) -> str:  # noq
     return f"{names}{tags}"
 
 
+def undocumented(x: int) -> str:
+    return str(x)
+
+
+def indented_docstring(term: str) -> str:
+    """Look one term up.
+
+        query is a phrase, not a sentence.
+    Answers with a summary.
+    """
+    return term
+
+
 TOOLS = [
+    indented_docstring,
+    undocumented,
     every_argument_required,
     a_default_of_empty_string,
     defaults_of_every_scalar,

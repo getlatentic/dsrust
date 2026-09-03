@@ -15,5 +15,7 @@ mod parzen;
 mod sampler;
 pub mod truncnorm;
 
+pub use argsort::argsort;
 pub use int_sampler::IntTpeSampler;
+pub use parzen::{PairwiseSummand, pairwise_sum};
 pub use sampler::TpeSampler;
