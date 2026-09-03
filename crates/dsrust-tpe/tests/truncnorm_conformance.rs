@@ -35,12 +35,37 @@ fn number(value: &Value) -> f64 {
 
 /// Exact, including both non-finite spellings — two NaNs are never `==`, and the golden records
 /// where optuna answers with one.
+/// Exact on both non-finite spellings — two NaNs are never `==`, and the golden records where
+/// optuna answers with one — and within a few units in the last place on a finite answer.
+///
+/// The golden was recorded on macOS, and every function here ends in the platform's `exp` or
+/// `log`: Apple's, glibc's and Windows' universal CRT round the last bit differently, so the same
+/// arithmetic lands one ulp apart across the three, in optuna itself as much as here. Four ulps is
+/// far under what changes a Newton step or a density ratio, and an approximation that was merely
+/// close would fail it by thousands.
 #[track_caller]
 fn same(ours: f64, expected: f64, what: &str) {
-    match expected.is_nan() {
-        true => assert!(ours.is_nan(), "{what}: expected NaN, got {ours}"),
-        false => assert_eq!(ours, expected, "{what}"),
+    if expected.is_nan() {
+        assert!(ours.is_nan(), "{what}: expected NaN, got {ours}");
+        return;
     }
+    if expected.is_infinite() || ours.is_infinite() {
+        assert_eq!(ours, expected, "{what}");
+        return;
+    }
+    let apart = ulps_apart(ours, expected);
+    assert!(apart <= 4, "{what}: {ours} is {apart} ulps from {expected}");
+}
+
+/// How many representable doubles lie between two finite values of the same sign.
+fn ulps_apart(a: f64, b: f64) -> u64 {
+    if a == b {
+        return 0;
+    }
+    if a.is_sign_negative() != b.is_sign_negative() {
+        return u64::MAX;
+    }
+    a.to_bits().abs_diff(b.to_bits())
 }
 
 #[test]
