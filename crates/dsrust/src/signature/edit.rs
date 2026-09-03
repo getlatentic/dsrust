@@ -109,4 +109,10 @@ impl Signature {
             ..self.clone()
         }
     }
+
+    /// dspy `Signature.append_instructions`: the existing instructions, then these, joined by a
+    /// blank line.
+    pub fn append_instructions(&self, instructions: impl Into<String>) -> Self {
+        self.with_instructions(format!("{}\n\n{}", self.instructions, instructions.into()))
+    }
 }

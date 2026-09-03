@@ -133,6 +133,38 @@
       ]
     }
   },
+  "untraced": {
+    "some_declared_field_parsed": {
+      "batch_size": 3,
+      "failure_score": 0.0,
+      "kept": 3,
+      "scores": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "no_declared_field_parsed": {
+      "batch_size": 3,
+      "failure_score": 0.0,
+      "kept": 3,
+      "scores": [
+        0.0,
+        0.0,
+        0.0
+      ]
+    },
+    "a_parsing_run_for_contrast": {
+      "batch_size": 3,
+      "failure_score": 0.0,
+      "kept": 3,
+      "scores": [
+        1.0,
+        1.0,
+        1.0
+      ]
+    }
+  },
   "reflective": [
     {
       "add_format_failure_as_feedback": false,

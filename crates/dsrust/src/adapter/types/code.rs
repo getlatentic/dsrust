@@ -49,7 +49,7 @@ impl Code {
     /// output, the markdown fence the model should answer in.
     pub fn description_for(language: &str) -> TypeDescription {
         TypeDescription {
-            name: "Code".to_owned(),
+            name: format!("Code_{language}"),
             text: format!(
                 "Code represented in a string, specified in the `code` field. If this is an output \
                  field, the code field should follow the markdown code block format, e.g. \
@@ -69,8 +69,12 @@ impl Type for Code {
         Formatted::Text(self.code.clone())
     }
 
+    /// The bare `dspy.Code`, named `Code`; a subscripted `Code["x"]` is `Code_x`.
     fn description() -> Option<TypeDescription> {
-        Some(Self::description_for(DEFAULT_LANGUAGE))
+        Some(TypeDescription {
+            name: "Code".to_owned(),
+            ..Self::description_for(DEFAULT_LANGUAGE)
+        })
     }
 }
 

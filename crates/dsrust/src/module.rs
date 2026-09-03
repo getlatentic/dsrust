@@ -199,6 +199,13 @@ pub trait Module: Send + Sync {
         }
     }
 
+    /// dspy `set_lm`: one model for every predictor this program contains.
+    fn set_lm(&mut self, lm: std::sync::Arc<dyn crate::lm::DynChatModel>) {
+        for predictor in self.named_predictors() {
+            *predictor.lm = Some(lm.clone());
+        }
+    }
+
     /// This program's compiled state — every predictor's instructions and demos, keyed by name.
     /// dspy's `program.dump_state`: what an optimizer produced, ready to save and reload. The walk
     /// is [`named_predictors`](Self::named_predictors), so a composed program dumps its children.

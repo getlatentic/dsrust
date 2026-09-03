@@ -63,16 +63,10 @@ EXCUSED = {
 
     # Providers and features outside the port's ceiling.
     "tests/clients/test_databricks.py": "a provider this crate does not speak",
-    "tests/clients/test_embedding.py": "embeddings, which the port does not cover",
     "tests/retrievers/test_colbertv2.py": "a retriever, out of scope",
-    "tests/retrievers/test_embeddings.py": "a retriever, out of scope",
     "tests/teleprompt/test_finetune.py": "finetuning, deferred past 1.0",
     "tests/teleprompt/test_bootstrap_finetune.py": "finetuning, deferred past 1.0",
     "tests/teleprompt/test_grpo.py": "RL, deferred past 1.0",
-    # The optimizers deliberately deferred past 1.0 (#9). Both need the KNN retriever rather than
-    # anything the optimizer work builds, which is why they sit with retrieval in s10.
-    "tests/teleprompt/test_knn_fewshot.py": "KNNFewShot is deferred (#9)",
-    "tests/predict/test_knn.py": "KNN is deferred (#9)",
     # Python-runtime machinery with no Rust counterpart to reach.
     "tests/utils/test_asyncify.py": "Python's sync/async bridging",
     "tests/utils/test_syncify.py": "Python's sync/async bridging",

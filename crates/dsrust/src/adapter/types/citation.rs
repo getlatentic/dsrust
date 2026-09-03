@@ -30,9 +30,11 @@ use super::base::{Formatted, Type, serialized};
 /// assert_eq!(cited.document_index, 0);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, schemars::JsonSchema)]
+#[schemars(description = "Individual citation with character location information.")]
 pub struct Citation {
-    /// dspy's `type`, which only ever carries `char_location` today. Spelled `kind` because
-    /// `type` is a Rust keyword; the wire name is unchanged.
+    // dspy's `type`, which only ever carries `char_location` today. Spelled `kind` because `type`
+    // is a Rust keyword; the wire name is unchanged. Not a doc comment: the schema the model reads
+    // carries dspy's descriptions, and upstream's field has none.
     #[serde(rename = "type", default = "char_location")]
     pub kind: String,
     pub cited_text: String,
@@ -106,6 +108,9 @@ impl Citation {
 /// Ordinarily an output field — a provider fills it beside the answer, and
 /// [`parse_lm_response`](Type::parse_lm_response) is what reads it back off the reply.
 #[derive(Debug, Clone, PartialEq, Eq, Default, schemars::JsonSchema)]
+#[schemars(
+    description = "Experimental: This class may change or be removed in a future release without warning (introduced in v3.0.4).\n\nCitations extracted from an LM response with source references.\n\nThis type represents citations returned by language models that support\ncitation extraction, particularly Anthropic's Citations API through LiteLLM.\nCitations include the quoted text and source information.\n\nExamples:\n    ```python\n    import os\n    import dspy\n    from dspy.signatures import Signature\n    from dspy.experimental import Citations, Document\n    os.environ[\"ANTHROPIC_API_KEY\"] = \"YOUR_ANTHROPIC_API_KEY\"\n\n    class AnswerWithSources(Signature):\n        '''Answer questions using provided documents with citations.'''\n        documents: list[Document] = dspy.InputField()\n        question: str = dspy.InputField()\n        answer: str = dspy.OutputField()\n        citations: Citations = dspy.OutputField()\n\n    # Create documents to provide as sources\n    docs = [\n        Document(\n            data=\"The Earth orbits the Sun in an elliptical path.\",\n            title=\"Basic Astronomy Facts\"\n        ),\n        Document(\n            data=\"Water boils at 100°C at standard atmospheric pressure.\",\n            title=\"Physics Fundamentals\",\n            metadata={\"author\": \"Dr. Smith\", \"year\": 2023}\n        )\n    ]\n\n    # Use with a model that supports citations like Claude\n    lm = dspy.LM(\"anthropic/claude-opus-4-1-20250805\")\n    predictor = dspy.Predict(AnswerWithSources)\n    result = predictor(documents=docs, question=\"What temperature does water boil?\", lm=lm)\n\n    for citation in result.citations.citations:\n        print(citation.format())\n    ```"
+)]
 pub struct Citations {
     pub citations: Vec<Citation>,
 }

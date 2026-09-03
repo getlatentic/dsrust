@@ -3,6 +3,60 @@
   "dspy_version": "3.3.0",
   "tools": [
     {
+      "name": "indented_docstring",
+      "desc": "Look one term up.\n\n    query is a phrase, not a sentence.\nAnswers with a summary.\n",
+      "args": {
+        "term": {
+          "type": "string"
+        }
+      },
+      "native": {
+        "type": "function",
+        "function": {
+          "name": "indented_docstring",
+          "description": "Look one term up.\n\n    query is a phrase, not a sentence.\nAnswers with a summary.\n",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "term": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "term"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "undocumented",
+      "desc": null,
+      "args": {
+        "x": {
+          "type": "integer"
+        }
+      },
+      "native": {
+        "type": "function",
+        "function": {
+          "name": "undocumented",
+          "description": null,
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "x": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "x"
+            ]
+          }
+        }
+      }
+    },
+    {
       "name": "every_argument_required",
       "desc": "Look something up.",
       "args": {

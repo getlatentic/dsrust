@@ -20,6 +20,7 @@ mod earned;
 mod ensemble;
 mod gepa;
 mod infer_rules;
+pub mod knn_fewshot;
 mod labeled;
 mod mipro;
 mod optuna;

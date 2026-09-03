@@ -206,7 +206,9 @@ impl CodeAct {
         }
 
         let mut asked = inputs;
-        asked.set("trajectory", Value::Object(trajectory.clone()));
+        // dspy hands the loop's predictor the trajectory dict itself, and the extractor its
+        // rendering through `_format_trajectory` — one labelled block per entry.
+        asked.set("trajectory", Value::String(rendered(&trajectory)));
         let mark = trace.len();
         let extracted = self.extractor.forward_traced(asked, trace).await;
         relabel(trace, mark, "extractor");
@@ -370,6 +372,23 @@ macro_rules! CodeAct {
 
 // `call!` on this module. See `Ask` for why the trait is written per type rather than blanket.
 crate::asks_with_a_prediction!(CodeAct);
+
+/// dspy's `_format_trajectory`: `format_user_message_content` over a signature built from the
+/// trajectory's own keys — one `[[ ## key ## ]]` block per entry, a string bare and anything else
+/// as a value is printed, joined by a blank line and stripped.
+fn rendered(trajectory: &Map<String, Value>) -> String {
+    let blocks: Vec<String> = trajectory
+        .iter()
+        .map(|(key, value)| {
+            let text = match value {
+                Value::String(text) => text.clone(),
+                other => crate::adapter::python_json::format_value(other),
+            };
+            format!("[[ ## {key} ## ]]\n{text}")
+        })
+        .collect();
+    blocks.join("\n\n").trim().to_owned()
+}
 
 #[cfg(test)]
 mod tests {
@@ -643,5 +662,28 @@ mod conformance {
                 "extract outputs for {label}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod extract_rendering {
+    use serde_json::{Map, json};
+
+    use super::rendered;
+
+    /// The block form dspy's extractor reads, as dsrust-examples recorded it from dspy running
+    /// `CodeAct`'s own docstring example.
+    #[test]
+    fn the_extractor_reads_labelled_blocks() {
+        let mut trajectory = Map::new();
+        trajectory.insert(
+            "generated_code_0".to_owned(),
+            json!("result = factorial(5)\nprint(result)"),
+        );
+        trajectory.insert("code_output_0".to_owned(), json!("\"120\\n\""));
+        assert_eq!(
+            rendered(&trajectory),
+            "[[ ## generated_code_0 ## ]]\nresult = factorial(5)\nprint(result)\n\n[[ ## code_output_0 ## ]]\n\"120\\n\""
+        );
     }
 }

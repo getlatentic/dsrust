@@ -6,8 +6,10 @@
 //! reads the trajectory and produces the signature's real outputs.
 
 pub mod mcp;
+mod schema_check;
 mod signature;
 mod tool;
+pub(crate) mod tool_call;
 mod trajectory;
 mod typed;
 mod v2;

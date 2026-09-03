@@ -23,7 +23,7 @@ use crate::signature::{Signature, infer_prefix};
 /// dspy's `load` compares each version it finds against the running environment and warns where
 /// they differ, so this is a claim that has to be true: a file saved here was written to the
 /// format that release reads.
-pub const DSPY_VERSION: &str = "3.3.0b1";
+pub const DSPY_VERSION: &str = "3.3.0";
 
 /// dspy `Predict.dump_state`: everything a saved predictor restores.
 ///

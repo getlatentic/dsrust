@@ -14,10 +14,16 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+
+import numpy as np
 import math
 from collections.abc import Mapping
 
 import dspy
+import dspy.clients.embedding
+import dspy.predict.knn
+import dspy.retrievers.embeddings
+import dspy.teleprompt.knn_fewshot
 import dspy.primitives.python_interpreter
 import pydantic
 from dspy.adapters.utils import format_field_value, parse_value
@@ -601,3 +607,146 @@ def _translating_sandbox_failures(call):
             raise CodeInterpreterError(str(error)) from None
 
     return calling
+
+
+# --- dspy's KNN family -------------------------------------------------------------------------
+
+
+def _examples_json(examples):
+    """Training examples as the crate reads them: fields, and the input keys where marked."""
+    return json.dumps(
+        [
+            {
+                "fields": {name: _serialized(value) for name, value in example.items(include_dspy=True)},
+                "input_keys": sorted(example._input_keys) if example._input_keys is not None else None,
+            }
+            for example in examples
+        ],
+        ensure_ascii=False,
+    )
+
+
+class RustEmbedder(dspy.Embedder):
+    """A `dspy.Embedder` whose batching, caching and hosted call are this crate's.
+
+    A callable model is reached back into for the vectors of each batch the crate forms; a model
+    named as a string is posted to by the crate itself, which the tests that mock `litellm.embedding`
+    cannot see, and each of those is declared.
+    """
+
+    def __init__(self, model, batch_size=200, caching=True, **kwargs):
+        super().__init__(model, batch_size=batch_size, caching=caching, **kwargs)
+        if callable(model):
+
+            def bridged(batch, kwargs_json):
+                answered = model(batch, **json.loads(kwargs_json))
+                return np.asarray(answered, dtype=np.float32).tolist()
+
+            self._rust = dsrs_bridge.RustEmbedder(callable=bridged, batch_size=batch_size, caching=caching, kwargs=json.dumps(kwargs))
+        elif isinstance(model, str):
+            self._rust = dsrs_bridge.RustEmbedder(model=model, batch_size=batch_size, caching=caching, kwargs=json.dumps(kwargs))
+        else:
+            # dspy raises on the first call, not in the constructor.
+            self._rust = None
+
+    def __call__(self, inputs, batch_size=None, caching=None, **kwargs):
+        if self._rust is None:
+            raise ValueError(f"`model` in `dspy.Embedder` must be a string or a callable, but got {type(self.model)}.")
+        single = isinstance(inputs, str)
+        texts = [inputs] if single else list(inputs)
+        if not all(isinstance(text, str) for text in texts):
+            raise ValueError("All inputs must be strings.")
+        crossings.record_render()
+        vectors = self._rust.call(texts, batch_size=batch_size, caching=caching, kwargs=json.dumps(kwargs))
+        array = np.array(vectors, dtype=np.float32)
+        return array[0] if single else array
+
+    async def acall(self, inputs, batch_size=None, caching=None, **kwargs):
+        return self(inputs, batch_size=batch_size, caching=caching, **kwargs)
+
+
+def _rust_embedder_of(embedder):
+    """The crate's embedder behind whatever the caller handed a retriever."""
+    if isinstance(embedder, RustEmbedder):
+        return embedder._rust
+    if isinstance(embedder, dspy.Embedder):
+        return RustEmbedder(embedder.model, batch_size=embedder.batch_size, caching=embedder.caching, **embedder.default_kwargs)._rust
+    return RustEmbedder(embedder)._rust
+
+
+class RustKNN(dspy.predict.knn.KNN):
+    """A `KNN` whose rendering of the examples and whose selection are this crate's; the vectors are
+    whatever vectorizer the caller gave."""
+
+    def __init__(self, k, trainset, vectorizer):
+        self.k = k
+        self.trainset = trainset
+        self.embedding = vectorizer
+        texts = dsrs_bridge.knn_texts(_examples_json(trainset))
+        crossings.record_render()
+        self.trainset_vectors = np.asarray(self.embedding(texts), dtype=np.float32)
+
+    def __call__(self, **kwargs):
+        text = dsrs_bridge.knn_query_text(json.dumps({name: _serialized(value) for name, value in kwargs.items()}, ensure_ascii=False))
+        vector = np.asarray(self.embedding([text]), dtype=np.float32)[0]
+        nearest = dsrs_bridge.knn_select(self.trainset_vectors.tolist(), vector.tolist(), self.k)
+        crossings.record_render()
+        return [self.trainset[at] for at in nearest]
+
+
+class RustKNNFewShot(dspy.teleprompt.knn_fewshot.KNNFewShot):
+    """A `KNNFewShot` over `RustKNN`; `compile` stays dspy's own, bootstrapping over what it selects."""
+
+    def __init__(self, k, trainset, vectorizer, **few_shot_bootstrap_args):
+        self.KNN = RustKNN(k, trainset, vectorizer=vectorizer)
+        self.few_shot_bootstrap_args = few_shot_bootstrap_args
+
+
+class RustEmbeddings(dspy.retrievers.embeddings.Embeddings):
+    """An `Embeddings` retriever whose index, search and files are this crate's."""
+
+    def __init__(self, corpus, embedder, k=5, callbacks=None, cache=False, brute_force_threshold=20_000, normalize=True):
+        assert cache is False, "Caching is not supported for embeddings-based retrievers"
+        self.embedder = embedder
+        self.k = k
+        self.corpus = list(corpus)
+        self.normalize = normalize
+        self.index = None
+        self._rust = dsrs_bridge.RustIndex(self.corpus, _rust_embedder_of(embedder), k, normalize)
+        crossings.record_render()
+        self.corpus_embeddings = np.array(self._rust.corpus_embeddings(), dtype=np.float32)
+
+    def forward(self, query):
+        passages, indices, _scores = self._rust.search(query)
+        crossings.record_render()
+        return dspy.Prediction(passages=passages, indices=indices)
+
+    def save(self, path):
+        self._rust.save(str(path))
+        crossings.record_render()
+
+    def load(self, path, embedder):
+        # The crate reads the files — or refuses a path with none — so the crossing is recorded
+        # before the call rather than after a refusal that never returns.
+        crossings.record_render()
+        self._rust = dsrs_bridge.RustIndex.load(str(path), _rust_embedder_of(embedder))
+        self.embedder = embedder
+        self.k = self._rust.k()
+        self.normalize = self._rust.normalize()
+        self.corpus = self._rust.corpus()
+        self.index = None
+        self.corpus_embeddings = np.array(self._rust.corpus_embeddings(), dtype=np.float32)
+        return self
+
+    @classmethod
+    def from_saved(cls, path, embedder):
+        instance = cls.__new__(cls)
+        instance.load(path, embedder)
+        return instance
+
+
+class RustEmbeddingsWithScores(RustEmbeddings, dspy.retrievers.embeddings.EmbeddingsWithScores):
+    def forward(self, query):
+        passages, indices, scores = self._rust.search(query)
+        crossings.record_render()
+        return dspy.Prediction(passages=passages, indices=indices, scores=scores)

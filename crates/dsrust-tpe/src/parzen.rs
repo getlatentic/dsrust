@@ -85,21 +85,25 @@ impl Parzen {
     }
 }
 
-/// numpy's `add.reduce` over a contiguous double array — pairwise summation, which is not a left
-/// fold and rounds differently past eight elements.
+/// numpy's `add.reduce` over a contiguous array — pairwise summation, which is not a left fold and
+/// rounds differently past eight elements.
 ///
 /// Every sum numpy takes goes through this, not only the log-sum-exp: normalising a kernel row sums
 /// over the categories, so a program proposing twelve instructions rounds differently from one
 /// proposing six. That difference reaches the acquisition, which ties constantly, and `np.argmax`
-/// keeps the first of a tie — so it decides which trial runs next.
-pub(crate) fn pairwise_sum(values: &[f64]) -> f64 {
+/// keeps the first of a tie — so it decides which trial runs next. The same reduction, in `f32`,
+/// is what `np.mean` and `np.linalg.norm` take over a float32 row.
+pub fn pairwise_sum<T: PairwiseSummand>(values: &[T]) -> T {
     const BLOCK: usize = 128;
     let n = values.len();
     if n < 8 {
-        return values.iter().sum();
+        return values
+            .iter()
+            .copied()
+            .fold(T::ZERO, |sum, value| sum + value);
     }
     if n <= BLOCK {
-        let mut accumulators: [f64; 8] = values[..8].try_into().expect("eight values");
+        let mut accumulators: [T; 8] = values[..8].try_into().expect("eight values");
         // `chunks_exact` walks the same eight-wide blocks the cursor loop did, in the same order,
         // so every float lands in the same accumulator and the sum is bit-identical — and the
         // iterator owns the progress, so there is no `index += 8` for a mutant to stall.
@@ -107,18 +111,32 @@ pub(crate) fn pairwise_sum(values: &[f64]) -> f64 {
         let tail = blocks.remainder();
         for block in blocks {
             for (slot, value) in accumulators.iter_mut().zip(block) {
-                *slot += value;
+                *slot = *slot + *value;
             }
         }
         let mut total = ((accumulators[0] + accumulators[1]) + (accumulators[2] + accumulators[3]))
             + ((accumulators[4] + accumulators[5]) + (accumulators[6] + accumulators[7]));
         for value in tail {
-            total += value;
+            total = total + *value;
         }
         return total;
     }
     let half = (n / 2) - (n / 2) % 8;
     pairwise_sum(&values[..half]) + pairwise_sum(&values[half..])
+}
+
+/// A float numpy reduces pairwise: `f64` as `add.reduce` over a double array, `f32` over a float32
+/// one, each accumulating in its own width.
+pub trait PairwiseSummand: Copy + std::ops::Add<Output = Self> {
+    const ZERO: Self;
+}
+
+impl PairwiseSummand for f64 {
+    const ZERO: Self = 0.0;
+}
+
+impl PairwiseSummand for f32 {
+    const ZERO: Self = 0.0;
 }
 
 /// optuna `default_weights` appended with the prior, then normalised: the mixture weights over the

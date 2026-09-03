@@ -84,6 +84,7 @@ mod completions;
 mod derived;
 pub mod flex;
 mod hint;
+pub mod knn;
 mod multi_chain_comparison;
 mod native;
 mod parallel;

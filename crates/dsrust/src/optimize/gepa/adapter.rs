@@ -822,6 +822,66 @@ mod failed_parse_tests {
             .scores
     }
 
+    async fn untraced<M>(
+        student: &mut Unparsed,
+        metric: &M,
+        size: usize,
+        failure_score: f64,
+    ) -> Vec<f64>
+    where
+        M: Fn(&Example, &Prediction, &MetricContext<'_>) -> Feedback + Send + Sync,
+    {
+        let examples = batch(size);
+        let mut adapter = Adapter::new(
+            student,
+            metric,
+            std::sync::Arc::new(crate::DummyLM::new([])),
+            &[],
+            &[],
+            Settings {
+                failure_score,
+                num_threads: 1,
+                proposer: None,
+                seed: 0,
+            },
+        );
+        adapter
+            .evaluate(&examples, &Candidate::new(), false)
+            .await
+            .scores
+    }
+
+    /// The valset path drops nothing: upstream's `Evaluate` scores a row it cannot parse at
+    /// `failure_score`, so the batch keeps the valset's length — which the per-testcase Pareto
+    /// front indexes by. The traced path below drops the same row, so the two arms differ.
+    #[tokio::test]
+    async fn an_untraced_batch_keeps_every_example_at_the_failure_score() {
+        let arm = golden()["untraced"]["some_declared_field_parsed"].clone();
+        let expected: Vec<f64> = arm["scores"]
+            .as_array()
+            .expect("scores")
+            .iter()
+            .map(|score| score.as_f64().expect("a score"))
+            .collect();
+        assert_eq!(
+            arm["kept"], arm["batch_size"],
+            "dspy kept every example on the valset path"
+        );
+        let mut student = Unparsed::reading_one_field(r#"{"answer": "half"}"#);
+        let metric = scoring();
+        let scores = untraced(
+            &mut student,
+            &metric,
+            arm["batch_size"].as_u64().expect("a size") as usize,
+            arm["failure_score"].as_f64().expect("a score"),
+        )
+        .await;
+        assert_eq!(
+            scores, expected,
+            "one score per example, each the failure score"
+        );
+    }
+
     /// Every example whose completion parsed *nothing* survives, each scoring the format reward.
     #[tokio::test]
     async fn a_completion_reading_as_nothing_stays_in_the_batch() {

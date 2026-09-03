@@ -59,12 +59,14 @@ pub mod interpreter;
 pub mod lm;
 mod mimetypes;
 pub mod module;
+pub mod numpy;
 pub mod observe;
 pub mod optimize;
 pub mod predict;
-mod python;
+pub mod python;
 pub mod react;
 mod resource;
+pub mod retrievers;
 pub mod signature;
 
 pub use adapter::baml::BamlAdapter;
@@ -83,18 +85,23 @@ pub use evaluate::{Evaluate, Evaluation, Pass, Scored, exact_match};
 pub use example::{Completions, Example, Prediction};
 pub use hasher::Hasher;
 pub use lm::Capabilities;
+pub use lm::dummy_vectorizer::DummyVectorizer;
+pub use lm::embedding::{EmbedCall, Embedder, EmbedderModel};
 pub use module::{
     Ask, FailedPrediction, Forward, Module, NamedPredictor, PredictorState, ProgramState,
     StepOutputs, TraceStep, Typed,
 };
+pub use optimize::knn_fewshot::{KnnFewShot, KnnFewShotProgram};
 pub use optimize::{
     Attempt, BootstrapFewShot, BootstrapRandomSearch, COPRO, DynOptimizer, Ensemble, Ensembled,
     Feedback, GEPA, GepaOutcome, LabeledFewShot, MIPROv2, MetricContext, Optimizer,
 };
+pub use predict::knn::Knn;
 pub use react::{
     AsyncFnTool, FnTool, ReAct, ReActV2, Tool, Trajectory, mcp_tool, mcp_tool_args,
     mcp_tool_result, typed_tool,
 };
+pub use retrievers::{Embeddings, EmbeddingsWithScores, Retrieved};
 
 /// Items the macros expand into so a caller does not have to depend on them directly.
 #[doc(hidden)]

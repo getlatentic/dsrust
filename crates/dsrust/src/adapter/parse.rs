@@ -89,15 +89,32 @@ fn section_value(field: &OutField, text: &str) -> Value {
         // first, and Python's own literal syntax only where json-repair answered with the empty
         // string — which is how it reports having found nothing. `'a'` is the case that separates
         // them, since a bare quoted string at the top level is a literal and not a JSON value.
-        FieldKind::Json(_) => {
+        FieldKind::Json(ref json) => {
             let candidate = repair::loads(text).unwrap_or_else(|_| Value::from(""));
-            match candidate == "" && !text.is_empty() {
+            let candidate = match candidate == "" && !text.is_empty() {
                 true => repair::python_literal(text).unwrap_or_else(|| Value::from(text)),
+                false => candidate,
+            };
+            // dspy retries a `dspy.Type` from the original text when the repaired candidate does
+            // not validate. `Code` takes a string or a `{"code": ...}` mapping and nothing else,
+            // so `int[] a = {1, 9};` — which json-repair reads as `[1, 9]` — stays the code it is.
+            match is_code(&json.annotation) && !code_mapping(&candidate) {
+                true => Value::from(text),
                 false => candidate,
             }
         }
         _ => Value::from(text),
     }
+}
+
+/// The annotation of a `Code` field: `Code`, or `Code_java` for dspy's `Code["java"]`.
+fn is_code(annotation: &str) -> bool {
+    annotation == "Code" || annotation.starts_with("Code_")
+}
+
+/// The one repaired shape `Code` accepts: a mapping whose `code` is a string.
+fn code_mapping(candidate: &Value) -> bool {
+    candidate.get("code").is_some_and(Value::is_string)
 }
 
 /// Python's `\w`: what `str.isalnum()` accepts, plus `_`.
@@ -572,6 +589,44 @@ mod tests {
             "LM response cannot be serialized to a JSON object.\n\nAdapter JSONAdapter failed to \
              parse the LM response. \n\nLM Response: [1, 2] \n\nExpected to find output fields in \
              the LM response: [color, why] \n\n"
+        );
+    }
+}
+
+#[cfg(test)]
+mod code_sections {
+    use serde_json::json;
+
+    use super::section_value;
+    use crate::signature::{FieldKind, JsonType, OutField};
+
+    fn code_field(annotation: &str) -> OutField {
+        OutField {
+            name: "code".to_owned(),
+            kind: FieldKind::Json(JsonType::plain(annotation)),
+            ..OutField::default()
+        }
+    }
+
+    /// Recorded from `adapters/types/code.py`'s docstring example in dsrust-examples: dspy answers
+    /// the Java line as code, where json-repair alone answers `[1, 9]`.
+    #[test]
+    fn a_code_section_json_repair_misreads_stays_text() {
+        assert_eq!(
+            section_value(&code_field("Code_java"), "int[] a = {1, 9};"),
+            json!("int[] a = {1, 9};")
+        );
+        assert_eq!(
+            section_value(&code_field("Code"), "x = [1, 2]"),
+            json!("x = [1, 2]")
+        );
+    }
+
+    #[test]
+    fn a_code_mapping_is_still_read_as_one() {
+        assert_eq!(
+            section_value(&code_field("Code"), r#"{"code": "x = 1"}"#),
+            json!({ "code": "x = 1" })
         );
     }
 }

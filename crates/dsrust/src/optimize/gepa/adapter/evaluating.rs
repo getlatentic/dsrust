@@ -63,9 +63,18 @@ where
         let mut answered = Vec::with_capacity(examples.len());
         let mut kept = 0;
         for (score, captured, prediction) in ran {
-            // `None` is an example dspy dropped: it contributes no score, no trajectory and no
-            // output, so all three lists come back shorter than the batch. See `did_not_parse`.
-            let Some(score) = score else { continue };
+            // `None` is a row whose fallback parse recovered some fields (see `did_not_parse`).
+            // Traced, dspy's collector drops it, so the lists come back shorter than the batch.
+            // Untraced, `Evaluate` scores it `failure_score` and the batch keeps the valset's
+            // length, which the per-testcase Pareto front indexes by.
+            let Some(score) = score else {
+                if !capture_traces {
+                    kept += 1;
+                    scores.push(self.failure_score);
+                    answered.push(Prediction::new(Example::default(), String::new()));
+                }
+                continue;
+            };
             kept += 1;
             scores.push(score);
             if let Some(captured) = captured {

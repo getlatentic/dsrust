@@ -732,14 +732,22 @@ fn search(term: String) -> anyhow::Result<String> {
 The function stays callable as itself, and the tool is a type of the same name in PascalCase —
 `vec![Box::new(Search)]` — while the name on the wire is still `search`. The doc comment **is
 prompt text**: it reaches the model as `search, whose description is <desc>Look one term up in the
-index and return what it says. ...</desc>`, normalised by the same `inspect.cleandoc` Python
-applies to a docstring, so an indented second paragraph reads the same in both languages. The
-parameters become the schema `{"term": {"type": "string"}}` — an `Option<T>` is one the model may
-leave out.
+index and return what it says. ...</desc>`, shaped as the pinned Python stores a docstring —
+dedented at compile time by the indentation common to the lines after the first, blank lines and
+the newline a closing line leaves kept. A function with no doc comment makes a tool with no
+description, shown to the model by its name and arguments alone, as an undocumented Python
+function is. The
+parameters become the schema `{"term": {"type": "string"}}`. An `Option<T>` accepts `null`; what
+lets the model leave a parameter out is `#[tool(default = ...)]`, as a Python default does — dspy
+exempts an argument from `required` for carrying a default, never for being nullable.
 
-**A wrong argument is answered, not raised.** Sending `{"term": 7}` gets back ``Refused: `term` is
-not the type this tool takes (invalid type: integer `7`, expected a string).`` — a string the loop
-can read and retry from, where an error would end the turn. dspy's tools answer the same way.
+**A wrong argument is raised, as dspy raises it.** Sending `{"term": 7}` fails with
+``ValueError: Arg term is invalid: 7 is not of type 'string'``, leaving `term` out with
+``TypeError: search() missing 1 required positional argument: 'term'``, and sending an argument the
+tool does not declare with ``ValueError: Arg topic is not in the tool's args.`` — the lines dspy's
+own validation and Python produce, checked with a port of python-jsonschema's `validate`. ReAct
+records any of them as `Execution error in search: …`, which is what the model reads and retries
+from.
 
 ### A tool that needs state
 

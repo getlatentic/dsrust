@@ -1,6 +1,6 @@
 [package]
 name = "dsrust"
-version = "0.1.0-alpha.3"
+version = "0.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 description = "A faithful, byte-for-byte Rust port of DSPy: signatures, adapters, modules, providers, and optimizers, tested against DSPy itself."
@@ -16,12 +16,13 @@ name = "dsrust"
 path = "src/lib.rs"
 
 [dependencies]
+regex = "1"
 anyhow = "1"
 base64 = "0.22.1"
-dsrust-derive = { version = "0.1.0-alpha.2", path = "../dsrust-derive" }
+dsrust-derive = { version = "0.1.0", path = "../dsrust-derive" }
 gepa = { version = "0.1.0-alpha.2", path = "../dsrust-gepa", package = "dsrust-gepa" }
 json_repair = { version = "0.1.0-alpha.2", path = "../dsrust-json-repair", package = "dsrust-json-repair", features = ["serde"] }
-pyrng = { version = "0.1.0-alpha.2", path = "../pyrng" }
+pyrng = { version = "0.1.0", path = "../pyrng" }
 bytes = "1"
 futures-channel = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
 futures-util = { version = "0.3.33", default-features = false, features = ["alloc", "std"] }
@@ -47,6 +48,7 @@ flacenc = "0.5.1"
 mp3lame-encoder = { version = "0.2.4", optional = true }
 
 [dev-dependencies]
+tempfile = "3"
 claxon = "0.4.3"
 symphonia = { version = "0.6.0", default-features = false, features = ["mp3"] }
 # Only `#[tokio::test]` reaches for it: nothing in `src/` names a tokio type at runtime, so this

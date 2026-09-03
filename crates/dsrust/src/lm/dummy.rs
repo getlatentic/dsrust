@@ -14,6 +14,7 @@ use serde_json::Value;
 
 use crate::adapter::python_json::format_value;
 use crate::example::Example;
+use crate::lm::LmUsage;
 use crate::lm::api::{self, RolloutId};
 use crate::lm::{ChatModel, Sampling};
 
@@ -218,9 +219,9 @@ impl ChatModel for DummyLM {
                     },
                 });
             }
-            // No usage: a scripted answer had no cost, and reporting zero would let a test
-            // assert a total that no provider produced.
-            Ok(api::LmResponse::completions(replies))
+            // dspy's `DummyLM` reports a usage of zero tokens, and a program that tracks usage
+            // sees it; so does this one.
+            Ok(api::LmResponse::completions(replies).usage(Some(LmUsage::counted(0, 0))))
         }
     }
 }
@@ -376,7 +377,11 @@ mod tests {
         );
         let reply = futures_lite_block_on(lm.forward(&request)).unwrap();
         assert_eq!(reply.first_text(), r#"{"answer":"red"}"#);
-        assert_eq!(reply.usage, None, "a scripted answer cost nothing to make");
+        assert_eq!(
+            reply.usage,
+            Some(LmUsage::counted(0, 0)),
+            "a scripted answer reports zero tokens, as dspy's does"
+        );
     }
 
     #[test]

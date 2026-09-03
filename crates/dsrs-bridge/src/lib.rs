@@ -9,6 +9,7 @@
 //! the only things the renderer needs.
 
 mod code_modules;
+mod knn;
 mod sandbox;
 
 use dsrust::adapter::Input;
@@ -902,6 +903,7 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
         "SandboxSessionFailed",
         module.py().get_type::<sandbox::SandboxSessionFailed>(),
     )?;
+    knn::register(module)?;
     module.add_function(wrap_pyfunction!(format_messages, module)?)?;
     module.add_function(wrap_pyfunction!(pretty_print_history, module)?)?;
     module.add_function(wrap_pyfunction!(predict_forward, module)?)?;

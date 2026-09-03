@@ -36,15 +36,15 @@ updated = "2026-07-28"
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
 [status]
-rust_tests = 1645
-upstream_tests_passing = 1201
-upstream_tests_crossing = 711
+rust_tests = 1676
+upstream_tests_passing = 1215
+upstream_tests_crossing = 730
 upstream_tests_deciding_signatures = 687
 # Gaps this port has declared, counted from conftest.py's NOT_YET_IMPLEMENTED. Not the same as the
 # xfails pytest reports: dspy marks two of its own image cases xfail for a gap upstream has.
-xfail_backlog = 2
-upstream_tests_xfailed = 4
-suites_run = 65
+xfail_backlog = 8
+upstream_tests_xfailed = 10
+suites_run = 69
 release_stage = "alpha"
 
 # ---------------------------------------------------------------------------
@@ -4757,10 +4757,16 @@ after both rather than before either.
 [[sprint]]
 id = "r4"
 name = "The remaining optimizers"
-state = "planned"
+state = "done"
+closed = "2026-09-02"
 outcome = """
-BootstrapFewShotWithRandomSearch, Ensemble, KNNFewShot, InferRules, BetterTogether, SIMBA,
-BootstrapFinetune — the optimizer surface a dspy user reaches for beyond the flagship three.
+BootstrapFewShotWithRandomSearch, Ensemble, KNNFewShot, InferRules, SIMBA — the optimizer surface
+a dspy user reaches for beyond the flagship three — each ported and held to upstream's own suite or
+to a golden. KNNFewShot landed last, on 2026-09-02, with the KNN retriever, the Embedder and the
+Embeddings index it rests on; the three had been classified out of scope on the reason that no
+provider here exposed embeddings, which a docstring-example port found to be a description of the
+crate rather than a boundary. BetterTogether and BootstrapFinetune stay out of scope with the rest
+of finetuning, in `scripts/unported_modules.toml`.
 """
 suites = [
   "teleprompt/test_random_search.py", "teleprompt/test_ensemble.py",

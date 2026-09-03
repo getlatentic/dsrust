@@ -1,7 +1,7 @@
 {
   "source": "generated from dspy==3.3.0 via scripts/generate_simba_fixture.py",
   "dspy_version": "3.3.0",
-  "note": "Every decision dspy's SIMBA made on a scripted model, in order. There is no upstream test file for SIMBA, so a run is the only oracle there is. Recorded ahead of the port. There is no upstream test file for SIMBA, so a run is the only oracle there is — and committing it first means the port is written against evidence rather than against a reading of the source.",
+  "note": "Every decision dspy's SIMBA made on a scripted model, in order. There is no upstream test file for SIMBA, so a run is the only oracle there is.",
   "config": {
     "bsize": 3,
     "num_candidates": 2,
@@ -314,14 +314,14 @@
       ],
       "weights": null,
       "picked": [
-        "a",
-        "s",
-        "w",
-        "e",
-        "5",
-        "k",
+        "8",
+        "j",
         "z",
-        "h"
+        "z",
+        "b",
+        "a",
+        "6",
+        "r"
       ]
     },
     {

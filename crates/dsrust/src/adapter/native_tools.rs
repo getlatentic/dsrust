@@ -10,8 +10,9 @@
 //! path every marker-based adapter takes by default.
 
 use anyhow::{Result, anyhow};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
+use crate::Tool;
 use crate::adapter::Input;
 use crate::adapter::types::ToolCalls;
 use crate::lm::Capabilities;
@@ -126,6 +127,36 @@ fn spec(tool: &Value) -> Option<LmToolSpec> {
         .and_then(Value::as_object)
         .cloned()
         .unwrap_or_default();
+    let description = tool.get("desc").and_then(Value::as_str).map(str::to_owned);
+    Some(spec_from(name, description, args))
+}
+
+/// dspy `Tool.format_as_litellm_function_call`, for a tool this crate holds: the function spec a
+/// provider that calls tools natively is sent. An argument whose schema carries a `default` is not
+/// required, and an undocumented tool has no description, as upstream sends `None`.
+pub fn spec_of(tool: &dyn Tool) -> LmToolSpec {
+    let description = match tool.description().is_empty() {
+        true => None,
+        false => Some(tool.description().to_owned()),
+    };
+    let args = tool.args().as_object().cloned().unwrap_or_default();
+    spec_from(tool.name(), description, args)
+}
+
+/// What a tool is as a value: dspy's `Tool` fields `name`, `desc` and `args`, which is what a
+/// `list[Tool]` input field carries here and [`plan`] reads back.
+pub fn manifest(tool: &dyn Tool) -> Value {
+    serde_json::json!({
+        "name": tool.name(),
+        "desc": match tool.description().is_empty() {
+            true => Value::Null,
+            false => Value::String(tool.description().to_owned()),
+        },
+        "args": tool.args(),
+    })
+}
+
+fn spec_from(name: &str, description: Option<String>, args: Map<String, Value>) -> LmToolSpec {
     let required: Vec<Value> = args
         .iter()
         .filter(|(_, schema)| schema.get("default").is_none())
@@ -137,8 +168,8 @@ fn spec(tool: &Value) -> Option<LmToolSpec> {
         "required": Value::Array(required),
     });
     let mut spec = LmToolSpec::new(name, parameters.as_object().cloned().unwrap_or_default());
-    spec.description = tool.get("desc").and_then(Value::as_str).map(str::to_owned);
-    Some(spec)
+    spec.description = description;
+    spec
 }
 
 #[cfg(test)]

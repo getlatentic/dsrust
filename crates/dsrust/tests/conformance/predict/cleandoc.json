@@ -1,6 +1,6 @@
 {
-  "source": "CPython 3.14.5, via scripts/generate_python_text_fixtures.py",
-  "python_version": "3.14.5",
+  "source": "CPython 3.13.5, via scripts/generate_python_text_fixtures.py",
+  "python_version": "3.13.5",
   "note": "`inspect.cleandoc` over the docstring shapes a signature is written in. dspy runs it on a signature class's docstring, so this decides the instruction line breaks of every declared signature.",
   "cases": {
     "conventional": {

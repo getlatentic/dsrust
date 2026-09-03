@@ -59,26 +59,37 @@ fn count_it(times: u32) -> anyhow::Result<String> {
 }
 
 #[test]
-fn a_bad_argument_is_answered_rather_than_raised() {
+fn a_bad_call_raises_what_dspy_raises() {
     assert_eq!(
         CountIt.call(&json!({ "times": 3 })).expect("answers"),
         "counted 3"
     );
-    let wrong = CountIt.call(&json!({ "times": "three" })).expect("answers");
-    assert!(
-        wrong.starts_with("Refused: `times` is not the type"),
-        "{wrong}"
+    let wrong = CountIt
+        .call(&json!({ "times": "three" }))
+        .expect_err("raises");
+    assert_eq!(
+        format!("{wrong:#}"),
+        "ValueError: Arg times is invalid: 'three' is not of type 'integer'"
     );
-    let missing = CountIt.call(&json!({})).expect("answers");
-    assert_eq!(missing, "Refused: this tool needs `times`.");
+    let missing = CountIt.call(&json!({})).expect_err("raises");
+    assert_eq!(
+        format!("{missing:#}"),
+        "TypeError: count_it() missing 1 required positional argument: 'times'"
+    );
+    let unknown = CountIt
+        .call(&json!({ "times": 3, "loudly": true }))
+        .expect_err("raises");
+    assert_eq!(
+        format!("{unknown:#}"),
+        "ValueError: Arg loudly is not in the tool's args."
+    );
 }
 
-// An argument whose type accepts null is not refused when the model omits it. That is this
-// crate's leniency and not a promise upstream makes: dspy exempts an argument from `required`
-// for carrying a `default`, never for being nullable, so `Option<T>` alone still asks the model
-// for a value — `#[tool(default = ...)]` is what says otherwise. See
+// An argument optional by type is still required by the call: dspy exempts an argument from
+// `required` for carrying a `default`, never for being nullable, and Python refuses the call
+// without it — `#[tool(default = ...)]` is what says otherwise. See
 // `tests/conformance/react/tool_spec.json`, where `by_type` and `by_default` split on exactly
-// this.
+// this, and `bad_call_observation.json` for the refusal.
 #[tool]
 /// Add practice, with an optional worked solution.
 fn add_practice(prompt: String, worked: Option<String>) -> anyhow::Result<String> {
@@ -89,11 +100,18 @@ fn add_practice(prompt: String, worked: Option<String>) -> anyhow::Result<String
 }
 
 #[test]
-fn an_optional_argument_may_be_omitted() {
+fn an_argument_optional_by_type_is_still_asked_for() {
+    let omitted = AddPractice
+        .call(&json!({ "prompt": "Order 1/2 and 1/3." }))
+        .expect_err("raises, as Python does");
+    assert_eq!(
+        format!("{omitted:#}"),
+        "TypeError: add_practice() missing 1 required positional argument: 'worked'"
+    );
     assert_eq!(
         AddPractice
-            .call(&json!({ "prompt": "Order 1/2 and 1/3." }))
-            .expect("answers"),
+            .call(&json!({ "prompt": "Order 1/2 and 1/3.", "worked": null }))
+            .expect("null is a value"),
         "Order 1/2 and 1/3."
     );
 }
@@ -236,9 +254,11 @@ async fn an_async_free_function_is_a_tool() {
         .await
         .expect("answers");
     assert_eq!(answered, json!("fetched https://example.invalid"));
-    // Bad arguments are still answered rather than raised, on the awaited path too.
-    let refused = Fetch.acall_value(&json!({})).await.expect("answers");
-    assert_eq!(refused, json!("Refused: this tool needs `url`."));
+    let raised = Fetch.acall_value(&json!({})).await.expect_err("raises");
+    assert_eq!(
+        format!("{raised:#}"),
+        "TypeError: fetch() missing 1 required positional argument: 'url'"
+    );
 }
 
 #[tokio::test]
@@ -315,19 +335,18 @@ fn append_block(block_type: String, text: String) -> anyhow::Result<String> {
     Ok(format!("{block_type}{text}"))
 }
 
-/// A tool's description keeps the shape its author gave it.
+/// A tool's description is `func.__doc__` as the pinned Python stores it.
 ///
-/// dspy sends `func.__doc__` unnormalised, so a Python tool's description carries whatever
-/// indentation the docstring had. A doc comment is this crate's docstring, and running it through
-/// the `inspect.cleandoc` a *signature*'s instructions go through would delete the author's
-/// indentation rather than an enclosing block's — a Rust doc comment has no enclosing block's
-/// indent to find, which is the only thing `cleandoc` exists to remove.
+/// Python 3.13 dedents a docstring at compile time: the indentation common to the lines after
+/// the first comes off, and deeper indentation stays. `tests/conformance/react/tool_spec.json`
+/// records `indented_docstring` under that interpreter, and `tests/tool_spec.rs` holds the derive
+/// to it line for line; this is the same rule on this file's own tool.
 #[test]
-fn a_tool_description_keeps_the_indentation_it_was_written_with() {
+fn a_tool_description_is_dedented_as_the_interpreter_dedents_it() {
     assert_eq!(
         AppendBlock.description(),
-        "Append one instructional block to the draft and return its id.\n\n    \
-         block_type is one of: explanation, worked_example.\n    \
+        "Append one instructional block to the draft and return its id.\n\n\
+         block_type is one of: explanation, worked_example.\n\
          Practice is added with add_practice.",
     );
 }
@@ -357,11 +376,13 @@ fn a_tool_argument_can_carry_a_default() {
         .call_value(&json!({ "prompt": "2+2?", "answer": "4" }))
         .expect("answers without the defaulted argument");
     assert_eq!(answered, json!("2+2?|4|"));
-    // Still refused when an argument with no default is the one missing.
-    let refused = AppendPractice
+    let raised = AppendPractice
         .call_value(&json!({ "prompt": "2+2?" }))
-        .expect("answers");
-    assert_eq!(refused, json!("Refused: this tool needs `answer`."));
+        .expect_err("raises when an argument with no default is the one missing");
+    assert_eq!(
+        format!("{raised:#}"),
+        "TypeError: append_practice() missing 1 required positional argument: 'answer'"
+    );
 }
 
 /// Look one term up.

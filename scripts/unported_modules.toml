@@ -71,7 +71,6 @@
 "teleprompt/grpo.py" = { status = "out_of_scope", reason = "`GRPO`, reinforcement learning against a local trainer" }
 "retrievers/databricks_rm.py" = { status = "out_of_scope", reason = "`DatabricksRM`, a Databricks Vector Search client" }
 "retrievers/weaviate_rm.py" = { status = "out_of_scope", reason = "`WeaviateRM`, a Weaviate client" }
-"retrievers/embeddings.py" = { status = "out_of_scope", reason = "`Embeddings` and `EmbeddingsWithScores`, an in-memory index built on numpy; retrieval backends are the caller's to bring" }
 "retrievers/retrieve.py" = { status = "out_of_scope", reason = "`Retrieve`, the legacy module reaching whatever retriever `Settings` holds" }
 "dsp/colbertv2.py" = { status = "out_of_scope", reason = "`ColBERTv2` is an HTTP client and `ColBERTv2RetrieverLocal` wraps a local index" }
 "datasets/alfworld/alfworld.py" = { status = "out_of_scope", reason = "`AlfWorld` and `EnvPool` wrap the ALFWorld text-game environment in a process pool" }
@@ -81,9 +80,6 @@
 "datasets/gsm8k.py" = { status = "out_of_scope", reason = "`GSM8K` downloads the set and `gsm8k_metric` scores it" }
 "datasets/hotpotqa.py" = { status = "out_of_scope", reason = "`HotPotQA` downloads the set" }
 "datasets/math.py" = { status = "out_of_scope", reason = "`MATH` downloads the set and `extract_answer` scores it with sympy" }
-"predict/knn.py" = { status = "out_of_scope", reason = "`KNN` selects demos by nearest neighbour over an `Embedder`, which is itself out of scope" }
-"clients/embedding.py" = { status = "out_of_scope", reason = "`Embedder` wraps litellm's embedding call and arbitrary callables; no provider here exposes embeddings" }
-"teleprompt/knn_fewshot.py" = { status = "out_of_scope", reason = "`KNNFewShot` is BootstrapFewShot with `KNN`-selected demos; follows it out of scope" }
 "utils/asyncify.py" = { status = "out_of_scope", reason = "`asyncify` runs a sync module on an anyio worker thread under `get_limiter`'s capacity limiter. Rust's async story is the caller's runtime, not a helper this crate ships" }
 "utils/syncify.py" = { status = "out_of_scope", reason = "`syncify` and `run_async` drive an async module from sync code through a private event loop" }
 "utils/unbatchify.py" = { status = "out_of_scope", reason = "`Unbatchify` collects concurrent calls into batches on a background thread" }

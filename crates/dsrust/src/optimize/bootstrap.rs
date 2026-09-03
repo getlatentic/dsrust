@@ -27,6 +27,7 @@ use super::rng::Rng;
 /// Whichever program teaches is first primed with labelled demos by [`LabeledFewShot`], out of
 /// the same [`max_labeled_demos`](Self::max_labeled_demos) budget the student's own labelled
 /// demos come from.
+#[derive(Clone)]
 pub struct BootstrapFewShot<M> {
     /// Scores one attempt against the example it came from. dspy allows no metric at all,
     /// meaning every attempt that ran is kept; that is [`Self::without_metric`].

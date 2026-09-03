@@ -120,6 +120,9 @@ pub struct GepaOutcome<O> {
     pub total_num_evals: usize,
     pub num_full_ds_evals: usize,
     pub num_metric_calls_by_discovery: Vec<usize>,
+    /// gepa's `state.i`: the zero-based index of the last iteration run, which gepa logs as
+    /// `state.i + 1`. One completed iteration leaves it at 0; a search that never entered the loop
+    /// leaves it at -1.
     pub iterations: i64,
     /// gepa's `prog_candidate_val_subscores`, dspy's `val_subscores`: every candidate's score on
     /// every validation example, in candidate order. `val_aggregate_scores` is the mean of each.

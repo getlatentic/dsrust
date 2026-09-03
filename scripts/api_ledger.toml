@@ -23,6 +23,11 @@
 # says nothing about what it takes, and that is where a port loses things without going red.
 
 [symbols]
+"clients/embedding.py::Embedder" = { status = "mapped", rust = "embedding::Embedder", reason = "text to vectors from a hosted model or a function, batched and cached per batch. A hosted model is reached through the OpenAI-compatible `/embeddings` endpoint — held to litellm's wire in tests/embedding_wire.rs — where upstream reaches any provider litellm speaks; the cache is in memory, where upstream's also persists to disk" }
+"predict/knn.py::KNN" = { status = "mapped", rust = "knn::Knn", reason = "the k training examples nearest a call's inputs: `key: value | key: value` embedded once per example, scored by dot product, ordered by numpy's own argsort. Held to tests/conformance/knn/knn.json" }
+"teleprompt/knn_fewshot.py::KNNFewShot" = { status = "mapped", rust = "knn_fewshot::KnnFewShot", reason = "few-shot demos chosen at call time: the compiled program bootstraps a fresh copy of the student on the k nearest examples at each call, as upstream's `forward_pass` does" }
+"retrievers/embeddings.py::Embeddings" = { status = "mapped", rust = "embeddings::Embeddings", reason = "the top-k passages nearest a query by embedding, normalised unless told not to, ordered by `argsort(-scores)`; `save`/`load` speak upstream's config file and numpy's matrix format. Every corpus is searched exactly where upstream builds a FAISS index past `brute_force_threshold` when faiss is installed — an approximate search it re-ranks exactly, agreeing wherever the index recalls the true top-k" }
+"retrievers/embeddings.py::EmbeddingsWithScores" = { status = "mapped", rust = "embeddings::EmbeddingsWithScores", reason = "the same search, answering with the scores as well" }
 # propose/propose_base.py — the abstract base GroundedProposer inherits.
 "propose/propose_base.py::Proposer" = { status = "divergence", rust = "grounded::GroundedProposer", reason = "an ABC with one abstract method and one non-abstract stub, and exactly one implementation in the pinned tree: `GroundedProposer`. MIPROv2 constructs that class directly rather than accepting any `Proposer`, so the base is not a seam a caller can reach through — a trait here would be one nothing could be substituted into. The seam that *is* caller-facing is `InstructionProposer`, which GEPA takes and which upstream spells as `ProposalFn`" }
 
@@ -124,7 +129,7 @@
 "adapters/utils.py::format_field_value" = { status = "mapped", rust = "python_json::format_field_value", reason = "public under dspy's own name in adapter/python_json.rs — the bridge renders demo values through it, so it stopped being internal. The 'folded into prompt.rs' era is over" }
 "adapters/utils.py::get_annotation_name" = { status = "mapped", rust = "python_json::python_type_name", reason = "named for what it does — Python's spelling of a type — rather than upstream's name; `FieldKind::annotation` carries the stored form and this prints the live one" }
 "adapters/utils.py::get_field_description_string" = { status = "divergence", reason = "reproduced as numbered_block in adapter/prompt.rs" }
-"adapters/utils.py::parse_value" = { status = "divergence", reason = "`signature/coerce.rs`, reached from `Signature::coerce_scalars` on the way out of `adapter/parse.rs` — so a value that will not fit its declared type is a *parse* failure as upstream's is, and the JSON fallback answers it. Its branch order is upstream's: enum, then closed set, then the kind's own cast. Held case by case against dspy in tests/conformance/parse/adapter_parse.json" }
+"adapters/utils.py::parse_value" = { status = "divergence", reason = "`signature/coerce.rs`, reached from `Signature::coerce_scalars` on the way out of `adapter/parse.rs` — so a value that will not fit its declared type is a *parse* failure as upstream's is, and the JSON fallback answers it. Its branch order is upstream's: enum, then closed set, then the kind's own cast. Held case by case against dspy in tests/conformance/parse/adapter_parse.json. Upstream retries a `dspy.Type` from the original text when the repaired candidate does not validate; here `Code` — the built-in type that reads a bare string — keeps the section text unless json-repair produced the one mapping it accepts, and a caller's own `Type` reads its field through serde and is handed the repaired candidate" }
 "adapters/utils.py::serialize_for_json" = { status = "divergence", reason = "internal; folded into adapter/python_json.rs" }
 "adapters/utils.py::translate_field_type" = { status = "divergence", reason = "internal; folded into signature/field_type.rs" }
 
@@ -406,6 +411,16 @@
 # The classification is the load-bearing part — a recorded decision per method.
 
 [methods]
+"clients/embedding.py::Embedder.__call__" = { status = "mapped", rust = "Embedder::call, Embedder::call_with, Embedder::call_one", reason = "one vector per input; a single string answers with the one vector, as upstream's 1-D array" }
+"clients/embedding.py::Embedder.acall" = { status = "divergence", reason = "the async twin of `__call__`. `Embedder::call` is already a future, so there is one method" }
+"predict/knn.py::KNN.__call__" = { status = "mapped", rust = "Knn::call", reason = "the k nearest training examples to these inputs, nearest first" }
+"teleprompt/knn_fewshot.py::KNNFewShot.compile" = { status = "mapped", rust = "KnnFewShot::compile", reason = "the program whose every call bootstraps on the nearest examples" }
+"retrievers/embeddings.py::Embeddings.__call__" = { status = "mapped", rust = "Embeddings::forward" }
+"retrievers/embeddings.py::Embeddings.forward" = { status = "mapped", rust = "Embeddings::forward", reason = "`Prediction(passages=..., indices=...)`" }
+"retrievers/embeddings.py::Embeddings.from_saved" = { status = "mapped", rust = "Embeddings::from_saved" }
+"retrievers/embeddings.py::Embeddings.load" = { status = "mapped", rust = "Embeddings::load", reason = "upstream's config file and numpy matrix, read back into this index; a missing path is an error as upstream's `FileNotFoundError` is" }
+"retrievers/embeddings.py::Embeddings.save" = { status = "mapped", rust = "Embeddings::save", reason = "upstream's config file as it dumps it and the corpus embeddings as numpy writes them, byte for byte" }
+"retrievers/embeddings.py::EmbeddingsWithScores.forward" = { status = "mapped", rust = "EmbeddingsWithScores::forward", reason = "`Prediction(passages=..., indices=..., scores=...)`" }
 "teleprompt/infer_rules.py::InferRules.compile" = { status = "mapped", rust = "InferRules::compile", reason = "bootstrap, then induce and score `num_candidates` rule sets and keep the best. Answers with every candidate rather than only the winner, so the rules a run rejected can be read" }
 "teleprompt/infer_rules.py::InferRules.format_examples" = { status = "mapped", rust = "InferRules::examples_text", reason = "the trainset as text, in a shape that appears nowhere else in dspy — `Input Fields:`, a `=========` rule, `Output Fields:`. A `\n`.join and then two more newlines, so a row missing its output field still writes both after the heading" }
 "teleprompt/infer_rules.py::InferRules.get_predictor_demos" = { status = "divergence", rust = "InferRules::examples_text", reason = "narrows every trainset row to the predictor's own fields, keeping the row's order rather than the signature's. Folded into the rendering, which is its only caller — upstream splits them because it renders in a loop and narrows before it" }
@@ -441,7 +456,7 @@
 "adapters/base.py::Adapter.__call__" = { status = "divergence", reason = "upstream formats, calls the LM, and parses in one method. Here the caller owns the LM call: `Adapter::format` answers with the messages to send and `Adapter::parse` reads the reply, which is what lets a `Predict` retry or fall back between the two" }
 "adapters/chat_adapter.py::ChatAdapter.__call__" = { status = "divergence", reason = "the override that catches a failure from `super().__call__` and retries through a `JSONAdapter`. Split as `Adapter::json_fallback`, which names the adapter to fall back to rather than performing the call" }
 "adapters/json_adapter.py::JSONAdapter.__call__" = { status = "divergence", reason = "the override that asks for structured output first and falls back; see the base entry for why the call itself is the caller's, and `Adapter::output_mode` for the request it shapes" }
-"adapters/types/tool.py::Tool.__call__" = { status = "mapped", rust = "Tool::call", reason = "run the tool on its arguments" }
+"adapters/types/tool.py::Tool.__call__" = { status = "mapped", rust = "Tool::call", reason = "run the tool on its arguments. What upstream does first, in `_validate_and_parse_args`, a `#[tool]` does before its body (react::tool_call::parsed_args): each given argument must be one the tool declares and must satisfy its schema — checked with a port of python-jsonschema's `validate`, message for message — then a required argument absent is Python's own TypeError, and an integral float is parsed to an integer as pydantic parses it" }
 "clients/base_lm.py::BaseLM.__call__" = { status = "mapped", rust = "ChatModel::forward", reason = "ask the model, which is the one entry point every provider implements" }
 "evaluate/evaluate.py::Evaluate.__call__" = { status = "mapped", rust = "Evaluate::run", reason = "score the program over the devset" }
 "predict/parallel.py::Parallel.__call__" = { status = "mapped", rust = "Parallel::run", reason = "run the calls, honouring the cap and the error budget" }
@@ -465,7 +480,7 @@
 "teleprompt/gepa/gepa_utils.py::DspyAdapter.build_program" = { status = "mapped", rust = "GEPA::compile", reason = "a candidate's instructions applied to the student. Private here: upstream's adapter is a public object a caller can build, where this one exists only inside the compile it serves" }
 "teleprompt/gepa/gepa_utils.py::DspyAdapter.evaluate" = { status = "mapped", rust = "Adapter::evaluate", reason = "score a candidate over a batch" }
 "teleprompt/gepa/gepa_utils.py::DspyAdapter.make_reflective_dataset" = { status = "mapped", rust = "Adapter::reflective_dataset", reason = "what the reflection model is shown, held to a golden generated by running upstream's" }
-"utils/dummies.py::DummyLM.forward" = { status = "mapped", rust = "DummyLM::forward", reason = "a scripted reply" }
+"utils/dummies.py::DummyLM.forward" = { status = "mapped", rust = "DummyLM::forward", reason = "a scripted reply, with the zero-token usage upstream's reports" }
 "streaming/messages.py::StatusMessageProvider.tool_start_status_message" = { status = "mapped", rust = "StatusMessages::tool_start", reason = "dspy `tool_start_status_message`" }
 "streaming/messages.py::StatusMessageProvider.tool_end_status_message" = { status = "mapped", rust = "StatusMessages::tool_end", reason = "dspy `tool_end_status_message`" }
 "streaming/messages.py::StatusMessageProvider.module_start_status_message" = { status = "mapped", rust = "StatusMessages::module_start", reason = "dspy `module_start_status_message`, which says nothing until a caller overrides it — upstream's own default" }
@@ -485,7 +500,7 @@
 "adapters/types/audio.py::Audio.from_url" = { status = "mapped", rust = "Audio::from_url", reason = "as `Image.from_url`, with upstream's audio-only check on what the server said it sent" }
 "adapters/types/image.py::Image.from_path" = { status = "mapped", rust = "Image::from_path", reason = "the explicit local read 3.3.0 requires rather than inferring a path from the source. The split is the point: the constructor keeps a locator and dereferences nothing, because it is reachable from application input; only this asks for the host" }
 "adapters/types/audio.py::Audio.from_path" = { status = "mapped", rust = "Audio::from_path", reason = "as `Image.from_path`, with upstream's audio-only check — `format` reaches the provider, so a non-audio suffix is refused rather than guessed at" }
-"signatures/signature.py::Signature.append_instructions" = { status = "divergence", rust = "Signature::instructions", reason = "a mutator that appends to the instruction string. `Signature.instructions` is a public `String` field here, so appending is `signature.instructions.push_str(…)` — a method for it would be a method for one operation on a field the caller already holds" }
+"signatures/signature.py::Signature.append_instructions" = { status = "mapped", rust = "Signature::append_instructions", reason = "a fresh signature whose instructions are the existing ones and these, joined by a blank line" }
 
 # --- the callback protocol: the twelve handlers, each a defaulted trait method ---
 "utils/callback.py::BaseCallback.on_module_start" = { status = "mapped", rust = "Callback::on_module_start" }
@@ -615,7 +630,7 @@
 # Tool
 "adapters/types/tool.py::Tool.acall" = { status = "mapped", rust = "Tool::acall_value", reason = "the awaited half of the pair. Its default answers with what the synchronous `call_value` returned, which is upstream's own \"allow calling a sync tool in the async path\"; `AsyncFnTool` overrides it for a tool that is a future. Every agent goes through this one, so a tool reaching a network suspends the loop rather than blocking it" }
 "adapters/types/tool.py::Tool.format" = { status = "mapped", rust = "tool::format_tool" }
-"adapters/types/tool.py::Tool.format_as_litellm_function_call" = { status = "mapped", rust = "native_tools::spec" }
+"adapters/types/tool.py::Tool.format_as_litellm_function_call" = { status = "mapped", rust = "native_tools::spec_of", reason = "the function spec a tool becomes on a request that calls tools natively: an argument with a `default` is not required, and an undocumented tool sends no description, as upstream sends `None`. Held to `tests/conformance/react/tool_spec.json`" }
 "adapters/types/tool.py::Tool.from_langchain" = { status = "divergence", reason = "builds a dspy `Tool` from a LangChain one, through `convert_langchain_tool`: an async wrapper around `tool.ainvoke`, with the arguments read off `args_schema.model_json_schema()`. Interop with a Python package, so there is nothing here to convert from — a Rust caller writes the `Tool` directly, and `react::Tool` is the trait they write it against" }
 "adapters/types/tool.py::Tool.from_mcp_tool" = { status = "mapped", rust = "mcp::mcp_tool" }
 
@@ -657,7 +672,7 @@
 
 # ReAct
 "predict/react.py::ReAct.aforward" = { status = "divergence", reason = "the async twin of `forward`. `Module::forward` returns a future already, so upstream's sync/async pair is one method here" }
-"predict/react.py::ReAct.forward" = { status = "mapped", rust = "ReAct::forward" }
+"predict/react.py::ReAct.forward" = { status = "mapped", rust = "ReAct::forward", reason = "the loop, byte for byte, with one seam: upstream renders a tool's exception as a five-frame CPython traceback (`_fmt_exc`), and the frames are the interpreter's. The line the traceback ends with — the exception's own, which is what the model reads — is reproduced exactly for every error dspy raises itself; for an argument the schema admitted and the parser refused, the parser here is serde and its reason is its own. See tests/conformance/react/bad_call_observation.json" }
 "predict/react.py::ReAct.truncate_trajectory" = { status = "mapped", rust = "Trajectory::truncate_oldest" }
 
 # ReActV2
@@ -676,16 +691,16 @@
 "predict/multi_chain_comparison.py::MultiChainComparison.forward" = { status = "mapped", rust = "MultiChainComparison::forward" }
 
 # Example
-"primitives/example.py::Example.copy" = { status = "divergence", reason = "reproduced as `Clone`, which `Example` derives. dspy's `copy(**kwargs)` also adds or overrides fields in the copy, and that half is `Example::set` on the clone — one call per field, so a caller can see which fields the copy differs by" }
-"primitives/example.py::Example.get" = { status = "mapped", rust = "Example::get" }
+"primitives/example.py::Example.copy" = { status = "mapped", rust = "Example::with_fields", reason = "`copy(**kwargs)`: the fields plus these, the later winning. Upstream builds the copy through `__init__(base=self)`, which copies the store and not the input keys, so the copy has none; reproduced" }
+"primitives/example.py::Example.get" = { status = "mapped", rust = "Example::get", reason = "`get`, and `example[\"question\"]` through `Index<&str>` for upstream's `__getitem__`, which the surface walk does not list" }
 "primitives/example.py::Example.inputs" = { status = "mapped", rust = "Example::inputs" }
 "primitives/example.py::Example.items" = { status = "mapped", rust = "Example::fields" }
-"primitives/example.py::Example.keys" = { status = "divergence", reason = "Python's mapping protocol, which Rust has no equivalent of: `Example::fields` hands back an iterator of `(&str, &Value)` and a caller collects, indexes or copies from that. Said Rust used the standard traits instead, and it does not — `Example` implements none beyond its derives" }
+"primitives/example.py::Example.keys" = { status = "mapped", rust = "Example::keys", reason = "the field names, the `dspy_`-prefixed bookkeeping ones left out as upstream leaves them out" }
 "primitives/example.py::Example.labels" = { status = "mapped", rust = "Example::labels" }
-"primitives/example.py::Example.toDict" = { status = "divergence", reason = "Python's mapping protocol, which Rust has no equivalent of: `Example::fields` hands back an iterator of `(&str, &Value)` and a caller collects, indexes or copies from that. Said Rust used the standard traits instead, and it does not — `Example` implements none beyond its derives" }
-"primitives/example.py::Example.values" = { status = "divergence", reason = "Python's mapping protocol, which Rust has no equivalent of: `Example::fields` hands back an iterator of `(&str, &Value)` and a caller collects, indexes or copies from that. Said Rust used the standard traits instead, and it does not — `Example` implements none beyond its derives" }
+"primitives/example.py::Example.toDict" = { status = "mapped", rust = "Example::to_dict", reason = "the fields as one JSON object. Upstream converts nested examples and pydantic models to plain data on the way; a value here is JSON already" }
+"primitives/example.py::Example.values" = { status = "mapped", rust = "Example::values", reason = "the values in field order, the `dspy_` ones left out" }
 "primitives/example.py::Example.with_inputs" = { status = "mapped", rust = "Example::with_inputs" }
-"primitives/example.py::Example.without" = { status = "divergence", reason = "**no public counterpart.** `Example::subset` keeps rather than drops, and it is private — `Example::inputs` and `Example::labels` are its two callers and both are about the input/output split rather than about removing a named field. A caller wanting dspy's `without` rebuilds from `Example::fields`. This entry pointed at `subset` until 2026-08-24, which a caller cannot reach" }
+"primitives/example.py::Example.without" = { status = "mapped", rust = "Example::without", reason = "this example with the named fields dropped — and, as upstream's `copy` does, with the input keys dropped too" }
 
 # Prediction
 "primitives/prediction.py::Prediction.completions" = { status = "mapped", rust = "completions::Completions" }
@@ -704,7 +719,7 @@
 "primitives/module.py::Module.map_named_predictors" = { status = "divergence", reason = "upstream applies a function to each predictor and writes the result back through `set_attribute_by_name`. `Module::named_predictors` hands back `&mut` references, so a caller maps over them in place and there is nothing to write back" }
 "primitives/module.py::Module.named_predictors" = { status = "mapped", rust = "Module::named_predictors" }
 "primitives/module.py::Module.predictors" = { status = "mapped", rust = "Module::named_predictors" }
-"primitives/module.py::Module.set_lm" = { status = "mapped", rust = "Predict::set_lm", reason = "every module carries its own — `ChainOfThought`, `CodeAct`, `ProgramOfThought`, `ReAct`, `ReActV2`, `Rlm` and `Predict` each have one, where dspy inherits a single `Module.set_lm`. `Module` here is a trait and declares no such method: a default body would need a field every implementor happens to have" }
+"primitives/module.py::Module.set_lm" = { status = "mapped", rust = "Module::set_lm", reason = "one model for every predictor the walk reaches, on the trait so a composed program has it as a leaf does" }
 
 # Teleprompter
 "teleprompt/teleprompt.py::Teleprompter.compile" = { status = "mapped", rust = "Optimizer::compile" }
@@ -808,6 +823,29 @@
 "primitives/repl_types.py::REPLHistory.serialize_model" = { status = "divergence", reason = "as `REPLVariable.serialize_model`: the value crosses as its prose, via `types::serialized`" }
 
 [constructors]
+"retrievers/embeddings.py::EmbeddingsWithScores.corpus" = { status = "mapped", rust = "EmbeddingsWithScores::build" }
+"retrievers/embeddings.py::EmbeddingsWithScores.embedder" = { status = "mapped", rust = "EmbeddingsWithScores::build" }
+"retrievers/embeddings.py::EmbeddingsWithScores.k" = { status = "mapped", rust = "EmbeddingsWithScores::build" }
+"retrievers/embeddings.py::EmbeddingsWithScores.normalize" = { status = "mapped", rust = "EmbeddingsWithScores::build" }
+"retrievers/embeddings.py::EmbeddingsWithScores.brute_force_threshold" = { status = "divergence", reason = "past this corpus size upstream builds a FAISS index when faiss is installed; `EmbeddingsWithScores::build` searches every corpus exactly" }
+"retrievers/embeddings.py::EmbeddingsWithScores.cache" = { status = "divergence", reason = "upstream asserts it is `False` and does nothing else with it; `EmbeddingsWithScores::build` takes nothing for it" }
+"retrievers/embeddings.py::EmbeddingsWithScores.callbacks" = { status = "divergence", reason = "accepted upstream and never read; `EmbeddingsWithScores::build` takes nothing for it" }
+"clients/embedding.py::Embedder.model" = { status = "mapped", rust = "Embedder::new, Embedder::callable", reason = "a model named `provider/id` — or a bare OpenAI id, as litellm takes one — or a function of the batch and the keyword arguments" }
+"clients/embedding.py::Embedder.batch_size" = { status = "mapped", rust = "Embedder::batch_size", reason = "upstream's default of 200" }
+"clients/embedding.py::Embedder.caching" = { status = "mapped", rust = "Embedder::caching", reason = "whether an answered batch is asked again; in memory here, where upstream's cache also persists to disk" }
+"predict/knn.py::KNN.k" = { status = "mapped", rust = "Knn::build" }
+"predict/knn.py::KNN.trainset" = { status = "mapped", rust = "Knn::build" }
+"predict/knn.py::KNN.vectorizer" = { status = "mapped", rust = "Knn::build", reason = "the `Embedder`" }
+"teleprompt/knn_fewshot.py::KNNFewShot.k" = { status = "mapped", rust = "KnnFewShot::build" }
+"teleprompt/knn_fewshot.py::KNNFewShot.trainset" = { status = "mapped", rust = "KnnFewShot::build" }
+"teleprompt/knn_fewshot.py::KNNFewShot.vectorizer" = { status = "mapped", rust = "KnnFewShot::build", reason = "the `Embedder`; upstream's `**few_shot_bootstrap_args` arrive as the `BootstrapFewShot` they would build" }
+"retrievers/embeddings.py::Embeddings.corpus" = { status = "mapped", rust = "Embeddings::build" }
+"retrievers/embeddings.py::Embeddings.embedder" = { status = "mapped", rust = "Embeddings::build" }
+"retrievers/embeddings.py::Embeddings.k" = { status = "mapped", rust = "Embeddings::build", reason = "upstream's default of 5 is the caller's to state" }
+"retrievers/embeddings.py::Embeddings.normalize" = { status = "mapped", rust = "Embeddings::build" }
+"retrievers/embeddings.py::Embeddings.brute_force_threshold" = { status = "divergence", reason = "past this corpus size upstream builds a FAISS index when faiss is installed; `Embeddings::build` searches every corpus exactly, so there is no threshold to state" }
+"retrievers/embeddings.py::Embeddings.cache" = { status = "divergence", reason = "upstream asserts it is `False` and does nothing else with it" }
+"retrievers/embeddings.py::Embeddings.callbacks" = { status = "divergence", reason = "accepted upstream and never read; `Embeddings::build` takes nothing for it" }
 "teleprompt/infer_rules.py::InferRules.num_candidates" = { status = "mapped", rust = "InferRules::num_candidates", reason = "how many rule sets to induce and score; ten by default" }
 "teleprompt/infer_rules.py::InferRules.num_rules" = { status = "mapped", rust = "InferRules::num_rules", reason = "how many rules to ask for. It reaches the model as a number inside the induction instruction, so it changes the prompt rather than bounding anything either side counts" }
 "teleprompt/infer_rules.py::InferRules.num_threads" = { status = "mapped", rust = "InferRules::scoring", reason = "how many examples a scoring pass runs at once, carried with the error budget as one `Scoring`" }
@@ -1142,14 +1180,14 @@
 "adapters/types/tool.py::Tool.arg_desc" = { status = "divergence", reason = "per-argument prose lives in `Tool::args` — a JSON object mapping each argument to its JSON Schema — under that schema's `description`, which is where the instructions render it from. Upstream keeps a second dict beside the schema for the same text" }
 "adapters/types/tool.py::Tool.arg_types" = { status = "divergence", reason = "each argument's type is already in its JSON Schema under `Tool::args`; dspy keeps the Python annotations beside it because it coerces the model's arguments against them, and a Rust tool parses the `Value` it is handed" }
 "adapters/types/tool.py::Tool.args" = { status = "mapped", rust = "Tool::args", reason = "Tool::args" }
-"adapters/types/tool.py::Tool.desc" = { status = "mapped", rust = "Tool::description", reason = "Tool::description" }
+"adapters/types/tool.py::Tool.desc" = { status = "mapped", rust = "Tool::description", reason = "`func.__doc__` as the pinned Python 3.13 stores it — dedented at compile time, blank lines and the closing line's newline kept — or nothing for an undocumented function. Held to tests/conformance/react/tool_spec.json" }
 "adapters/types/tool.py::Tool.func" = { status = "mapped", rust = "tool::FnTool", reason = "FnTool's closure, or an impl of the Tool trait" }
 "adapters/types/tool.py::Tool.name" = { status = "mapped", rust = "Tool::name", reason = "Tool::name" }
 "clients/base_lm.py::BaseLM.cache" = { status = "mapped", rust = "LM::cache", reason = "LM::cache / LmBuilder::cache" }
 "clients/base_lm.py::BaseLM.callbacks" = { status = "mapped", rust = "LM::callbacks", reason = "ChatModel::callbacks, defaulted to none and read in the blanket DynChatModel::forward_dyn — the one place a model's call cannot avoid, which is where upstream decorates BaseLM.__call__. `LM::callbacks` sets it, dspy's LM(model, callbacks=[…]); the process-wide list is configure_callbacks, dspy's configure(callbacks=[…]). Both are told, the process-wide ones first" }
 "clients/base_lm.py::BaseLM.max_tokens" = { status = "mapped", rust = "Sampling::max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
 "clients/base_lm.py::BaseLM.model" = { status = "mapped", rust = "lm::LM", reason = "LM::new, positional" }
-"clients/base_lm.py::BaseLM.model_type" = { status = "mapped", rust = "openai::OpenAiWire", reason = "the wire enum `LM` routes on — chat, responses or text, as upstream's three values; see the `clients/lm.py` entry of the same name" }
+"clients/base_lm.py::BaseLM.model_type" = { status = "mapped", rust = "config::OpenAiWire", reason = "the wire enum `LM` routes on — chat, responses or text, as upstream's three values; see the `clients/lm.py` entry of the same name" }
 "clients/base_lm.py::BaseLM.num_retries" = { status = "mapped", rust = "LM::retry", reason = "LM::retry / LmBuilder::num_retries; the policy itself is lm::Retry" }
 "clients/base_lm.py::BaseLM.temperature" = { status = "mapped", rust = "Sampling::temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
 "clients/cache.py::Cache.disk_cache_dir" = { status = "mapped", rust = "disk::DiskCache", reason = "DiskCache::new's root" }
@@ -1165,7 +1203,7 @@
 "clients/lm.py::LM.launch_kwargs" = { status = "deferred", reason = "what `Provider.launch` is handed when a locally-served model is started; finetuning is out of the 1.0 ceiling" }
 "clients/lm.py::LM.max_tokens" = { status = "mapped", rust = "LmBuilder::max_tokens", reason = "LmBuilder::max_tokens, dspy's own keyword" }
 "clients/lm.py::LM.model" = { status = "mapped", rust = "LM::new", reason = "LM::new / LM::builder, positional" }
-"clients/lm.py::LM.model_type" = { status = "mapped", rust = "openai::OpenAiWire", reason = "which wire to speak, all three of upstream's: `OpenAiWire::Chat`, `OpenAiWire::Responses` and `OpenAiWire::Text`, selected by `LM::openai_responses_api` and `LM::openai_text_api`. `ModelRef` picks the provider; this picks the endpoint under it" }
+"clients/lm.py::LM.model_type" = { status = "mapped", rust = "config::OpenAiWire", reason = "which wire to speak, all three of upstream's: `OpenAiWire::Chat`, `OpenAiWire::Responses` and `OpenAiWire::Text`, selected by `LM::openai_responses_api` and `LM::openai_text_api`. `ModelRef` picks the provider; this picks the endpoint under it" }
 "clients/lm.py::LM.num_retries" = { status = "mapped", rust = "LM::retry", reason = "LM::retry / LmBuilder::num_retries; three asks and two retries, as upstream's stop_after_attempt counts" }
 "clients/lm.py::LM.provider" = { status = "deferred", reason = "not a routing override, which is what this entry used to say: `provider=` takes a `dspy.clients.provider.Provider` — the finetuning lifecycle object with launch/kill/finetune/reinforce — and `self.provider.launch(self, ...)` is the only thing read off it. That class is already deferred as out of the 1.0 inference/optimization ceiling, so its constructor parameter is too. Routing here is `ModelRef::parse` off the prefix, which is what dspy's own `infer_provider`/`_provider_name` do" }
 "clients/lm.py::LM.temperature" = { status = "mapped", rust = "LmBuilder::temperature", reason = "LmBuilder::temperature, dspy's own keyword" }
@@ -1309,6 +1347,21 @@
 "utils/exceptions.py::LMUnsupportedFeatureError.issues" = { status = "mapped", rust = "LmFailure::issues", reason = "LmFailure::issues, carrying dspy's own line: which endpoint was asked, at what effort, with what temperature" }
 
 [parameters]
+"clients/embedding.py::Embedder.__call__.inputs" = { status = "mapped", rust = "Embedder::call" }
+"clients/embedding.py::Embedder.__call__.batch_size" = { status = "mapped", rust = "EmbedCall::batch_size", reason = "a call's override of the embedder's" }
+"clients/embedding.py::Embedder.__call__.caching" = { status = "mapped", rust = "EmbedCall::caching", reason = "a call's override of the embedder's" }
+"clients/embedding.py::Embedder.__call__.kwargs" = { status = "mapped", rust = "EmbedCall::kwargs", reason = "sent with the request, over the embedder's own" }
+"predict/knn.py::KNN.__call__.kwargs" = { status = "mapped", rust = "Knn::call", reason = "the call's inputs, as an `Example`" }
+"teleprompt/knn_fewshot.py::KNNFewShot.compile.student" = { status = "mapped", rust = "KnnFewShot::compile", reason = "how a student is built, rather than one to copy: upstream `reset_copy`s the student for every call, and a Rust module has no deepcopy, so the program builds a fresh one" }
+"teleprompt/knn_fewshot.py::KNNFewShot.compile.teacher" = { status = "mapped", rust = "KnnFewShot::compile", reason = "how a teacher is built, when one is given; as `student`" }
+"retrievers/embeddings.py::Embeddings.__call__.query" = { status = "mapped", rust = "Embeddings::forward" }
+"retrievers/embeddings.py::Embeddings.forward.query" = { status = "mapped", rust = "Embeddings::forward" }
+"retrievers/embeddings.py::Embeddings.save.path" = { status = "mapped", rust = "Embeddings::save" }
+"retrievers/embeddings.py::Embeddings.load.path" = { status = "mapped", rust = "Embeddings::load" }
+"retrievers/embeddings.py::Embeddings.load.embedder" = { status = "mapped", rust = "Embeddings::load", reason = "the embedder queries go through from now on" }
+"retrievers/embeddings.py::Embeddings.from_saved.path" = { status = "mapped", rust = "Embeddings::from_saved" }
+"retrievers/embeddings.py::Embeddings.from_saved.embedder" = { status = "mapped", rust = "Embeddings::from_saved" }
+"retrievers/embeddings.py::EmbeddingsWithScores.forward.query" = { status = "mapped", rust = "EmbeddingsWithScores::forward" }
 "utils/inspect_history.py::pretty_print_history.history" = { status = "mapped", rust = "inspect::pretty_print_history", reason = "the calls to render, as dspy records them — an OpenAI-shaped `messages` list, the `outputs`, and the time it was made. Taken as JSON rather than as `LmHistoryEntry`, because that is the shape upstream's `GLOBAL_HISTORY` holds and the one this function reads" }
 "utils/inspect_history.py::pretty_print_history.n" = { status = "mapped", rust = "inspect::pretty_print_history", reason = "how many of the most recent to render; one by default" }
 "utils/inspect_history.py::pretty_print_history.file" = { status = "divergence", rust = "inspect::pretty_print_history", reason = "where to write, and what decides whether colour is used — passing one turns it off. Answering with a `String` and a `colours` flag says the same thing without the library choosing a destination" }
@@ -1649,6 +1702,7 @@
 "signatures/signature.py::Signature.insert.type_" = { status = "divergence", rust = "insert", reason = "carried on the field inside `Side::Input` or `Side::Output` — its `kind` — rather than passed beside the name; see Signature.append.name" }
 "signatures/signature.py::Signature.delete.name" = { status = "mapped", rust = "Signature::delete", reason = "the field name to remove" }
 "signatures/signature.py::Signature.with_instructions.instructions" = { status = "mapped", rust = "Signature::with_instructions", reason = "the replacement instructions; `impl Into<String>` so a literal needs no ceremony" }
+"signatures/signature.py::Signature.append_instructions.instructions" = { status = "mapped", rust = "Signature::append_instructions", reason = "the replacement instructions; `impl Into<String>` so a literal needs no ceremony" }
 "signatures/signature.py::Signature.with_updated_fields.name" = { status = "mapped", rust = "Signature::with_updated_fields", reason = "the field to edit" }
 "signatures/signature.py::Signature.with_updated_fields.kwargs" = { status = "divergence", rust = "FieldEdit", reason = "dspy takes **kwargs and copies whichever pydantic FieldInfo attributes it recognises; the crate takes a closure over a `side::FieldEdit`, so the editable attributes are the ones the type exposes and a typo is a compile error rather than a silently ignored key" }
 "signatures/signature.py::Signature.with_updated_fields.type_" = { status = "divergence", rust = "FieldEdit", reason = "set through the same `FieldEdit` closure as the rest; see the kwargs entry beside it" }
@@ -1803,6 +1857,10 @@
 "primitives/code_interpreter.py::CodeInterpreter.execute.code" = { status = "mapped", rust = "CodeInterpreter::execute", reason = "the Python to run in the sandbox" }
 "primitives/code_interpreter.py::CodeInterpreter.execute.variables" = { status = "mapped", rust = "CodeInterpreter::execute", reason = "the names injected above the code, as dspy's `_inject_variables` writes them" }
 "primitives/example.py::Example.get.key" = { status = "divergence", rust = "get", reason = "spelled `name` on `Example::get`: an Example's keys are field names, which is what every other method there calls them" }
+"primitives/example.py::Example.copy.kwargs" = { status = "mapped", rust = "Example::with_fields", reason = "the fields to add or override, as name-value pairs" }
+"primitives/example.py::Example.without.keys" = { status = "mapped", rust = "Example::without", reason = "the field names to drop" }
+"primitives/example.py::Example.keys.include_dspy" = { status = "divergence", reason = "upstream's switch to include the `dspy_` bookkeeping fields; `keys` leaves them out as the default does, and `to_dict` keeps them as upstream's does, which are the two shapes the doctests show" }
+"primitives/example.py::Example.values.include_dspy" = { status = "divergence", reason = "as `keys.include_dspy`" }
 "primitives/example.py::Example.get.default" = { status = "divergence", rust = "get", reason = "`Example::get` answers `Option<&Value>`, so a caller writes its own default with `unwrap_or` rather than passing one in — and can tell absent from present-and-null, which dspy's default cannot" }
 "primitives/example.py::Example.items.include_dspy" = { status = "divergence", rust = "items", reason = "dspy's internal keys are stored beside the user's and this flag says whether to show them; `Example::fields` yields only the caller's, because the input-field marks live outside the map entirely — so there is nothing to filter" }
 "primitives/example.py::Example.with_inputs.keys" = { status = "mapped", rust = "Example::with_inputs", reason = "the field names that count as inputs" }
@@ -2285,7 +2343,7 @@
 "dsrust::react::AsyncFnTool::call" = { status = "divergence", reason = "`AsyncFnTool::call`, part of the same type's surface; see the entry for `AsyncFnTool`" }
 "dsrust::react::AsyncFnTool::description" = { status = "divergence", reason = "`AsyncFnTool::description`, part of the same type's surface; see the entry for `AsyncFnTool`" }
 "dsrust::react::AsyncFnTool::name" = { status = "divergence", reason = "`AsyncFnTool::name`, part of the same type's surface; see the entry for `AsyncFnTool`" }
-"dsrust::react::AsyncFnTool::new" = { status = "divergence", reason = "`AsyncFnTool::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::react::AsyncFnTool::new" = { status = "divergence", reason = "`AsyncFnTool::new` — the constructor; Python's `__init__` needs no entry of its own. The future answers with any `Serialize` value, as `FnTool::new`'s closure does" }
 "dsrust::react::FnTool::args" = { status = "divergence", reason = "`FnTool::args`, part of the same type's surface; see the entry for `FnTool`" }
 "dsrust::react::FnTool::call" = { status = "divergence", reason = "`FnTool::call`, part of the same type's surface; see the entry for `FnTool`" }
 "dsrust::react::FnTool::description" = { status = "divergence", reason = "`FnTool::description`, part of the same type's surface; see the entry for `FnTool`" }
@@ -2597,7 +2655,7 @@
 "dsrust::predict::TypedChainOfThought::call_inputs_with" = { status = "divergence", reason = "`TypedChainOfThought::call_inputs_with` — the call itself, which Python reaches through `__call__`" }
 "dsrust::predict::refine::Refine::fail_count" = { status = "divergence", reason = "`Refine`'s `fail_count`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
 "dsrust::predict::rlm::Rlm::tools" = { status = "divergence", reason = "`Rlm::tools`, part of the same type's surface" }
-"dsrust::react::FnTool::new" = { status = "divergence", reason = "`FnTool::new` — the constructor; Python's `__init__` needs no entry of its own" }
+"dsrust::react::FnTool::new" = { status = "divergence", reason = "`FnTool::new` — the constructor; Python's `__init__` needs no entry of its own. The closure answers with any `Serialize` value, as a Python tool returns whatever it returns: a list reaches the trajectory as a list. A closure that only ever errors states its answer type, since nothing else fixes it" }
 "dsrust::react::ReActV2::adapter" = { status = "divergence", reason = "`ReActV2`'s `adapter`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
 "dsrust::react::ReActV2::new" = { status = "divergence", reason = "`ReActV2::new` — the constructor; Python's `__init__` needs no entry of its own" }
 "dsrust::react::ReActV2::set_lm" = { status = "divergence", reason = "`ReActV2`'s `set_lm`: dspy takes it as a constructor keyword, which Rust spells as a builder setter" }
@@ -2809,6 +2867,7 @@
 "dsrust::module::NamedPredictor" = { status = "mapped", rust = "NamedPredictor", reason = "one entry of dspy's `named_predictors()`: a `Signature` and its demos, borrowed for inspection or mutation. An optimizer's whole job is rewriting these two things" }
 "dsrust::module::Forward" = { status = "divergence", rust = "Forward", reason = "the trait an author implements, where `Module` is the trait a caller takes. `Module` is object-safe so a composed program can hold `Box<dyn Module>`, which is the right shape for a caller and the wrong one for an author — who would be writing `Pin<Box<dyn Future>>` by hand for no reason. Python needs no such split: one `forward` on one class serves both" }
 "dsrust::module::Ask" = { status = "divergence", rust = "Ask", reason = "one call spelling across both ways of declaring a task. dspy has one because every module there answers with a dynamic `Prediction`; Rust need not give that up to match — the spelling is shared and the answer stays whatever the module promised, so a derived task still hands back its own outputs struct" }
+"gepa::instruction_proposal::Reflective::to_value" = { status = "divergence", reason = "a reflective example as JSON, in the order dspy renders it. Upstream needs no such method: `propose_new_texts` is handed plain dicts and lists, and a proposer built from a module passes them into a signature field as they are. This is the same data in the same shape for a caller's own `InstructionProposer`, which the GEPA advanced page builds and which could not otherwise get its dataset into a field" }
 "dsrust::module::under" = { status = "mapped", rust = "under", reason = "dspy's `named_parameters` naming a step's predictors by their path from it — a leaf's `self` replaced by the field name, anything with a name of its own prefixed, so a `ChainOfThought` held in a field is named for the field and then the predictor inside it, joined by a dot. A function rather than a rule each module applies itself, because it *was* applied by hand and four of them got it wrong: `ReAct`, `BestOfN`, `Refine` and `MultiChainComparison` all replaced where upstream prefixes, and the name is what `load_state` indexes" }
 "dsrust::module::relabel" = { status = "divergence", rust = "relabel", reason = "rename the steps a child added, which is how a composed module claims its children's calls as its own predictor. dspy needs no renaming: `Predict.forward` appends the predictor object itself to the trace, so identity is the key" }
 "dsrust::module::DSPY_VERSION" = { status = "mapped", rust = "DSPY_VERSION", reason = "the `dependency_versions.dspy` a saved program records, so dspy loading one written here sees the version it expects" }
@@ -3281,3 +3340,61 @@
 "dsrust::interpreter::DenoInterpreter" = { status = "mapped", reason = "dspy's `PythonInterpreter`, which is also Deno and Pyodide running its own `runner.js`. Named for the sandbox rather than the language because the language is Python either way and the sandbox is the part a caller has to install" }
 "dsrust::interpreter::CodeInterpreter" = { status = "mapped", rust = "interpreter::CodeInterpreter", reason = "dspy 3.3's `@runtime_checkable class CodeInterpreter(Protocol)`, as a trait: `DenoInterpreter` implements it and a caller can put their own sandbox behind `ProgramOfThought`, `CodeAct` and `Rlm`. Said dspy had one concrete class and no seam, which was true of 3.2.1 and stopped being true at the pin this port follows" }
 "dsrust::interpreter::Permissions" = { status = "divergence", reason = "what the sandbox is allowed to reach, as a value. dspy holds `enable_read_paths`, `enable_write_paths`, `enable_env_vars` and `enable_network_access` as four lists and assembles Deno's flags from them inline; a typed value is the same four decisions where a caller can see them together" }
+"dsrust::python::repr" = { status = "divergence", rust = "python::repr", reason = "Python's `repr` of a JSON value — `None`, `True`, single-quoted strings, `{'k': v}` dicts" }
+"dsrust::adapter::native_tools::manifest" = { status = "divergence", rust = "native_tools::manifest", reason = "a tool as the value a `list[Tool]` input carries — dspy passes the `Tool` object itself, and a field here carries JSON: the object's `name`, `desc` and `args`" }
+"dsrust::adapter::native_tools::spec_of" = { status = "divergence", rust = "native_tools::spec_of", reason = "`Tool.format_as_litellm_function_call` for a tool this crate holds; see that row" }
+"dsrust::signature::Signature::instructions" = { status = "divergence", rust = "Signature::instructions", reason = "the instruction text, a public field where upstream keeps a class attribute; `with_instructions` and `append_instructions` answer with a fresh signature carrying a new one" }
+"dsrust::DummyVectorizer" = { status = "divergence", reason = "the same type, named from the crate root; see the entry for `utils/dummies.py::DummyVectorizer`" }
+"dsrust::EmbedCall" = { status = "divergence", reason = "the same type, named from the crate root; see `dsrust::lm::embedding::EmbedCall`" }
+"dsrust::Embedder" = { status = "divergence", reason = "the same type, named from the crate root; see the entry for `clients/embedding.py::Embedder`" }
+"dsrust::EmbedderModel" = { status = "divergence", reason = "the same type, named from the crate root; see `dsrust::lm::embedding::EmbedderModel`" }
+"dsrust::Embeddings" = { status = "divergence", reason = "the same type, named from the crate root; see the entry for `retrievers/embeddings.py::Embeddings`" }
+"dsrust::EmbeddingsWithScores" = { status = "divergence", reason = "the same type, named from the crate root; see the entry for `retrievers/embeddings.py::EmbeddingsWithScores`" }
+"dsrust::Knn" = { status = "divergence", reason = "the same type, named from the crate root; see the entry for `predict/knn.py::KNN`" }
+"dsrust::KnnFewShot" = { status = "divergence", reason = "the same type, named from the crate root; see the entry for `teleprompt/knn_fewshot.py::KNNFewShot`" }
+"dsrust::KnnFewShotProgram" = { status = "divergence", reason = "the same type, named from the crate root; see `dsrust::optimize::knn_fewshot::KnnFewShotProgram`" }
+"dsrust::Retrieved" = { status = "divergence", reason = "the same type, named from the crate root; see `dsrust::retrievers::embeddings::Retrieved`" }
+"dsrust::retrievers::Embeddings" = { status = "divergence", reason = "the same type, named from the module that owns it; see the entry for `retrievers/embeddings.py::Embeddings`" }
+"dsrust::retrievers::EmbeddingsWithScores" = { status = "divergence", reason = "the same type, named from the module that owns it; see the entry for `retrievers/embeddings.py::EmbeddingsWithScores`" }
+"dsrust::retrievers::Retrieved" = { status = "divergence", reason = "the same type, named from the module that owns it; see `dsrust::retrievers::embeddings::Retrieved`" }
+"dsrust::lm::dummy_vectorizer::DummyVectorizer::coeffs" = { status = "divergence", rust = "DummyVectorizer::coeffs", reason = "the hash coefficients Python's `random` drew, for a test to hold against the recording" }
+"dsrust::lm::embedding::EmbedCall" = { status = "divergence", reason = "the options one call may override — upstream's `batch_size=`, `caching=` and `**kwargs` on `__call__` — as one value, since a call here has no keyword arguments" }
+"dsrust::lm::embedding::EmbedderModel" = { status = "divergence", rust = "embedding::EmbedderModel", reason = "what embeds: a hosted model by name, or a function. Upstream reads the type of `model` at call time; the choice is a value here" }
+"dsrust::lm::embedding::EmbeddingFn" = { status = "divergence", reason = "the function an `Embedder` may wrap: the batch and the call's keyword arguments, as upstream calls `model(batch_inputs, **kwargs)`" }
+"dsrust::lm::embedding::Embedder::http" = { status = "divergence", rust = "Embedder::http", reason = "the HTTP client a hosted model is reached with, where upstream's is litellm's" }
+"dsrust::lm::embedding::Embedder::kwargs" = { status = "divergence", rust = "Embedder::kwargs", reason = "upstream's `**kwargs` to the constructor: sent with every request unless a call overrides a key" }
+"dsrust::lm::embedding::Embedder::model" = { status = "divergence", rust = "Embedder::model", reason = "what this embedder embeds with, for a caller to read back" }
+"dsrust::lm::embedding::Embedder::openai_config" = { status = "divergence", reason = "the endpoint and key an OpenAI-compatible model is reached at — upstream's `api_base=`/`api_key=` keyword arguments, which litellm reads out of `**kwargs`" }
+"dsrust::lm::embedding::Embedder::timeout" = { status = "divergence", rust = "Embedder::timeout", reason = "how long one request may take; litellm's own default where upstream leaves it" }
+"dsrust::lm::openai::embeddings::embeddings_of" = { status = "divergence", reason = "one embedding per input, read off the reply's `data` — what litellm returns from `response.data`" }
+"dsrust::lm::openai::embeddings::request_body" = { status = "divergence", reason = "the `/embeddings` body litellm posts: `input`, `model`, the caller's keyword arguments, and the `encoding_format` of `float` the OpenAI SDK adds. Held to tests/conformance/lm_api/embedding_wire.json" }
+"dsrust::numpy::argsort_f32" = { status = "divergence", reason = "`np.argsort` over float32 scores: numpy's own permutation, ties included, through the tpe crate's transcription of numpy's quicksort" }
+"dsrust::numpy::dot_f32" = { status = "divergence", reason = "a float32 dot product accumulated left to right. numpy hands `np.dot` to BLAS, whose lane order a port cannot read; the fixture ranks the same" }
+"dsrust::numpy::l2_norm_f32" = { status = "divergence", reason = "`np.linalg.norm` over a float32 row: the square root of numpy's pairwise sum of squares" }
+"dsrust::numpy::mean_f32" = { status = "divergence", reason = "`np.mean` over a float32 row: numpy's pairwise sum, divided in float32" }
+"dsrust::optimize::knn_fewshot::KnnFewShotProgram" = { status = "divergence", reason = "the program `KNNFewShot.compile` answers with — upstream's `forward_pass` bound onto a copy of the student — as a type, since a Rust program cannot have a method replaced" }
+"dsrust::predict::knn::Knn::k" = { status = "divergence", reason = "`KNN.k`, read back" }
+"dsrust::predict::knn::Knn::trainset" = { status = "divergence", reason = "`KNN.trainset`, read back" }
+"dsrust::predict::knn::Knn::trainset_vectors" = { status = "divergence", reason = "`KNN.trainset_vectors`, read back — what upstream's tests assert the length of" }
+"dsrust::predict::knn::example_text" = { status = "divergence", reason = "a training example as `KNN.__init__` renders it before embedding: its inputs, `key: value | key: value`" }
+"dsrust::predict::knn::nearest_indices" = { status = "divergence", reason = "`KNN.__call__`'s selection over precomputed rows: the k nearest by dot product, nearest first, through numpy's argsort. The bridge selects with it over vectors dspy's own vectorizer produced" }
+"dsrust::predict::knn::query_text" = { status = "divergence", reason = "a call's inputs as `KNN.__call__` renders them before embedding" }
+"dsrust::retrievers::embeddings::Embeddings::corpus" = { status = "divergence", reason = "`Embeddings.corpus`, read back" }
+"dsrust::retrievers::embeddings::Embeddings::corpus_embeddings" = { status = "divergence", reason = "`Embeddings.corpus_embeddings`, read back" }
+"dsrust::retrievers::embeddings::Embeddings::k" = { status = "divergence", reason = "`Embeddings.k`, read back" }
+"dsrust::retrievers::embeddings::Embeddings::normalize" = { status = "divergence", reason = "`Embeddings.normalize`, read back" }
+"dsrust::retrievers::embeddings::EmbeddingsWithScores::build" = { status = "divergence", reason = "`EmbeddingsWithScores(corpus, embedder, k, normalize)`; see the entry for that class" }
+"dsrust::retrievers::embeddings::EmbeddingsWithScores::from_saved" = { status = "divergence", reason = "`EmbeddingsWithScores.from_saved`, inherited upstream" }
+"dsrust::retrievers::embeddings::Retrieved" = { status = "divergence", reason = "what a search answers: passages, corpus indices and scores. Upstream hands back a `Prediction` from `forward` and a tuple from its batched search; this is the tuple, named" }
+"dsrust::retrievers::embeddings::Retrieved::indices" = { status = "divergence", reason = "`Retrieved::indices`, part of the same type's surface" }
+"dsrust::retrievers::embeddings::Retrieved::passages" = { status = "divergence", reason = "`Retrieved::passages`, part of the same type's surface" }
+"dsrust::retrievers::embeddings::Retrieved::scores" = { status = "divergence", reason = "`Retrieved::scores`, part of the same type's surface" }
+"dsrust::retrievers::npy::decode_f32" = { status = "divergence", reason = "`np.load` of a float32 `.npy` — the file `Embeddings.load` reads, whether numpy or this crate wrote it" }
+"dsrust::retrievers::npy::encode_f32" = { status = "divergence", reason = "`np.save` of a float32 matrix, byte for byte, so dspy reads what `Embeddings.save` wrote. Held to tests/conformance/knn/knn.json" }
+"tpe::PairwiseSummand" = { status = "divergence", reason = "a float numpy reduces pairwise: `f64` as `add.reduce` over a double array, `f32` over a float32 one, each accumulating in its own width" }
+"tpe::PairwiseSummand::ZERO" = { status = "divergence", rust = "PairwiseSummand::ZERO", reason = "the reduction's starting value, in the float's own width" }
+"tpe::argsort" = { status = "divergence", rust = "argsort::argsort", reason = "numpy's `argsort`, a transcription of numpy's quicksort; public so the KNN family orders scores with the permutation the TPE port already holds against numpy" }
+"tpe::pairwise_sum" = { status = "divergence", reason = "numpy's pairwise `add.reduce`, generic over the float width; public for the same reason as `argsort`" }
+"dsrust::lm::dummy_vectorizer::DummyVectorizer" = { status = "divergence", reason = "the same type, named from the module that owns it; see the entry for `utils/dummies.py::DummyVectorizer`" }
+"dsrust::lm::dummy_vectorizer::DummyVectorizer::new" = { status = "divergence", reason = "`DummyVectorizer(max_length, n_gram)`: the coefficients drawn as `random.randrange(1, P)` after `random.seed(123)`. `utils/dummies.py` is not walked for its methods, so the constructor is classified here" }
+"dsrust::lm::dummy_vectorizer::DummyVectorizer::vectorize" = { status = "divergence", reason = "`DummyVectorizer.__call__`: one centred, normalised float32 row per text, numpy's rounding included" }
