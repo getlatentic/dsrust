@@ -104,11 +104,10 @@ pub fn pairwise_sum<T: PairwiseSummand>(values: &[T]) -> T {
     }
     if n <= BLOCK {
         let mut accumulators: [T; 8] = values[..8].try_into().expect("eight values");
-        // `chunks_exact` walks the same eight-wide blocks the cursor loop did, in the same order,
-        // so every float lands in the same accumulator and the sum is bit-identical — and the
+        // `as_chunks` walks the same eight-wide blocks the cursor loop did, in the same order, so
+        // every float lands in the same accumulator and the sum is bit-identical — and the
         // iterator owns the progress, so there is no `index += 8` for a mutant to stall.
-        let blocks = values[8..].chunks_exact(8);
-        let tail = blocks.remainder();
+        let (blocks, tail) = values[8..].as_chunks::<8>();
         for block in blocks {
             for (slot, value) in accumulators.iter_mut().zip(block) {
                 *slot = *slot + *value;
