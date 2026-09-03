@@ -63,7 +63,10 @@ fn same(ours: f64, expected: f64, what: &str) {
         false => 256,
     };
     let apart = ulps_apart(ours, expected);
-    assert!(apart <= allowed, "{what}: {ours} is {apart} ulps from {expected}");
+    assert!(
+        apart <= allowed,
+        "{what}: {ours} is {apart} ulps from {expected}"
+    );
 }
 
 /// Where `tests/conformance/truncnorm.json` was recorded, and the platform libm it carries.
