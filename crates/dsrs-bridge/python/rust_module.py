@@ -468,6 +468,18 @@ class RustPythonInterpreter(dspy.primitives.python_interpreter.PythonInterpreter
     """
 
     def __init__(self, **kwargs):
+        # dspy refuses two mounts sharing a basename in its own constructor, so the crate is asked
+        # first and its refusal is the one a caller sees. The `deno_command` type check upstream
+        # makes before anything else still runs first: it is about an argument the crate is never
+        # given, and a dict there is a `TypeError` rather than an interpreter error.
+        read = [str(p) for p in (kwargs.get("enable_read_paths") or []) if p]
+        write = [str(p) for p in (kwargs.get("enable_write_paths") or []) if p]
+        if (read or write) and not isinstance(kwargs.get("deno_command"), dict):
+            crossings.record_render()
+            try:
+                dsrs_bridge.refuse_colliding_mounts(read, write)
+            except ValueError as refusal:
+                raise CodeInterpreterError(str(refusal)) from None
         super().__init__(**kwargs)
         self._rust = dsrs_bridge.RustSandbox(
             env=[str(v) for v in (self.enable_env_vars or [])],
@@ -481,6 +493,16 @@ class RustPythonInterpreter(dspy.primitives.python_interpreter.PythonInterpreter
             outputs=json.dumps(self.output_fields) if self.output_fields else None,
             sync_files=bool(self.sync_files),
         )
+
+    def _next_request_id(self):
+        """The id the crate draws for one request to the sandbox.
+
+        dspy draws `secrets.token_hex(16)` rather than counting, so a reply left over from an
+        abandoned request cannot be mistaken for the answer to this one. The crate draws its own,
+        and this is where a caller reading dspy's method sees it.
+        """
+        crossings.record_render()
+        return dsrs_bridge.next_request_id()
 
     def execute(self, code, variables=None):
         crossings.record_render()

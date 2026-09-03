@@ -182,11 +182,13 @@ pub(crate) type PyInField = (
     Option<String>,
     Option<String>,
 );
-/// One output field, which additionally carries the nested schema of a `Json` field.
+/// One output field, which additionally carries the nested schema of a `Json` field and, last,
+/// the JSON of whatever a reply omitting it falls back to.
 pub(crate) type PyOutField = (
     String,
     String,
     String,
+    Option<String>,
     Option<String>,
     Option<String>,
     Option<String>,
@@ -322,7 +324,7 @@ pub(crate) fn build_signature(
     let outputs = outputs
         .into_iter()
         .map(
-            |(name, kind, desc, schema, values, descriptions, reflection, constraints)| {
+            |(name, kind, desc, schema, values, descriptions, reflection, constraints, default)| {
                 Ok(OutField {
                     name,
                     desc,
@@ -331,6 +333,7 @@ pub(crate) fn build_signature(
                     schema: json_text(schema, "field schema")?,
                     constraints,
                     prefix: None,
+                    default: json_text(default, "field default")?,
                 })
             },
         )
@@ -501,17 +504,26 @@ fn format_messages(
         })
         .collect::<PyResult<_>>()?;
     let adapter = configured_adapter(adapter, use_native_function_calling)?;
+    // A demo's values cross as JSON for the same reason the live ones do: an adapter branches on
+    // whether a value is a mapping or a list, and text cannot answer that. Rendering them on the
+    // Python side instead would have dspy's own formatter answering for the crate's.
     let demos: Vec<Example> = demos
         .unwrap_or_default()
         .into_iter()
         .map(|fields| {
-            Example::new(
-                fields
-                    .into_iter()
-                    .map(|(name, value)| (name, serde_json::Value::String(value))),
-            )
+            fields
+                .into_iter()
+                .map(|(name, json)| {
+                    serde_json::from_str(&json)
+                        .map(|value| (name.clone(), value))
+                        .map_err(|error| {
+                            PyValueError::new_err(format!("demo field `{name}`: {error}"))
+                        })
+                })
+                .collect::<PyResult<Vec<_>>>()
+                .map(Example::new)
         })
-        .collect();
+        .collect::<PyResult<_>>()?;
     let rendered = adapter
         .format(&signature, &demos, &pairs)
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
@@ -618,6 +630,9 @@ pub(crate) struct PyTool {
     description: String,
     args: Value,
     func: Py<PyAny>,
+    /// How many stack frames the module calling this tool shows the model when it fails, which is
+    /// `ReAct`'s five and everyone else's none.
+    traceback_frames: usize,
 }
 
 impl dsrust::Tool for PyTool {
@@ -650,11 +665,9 @@ impl dsrust::Tool for PyTool {
             let kwargs = kwargs.cast::<pyo3::types::PyDict>().map_err(|error| {
                 anyhow::anyhow!("tool `{}` args are not an object: {error}", self.name)
             })?;
-            let result = self
-                .func
-                .bind(py)
-                .call((), Some(kwargs))
-                .map_err(|error| anyhow::anyhow!("tool `{}` raised: {error}", self.name))?;
+            let result = self.func.bind(py).call((), Some(kwargs)).map_err(|error| {
+                anyhow::anyhow!("{}", for_lm(py, &error, self.traceback_frames))
+            })?;
             match py.import("json")?.call_method1("dumps", (&result,)) {
                 Ok(dumped) => Ok(serde_json::from_str(&dumped.extract::<String>()?)?),
                 Err(_) => Ok(Value::String(result.str()?.extract::<String>()?)),
@@ -663,9 +676,31 @@ impl dsrust::Tool for PyTool {
     }
 }
 
+/// dspy's `format_error_for_lm`: the exception as a module hands it to the model — its text alone,
+/// or a traceback cut to the frames the caller asks for. The traceback belongs to the Python call
+/// that raised, so what crosses is what Python wrote rather than anything rebuilt here.
+fn for_lm(py: Python<'_>, error: &PyErr, frames: usize) -> String {
+    let formatted = (|| -> PyResult<String> {
+        let value = error.value(py);
+        if let Some(traceback) = error.traceback(py) {
+            value.setattr("__traceback__", traceback)?;
+        }
+        let arguments = pyo3::types::PyDict::new(py);
+        arguments.set_item("traceback_frames", frames)?;
+        py.import("dspy.utils.exceptions")?
+            .call_method("format_error_for_lm", (value,), Some(&arguments))?
+            .extract()
+    })();
+    formatted.unwrap_or_else(|_| error.to_string())
+}
+
 /// One `dspy.Tool` as a Rust [`Tool`](dsrust::Tool), reading the name, description and argument
 /// schema off the Python object.
-pub(crate) fn py_tool(py: Python<'_>, tool: &Py<PyAny>) -> PyResult<PyTool> {
+pub(crate) fn py_tool(
+    py: Python<'_>,
+    tool: &Py<PyAny>,
+    traceback_frames: usize,
+) -> PyResult<PyTool> {
     let bound = tool.bind(py);
     let name: String = bound.getattr("name")?.extract()?;
     // A tool built from a function with no docstring carries `desc = None`.
@@ -684,17 +719,82 @@ pub(crate) fn py_tool(py: Python<'_>, tool: &Py<PyAny>) -> PyResult<PyTool> {
         description,
         args,
         func: tool.clone_ref(py),
+        traceback_frames,
     })
 }
 
-/// Every tool in the list, in order.
+/// dspy's `_validate_deno_version`, over a version Python has already probed.
+///
+/// Probing is a subprocess call, and upstream's tests replace `subprocess.run` to drive it, so the
+/// probe stays Python's and only the verdict crosses. `None` is what upstream's probe answers with
+/// when it cannot read a version at all — a non-zero exit, unparsable output, or a timeout.
+#[pyfunction]
+fn validate_deno_version(version: Option<(u64, u64, u64)>) -> PyResult<()> {
+    dsrust::interpreter::deno::validate_version(version)
+        .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+/// dspy's constructor check that two mounted files do not share a basename.
+#[pyfunction]
+fn refuse_colliding_mounts(read: Vec<String>, write: Vec<String>) -> PyResult<()> {
+    let paths = |names: Vec<String>| names.into_iter().map(std::path::PathBuf::from).collect();
+    let (read, write): (Vec<_>, Vec<_>) = (paths(read), paths(write));
+    dsrust::interpreter::deno::refuse_colliding_basenames(&read, &write)
+        .map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+/// dspy's `_paths_overlap`: whether two paths are the same, or one is inside the other. Upstream
+/// asks it once per pair while refusing a writable path over its own runtime, so the pair is what
+/// crosses; which paths are in play stays with the caller that found them.
+#[pyfunction]
+fn paths_overlap(first: &str, second: &str) -> bool {
+    dsrust::interpreter::deno::paths_overlap(
+        std::path::Path::new(first),
+        std::path::Path::new(second),
+    )
+}
+
+/// dspy's `_next_request_id`: the id one JSON-RPC request to the sandbox is sent under.
+#[pyfunction]
+fn next_request_id() -> String {
+    dsrust::interpreter::deno::request_id()
+}
+
+/// dspy's `_convert_mcp_tool_result`, over the JSON of one `CallToolResult`.
+///
+/// Which Python object is a text block, and whether an optional field was set at all, are both
+/// reflection over the SDK's own types, so Python answers those and sends a result whose keys say
+/// what it found; everything after that — the lone string, the list, the error, the structured
+/// value — is the crate's. An error result raises `RuntimeError` carrying the message dspy raises,
+/// because that is the type its callers catch.
+#[pyfunction]
+fn mcp_tool_result(result: &str, mode: &str) -> PyResult<String> {
+    let value: Value = serde_json::from_str(result)
+        .map_err(|error| PyValueError::new_err(format!("mcp result: {error}")))?;
+    let mode = match mode {
+        "text" => dsrust::McpResultMode::Text,
+        "structured" => dsrust::McpResultMode::Structured,
+        other => {
+            return Err(PyValueError::new_err(format!(
+                "Unsupported MCP result mode: '{other}'"
+            )));
+        }
+    };
+    let converted = dsrust::mcp_tool_result_in(&value, mode)
+        .map_err(|error| pyo3::exceptions::PyRuntimeError::new_err(error.to_string()))?;
+    serde_json::to_string(&converted)
+        .map_err(|error| PyValueError::new_err(format!("mcp result: {error}")))
+}
+
+/// Every tool in the list, in order. Only `ReAct` shows the model a traceback, so a tool built
+/// here reports what `str(error)` says, which is `format_error_for_lm`'s own default.
 pub(crate) fn py_tools(
     py: Python<'_>,
     tools: &[Py<PyAny>],
 ) -> PyResult<Vec<Arc<dyn dsrust::Tool>>> {
     tools
         .iter()
-        .map(|tool| py_tool(py, tool).map(|built| Arc::new(built) as Arc<dyn dsrust::Tool>))
+        .map(|tool| py_tool(py, tool, 0).map(|built| Arc::new(built) as Arc<dyn dsrust::Tool>))
         .collect()
 }
 
@@ -718,7 +818,8 @@ fn react_forward(
     let signature = build_signature(instructions, inputs, outputs)?;
     let mut rust_tools: Vec<Box<dyn dsrust::Tool>> = Vec::new();
     for tool in &tools {
-        let built = py_tool(py, tool)?;
+        // `ReAct` shows the model five frames of whatever a tool raised.
+        let built = py_tool(py, tool, 5)?;
         // dspy's tool dict carries its own `finish`; `ReAct::new` adds one, so skip the duplicate.
         if built.name != "finish" {
             rust_tools.push(Box::new(built));
@@ -951,5 +1052,10 @@ fn dsrs_bridge(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(infer_prefix, module)?)?;
     module.add_function(wrap_pyfunction!(split_example, module)?)?;
     module.add_function(wrap_pyfunction!(majority_index, module)?)?;
+    module.add_function(wrap_pyfunction!(mcp_tool_result, module)?)?;
+    module.add_function(wrap_pyfunction!(validate_deno_version, module)?)?;
+    module.add_function(wrap_pyfunction!(refuse_colliding_mounts, module)?)?;
+    module.add_function(wrap_pyfunction!(paths_overlap, module)?)?;
+    module.add_function(wrap_pyfunction!(next_request_id, module)?)?;
     Ok(())
 }

@@ -8,7 +8,7 @@
 use anyhow::{Result, anyhow};
 use serde_json::{Map, Value};
 
-use crate::signature::{FieldKind, OutField, Signature};
+use crate::signature::{FieldKind, OutField, Signature, annotation};
 
 pub(crate) mod repair;
 
@@ -16,9 +16,12 @@ pub(crate) mod repair;
 /// keep the first section seen for each declared output field, ignore prose outside any
 /// section and unknown headers (`completed` among them).
 /// dspy 3.3.1's `apply_output_field_defaults`: the parsed fields in signature order, with a field
-/// the reply left out filled in when the signature lets it be — `None` for an annotation that
-/// admits it. A field with no such fallback stays missing, and the caller refuses the reply as
-/// before. Every adapter's `parse` ends here, so a `Prediction` carries its fields in the order the
+/// the reply left out filled in when the signature lets it be. A declared default answers first,
+/// then an annotation that admits `None`; a field with neither stays missing and the caller refuses
+/// the reply. The fallback is inserted as it was declared and is not cast against the field, which
+/// is what upstream does, so a default the annotation would reject still stands.
+///
+/// Every adapter's `parse` ends here, so a `Prediction` carries its fields in the order the
 /// signature declares them rather than the order the model wrote them.
 pub(crate) fn apply_output_field_defaults(
     signature: &Signature,
@@ -28,6 +31,8 @@ pub(crate) fn apply_output_field_defaults(
     for field in &signature.outputs {
         if let Some(value) = fields.get(&field.name) {
             completed.insert(field.name.clone(), value.clone());
+        } else if let Some(default) = &field.default {
+            completed.insert(field.name.clone(), default.clone());
         } else if field.allows_none() {
             completed.insert(field.name.clone(), Value::Null);
         }
@@ -110,6 +115,11 @@ pub(super) fn section_value(field: &OutField, text: &str) -> Value {
         // first, and Python's own literal syntax only where json-repair answered with the empty
         // string — which is how it reports having found nothing. `'a'` is the case that separates
         // them, since a bare quoted string at the top level is a literal and not a JSON value.
+        // A union naming both `None` and `str` is the one shape `parse_value` hands to pydantic
+        // whole, so the text stands as itself and never reaches json-repair.
+        FieldKind::Json(ref json) if annotation::union_takes_text(&json.annotation) => {
+            Value::from(text)
+        }
         FieldKind::Json(ref json) => {
             let candidate = repair::loads(text).unwrap_or_else(|_| Value::from(""));
             let candidate = match candidate == "" && !text.is_empty() {
@@ -350,6 +360,50 @@ mod tests {
     use super::*;
     use crate::signature::InField;
     use serde_json::json;
+
+    /// dspy fills a missing output field from its declared default first and only then from a
+    /// `None` the annotation admits, so a field carrying both takes the default. Measured against
+    /// `test_missing_optional_output_fields_fall_back_to_defaults`, whose `note` declares both.
+    #[test]
+    fn a_declared_default_answers_before_the_none_an_annotation_admits() {
+        let optional = |name: &str, default: Option<Value>| OutField {
+            name: name.into(),
+            kind: FieldKind::Json(crate::signature::JsonType::plain(
+                "UnionType[str, NoneType]",
+            )),
+            default,
+            ..Default::default()
+        };
+        let signature = Signature::single_input(
+            "Answer.",
+            vec![
+                optional("note", Some(json!("No note"))),
+                optional("maybe", None),
+                OutField {
+                    name: "answer".into(),
+                    ..Default::default()
+                },
+            ],
+        );
+
+        let filled = apply_output_field_defaults(
+            &signature,
+            [("answer".to_owned(), json!("42"))].into_iter().collect(),
+        );
+        assert_eq!(filled.get("note"), Some(&json!("No note")));
+        assert_eq!(filled.get("maybe"), Some(&Value::Null));
+
+        // A reply that names the field overrides both fallbacks.
+        let spoken = apply_output_field_defaults(
+            &signature,
+            [("note".to_owned(), json!("hello"))].into_iter().collect(),
+        );
+        assert_eq!(spoken.get("note"), Some(&json!("hello")));
+
+        // A field with neither fallback is left missing for the caller to refuse.
+        assert!(!filled.contains_key("answer") || filled["answer"] == json!("42"));
+        assert_eq!(spoken.get("answer"), None);
+    }
 
     fn signature() -> Signature {
         Signature::single_input(

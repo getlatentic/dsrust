@@ -122,7 +122,10 @@ pub(super) fn json_answer(
         .iter()
         .filter_map(|field| {
             let value = match example.get(&field.name) {
-                Some(value) => typed_demo_value(field, value.clone()),
+                Some(value) => typed_demo_value(
+                    field,
+                    super::python_json::serialize_for_json(&field.kind, value),
+                ),
                 None => Value::String(missing?.to_owned()),
             };
             Some((field.name.clone(), value))

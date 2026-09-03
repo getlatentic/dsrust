@@ -287,10 +287,10 @@ fn canonical(annotation: &str) -> String {
     let head = head.trim();
     let arguments = split_top_level(rest.strip_suffix(']').unwrap_or(rest), ',');
     // `Optional[T]` *is* a union, and prints as one.
-    if head == "Optional" || head == "typing.Optional" {
+    if super::annotation::head_of(head) == "Optional" {
         return canonical_union(&[arguments.first().copied().unwrap_or(""), "None"]);
     }
-    if head == "Union" || head == "typing.Union" {
+    if super::annotation::head_of(head) == "Union" {
         return canonical_union(&arguments);
     }
     // A `Literal`'s members are values, not types: they are printed back rather than resolved,

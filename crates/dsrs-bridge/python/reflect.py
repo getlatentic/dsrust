@@ -25,6 +25,7 @@ from dspy.adapters.utils import (
     _annotation_is_subclass,
     _get_json_schema,
     get_annotation_name,
+    serialize_for_json,
 )
 
 # The Rust FieldKind each Python annotation maps to. Anything absent is not yet modelled.
@@ -132,7 +133,7 @@ def closed_set_of(annotation: typing.Any) -> str | None:
     )
 
 
-def schema_of(kind: str, annotation: typing.Any) -> str | None:
+def schema_of(kind: str, annotation: typing.Any, by_alias: bool = True) -> str | None:
     """A structured field's JSON schema, as dspy builds it, or None for a scalar.
 
     Reading a schema off a Python annotation is pydantic's job, so upstream's own extractor runs
@@ -148,7 +149,14 @@ def schema_of(kind: str, annotation: typing.Any) -> str | None:
     if not kind.startswith("json:"):
         return None
     try:
-        return json.dumps(_get_json_schema(annotation), ensure_ascii=False)
+        if by_alias:
+            return json.dumps(_get_json_schema(annotation), ensure_ascii=False)
+        # `XMLAdapter` asks pydantic directly rather than through dspy's extractor: field names
+        # in place of aliases, because its tags are field names, and no key reordering, because
+        # it walks the schema and prints its properties in the order the model declares them.
+        return json.dumps(
+            pydantic.TypeAdapter(annotation).json_schema(by_alias=False), ensure_ascii=False
+        )
     except Exception as error:
         raise Unsupported(f"no JSON schema for annotation {annotation!r}: {error}") from error
 
@@ -290,18 +298,36 @@ def describe(fields: dict) -> list[tuple]:
     return described
 
 
-def described_outputs(signature) -> list[tuple]:
-    """Outputs carry the nested schema of a structured field ahead of the closed set."""
+def default_of(info) -> str | None:
+    """The JSON of what a reply omitting this field falls back to, or `None` if it is required.
+
+    pydantic calls a field required when it declares neither a default nor a factory, and dspy
+    reads the fallback with `get_default(call_default_factory=True)`, so a factory is called here
+    once per crossing where it is called there once per parse. A mutable default is a fresh object
+    either way, since nothing on this side hands the same object to two predictions.
+    """
+    if info.is_required():
+        return None
+    return json.dumps(serialize_for_json(info.get_default(call_default_factory=True)))
+
+
+def described_outputs(signature, by_alias: bool = True) -> list[tuple]:
+    """Outputs carry the nested schema of a structured field ahead of the closed set.
+
+    `by_alias` is the one thing an adapter changes about the crossing, and only `XMLAdapter`
+    changes it: its tags are pydantic field names, so its schema names them too.
+    """
     return [
         (
             name,
             kind,
             desc,
-            schema_of(kind, signature.output_fields[name].annotation),
+            schema_of(kind, signature.output_fields[name].annotation, by_alias),
             values,
             types_named,
             reflection,
             constraints,
+            default_of(signature.output_fields[name]),
         )
         for name, kind, desc, values, types_named, reflection, constraints in describe(
             signature.output_fields

@@ -208,6 +208,24 @@ mod conformance {
     use crate::react::FnTool;
     use serde_json::json;
 
+    /// dspy 3.3.1 prints a runtime's own description under `Execution environment:`, and prints
+    /// no heading at all for a runtime with nothing to say. An interpreter that describes itself
+    /// replaces the sandbox's sentence rather than adding to it, which is what
+    /// `test_execution_instructions_are_part_of_action_prompt` reads off the action signature.
+    #[test]
+    fn a_runtimes_own_description_is_the_only_one_the_action_prompt_carries() {
+        let signature = crate::signature::parse("query -> answer").expect("signature");
+        let action =
+            |instructions: &str| signatures(&signature, &[], 10, instructions).0.instructions;
+
+        let described = action("Use this runtime.");
+        assert!(described.contains("\nExecution environment:\nUse this runtime.\n"));
+        assert!(!described.contains("standard libraries"));
+
+        let silent = action("");
+        assert!(!silent.contains("Execution environment:"));
+    }
+
     /// Both signatures — every field, its description and annotation, and the instructions.
     ///
     /// The action instructions are the largest byte-surface RLM has: a template with the input

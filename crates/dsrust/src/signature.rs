@@ -25,7 +25,6 @@ pub(crate) use field_type::wire_forms;
 pub use field_type::{FieldKind, JsonType, LiteralValue, TypeDescription, python_name};
 pub use parse::default_instructions;
 pub use parse::parse;
-pub(crate) use parse::split_top_level;
 pub use prefix::infer_prefix;
 pub use reflect::json_field_reflection;
 pub use side::{FieldEdit, Side};
@@ -95,6 +94,11 @@ pub struct OutField {
     /// one and it is inferred from the name, which is what dspy does too; a saved program restores
     /// whatever was in force when it was compiled.
     pub prefix: Option<String>,
+    /// What a reply that leaves this field out falls back to: the value of the field's declared
+    /// default, or of its default factory already called. `None` is a field that declares neither,
+    /// which pydantic calls required; a default of JSON `null` is a declared `None` and a different
+    /// thing.
+    pub default: Option<Value>,
 }
 
 impl OutField {

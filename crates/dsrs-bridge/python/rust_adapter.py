@@ -28,7 +28,6 @@ from dspy.adapters.two_step_adapter import TwoStepAdapter
 from dspy.adapters.types.tool import ToolCalls
 from dspy.adapters.xml_adapter import XMLAdapter
 from dspy.adapters.utils import (
-    format_field_value,
     parse_value,
     serialize_for_json,
 )
@@ -69,10 +68,12 @@ class _RustBacked:
 
     Every adapter crosses the same bridge and differs only in the format it names, so the calls
     live here once. `WIRE` picks the crate's adapter; `ADAPTER_NAME` is what dspy's own error
-    type expects to be told.
+    type expects to be told; `SCHEMA_BY_ALIAS` is the one thing about the crossing itself that
+    an adapter changes, and only `XMLAdapter` changes it.
     """
 
     WIRE: str
+    SCHEMA_BY_ALIAS = True
     ADAPTER_NAME: str
 
     def crossing_value(self, value: typing.Any) -> str:
@@ -90,7 +91,7 @@ class _RustBacked:
             self.WIRE,
             signature.instructions,
             describe(signature.input_fields),
-            described_outputs(signature),
+            described_outputs(signature, self.SCHEMA_BY_ALIAS),
         )
 
     def format_field_description(self, signature) -> str:
@@ -99,7 +100,7 @@ class _RustBacked:
         return dsrs_bridge.field_description(
             signature.instructions,
             describe(signature.input_fields),
-            described_outputs(signature),
+            described_outputs(signature, self.SCHEMA_BY_ALIAS),
         )
 
     def _custom_history(self, signature, inputs):
@@ -125,8 +126,8 @@ class _RustBacked:
         custom_history = self._custom_history(signature, inputs)
         rendered_demos = [
             [
-                (name, format_field_value(field_info=field, value=demo[name]))
-                for name, field in {**signature.input_fields, **signature.output_fields}.items()
+                (name, self.crossing_value(demo[name]))
+                for name in {**signature.input_fields, **signature.output_fields}
                 if name in demo
             ]
             for demo in demos
@@ -143,7 +144,7 @@ class _RustBacked:
             self.WIRE,
             signature.instructions,
             describe(signature.input_fields),
-            described_outputs(signature),
+            described_outputs(signature, self.SCHEMA_BY_ALIAS),
             values,
             rendered_demos,
             # dspy's base Adapter carries this, and it decides how a tool-calling exchange
@@ -170,7 +171,7 @@ class _RustBacked:
                 self.WIRE,
                 signature.instructions,
                 describe(signature.input_fields),
-                described_outputs(signature),
+                described_outputs(signature, self.SCHEMA_BY_ALIAS),
                 completion,
             )
         except ValueError as error:
@@ -197,10 +198,14 @@ class _RustBacked:
         parsed = json.loads(rendered)
         # Rust hands back strings; dspy's callers expect the signature's declared types.
         return {
-            name: parse_value(value, signature.output_fields[name].annotation)
+            name: self.typed(value, signature.output_fields[name].annotation)
             for name, value in parsed.items()
             if name in signature.output_fields
         }
+
+    def typed(self, value, annotation):
+        """One parsed value as the type the signature declares it."""
+        return parse_value(value, annotation)
 
 
 class RustChatAdapter(_RustBacked, dspy.ChatAdapter):
@@ -266,6 +271,17 @@ class RustXMLAdapter(_RustBacked, XMLAdapter):
     """Tag-wrapped fields, rendered and parsed by the crate."""
 
     WIRE = "xml"
+    # Upstream reads this adapter's schema with `by_alias=False`: its tags are field names.
+    SCHEMA_BY_ALIAS = False
+
+    def typed(self, value, annotation):
+        # Upstream's own second attempt, and only this adapter makes it: its tags are field
+        # names, so a model whose fields declare aliases validates by name once the alias-keyed
+        # attempt inside `parse_value` has refused it.
+        try:
+            return parse_value(value, annotation)
+        except pydantic.ValidationError:
+            return pydantic.TypeAdapter(annotation).validate_python(value, by_name=True)
     ADAPTER_NAME = "XMLAdapter"
 
 
@@ -295,7 +311,7 @@ class RustBAMLAdapter(_RustBacked, BAMLAdapter):
         return dsrs_bridge.baml_field_structure(
             signature.instructions,
             describe(signature.input_fields),
-            described_outputs(signature),
+            described_outputs(signature, self.SCHEMA_BY_ALIAS),
         )
 
 class RustTwoStepAdapter(_RustBacked, TwoStepAdapter):
@@ -320,7 +336,9 @@ class RustTwoStepAdapter(_RustBacked, TwoStepAdapter):
             "text": (str, dspy.InputField()),
             **{name: (field.annotation, field) for name, field in signature.output_fields.items()},
         }
-        instructions = dsrs_bridge.extractor_instructions(described_outputs(signature))
+        instructions = dsrs_bridge.extractor_instructions(
+            described_outputs(signature, self.SCHEMA_BY_ALIAS)
+        )
         return dspy.signatures.signature.make_signature(fields, instructions)
 
     def parse(self, signature, completion):

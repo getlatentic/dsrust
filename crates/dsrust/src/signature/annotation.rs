@@ -64,7 +64,7 @@ pub(crate) fn resolvable(annotation: &str) -> bool {
             .iter()
             .any(|member| !member.trim().is_empty()),
         Some((name, inside)) => {
-            let name = name.strip_prefix("typing.").unwrap_or(name);
+            let name = head_of(name);
             let parameters = super::parse::split_top_level(inside, ',');
             let arity = matches!(
                 (name, parameters.len()),
@@ -210,9 +210,19 @@ fn scalar(annotation: &str) -> Option<Value> {
     }
 }
 
+/// The head of a printed generic, with the spellings dspy prints for one type folded together:
+/// the `typing.` qualifier dropped, and `UnionType` — what `get_annotation_name` prints for a PEP
+/// 604 `A | B`, since that is the name of its `types.UnionType` — read as the `Union` it is.
+pub(super) fn head_of(name: &str) -> &str {
+    match name.strip_prefix("typing.").unwrap_or(name) {
+        "UnionType" => "Union",
+        other => other,
+    }
+}
+
 fn container(annotation: &str) -> Option<Value> {
     let (name, inside) = split_generic(annotation)?;
-    let name = name.strip_prefix("typing.").unwrap_or(name);
+    let name = head_of(name);
     let parameters = super::parse::split_top_level(inside, ',');
     let resolved: Option<Vec<Value>> = parameters.iter().map(|part| shaped(part)).collect();
     let resolved = resolved?;
@@ -259,6 +269,50 @@ fn union_parts(annotation: &str) -> Option<Vec<&str>> {
     (parts.len() >= 2).then_some(parts)
 }
 
+/// The arms of a union however it was spelled — `T | None`, `Optional[T]`, `Union[T, None]`,
+/// `UnionType[T, NoneType]` — or nothing when the annotation is not a union. `Optional[T]` names
+/// only `T`, so the `None` arm it implies is added, which is what `typing.get_args` reports for it.
+pub(crate) fn union_of(annotation: &str) -> Option<Vec<&str>> {
+    let annotation = annotation.trim();
+    match split_generic(annotation) {
+        Some((name, inside)) if head_of(name) == "Optional" => Some(
+            super::parse::split_top_level(inside, ',')
+                .into_iter()
+                .chain(["None"])
+                .collect(),
+        ),
+        Some((name, inside)) if head_of(name) == "Union" => {
+            Some(super::parse::split_top_level(inside, ','))
+        }
+        _ => union_parts(annotation),
+    }
+}
+
+/// Whether a bare string reaches a field of this annotation as itself.
+///
+/// dspy's `parse_value` takes a union naming both `None` and `str` straight to pydantic, so the
+/// text validates as the string it already is and json-repair never sees it — `42` stays `"42"`.
+/// The two must both be named: `int | None` is repaired, and so is `str | int`. `Annotated` is not
+/// a union head, so it does not take this path even around a union that would.
+pub(crate) fn union_takes_text(annotation: &str) -> bool {
+    let Some(arms) = union_of(annotation) else {
+        return false;
+    };
+    let arms: Vec<&str> = arms
+        .iter()
+        .map(|arm| {
+            let arm = arm.trim();
+            arm.strip_prefix("typing.").unwrap_or(arm)
+        })
+        .collect();
+    arms.iter().any(|arm| is_none_arm(arm)) && arms.contains(&"str")
+}
+
+/// The spellings Python prints for the `None` type.
+fn is_none_arm(arm: &str) -> bool {
+    matches!(arm, "None" | "NoneType" | "type(None)")
+}
+
 /// `list[str]` as `("list", "str")`.
 fn split_generic(annotation: &str) -> Option<(&str, &str)> {
     let open = annotation.find('[')?;
@@ -289,12 +343,7 @@ pub(crate) fn nested_xml_shape(annotation: &str) -> Option<bool> {
 /// The one arm of a union that is not `None`, however the union was spelled — `T | None`,
 /// `Optional[T]`, `Union[T, None]` — or nothing when there is not exactly one.
 fn single_non_none_arm(annotation: &str) -> Option<&str> {
-    let arms: Vec<&str> = match split_generic(annotation) {
-        Some(("Optional" | "typing.Optional" | "Union" | "typing.Union", inside)) => {
-            super::parse::split_top_level(inside, ',')
-        }
-        _ => union_parts(annotation)?,
-    };
+    let arms: Vec<&str> = union_of(annotation)?;
     let typed: Vec<&str> = arms
         .iter()
         .map(|arm| arm.trim())
@@ -323,11 +372,13 @@ pub(crate) fn allows_none(annotation: &str) -> bool {
         return arms.iter().any(|arm| allows_none(arm));
     }
     match split_generic(annotation) {
-        Some(("Optional" | "typing.Optional", _)) => true,
-        Some(("Union" | "typing.Union", inside)) => super::parse::split_top_level(inside, ',')
-            .iter()
-            .any(|arm| allows_none(arm)),
-        Some(("Annotated" | "typing.Annotated", inside)) => {
+        Some((name, _)) if head_of(name) == "Optional" => true,
+        Some((name, inside)) if head_of(name) == "Union" => {
+            super::parse::split_top_level(inside, ',')
+                .iter()
+                .any(|arm| allows_none(arm))
+        }
+        Some((name, inside)) if head_of(name) == "Annotated" => {
             super::parse::split_top_level(inside, ',')
                 .first()
                 .is_some_and(|first| allows_none(first))
@@ -339,6 +390,52 @@ pub(crate) fn allows_none(annotation: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Measured against dspy's own `parse_value`, which takes the text `42` back as the string
+    /// `"42"` for the first group and repairs it to the number `42` for the second. `Union[str,
+    /// int, NoneType]` against `Union[str, int]` is the pair that shows both halves of the
+    /// condition are read: dropping either one flips a case.
+    #[test]
+    fn a_union_naming_both_none_and_str_takes_the_text_as_itself() {
+        let cases = [
+            ("UnionType[str, NoneType]", true),
+            ("Union[str, NoneType]", true),
+            ("Optional[str]", true),
+            ("typing.Optional[str]", true),
+            ("Union[str, int, NoneType]", true),
+            ("str | None", true),
+            ("UnionType[int, NoneType]", false),
+            ("int | None", false),
+            ("UnionType[list[str], NoneType]", false),
+            ("Union[dict[str, int], NoneType]", false),
+            ("Union[str, int]", false),
+            ("str", false),
+            // `Annotated` is not a union head to `get_origin`, so upstream repairs the text and
+            // then fails to validate it. The shortcut is not taken around a union it wraps.
+            ("Annotated[UnionType[str, NoneType], x]", false),
+        ];
+        for (annotation, expected) in cases {
+            assert_eq!(union_takes_text(annotation), expected, "{annotation}");
+        }
+    }
+
+    /// The PEP 604 spelling reaches the crate as `UnionType[...]`, which is the name of the
+    /// `types.UnionType` object `A | B` builds. Measured against `annotation_allows_none`.
+    #[test]
+    fn a_printed_union_type_admits_none_the_way_its_pipe_spelling_does() {
+        let cases = [
+            ("UnionType[str, NoneType]", true),
+            ("UnionType[list[str], NoneType]", true),
+            ("UnionType[dict[str, int], NoneType]", true),
+            ("Annotated[UnionType[str, NoneType], x]", true),
+            ("Union[str, int, NoneType]", true),
+            ("UnionType[str, int]", false),
+            ("Union[str, int]", false),
+        ];
+        for (annotation, expected) in cases {
+            assert_eq!(allows_none(annotation), expected, "{annotation}");
+        }
+    }
 
     /// Every shape upstream was measured printing, spelled as it prints it.
     #[test]

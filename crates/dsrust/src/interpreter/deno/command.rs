@@ -109,7 +109,7 @@ pub(super) fn parse_version(output: &str) -> Option<(u64, u64, u64)> {
 /// dspy 3.3.1's `_validate_deno_version`, in its words: refuse a deno that is not 2.x before it is
 /// asked to run anything. `pip install "dspy[deno]"` is upstream's remedy; the one that applies here
 /// is a Deno 2 install.
-pub(super) fn validate_version(version: Option<(u64, u64, u64)>) -> Result<()> {
+pub fn validate_version(version: Option<(u64, u64, u64)>) -> Result<()> {
     let remedy = "Install a compatible Deno 2 (`curl -fsSL https://deno.land/install.sh | sh`, or \
                   `brew install deno`).";
     match version {
@@ -128,27 +128,37 @@ pub(super) fn validate_version(version: Option<(u64, u64, u64)>) -> Result<()> {
     }
 }
 
-/// The installed deno's version, probed once per process.
+/// The installed deno's version, probed on each call.
+///
+/// dspy 3.3.1 asks the runtime every time it is about to spawn one, and says so in the name of
+/// `test_deno_version_probe_is_bounded_and_not_cached`. A remembered answer would keep refusing a
+/// deno the user has since upgraded, for as long as the process lives.
 pub(super) fn installed_version() -> Option<(u64, u64, u64)> {
-    static VERSION: std::sync::OnceLock<Option<(u64, u64, u64)>> = std::sync::OnceLock::new();
-    *VERSION.get_or_init(|| parse_version(&probe(&["--version"])?))
+    parse_version(&probe(&["--version"])?)
 }
 
-/// dspy 3.3.1's `_paths_overlap`: the same path, or one inside the other.
-fn overlap(first: &Path, second: &Path) -> bool {
+/// dspy 3.3.1's `_paths_overlap`: the same path, or one inside the other. A trailing separator
+/// does not change the answer, and neither does a shared prefix that stops mid-component —
+/// `/tmp/deno-cache` does not overlap `/tmp/deno`.
+pub fn paths_overlap(first: &Path, second: &Path) -> bool {
     first == second || first.starts_with(second) || second.starts_with(first)
 }
 
 /// dspy 3.3.1: a writable path may not reach the runner or deno's cache, which the sandbox reads
 /// its own runtime from.
 pub(super) fn refuse_overlapping_writes(runner: &Path, permissions: &Permissions) -> Result<()> {
-    let mut protected = vec![canonical(runner)];
-    protected.extend(deno_dir().map(|dir| canonical(&dir)));
-    let overlapping = permissions
-        .write
+    let mut protected = vec![runner.to_path_buf()];
+    protected.extend(deno_dir());
+    refuse_writes_over(&protected, &permissions.write)
+}
+
+/// The same rule over paths the caller names.
+pub(super) fn refuse_writes_over(protected: &[PathBuf], write: &[PathBuf]) -> Result<()> {
+    let protected: Vec<PathBuf> = protected.iter().map(|path| canonical(path)).collect();
+    let overlapping = write
         .iter()
         .map(|path| canonical(path))
-        .any(|path| protected.iter().any(|kept| overlap(&path, kept)));
+        .any(|path| protected.iter().any(|kept| paths_overlap(&path, kept)));
     match overlapping {
         true => anyhow::bail!("Write paths cannot overlap PythonInterpreter runtime files."),
         false => Ok(()),
@@ -320,6 +330,27 @@ mod tests {
         assert_eq!(
             written, RUNNER,
             "and it is the vendored copy, byte for byte"
+        );
+    }
+
+    /// dspy 3.3.1's `_deno_subprocess_env`: every deno this crate starts — the probes included —
+    /// is told to ignore a `package.json`, so a manifest beside the working directory cannot add
+    /// dependencies to the sandbox's runtime.
+    #[test]
+    fn every_deno_is_told_to_ignore_a_package_manifest() {
+        let mut command = Command::new("deno");
+        let set: Vec<_> = deno_env(&mut command)
+            .get_envs()
+            .map(|(name, value)| {
+                (
+                    name.to_string_lossy().into_owned(),
+                    value.map(|value| value.to_string_lossy().into_owned()),
+                )
+            })
+            .collect();
+        assert_eq!(
+            set,
+            vec![("DENO_NO_PACKAGE_JSON".to_owned(), Some("1".to_owned()))]
         );
     }
 

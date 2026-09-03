@@ -155,8 +155,27 @@ pub fn format_field_value(kind: &FieldKind, value: &Value) -> String {
         {
             tool_list(tools)
         }
-        _ => format_value(value),
+        _ => format_value(&serialize_for_json(kind, value)),
     }
+}
+
+/// dspy's `serialize_for_json` over one field's value.
+///
+/// A `ToolCalls` states its calls through its own serializer, which gives each one's name and
+/// arguments and never its id: the model produces calls and is never shown what a provider called
+/// them. The id crosses all the same, because a native replay pairs a result to the call it
+/// answers by that id, so it is dropped where the value is rendered rather than at the boundary.
+/// Every other value arrives as the JSON dspy would dump and passes through.
+pub(super) fn serialize_for_json(kind: &FieldKind, value: &Value) -> Value {
+    let FieldKind::Json(json) = kind else {
+        return value.clone();
+    };
+    if json.annotation != "ToolCalls" || !value.is_object() {
+        return value.clone();
+    }
+    serde_json::from_value::<super::types::ToolCalls>(value.clone())
+        .and_then(|calls| serde_json::to_value(&calls))
+        .unwrap_or_else(|_| value.clone())
 }
 
 /// The tools as dspy prints them: a JSON array of each tool's `str()`.

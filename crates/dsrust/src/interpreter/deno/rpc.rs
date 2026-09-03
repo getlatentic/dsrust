@@ -166,7 +166,7 @@ impl<W: Write, R: Read> Conversation<W, R> {
 }
 
 /// 32 hex characters drawn from the process's own randomness — the shape of `secrets.token_hex(16)`.
-fn request_id() -> String {
+pub fn request_id() -> String {
     use std::hash::{BuildHasher, Hasher};
     let mut id = String::with_capacity(32);
     for salt in 0..2u64 {

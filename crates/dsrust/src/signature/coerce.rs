@@ -182,16 +182,8 @@ fn accepts_string_form(annotation: &str) -> bool {
         return true;
     }
     // A union holds a string when any arm does. A container never does, whatever it holds.
-    union_arms(annotation).is_some_and(|arms| arms.iter().any(|arm| accepts_string_form(arm)))
-}
-
-/// The arms of `Union[...]`, and nothing for any other container.
-fn union_arms(annotation: &str) -> Option<Vec<&str>> {
-    let inside = annotation
-        .strip_prefix("Union[")
-        .or_else(|| annotation.strip_prefix("Optional["))?
-        .strip_suffix(']')?;
-    Some(crate::signature::split_top_level(inside, ','))
+    crate::signature::annotation::union_of(annotation)
+        .is_some_and(|arms| arms.iter().any(|arm| accepts_string_form(arm)))
 }
 
 /// The content of a ```json ... ``` (or bare ```) block, when the whole text is one fence.

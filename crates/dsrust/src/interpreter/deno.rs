@@ -25,7 +25,9 @@ use std::sync::{Arc, Mutex};
 use anyhow::{Result, bail};
 use serde_json::{Map, Value, json};
 
-pub use command::Permissions;
+pub use command::{Permissions, paths_overlap, validate_version};
+pub use files::refuse_colliding_basenames;
+pub use rpc::request_id;
 
 use super::{CodeInterpreter, Executed, InterpreterFailure, OutputField};
 use crate::error::Explained;

@@ -181,9 +181,12 @@ fi
 for file in "${SUITES[@]}"; do
   cp "$SRC/tests/$file" "$WORK/upstream_$(basename "$file")"
   # A flattened copy loses the directory its test reads fixtures from — `test_module.py` opens
-  # `Path(__file__).parent / "resources" / …`. Bring that directory along beside it.
-  RESOURCES="$SRC/tests/$(dirname "$file")/resources"
-  [ -d "$RESOURCES" ] && mkdir -p "$WORK/resources" && cp -R "$RESOURCES/." "$WORK/resources/"
+  # `Path(__file__).parent / "resources" / …` and `test_rlm.py` reads a recorded request out of
+  # `snapshots`. Bring those directories along beside it.
+  for fixtures in resources snapshots; do
+    FROM="$SRC/tests/$(dirname "$file")/$fixtures"
+    [ -d "$FROM" ] && mkdir -p "$WORK/$fixtures" && cp -R "$FROM/." "$WORK/$fixtures/"
+  done
 done
 # Upstream's top-level conftest pulls in a litellm test server this harness does not run. It used to
 # be emptied wholesale for that, which also threw away every fixture it defines — and dspy 3.3.0 put
@@ -195,15 +198,31 @@ done
 # upstream's autouse fixtures do not fire unless a name is imported deliberately.
 python3 - "$SRC/tests/conftest.py" <<'NEUTRALISE'
 import pathlib, re, sys
+
 path = pathlib.Path(sys.argv[1])
 text = path.read_text()
-text = re.sub(
-    r"^from tests\.test_utils\.server import .*$",
-    "litellm_test_server = read_litellm_test_server_request_logs = None  # neutralised by the harness",
-    text,
-    count=1,
-    flags=re.M,
-)
+# The import is one line at some pins and a parenthesised block at others — dspy 3.3.1 wrapped it
+# to add a third name. A pattern that only ate the first line left `_litellm_test_server,` dangling
+# at module scope, and every suite failed to collect on an IndentationError two hundred lines from
+# anything this harness wrote. So both spellings, and the names it binds are read from whichever
+# matched rather than listed here, where a fourth name would go unbound.
+BLOCK = re.compile(r"^from tests\.test_utils\.server import \((?P<names>.*?)\)$", re.M | re.S)
+LINE = re.compile(r"^from tests\.test_utils\.server import (?P<names>.*)$", re.M)
+
+match = BLOCK.search(text) or LINE.search(text)
+if match is None:
+    raise SystemExit(
+        "upstream's conftest no longer imports the litellm test server; the harness neutralises "
+        "an import that is not there, so check what it imports now"
+    )
+names = [
+    name.split("#")[0].strip().rstrip(",")
+    for name in match.group("names").replace("\n", " ").split(",")
+]
+bound = " = ".join(name for name in names if name.isidentifier())
+text = text[: match.start()] + (
+    f"{bound} = None  # neutralised by the harness"
+) + text[match.end() :]
 path.write_text(text)
 NEUTRALISE
 

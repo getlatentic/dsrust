@@ -28,24 +28,42 @@ fn host_path(path: &Path) -> String {
         .into_owned()
 }
 
+/// dspy 3.3.1's constructor check: two mounted files sharing a basename would land on one
+/// `/sandbox/<name>`, and the second would silently replace the first. The basename is taken from
+/// the path as it was written and the identity from the path resolved, so one file named twice —
+/// once readable, once writable, or once through a symlink — is one mount rather than a collision.
+///
+/// Upstream answers this when the interpreter is built, before any file is opened; the mount pass
+/// asks it again because a caller can reach that pass without ever having built one.
+pub fn refuse_colliding_basenames(read: &[PathBuf], write: &[PathBuf]) -> Result<()> {
+    let mut seen: Vec<(String, String)> = Vec::new();
+    for path in read.iter().chain(write) {
+        if path.as_os_str().is_empty() {
+            continue;
+        }
+        let (host, at) = (host_path(path), virtual_path(path));
+        if seen
+            .iter()
+            .any(|(other, other_at)| *other_at == at && *other != host)
+        {
+            bail!("Mounted files must have unique basenames inside the sandbox.");
+        }
+        seen.push((host, at));
+    }
+    Ok(())
+}
+
 /// One `(host, virtual)` pair per file to mount, in upstream's order: reads then writes.
 ///
 /// A writable path that does not exist yet is created empty, because code told it may write there
 /// should not have to check first. A *readable* path that does not exist is an error — the caller
 /// named a file they meant to supply.
 pub(super) fn to_mount(read: &[PathBuf], write: &[PathBuf]) -> Result<Vec<(String, String)>> {
+    refuse_colliding_basenames(read, write)?;
     let mut mounted: Vec<(String, String)> = Vec::new();
     for path in read.iter().chain(write) {
         if path.as_os_str().is_empty() {
             continue;
-        }
-        // dspy 3.3.1: two host files sharing a basename would land on one sandbox path, and the
-        // second would silently replace the first.
-        let collides = mounted
-            .iter()
-            .any(|(host, at)| *at == virtual_path(path) && *host != host_path(path));
-        if collides {
-            bail!("Mounted files must have unique basenames inside the sandbox.");
         }
         if !path.exists() {
             if !write.contains(path) {

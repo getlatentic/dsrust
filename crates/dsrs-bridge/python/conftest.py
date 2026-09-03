@@ -147,6 +147,89 @@ for _name, _rust in RUST_BACKED.items():
     setattr(dspy.adapters, _name, _rust)
 
 dspy.adapters.base._provider_tool_call_to_tool_call_dict = _rust_provider_tool_call
+
+
+def _mcp_result_fields(result) -> dict:
+    """One `CallToolResult` as JSON, with an absent optional field kept apart from a null one.
+
+    Which content block is a `TextContent`, and whether an optional field was ever assigned, are
+    questions about the SDK's own Python types — the two SDK versions name the same field
+    differently, and a pydantic model records which of its fields were set — so this side answers
+    them and the crate reads what the keys say.
+    """
+    from dspy.utils.mcp import _field_is_set, _get_field
+
+    def block(item):
+        dump = getattr(item, "model_dump", None)
+        return dump(mode="json") if dump is not None else dict(vars(item))
+
+    fields = {
+        "content": [block(item) for item in result.content],
+        "is_error": bool(_get_field(result, "is_error", "isError", default=False)),
+    }
+    if _field_is_set(result, "structured_content", "structuredContent"):
+        fields["structured_content"] = _get_field(
+            result, "structured_content", "structuredContent"
+        )
+    return fields
+
+
+def _rust_mcp_tool_result(call_tool_result, result_mode: str = "text"):
+    """dspy's `_convert_mcp_tool_result`, decided by the crate.
+
+    A result whose content holds no text block at all comes back as the blocks' JSON rather than
+    the SDK objects dspy would return. Upstream's suite never builds one, and the crate's own tests
+    cover the shape, so nothing here is measured through that gap — but a caller reading this
+    should know the boundary is the JSON, not the object.
+    """
+    crossings.record_render()
+    return json.loads(
+        dsrs_bridge.mcp_tool_result(
+            json.dumps(_mcp_result_fields(call_tool_result)), result_mode
+        )
+    )
+
+
+import dspy.utils.mcp  # noqa: E402
+
+dspy.utils.mcp._convert_mcp_tool_result = _rust_mcp_tool_result
+
+
+def _rust_validate_deno_version(deno_executable: str) -> None:
+    """dspy's `_validate_deno_version`, decided by the crate.
+
+    The probe stays dspy's: it is a subprocess call, and upstream's tests drive this function by
+    replacing `subprocess.run` or `_get_deno_version`, so a probe of the crate's own would answer
+    about a deno the test never set up. What crosses is the version those found, and the crate says
+    whether it will run. Its refusal names a Deno 2 install where upstream names a pip extra, since
+    that is the remedy that applies to a crate with no pip package; both refuse the same versions.
+    """
+    from dspy.primitives import python_interpreter
+    from dspy.primitives.python_interpreter import CodeInterpreterError
+
+    crossings.record_render()
+    version = python_interpreter._get_deno_version(deno_executable)
+    try:
+        dsrs_bridge.validate_deno_version(version)
+    except ValueError as refusal:
+        raise CodeInterpreterError(str(refusal)) from None
+
+
+def _rust_paths_overlap(first: str, second: str) -> bool:
+    """dspy's `_paths_overlap`, decided by the crate.
+
+    Upstream asks it once per pair while refusing a writable path over the runner or deno's cache.
+    Only the pair crosses: which runner and which cache are in play is found by dspy, whose own
+    tests replace both lookups and count how often each runs.
+    """
+    crossings.record_render()
+    return dsrs_bridge.paths_overlap(first, second)
+
+
+import dspy.primitives.python_interpreter  # noqa: E402
+
+dspy.primitives.python_interpreter._validate_deno_version = _rust_validate_deno_version
+dspy.primitives.python_interpreter._paths_overlap = _rust_paths_overlap
 # The KNN family, at every path the tests import it from: the package, the subpackage, the module.
 import dspy.clients.embedding  # noqa: E402
 import dspy.predict.knn  # noqa: E402
@@ -216,7 +299,162 @@ NOT_YET_IMPLEMENTED = {
 # They are not conformance: they exercise dspy's own Python — a type's `__str__`, a helper — and
 # would read as green whatever this crate did. Naming them keeps the passing count honest, and
 # anything not named here must cross into Rust or the run fails.
+FAILS_ON_UPSTREAM_TOO = {
+    # This one is about the SDK version, not about dspy and not about the crate.
+    #
+    # `mcp` 2.x catches whatever a tool raised and re-raises `UnexpectedToolError(f"Error executing
+    # tool {name}")` from it — deliberately, so an unhandled crash's text stays on the server — and
+    # the message this test matches on never reaches the client. dspy reports what it was handed.
+    # Unmodified dspy fails the test here for the same reason; `scripts/reproduce_mcp_tool_error.py`
+    # runs it against the submodule and prints the verdict.
+    #
+    # dspy's own CI does not see this: its `uv.lock` pins `mcp 1.29.0`, where the server forwards the
+    # cause, and the test carries `@pytest.mark.extra`, which its conftest deselects by default. This
+    # harness runs `mcp` 2.x on purpose — `test_convert_mcp_tool_with_v2_client` skips itself below
+    # SDK 2, so the newer client path is only covered at all on 2.x. One legacy-message assertion is
+    # what that costs. The strict xfail turns back into a failure if the SDK forwards the cause again
+    # or the pinned dspy updates the test.
+    "test_convert_mcp_tool": (
+        "mcp 2.x withholds a crashed tool's own message; dspy locks mcp 1.29.0 and this harness"
+        " runs 2.x for the v2-client coverage"
+    ),
+}
+
 DOES_NOT_EXERCISE_RUST = {
+    # The action signature this reads is built by `dspy.RLM.__init__`, which the shim keeps: only
+    # the loop between the two signatures is the crate's. The same composition — a runtime's own
+    # description under `Execution environment:`, and no heading for a runtime with nothing to say
+    # — is `rlm/signatures.rs`, held by
+    # `a_runtimes_own_description_is_the_only_one_the_action_prompt_carries`.
+    "test_execution_instructions_are_part_of_action_prompt": (
+        "the signature dspy's own constructor built; the crate composes the same block"
+    ),
+    # gepa 0.1.4 lets an adapter report a per-objective breakdown beside each score, and dspy
+    # forwards it. This crate's `EvaluationBatch` carries `scores: Vec<f64>` and nothing beside it:
+    # there is no multi-objective channel to forward into, so these two reach dspy's own adapter
+    # and stop there. Closing that gap means giving the Rust adapter the second channel first.
+    "test_gepa_adapter_forwards_sparse_objective_scores": (
+        "gepa's per-objective scores, which this crate's EvaluationBatch does not carry"
+    ),
+    "test_gepa_flex_evaluation_forwards_metric_objective_scores": (
+        "gepa's per-objective scores, which this crate's EvaluationBatch does not carry"
+    ),
+    # An adapter's own state in the checkpoint gepa writes, so a resumed run draws where it left
+    # off. The ledger entry on `DspyAdapter.get_adapter_state` says why this crate has neither
+    # half: `GepaEngine::optimize` runs to its budget in one call and seeds its generator once.
+    "test_adapter_state_round_trips_rng": (
+        "gepa's checkpoint state, which this crate has nothing to resume from"
+    ),
+    # `max_reflection_cost` is a gepa 0.1.4 budget dspy refuses to pass on, because the installed
+    # gepa does not honour it. This crate does not offer the knob at all, so there is no refusal of
+    # its own to compare — the constructor a caller reaches has no place to write it.
+    "test_gepa_rejects_unsupported_reflection_cost_budget": (
+        "dspy refusing a gepa kwarg this crate's builder has no field for"
+    ),
+    # dspy's own adapter evaluating a batch across threads while keeping the ambient settings. The
+    # threading is Python's, and the adapter is dspy's: the crate's GEPA drives its own evaluation.
+    "test_batch_evaluate_is_parallel_and_preserves_context": (
+        "dspy's adapter and Python's threads, neither of which the crate's GEPA goes through"
+    ),
+    # `Dataset.reset_seeds` is bookkeeping on the train/dev/test splitter, which
+    # `scripts/unported_modules.toml` records as out of scope: the bundled loaders it serves are
+    # not ported, so there is nothing here for these to reach.
+    "test_reset_seeds_accepts_zero": "dspy's Dataset, which this crate does not port",
+    "test_reset_seeds_keeps_existing_values_when_omitted": (
+        "dspy's Dataset, which this crate does not port"
+    ),
+    # dspy's own `_call_with_potential_trajectory_truncation`, called directly. The shim replaces
+    # `ReAct.forward`, so the crate's loop is what runs a real trajectory — and it refuses in the
+    # same words after the same three attempts, which `react/mod.rs` drives with a model that
+    # exceeds the window every time.
+    "test_truncation_exhausted_raises_context_window_exceeded_error": (
+        "dspy's own truncation method, called directly rather than through a forward"
+    ),
+    # dspy 3.3.1 deprecates both in favour of `RLM` and says so through Python's warnings module,
+    # which a Rust crate has no equivalent of: `ProgramOfThought` and `CodeAct` carry
+    # `#[deprecated]` with the same sentence, and the compiler is what reports it. Constructing
+    # either renders nothing, so there is no crossing here whatever the warning says.
+    "test_pot_warns_that_rlm_is_preferred": (
+        "a Python DeprecationWarning; the crate says the same in `#[deprecated]`"
+    ),
+    "test_codeact_warns_that_rlm_is_preferred": (
+        "a Python DeprecationWarning; the crate says the same in `#[deprecated]`"
+    ),
+    # The two out-of-band rules are held inside the crate's reader rather than in a function a
+    # caller can hand one message to: `Conversation::receive` skips a notification, remembers the
+    # last one to explain a later silence, and ends the session on a protocol error naming no
+    # request. `rpc.rs` drives all three over a scripted transcript in
+    # `out_of_band_messages_are_skipped_and_remembered_and_a_protocol_error_ends_the_session`.
+    # What these two reach is dspy's `_handle_out_of_band_message`, which the Rust reader replaces
+    # wholesale rather than calls.
+    "test_out_of_band_messages_are_skipped_not_consumed_as_responses": (
+        "dspy's own message handler; the crate applies the rule inside its reader"
+    ),
+    "test_id_less_protocol_errors_are_terminal": (
+        "dspy's own message handler; the crate ends the session on the same message"
+    ),
+    # A class attribute read off the class, which records nothing however it is sourced: a property
+    # would answer differently on the class than on an instance, and this asserts the two are equal.
+    # The crate carries the same sentence in `DenoInterpreter::EXECUTION_INSTRUCTIONS`, and it is
+    # measured where it is used rather than where it is declared — `RLM` prints it under
+    # `Execution environment:`.
+    "test_execution_instructions_are_class_metadata": (
+        "a class attribute compared with itself; the crate holds the sentence as a constant"
+    ),
+    # dspy 3.3.1 lets a caller replace the whole `deno` argv, and builds its own when they do not:
+    # it prefers the binary the optional `deno` package ships, asks that binary where its cache is,
+    # and assembles the flags. This crate builds and spawns its own command — the ledger entry on
+    # `PythonInterpreter.deno_command` says why a caller cannot replace it — so what these assert on
+    # is a Python attribute nothing here reads. Each rule they check that the crate also holds is
+    # held in `command.rs`: the isolation flags and the revoked cache in
+    # `the_isolation_flags_lead_and_the_env_list_is_always_passed`, the ignored manifest in
+    # `every_deno_is_told_to_ignore_a_package_manifest`.
+    "test_custom_deno_command_is_unchanged": (
+        "a caller-supplied argv, which this crate does not take: it builds its own"
+    ),
+    "test_custom_deno_command_preserves_environment": (
+        "a caller-supplied argv, which this crate does not take: it builds its own"
+    ),
+    "test_managed_deno_package_is_preferred": (
+        "the `deno` pip package's binary, which a Rust crate has no equivalent of: it runs the"
+        " `deno` on PATH"
+    ),
+    "test_missing_managed_deno_binary_falls_back_to_path": (
+        "the fallback from that pip package to PATH, where this crate starts"
+    ),
+    "test_default_command_uses_managed_deno_for_info_and_run": (
+        "how dspy assembles `self.deno_command`, an attribute this crate never reads"
+    ),
+    "test_default_command_revokes_shared_cache_after_startup": (
+        "the same attribute; the crate names deno's cache for revocation in `command::argv`"
+    ),
+    "test_deno_subprocess_env_disables_package_json": (
+        "the env dspy hands its own subprocesses; `command::deno_env` sets the same one"
+    ),
+    "test_explicit_deno_dir_skips_info_query": (
+        "dspy's cache lookup; `command::deno_dir` reads `DENO_DIR` before probing too"
+    ),
+    "test_deno_info_probe_is_bounded": (
+        "dspy's cache probe; the crate's own is bounded by `command::PROBE_TIMEOUT`"
+    ),
+    # The probe itself is a subprocess the crate spawns, so a test that replaces Python's
+    # `subprocess.run` reaches dspy's probe and nothing of the crate's. The two properties it
+    # checks do hold there and are structural rather than argued: `command::installed_version`
+    # keeps no static, so every call probes, and `probe` gives up at `PROBE_TIMEOUT`. What the
+    # crate decides from a probed version — which this test does not touch — crosses through
+    # `_rust_validate_deno_version` and is measured by the tests around this one.
+    "test_deno_version_probe_is_bounded_and_not_cached": (
+        "drives dspy's own subprocess probe; the crate spawns its own and a patched"
+        " `subprocess.run` never reaches it"
+    ),
+    # `convert_mcp_tool` refuses a `result_mode` that is neither "text" nor "structured". The
+    # crate takes an `McpResultMode`, which has those two variants and no third, so the state this
+    # test names cannot be built there and there is nothing for it to reach. The bridge's own
+    # entry point still answers a bad mode with upstream's message, for a caller crossing with a
+    # string; what this test drives is dspy's guard, several calls above that.
+    "test_convert_mcp_tool_rejects_unknown_result_mode": (
+        "an invalid result mode is unrepresentable in the crate: `McpResultMode` is an enum"
+    ),
     # `Embedder(123)`: the shim raises upstream's own `ValueError` at the first call, as upstream
     # does, before anything crosses.
     "test_invalid_model_type": "the embedder's own model-type check",
@@ -227,10 +465,6 @@ DOES_NOT_EXERCISE_RUST = {
     "test_tools_dict_is_copied": "the constructor copying the tools dict",
     "test_extract_parameters": "inspect.signature over a Python callable",
     "test_extract_parameters_complex_types": "inspect.signature over a Python callable",
-    "test_failed_health_check_ends_session": (
-        "patches dspy's own `_send_request`, which the Rust sandbox does not call; as "
-        "`test_protocol_failure_ends_session`, whose rule deno.rs holds in its own tests"
-    ),
     # `_make_jsonable` over a namedtuple and a bare object: pydantic and Python reflection, above
     # the boundary. Its third assertion is that `_serialize_value(object())` still refuses loudly —
     # which happens before any literal is written, so the crate is not reached on that path either.
@@ -430,9 +664,6 @@ DOES_NOT_EXERCISE_RUST = {
     # started building the Rust one. (This line used to say the sandbox is one "this crate
     # deliberately does not ship", which `deno.rs` contradicts in its first sentence: the sandbox
     # is upstream's own runner.js, vendored. The declaration outlived two facts at once.)
-    "upstream_test_rlm.py::TestPythonInterpreter": (
-        "only the two start() tests: they build dspy's PythonInterpreter directly, outside the pool"
-    ),
     # `TestRLMAsyncMock` was here, saying the crate's one loop "is that method" — which was true of
     # the crate and false of the harness: the shim overrode `forward` and not `aforward`, so every
     # async case ran dspy's second loop and the reason described a crossing that was not happening.
@@ -819,10 +1050,11 @@ DOES_NOT_EXERCISE_RUST = {
 #: class of constructor checks — and a class-wide exemption must not swallow it.
 CROSSES_DESPITE_ITS_CLASS = {
     "test_forward_with_serializable",
-    # `TestPythonInterpreter` in the RLM file is declared as dspy's own sandbox — which is still
-    # true of its two `start()` tests, but these eleven take the pooled interpreter, and the pool
-    # builds `RustPythonInterpreter` now. They cross, and they are the sandbox conformance the
-    # class declaration would otherwise swallow.
+    # `TestPythonInterpreter` in the RLM file had a class declaration covering its two `start()`
+    # tests, which build dspy's `PythonInterpreter` directly rather than taking the pool. It covers
+    # nothing now: dspy's own `_spawn_process` asks `_validate_deno_version`, and that is the
+    # crate's verdict, so starting a session crosses however the interpreter was built. The class
+    # declaration is gone and every case in it is named here.
     #
     # (`test_forward_validates_required_inputs` was here and is not any more: the shim runs dspy's
     # own `_validate_inputs` before anything renders, so a missing input is answered in Python and
@@ -838,6 +1070,8 @@ CROSSES_DESPITE_ITS_CLASS = {
     "test_state_persists",
     "test_syntax_error",
     "test_runtime_error",
+    "test_start_prewarms_sandbox",
+    "test_start_is_idempotent",
     # `TestSandboxSecurity` and `TestLargeSerializableRoundTrip` sit under the same class-key
     # mechanism: both classes are pool-only, so *every* test in them crosses now, and their class
     # declarations are gone rather than excepted line by line.
@@ -1724,6 +1958,7 @@ def _orphaned_declarations(items) -> list[str]:
     declared = (
         DOES_NOT_EXERCISE_RUST,
         NOT_YET_IMPLEMENTED,
+        FAILS_ON_UPSTREAM_TOO,
         NOT_ADAPTER_CONFORMANCE,
         SIGNATURE_CONFORMANCE,
     )
@@ -1733,6 +1968,7 @@ def _orphaned_declarations(items) -> list[str]:
             (
                 "DOES_NOT_EXERCISE_RUST",
                 "NOT_YET_IMPLEMENTED",
+                "FAILS_ON_UPSTREAM_TOO",
                 "NOT_ADAPTER_CONFORMANCE",
                 "SIGNATURE_CONFORMANCE",
             ),
@@ -1763,6 +1999,11 @@ def pytest_collection_modifyitems(items):
         reason = NOT_YET_IMPLEMENTED.get(item.name) or NOT_YET_IMPLEMENTED.get(base)
         if reason:
             item.add_marker(pytest.mark.xfail(strict=True, reason=f"not in Rust yet: {reason}"))
+        upstream = FAILS_ON_UPSTREAM_TOO.get(item.name) or FAILS_ON_UPSTREAM_TOO.get(base)
+        if upstream:
+            item.add_marker(
+                pytest.mark.xfail(strict=True, reason=f"upstream fails it too: {upstream}")
+            )
 
 
 def pytest_terminal_summary(terminalreporter):
