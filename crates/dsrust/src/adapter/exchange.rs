@@ -152,6 +152,57 @@ mod tests {
     use crate::signature::{FieldKind, InField, JsonType, OutField};
     use serde_json::json;
 
+    /// dspy renders a demo's outputs with `serialize_for_json`, and `ToolCalls` serializes through
+    /// its own model serializer: each call's name and arguments, never the id. The id travels with
+    /// the value because a native replay pairs a result to the call it answers by it, so a demo
+    /// that has one would otherwise show the model a field the same prompt's instruction line says
+    /// has no such key.
+    #[test]
+    fn a_demo_of_tool_calls_shows_the_model_no_call_id() {
+        let (signature, demo) = tool_calls_demo();
+        let turn = json_answer(&signature, &demo, None);
+        let rendered = turn.content.text().expect("an assistant turn");
+        assert!(rendered.contains("\"name\": \"search\""), "got: {rendered}");
+        assert!(
+            !rendered.contains("call_1"),
+            "the id reached the model: {rendered}"
+        );
+    }
+
+    /// One `ToolCalls` output and a demo whose call carries the id a provider gave it.
+    fn tool_calls_demo() -> (Signature, crate::Example) {
+        let signature = Signature::single_input(
+            "Answer.",
+            vec![OutField {
+                name: "tool_calls".into(),
+                kind: FieldKind::Json(JsonType::plain("ToolCalls")),
+                ..Default::default()
+            }],
+        );
+        let demo = crate::Example::new([
+            (signature.inputs[0].name.clone(), json!("find cats")),
+            (
+                "tool_calls".to_owned(),
+                json!({"tool_calls": [{"id": "call_1", "name": "search", "args": {"query": "cats"}}]}),
+            ),
+        ]);
+        (signature, demo)
+    }
+
+    /// The marker path renders the same field through `format_field_value`, and hides the id for
+    /// the same reason the JSON one does.
+    #[test]
+    fn a_marker_demo_of_tool_calls_shows_the_model_no_call_id() {
+        let (signature, demo) = tool_calls_demo();
+        let turn = answer(&signature, &demo, None);
+        let rendered = turn.content.text().expect("an assistant turn");
+        assert!(rendered.contains("\"name\": \"search\""), "got: {rendered}");
+        assert!(
+            !rendered.contains("call_1"),
+            "the id reached the model: {rendered}"
+        );
+    }
+
     /// `answer: str` beside `tags: list[str]`, which render differently for the same value.
     fn two_kinds() -> Signature {
         Signature {
