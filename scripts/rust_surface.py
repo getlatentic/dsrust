@@ -45,7 +45,7 @@ PUB_MOD = re.compile(r"^\s*pub\s+mod\s+(\w+)\s*;", re.M)
 #: inside it is public API all the same — this crate keeps builder methods in `building.rs` by
 #: convention, so `Predict::callbacks` lives in one. Walked under the *parent's* prefix, which is
 #: the path a caller actually names.
-PRIVATE_MOD = re.compile(r"^mod\s+(\w+)\s*;", re.M)
+PRIVATE_MOD = re.compile(r"^(?:pub\s*\([^)]*\)\s+)?mod\s+(\w+)\s*;", re.M)
 PUB_USE = re.compile(r"^\s*pub\s+use\s+([^;]+);", re.M)
 
 #: An inherent `impl Type` or a `trait Type`, at column zero — where rustfmt puts a top-level item,

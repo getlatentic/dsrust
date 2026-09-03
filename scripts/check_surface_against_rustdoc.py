@@ -43,6 +43,51 @@ from rust_surface import surface  # noqa: E402
 IGNORED_KINDS = {"variant"}
 
 
+def publicly_reachable(index: dict, root: int) -> set[int]:
+    """Every id a caller can reach from the crate root, through public modules and re-exports.
+
+    rustdoc's `paths` names each item where it was *defined*, a `pub fn` inside a `pub(crate) mod`
+    among them, and no caller can write that path. The walk lists what a caller can write, so the
+    comparison has to start where a caller starts.
+    """
+    def ids(value) -> list[int]:
+        if isinstance(value, int):
+            return [value]
+        if isinstance(value, list):
+            return [item for item in value if isinstance(item, int)]
+        return []
+
+    seen: set[int] = set()
+    stack = [root]
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        inner = (index.get(current) or {}).get("inner", {})
+        if not isinstance(inner, dict):
+            continue
+        for kind in ("module", "trait", "impl"):
+            block = inner.get(kind)
+            if isinstance(block, dict):
+                stack.extend(ids(block.get("items")))
+        for kind in ("struct", "enum", "union"):
+            block = inner.get(kind)
+            if not isinstance(block, dict):
+                continue
+            stack.extend(ids(block.get("impls")) + ids(block.get("variants")))
+            stack.extend(ids(block.get("fields")))
+            shape = block.get("kind")
+            if isinstance(shape, dict):
+                for form in shape.values():
+                    if isinstance(form, dict):
+                        stack.extend(ids(form.get("fields")))
+        use = inner.get("use")
+        if isinstance(use, dict):
+            stack.extend(ids(use.get("id")))
+    return seen
+
+
 def rustdoc_api() -> tuple[dict[str, str], set[str]]:
     """Named items and public inherent methods, as rustdoc sees them."""
     built = subprocess.run(
@@ -59,10 +104,12 @@ def rustdoc_api() -> tuple[dict[str, str], set[str]]:
     paths = {int(k): v for k, v in doc["paths"].items()}
     local = index[doc["root"]]["crate_id"]
 
+    reachable = publicly_reachable(index, doc["root"])
     named = {
         "::".join(info["path"]): info["kind"]
-        for info in paths.values()
+        for id, info in paths.items()
         if info.get("crate_id") == local
+        and id in reachable
         and info["kind"] not in ({"module", "primitive"} | IGNORED_KINDS)
     }
     methods = set()

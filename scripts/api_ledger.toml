@@ -2326,6 +2326,12 @@
 "dsrust::optimize::Attempt::score" = { status = "divergence", reason = "`Attempt::score`, part of the same type's surface; see the entry for `Attempt`" }
 "dsrust::optimize::Attempt::seed" = { status = "divergence", reason = "`Attempt::seed`, part of the same type's surface; see the entry for `Attempt`" }
 "dsrust::optimize::Attempt::state" = { status = "divergence", reason = "`Attempt::state`, part of the same type's surface; see the entry for `Attempt`" }
+"dsrust::optimize::Auto::candidates" = { status = "divergence", reason = "`Auto::candidates` reads `AUTO_RUN_SETTINGS[mode][\"n\"]`, which dspy looks up in a module-level dict; a Rust enum answers for itself instead of indexing a table that can miss" }
+"dsrust::optimize::Auto::instruction_candidates" = { status = "divergence", reason = "`Auto::instruction_candidates` is the same lookup halved when demos are searched, which dspy computes at the call site" }
+"dsrust::optimize::Auto::val_size" = { status = "divergence", reason = "`Auto::val_size` reads `AUTO_RUN_SETTINGS[mode][\"val_size\"]`, the other half of the same dict" }
+"dsrust::optimize::Averages::highest_average" = { status = "divergence", reason = "`Averages::highest_average` is `get_program_with_highest_avg_score`, whose stable sort by mean this type exists to reproduce" }
+"dsrust::optimize::Averages::mark_evaluated" = { status = "divergence", reason = "`Averages::mark_evaluated` records that a combination has had its full pass, which dspy keeps in a set beside the scores" }
+"dsrust::optimize::Averages::record" = { status = "divergence", reason = "`Averages::record` appends one minibatch score, which dspy does by `setdefault(...).append(...)` on a dict of lists" }
 "dsrust::optimize::BetterTogether::metric" = { status = "divergence", reason = "`BetterTogether::metric` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
 "dsrust::optimize::BetterTogether::scoring" = { status = "divergence", reason = "`BetterTogether::scoring` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
 "dsrust::optimize::BootstrapFewShot::max_bootstrapped_demos" = { status = "divergence", reason = "`BootstrapFewShot::max_bootstrapped_demos` — an optimizer setting dspy takes as a constructor keyword, held as a field so the builder setter and the reader are the same thing" }
