@@ -464,6 +464,9 @@ lm.call(items![User!["Describe this.", LmPart::image_url(url)]]).await?;
 
 // A named speaker, which is how two `user` turns stay apart.
 lm.call(items![User!["hello"].name("alice"), Assistant!["hi"].name("bot")]).await?;
+
+// A system turn leads, as it does in any chat request.
+lm.call(items![System!["Answer in one word."], User!["Capital of France?"]]).await?;
 ```
 
 `User`, `Assistant`, `System` and `Developer` are DSPy's own names for the four role constructors —
@@ -605,6 +608,34 @@ A `CallId` is the same value at a point's start and its end, and `call.parent()`
 happened inside — so `ChainOfThought` encloses its `Predict`, which encloses the model call. That is
 DSPy's `call_id` and `ACTIVE_CALL_ID`, without the second lookup. A handler that panics is caught and
 logged rather than allowed to end the run, as DSPy wraps each of its own in `try/except`.
+
+#### From a module of your own
+
+DSPy decorates every `Adapter` subclass on its way into existence, so a renderer written outside the
+library still fires the points. Rust has no metaclass, so the points are functions a caller goes
+through instead, and they are public for exactly that: `observe::module_shown`, `observe::lm_shown`,
+`observe::formatting`, `observe::parsing`, `observe::tool_acall`, `observe::executing` and
+`observe::compiling`. Each opens a [`Watch`](https://docs.rs/dsrust/latest/dsrust/observe/struct.Watch.html)
+— the span, the call id and the instance's own handler list in one value — and closes it however the
+work ends, so a point cannot be started and left unfinished by an early `?`.
+
+```rust
+use dsrust::lm::api::LmRequest;
+
+let request = LmRequest::new("openai/gpt-4o-mini", Vec::new());
+let watching = dsrust::observe::lm_shown(&request, &[]);
+// ... your own call to a provider ...
+drop(watching);
+```
+
+A tool crosses the same boundary as a value rather than an object: `native_tools::manifest(tool)` is
+what DSPy's `Tool` serialises to — `{name, desc, args}` — which is what a `list[Tool]` input field
+carries and what a provider's function-calling spec is built from.
+
+Two more values a caller reaches for when writing their own module: a `ChatTurn` is one turn of the
+conversation an adapter renders, and a `Trajectory` is what a `ReAct` episode did — the thoughts,
+the tool calls and the observations, in order, which is the value the agent hands back beside its
+answer.
 
 #### As spans
 

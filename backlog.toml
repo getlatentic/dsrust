@@ -1,7 +1,7 @@
 # Source of truth for what dsrs is building and in what order.
 #
 # A sprint ships a usable increment, not a layer. A story is done when its acceptance
-# criteria hold under the five gates in HANDOFF.md — including the upstream suite, which
+# criteria hold under the five gates `scripts/run_rust_gates.sh` runs — including the upstream suite, which
 # only runs in the main checkout.
 #
 # Sprints run in the order they appear, not by id. An id is a stable reference and is never
@@ -31,7 +31,7 @@ updated = "2026-07-28"
 
 # Generated from the runs themselves, so a number here cannot part company with the evidence for
 # it: scripts/record_status.py writes what the upstream suite reported, scripts/record_rust_tests.py
-# what `cargo test` did, and scripts/status.py renders HANDOFF.md's table from the merged block
+# what `cargo test` did, and scripts/status.py renders README.md's line from the merged block
 # rather than letting it hold a second copy. Editing one of these by hand makes it wrong until the
 # next run, which is the point — `rust_tests` was the one field no run wrote, and it drifted 48
 # behind while every generated number beside it stayed true.
@@ -1908,7 +1908,7 @@ It was a false positive: `.dylib` is not in `importlib.machinery.EXTENSION_SUFFI
 are byte-identical (`cmp` agrees), which should have made "one loads, one does not" impossible on
 its face. Copy to a `.so` name before testing.
 
-Note the two virtualenvs. `run_upstream_tests.sh` uses `$ROOT/.venv`; HANDOFF talks about
+Note the two virtualenvs. `run_upstream_tests.sh` uses `$ROOT/.venv`; the older note talked about
 `.dspy-venv`, which also exists. Only `.venv` has the broken bridge — `.dspy-venv` imports one
 fine, presumably built by an older toolchain. Whether two are meant to exist is its own question,
 and the answer changes what "rebuild" means.
@@ -4165,7 +4165,7 @@ adapters render what dspy renders. The trap was reading their names as module co
 detail = '''
 `b11` sat in every ChainOfThought prompt this crate produced, with 478 tests green and
 `predict/test_chain_of_thought.py` passing and crossing on every test. The reason generalises,
-and it is the same shape HANDOFF already records for `teleprompt/test_bootstrap.py`.
+and it is the same shape the plan already records for `teleprompt/test_bootstrap.py`.
 
 `bridge/python/conftest.py` monkeypatches **adapters only** — ChatAdapter, JSONAdapter,
 XMLAdapter and the rest. It never replaces a module. So `test_chain_of_thought.py` runs *dspy's
@@ -4301,7 +4301,7 @@ half of that and substituted the bare name, which then rendered.
 Invisible to every gate. A conformance fixture builds its `Signature` from JSON with `desc: null`,
 so the fixture path was always right; only the *derive* path was wrong, and nothing rendered a
 derived signature and compared it to dspy. Found by diffing a whole system message against dspy's
-for the equivalent pydantic signature — which is the check HANDOFF already tells you to run and
+for the equivalent pydantic signature — which is the check the plan already tells you to run and
 which no test performs.
 """
 

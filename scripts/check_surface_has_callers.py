@@ -88,7 +88,6 @@ def exercised_text() -> str:
         *(ROOT / "crates" / "dsrs-bridge" / "src").rglob("*.rs"),
         ROOT / "README.md",
         ROOT / "docs" / "usage.md",
-        ROOT / "HANDOFF.md",
     ]
     written = "\n".join(path.read_text() for path in places if path.exists())
     return written + "\n" + doc_examples()

@@ -99,4 +99,4 @@ jobs:
         # `run_rust_gates.sh` writes the observed test counts into `backlog.toml` and `README.md`.
         # A diff here means someone committed without running them, which is exactly the drift the
         # recorder was added to stop — 48 behind by the time anyone last counted.
-        run: git diff --exit-code -- backlog.toml README.md HANDOFF.md
+        run: git diff --exit-code -- backlog.toml README.md
