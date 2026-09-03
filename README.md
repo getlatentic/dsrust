@@ -22,19 +22,21 @@ println!("{}", out.get("answer").unwrap());
 Add it with Cargo:
 
 ```bash
-cargo add dsrust
+cargo add dsrust@0.1.0-alpha.3
 ```
 
-or in `Cargo.toml`:
+or in `Cargo.toml` (the explicit version is needed while it is a pre-release):
 
 ```toml
 [dependencies]
-dsrust = "0.1"
+dsrust = "0.1.0-alpha.3"
 ```
 
-> **Status: 0.1.0**, pinned to `dspy==3.3.1`. The core (byte-level rendering and parsing, the
-> optimizers, the RNG) is solid and tested against DSPy's own suite. The API is real and growing
-> toward full parity ([Roadmap](#roadmap)).
+> **Status: alpha.** The published `0.1.0-alpha.3` is pinned to `dspy==3.3.0`. This branch moves the
+> pin to `dspy==3.3.1` and is not released yet, so the figures below are measured against 3.3.1 and
+> the crate you install is the 3.3.0 one. The core — byte-level rendering and parsing, the
+> optimizers, the RNG — is tested against DSPy's own suite either way, and the API is growing toward
+> full parity ([Roadmap](#roadmap)).
 
 ---
 
@@ -148,6 +150,10 @@ uv sync && bash scripts/run_upstream_tests.sh   # DSPy's own tests, over DsRust
 ```
 
 Details, and the DSPy-vs-DsRust mapping in full: [`docs/usage.md`](docs/usage.md).
+
+A program whose shape comes from a document a user drew, rather than from a Rust struct, is
+[`dsrust-graph`](https://crates.io/crates/dsrust-graph) — a small crate in this workspace that turns
+nodes and edges into a `Module`.
 
 ---
 
