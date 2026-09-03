@@ -321,6 +321,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "dsrust-graph"
+version = "0.1.0-alpha.3"
+dependencies = [
+ "dsrust",
+ "serde",
+ "tokio",
+]
+
+[[package]]
 name = "dsrust-json-repair"
 version = "0.1.0-alpha.3"
 dependencies = [

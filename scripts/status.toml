@@ -7,7 +7,7 @@
 # see it is a figure nothing can verify.
 
 [status]
-rust_tests = 1676
+rust_tests = 1709
 upstream_tests_passing = 1215
 upstream_tests_crossing = 730
 upstream_tests_deciding_signatures = 687

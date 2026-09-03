@@ -1,0 +1,207 @@
+{
+  "version": "2",
+  "target": "dspy",
+  "settings": {
+    "projectName": "chain",
+    "defaultEntryNodeId": "start",
+    "providerProfile": {
+      "provider": "openai",
+      "model": "gpt-4o-mini",
+      "apiKeyEnvVar": "OPENAI_API_KEY"
+    }
+  },
+  "nodes": [
+    {
+      "id": "start",
+      "kind": "Start",
+      "label": "Start",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "config": {},
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "output",
+          "dataType": "control"
+        }
+      ]
+    },
+    {
+      "id": "input-q",
+      "kind": "InputField",
+      "label": "question",
+      "position": {
+        "x": 0,
+        "y": 100
+      },
+      "config": {
+        "name": "question",
+        "type": "str",
+        "defaultValue": "?"
+      },
+      "ports": [
+        {
+          "id": "value",
+          "label": "value",
+          "direction": "output",
+          "dataType": "field_value"
+        }
+      ]
+    },
+    {
+      "id": "predict",
+      "kind": "Predict",
+      "label": "Predict",
+      "position": {
+        "x": 200,
+        "y": 50
+      },
+      "config": {},
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "input",
+          "dataType": "control"
+        },
+        {
+          "id": "field_in",
+          "label": "field_in",
+          "direction": "input",
+          "dataType": "field_value"
+        },
+        {
+          "id": "field_out",
+          "label": "field_out",
+          "direction": "output",
+          "dataType": "field_value"
+        },
+        {
+          "id": "prediction",
+          "label": "prediction",
+          "direction": "output",
+          "dataType": "prediction"
+        }
+      ]
+    },
+    {
+      "id": "cot",
+      "kind": "ChainOfThought",
+      "label": "CoT",
+      "position": {
+        "x": 400,
+        "y": 50
+      },
+      "config": {},
+      "ports": [
+        {
+          "id": "control",
+          "label": "control",
+          "direction": "input",
+          "dataType": "control"
+        },
+        {
+          "id": "field_in",
+          "label": "field_in",
+          "direction": "input",
+          "dataType": "field_value"
+        },
+        {
+          "id": "field_out",
+          "label": "field_out",
+          "direction": "output",
+          "dataType": "field_value"
+        },
+        {
+          "id": "prediction",
+          "label": "prediction",
+          "direction": "output",
+          "dataType": "prediction"
+        }
+      ]
+    },
+    {
+      "id": "output-summary",
+      "kind": "OutputField",
+      "label": "summary",
+      "position": {
+        "x": 600,
+        "y": 100
+      },
+      "config": {
+        "name": "summary",
+        "type": "str"
+      },
+      "ports": [
+        {
+          "id": "value",
+          "label": "value",
+          "direction": "input",
+          "dataType": "field_value"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "edgeKind": "control",
+      "from": {
+        "nodeId": "start",
+        "portId": "control"
+      },
+      "to": {
+        "nodeId": "predict",
+        "portId": "control"
+      }
+    },
+    {
+      "id": "e2",
+      "edgeKind": "data",
+      "from": {
+        "nodeId": "input-q",
+        "portId": "value"
+      },
+      "to": {
+        "nodeId": "predict",
+        "portId": "field_in",
+        "fieldName": "question"
+      }
+    },
+    {
+      "id": "e3",
+      "edgeKind": "data",
+      "from": {
+        "nodeId": "predict",
+        "portId": "field_out",
+        "fieldName": "answer"
+      },
+      "to": {
+        "nodeId": "cot",
+        "portId": "field_in",
+        "fieldName": "context"
+      }
+    },
+    {
+      "id": "e4",
+      "edgeKind": "data",
+      "from": {
+        "nodeId": "cot",
+        "portId": "field_out",
+        "fieldName": "summary"
+      },
+      "to": {
+        "nodeId": "output-summary",
+        "portId": "value"
+      }
+    }
+  ],
+  "signatures": [],
+  "scorers": [],
+  "optimizers": [],
+  "exampleSets": [],
+  "tests": []
+}

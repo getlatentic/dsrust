@@ -1,0 +1,25 @@
+{
+  "id": "test", "version": "2", "target": "dspy",
+  "settings": {
+    "projectName": "answer_program",
+    "defaultEntryNodeId": "start-main",
+    "providerProfile": { "provider": "openai", "model": "gpt-4.1-mini", "apiKeyEnvVar": "OPENAI_API_KEY" }
+  },
+  "nodes": [
+    {"id":"start-main","kind":"Start","label":"Start","position":{"x":48,"y":200},"config":{},"ports":[{"id":"start","label":"start","direction":"output","dataType":"control"}]},
+    {"id":"input-question","kind":"InputField","label":"question","position":{"x":48,"y":360},"config":{"name":"question","type":"str","defaultValue":"What makes DSPy useful?"},"ports":[{"id":"value","label":"out","direction":"output","dataType":"field_value"}]},
+    {"id":"predict-answer","kind":"Predict","label":"Answer","position":{"x":300,"y":200},"config":{"moduleName":"answer"},"ports":[
+      {"id":"control","label":"start","direction":"input","dataType":"control"},
+      {"id":"field_in","label":"in","direction":"input","dataType":"field_value"},
+      {"id":"field_out","label":"out","direction":"output","dataType":"field_value"},
+      {"id":"prediction","label":"prediction","direction":"output","dataType":"prediction"}
+    ]},
+    {"id":"output-answer","kind":"OutputField","label":"answer","position":{"x":580,"y":360},"config":{"name":"answer","type":"str"},"ports":[{"id":"value","label":"in","direction":"input","dataType":"field_value"}]}
+  ],
+  "edges": [
+    {"id":"e1","from":{"nodeId":"start-main","portId":"start"},"to":{"nodeId":"predict-answer","portId":"control"},"edgeKind":"control"},
+    {"id":"e2","from":{"nodeId":"input-question","portId":"value"},"to":{"nodeId":"predict-answer","portId":"field_in"},"edgeKind":"data"},
+    {"id":"e3","from":{"nodeId":"predict-answer","portId":"field_out"},"to":{"nodeId":"output-answer","portId":"value"},"edgeKind":"data"}
+  ],
+  "signatures": [], "scorers": [], "optimizers": [], "exampleSets": [], "tests": [], "metrics": []
+}
